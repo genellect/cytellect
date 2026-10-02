@@ -10,6 +10,8 @@ Each case runs in a fresh Python child. The controller samples that child's RSS 
 
 Each case has a 300-second wall-clock limit, including process startup, loading/generation, Java compilation, detection and Python compartment measurement. A host-available-memory guard stops the benchmark below 1 GiB to preserve interactive use; any such stop is recorded as a failed capacity observation. There is no container/cgroup memory limit in this local run. Runtime/measurement phases are separate; no private upload/API workload is benchmarked.
 
+The expensive capacity observations below predate the standard-2g automatic-detection admission guard. The current adapter rejects images above2048px on either side or2,700,000pixels before launching Fiji; rerunning the4096case now records that admission failure, without reproducing the historical allocation failure. No benchmark bypass is provided.
+
 The pinned Java adapter currently requests -Xmx2g. Tile count grows through 1,4,16,... until nominal tile area is at most512². Tiling does not itself prove that full-frame prediction/output arrays fit in that heap. Default StarDist parameters and original-resolution measurement are retained.
 
 ## Measured observations

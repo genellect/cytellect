@@ -4,6 +4,8 @@ Reproducible immunofluorescence analysis, from nuclear and nucleolar segmentatio
 
 [日本語](README.ja.md) · [Requirements](docs/requirements.md) · [Methods](docs/methods.md) · [Validation](docs/validation.md)
 
+[Public sample viewer](https://cytellect.vercel.app/demo) · [Local browser delivery](docs/local.md) · [Hosting costs and trade-offs](docs/hosting-costs.ja.md)
+
 **Early research prototype.** The Web/API/worker workflow is implemented and under integration testing. Suitability for the user's experiment and researcher PoC remain unvalidated. The public sample viewer uses published microscopy; a UI deployment does not imply an available analysis server.
 
 Cytellect brings DAPI nuclear segmentation, NCL nucleolar candidates, manual mask correction, GFP selection, compartment measurements, statistics and editable figures into one Japanese workspace. The initial engine is Fiji + StarDist/ImageJ/MorphoLibJ. Raw measurement pixels, display settings and detection preprocessing are separate.

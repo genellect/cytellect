@@ -132,3 +132,34 @@ The updated full private workflow also passed (4.1 minutes): six-field actual Fi
 manual ROI/revision navigation, review, paired statistics, Nature 89 mm figure
 source/caption retrieval and reproducibility ZIP. This remains synthetic numerical
 integration evidence, separate from the BBBC013 real-image field trial.
+
+
+## Packaged local browser workspace
+
+`pnpm --filter @cytellect/web build:local` builds a static browser bundle in
+`apps/web/out`. It sets `CYTELLECT_WEB_MODE=local`; the default build continues to
+produce the Vercel-compatible application. The local bundle uses relative `/v1`
+URLs and ignores `NEXT_PUBLIC_API_ORIGIN`. It refuses API requests when opened on
+a non-loopback hostname. No public page probes localhost or creates a local session.
+
+The local API wrapper serves the static files and `/v1` on the same origin,
+normally `http://127.0.0.1:8765`. The browser reads `/v1/local/setup`, displays
+workspace/Fiji configuration status and, only after clicking `解析を開始`, posts
+`/v1/local/session` with the CSRF header. The server issues an HttpOnly cookie;
+no invitation token, URL credential, localStorage or sessionStorage is used.
+Fiji configured status is not a claim of validated image-analysis accuracy.
+
+Onboarding and the upload form state that images are saved locally. The retention
+period is 24 hours after explicit activity. Data that expires while the application
+is closed is deleted on the next launch; browser copy does not imply a background
+service continues while the application or computer is stopped.
+
+The real local wrapper and worker were tested with the exported bundle: session
+bootstrap, forbidden external-origin bootstrap, DRAQ/FKHR-EGFP TIFF registration,
+actual Fiji processing, review, ZIP download and retained work after reload passed.
+No external-origin request or page exception occurred; desktop/mobile onboarding
+had no horizontal overflow. Run this integration with `CYTELLECT_TEST_LOCAL=1`,
+`CYTELLECT_WEB_URL=http://127.0.0.1:8765` and Playwright
+`tests/local-workspace.spec.ts`. It uses the registered BBBC013 public data.
+Installer distribution is separate from this browser bundle; the public UI does
+not advertise a download until a concrete release artifact is available.

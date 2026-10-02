@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "contracts": "node scripts/contracts.mjs"
+    "contracts": "node scripts/contracts.mjs",
+    "build:local": "node scripts/build-local.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.104.0",

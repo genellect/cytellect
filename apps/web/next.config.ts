@@ -1,19 +1,24 @@
 import type { NextConfig } from "next";
 const development = process.env.NODE_ENV === "development";
-const api = process.env.NEXT_PUBLIC_API_ORIGIN || (development ? "http://localhost:8000" : "");
+const local = process.env.CYTELLECT_WEB_MODE === "local";
+const api = local ? "" : process.env.NEXT_PUBLIC_API_ORIGIN || (development ? "http://localhost:8000" : "");
 const config: NextConfig = {
-  output: "standalone",
+  output: local ? "export" : "standalone",
+  trailingSlash: local,
+  env: { NEXT_PUBLIC_CYTELLECT_WEB_MODE: local ? "local" : "web" },
   agentRules: false,
   poweredByHeader: false,
-  async headers() {
-    return [{ source: "/:path*", headers: [
-      { key: "Cache-Control", value: "no-store, max-age=0" },
-      { key: "Referrer-Policy", value: "no-referrer" },
-      { key: "X-Content-Type-Options", value: "nosniff" },
-      { key: "X-Frame-Options", value: "DENY" },
-      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-      { key: "Content-Security-Policy", value: `default-src 'self'; script-src 'self' 'unsafe-inline'${development ? " 'unsafe-eval'" : ""}; style-src 'self' 'unsafe-inline'; connect-src 'self' ${api}${development ? " ws://localhost:* ws://127.0.0.1:*" : ""}; img-src 'self' blob: data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'` },
-    ] }];
-  },
+  ...(!local ? {
+    async headers() {
+      return [{ source: "/:path*", headers: [
+        { key: "Cache-Control", value: "no-store, max-age=0" },
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        { key: "Content-Security-Policy", value: `default-src 'self'; script-src 'self' 'unsafe-inline'${development ? " 'unsafe-eval'" : ""}; style-src 'self' 'unsafe-inline'; connect-src 'self' ${api}${development ? " ws://localhost:* ws://127.0.0.1:*" : ""}; img-src 'self' blob: data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'` },
+      ] }];
+    },
+  } : {}),
 };
 export default config;

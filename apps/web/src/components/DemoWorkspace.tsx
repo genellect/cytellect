@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { LOCAL_MODE } from "@/lib/api";
 import { formatValue } from "@/lib/types";
 import styles from "./workspace.module.css";
+const NavigationLink=LOCAL_MODE?"a":Link;
 type SampleInfo={id:string;title:string;subtitle:string;preview:string;data:string;source:string;license:string};
 type Column={key:string;label:string;unit?:string};
 type Sample={attribution?:string;dataset:string;source:string;license:string;channel:string;width:number;height:number;quantification:string;image_id:string;labels:{id:number;points:number[][]}[];nucleolar_labels?:{id:number;points:number[][]}[];measurements:Record<string,number>[];columns?:Column[];channel_previews?:{label:string;path:string}[];engine?:{engine:string;model:string};mapping_note?:string;notes?:string[]};
@@ -16,8 +18,8 @@ export default function DemoWorkspace(){
  const previews=sample?.channel_previews|| (info?[{label:sample?.channel||"DNA",path:info.preview}]:[]);
  function save(){if(!sample)return;const keys=["nucleus_id",...columns.map(c=>c.key)];const csv=[keys.join(","),...sample.measurements.map(c=>keys.map(k=>String(c[k]??"")).join(","))].join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));const a=document.createElement("a");a.href=url;a.download="cytellect-"+sample.dataset+"-measurements.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
  return <main className={styles.demoPage}>
-  <header className={styles.header}><Link href="/" className={styles.brand} style={{textDecoration:"none"}}><span className={styles.brandMark}><i/><i/><i/></span>cytellect</Link><div className={styles.headerMeta}><span className={styles.statusPill}>PUBLIC DATA WORKSPACE</span><Link href="/" className={styles.secondary}>招待で接続</Link></div></header>
-  <section className={styles.demoIntro}><div><span className={styles.eyebrow}>EXPLORE CYTELLECT</span><h1>公開画像の解析</h1><p>核を選択すると、領域の測定値を表示します。</p></div><span className={styles.demoNote}>公開実画像の解析済みサンプルです。自身の画像には非公開の解析サーバーが必要です。</span></section>
+  <header className={styles.header}><NavigationLink href="/" className={styles.brand} style={{textDecoration:"none"}}><span className={styles.brandMark}><i/><i/><i/></span>cytellect</NavigationLink><div className={styles.headerMeta}><span className={styles.statusPill}>PUBLIC DATA WORKSPACE</span><NavigationLink href="/" className={styles.secondary}>{LOCAL_MODE?"ワークスペース":"招待で接続"}</NavigationLink></div></header>
+  <section className={styles.demoIntro}><div><span className={styles.eyebrow}>EXPLORE CYTELLECT</span><h1>公開画像の解析</h1><p>核を選択すると、領域の測定値を表示します。</p></div><span className={styles.demoNote}>公開実画像の解析済みサンプルです。{LOCAL_MODE?"自身の画像はワークスペースから登録できます。":"自身の画像には非公開の解析サーバーが必要です。"}</span></section>
   <div className={styles.demoContent}><label className={styles.mobileSamplePicker}>画像<select aria-label="画像" value={sampleId} onChange={e=>setSampleId(e.target.value)}>{samples.map(s=><option key={s.id} value={s.id}>{s.title} · {s.subtitle}</option>)}</select></label><nav className={styles.tabs}><button className={view==="image"?styles.activeTab:""} onClick={()=>setView("image")}>01 <b>画像と領域</b></button><button className={view==="measurements"?styles.activeTab:""} onClick={()=>setView("measurements")}>02 <b>測定値</b></button><span className={styles.tabStatus}>{sample?`${sample.width} × ${sample.height} px · ${sample.channel}`:""}</span></nav>
    {loadError?<div role="alert" className={styles.error}>公開サンプルを読み込めませんでした。</div>:<div className={styles.demoGrid}>
     <aside className={styles.demoSidebar}><span className={styles.sectionNumber}>PUBLIC IMAGES</span>{samples.map((s,i)=><button className={sampleId===s.id?styles.activeField:styles.field} key={s.id} onClick={()=>setSampleId(s.id)}><div><span className={styles.fieldNumber}>{String(i+1).padStart(2,"0")}</span><b>{s.title}</b></div><small>{s.subtitle}</small><div className={styles.fieldBadges}><span>公開実画像</span></div></button>)}<div className={styles.demoSummary}><span>WORKFLOW</span><p>✓ 公開画像を登録</p><p>✓ Fijiで核を検出</p><p>✓ 原画像から測定</p><p>○ サーバーで再解析</p></div></aside>
