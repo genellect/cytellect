@@ -24,6 +24,10 @@ GFP gate uses confirmed negative control or exploratory manual/batch Otsu; refer
 
 GFP selection output protocol 1.1.1 also marks any manually supplied upper intensity bound as exploratory, including maximum-only filtering or an upper bound combined with a confirmed negative-control lower threshold. This metadata correction does not change inclusion arithmetic or clip negative background-corrected values.
 
+Native signal QC protocol 1.0.0 adds a warning-only diagnostic for nuclear, nucleolar-union and nucleoplasmic NCL and nuclear GFP: corrected compartment mean divided by `1.4826 * median(abs(background_pixels - median(background_pixels)))`. The denominator is spatial background dispersion, not an estimated standard error or photon-noise model. The signed ratio is retained. A zero/invalid denominator, unavailable channel, empty compartment or failed candidate calculation produces a missing diagnostic and a fixed reason; no epsilon or infinite value is substituted. The original nonpositive compartment-ratio warning remains independent.
+
+`Recipe.native_signal_qc_minimum_ratio` is an optional nonnegative finite threshold, initially unset. With a threshold, ratios strictly below it are labelled weak; equality is not below. Without it, finite ratios remain visible and the warning flag is missing (`threshold_not_set`). There is no validated universal cutoff. Warnings never change masks, intensities, GFP selection, exclusions or statistical inclusion; the researcher explicitly reviews any exclusion. The threshold is saved in the immutable recipe, can be updated through existing-mask remeasurement and is exported with each diagnostic/reason. This native-only metadata protocol does not change measurement protocol1.1.1, GFP selection protocol1.1.1 or the separately versioned legacy DAPI-SNR QC.
+
 Aggregation: field median → sample mean → independent-unit mean. Predeclared Welch/paired tests use Holm families. Exploratory group/GFP/date regression uses field-clustered SE; verify rank/confounding/controls and few clusters. Cell counts are not independent replicate counts.
 
 References:

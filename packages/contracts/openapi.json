@@ -2245,6 +2245,18 @@
             ],
             "title": "Gfp Maximum"
           },
+          "native_signal_qc_minimum_ratio": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Signal Qc Minimum Ratio"
+          },
           "seed": {
             "type": "integer",
             "minimum": 0.0,

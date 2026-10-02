@@ -18,7 +18,9 @@ def main():
     invite = sub.add_parser("invite")
     invite.add_argument("--hours", type=int, default=24)
     sub.add_parser("cleanup")
-    sub.add_parser("openapi").add_argument("--output", type=Path, required=True)
+    schema = sub.add_parser("openapi")
+    schema.add_argument("--output", type=Path, required=True)
+    schema.add_argument("--recipe-defaults", type=Path)
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--host", default="127.0.0.1")
@@ -42,6 +44,11 @@ def main():
 
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(create_app(settings).openapi(), indent=2), encoding="utf-8")
+        if args.recipe_defaults:
+            from cytellect_analysis.contracts import Recipe
+
+            args.recipe_defaults.parent.mkdir(parents=True, exist_ok=True)
+            args.recipe_defaults.write_text(Recipe().model_dump_json(indent=2) + "\n", encoding="utf-8")
     else:
         import uvicorn
 

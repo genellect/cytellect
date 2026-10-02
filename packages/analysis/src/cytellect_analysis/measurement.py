@@ -7,6 +7,7 @@ from skimage.filters import threshold_otsu
 
 from .contracts import Recipe, required_channel_roles
 from .masks import validate_label_array, validate_labels
+from .signal_qc import native_signal_quality
 
 
 def robust_sigma(values):
@@ -128,6 +129,7 @@ def measure(channels, nuclei, nucleoli, background_mask, recipe: Recipe, metadat
             row["nucleolar_count"] = None
             row["ncl_log2_nucleoplasm_over_nucleoli"] = None
             row["ratio_missing_reason"] = "nucleolar_processing_failed"
+        row.update(native_signal_quality(row, recipe.native_signal_qc_minimum_ratio))
         cells.append(row)
         for label in np.unique(nucleoli[enriched]):
             mask = nucleoli == label
