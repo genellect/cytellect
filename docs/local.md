@@ -30,6 +30,8 @@ Originals and derived files remain in the chosen private runtime directory, outs
 
 Closing the launcher stops computation and revokes its local-owner sessions. A subsequent launch can reopen that owner's unexpired work. Cleanup, stop/restart, quota and partial-job behavior must be verified on the installed copy, not only the development environment.
 
+Windows virtual environments may run a redirector executable and a separate Python interpreter. The interpreter watches that redirector's PID and creation time; losing it stops the local server. The worker reports its actual process identity over a private pipe, so stopping or retrying a worker also terminates its interpreter, not just its redirector. Ordinary setup shells are not lifetime owners and may exit after opening Cytellect. Tests cover abrupt redirector termination and bounded worker recovery with a real Windows stdlib virtual environment.
+
 ## Build and installation evidence
 
 Developers build a local-only Web export with `pnpm --filter @cytellect/web build:local`. For a reviewed clean commit, run:
@@ -41,6 +43,8 @@ python scripts/build_local_bundle.py --version 0.1.0-local.1 --output /absolute/
 The builder rebuilds the Web export and packages only tracked allowlisted source files plus the static output. Every entry receives a SHA-256 in `local-release.json`; the archive receives a separate checksum. No `.env`, database, virtualenv, research image, runtime output or developer cache belongs in this package. The installation bootstrap verifies this manifest before copying files.
 
 Installation tests use an isolated directory under the task's scratch workspace. They must not overwrite a user's existing software, data or shortcuts. Acceptance includes an actual pinned-Fiji run, a browser upload/edit/export flow, hostile-origin denial, shutdown, restart and expiry. The release report records commit, archive checksum, platform, passed checks and known limitations. Publishing a ZIP is not evidence that installation succeeded.
+
+The **Prepare Windows release** workflow is dispatched against `main` with a unique `0.1.0-local.N` version. It requires successful Python, Web, Fiji/browser and Windows lifecycle checks on that exact commit, builds an immutable bundle, performs a fresh Windows installation and runs the published GFP browser workflow against the installed copy. Only ZIP/checksum files become workflow artifacts. Passing these checks creates a **draft** GitHub prerelease; it does not automatically publish a download or certify private-image validity. Review the installed-browser evidence and scientific limitations before publication. Existing versions must never be overwritten.
 
 ## Later hosted execution
 

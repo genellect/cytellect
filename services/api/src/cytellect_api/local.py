@@ -25,6 +25,7 @@ from starlette.staticfiles import StaticFiles
 
 from .config import Settings, configure_private_tmp
 from .db import digest, sessions
+from .process_owner import Identity, process_alive, redirector_owner
 
 
 def installed_source_revision(root: Path | None = None) -> str | None:
@@ -200,6 +201,7 @@ class WorkerSupervisor:
         self.process: subprocess.Popen | None = None
         self.thread: threading.Thread | None = None
         self.failure: str | None = None
+        self.worker_identity: Identity | None = None
 
     def _spawn(self):
         env = os.environ.copy()
@@ -211,12 +213,58 @@ class WorkerSupervisor:
                    CYTELLECT_JOB_TIMEOUT_SECONDS=str(self.settings.job_timeout_seconds),
                    CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds))
         parent = psutil.Process()
-        self.process = subprocess.Popen(
+        process = subprocess.Popen(
             [sys.executable, "-m", "cytellect_api.local_worker", str(parent.pid), str(parent.create_time())],
-            env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
             start_new_session=os.name != "nt",
         )
+        ready = threading.Event()
+        identity_line: list[bytes] = []
+
+        def read_identity():
+            assert process.stdout is not None
+            identity_line.append(process.stdout.readline(100))
+            ready.set()
+
+        threading.Thread(target=read_identity, daemon=True).start()
+        try:
+            deadline = time.monotonic() + 15
+            while not ready.wait(0.1):
+                if self.stopping.is_set() or time.monotonic() >= deadline:
+                    raise RuntimeError("local_worker_start_failed")
+            if self.stopping.is_set() or not identity_line:
+                raise RuntimeError("local_worker_start_failed")
+            pid, created = identity_line[0].decode("ascii").split()
+            identity = (int(pid), float(created))
+            worker = psutil.Process(identity[0])
+            # Pipe contents are accepted only from this exact spawned tree.
+            if (not process_alive(identity) or (identity[0] != process.pid
+                    and process.pid not in [ancestor.pid for ancestor in worker.parents()])):
+                raise RuntimeError("local_worker_start_failed")
+            self.worker_identity = identity
+            self.process = process
+        except Exception:
+            from cytellect_worker.supervision import terminate_tree
+
+            terminate_tree(process.pid)
+            process.wait(timeout=10)
+            raise RuntimeError("local_worker_start_failed") from None
+        finally:
+            if ready.is_set() and process.stdout:
+                process.stdout.close()
+
+    def _stop_process(self):
+        from cytellect_worker.supervision import terminate_tree
+
+        # Stop the real interpreter first: a dead Windows shim no longer has a
+        # traversable child tree. PID creation time prevents killing a reused PID.
+        if self.worker_identity is not None and process_alive(self.worker_identity):
+            terminate_tree(self.worker_identity[0])
+        self.worker_identity = None
+        if self.process is not None:
+            terminate_tree(self.process.pid)
+            self.process.wait(timeout=10)
 
     def start(self):
         self._spawn()
@@ -225,6 +273,7 @@ class WorkerSupervisor:
             restarts = 0
             while not self.stopping.wait(0.25):
                 if self.process is not None and self.process.poll() is not None:
+                    self._stop_process()
                     if restarts >= 2:
                         self.failure = "local_worker_stopped"
                         self.stop_server()
@@ -233,6 +282,8 @@ class WorkerSupervisor:
                     try:
                         self._spawn()
                     except Exception:
+                        if self.stopping.is_set():
+                            return
                         self.failure = "local_worker_start_failed"
                         self.stop_server()
                         return
@@ -243,12 +294,12 @@ class WorkerSupervisor:
     def stop(self):
         self.stopping.set()
         if self.thread:
-            self.thread.join(timeout=3)
+            # A restart may be midway through its identity handshake. It sees
+            # stopping within100ms, kills that pending tree and returns before
+            # we clean up the last adopted worker; never publish a late restart.
+            self.thread.join(timeout=15)
         if self.process is not None:
-            from cytellect_worker.supervision import terminate_tree
-
-            terminate_tree(self.process.pid)
-            self.process.wait(timeout=10)
+            self._stop_process()
 
 
 def _gui(server, url: str, run_server, open_browser: bool):
@@ -304,6 +355,7 @@ def _gui(server, url: str, run_server, open_browser: bool):
 def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_browser=True, gui=False):
     import uvicorn
 
+    redirector = redirector_owner()
     configure_private_tmp(settings)
     with runtime_lock(settings.data_dir), bind_loopback(port) as sock:
         app = create_local_app(settings, web_dir, port)
@@ -312,6 +364,16 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
                                                timeout_graceful_shutdown=5))
         supervisor = WorkerSupervisor(settings, lambda: setattr(server, "should_exit", True))
         supervisor.start()
+        owner_watch_stopped = threading.Event()
+
+        def watch_redirector():
+            while not owner_watch_stopped.wait(0.25):
+                if redirector is not None and not process_alive(redirector):
+                    server.should_exit = True
+                    return
+
+        if redirector is not None:
+            threading.Thread(target=watch_redirector, daemon=True).start()
         try:
             if gui:
                 _gui(server, settings.app_origin, lambda: server.run(sockets=[sock]), open_browser)
@@ -326,6 +388,7 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
                 print("Cytellect local: " + settings.app_origin + " (Ctrl+C to stop)", flush=True)
                 server.run(sockets=[sock])
         finally:
+            owner_watch_stopped.set()
             supervisor.stop()
             # Sessions stop granting access across launcher shutdown. A later
             # same-origin bootstrap resumes the stable local owner's work.

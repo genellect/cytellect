@@ -7,18 +7,18 @@ import psutil
 
 from .config import Settings, configure_private_tmp
 from .db import Store
+from .process_owner import process_alive, redirector_owner
 
 
 def parent_alive(pid: int, created: float) -> bool:
-    try:
-        parent = psutil.Process(pid)
-        return parent.is_running() and parent.create_time() == created and parent.status() != psutil.STATUS_ZOMBIE
-    except psutil.Error:
-        return False
+    return process_alive((pid, created))
 
 
 def main():
     parent_pid, parent_created = int(sys.argv[1]), float(sys.argv[2])
+    redirector = redirector_owner()
+    if not parent_alive(parent_pid, parent_created):
+        raise SystemExit(2)
     settings = Settings.from_env()
     configure_private_tmp(settings)
     store = Store(settings.data_dir)
@@ -27,9 +27,15 @@ def main():
 
     stopped = threading.Event()
 
+    # A private one-line pipe handshake lets the supervisor terminate this
+    # actual interpreter even when Popen owns only a Windows redirector shim.
+    current = psutil.Process()
+    print(f"{current.pid} {current.create_time()}", flush=True)
+
     def watch():
         while not stopped.wait(0.5):
-            if not parent_alive(parent_pid, parent_created):
+            if (not parent_alive(parent_pid, parent_created)
+                    or (redirector is not None and not process_alive(redirector))):
                 try:
                     for child in psutil.Process().children():
                         terminate_tree(child.pid)

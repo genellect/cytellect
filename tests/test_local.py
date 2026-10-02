@@ -5,7 +5,9 @@ import subprocess
 import sys
 import threading
 import time
+import venv
 from dataclasses import replace
+from pathlib import Path
 
 import httpx
 import psutil
@@ -106,7 +108,19 @@ def test_runtime_lock_and_port_are_exclusive_and_release(tmp_path):
     assert not parent_alive(os.getpid(), psutil.Process().create_time() - 1)
 
 
-def test_launcher_terminated_abruptly_does_not_leave_worker(tmp_path):
+def windows_redirector(tmp_path):
+    """Unlike uv hardlinks, a stdlib Windows venv really redirects to base Python."""
+    root = tmp_path / "redirector"
+    venv.EnvBuilder(with_pip=False).create(root)
+    # No installation/download: use the running test's already-locked packages.
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(str(Path(p).resolve()) for p in sys.path if p)
+    return root / "Scripts" / "python.exe", env
+
+
+@pytest.mark.parametrize("use_redirector", [False, pytest.param(True, marks=pytest.mark.skipif(
+    sys.platform != "win32", reason="Windows executable redirector process chain"))])
+def test_launcher_terminated_abruptly_does_not_leave_worker(tmp_path, use_redirector):
     # This is a lifecycle test without image processing; a directory stand-in is
     # sufficient. Actual pinned Fiji execution has separate integration tests.
     web = tmp_path / "web"
@@ -115,10 +129,11 @@ def test_launcher_terminated_abruptly_does_not_leave_worker(tmp_path):
     with socket.socket() as free:
         free.bind(("127.0.0.1", 0))
         port = free.getsockname()[1]
-    process = subprocess.Popen([sys.executable, "-m", "cytellect_api.local", "--data-dir",
+    executable, env = windows_redirector(tmp_path) if use_redirector else (sys.executable, os.environ.copy())
+    process = subprocess.Popen([str(executable), "-m", "cytellect_api.local", "--data-dir",
         str(tmp_path / "runtime"), "--web-dir", str(web), "--fiji", str(tmp_path),
         "--port", str(port), "--no-browser"], stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
     descendants = []
     try:
         limit = time.monotonic() + 30
@@ -135,6 +150,11 @@ def test_launcher_terminated_abruptly_does_not_leave_worker(tmp_path):
                 pytest.fail("local launcher never became ready")
         descendants = psutil.Process(process.pid).children(recursive=True)
         assert descendants, "independent worker missing"
+        if use_redirector:
+            # Prove this case exercises the failing process topology, rather
+            # than accepting another uv direct/hardlinked interpreter run.
+            assert any(not os.path.samefile(child.exe(), executable)
+                       and child.name().lower() in {"python.exe", "pythonw.exe"} for child in descendants)
         process.terminate()
         process.wait(timeout=10)
         _, alive = psutil.wait_procs(descendants, timeout=10)
@@ -150,7 +170,13 @@ def test_launcher_terminated_abruptly_does_not_leave_worker(tmp_path):
         process.wait(timeout=10)
 
 
-def test_worker_crash_recovery_is_bounded_and_closes_server(tmp_path):
+@pytest.mark.parametrize("use_redirector", [False, pytest.param(True, marks=pytest.mark.skipif(
+    sys.platform != "win32", reason="Windows executable redirector process chain"))])
+def test_worker_crash_recovery_is_bounded_and_closes_server(tmp_path, use_redirector, monkeypatch):
+    if use_redirector:
+        executable, env = windows_redirector(tmp_path)
+        monkeypatch.setattr(sys, "executable", str(executable))
+        monkeypatch.setenv("PYTHONPATH", env["PYTHONPATH"])
     settings = Settings(tmp_path / "worker-private", app_origin=ORIGIN, secure_cookies=False)
     stopped = threading.Event()
     supervisor = WorkerSupervisor(settings, stopped.set)
@@ -159,6 +185,10 @@ def test_worker_crash_recovery_is_bounded_and_closes_server(tmp_path):
         for failure in range(3):
             current = supervisor.process
             assert current is not None
+            actual = supervisor.worker_identity
+            assert actual is not None
+            if use_redirector:
+                assert actual[0] != current.pid
             current.kill()
             current.wait(timeout=10)
             deadline = time.monotonic() + 5
@@ -168,5 +198,41 @@ def test_worker_crash_recovery_is_bounded_and_closes_server(tmp_path):
                 assert supervisor.process is not current and not stopped.is_set()
             else:
                 assert stopped.is_set() and supervisor.failure == "local_worker_stopped"
+            assert not parent_alive(*actual), "crashed worker shim left its actual interpreter alive"
     finally:
         supervisor.stop()
+
+
+def test_stop_during_pending_worker_restart_reaps_unadopted_process(tmp_path, monkeypatch):
+    """A real delayed child exercises Stop before the private PID handshake."""
+    original_popen = subprocess.Popen
+    launched = []
+    restarting = threading.Event()
+
+    def delayed_worker(_args, **kwargs):
+        delay = 60 if launched else 0
+        code = (f"import os,time,psutil; time.sleep({delay}); "
+                "print(f'{os.getpid()} {psutil.Process().create_time()}',flush=True); time.sleep(60)")
+        process = original_popen([sys.executable, "-c", code], **kwargs)
+        launched.append(process)
+        if len(launched) == 2:
+            restarting.set()
+        return process
+
+    monkeypatch.setattr(subprocess, "Popen", delayed_worker)
+    supervisor = WorkerSupervisor(Settings(tmp_path / "private"), lambda: None)
+    try:
+        supervisor.start()
+        launched[0].kill()
+        launched[0].wait(timeout=5)
+        assert restarting.wait(5), "restart child never launched"
+        supervisor.stop()
+        assert supervisor.thread is not None and not supervisor.thread.is_alive()
+        assert supervisor.failure is None  # User Stop is not an application failure.
+        assert len(launched) == 2 and launched[1].poll() is not None
+    finally:
+        supervisor.stop()
+        for process in launched:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
