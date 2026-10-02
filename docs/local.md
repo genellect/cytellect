@@ -32,6 +32,8 @@ Closing the launcher stops computation and revokes its local-owner sessions. A s
 
 Windows virtual environments may run a redirector executable and a separate Python interpreter. The interpreter watches that redirector's PID and creation time; losing it stops the local server. The worker reports its actual process identity over a private pipe, so stopping or retrying a worker also terminates its interpreter, not just its redirector. Ordinary setup shells are not lifetime owners and may exit after opening Cytellect. Tests cover abrupt redirector termination and bounded worker recovery with a real Windows stdlib virtual environment.
 
+Worker identity and parent monitoring start before scientific-library initialization. The15-second process handshake does not impose a15-second limit on cold font or scientific imports; jobs stay queued until initialization finishes. Matplotlib configuration and font caches use the private runtime temporary directory. Parent disappearance during initialization still stops the worker, and ordinary job/Fiji shutdown retains its supervised termination behavior.
+
 ## Build and installation evidence
 
 Developers build a local-only Web export with `pnpm --filter @cytellect/web build:local`. For a reviewed clean commit, run:
