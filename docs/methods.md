@@ -4,6 +4,8 @@ Intended semantics; see handoff.md for unimplemented/untested parts.
 
 Original grayscale pixels are immutable. Detection normalization and display LUTs never alter measurements. Label masks use original coordinates. Each nucleolus has exactly one containing nucleus; nuclear edits invalidate dependent children.
 
+The recorded `dapi` key is the historical nuclear-stain channel role. It does not establish that the acquired dye was DAPI: published inputs also use Hoechst or DRAQ. Methods template 1.0.0, the first explicitly versioned template, therefore describes the nuclear-stain channel and names the recorded role without inferring chemical identity. The researcher must supply the actual stain identity from acquisition records when preparing the manuscript. This wording correction does not alter channel mapping, detection parameters, measurements or statistics; previously exported Methods may still contain an unsupported DAPI claim and should be reviewed before reuse.
+
 Background b is the median of a confirmed background ROI. Export raw values and x-b values; native negatives remain signed. Intensity integral is sum of pixels. It is not normalized concentration.
 
 Nucleus N, nucleolar union U, nucleoplasm P=N minus U. Measure N/U/P separately; cell-level U mean is pixel-weighted, with object measurements in a separate table. Native index is log2(mean(P-b)/mean(U-b)), defined only when both means are positive. Empty/invalid compartments produce explicit missing reasons.
