@@ -57,6 +57,29 @@ def test_unconfigured_engine_fails_closed(tmp_path):
         detect(channels, Recipe(), tmp_path, "")
 
 
+def test_java_scratch_cleanup_preserves_owning_attempt(tmp_path):
+    from cytellect_analysis.engine import _private_java_scratch
+
+    preserved = tmp_path / "preserved.txt"
+    preserved.write_text("keep")
+    with pytest.raises(RuntimeError, match="simulated_failure"):
+        with _private_java_scratch(tmp_path / "output", tmp_path) as scratch:
+            (scratch / "generated-model.bin").write_bytes(b"fixed model")
+            raise RuntimeError("simulated_failure")
+    assert list(tmp_path.iterdir()) == [preserved]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Legacy TensorFlow Windows path limit")
+def test_overlong_java_scratch_root_fails_before_creation(tmp_path):
+    from cytellect_analysis.engine import _private_java_scratch
+
+    root = tmp_path / ("long" * 35)
+    with pytest.raises(EngineUnavailable, match="fiji_temporary_path_too_long"):
+        with _private_java_scratch(tmp_path / "output", root):
+            pytest.fail("An overlong root cannot create a Java scratch directory")
+    assert not root.exists()
+
+
 @pytest.fixture
 def fiji():
     path = os.environ.get("CYTELLECT_FIJI_EXECUTABLE")
@@ -81,6 +104,25 @@ def test_real_cpu_stardist_and_nucleoli(tmp_path, fiji):
     assert provenance["model_sha256"] == "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3"
     assert all(np.array_equal(channels[key], original[key]) for key in channels)
     assert (tmp_path / "engine-result.json").is_file()
+
+
+@pytest.mark.fiji
+def test_public_gfp_in_long_attempt_path_uses_short_private_model_scratch(tmp_path, fiji):
+    from pathlib import Path
+
+    import tifffile
+
+    root = Path(__file__).resolve().parents[1]
+    channels = {role: tifffile.imread(root / "fixtures/public/bbbc013" / f"A01-{role}.tif")
+                for role in ("dapi", "gfp")}
+    attempt = tmp_path.parent / "long-path-attempt"
+    output = attempt / ("a" * 36) / "output" / ("b" * 36) / "engine"
+    nuclei, nucleoli, info = detect(channels, Recipe(id="gfp-nuclear-2d"), output, fiji, scratch_root=attempt)
+    assert len(np.unique(nuclei)) - 1 == 350
+    assert not nucleoli.any()
+    assert info["automatic_detection_admission"]["applied"] is True
+    assert not list(attempt.glob("j-*"))
+    assert (output / "engine-result.json").is_file()
 
 
 @pytest.mark.fiji

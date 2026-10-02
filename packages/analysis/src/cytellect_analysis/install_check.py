@@ -20,7 +20,8 @@ def verify_installation(fiji: str, scratch: Path) -> dict:
     with tempfile.TemporaryDirectory(prefix="cytellect-install-", dir=scratch) as temporary:
         channels, _, _ = synthetic_field(seed=0)
         originals = {key: value.copy() for key, value in channels.items()}
-        nuclei, nucleoli, info = detect(channels, Recipe(), Path(temporary), fiji)
+        deep_output = Path(temporary) / ("a" * 36) / "output" / ("b" * 36) / "engine"
+        nuclei, nucleoli, info = detect(channels, Recipe(), deep_output, fiji, scratch_root=Path(temporary))
         if len(np.unique(nuclei)) - 1 != 9 or len(np.unique(nucleoli)) - 1 != 18:
             raise RuntimeError("installation_detection_check_failed")
         if any(not np.array_equal(channels[key], original) for key, original in originals.items()):

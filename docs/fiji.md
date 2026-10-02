@@ -45,7 +45,17 @@ ahead of the distribution classpath. Removing this pin requires a real model
 inference regression test.
 
 ImageJ preferences are process-local memory. Temporary images, extracted models,
-Java temp files and masks stay inside the private attempt directory. The adapter
+Java temp files and masks stay inside the private attempt directory. Model/native
+scratch uses a short random child of the owning attempt, separate from the longer
+per-field output path. It is removed after Java exits, including on exceptions;
+forced termination leaves any residue within existing attempt-retention cleanup.
+This layout is required because TensorFlow 1.15 on Windows failed to open model
+variables at a 264-character path even though a shorter installer smoke passed.
+The adapter rejects a configured scratch root whose longest known model path
+would exceed a conservative 240 characters with `fiji_temporary_path_too_long`.
+It never moves research images into a shared operating-system temp directory.
+The installer now checks a deliberately long canonical field path as well.
+The adapter
 suppresses third-party stdout/stderr because those streams include paths. Only
 fixed error codes are exposed. The worker must enforce process-tree cancellation,
 memory limits, retention cleanup, and network isolation. Java heap is bounded at

@@ -99,6 +99,8 @@ SAFE_ERRORS = frozenset(
         "missing_experimental_metadata",
         "fiji_execution_failed",
         "fiji_detection_capacity_exceeded",
+        "fiji_temporary_path_too_long",
+        "fiji_temporary_path_invalid",
         "single_series_required",
         "fiji_timeout",
         "replay_requires_complete_reviewed_masks",

@@ -30,6 +30,8 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ fiji_temporary_path_too_long:"解析用の保存先のパスが長すぎます。セットアップで短い保存先を選んでください。原画像は変更されていません。",
+ fiji_temporary_path_invalid:"解析用の一時保存先が正しく設定されていません。セットアップを確認してください。",
  local_host_required:"ローカル版はランチャーから開いたワークスペースで使用してください。",
  fiji_detection_capacity_exceeded:"この画像は現在の自動検出の上限を超えています（1辺2048 px、270万画素）。原画像は変更されていません。",
  recipe_required_channels_missing:"このレシピに必要なチャンネルが不足しています。NCL解析には核染色とNCL、GFP解析には核染色とGFPが必要です。",

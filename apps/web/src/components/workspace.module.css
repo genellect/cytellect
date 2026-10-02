@@ -20,3 +20,5 @@
 
 .measurements .tableWrap { max-height:min(40vh, 360px); overflow:auto; overscroll-behavior:contain; }
 .measurements .tableWrap th { position:sticky; top:0; z-index:2; background:#f3f8f6; }
+
+.downloadPlatform{display:flex;justify-content:space-between;gap:12px;margin:12px 0 27px;color:#6b817a;font-size:11px}.downloadPlatform span{font-size:10px;color:#899a93}.setupSteps{list-style:none;counter-reset:setup;margin:0;padding:0}.setupSteps li{counter-increment:setup;position:relative;padding:0 0 21px 35px;line-height:1.7}.setupSteps li:before{content:"0" counter(setup);position:absolute;left:0;top:1px;color:#93a69c;font-size:11px;font-variant-numeric:tabular-nums}.setupSteps b{display:block;font-size:12px;color:#395f51;font-weight:500}.setupSteps span{display:block;margin-top:4px;font-size:11px;color:#788c80}.downloadPrivacy{font-size:11px;color:#6f857a;line-height:1.9;border-top:1px solid #d9e3dc;padding-top:17px;margin-top:22px}.downloadPrivacy summary{cursor:pointer;color:#3e6959;text-decoration:underline;text-underline-offset:3px}.downloadPrivacy p{margin:12px 0 0}.windowsDownload+.demoLink{margin-top:22px}

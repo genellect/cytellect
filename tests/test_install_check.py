@@ -8,7 +8,8 @@ def test_failed_installation_check_removes_only_owned_attempt(tmp_path, monkeypa
     existing = tmp_path / "preserved.txt"
     existing.write_text("keep")
 
-    def failure(channels, recipe, output, fiji):
+    def failure(channels, recipe, output, fiji, **kwargs):
+        Path(output).mkdir(parents=True)
         (Path(output) / "partial.tif").write_bytes(b"generated incomplete output")
         raise RuntimeError("fiji_execution_failed")
 
