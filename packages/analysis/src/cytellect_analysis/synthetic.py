@@ -2,6 +2,7 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
+
 def synthetic_field(seed=0, size=256):
     rng = np.random.default_rng(seed)
     yy, xx = np.mgrid[:size, :size]

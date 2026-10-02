@@ -1,16 +1,18 @@
-# Open milestone gates
+# Implementation and remaining gates
 
-No milestone is complete at this checkpoint.
+This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).
 
-| Stage | Completion gate |
-|---|---|
-| M0 | Clean checkout runs real Fiji StarDist on synthetic data; repo/docs/locks/CI and actual artifact version/license/hash provenance. |
-| M1 | Validated inputs/detection/native+legacy measurements/CSV match analytical synthetic expectations and replay. |
-| M2 | Japanese editor, masks/background/exclusions/Undo/Redo/revisions, jobs and recovery; stale edits and partial failures handled. |
-| M3 | Independent/exploratory/sensitivity stats, numeric CSV, plots, Methods, ROI/masks/replay package regenerate in another environment. |
-| M4 | Private held-out images vs Fiji/manual/legacy reference; counts/differences explained, no major quantitative discrepancy. Requires private raw data absent from Cloud. |
-| M5 | Invite/security/deletion verified and actual researchers complete/evaluate workflow; preferably >=3 across labs. |
+| Stage | Implemented | Remaining acceptance |
+|---|---|---|
+| M0 | Public monorepo, bilingual docs, agent guidance, locked Python/Web/Fiji, actual Java21 CPU detection, Alembic, CI and container definitions | Linux pinned Fiji and browser CI passed; actual Compose image build/start remains open |
+| M1 | Bounded TIFF/OME, native and generalized legacy recipe, true Fiji adapter, compartment/GFP measurements, replay exports | Reference comparison on user's raw data remains M4 |
+| M2 | Japanese Konva editor, immutable edits, Undo/Redo, background/exclusion/review, supervised durable jobs and retry | Local and Linux browser regression passed; actual hosted analysis acceptance remains open |
+| M3 | Independent/paired/exploratory statistics, sensitivity, numerical CSV, plots, Methods, pixel-exact ROI and replay | Nature-sized vector export and independent math references tested; private scientific suitability remains M4 |
+| M4 | Published real-image integration adds external examples | User-provided private raw images, field/sample-separated evaluation and legacy reconciliation |
+| M5 | Invite/session/ownership/retention implementation and automated protection tests | Provisioned private analysis host, operator acceptance and researcher usability evaluation |
 
-Next: tests and entry-point defects → worker/Fiji vertical slice → Japanese Web/contracts/revisions → statistics/export/sensitivities → Compose/CI/privacy/license/operations → private validation and users.
+Public Vercel UI publication is authorized. It may expose only cleared published image samples until the private analysis API is configured and host checks pass. It must not point to localhost in production or accept research uploads without a backend.
 
-No automatic merging/deployment or paid services. Accounts/teams/Supabase/LLM/long-term storage/commercial features follow PoC demand.
+Supabase/accounts, LLM method proposals, teams, long-term storage and payments remain later work. No paid service purchase or automatic private-data transfer is included.
+
+Normal publication follows [PR → required CI → main → Vercel](deployment.md). [Figure formatting and statistical meaning](figures.md) are versioned separately.

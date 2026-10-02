@@ -1,0 +1,12 @@
+{
+  "dataset": "BBBC039v1",
+  "source": "https://bbbc.broadinstitute.org/BBBC039",
+  "license": "CC0-1.0",
+  "original_image_id": "IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637",
+  "original_sha256": "51787b533f38efc0d934a9cc0f760e704ef5fca97d561aa868f2099f2e6bb1ce",
+  "derived_assets": [
+    "preview.png",
+    "data.json"
+  ],
+  "processing": "Fiji StarDist nuclei; original16bit DNA raw intensity; preview display transformation only"
+}

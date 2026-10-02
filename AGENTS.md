@@ -4,7 +4,7 @@ Read docs/requirements.md, docs/methods.md and docs/security.md before changing 
 Inspect Git status. Preserve user work and original research outputs.
 
 ## Research data boundary
-- Only synthetic, reproducibly generated data belongs in this public repository or CI.
+- Synthetic data is for deterministic numerical tests. Published real microscopy is required for image integration and public demos; public assets need recorded source, accurate stain metadata, redistribution terms and hashes. Never substitute another stain for NCL/GFP.
 - Never copy research images, research PDFs, source paths, study-specific results, participant identifiers, credentials, or invitation/session tokens into code, logs, issues, PRs, screenshots, or external AI services.
 - Keep runtime data outside the checkout. Never use production credentials for development.
 - Run private validation separately; publish only an explicitly approved sanitized report.
@@ -18,7 +18,7 @@ Inspect Git status. Preserve user work and original research outputs.
 - The API and analysis package own numeric results; never calculate authoritative measurements in the browser.
 
 ## Development
-- Codex Cloud is the default code environment. Use synthetic fixtures only. Local execution is permitted for setup and verification, especially the private validation boundary.
+- Codex Cloud is the default code environment. Use synthetic numerical fixtures and registered public datasets only. Local execution is permitted for setup and verification, especially the private validation boundary.
 - Pin dependencies and model hashes. Review licenses separately for code, weights and data.
 - No runtime package/model downloads, arbitrary submitted code/macros or remote image URLs.
 - Run `uv run pytest`, `uv run ruff check .`, `pnpm check`, `pnpm test`, and relevant integration tests. Do not mark skipped Fiji/private-data checks as passed.

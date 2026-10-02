@@ -1,0 +1,2603 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Cytellect private API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/redeem": {
+      "post": {
+        "summary": "Redeem",
+        "operationId": "redeem_v1_invitations_redeem_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/session": {
+      "get": {
+        "summary": "Session",
+        "operationId": "session_v1_session_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Logout",
+        "operationId": "logout_v1_session_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces": {
+      "get": {
+        "summary": "List Workspaces",
+        "operationId": "list_workspaces_v1_workspaces_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceView"
+                  },
+                  "type": "array",
+                  "title": "Response List Workspaces V1 Workspaces Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "New Workspace",
+        "operationId": "new_workspace_v1_workspaces_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}": {
+      "get": {
+        "summary": "Get Workspace",
+        "operationId": "get_workspace_v1_workspaces__wid__get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Workspace",
+        "operationId": "delete_workspace_v1_workspaces__wid__delete",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/touch": {
+      "post": {
+        "summary": "Keep Alive",
+        "operationId": "keep_alive_v1_workspaces__wid__touch_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/fields": {
+      "get": {
+        "summary": "List Fields",
+        "operationId": "list_fields_v1_workspaces__wid__fields_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FieldView"
+                  },
+                  "title": "Response List Fields V1 Workspaces  Wid  Fields Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload Field",
+        "operationId": "upload_field_v1_workspaces__wid__fields_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_field_v1_workspaces__wid__fields_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/synthetic": {
+      "post": {
+        "summary": "Synthetic",
+        "operationId": "synthetic_v1_workspaces__wid__synthetic_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fields/{fid}/preview": {
+      "get": {
+        "summary": "Preview",
+        "operationId": "preview_v1_fields__fid__preview_get",
+        "parameters": [
+          {
+            "name": "fid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fid"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "merge",
+              "title": "Channel"
+            }
+          },
+          {
+            "name": "low",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Low"
+            }
+          },
+          {
+            "name": "high",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 100,
+              "title": "High"
+            }
+          },
+          {
+            "name": "gain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 1,
+              "title": "Gain"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/analyses": {
+      "post": {
+        "summary": "Start Analysis",
+        "operationId": "start_analysis_v1_workspaces__wid__analyses_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/revisions": {
+      "get": {
+        "summary": "List Revisions",
+        "operationId": "list_revisions_v1_workspaces__wid__revisions_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionView"
+                  },
+                  "title": "Response List Revisions V1 Workspaces  Wid  Revisions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}": {
+      "get": {
+        "summary": "Get Revision",
+        "operationId": "get_revision_v1_revisions__rid__get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/measurements": {
+      "get": {
+        "summary": "Measurements",
+        "operationId": "measurements_v1_revisions__rid__measurements_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/fields/{fid}/masks": {
+      "get": {
+        "summary": "Get Masks",
+        "operationId": "get_masks_v1_revisions__rid__fields__fid__masks_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "fid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MasksView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/edits": {
+      "post": {
+        "summary": "Edit",
+        "operationId": "edit_v1_revisions__rid__edits_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaskEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/current": {
+      "post": {
+        "summary": "Choose Revision",
+        "operationId": "choose_revision_v1_workspaces__wid__current_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/review": {
+      "post": {
+        "summary": "Review",
+        "operationId": "review_v1_revisions__rid__review_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewInput",
+                "default": {
+                  "accept_invalidated_fields": []
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/statistics": {
+      "post": {
+        "summary": "Statistics",
+        "operationId": "statistics_v1_revisions__rid__statistics_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatisticsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/export": {
+      "post": {
+        "summary": "Export",
+        "operationId": "export_v1_revisions__rid__export_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "include_raw",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Raw"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/reconfigure": {
+      "post": {
+        "summary": "Reconfigure",
+        "operationId": "reconfigure_v1_revisions__rid__reconfigure_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/resegment": {
+      "post": {
+        "summary": "Resegment",
+        "operationId": "resegment_v1_revisions__rid__resegment_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResegmentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/retry": {
+      "post": {
+        "summary": "Retry",
+        "operationId": "retry_v1_jobs__jid__retry_post",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/tables": {
+      "post": {
+        "summary": "Import Table",
+        "operationId": "import_table_v1_workspaces__wid__tables_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_table_v1_workspaces__wid__tables_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Tables",
+        "operationId": "list_tables_v1_workspaces__wid__tables_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tables/{tid}/statistics": {
+      "post": {
+        "summary": "Table Statistics",
+        "operationId": "table_statistics_v1_tables__tid__statistics_post",
+        "parameters": [
+          {
+            "name": "tid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatisticsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/jobs": {
+      "get": {
+        "summary": "List Jobs",
+        "operationId": "list_jobs_v1_workspaces__wid__jobs_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobView"
+                  },
+                  "title": "Response List Jobs V1 Workspaces  Wid  Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}": {
+      "get": {
+        "summary": "Get Job",
+        "operationId": "get_job_v1_jobs__jid__get",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "operationId": "cancel_v1_jobs__jid__cancel_post",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/result": {
+      "get": {
+        "summary": "Job Result",
+        "operationId": "job_result_v1_jobs__jid__result_get",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/files/{name}": {
+      "get": {
+        "summary": "Job File",
+        "operationId": "job_file_v1_jobs__jid__files__name__get",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisRequest": {
+        "properties": {
+          "field_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 100,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Ids"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          },
+          "backgrounds": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Background"
+            },
+            "type": "object",
+            "title": "Backgrounds"
+          },
+          "exclusions": {
+            "items": {
+              "$ref": "#/components/schemas/Exclusion"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Exclusions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AnalysisRequest"
+      },
+      "Background": {
+        "properties": {
+          "polygon": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "minItems": 3,
+            "title": "Polygon"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "title": "Confirmed",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "polygon"
+        ],
+        "title": "Background"
+      },
+      "Body_import_table_v1_workspaces__wid__tables_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_table_v1_workspaces__wid__tables_post"
+      },
+      "Body_upload_field_v1_workspaces__wid__fields_post": {
+        "properties": {
+          "metadata": {
+            "type": "string",
+            "title": "Metadata"
+          },
+          "legacy": {
+            "type": "boolean",
+            "title": "Legacy",
+            "default": false
+          },
+          "dapi": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dapi"
+          },
+          "ncl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ncl"
+          },
+          "gfp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gfp"
+          },
+          "ome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ome"
+          },
+          "mapping": {
+            "type": "string",
+            "title": "Mapping",
+            "default": "[0,1,2]"
+          },
+          "channel_roles": {
+            "type": "string",
+            "title": "Channel Roles",
+            "default": "[\"dapi\",\"ncl\",\"gfp\"]"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metadata"
+        ],
+        "title": "Body_upload_field_v1_workspaces__wid__fields_post"
+      },
+      "ContourView": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "points": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "points"
+        ],
+        "title": "ContourView"
+      },
+      "Exclusion": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          },
+          "nucleus_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleus Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "reason"
+        ],
+        "title": "Exclusion"
+      },
+      "FieldMetadata": {
+        "properties": {
+          "condition": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Condition"
+          },
+          "experimental_unit": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Experimental Unit"
+          },
+          "sample": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Sample"
+          },
+          "acquisition_date": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Acquisition Date"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pair"
+          },
+          "repeat_length": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Length"
+          },
+          "pixel_size_um": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pixel Size Um"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "condition",
+          "experimental_unit",
+          "sample",
+          "acquisition_date"
+        ],
+        "title": "FieldMetadata"
+      },
+      "FieldView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/FieldMetadata"
+          },
+          "image_info": {
+            "$ref": "#/components/schemas/ImageInfo"
+          },
+          "synthetic": {
+            "type": "boolean",
+            "title": "Synthetic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "metadata",
+          "image_info",
+          "synthetic"
+        ],
+        "title": "FieldView"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ImageInfo": {
+        "properties": {
+          "shape": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Shape"
+          },
+          "dtype": {
+            "type": "string",
+            "title": "Dtype"
+          },
+          "legacy": {
+            "type": "boolean",
+            "title": "Legacy"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Inputs"
+          },
+          "axes": {
+            "type": "string",
+            "title": "Axes"
+          },
+          "channel_mapping": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Channel Mapping"
+          },
+          "channel_roles": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "dapi",
+                "ncl",
+                "gfp"
+              ]
+            },
+            "type": "array",
+            "title": "Channel Roles"
+          },
+          "channel_dtypes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Channel Dtypes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "shape",
+          "dtype",
+          "legacy",
+          "inputs",
+          "axes",
+          "channel_mapping"
+        ],
+        "title": "ImageInfo"
+      },
+      "InviteInput": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "InviteInput"
+      },
+      "JobView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "analysis",
+              "statistics",
+              "table-statistics",
+              "export"
+            ],
+            "title": "Kind"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State"
+          },
+          "created": {
+            "type": "number",
+            "title": "Created"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "revision_id",
+          "kind",
+          "state",
+          "created",
+          "error",
+          "attempts"
+        ],
+        "title": "JobView"
+      },
+      "LegacyParameters": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "target_long_dimension_px": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 32.0,
+            "title": "Target Long Dimension Px",
+            "default": 320
+          },
+          "nucleus_area_min_scaled_px": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Nucleus Area Min Scaled Px",
+            "default": 300
+          },
+          "nucleus_area_max_scaled_px": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Nucleus Area Max Scaled Px",
+            "default": 6000
+          },
+          "dapi_snr_min": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Dapi Snr Min",
+            "default": 2.0
+          },
+          "saturation_fraction_max": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Saturation Fraction Max",
+            "default": 0.25
+          },
+          "apply_quality_exclusions": {
+            "type": "boolean",
+            "title": "Apply Quality Exclusions",
+            "default": true
+          },
+          "gfp_mode": {
+            "type": "string",
+            "enum": [
+              "otsu-qc-batch",
+              "recipe"
+            ],
+            "title": "Gfp Mode",
+            "default": "otsu-qc-batch"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LegacyParameters"
+      },
+      "MaskEdit": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          },
+          "layer": {
+            "type": "string",
+            "enum": [
+              "nuclei",
+              "nucleoli",
+              "manual"
+            ],
+            "title": "Layer"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "add",
+              "replace",
+              "delete",
+              "merge",
+              "split"
+            ],
+            "title": "Operation"
+          },
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Ids"
+          },
+          "polygon": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Polygon"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "layer",
+          "operation"
+        ],
+        "title": "MaskEdit"
+      },
+      "MasksView": {
+        "properties": {
+          "nuclei": {
+            "items": {
+              "$ref": "#/components/schemas/ContourView"
+            },
+            "type": "array",
+            "title": "Nuclei"
+          },
+          "nucleoli": {
+            "items": {
+              "$ref": "#/components/schemas/ContourView"
+            },
+            "type": "array",
+            "title": "Nucleoli"
+          },
+          "manual": {
+            "items": {
+              "$ref": "#/components/schemas/ContourView"
+            },
+            "type": "array",
+            "title": "Manual"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nuclei",
+          "nucleoli",
+          "manual"
+        ],
+        "title": "MasksView"
+      },
+      "PlotSpec": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "nature-single",
+              "nature-double"
+            ],
+            "title": "Preset",
+            "default": "nature-single"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "distribution",
+              "scatter",
+              "paired"
+            ],
+            "title": "Kind",
+            "default": "distribution"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ja"
+            ],
+            "title": "Language",
+            "default": "en"
+          },
+          "width_inches": {
+            "type": "number",
+            "maximum": 16.0,
+            "minimum": 3.0,
+            "title": "Width Inches",
+            "default": 7
+          },
+          "height_inches": {
+            "type": "number",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Height Inches",
+            "default": 3.0
+          },
+          "font_size": {
+            "type": "number",
+            "maximum": 24.0,
+            "minimum": 5.0,
+            "title": "Font Size",
+            "default": 7
+          },
+          "x_label": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "X Label",
+            "default": ""
+          },
+          "y_label": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Y Label",
+            "default": ""
+          },
+          "group_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Group Order"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PlotSpec"
+      },
+      "Recipe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "ncl-native-2d",
+              "ncl-legacy-rgb",
+              "gfp-nuclear-2d"
+            ],
+            "title": "Id",
+            "default": "ncl-native-2d"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "probability": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Probability",
+            "default": 0.5
+          },
+          "nms": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Nms",
+            "default": 0.3
+          },
+          "percentile_low": {
+            "type": "number",
+            "exclusiveMaximum": 100.0,
+            "minimum": 0.0,
+            "title": "Percentile Low",
+            "default": 1
+          },
+          "percentile_high": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Percentile High",
+            "default": 99.8
+          },
+          "nucleolar_method": {
+            "type": "string",
+            "enum": [
+              "ncl-otsu",
+              "dapi-low"
+            ],
+            "title": "Nucleolar Method",
+            "default": "ncl-otsu"
+          },
+          "smoothing_sigma_px": {
+            "type": "number",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Smoothing Sigma Px",
+            "default": 0
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Minimum Area Px",
+            "default": 1
+          },
+          "split_touching": {
+            "type": "boolean",
+            "title": "Split Touching",
+            "default": false
+          },
+          "dapi_low_percentile": {
+            "type": "number",
+            "exclusiveMaximum": 50.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dapi Low Percentile",
+            "default": 10
+          },
+          "gfp_gate": {
+            "type": "string",
+            "enum": [
+              "none",
+              "manual",
+              "otsu-batch",
+              "negative-control"
+            ],
+            "title": "Gfp Gate",
+            "default": "none"
+          },
+          "gfp_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gfp Threshold"
+          },
+          "gfp_negative_control_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Gfp Negative Control Fields"
+          },
+          "gfp_negative_control_confirmed": {
+            "type": "boolean",
+            "title": "Gfp Negative Control Confirmed",
+            "default": false
+          },
+          "gfp_maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gfp Maximum"
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Seed",
+            "default": 0
+          },
+          "legacy": {
+            "$ref": "#/components/schemas/LegacyParameters"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Recipe"
+      },
+      "ResegmentInput": {
+        "properties": {
+          "recipe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Recipe"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Field Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_ids"
+        ],
+        "title": "ResegmentInput"
+      },
+      "ReviewInput": {
+        "properties": {
+          "accept_invalidated_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Accept Invalidated Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReviewInput"
+      },
+      "RevisionInput": {
+        "properties": {
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "revision_id"
+        ],
+        "title": "RevisionInput"
+      },
+      "RevisionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "title": "Reviewed"
+          },
+          "created": {
+            "type": "number",
+            "title": "Created"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "parent_id",
+          "config",
+          "state",
+          "reviewed",
+          "created"
+        ],
+        "title": "RevisionView"
+      },
+      "StatisticsRequest": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "enum": [
+              "ncl_log2_nucleoplasm_over_nucleoli",
+              "ncl_legacy_release",
+              "ncl_nucleus_mean_corrected",
+              "gfp_mean_corrected",
+              "nucleolar_area_fraction",
+              "value"
+            ],
+            "title": "Metric",
+            "default": "ncl_log2_nucleoplasm_over_nucleoli"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "experimental-unit",
+              "exploratory"
+            ],
+            "title": "Mode",
+            "default": "experimental-unit"
+          },
+          "baseline": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Baseline"
+          },
+          "comparisons": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Comparisons"
+          },
+          "paired": {
+            "type": "boolean",
+            "title": "Paired",
+            "default": false
+          },
+          "independent_units_confirmed": {
+            "type": "boolean",
+            "title": "Independent Units Confirmed",
+            "default": false
+          },
+          "plot": {
+            "$ref": "#/components/schemas/PlotSpec"
+          },
+          "comparison_family": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "repeat",
+              "all"
+            ],
+            "title": "Comparison Family",
+            "default": "all"
+          },
+          "gfp_transform": {
+            "type": "string",
+            "enum": [
+              "positive-log2",
+              "legacy-log2p1"
+            ],
+            "title": "Gfp Transform",
+            "default": "positive-log2"
+          },
+          "sensitivity_gfp_thresholds": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Sensitivity Gfp Thresholds"
+          },
+          "sensitivity_complete_dates": {
+            "type": "boolean",
+            "title": "Sensitivity Complete Dates",
+            "default": false
+          },
+          "sensitivity_legacy_high_regions": {
+            "items": {
+              "type": "integer",
+              "enum": [
+                5,
+                10,
+                20
+              ]
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Sensitivity Legacy High Regions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline",
+          "comparisons"
+        ],
+        "title": "StatisticsRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WorkspaceInput": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title",
+            "default": "Untitled experiment"
+          }
+        },
+        "type": "object",
+        "title": "WorkspaceInput"
+      },
+      "WorkspaceView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created": {
+            "type": "number",
+            "title": "Created"
+          },
+          "expires": {
+            "type": "number",
+            "title": "Expires"
+          },
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          },
+          "active_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Revision"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "owner",
+          "title",
+          "created",
+          "expires",
+          "deleted",
+          "active_revision",
+          "bytes"
+        ],
+        "title": "WorkspaceView"
+      }
+    }
+  }
+}

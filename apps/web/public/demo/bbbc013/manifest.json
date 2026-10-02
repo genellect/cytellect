@@ -1,0 +1,48 @@
+{
+  "dataset": "BBBC013v1",
+  "source": "https://bbbc.broadinstitute.org/BBBC013",
+  "license": "CC-BY-3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/",
+  "attribution": "Images by Ilya Ravkin, Broad Bioimage Benchmark Collection BBBC013v1. TIFF containers derived from official 8-bit BMP exports; pixel samples unchanged.",
+  "image_id": "A01",
+  "image_sources": {
+    "gfp": {
+      "path": "A01-gfp.tif",
+      "stain": "FKHR-EGFP",
+      "source_member": "BBBC013_v1_images_bmp/Channel1-01-A-01.BMP",
+      "source_sha256": "39fe5efdad79eb2cea8447c32d78424d4c8c5aada5a50c2cedb6b58d0ebfa888",
+      "sha256": "ef0bd8c6903d78fb5145e65eae8f7dd8aa721cbe7693783799b9a965c19e1616",
+      "pixel_sha256": "8518dd5601d5a67c627e6b3f8164f0ce3d7cf29159de0f629c9027fc5d040010",
+      "dtype": "uint8",
+      "shape": [
+        640,
+        640
+      ]
+    },
+    "dapi": {
+      "path": "A01-dapi.tif",
+      "stain": "DRAQ (DNA)",
+      "source_member": "BBBC013_v1_images_bmp/Channel2-01-A-01.BMP",
+      "source_sha256": "11b2e022fb1dfef12963c479a9a14aa0806ae972ed80493b49bebdf0046998e9",
+      "sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e",
+      "pixel_sha256": "d498ff570f685959b32d9e7266897ba6ebe6f686bce4838d949baad15f5dda1f",
+      "dtype": "uint8",
+      "shape": [
+        640,
+        640
+      ]
+    }
+  },
+  "quantification": "Original samples of published 8-bit BMP exports; not verified native FRM intensities. GFP values shown raw without background correction.",
+  "reference_validation": {
+    "all_fields_nuclei": 817,
+    "maximum_absolute_mean_error": 0,
+    "maximum_absolute_integral_error": 3.637978807091713e-12,
+    "scope": "Same-mask numerical agreement with ImageJ; not biological efficacy or segmentation validation"
+  },
+  "derived_files": {
+    "data.json": "88bda3ebb4978516c763d37119b7c03197da0be8b880cac282a7d0e395da7004",
+    "demo-dapi.png": "db73d50afde31044f3df0466e08ff38a1fa1b3dad34aad9cfb306aa73d266d85",
+    "demo-gfp.png": "119fa3fa612973b25d22bb3343f17cbb53ba2a99e619104a19ce95301750d2d9"
+  }
+}

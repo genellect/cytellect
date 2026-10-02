@@ -1,5 +1,6 @@
 """Versioned, validated scientific inputs shared by API and workers."""
 from typing import Annotated, Literal
+
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, model_validator
 
 Point = tuple[FiniteFloat, FiniteFloat]
@@ -21,8 +22,25 @@ class Background(StrictModel):
     polygon: list[Point] = Field(min_length=3, max_length=1000)
     confirmed: bool = False
 
+class LegacyParameters(StrictModel):
+    version: Literal["1.0.0"] = "1.0.0"
+    target_long_dimension_px: int = Field(default=320, ge=32, le=4096)
+    nucleus_area_min_scaled_px: int = Field(default=300, ge=1, le=1000000)
+    nucleus_area_max_scaled_px: int = Field(default=6000, ge=1, le=1000000)
+    dapi_snr_min: NonNegative = 2.0
+    saturation_fraction_max: Annotated[FiniteFloat, Field(ge=0, le=1)] = 0.25
+    apply_quality_exclusions: bool = True
+    gfp_mode: Literal["otsu-qc-batch", "recipe"] = "otsu-qc-batch"
+
+    @model_validator(mode="after")
+    def valid(self):
+        if self.nucleus_area_max_scaled_px < self.nucleus_area_min_scaled_px:
+            raise ValueError("legacy_area_range_invalid")
+        return self
+
+
 class Recipe(StrictModel):
-    id: Literal["ncl-native-2d", "ncl-legacy-rgb"] = "ncl-native-2d"
+    id: Literal["ncl-native-2d", "ncl-legacy-rgb", "gfp-nuclear-2d"] = "ncl-native-2d"
     version: Literal["1.0.0"] = "1.0.0"
     probability: Annotated[FiniteFloat, Field(gt=0, lt=1)] = 0.5
     nms: Annotated[FiniteFloat, Field(gt=0, lt=1)] = 0.3
@@ -33,17 +51,24 @@ class Recipe(StrictModel):
     minimum_area_px: int = Field(default=1, ge=1, le=100000)
     split_touching: bool = False
     dapi_low_percentile: Annotated[FiniteFloat, Field(gt=0, lt=50)] = 10
-    gfp_gate: Literal["none", "manual", "otsu-batch"] = "none"
+    gfp_gate: Literal["none", "manual", "otsu-batch", "negative-control"] = "none"
     gfp_threshold: FiniteFloat | None = None
+    gfp_negative_control_fields: list[str] = Field(default_factory=list, max_length=100)
+    gfp_negative_control_confirmed: bool = False
     gfp_maximum: FiniteFloat | None = None
     seed: int = Field(default=0, ge=0)
+    legacy: LegacyParameters = Field(default_factory=LegacyParameters)
 
     @model_validator(mode="after")
     def valid(self):
         if self.percentile_low >= self.percentile_high:
             raise ValueError("Invalid normalization interval")
-        if self.gfp_gate == "manual" and self.gfp_threshold is None:
+        if self.gfp_gate in ("manual", "negative-control") and self.gfp_threshold is None:
             raise ValueError("Manual GFP gate requires a threshold")
+        if self.gfp_gate == "negative-control" and (not self.gfp_negative_control_fields or not self.gfp_negative_control_confirmed):
+            raise ValueError("Negative-control gate requires explicitly confirmed control fields")
+        if len(self.gfp_negative_control_fields) != len(set(self.gfp_negative_control_fields)):
+            raise ValueError("Duplicate negative-control field IDs")
         if self.gfp_maximum is not None and self.gfp_threshold is not None and self.gfp_maximum < self.gfp_threshold:
             raise ValueError("GFP maximum is below threshold")
         return self
@@ -54,6 +79,7 @@ class Exclusion(StrictModel):
     reason: str = Field(min_length=1, max_length=200)
 
 class AnalysisRequest(StrictModel):
+    field_ids: list[str] | None = Field(default=None, min_length=1, max_length=100)
     recipe: Recipe = Field(default_factory=Recipe)
     backgrounds: dict[str, Background] = Field(default_factory=dict)
     exclusions: list[Exclusion] = Field(default_factory=list, max_length=10000)
@@ -67,20 +93,43 @@ class MaskEdit(StrictModel):
     parent_id: int | None = Field(default=None, ge=1)
 
 class PlotSpec(StrictModel):
+    preset: Literal["custom", "nature-single", "nature-double"] = "nature-single"
     kind: Literal["distribution", "scatter", "paired"] = "distribution"
     language: Literal["en", "ja"] = "en"
     width_inches: Annotated[FiniteFloat, Field(ge=3, le=16)] = 7
-    height_inches: Annotated[FiniteFloat, Field(ge=3, le=16)] = 5
-    font_size: Annotated[FiniteFloat, Field(ge=6, le=24)] = 10
+    height_inches: Annotated[FiniteFloat, Field(ge=1, le=16)] = 3.0
+    font_size: Annotated[FiniteFloat, Field(ge=5, le=24)] = 7
     x_label: str = Field(default="", max_length=120)
     y_label: str = Field(default="", max_length=120)
     group_order: list[str] = Field(default_factory=list, max_length=30)
 
 class StatisticsRequest(StrictModel):
-    metric: Literal["ncl_log2_nucleoplasm_over_nucleoli", "ncl_legacy_release", "ncl_nucleus_mean_corrected", "gfp_mean_corrected", "nucleolar_area_fraction"] = "ncl_log2_nucleoplasm_over_nucleoli"
+    metric: Literal["ncl_log2_nucleoplasm_over_nucleoli", "ncl_legacy_release", "ncl_nucleus_mean_corrected", "gfp_mean_corrected", "nucleolar_area_fraction", "value"] = "ncl_log2_nucleoplasm_over_nucleoli"
     mode: Literal["experimental-unit", "exploratory"] = "experimental-unit"
     baseline: str = Field(min_length=1, max_length=80)
     comparisons: list[tuple[str, str]] = Field(min_length=1, max_length=100)
     paired: bool = False
     independent_units_confirmed: bool = False
     plot: PlotSpec = Field(default_factory=PlotSpec)
+    comparison_family: Literal["baseline", "repeat", "all"] = "all"
+    gfp_transform: Literal["positive-log2", "legacy-log2p1"] = "positive-log2"
+    sensitivity_gfp_thresholds: list[FiniteFloat] = Field(default_factory=list, max_length=10)
+    sensitivity_complete_dates: bool = False
+    sensitivity_legacy_high_regions: list[Literal[5, 10, 20]] = Field(default_factory=list, max_length=3)
+
+class ReviewInput(StrictModel):
+    accept_invalidated_fields: list[str] = Field(default_factory=list, max_length=100)
+
+class ResegmentInput(StrictModel):
+    recipe: Recipe | None = None
+    field_ids: list[str] = Field(min_length=1, max_length=100)
+
+
+
+def required_channel_roles(recipe: Recipe) -> set[str]:
+    """Actual acquired channels, never zero-filled substitutes."""
+    if recipe.id == "ncl-legacy-rgb":
+        return {"dapi", "ncl", "gfp"}
+    if recipe.id == "gfp-nuclear-2d":
+        return {"dapi", "gfp"}
+    return {"dapi", "ncl"} | ({"gfp"} if recipe.gfp_gate != "none" or recipe.gfp_maximum is not None else set())

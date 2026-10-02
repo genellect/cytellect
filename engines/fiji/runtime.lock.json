@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "fiji": {
+    "archive_stamp": "20260929-1417",
+    "linux-x64": {
+      "url": "https://downloads.imagej.net/fiji/archive/latest/20260929-1417/fiji-latest-linux64-jdk.zip",
+      "sha256": "0b2197f45a0c0a5d54f4479518dc3fdbd79b4e1c76bd7d2b4fc30e95ef68d44c"
+    },
+    "windows-x64": {
+      "url": "https://downloads.imagej.net/fiji/archive/latest/20260929-1417/fiji-latest-win64-jdk.zip",
+      "sha256": "8fff3fa8f202743bfd301066eb1e3611281e899e246fe9bef8fd0a30738260f0"
+    }
+  },
+  "plugins": [
+    {
+      "path": "jars/Clipper-6.4.2.jar",
+      "url": "https://sites.imagej.net/StarDist/jars/Clipper-6.4.2.jar-20200108164851",
+      "bytes": 70822,
+      "sha256": "df1020524cc2cad78d57a6928cf94d00e8558397ccf8d227d2c8f4af1023b970",
+      "license": "BSL-1.0",
+      "source": "https://github.com/lightbringer/clipper-java"
+    },
+    {
+      "path": "plugins/StarDist_-0.3.0.jar",
+      "url": "https://sites.imagej.net/StarDist/plugins/StarDist_-0.3.0.jar-20200421142655",
+      "bytes": 16180976,
+      "sha256": "fff483154961e60cb6305e4ef73ef9e662298e1e65a077858e018717eb30d2bd",
+      "license": "BSD-3-Clause",
+      "source": "https://github.com/stardist/stardist-imagej"
+    },
+    {
+      "path": "jars/libtensorflow-1.15.0.jar",
+      "url": "https://sites.imagej.net/CSBDeep/jars/libtensorflow-1.15.0.jar-20200625011259",
+      "bytes": 2103016,
+      "sha256": "9c51d1b825f189f60836e4ce75484106e7b13eca589f3db932725223f28c2d63",
+      "license": "Apache-2.0",
+      "source": "https://github.com/tensorflow/tensorflow/tree/v1.15.0"
+    },
+    {
+      "path": "jars/libtensorflow_jni-1.15.0.jar",
+      "url": "https://sites.imagej.net/CSBDeep/jars/libtensorflow_jni-1.15.0.jar-20200625011259",
+      "bytes": 141714774,
+      "sha256": "f08ce6e684b50eb57e7b3c98347c3597433f945b17f0d1937517ef49ab47d047",
+      "license": "Apache-2.0",
+      "source": "https://github.com/tensorflow/tensorflow/tree/v1.15.0"
+    },
+    {
+      "path": "jars/proto-1.15.0.jar",
+      "url": "https://sites.imagej.net/CSBDeep/jars/proto-1.15.0.jar-20200808215936",
+      "bytes": 2882802,
+      "sha256": "bc97062b6a89cf80ac6165e0085eb5c44f48d879a8679346ce31acfd16c17cb6",
+      "license": "Apache-2.0",
+      "source": "https://github.com/tensorflow/tensorflow/tree/v1.15.0"
+    },
+    {
+      "path": "jars/tensorflow-1.15.0.jar",
+      "url": "https://sites.imagej.net/CSBDeep/jars/tensorflow-1.15.0.jar-20200625011259",
+      "bytes": 1825,
+      "sha256": "8ce4b87401fc04936834c5167c41d828407028f2c17455300044577f9db6b4cd",
+      "license": "Apache-2.0",
+      "source": "https://github.com/tensorflow/tensorflow/tree/v1.15.0"
+    },
+    {
+      "path": "jars/csbdeep-0.6.0.jar",
+      "url": "https://sites.imagej.net/CSBDeep/jars/csbdeep-0.6.0.jar-20200808215936",
+      "bytes": 142482,
+      "sha256": "13bfb85d179bedf1d5e6542b0e200cb250ab8e030e88d5e645e6e6b486b22894",
+      "license": "BSD-2-Clause",
+      "source": "https://github.com/CSBDeep/CSBDeep_fiji"
+    },
+    {
+      "path": "jars/imagej-tensorflow-1.1.9.jar",
+      "url": "https://sites.imagej.net/TensorFlow/jars/imagej-tensorflow-1.1.9.jar-20251001143405",
+      "bytes": 55089,
+      "sha256": "6a706ad629dd5cf037f1a6b19dc69ca5dd53a5c02449f680cb6885ed485933da",
+      "license": "BSD-2-Clause",
+      "source": "https://github.com/imagej/imagej-tensorflow"
+    },
+    {
+      "path": "plugins/MorphoLibJ_-1.6.5.jar",
+      "url": "https://sites.imagej.net/IJPB-plugins/plugins/MorphoLibJ_-1.6.5.jar-20260219135154",
+      "bytes": 1161276,
+      "sha256": "086c4661ccdd8c2787a6433468955df7646589b16cbae5c97607c18d8fe2af59",
+      "license": "LGPL-3.0-or-later",
+      "source": "https://github.com/ijpb/MorphoLibJ"
+    },
+    {
+      "path": "jars/protobuf-java-3.25.8.jar",
+      "url": "https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java/3.25.8/protobuf-java-3.25.8.jar",
+      "sha256": "72bdb32eb38cafb7dcd288262c29a34d57cba2e19101af9685155ba8c0a56008",
+      "license": "BSD-3-Clause",
+      "source": "https://github.com/protocolbuffers/protobuf"
+    }
+  ],
+  "model": {
+    "container": "plugins/StarDist_-0.3.0.jar",
+    "member": "models/2D/dsb2018_heavy_augment.zip",
+    "sha256": "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3",
+    "name": "Versatile (fluorescent nuclei)",
+    "license": "BSD-3-Clause",
+    "source": "https://github.com/stardist/stardist-models"
+  }
+}

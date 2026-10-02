@@ -34,3 +34,9 @@ runtime/
 .cache/
 .pnpm-store/
 *.log
+
+.vercel/
+!fixtures/public/**/
+
+.vercel
+.env*

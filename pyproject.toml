@@ -9,12 +9,24 @@ description = "Reproducible, private immunofluorescence analysis"
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
 dependencies = [
-  "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "pydantic>=2.10,<3",
-  "python-multipart>=0.0.20,<1", "sqlalchemy>=2.0,<3", "alembic>=1.15,<2",
-  "numpy>=2.2,<3", "tifffile>=2025.3", "scikit-image>=0.25,<1",
-  "pillow>=11,<13", "pandas>=2.2,<3", "scipy>=1.15,<2",
-  "statsmodels>=0.14,<1", "matplotlib>=3.10,<4", "roifile>=2025.2",
-  "defusedxml>=0.7,<1", "psutil>=7,<8"
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "pydantic>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
+  "sqlalchemy>=2.0,<3",
+  "alembic>=1.15,<2",
+  "numpy>=2.2,<3",
+  "tifffile>=2025.3",
+  "scikit-image>=0.25,<1",
+  "pillow>=11,<13",
+  "pandas>=2.2,<3",
+  "scipy>=1.15,<2",
+  "statsmodels>=0.14,<1",
+  "matplotlib>=3.10,<4",
+  "roifile>=2025.2",
+  "defusedxml>=0.7,<1",
+  "psutil>=7,<8",
+  "imagecodecs>=2026.1",
 ]
 
 [project.scripts]

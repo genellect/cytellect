@@ -1,0 +1,35 @@
+{
+  "dataset": "4DN Sceptic NPC DAPI/NCL",
+  "source": "https://data.4dnucleome.org/files-microscopy/4DNFI7FAWT6C/",
+  "license": "4DN public-data use policy (not an Apache-2.0/CC0 relicensing)",
+  "license_url": "https://registry.opendata.aws/4dnucleome/",
+  "publication": "https://doi.org/10.1186/s13059-025-03679-3",
+  "attribution": "Li G, Kim HJ, Pendyala S, et al. Sceptic. Genome Biology 26, 209 (2025); Doug Fowler laboratory, University of Washington; 4D Nucleome.",
+  "original_image_id": "4DNFI7FAWT6C",
+  "original_sha256": "d703dfedcf3894b781d0dbf2659f7ef81b60feea8660c39844ea14e150caa775",
+  "derived_assets": [
+    "demo-preview.png",
+    "demo-dapi.png",
+    "demo-ncl.png",
+    "data.json"
+  ],
+  "original_included": false,
+  "channel_mapping": {
+    "axes": "CYX",
+    "shape": [
+      2,
+      1536,
+      1739
+    ],
+    "dtype": "uint16",
+    "physical_size_um": 0.1625,
+    "channel_map": {
+      "dapi": 1,
+      "ncl": 0
+    },
+    "channel_map_basis": "Embedded OME Camera NIR (index 0, 700 nm) and Camera DAPI (index 1, 488 nm), with matching visual morphology. Explicitly adopted mapping; provider confirmation not claimed.",
+    "channel_conflict": "Portal imaging_paths lists ch00 DAPI/ch01 NCL, opposite to embedded OME names. The discrepancy is retained and not silently resolved.",
+    "gfp": "not acquired"
+  },
+  "validation_scope": "Real-image execution and pixel measurements, not detection accuracy: no object ground-truth masks are supplied. Not a user private-experiment validation."
+}

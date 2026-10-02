@@ -1,0 +1,20 @@
+name: Bug report
+description: Report behavior without research data
+body:
+  - type: markdown
+    attributes:
+      value: "Do not upload research images, conditions, results or credentials. Use a public fixture ID or a minimal synthetic case. Security reports belong in the private reporting channel."
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps using public or synthetic fixtures
+  - type: input
+    id: version
+    attributes:
+      label: Commit and recipe version
