@@ -1,10 +1,13 @@
+import { PUBLISHED_RELEASE } from "@/lib/release";
 import styles from "./workspace.module.css";
 
 export default function WindowsDownload({url}:{url:string}){
+ const published=PUBLISHED_RELEASE?.url===url?PUBLISHED_RELEASE:null;
  return <div className={styles.windowsDownload}>
   <p className={styles.muted}>Windows版で、自分の画像を解析できます。</p>
   <a className={styles.primary} href={url} rel="noreferrer">Cytellectをダウンロード <span aria-hidden="true">↓</span></a>
   <p className={styles.downloadPlatform}>Windows · x64 <span>開発プレビュー</span></p>
+  {published&&<a className={styles.releaseInfo} href={`https://github.com/genellect/cytellect/releases/tag/v${published.version}`} target="_blank" rel="noreferrer">v{published.version} · リリース情報・SHA-256 ↗</a>}
   <ol className={styles.setupSteps}>
    <li><b>展開する</b><span>ZIPを展開し、Cytellect Setup.cmdを開きます。</span></li>
    <li><b>セットアップ</b><span>初回のみ、解析に必要な環境を取得します。</span></li>

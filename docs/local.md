@@ -2,6 +2,8 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
+The accepted [0.1.0-local.6 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.6) is available for Windows x86-64. See its [acceptance record](local-release-0.1.0.md) for the archive checksum, exact tested versions and remaining scientific/hosted gates.
+
 ## Researcher flow
 
 1. Download the versioned Windows setup ZIP from the Cytellect release, verify its published SHA-256 if required by the laboratory, and extract it.
@@ -42,7 +44,7 @@ Developers build a local-only Web export with `pnpm --filter @cytellect/web buil
 python scripts/build_local_bundle.py --version 0.1.0-local.1 --output /absolute/outside/checkout/Cytellect-0.1.0-local.1-windows-x64.zip
 ```
 
-The builder rebuilds the Web export and packages only tracked allowlisted source files plus the static output. Every entry receives a SHA-256 in `local-release.json`; the archive receives a separate checksum. No `.env`, database, virtualenv, research image, runtime output or developer cache belongs in this package. The installation bootstrap verifies this manifest before copying files.
+The builder rebuilds the Web export and packages only tracked allowlisted source files plus the static output. Every entry receives a SHA-256 in `local-release.json`; the archive receives a separate checksum. Redistribution-cleared public demo derivatives, their attribution and hash allowlist are included. No `.env`, database, virtualenv, unpublished research image, private study input, runtime output or developer cache belongs in this package. The installation bootstrap verifies this manifest before copying files.
 
 Installation tests use an isolated directory under the task's scratch workspace. They must not overwrite a user's existing software, data or shortcuts. Acceptance includes an actual pinned-Fiji run, a browser upload/edit/export flow, hostile-origin denial, shutdown, restart and expiry. The release report records commit, archive checksum, platform, passed checks and known limitations. Publishing a ZIP is not evidence that installation succeeded.
 

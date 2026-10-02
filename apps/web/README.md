@@ -4,8 +4,10 @@ The default production build serves the public microscopy samples with analysis 
 
 ## Windows release link
 
-Set `NEXT_PUBLIC_WINDOWS_RELEASE_URL` only after the tagged ZIP asset in `genellect/cytellect` has been published and independently checked as publicly downloadable. Use the full version-specific HTTPS GitHub release asset URL, with an asset named `Cytellect-<version>-windows-x64.zip`. Rebuild the public Web app after changing this variable.
+`src/lib/published-release.json` records the publicly available versioned Windows ZIP, SHA-256, source commit and byte size. Update it only after the asset has been published, independently downloaded or checked against its published digest, and validated as an installed application. The fallback validates the metadata and exact versioned repository URL before displaying the download surface.
 
-There is deliberately no default or `/latest` URL. Empty/invalid URLs, local builds, and builds with an analysis API configured preserve the existing workspace UI. The browser performs no release or localhost probing. Clear the variable and rebuild to remove the download surface. Do not set it to an unpublished candidate or use this UI configuration as evidence of package validation.
+`NEXT_PUBLIC_WINDOWS_RELEASE_URL` overrides this record only when explicitly defined. An **empty value disables downloads**; an invalid value also disables them and never falls back. Removing the variable restores the recorded release on the next build. Local builds and builds with an analysis API configured preserve their workspace UI regardless of the release setting.
 
-The optional browser acceptance check uses `CYTELLECT_EXPECT_RELEASE_URL` with the same verified public URL. Without it, the public test requires the disconnected invitation placeholder and no download CTA.
+Only version-specific HTTPS GitHub assets in `genellect/cytellect` named `Cytellect-<version>-windows-x64.zip` are accepted. There is no `/latest` URL, browser release probe or local-service discovery. The version/checksum link appears only when the effective asset matches the recorded release, so an override cannot inherit a different version's metadata.
+
+The public browser acceptance check defaults to the tracked release. Use `CYTELLECT_EXPECT_RELEASE_URL` to test an override, including an explicit empty string for the disabled case. Rebuild the Web app after changing build-time configuration. Do not use this configuration as evidence that a future package has passed installation or scientific validation.
