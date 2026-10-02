@@ -1,7 +1,8 @@
 import { API_CONFIGURED, LOCAL_MODE } from "./api";
+import published from "./published-release.json";
 
-// Set only after checking that the tagged release asset is public and downloadable.
-// No default URL, redirects through /latest, background probes, or local-service discovery.
+// Published metadata is updated only after checking the actual public asset and checksum.
+// No /latest redirects, background probes, or local-service discovery.
 export function windowsReleaseUrl(value: string | undefined, local: boolean, apiConfigured: boolean): string {
  if(local || apiConfigured || !value) return "";
  try {
@@ -10,4 +11,12 @@ export function windowsReleaseUrl(value: string | undefined, local: boolean, api
    /^\/genellect\/cytellect\/releases\/download\/[^/]+\/Cytellect-[^/]+-windows-x64\.zip$/.test(url.pathname) ? url.href : "";
  } catch { return ""; }
 }
-export const WINDOWS_RELEASE_URL=windowsReleaseUrl(process.env.NEXT_PUBLIC_WINDOWS_RELEASE_URL,LOCAL_MODE,API_CONFIGURED);
+const expectedAsset=`https://github.com/genellect/cytellect/releases/download/v${published.version}/Cytellect-${published.version}-windows-x64.zip`;
+export const PUBLISHED_RELEASE=windowsReleaseUrl(published.url,false,false)===expectedAsset &&
+ /^[a-f0-9]{64}$/.test(published.sha256) && /^[a-f0-9]{40}$/.test(published.source_commit) &&
+ Number.isSafeInteger(published.size_bytes) && published.size_bytes>0 ? published : null;
+export function resolveWindowsReleaseUrl(override:string|undefined,local:boolean,apiConfigured:boolean):string {
+ // An explicit empty override disables downloads; invalid overrides never fall back.
+ return windowsReleaseUrl(override===undefined?PUBLISHED_RELEASE?.url:override,local,apiConfigured);
+}
+export const WINDOWS_RELEASE_URL=resolveWindowsReleaseUrl(process.env.NEXT_PUBLIC_WINDOWS_RELEASE_URL,LOCAL_MODE,API_CONFIGURED);
