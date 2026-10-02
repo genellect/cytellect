@@ -24,7 +24,7 @@
 
 ローカル版の保存期限は最終操作から24時間です。アプリ終了中やPC停止中に期限を迎えたデータは、次回起動時に削除します。現時点で、利用者ごとの環境構築を手作業の必須手順にはしません。
 
-[Windowsプレビュー 0.1.0-local.9 をダウンロード](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.9) · [チェックサムと受入記録](docs/local-release-0.1.0.md)
+[Windowsプレビュー 0.1.0-local.10 をダウンロード](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.10) · [チェックサムと受入記録](docs/local-release-0.1.0.md)
 
 ## 開発用の起動
 
