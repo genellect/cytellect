@@ -1,0 +1,16 @@
+{
+  "name": "cytellect",
+  "private": true,
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.19.0",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "dev": "pnpm --filter @cytellect/web dev",
+    "build": "pnpm --filter @cytellect/web build",
+    "check": "pnpm --filter @cytellect/web check",
+    "test": "pnpm --filter @cytellect/web test",
+    "test:e2e": "pnpm --filter @cytellect/web test:e2e",
+    "contracts": "pnpm --filter @cytellect/web contracts"
+  }
+}
