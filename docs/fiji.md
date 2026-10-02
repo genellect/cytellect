@@ -5,6 +5,8 @@ Cytellect executes the actual Fiji StarDist 2D implementation and its embedded
 StarDist, synthetic-truth, or connected-component replacement for nuclear detection.
 A missing/mismatched engine fails the field explicitly.
 
+For original CZI files, use the separate [offline Bio-Formats conversion procedure](converting-czi.md). The Web reader does not silently convert unsupported axes or display RGB into native quantitative input.
+
 ## Install once, at setup/build time
 
 Requirements: x86-64 Linux or Windows, Python 3.12, outbound HTTPS during setup,

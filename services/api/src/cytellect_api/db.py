@@ -232,7 +232,7 @@ class Store:
             workspace = (
                 c.execute(select(workspaces).where(workspaces.c.id == job["workspace_id"])).mappings().first()
             )
-            if not workspace or workspace["deleted"]:
+            if not workspace or workspace["deleted"] or workspace["expires"] <= time.time():
                 return False
             result = c.execute(
                 update(jobs)
@@ -252,7 +252,7 @@ class Store:
             workspace = (
                 c.execute(select(workspaces).where(workspaces.c.id == job["workspace_id"])).mappings().first()
             )
-            if not workspace or workspace["deleted"]:
+            if not workspace or workspace["deleted"] or workspace["expires"] <= time.time():
                 return False
             result = c.execute(
                 update(jobs)

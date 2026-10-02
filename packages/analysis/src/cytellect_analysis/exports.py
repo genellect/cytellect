@@ -109,6 +109,15 @@ def methods_text(config, provenance, report, statistics_results=()):
     if not gfp_only:
         lines.append("NCL-defined regions can change with the NCL distribution; this circular region-definition limitation "
                      "requires interpretation and sensitivity checks independent of the desired outcome.")
+    if not legacy and any(row.get("signal_qc_protocol_version") for row in report.get("cells", [])):
+        lines += ["Native signal QC protocol 1.0.0 reports corrected compartment mean divided by "
+                  "1.4826 times the background ROI median absolute deviation. This is spatial background "
+                  "dispersion, not a standard error or photon-noise model. Signed ratios are retained; "
+                  "zero/invalid dispersion and unavailable compartments produce missing values with reasons, without epsilon.",
+                  f"The optional weak-signal threshold is {recipe.get('native_signal_qc_minimum_ratio')}; "
+                  "ratios strictly below a configured threshold are flagged. There is no validated universal cutoff. "
+                  "An unset threshold does not classify weak signal. These diagnostics never automatically change "
+                  "masks, measurements, GFP gates, exclusions or statistical inclusion."]
     lines += ["", "## Quantification and selection", "",
               ("Background is the median of the confirmed ROI and native negative corrections remain signed." if not legacy else "Compatibility background and clipping follow the recorded procedure above."),
               "Raw/corrected mean, median and pixel-sum intensities are retained. Pixel-sum units depend on the stated grid. "

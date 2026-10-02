@@ -56,6 +56,7 @@ class Recipe(StrictModel):
     gfp_negative_control_fields: list[str] = Field(default_factory=list, max_length=100)
     gfp_negative_control_confirmed: bool = False
     gfp_maximum: FiniteFloat | None = None
+    native_signal_qc_minimum_ratio: NonNegative | None = None
     seed: int = Field(default=0, ge=0)
     legacy: LegacyParameters = Field(default_factory=LegacyParameters)
 
@@ -71,6 +72,8 @@ class Recipe(StrictModel):
             raise ValueError("Duplicate negative-control field IDs")
         if self.gfp_maximum is not None and self.gfp_threshold is not None and self.gfp_maximum < self.gfp_threshold:
             raise ValueError("GFP maximum is below threshold")
+        if self.id == "ncl-legacy-rgb" and self.native_signal_qc_minimum_ratio is not None:
+            raise ValueError("native_signal_qc_unavailable_in_legacy")
         return self
 
 class Exclusion(StrictModel):

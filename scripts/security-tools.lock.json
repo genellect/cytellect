@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "reviewed_non_secrets": [
+    {
+      "rule_id": "generic-api-key",
+      "path": "docs/resource-benchmark.md",
+      "sha256": "0d170176a17de967163c270e1aef75b0bab92f2e084618b6345d9bfdfaaf2b8a",
+      "reason": "Documented deterministic capacity DAPI uint16 pixel checksum; the API substring in DAPI triggers the generic rule. Exact checksum and path only."
+    },
+    {
+      "rule_id": "generic-api-key",
+      "path": "apps/web/public/demo/bbbc013/manifest.json",
+      "sha256": "db73d50afde31044f3df0466e08ff38a1fa1b3dad34aad9cfb306aa73d266d85",
+      "reason": "SHA-256 independently matched to the public demo-dapi.png artifact. Exact checksum and manifest path only; other findings in that file remain enabled."
+    }
+  ],
+  "gitleaks": {
+    "version": "8.30.1",
+    "license": "MIT",
+    "source": "https://github.com/gitleaks/gitleaks/tree/v8.30.1",
+    "platforms": {
+      "linux-x86_64": {
+        "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
+        "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+        "executable": "gitleaks",
+        "format": "tar.gz"
+      },
+      "windows-x86_64": {
+        "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip",
+        "sha256": "d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e",
+        "executable": "gitleaks.exe",
+        "format": "zip"
+      }
+    }
+  }
+}

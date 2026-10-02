@@ -41,6 +41,7 @@ For containers, set `CYTELLECT_RUNTIME_DIR` to a private Linux directory owned b
 ## Scope and evidence
 
 - Native8/16-bit 2D TIFF and verified2/3-channel OME-TIFF; separate legacy RGB recipe. Explicit channel mapping/backgrounds and immutable revisions.
+- CZI conversion stays offline in Fiji/Bio-Formats; follow the [pixel-preserving conversion procedure](docs/converting-czi.md) before import.
 - Nuclear/nucleolar/manual ROI editing; GFP/NCL measurements; paired/Welch and exploratory clustered regression; CSV, editable SVG/PDF, ROI/masks, Methods and replay package.
 - Published real microscopy for image integration/public samples; synthetic pixels only for exact numerical tests. Dataset identity, stains and provenance are recorded.
 - No registration, LLM, Supabase, payments, 3D/time series, UBF or automatic cell-boundary inference.

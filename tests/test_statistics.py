@@ -1,3 +1,4 @@
+import copy
 import math
 
 import numpy as np
@@ -118,6 +119,37 @@ def test_sensitivities_report_not_estimable_without_threshold_search():
     result = analyze_sensitivity(rows(), spec)
     assert [r["status"] for r in result["sensitivities"]] == ["succeeded", "not_estimable", "succeeded"]
     assert result["sensitivities"][0]["result"]["comparisons"] == result["comparisons"]
+
+
+@pytest.mark.parametrize("primary_method", ["none", "confirmed-negative-control"])
+def test_threshold_sensitivity_records_actual_gate_without_changing_primary(primary_method):
+    data = rows()
+    for index, row in enumerate(data):
+        row.update(nucleus_id=index, gfp_gate_method=primary_method,
+                   gfp_gate_threshold=6 if primary_method != "none" else None,
+                   gfp_gate_maximum=7.5, gfp_gate_exploratory=False,
+                   gfp_negative_control_fields=["control"] if primary_method != "none" else [],
+                   gfp_positive=(primary_method == "none" or row["gfp_mean_corrected"] >= 6)
+                                and row["gfp_mean_corrected"] <= 7.5)
+        row["gfp_selection_reason"] = "included" if row["gfp_positive"] else "outside_gfp_gate"
+    data[0].update(gfp_mean_corrected=None, gfp_positive=False, gfp_selection_reason="outside_gfp_gate")
+    data[2].update(excluded=True, exclusion_reason="predeclared exclusion")
+    original = copy.deepcopy(data)
+    result = analyze_sensitivity(data, request(sensitivity_gfp_thresholds=[4]))
+    scenario = result["sensitivities"][0]["result"]
+    expected_ids = {row["nucleus_id"] for row in original
+                    if not row["excluded"] and row["gfp_mean_corrected"] is not None
+                    and 4 <= row["gfp_mean_corrected"] <= 7.5}
+    assert {row["nucleus_id"] for row in scenario["plot_data"]} == expected_ids
+    assert all(row["gfp_gate_threshold"] == 4 and row["gfp_gate_method"] == "manual"
+               and row["gfp_gate_exploratory"] and row["gfp_negative_control_fields"] == []
+               and row["gfp_selection_reason"] == "included" and row["gfp_gate_maximum"] == 7.5
+               for row in scenario["plot_data"])
+    assert scenario["selection"]["excluded"] == 1
+    assert "data_derived_or_manual_gfp_selection_requires_predeclared_or_independent_validation" in scenario["warnings"]
+    assert all(row["gfp_gate_method"] == primary_method for row in result["plot_data"])
+    assert data == original
+    assert result["statistics_version"] == scenario["statistics_version"] == "1.2.1"
 
 
 def test_shared_units_need_explicit_pairing():

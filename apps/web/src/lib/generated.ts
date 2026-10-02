@@ -867,6 +867,8 @@ export interface components {
             gfp_negative_control_confirmed: boolean;
             /** Gfp Maximum */
             gfp_maximum?: number | null;
+            /** Native Signal Qc Minimum Ratio */
+            native_signal_qc_minimum_ratio?: number | null;
             /**
              * Seed
              * @default 0

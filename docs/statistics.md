@@ -1,6 +1,6 @@
 # Statistical and export protocol
 
-Protocol version **1.2.0** records changes to validation, reference coding and sample selection relative to the initial draft. This is a software protocol, not a claim of validation on private images.
+Protocol version **1.2.1** corrects persisted GFP-threshold sensitivity provenance without changing selection arithmetic or statistical formulas. Version 1.2.0 introduced the validation, reference coding and sample-selection rules below. This is a software protocol, not a claim of validation on private images.
 
 ## Unit comparisons
 
@@ -27,6 +27,8 @@ See [statsmodels covariance documentation](https://www.statsmodels.org/stable/ge
 ## Sensitivity analyses
 
 Users predeclare GFP thresholds and an optional restriction to dates containing all comparison groups plus the baseline. Each scenario retains its specification, counts, contrasts and warnings, or a not-estimable reason. The main result is not replaced by the scenario with the smallest p value.
+
+Each alternative GFP threshold records its actual value, manual/exploratory gate method and selection reason in scenario rows. It retains the primary upper bound and reasoned exclusions, but does not inherit a primary gate's negative-control confirmation. Primary measurements and gate metadata remain unchanged. Protocol 1.2.0 scenario rows retained primary threshold/method metadata despite applying the alternative threshold; the scenario identifier recorded the alternative and the numerical selection was unaffected. Recompute those scenarios with 1.2.1 before reusing their per-row gate provenance.
 
 `sensitivity-status.csv`, `sensitivity-counts.csv` and `sensitivity-comparisons.csv` expose scenario status/reason, groupwise selection/counts and effect/interval/raw/Holm p values. Each scenario repeats the declared comparison family; the CSV does not claim error control across all scenarios. Authoritative nested results remain in the statistical JSON, and the figure source manifest hashes the exported CSVs.
 

@@ -1,9 +1,13 @@
 """Security and immutable-version integration using synthetic data only."""
 
 import io
+import subprocess
+import sys
+import time
 import zipfile
 from dataclasses import replace
 
+import psutil
 from cytellect_api.db import Store, jobs, revisions, workspaces
 from cytellect_worker.main import cleanup, process_one
 from fastapi.testclient import TestClient
@@ -155,6 +159,79 @@ def test_deadline_retry_lease_fencing_and_cleanup_protect_running_attempt(tmp_pa
         conn.execute(update(jobs).where(jobs.c.id == successor["id"]).values(lease_until=0))
     cleanup(app.state.store)
     assert not folder.exists()
+
+
+def test_workspace_expiry_stops_active_tree_fences_result_and_then_cleans(tmp_path, monkeypatch):
+    client, app, settings = authenticated(tmp_path)
+    store = app.state.store
+    wid = client.post("/v1/workspaces", json={"title": "synthetic expiry"}, headers=HEADERS).json()["id"]
+    made = client.post(f"/v1/workspaces/{wid}/synthetic", headers=HEADERS).json()
+    config = {"backgrounds": {
+        fid: {"confirmed": True, "polygon": made["background_polygon"]} for fid in made["field_ids"]
+    }}
+    queued = client.post(f"/v1/workspaces/{wid}/analyses", json=config, headers=HEADERS).json()
+    folder = store.safe_path("workspaces", wid)
+    marker = tmp_path / "descendant.pid"
+    original_popen, original_heartbeat = subprocess.Popen, store.heartbeat
+    launched, attempts_seen, expiry_checks = [], [], []
+    code = (
+        "import subprocess,sys,time,pathlib; "
+        "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']); "
+        "pathlib.Path(sys.argv[1]).write_text(str(p.pid)); time.sleep(60)"
+    )
+
+    def launch(*args, **kwargs):
+        # Exercise real process-tree termination independently of Fiji/model speed.
+        process = original_popen([sys.executable, "-c", code, str(marker)], **kwargs)
+        launched.append(process)
+        return process
+
+    def expire_during_heartbeat(job):
+        deadline = time.monotonic() + 10
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert marker.exists() and launched[0].poll() is None
+        attempt = store.safe_path("runs", job["lease"])
+        attempts_seen.append(attempt)
+        with store.transaction() as conn:
+            conn.execute(update(workspaces).where(workspaces.c.id == wid).values(expires=time.time()-1))
+        for route in (
+            f"/v1/workspaces/{wid}", f"/v1/fields/{made['field_ids'][0]}/preview",
+            f"/v1/revisions/{queued['revision_id']}", f"/v1/jobs/{queued['job_id']}",
+        ):
+            assert client.get(route).status_code == 404
+        # An already computed result cannot publish after expiry, even with its valid lease.
+        assert not store.finish(job, "results/too-late")
+        assert store.one(jobs, id=job["id"])["result_dir"] is None
+        assert cleanup(store) == {"workspaces_removed": 0}
+        assert folder.exists() and (attempt / "request.json").exists()
+        expiry_checks.append(True)
+        return original_heartbeat(job)
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    monkeypatch.setattr(store, "heartbeat", expire_during_heartbeat)
+    try:
+        assert process_one(store, settings)
+        assert len(launched) == 1 and launched[0].poll() is not None
+        assert len(attempts_seen) == 1
+        # execute sanitizes exceptions from callbacks, so require all assertions
+        # inside the injected expiry boundary to have actually completed.
+        assert expiry_checks == [True]
+        descendant = int(marker.read_text())
+        assert not psutil.pid_exists(descendant) or psutil.Process(descendant).status() == psutil.STATUS_ZOMBIE
+        saved = store.one(jobs, id=queued["job_id"])
+        assert saved["lease_until"] == 0 and saved["result_dir"] is None
+        assert not (attempts_seen[0] / "request.json").exists()
+        assert cleanup(store) == {"workspaces_removed": 1}
+        assert not folder.exists() and not attempts_seen[0].exists()
+        assert not store.rows(revisions, workspace_id=wid)
+    finally:
+        # A failing regression must not leave its bounded test child alive.
+        from cytellect_worker.supervision import terminate_tree
+
+        for process in launched:
+            if process.poll() is None:
+                terminate_tree(process.pid)
 
 
 def test_versioned_migration_upgrades_existing_bootstrap_and_is_idempotent(tmp_path):
