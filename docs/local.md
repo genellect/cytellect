@@ -2,7 +2,7 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
-The accepted [0.1.0-local.6 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.6) is available for Windows x86-64. See its [acceptance record](local-release-0.1.0.md) for the archive checksum, exact tested versions and remaining scientific/hosted gates.
+The accepted [0.1.0-local.8 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.8) is available for Windows x86-64. See its [acceptance record](local-release-0.1.0.md) for the archive checksum, exact tested versions and remaining scientific/hosted gates.
 
 ## Researcher flow
 
