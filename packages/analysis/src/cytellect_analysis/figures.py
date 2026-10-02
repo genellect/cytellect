@@ -2,6 +2,7 @@
 import hashlib
 import json
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib
@@ -12,10 +13,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from matplotlib.lines import Line2D
+from matplotlib.text import Text
 
 from .exports_csv import write_csv
 
-FIGURE_VERSION = "1.1.0"
+FIGURE_VERSION = "1.1.1"
 COLORS = ["#0072b2", "#d55e00", "#009e73", "#cc79a7", "#e69f00", "#56b4e9", "#000000"]
 MARKERS = ["o", "s", "^", "v", "P", "X", "D", "<", ">"]
 LABELS = {
@@ -36,24 +38,64 @@ LABELS = {
 }
 
 
+FONT_FAMILIES = {
+    "ja": ("Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", "Meiryo", "IPAexGothic"),
+    "en": ("Arial", "Liberation Sans", "DejaVu Sans"),
+}
+NORMAL_WEIGHT_RANGE = (350, 500)
+
+
+@dataclass(frozen=True)
+class FigureFont:
+    family: str
+    path: Path
+    weight: int
+    style: str
+
+    def metadata(self):
+        # The file identity is reproducible without exporting a user's OS path.
+        return {"family": self.family, "weight": self.weight, "style": self.style,
+                "sha256": hashlib.sha256(self.path.read_bytes()).hexdigest()}
+
+
+def _weight_number(value):
+    return int(font_manager.weight_dict.get(value, 0)) if isinstance(value, str) else int(value)
+
+
+def select_font(language, text=""):
+    """Choose an actual normal-weight face covering every literal figure glyph."""
+    required = {ord(character) for character in text + "0123456789.eE+-" if not character.isspace()}
+    normal_available = False
+    for family in FONT_FAMILIES[language]:
+        candidates = [entry for entry in font_manager.fontManager.ttflist
+                      if entry.name == family and entry.style == "normal"
+                      and NORMAL_WEIGHT_RANGE[0] <= _weight_number(entry.weight) <= NORMAL_WEIGHT_RANGE[1]]
+        candidates.sort(key=lambda entry: (abs(_weight_number(entry.weight) - 400),
+                        entry.stretch != "normal", str(entry.fname).casefold()))
+        for entry in candidates:
+            try:
+                loaded = font_manager.get_font(entry.fname)
+                # Inspect the file, not just a possibly stale font-cache entry.
+                actual = font_manager.ttfFontProperty(loaded)
+                weight = _weight_number(actual.weight)
+                if actual.style != "normal" or not NORMAL_WEIGHT_RANGE[0] <= weight <= NORMAL_WEIGHT_RANGE[1]:
+                    continue
+                normal_available = True
+                if required.issubset(loaded.get_charmap()):
+                    return FigureFont(actual.name, Path(entry.fname), weight, actual.style)
+            except (OSError, RuntimeError, ValueError):
+                continue
+    if normal_available:
+        raise ValueError("figure_font_glyphs_unavailable")
+    raise ValueError("japanese_font_not_installed" if language == "ja" else "sans_serif_font_not_installed")
+
+
 def japanese_font():
-    for name in ("Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", "Meiryo", "IPAexGothic"):
-        try:
-            font_manager.findfont(font_manager.FontProperties(family=name), fallback_to_default=False)
-            return name
-        except ValueError:
-            continue
-    raise ValueError("japanese_font_not_installed")
+    return select_font("ja", "測定値").family
 
 
 def english_font():
-    for name in ("Arial", "Liberation Sans", "DejaVu Sans"):
-        try:
-            font_manager.findfont(font_manager.FontProperties(family=name), fallback_to_default=False)
-            return name
-        except ValueError:
-            continue
-    raise ValueError("sans_serif_font_not_installed")
+    return select_font("en").family
 
 
 def figure_settings(plot):
@@ -111,10 +153,12 @@ def render_figures(result, output: Path):
     glyphs = {}
     with plt.rc_context({"font.size": size, "axes.titlesize": size, "axes.labelsize": size, "legend.fontsize": size,
           "xtick.labelsize": size, "ytick.labelsize": size, "svg.fonttype": "none", "pdf.fonttype": 42,
-          "font.family": [font, "DejaVu Sans"], "axes.unicode_minus": False, "axes.linewidth": .6,
+          "font.family": [font], "font.weight": "normal", "axes.labelweight": "normal",
+          "axes.titleweight": "normal", "text.usetex": False, "text.parse_math": False,
+          "axes.unicode_minus": False, "axes.linewidth": .6,
           "lines.linewidth": .6, "xtick.major.width": .6, "ytick.major.width": .6,
           "xtick.major.size": 2.5, "ytick.major.size": 2.5, "text.color": "black",
-          "svg.hashsalt": "cytellect-figure-v1.1", "savefig.facecolor": "white"}):
+          "svg.hashsalt": "cytellect-figure-v1.1.1", "savefig.facecolor": "white"}):
         fig, ax = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
         rng = np.random.default_rng(0)
         try:
@@ -206,6 +250,20 @@ def render_figures(result, output: Path):
             title = (("探索的解析", "Exploratory analysis") if spec["mode"] == "exploratory" else
                      (("対応ありの比較", "Paired comparison") if paired else ("群間比較", "Group comparison")))
             ax.set_title(title[0 if ja else 1], loc="left", pad=7)
+            # Populate formatted tick labels before checking all labels; no draw
+            # occurs until the selected regular face has been bound explicitly.
+            ax.get_xticklabels()
+            ax.get_yticklabels()
+            texts = fig.findobj(match=Text)
+            selected_font = select_font("ja" if ja else "en", "".join(t.get_text() for t in texts))
+            font = selected_font.family
+            font_metadata = selected_font.metadata()
+            for item in texts:
+                properties = item.get_fontproperties().copy()
+                properties.set_file(str(selected_font.path))
+                properties.set_family(font)
+                properties.set_weight(selected_font.weight)
+                item.set_fontproperties(properties)
             for suffix in ("svg", "pdf", "png"):
                 metadata: dict[str, str | None] = {"Creator": "Cytellect " + FIGURE_VERSION}
                 if suffix == "pdf":
@@ -222,6 +280,7 @@ def render_figures(result, output: Path):
             write_csv(output / f"{name}.csv", rows)
     (output / "figure-caption.md").write_text(_caption(result, note), encoding="utf-8")
     source = {"figure_version": FIGURE_VERSION, "style": style, "spec": spec, "font": font,
+              "font_metadata": font_metadata,
               "revision_id": result.get("revision_id"), "table_id": result.get("table_id"),
               "source_kind": result.get("source_kind"), "unit": result.get("unit"), "assay": result.get("assay"),
               "metric_id": metric,
@@ -230,7 +289,7 @@ def render_figures(result, output: Path):
               "warnings": result.get("warnings", []), "note": note,
               "source_hashes": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.glob("*.csv"))}}
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return {"figure_version": FIGURE_VERSION, "font": font, "style": style,
+    return {"figure_version": FIGURE_VERSION, "font": font, "font_metadata": font_metadata, "style": style,
             "formats": ["svg", "pdf", "png"], "svg_text": "editable",
             "scatter_band": ("field-clustered CRV1 pointwise 95% mean CI" if spec["mode"] == "exploratory"
                              else None) if plot["kind"] == "scatter" else None,

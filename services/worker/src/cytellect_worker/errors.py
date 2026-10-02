@@ -116,5 +116,7 @@ SAFE_ERRORS = frozenset(
         "separate_baseline_and_repeat_families_required",
         "paired_plot_requires_unique_pairs",
         "japanese_font_not_installed",
+        "sans_serif_font_not_installed",
+        "figure_font_glyphs_unavailable",
     }
 )
