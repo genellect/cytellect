@@ -1,6 +1,6 @@
 # Accepted requirements — implementation targets
 
-This contract summarizes the user-approved plan. None of the milestones is complete at the checkpoint; see handoff.md for actual status.
+This contract summarizes the user-approved plan. Implementation status and remaining verification gates are tracked in roadmap.md and validation.md.
 
 ## Product
 
@@ -59,7 +59,7 @@ T10: Lock actual Python/pnpm/Fiji/Java/plugins/weights versions/URLs/SHA256/lice
 ## Quality and future gates
 
 D01: Documentation: README/AGENTS/requirements/methods/design/API/security/operations/validation/roadmap/OSS+SBOM/contributing/private vulnerability reporting and CI/setup.
-D02: Synthetic fixtures and screenshots only. Public dataset additions need redistribution provenance. No indiscriminate image ban; permitted fixture paths tracked.
+D02: Synthetic fixtures test exact numerical behavior. Published real microscopy containing nuclei/nucleoli is prioritized for image integration and the public demo. Internal testing and public redistribution have separate documented use scopes. Public assets require source, stain metadata, redistribution provenance and hash allowlisting; unpublished research remains prohibited.
 D03: CI Web lint/type/build, Python lint/type/tests, contract drift, analytical masks/measurements, browser invite→upload→edit→remeasure→export, real Fiji integration on engine changes, secrets/data/vulnerability/license/link/startup checks.
 D04: M4 representative private images split by field/sample into tuning and evaluation, not threshold optimization on evaluation images. Provisional targets nucleus F1>=.90, nucleolar F1>=.80 at IoU.5, neither achieved nor literature guarantee. Ambiguous cases separate; near-background errors not judged only relatively.
 D05: Corrected-mask measurement agreement with reference pixels essential; explain counts/legacy differences rather than force old significance.

@@ -1,0 +1,62 @@
+name: cytellect
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.python
+      target: api
+    environment:
+      CYTELLECT_DATA_DIR: /data
+      CYTELLECT_APP_ORIGIN: ${CYTELLECT_APP_ORIGIN:-http://localhost:3000}
+      CYTELLECT_SECURE_COOKIES: ${CYTELLECT_SECURE_COOKIES:-false}
+      CYTELLECT_DEMO: ${CYTELLECT_DEMO:-false}
+      CYTELLECT_FIJI_EXECUTABLE: /opt/fiji
+    volumes:
+      - ${CYTELLECT_RUNTIME_DIR:?Set an absolute private path outside checkout}:/data
+    ports: ["127.0.0.1:8000:8000"]
+    networks: [private]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/v1/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+  worker:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.python
+      target: worker
+    environment:
+      CYTELLECT_DATA_DIR: /data
+      CYTELLECT_JOB_TIMEOUT_SECONDS: ${CYTELLECT_JOB_TIMEOUT_SECONDS:-3600}
+      CYTELLECT_WORKER_MEMORY_MB: ${CYTELLECT_WORKER_MEMORY_MB:-4096}
+    volumes:
+      - ${CYTELLECT_RUNTIME_DIR:?Set an absolute private path outside checkout}:/data
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 5g
+    pids_limit: 512
+    init: true
+    restart: unless-stopped
+    depends_on:
+      api: {condition: service_healthy}
+  web:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_ORIGIN: ${NEXT_PUBLIC_API_ORIGIN:-http://localhost:8000}
+    ports: ["127.0.0.1:3000:3000"]
+    environment: {NEXT_TELEMETRY_DISABLED: "1"}
+    networks: [edge]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+networks:
+  private: {internal: true}
+  edge: {}

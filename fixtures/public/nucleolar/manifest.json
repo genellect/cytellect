@@ -1,0 +1,35 @@
+{
+  "dataset": "4DN Sceptic NPC DAPI/NCL",
+  "accession": "4DNFI7FAWT6C",
+  "experiment_set": "4DNESLP3I9VG",
+  "source": "https://data.4dnucleome.org/files-microscopy/4DNFI7FAWT6C/",
+  "publication": "https://doi.org/10.1186/s13059-025-03679-3",
+  "attribution": "Li G, Kim HJ, Pendyala S, et al. Sceptic. Genome Biology 26, 209 (2025); Doug Fowler laboratory, University of Washington; 4D Nucleome.",
+  "download_url": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/files/ad926442-144e-4097-9a3b-28cbe6286995/4DNFI7FAWT6C.tiff",
+  "bytes": 10202895,
+  "sha256": "d703dfedcf3894b781d0dbf2659f7ef81b60feea8660c39844ea14e150caa775",
+  "md5": "40e9e76b0ae535bf84b4982d9730332f",
+  "license": "4DN public-data use policy (not an Apache-2.0/CC0 relicensing)",
+  "license_url": "https://registry.opendata.aws/4dnucleome/",
+  "license_scope": "Anonymous download, analysis, and publication of results permitted by official AWS Open Data registry. Original TIFF is not redistributed in this repository; source-attributed computed display/results may be included.",
+  "data_use_guidelines": "https://data.4dnucleome.org/help/user-guide/faq",
+  "schema": {
+    "axes": "CYX",
+    "shape": [
+      2,
+      1536,
+      1739
+    ],
+    "dtype": "uint16",
+    "physical_size_um": 0.1625,
+    "channel_map": {
+      "dapi": 1,
+      "ncl": 0
+    },
+    "channel_map_basis": "Embedded OME Camera NIR (index 0, 700 nm) and Camera DAPI (index 1, 488 nm), with matching visual morphology. Explicitly adopted mapping; provider confirmation not claimed.",
+    "channel_conflict": "Portal imaging_paths lists ch00 DAPI/ch01 NCL, opposite to embedded OME names. The discrepancy is retained and not silently resolved.",
+    "gfp": "not acquired"
+  },
+  "validation_scope": "Real-image execution and pixel measurements, not detection accuracy: no object ground-truth masks are supplied. Not a user private-experiment validation.",
+  "projection": "Supplied TIFF is Z=1,T=1. The paper describes 3D acquisitions and 2D maximum projections; Cytellect does not project this file and does not claim it is an original optical section."
+}

@@ -1,15 +1,35 @@
-# Protection and operations
+# Data protection and operations
 
-**This checkpoint is not safe to deploy with research data.** Authorization is draft code; cleanup, supervision and security tests are absent.
+This early prototype has local automated tests for invitation replay/revocation, Origin/CSRF, cross-session ownership, immutable versions, stale leases, job timeout/retry and expiry/deletion. These tests do not certify a hosted deployment. Run the acceptance checks on the actual analysis host before receiving private research data.
 
-Public source/synthetic fixtures can enter GitHub/Cloud/CI. Research images/PDFs, filenames, paths, conditions/results, previews/masks/tables/figures, tokens/secrets cannot. Real validation occurs in a separate approved private environment.
+## Data boundaries
 
-Runtime files stay on a private volume outside checkout. Browser uploads directly to API with TLS; CDN serves UI only. Ownership on every route, no-store on research responses. No analytics/recording/LLM transmission. IDs are not permissions.
+Unpublished research images, papers, filenames, conditions, masks, tables and plots stay outside Git, Cloud development, CI, external AI and public demos. Public published images can be used for appropriate internal tests with recorded source and conditions. Only assets with a verified public redistribution basis belong in the public UI/repository; register hashes and attribution separately. Synthetic images remain numerical unit-test fixtures.
 
-One-use expiring invite exchanged for Secure HttpOnly session, hashes server-side, no query/localStorage secrets; exact CORS, Origin/CSRF and revocation. Logs exclude payloads/filenames/conditions/tokens.
+Browser uploads go directly to the analysis API. Disable Vercel image optimization, analytics/session recording, Service Workers and CDN caching for research content. API responses carry no-store. Every read checks the owning live session and workspace; IDs alone confer no permission. Do not log request bodies, filenames or token values.
 
-24h retention from explicit operation; polling excluded. Expiry/deletion immediately blocks access, then stops execution and deletes files safely. Reject stale/deleted-workspace worker results. Test interruption/restart/races before PoC. No general research-file backups.
+## Installation and invitations
 
-Allowlisted recipes, bounded memory/time, no worker egress or arbitrary code/macros/URLs. Freeze dependencies/weights at build. Validate decompressed dimensions/axes/count/bytes.
+For local development set `CYTELLECT_DATA_DIR` to a private directory outside checkout, `CYTELLECT_APP_ORIGIN=http://localhost:3000` and `CYTELLECT_SECURE_COOKIES=false`. Run `uv run cytellect serve`, `uv run cytellect-worker` and `pnpm dev` in separate terminals.
 
-Do not attach research data or credentials to issues. Configure and verify private vulnerability reporting before external PoC; no active reporting channel is claimed now.
+For Linux containers create a dedicated private directory owned by UID 10001 with mode0700, set its absolute path in `CYTELLECT_RUNTIME_DIR`, then run `docker compose up --build -d`. The worker has `network_mode: none` and shares only the private local volume. SQLite must not live on a network share. Fiji/model acquisition happens during build, never in a job.
+
+Use `uv run cytellect invite --hours 24` (or `docker compose exec api cytellect invite --hours 24`) from a private operator terminal. The CLI emits the one-use invitation once: do not pipe it into shared logs. Tokens are stored hashed; sessions use HttpOnly cookies. Logout revokes the session.
+
+## Public host
+
+Use an API hostname under the same registrable domain as the Vercel UI, exact `CYTELLECT_APP_ORIGIN`, HTTPS and `CYTELLECT_SECURE_COOKIES=true`. Strict same-site cookies deliberately do not support an arbitrary unrelated third-party API domain. The default Vercel domain can host the public sample viewer while an analysis domain is being provisioned.
+
+`docker compose -f compose.yaml -f infra/compose.tls.yaml up -d` adds the Caddy TLS proxy; configure `CYTELLECT_API_HOST`. Only the proxy should face the Internet. Apply host firewall rules, storage capacity alarms and OS updates. The Compose memory limit bounds the whole worker; the supervisor also bounds children. Caddy rejects over-limit bodies before multipart parsing; temporary uploads stay in /data/tmp.
+
+Verify browser Origin/cookie behavior, cross-session read denial for every artifact type, cancellation, server restart, cleanup, quota handling, and the worker's denied external network access on the actual host. Public UI deployment alone does not pass these gates.
+
+## Retention and recovery
+
+Workspaces expire24hours after explicit actions. Automatic polling/preview reads do not extend retention. Expiry and DELETE block reads immediately. Active work is protected from physical deletion until its process tree stops; cleanup then removes inputs, arrays, masks, figures, exports and attempt directories. Files are not included in ordinary PoC backups.
+
+Run `cytellect cleanup` manually if the worker was offline. Durable leases recover interrupted jobs with at most two automatic attempts; old workers cannot commit. A failed retry starts a fresh attempt; it does not overwrite a previous result. Inspect sanitized job error codes, not raw engine stderr.
+
+Alembic upgrades execute under the SQLite write lock at startup, including adoption of the initial unversioned checkpoint. Deploy code/schema changes with API and worker stopped together. Do not automatically downgrade or copy live WAL files. Before any operator-approved schema recovery, use an offline, private, short-lived metadata snapshot and follow the workspace retention policy. Research-file backups are outside this PoC.
+
+See [SECURITY](../SECURITY.md) for private vulnerability reporting.

@@ -1,0 +1,27 @@
+FROM python:3.12.14-slim-bookworm AS base
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-noto-cjk libgomp1 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir uv==0.12.2
+WORKDIR /app
+COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY packages/analysis packages/analysis
+COPY services services
+RUN uv sync --frozen --no-dev --no-editable
+ENV PATH="/opt/venv/bin:$PATH" CYTELLECT_DATA_DIR=/data TMPDIR=/data/tmp MPLCONFIGDIR=/data/matplotlib
+RUN useradd --uid 10001 --create-home app
+COPY infra/runtime-entrypoint.py /app/runtime-entrypoint.py
+USER 10001
+ENTRYPOINT ["python", "/app/runtime-entrypoint.py"]
+FROM base AS api
+CMD ["cytellect", "serve", "--host", "0.0.0.0"]
+
+FROM base AS fiji-build
+USER root
+COPY engines/fiji /app/engines/fiji
+COPY scripts/fiji_setup.py /app/scripts/fiji_setup.py
+RUN python /app/scripts/fiji_setup.py /opt/fiji --platform linux-x64
+FROM base AS worker
+COPY --from=fiji-build /opt/fiji /opt/fiji
+COPY engines/fiji /app/engines/fiji
+ENV CYTELLECT_FIJI_EXECUTABLE=/opt/fiji CYTELLECT_ENGINE_ASSETS=/app/engines/fiji
+CMD ["cytellect-worker"]

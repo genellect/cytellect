@@ -1,0 +1,72 @@
+{
+  "fixtures/public/bbbc039/image/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.tif": {
+    "sha256": "51787b533f38efc0d934a9cc0f760e704ef5fca97d561aa868f2099f2e6bb1ce",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.tif": {
+    "sha256": "d49d90f12cde7176191b0acbf2ed783c39fe8bdf0caf968ca5f8a1627429b8f1",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.tif": {
+    "sha256": "69329412d32aff2e6ce272576062f54d43453d4126313bae405389091c79843a",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.tif": {
+    "sha256": "fbc992000fe626926d56ece5f1731af9284add61d1b8096b3d99e943a47435e5",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.tif": {
+    "sha256": "f6c668b78aa2f19af2ed936b758e024d00ffc1a2db091ee04d8f6c6ced342003",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.png": {
+    "sha256": "bf9897059aa3c4de8ce94b583eee7285dc9f9f90fc7848cf9a4b5f74ba4e2471",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.png": {
+    "sha256": "471aa3c33f45be0ca829d7de49acebcc0fa4bcbf2d4dbadc2d6de0665d45c9c9",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.png": {
+    "sha256": "d5075a936788df5ebc48880685681949e74c33a26c3bdf6023e682a102830ad3",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.png": {
+    "sha256": "a4ae99ca8c53fbe14bcd8ed769a5216317f69cbf8eff570062b9022cf3ce08e0",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.png": {
+    "sha256": "371e8efd02fa55ebee8d0fe34433bd36a402d52c496f5f230aebc39445b86db5",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "apps/web/public/demo/bbbc039/preview.png": {
+    "sha256": "4719dd91fbff82ebcdeca5e9d7d2b7e916a1cdfee06d674876c773289d8319ee",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "apps/web/public/demo/4dn-ncl/demo-dapi.png": {
+    "sha256": "0cef831cb009cb92be585b28f4956dd03059308ba69450cb7eb2a90d597ca1c9",
+    "source": "https://registry.opendata.aws/4dnucleome/",
+    "license": "4DN public-data use policy; source-attributed derived results"
+  },
+  "apps/web/public/demo/4dn-ncl/demo-ncl.png": {
+    "sha256": "42f09f21bbf3b9a9a3d22d5ee102f55bdb2639e18352bc3d8e4b125fbac1fc76",
+    "source": "https://registry.opendata.aws/4dnucleome/",
+    "license": "4DN public-data use policy; source-attributed derived results"
+  },
+  "apps/web/public/demo/4dn-ncl/demo-preview.png": {
+    "sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
+    "source": "https://registry.opendata.aws/4dnucleome/",
+    "license": "4DN public-data use policy; source-attributed derived results"
+  }
+}

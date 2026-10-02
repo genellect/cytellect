@@ -1,0 +1,104 @@
+{
+  "dataset": "BBBC039v1",
+  "source": "https://bbbc.broadinstitute.org/BBBC039",
+  "license": "CC0-1.0",
+  "channel": "DNA (Hoechst), not DAPI/NCL/GFP",
+  "selection": "lexicographically first 5 filenames in official metadata/test.txt; frozen before inference",
+  "model_overlap": "BBBC039 partly overlaps DSB2018, which trained the Versatile fluorescent nuclei model; independent holdout performance is not claimed",
+  "archives": {
+    "images.zip": {
+      "url": "https://data.broadinstitute.org/bbbc/BBBC039/images.zip",
+      "sha256": "6f30a5d4fe38c928ded972704f085975f8dc0d65d9aa366df00e5a9d449fddd7"
+    },
+    "masks.zip": {
+      "url": "https://data.broadinstitute.org/bbbc/BBBC039/masks.zip",
+      "sha256": "f9e6043d8ca56344a4886f96a700d804d6ee982f31e2b2cd3194af2a053c2710"
+    },
+    "metadata.zip": {
+      "url": "https://data.broadinstitute.org/bbbc/BBBC039/metadata.zip",
+      "sha256": "a2c1f900bed9ba92a99553efd4c2ae98598433691c7401d818653ab61110deb2"
+    }
+  },
+  "images": [
+    {
+      "id": "IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637",
+      "split": "official-test",
+      "image": {
+        "member": "images/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.tif",
+        "path": "image/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.tif",
+        "sha256": "51787b533f38efc0d934a9cc0f760e704ef5fca97d561aa868f2099f2e6bb1ce",
+        "bytes": 726354
+      },
+      "mask": {
+        "member": "masks/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.png",
+        "path": "mask/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.png",
+        "sha256": "bf9897059aa3c4de8ce94b583eee7285dc9f9f90fc7848cf9a4b5f74ba4e2471",
+        "bytes": 17598
+      }
+    },
+    {
+      "id": "IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C",
+      "split": "official-test",
+      "image": {
+        "member": "images/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.tif",
+        "path": "image/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.tif",
+        "sha256": "d49d90f12cde7176191b0acbf2ed783c39fe8bdf0caf968ca5f8a1627429b8f1",
+        "bytes": 726350
+      },
+      "mask": {
+        "member": "masks/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.png",
+        "path": "mask/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.png",
+        "sha256": "471aa3c33f45be0ca829d7de49acebcc0fa4bcbf2d4dbadc2d6de0665d45c9c9",
+        "bytes": 6067
+      }
+    },
+    {
+      "id": "IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544",
+      "split": "official-test",
+      "image": {
+        "member": "images/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.tif",
+        "path": "image/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.tif",
+        "sha256": "69329412d32aff2e6ce272576062f54d43453d4126313bae405389091c79843a",
+        "bytes": 726354
+      },
+      "mask": {
+        "member": "masks/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.png",
+        "path": "mask/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.png",
+        "sha256": "d5075a936788df5ebc48880685681949e74c33a26c3bdf6023e682a102830ad3",
+        "bytes": 12447
+      }
+    },
+    {
+      "id": "IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D",
+      "split": "official-test",
+      "image": {
+        "member": "images/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.tif",
+        "path": "image/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.tif",
+        "sha256": "fbc992000fe626926d56ece5f1731af9284add61d1b8096b3d99e943a47435e5",
+        "bytes": 726350
+      },
+      "mask": {
+        "member": "masks/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.png",
+        "path": "mask/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.png",
+        "sha256": "a4ae99ca8c53fbe14bcd8ed769a5216317f69cbf8eff570062b9022cf3ce08e0",
+        "bytes": 10900
+      }
+    },
+    {
+      "id": "IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF",
+      "split": "official-test",
+      "image": {
+        "member": "images/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.tif",
+        "path": "image/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.tif",
+        "sha256": "f6c668b78aa2f19af2ed936b758e024d00ffc1a2db091ee04d8f6c6ced342003",
+        "bytes": 726354
+      },
+      "mask": {
+        "member": "masks/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.png",
+        "path": "mask/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.png",
+        "sha256": "371e8efd02fa55ebee8d0fe34433bd36a402d52c496f5f230aebc39445b86db5",
+        "bytes": 9443
+      }
+    }
+  ]
+}

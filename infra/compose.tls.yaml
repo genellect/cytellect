@@ -1,0 +1,18 @@
+services:
+  gateway:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment:
+      CYTELLECT_API_HOST: ${CYTELLECT_API_HOST:?Set API hostname}
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_config:/config
+      - caddy_certificates:/data
+    networks: [edge, private]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+volumes:
+  caddy_config: {}
+  caddy_certificates: {}

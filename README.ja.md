@@ -1,15 +1,38 @@
 # Cytellect
 
-[English](README.md)
+核・核小体の検出から、領域修正、GFP・NCL定量、統計、編集可能な図表の出力までを扱うIF画像解析アプリです。
 
-**開発途中の引き継ぎ版です。利用可能なアプリ・検証済み解析ツールではありません。** Python解析処理とAPIの草稿があります。Web画面、ワーカー、固定Fiji環境、結合テスト、デプロイは未完成です。研究画像を登録しないでください。
+[English](README.md) · [要件](docs/requirements.md) · [解析法](docs/methods.md) · [検証](docs/validation.md)
 
-核・核小体候補の検出と修正、GFP選別、NCL領域定量、統計、編集可能な図と再現用出力までを一貫して扱うことを目指します。
+**研究用プロトタイプです。** Web・API・ワーカーを実装し、結合検証を進めています。対象実験の生画像による妥当性と、研究者によるPoC評価は未実施です。公開画面のサンプルは論文に紐づく実画像を使います。UIの公開と解析サーバーの稼働は別に確認します。
 
-[引き継ぎ](docs/handoff.md)、[要件](docs/requirements.md)、[解析法](docs/methods.md)、[データ保護](docs/security.md)、[実装順序](docs/roadmap.md)を確認してください。
+## できること
 
-Python 3.12 / Node.js 24を対象とし、現在の依存導入は `uv sync --locked --dev` です。ブラウザデモや一括起動はまだありません。pnpmのWebコマンドは未作成パッケージ向けです。
+- DAPI核検出、NCL核小体候補抽出、手動での追加・削除・輪郭修正・結合・分割。
+- 核・核小体・核質の測定、GFP選別、背景ROI、除外理由、解析版の管理。
+- 実験単位の比較、探索的回帰、数値CSVの取込、図・測定表・ROI・再実行パッケージの出力。
+- Fiji／StarDist／ImageJ／MorphoLibJを利用。原画像、表示調整、検出用処理を分離。
 
-公開repo・CI・Cloudでの開発には合成データのみを使用します。研究資料、元画像・名前・条件、プレビュー、マスク、表、図も保護対象です。実画像の検証は別の非公開環境で行います。招待制・所有権確認・24時間保持は実装中です。
+自動検出結果は利用者による確認が必要です。NCLから核小体領域を定義すると、NCLの再分布自体で検出領域も変化します。この制約を条件・出力に記録します。細胞全体の境界をDAPIだけから推定しません。
 
-自作ソースはApache-2.0。第三者OSS・モデル・データは別ライセンスです。
+## 起動
+
+Python3.12・Node.js24・pnpm11.19.0を使います。`uv sync --locked --dev` と `pnpm install --frozen-lockfile` で固定依存を導入します。
+
+`CYTELLECT_DATA_DIR` にrepo外の非公開ディレクトリ、`CYTELLECT_APP_ORIGIN` に `http://localhost:3000`、ローカル開発時のみ `CYTELLECT_SECURE_COOKIES=false` を設定します。
+
+`uv run python scripts/fiji_setup.py <repo外の新規ディレクトリ> --platform windows-x64` で固定Fijiを導入し、`CYTELLECT_FIJI_EXECUTABLE` にそのディレクトリを指定します。Linuxは `linux-x64` を選びます。
+
+`uv run cytellect invite --hours 24` で招待を発行し、別々の端末で `uv run cytellect serve`、`uv run cytellect-worker`、`pnpm dev` を起動します。招待コードはログやIssueに記載しないでください。Fiji未設定時、実画像の解析を別エンジンで代替することはありません。
+
+コンテナ・TLS・保存期限・削除・障害復旧は[運用](docs/security.md)、検証コマンドは[開発手順](CONTRIBUTING.md)を参照してください。
+
+## 研究情報の保護
+
+未公開の研究画像・資料・ファイル名・実験条件・結果・派生物を、公開repo・CI・外部AI・公開デモへ持ち込みません。元画像と派生物は非公開ボリュームに置き、明示的な利用操作から24時間を保存期限とします。
+
+人工画像は計算の単体テストに使います。実画像での検出確認と公開デモには、出典・染色・用途を記録した公開データを使い、内部検証と公開再配布の条件を分けます。
+
+「論文用」は、図の編集可能性、条件の明示、測定値の追跡、再実行可能性を指します。特定実験での妥当性を保証する表現ではありません。[残る検証](docs/roadmap.md)
+
+自作コードはApache-2.0です。Fiji・プラグイン・モデル・公開画像には各々の条件が適用されます。[OSS管理](docs/oss.md)

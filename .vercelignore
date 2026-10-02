@@ -1,0 +1,17 @@
+.git
+.venv
+**/__pycache__
+services
+packages/analysis
+engines
+fixtures
+tests
+infra
+scripts
+docs
+work
+*.sqlite*
+*.log
+
+.env*
+**/.env*

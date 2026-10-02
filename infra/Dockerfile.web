@@ -1,0 +1,14 @@
+FROM node:24.18.0-bookworm-slim AS builder
+WORKDIR /app
+RUN npm install --global pnpm@11.19.0
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/web/package.json apps/web/package.json
+RUN pnpm install --frozen-lockfile
+COPY apps/web apps/web
+COPY packages/contracts packages/contracts
+ARG NEXT_PUBLIC_API_ORIGIN=http://localhost:8000
+ENV NEXT_PUBLIC_API_ORIGIN=$NEXT_PUBLIC_API_ORIGIN NEXT_TELEMETRY_DISABLED=1
+RUN pnpm build
+USER node
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@cytellect/web", "start"]

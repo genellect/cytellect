@@ -2,7 +2,9 @@
 import numpy as np
 from scipy import ndimage as ndi
 from skimage import draw, filters, measure, morphology, segmentation
+
 from .contracts import MaskEdit, Recipe
+
 
 def polygon_mask(shape, polygon):
     p = np.asarray(polygon, dtype=float)
@@ -10,12 +12,23 @@ def polygon_mask(shape, polygon):
         raise ValueError("invalid_polygon")
     if (p < 0).any() or (p[:, 0] > shape[1]).any() or (p[:, 1] > shape[0]).any():
         raise ValueError("polygon_outside_image")
+    if abs(np.dot(p[:, 0], np.roll(p[:, 1], 1)) - np.dot(p[:, 1], np.roll(p[:, 0], 1))) <= 1e-10:
+        raise ValueError("degenerate_polygon")
     mask = draw.polygon2mask(shape, p[:, ::-1] - 0.5)
     if not mask.any():
         raise ValueError("empty_polygon")
     return mask
 
+def validate_label_array(labels):
+    if (not isinstance(labels, np.ndarray) or labels.ndim != 2 or not labels.size
+            or labels.dtype.kind not in "iu" or (labels < 0).any()
+            or int(labels.max()) > np.iinfo(np.uint32).max):
+        raise ValueError("invalid_label_array")
+
+
 def validate_labels(nuclei, nucleoli):
+    validate_label_array(nuclei)
+    validate_label_array(nucleoli)
     if nuclei.shape != nucleoli.shape or (nuclei < 0).any() or (nucleoli < 0).any():
         raise ValueError("invalid_label_shapes")
     for label in np.unique(nucleoli):
@@ -60,21 +73,32 @@ def detect_nucleoli(nuclei, ncl, dapi, recipe: Recipe):
 
 def contours(labels):
     result = []
-    for region in measure.regionprops(labels.astype(np.int32)):
+    validate_label_array(labels)
+    ids = np.unique(labels)
+    if ids[0] != 0:
+        ids = np.insert(ids, 0, 0)
+    dense = np.searchsorted(ids, labels).astype(np.int32)
+    for region in measure.regionprops(dense):
         y0, x0, y1, x1 = region.bbox
-        local = np.pad(labels[y0:y1, x0:x1] == region.label, 1)
+        local = np.pad(dense[y0:y1, x0:x1] == region.label, 1)
         for contour in measure.find_contours(local.astype(float), .5):
             points = [[float(x + x0 - .5), float(y + y0 - .5)] for y, x in contour]
-            result.append({"id": int(region.label), "points": points})
+            result.append({"id": int(ids[region.label]), "points": points})
     return result
 
 def apply_edit(nuclei, nucleoli, manual, edit: MaskEdit):
-    nuclei, nucleoli, manual = nuclei.copy(), nucleoli.copy(), manual.copy()
+    validate_labels(nuclei, nucleoli)
+    validate_label_array(manual)
+    if manual.shape != nuclei.shape or len(set(edit.ids)) != len(edit.ids):
+        raise ValueError("invalid_edit_labels")
+    nuclei, nucleoli, manual = (x.astype(np.uint32, copy=True) for x in (nuclei, nucleoli, manual))
     layer = {"nuclei": nuclei, "nucleoli": nucleoli, "manual": manual}[edit.layer]
     available = set(np.unique(layer)) - {0}
     if any(i not in available for i in edit.ids):
         raise ValueError("unknown_label")
     before = nuclei.copy()
+    if edit.operation in ("add", "split") and int(layer.max()) == np.iinfo(np.uint32).max:
+        raise ValueError("label_id_exhausted")
     if edit.operation in ("add", "replace"):
         selected = polygon_mask(layer.shape, edit.polygon)
         if edit.operation == "replace" and len(edit.ids) != 1:
