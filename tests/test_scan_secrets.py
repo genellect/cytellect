@@ -101,6 +101,34 @@ def test_scan_uses_all_history_and_isolated_forced_rules(tmp_path, monkeypatch):
     assert not any(path.name.startswith("cytellect-secret-scan-") for path in cache.iterdir())
 
 
+def test_tracked_local_environment_is_never_read_and_cannot_pass_scan(tmp_path, monkeypatch):
+    repo = init_repository(tmp_path / "repo")
+    commit(repo, "source.txt", "public source")
+    (repo / ".env.local").write_text(synthetic_token("I"))
+    run_git(repo, "add", ".env.local")
+    cache = tmp_path / "tools"
+    cache.mkdir()
+    monkeypatch.setattr(scanner, "get_tool", lambda _: (cache / "scanner", {"version": "test"}))
+    original_capture = scanner.run_capture
+    original_open = Path.open
+
+    def protected_open(path, *args, **kwargs):
+        assert path.name != ".env.local", "working local environment file must never be opened"
+        return original_open(path, *args, **kwargs)
+
+    def fake_capture(command, *, cwd, timeout=600, trusted_repo=None):
+        if command[0] == "git":
+            return original_capture(command, cwd=cwd, timeout=timeout, trusted_repo=trusted_repo)
+        assert command[1] == "git", "forbidden tracked environment must stop before current-file scan"
+        return subprocess.CompletedProcess(command, 0, b"[]", b"")
+
+    monkeypatch.setattr(Path, "open", protected_open)
+    monkeypatch.setattr(scanner, "run_capture", fake_capture)
+    with pytest.raises(scanner.ScanError, match="^tracked_local_environment_file_forbidden$"):
+        scanner.scan(repo, cache)
+    assert not any(path.name.startswith("cytellect-secret-scan-") for path in cache.iterdir())
+
+
 def test_aggregate_discards_values_paths_authors_and_only_keeps_counts():
     raw = json.dumps([{"RuleID": "github-pat", "Secret": synthetic_token("C"),
                        "File": "unpublished-name.txt", "Author": "private name", "StartLine": 17}]).encode()

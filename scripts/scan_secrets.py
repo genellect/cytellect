@@ -240,6 +240,8 @@ def scan(repo: Path, cache_dir: Path) -> dict[str, Any]:
         target = scratch / "tracked"
         target.mkdir(mode=0o700)
         counts = stage_tracked(repo, target)
+        if counts["local_environment_files_excluded"]:
+            raise ScanError("tracked_local_environment_file_forbidden")
         tracked = aggregate(run_capture([str(executable), "dir", str(target), *common],
                                          cwd=scratch, timeout=660))
         tracked.update(counts)
