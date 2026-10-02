@@ -71,7 +71,7 @@ def test_release_rejects_unverified_or_unsafe_files(tmp_path, fault):
 
 
 def test_private_dacl_initial_retry_and_new_version_do_not_require_admin(tmp_path):
-    """Invoke the actual root initializer twice without installing dependencies."""
+    """Preserve the initial owner/group while privatizing and re-entering the DACL."""
     shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     harness = tmp_path / "verify-acl.ps1"
     harness.write_text(r'''
@@ -87,6 +87,12 @@ foreach ($name in @('Get-SafeChild','Initialize-PrivateRoot')) {
 }
 $InstallRoot=$Destination
 $SourceRoot=Split-Path -Parent $Setup
+# An elevated Windows runner may create directories owned by Administrators.
+# Setup promises a private DACL, not ownership replacement or extra privileges.
+[IO.Directory]::CreateDirectory($Destination) | Out-Null
+$initialAcl=[IO.DirectoryInfo]::new($Destination).GetAccessControl()
+$initialOwner=$initialAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+$initialGroup=$initialAcl.GetGroup([Security.Principal.SecurityIdentifier]).Value
 $actual=Initialize-PrivateRoot
 $preserved=Join-Path $actual 'data/preserved.txt'
 [IO.Directory]::CreateDirectory((Split-Path -Parent $preserved)) | Out-Null
@@ -99,7 +105,9 @@ if ([IO.File]::ReadAllText($preserved) -ne 'preserve existing research placehold
 $acl=[IO.DirectoryInfo]::new($actual).GetAccessControl()
 $user=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
-if ($owner -ne $user -or -not $acl.AreAccessRulesProtected) { throw 'owner_or_inheritance_invalid' }
+$group=$acl.GetGroup([Security.Principal.SecurityIdentifier]).Value
+if ($owner -ne $initialOwner -or $group -ne $initialGroup) { throw 'owner_or_group_changed' }
+if (-not $acl.AreAccessRulesProtected) { throw 'inheritance_not_protected' }
 $rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
 if ($rules.Count -ne 2) { throw 'unexpected_acl' }
 foreach ($rule in $rules) {
