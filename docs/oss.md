@@ -29,6 +29,34 @@ are separate checks. Published microscopy fixtures have source, stain metadata,
 redistribution basis and hashes in fixtures/public/allowlist.json. Synthetic
 fixtures serve numerical tests. No unpublished research images are distributed.
 
+## CI evidence and license checks
+
+`scripts/sbom.py` inventories the installed Python environment, the actual Web
+notice collector and the fixed Fiji manifest, with hashes of both dependency
+lockfiles. Python records preserve `License-Expression`, legacy `License` text,
+license classifiers, and installed notice paths relative to the package
+installation with SHA-256 and byte size. Classifier-only packages are valid
+declared evidence; an ambiguous `BSD License` classifier is not converted into
+an invented specific SPDX identifier. Empty optional-codec notice placeholders
+are recorded by size/hash but do not count as license evidence.
+
+The CI gate rejects a Python package with no declared expression, text,
+classifier or nonempty notice. The existing Web collector requires real license
+texts for direct Web dependencies and gathers vendor notices from the installed
+pnpm store. Both inventories include development dependencies; they are not a
+minimal production dependency graph. Missing evidence is a failure, while
+recorded evidence does not decide legal compatibility or replace review of an
+assembled GPL/LGPL distribution.
+
+The existing Python vulnerability audit also emits a formal CycloneDX JSON SBOM
+with `pip-audit --local --format cyclonedx-json`; there is no second network
+audit or new runtime dependency. Only a successful audit's dependency SBOM is
+retained. CI retains that SBOM, the combined Python/Web/Fiji inventory, Web
+notice texts and an aggregate pinned-secret-scanner receipt for seven days.
+Raw secret findings, source lines, author identifiers, research files and
+application logs are not uploaded as CI artifacts. These checks establish their
+documented software evidence, not exhaustive secrecy, safety or licensing.
+
 Local setup downloads uv0.12.2 (MIT OR Apache-2.0) from the official Astral release
 with an archive SHA-256 pinned in scripts/local_setup.ps1. Managed CPython retains
 its PSF/third-party notices. The setup ZIP contains source and compiled Web assets,

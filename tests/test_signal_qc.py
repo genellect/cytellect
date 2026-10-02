@@ -8,12 +8,7 @@ import pytest
 from cytellect_analysis.contracts import Recipe
 from cytellect_analysis.measurement import apply_gfp_gate, measure
 from cytellect_analysis.signal_qc import native_signal_quality
-from cytellect_api.db import revisions
-from cytellect_api.storage import read_json
-from cytellect_worker.main import run_analysis
 from pydantic import ValidationError
-from test_api_optional_channels import metadata, tif_bytes
-from test_api_worker import HEADERS, authenticated
 
 
 def native_case():
@@ -122,6 +117,12 @@ def test_native_only_threshold_rejects_invalid_values_and_legacy_scope():
 
 
 def test_threshold_reconfiguration_reuses_masks_and_saves_warning_without_exclusion(tmp_path, monkeypatch):
+    from cytellect_api.db import revisions
+    from cytellect_api.storage import read_json
+    from cytellect_worker.main import run_analysis
+    from test_api_optional_channels import metadata, tif_bytes
+    from test_api_worker import HEADERS, authenticated
+
     client, app, settings = authenticated(tmp_path)
     wid = client.post("/v1/workspaces", json={"title": "signal QC"}, headers=HEADERS).json()["id"]
     channels, nuclei, nucleoli, _ = native_case()

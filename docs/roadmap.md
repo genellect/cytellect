@@ -2,6 +2,8 @@
 
 This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).
 
+The [requirement coverage audit](completion-audit.md) maps the implemented workflow, regression corrections and remaining private/human/hosted acceptance. Later source fixes do not retroactively change accepted release evidence.
+
 | Stage | Implemented | Remaining acceptance |
 |---|---|---|
 | M0 | Public monorepo, bilingual docs, agent guidance, locked Python/Web/Fiji, actual Java21 CPU detection, Alembic, CI and container definitions | Linux Fiji/browser and actual isolated worker container passed in PR #1; complete hosted stack acceptance remains open |
