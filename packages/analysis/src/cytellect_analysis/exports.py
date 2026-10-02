@@ -16,6 +16,7 @@ from .roi import export_roi_zip
 
 ENVIRONMENT_PACKAGES = ("cytellect", "numpy", "scipy", "pandas", "statsmodels", "matplotlib",
                         "scikit-image", "tifffile", "roifile", "pydantic")
+METHODS_TEMPLATE_VERSION = "1.0.0"
 
 
 def _json(path, value):
@@ -59,6 +60,7 @@ def methods_text(config, provenance, report, statistics_results=()):
     gfp_only = recipe.get("id") == "gfp-nuclear-2d"
     fields = provenance.get("fields") or report.get("engine_provenance") or {}
     lines = ["# Cytellect Methods", "", "Generated from recorded configuration; review before publication.", "",
+             f"Methods template version: {METHODS_TEMPLATE_VERSION}.",
              f"Analysis revision: {report.get('revision_id', provenance.get('revision_id', 'unavailable'))}.",
              f"Recipe: {recipe.get('id')} {recipe.get('version')}; random seed {recipe.get('seed')}.",
              "Measurement protocol versions: " + ", ".join(sorted({
@@ -75,17 +77,22 @@ def methods_text(config, provenance, report, statistics_results=()):
               "Input hashes, acquired channel roles, axis assignments and calibration are in "
               "[revision.json](revision.json); detector versions, model/runtime hashes and code identity are in "
               "[provenance.json](provenance.json). Absent channels are missing, never measured zero.",
+              "The nuclear-stain input channel uses the historical internal role `dapi`. This role does not identify "
+              "the dye, and no actual stain identity is inferred from it. Confirm the stain from acquisition records "
+              "before publication. Names such as `dapi-low` refer to this channel's processing method, not proof of DAPI staining.",
               "Source images are immutable. Display LUTs do not change measurement pixels.",
               "Saved masks use original image coordinates. The nucleoplasm is the nucleus minus the nucleolar union; "
               "the union mean uses all pixels, not an unweighted mean of object means."]
     if gfp_only:
-        lines += ["This GFP nuclear recipe measures DAPI-defined nuclear GFP. NCL and nucleolar detection are not performed. "
+        lines += ["This GFP nuclear recipe measures GFP within nuclei delineated using the nuclear-stain channel "
+                  "(recorded role `dapi`) and any saved manual corrections. NCL and nucleolar detection are not performed. "
                   "Nucleolar counts, areas and NCL intensities are not measured."]
     elif legacy:
         parameters = recipe.get("legacy", {})
         lines += ["Compatibility RGB conversion takes max(R,G,B) and ignores alpha. The longest dimension is resized to "
                   f"at most {parameters.get('target_long_dimension_px')} pixels without upsampling, using anti-aliased bilinear "
-                  "resampling. Floating resized values are used for measurement; only detection DAPI is rounded to source dtype. "
+                  "resampling. Floating resized values are used for measurement; only the nuclear-stain detection input "
+                  "(recorded role `dapi`) is rounded to source dtype. "
                   "Canonical labels are restored by nearest-neighbour resampling and reprojected to the recorded measurement grid.",
                   "Within each nucleus the compatibility high region uses strict greater-than Otsu. A uniform signal uses "
                   "the whole nucleus; fewer than max(3, ceil(0.01*nuclear pixels)) high pixels triggers the top10-percent "
@@ -95,14 +102,16 @@ def methods_text(config, provenance, report, statistics_results=()):
                   "The compatibility index is log2[(whole-nucleus corrected mean+epsilon)/(high-region corrected mean+epsilon)].",
                   f"Legacy QC enabled {parameters.get('apply_quality_exclusions')}; minimum 20 measurement-grid nuclear pixels; "
                   f"area range {parameters.get('nucleus_area_min_scaled_px')}–{parameters.get('nucleus_area_max_scaled_px')} scaled pixels; "
-                  f"DAPI SNR minimum {parameters.get('dapi_snr_min')}; saturation fraction maximum "
+                  f"Nuclear-stain channel SNR minimum (parameter `dapi_snr_min`) {parameters.get('dapi_snr_min')}; "
+                  "saturation fraction maximum "
                   f"{parameters.get('saturation_fraction_max')}; touching image borders is excluded when QC is enabled.",
                   f"Legacy GFP mode: {parameters.get('gfp_mode')}. In otsu-qc-batch mode the batch threshold is fitted only "
                   "to independently QC-passing nuclei; a constant distribution uses its median."]
     else:
         lines += [f"Nucleolar candidate definition {recipe.get('nucleolar_method')}; Gaussian sigma "
                   f"{recipe.get('smoothing_sigma_px')} px; minimum area {recipe.get('minimum_area_px')} px; "
-                  f"split touching {recipe.get('split_touching')}; DAPI-low percentile {recipe.get('dapi_low_percentile')}.",
+                  f"split touching {recipe.get('split_touching')}; low nuclear-stain percentile "
+                  f"(parameter `dapi_low_percentile`) {recipe.get('dapi_low_percentile')}.",
                   "Native candidates have no whole-nucleus/top-fraction fallback. Background is the median of each recorded "
                   "user-confirmed ROI. Corrected negative values remain signed. Nucleoplasm/nucleolar mean ratios and log2 "
                   "ratios require both corrected means to be positive; otherwise a missing-value reason is retained."]
