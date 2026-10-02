@@ -74,6 +74,12 @@ jobs:
           & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $install -Console -NoShortcut
           if ($LASTEXITCODE -ne 0) { throw 'Pinned installation or Fiji verification failed' }
           "CYTELLECT_INSTALL_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Repeat setup in the existing private installation
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'package-source'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $env:CYTELLECT_INSTALL_ROOT -Console -NoShortcut
+          if ($LASTEXITCODE -ne 0) { throw 'Repeat installation failed' }
       - name: Browser workflow using the installed application
         shell: pwsh
         run: |

@@ -1,6 +1,6 @@
 # Local browser delivery
 
-Status: implementation and installation acceptance are in progress. Do not advertise a download until the built package passes installation and browser checks. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
+Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
 ## Researcher flow
 

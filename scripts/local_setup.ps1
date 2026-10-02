@@ -106,15 +106,21 @@ function Initialize-PrivateRoot {
         }
     }
     [IO.Directory]::CreateDirectory($rootPath) | Out-Null
-    $acl = [Security.AccessControl.DirectorySecurity]::new()
+    # Read and persist only the DACL. Set-Acl can attempt SACL/owner updates on
+    # an existing root and demand SeSecurityPrivilege, which setup must not need.
+    $directory = [IO.DirectoryInfo]::new($rootPath)
+    $acl = $directory.GetAccessControl([Security.AccessControl.AccessControlSections]::Access)
     $acl.SetAccessRuleProtection($true, $false)
+    foreach ($existingRule in @($acl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]))) {
+        $acl.RemoveAccessRuleSpecific($existingRule)
+    }
     $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
     foreach ($sid in @([Security.Principal.WindowsIdentity]::GetCurrent().User,
         [Security.Principal.SecurityIdentifier]::new('S-1-5-18'))) {
         $rule = [Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', $inherit, 'None', 'Allow')
         $acl.AddAccessRule($rule)
     }
-    Set-Acl -LiteralPath $rootPath -AclObject $acl
+    $directory.SetAccessControl($acl)
     if (-not (Test-Path -LiteralPath $marker)) {
         [IO.File]::WriteAllText($marker, '{"product":"cytellect-local","schema":1}')
     }

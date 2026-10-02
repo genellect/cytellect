@@ -19,7 +19,7 @@ Normal publication follows [PR → required CI → main → Vercel](deployment.m
 
 ## Local delivery, then hosted analysis
 
-The next change adds automated local setup, same-origin browser operation and supervised local API/worker startup. Shared analysis, immutable revisions, statistics and export contracts remain unchanged. Installation is not complete until a fresh isolated directory can install fixed dependencies, open the browser, execute a real published-image workflow and stop cleanly. The public Vercel sample viewer remains available while the local package is validated.
+Local delivery implements automated setup, same-origin browser operation and supervised local API/worker startup. Shared analysis, immutable revisions, statistics and export contracts remain unchanged. Each package must install fixed dependencies in an isolated directory, open the browser, execute a real published-image workflow and stop cleanly before publication. The public Vercel sample viewer remains available independently of local package validation.
 
 The user's local-first delivery decision changes the initial operating environment, not M4/M5 scientific and usability acceptance. A paid server is not required for the local PoC. Hosted-only acceptance (public TLS/domain routing, continuous deletion while clients are offline, operator server isolation) remains a separate gate before future cloud uploads. Windows local mode explicitly discloses its trusted OS-user boundary and cleanup on next launch.
 

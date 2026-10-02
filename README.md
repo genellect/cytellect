@@ -6,9 +6,15 @@ Reproducible immunofluorescence analysis, from nuclear and nucleolar segmentatio
 
 [Public sample viewer](https://cytellect.vercel.app/demo) · [Local browser delivery](docs/local.md) · [Hosting costs and trade-offs](docs/hosting-costs.ja.md)
 
-**Early research prototype.** The Web/API/worker workflow is implemented and under integration testing. Suitability for the user's experiment and researcher PoC remain unvalidated. The public sample viewer uses published microscopy; a UI deployment does not imply an available analysis server.
+**Early research prototype.** The Web/API/worker workflow is implemented and tested with published microscopy and independent numerical references. Suitability for the user's experiment and researcher PoC remain unvalidated. The public sample viewer uses published microscopy; a UI deployment does not imply an available analysis server.
 
 Cytellect brings DAPI nuclear segmentation, NCL nucleolar candidates, manual mask correction, GFP selection, compartment measurements, statistics and editable figures into one Japanese workspace. The initial engine is Fiji + StarDist/ImageJ/MorphoLibJ. Raw measurement pixels, display settings and detection preprocessing are separate.
+
+## Windows preview
+
+The local edition uses the browser workspace with a private API and Fiji worker on the same PC. Published setup packages appear on the [releases page](https://github.com/genellect/cytellect/releases) only after their installation and browser checks pass. Extract the ZIP, open **Cytellect Setup.cmd**, then start Cytellect from its shortcut. Setup provisions pinned dependencies without changing system Python, PATH or an existing Fiji. Research images remain on the PC;24-hour expiry cleanup while the application is off resumes at next launch. See [local delivery](docs/local.md) for limits and verification.
+
+The same scientific code and contracts support the later hosted edition. No cloud analysis server or paid plan is included in this preview.
 
 ## Local development
 
@@ -32,7 +38,7 @@ For containers, set `CYTELLECT_RUNTIME_DIR` to a private Linux directory owned b
 
 ## Scope and evidence
 
-- Native8/16-bit 2D TIFF and verified3-channel OME-TIFF; separate legacy RGB recipe. Explicit channel mapping/backgrounds and immutable revisions.
+- Native8/16-bit 2D TIFF and verified2/3-channel OME-TIFF; separate legacy RGB recipe. Explicit channel mapping/backgrounds and immutable revisions.
 - Nuclear/nucleolar/manual ROI editing; GFP/NCL measurements; paired/Welch and exploratory clustered regression; CSV, editable SVG/PDF, ROI/masks, Methods and replay package.
 - Published real microscopy for image integration/public samples; synthetic pixels only for exact numerical tests. Dataset identity, stains and provenance are recorded.
 - No registration, LLM, Supabase, payments, 3D/time series, UBF or automatic cell-boundary inference.

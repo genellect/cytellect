@@ -68,3 +68,53 @@ def test_release_rejects_unverified_or_unsafe_files(tmp_path, fault):
     assert result.returncode == 1
     assert not (tmp_path / "installation").exists()
     assert str(source) not in result.stdout + result.stderr
+
+
+def test_private_dacl_initial_retry_and_new_version_do_not_require_admin(tmp_path):
+    """Invoke the actual root initializer twice without installing dependencies."""
+    shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    harness = tmp_path / "verify-acl.ps1"
+    harness.write_text(r'''
+param([string]$Setup, [string]$Destination)
+$ErrorActionPreference='Stop'
+$env:PSModulePath=(Join-Path $PSHOME 'Modules')+[IO.Path]::PathSeparator+$env:PSModulePath
+$tokens=$null; $errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($Setup,[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw 'parse_failed' }
+foreach ($name in @('Get-SafeChild','Initialize-PrivateRoot')) {
+    $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+    Invoke-Expression $function.Extent.Text
+}
+$InstallRoot=$Destination
+$SourceRoot=Split-Path -Parent $Setup
+$actual=Initialize-PrivateRoot
+$preserved=Join-Path $actual 'data/preserved.txt'
+[IO.Directory]::CreateDirectory((Split-Path -Parent $preserved)) | Out-Null
+[IO.File]::WriteAllText($preserved,'preserve existing research placeholder')
+[IO.Directory]::CreateDirectory((Join-Path $actual 'apps/first-version')) | Out-Null
+$null=Initialize-PrivateRoot
+[IO.Directory]::CreateDirectory((Join-Path $actual 'apps/second-version')) | Out-Null
+$null=Initialize-PrivateRoot
+if ([IO.File]::ReadAllText($preserved) -ne 'preserve existing research placeholder') { throw 'existing_file_changed' }
+$acl=[IO.DirectoryInfo]::new($actual).GetAccessControl()
+$user=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+if ($owner -ne $user -or -not $acl.AreAccessRulesProtected) { throw 'owner_or_inheritance_invalid' }
+$rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+if ($rules.Count -ne 2) { throw 'unexpected_acl' }
+foreach ($rule in $rules) {
+    if ($rule.IdentityReference.Value -notin @($user,'S-1-5-18') -or $rule.IsInherited -or
+        $rule.AccessControlType -ne 'Allow' -or $rule.FileSystemRights -ne 'FullControl' -or
+        $rule.InheritanceFlags -ne [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit') {
+        throw 'acl_not_private'
+    }
+}
+Write-Host 'private_dacl_reentry_passed'
+''', encoding="utf-8-sig")
+    result = subprocess.run(
+        [str(shell), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(harness),
+         "-Setup", str(ROOT / "scripts/local_setup.ps1"), "-Destination", str(tmp_path / "owned installation")],
+        capture_output=True, text=True, check=False, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "private_dacl_reentry_passed" in result.stdout
