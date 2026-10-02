@@ -5,7 +5,7 @@ Inspect Git status. Preserve user work and original research outputs.
 
 ## Research data boundary
 - Synthetic data is for deterministic numerical tests. Published real microscopy is required for image integration and public demos; public assets need recorded source, accurate stain metadata, redistribution terms and hashes. Never substitute another stain for NCL/GFP.
-- Never copy research images, research PDFs, source paths, study-specific results, participant identifiers, credentials, or invitation/session tokens into code, logs, issues, PRs, screenshots, or external AI services.
+- Never copy unpublished/private research images, research PDFs, source paths, study-specific results, participant identifiers, credentials, or invitation/session tokens into code, logs, issues, PRs, screenshots, or external AI services. Registered public fixtures follow the source and redistribution requirements above.
 - Keep runtime data outside the checkout. Never use production credentials for development.
 - Run private validation separately; publish only an explicitly approved sanitized report.
 

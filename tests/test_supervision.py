@@ -86,11 +86,11 @@ def test_continuing_db_outage_cannot_keep_child_or_descriptor_alive(tmp_path, mo
     assert store.one(jobs, id=job["id"])["result_dir"] is None
 
 
-@pytest.mark.parametrize("failure", ["db", "parent", "lease", "cancelled", "deleted", "expired"])
+@pytest.mark.parametrize("failure", ["db", "parent", "lease", "cancelled", "deleted", "expired", "workspace_expired"])
 def test_child_watchdog_fails_closed_on_unverifiable_lease(failure):
     job = {"id": "job", "workspace_id": "workspace", "lease": "lease"}
     current = {"state": "running", "lease": "lease", "lease_until": time.time()+60}
-    workspace = {"deleted": False}
+    workspace = {"deleted": False, "expires": time.time()+86400}
     parent = SimpleNamespace(is_running=lambda: True, create_time=lambda: 1)
     if failure == "parent":
         parent.create_time = lambda: 2
@@ -102,6 +102,8 @@ def test_child_watchdog_fails_closed_on_unverifiable_lease(failure):
         workspace["deleted"] = True
     if failure == "expired":
         current["lease_until"] = 0
+    if failure == "workspace_expired":
+        workspace["expires"] = 0
 
     def one(table, **kwargs):
         if failure == "db":
@@ -114,7 +116,7 @@ def test_child_watchdog_fails_closed_on_unverifiable_lease(failure):
 def test_child_watchdog_accepts_only_current_live_owner_and_lease():
     job = {"id": "job", "workspace_id": "workspace", "lease": "lease"}
     current = {"state": "running", "lease": "lease", "lease_until": time.time()+60}
-    store = SimpleNamespace(one=lambda table, **kwargs: current if table is jobs else {"deleted": False})
+    store = SimpleNamespace(one=lambda table, **kwargs: current if table is jobs else {"deleted": False, "expires": time.time()+86400})
     parent = SimpleNamespace(is_running=lambda: True, create_time=lambda: 1)
     assert lease_is_live(store, job, parent, 1)
 

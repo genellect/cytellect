@@ -2,7 +2,7 @@
 
 Use the dedicated genellect/cytellect repository and a new branch from current main. Do not reuse another project's environment or secrets. Read AGENTS.md, requirements, methods, security, and the [current roadmap](roadmap.md) before changing behavior.
 
-The Web/API/worker, pinned Fiji engine, editor, measurements, statistics, figures and replay workflow are implemented. [Windows local.6](local-release-0.1.0.md) has passed its versioned installation and browser acceptance and is published. Do not restart M0-M3 or infer remaining implementation from the original Cloud checkpoint. Current tests establish their recorded scope, not scientific readiness for the user's experiment.
+The Web/API/worker, pinned Fiji engine, editor, measurements, statistics, figures and replay workflow are implemented. The [current Windows release](local-release-0.1.0.md) has passed its versioned installation and browser acceptance and is published. Do not restart M0-M3 or infer remaining implementation from the original Cloud checkpoint. Current tests establish their recorded scope, not scientific readiness for the user's experiment.
 
 ## Environment and data
 

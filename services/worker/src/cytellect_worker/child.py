@@ -48,7 +48,7 @@ def lease_is_live(store, job, parent, parent_started):
             parent.is_running() and parent.create_time() == parent_started
             and current and current["state"] == "running"
             and current["lease"] == job["lease"] and current["lease_until"] > time.time()
-            and workspace and not workspace["deleted"]
+            and workspace and not workspace["deleted"] and workspace["expires"] > time.time()
         )
     except Exception:
         # Never let an unhandled DB/psutil error silently kill just this thread.

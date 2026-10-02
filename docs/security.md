@@ -32,6 +32,12 @@ Verify browser Origin/cookie behavior, cross-session read denial for every artif
 
 Workspaces expire24hours after explicit actions. Automatic polling/preview reads do not extend retention. Expiry and DELETE block reads immediately. Active work is protected from physical deletion until its process tree stops; cleanup then removes inputs, arrays, masks, figures, exports and attempt directories. Files are not included in ordinary PoC backups.
 
+Workspace expiry also invalidates the parent's heartbeat, the independent child
+watchdog and final result publication. An active task cannot extend its lifetime
+by renewing a lease after the workspace deadline. The supervisor stops and reaps
+the process tree before releasing its lease; cleanup retains active files until
+then. This also applies when an operator configures a shorter retention period.
+
 Run `cytellect cleanup` manually if the worker was offline. Durable leases recover interrupted jobs with at most two automatic attempts; old workers cannot commit. A failed retry starts a fresh attempt; it does not overwrite a previous result. Inspect sanitized job error codes, not raw engine stderr.
 
 Alembic upgrades execute under the SQLite write lock at startup, including adoption of the initial unversioned checkpoint. Deploy code/schema changes with API and worker stopped together. Do not automatically downgrade or copy live WAL files. Before any operator-approved schema recovery, use an offline, private, short-lived metadata snapshot and follow the workspace retention policy. Research-file backups are outside this PoC.

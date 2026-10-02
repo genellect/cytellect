@@ -180,7 +180,7 @@ def test_replayed_statistics_and_figures_retain_adopted_revision(tmp_path, with_
             masks[fid] = layers
     report["cells"] = apply_gfp_gate(report["cells"], Recipe())
     spec = StatisticsRequest(metric="ncl_nucleoplasm_mean_corrected", baseline="A", comparisons=[("A", "B")],
-                             independent_units_confirmed=True)
+                             independent_units_confirmed=True, sensitivity_gfp_thresholds=[0])
     alternate_rows = {}
     if with_alternate:
         spec.sensitivity_region_revision_ids = ["alternate"]
@@ -216,6 +216,11 @@ def test_replayed_statistics_and_figures_retain_adopted_revision(tmp_path, with_
     assert fresh["comparisons"] == result["comparisons"]
     assert fresh["revision_id"] == figure["revision_id"] == "adopted-revision"
     assert fresh["sensitivities"] == json.loads(json.dumps(result["sensitivities"]))
+    scenario_rows = fresh["sensitivities"][0]["result"]["plot_data"]
+    assert all(row["gfp_gate_threshold"] == 0 and row["gfp_gate_method"] == "manual"
+               and row["gfp_gate_exploratory"] and row["gfp_negative_control_fields"] == []
+               for row in scenario_rows)
+    assert all(row["gfp_gate_method"] == "none" for row in fresh["plot_data"])
     if with_alternate:
         recalculated = json.loads((folder / "alternatives" / "0" / "measurements.json").read_text(encoding="utf-8"))
         assert recalculated["cells"] == alternate_rows["alternate"]

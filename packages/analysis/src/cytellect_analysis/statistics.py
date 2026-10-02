@@ -10,7 +10,7 @@ from statsmodels.stats.multitest import multipletests
 
 from .contracts import StatisticsRequest
 
-STATISTICS_VERSION = "1.2.0"
+STATISTICS_VERSION = "1.2.1"
 AGGREGATION = "field median -> mean of fields within sample -> mean of samples within independent unit"
 
 
@@ -320,6 +320,20 @@ def analyze(rows, request: StatisticsRequest):
             "missing_metric_count": selection["missing_metric_selected"]}
 
 
+def _threshold_sensitivity_rows(rows, threshold):
+    """Copy a declared gate scenario without retaining the primary gate's claims."""
+    alternative = []
+    for row in rows:
+        value, maximum = row.get("gfp_mean_corrected"), row.get("gfp_gate_maximum")
+        positive = bool(value is not None and np.isfinite(value) and value >= threshold
+                        and (maximum is None or value <= maximum))
+        alternative.append({**row, "gfp_positive": positive, "gfp_gate_threshold": threshold,
+                            "gfp_gate_method": "manual", "gfp_gate_exploratory": True,
+                            "gfp_negative_control_fields": [],
+                            "gfp_selection_reason": "included" if positive else "outside_gfp_gate"})
+    return alternative
+
+
 def analyze_sensitivity(rows, request: StatisticsRequest, alternate_rows=None):
     """User-declared alternatives, never optimize thresholds for significance.
 
@@ -331,12 +345,8 @@ def analyze_sensitivity(rows, request: StatisticsRequest, alternate_rows=None):
         raise ValueError("region_sensitivity_snapshots_required")
     result = analyze(rows, request)
     results = []
-    options = [(f"gfp_threshold:{threshold}", [
-        {**row, "gfp_positive": (row.get("gfp_mean_corrected") is not None
-                                and np.isfinite(row["gfp_mean_corrected"])
-                                and row["gfp_mean_corrected"] >= threshold
-                                and (row.get("gfp_gate_maximum") is None or row["gfp_mean_corrected"] <= row["gfp_gate_maximum"]))}
-        for row in rows]) for threshold in getattr(request, "sensitivity_gfp_thresholds", [])]
+    options = [(f"gfp_threshold:{threshold}", _threshold_sensitivity_rows(rows, threshold))
+               for threshold in getattr(request, "sensitivity_gfp_thresholds", [])]
     if getattr(request, "sensitivity_complete_dates", False):
         eligible, _ = _selected(rows, request.metric)
         if request.mode == "exploratory":
