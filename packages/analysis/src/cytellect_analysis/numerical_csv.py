@@ -66,7 +66,8 @@ def analyze_numeric(rows, request):
     if request.plot.kind == "scatter":
         raise ValueError("numeric_assay_has_no_gfp_scatter")
     if (getattr(request, "sensitivity_gfp_thresholds", []) or getattr(request, "sensitivity_complete_dates", False)
-            or getattr(request, "sensitivity_legacy_high_regions", [])):
+            or getattr(request, "sensitivity_legacy_high_regions", [])
+            or getattr(request, "sensitivity_region_revision_ids", [])):
         raise ValueError("numeric_assay_image_sensitivities_not_applicable")
     result = analyze(rows, request)
     result["source_kind"] = "measured-numerical-assay"

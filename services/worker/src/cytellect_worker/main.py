@@ -9,7 +9,8 @@ from cytellect_analysis.contracts import MaskEdit, Recipe, StatisticsRequest
 from cytellect_analysis.exports import build_export_bundle
 from cytellect_analysis.figures import render_figures
 from cytellect_analysis.masks import apply_edit, detect_nucleoli, polygon_mask
-from cytellect_analysis.measurement import apply_gfp_gate, measure
+from cytellect_analysis.measurement import apply_gfp_gate, measure, normalize_nucleolar_states
+from cytellect_analysis.numeric_export import build_numeric_bundle
 from cytellect_analysis.numerical_csv import analyze_numeric
 from cytellect_analysis.statistics import analyze_sensitivity
 from cytellect_api.config import Settings
@@ -118,6 +119,7 @@ def run_analysis(store, settings, job, output):
             destination = output / field_id
             destination.mkdir()
             old_path = store.safe_path(parent["result_dir"], field_id, "masks.npz") if parent else None
+            nucleolar_states = {}
             if old_path and old_path.is_file():
                 assert parent is not None
                 with np.load(old_path, allow_pickle=False) as old:
@@ -127,21 +129,44 @@ def run_analysis(store, settings, job, output):
                     "source_revision": parent["id"],
                     "source_provenance": previous_provenance.get("fields", {}).get(field_id, {}),
                 }
+                nucleolar_states = {row["nucleus_id"]: row["nucleolar_status"]
+                                     for row in previous_report.get("cells", [])
+                                     if row["field_id"] == field_id and row.get("nucleolar_status")
+                                     not in (None, "none_or_indeterminate")}
                 if edit and edit.field_id == field_id:
+                    before_nuclei, before_nucleoli = nuclei, nucleoli
                     nuclei, nucleoli, manual = apply_edit(nuclei, nucleoli, manual, edit)
                     if edit.layer == "nuclei" and recipe.id != "gfp-nuclear-2d":
                         invalidated.add(field_id)
+                        changed = before_nuclei != nuclei
+                        affected = set(np.unique(before_nuclei[changed])) | set(np.unique(nuclei[changed]))
+                        failed_parents = [label for label, state in nucleolar_states.items()
+                                          if state == "processing_failed"]
+                        failed_pixels = np.isin(before_nuclei, failed_parents)
+                        for label in affected - {0}:
+                            # Changing a nuclear outline alone cannot turn a
+                            # failed candidate operation into a reviewable absence.
+                            nucleolar_states[int(label)] = (
+                                "processing_failed" if np.any(failed_pixels & (nuclei == label))
+                                else "review_required")
+                    elif edit.layer == "nucleoli":
+                        for label in np.unique(nuclei[before_nucleoli != nucleoli]):
+                            if label:
+                                nucleolar_states[int(label)] = (
+                                    "candidate" if np.any(nucleoli[nuclei == label]) else "no_candidate")
                 if field_id in config.get("resegment_fields", []):
                     nuclei, nucleoli, _, provenance = _initial_masks(
                         field, folder, channels, recipe, settings, destination, nuclei=nuclei
                     )
                     engine_provenance[field_id] = provenance
+                    nucleolar_states = normalize_nucleolar_states(provenance)
                     invalidated.discard(field_id)
             else:
                 nuclei, nucleoli, manual, provenance = _initial_masks(
                     field, folder, channels, recipe, settings, destination
                 )
                 engine_provenance[field_id] = provenance
+                nucleolar_states = normalize_nucleolar_states(provenance)
             background = config["backgrounds"].get(field_id)
             if recipe.id == "ncl-legacy-rgb":
                 background_mask = np.zeros(nuclei.shape, dtype=bool)
@@ -150,8 +175,11 @@ def run_analysis(store, settings, job, output):
                     raise ValueError("background_missing")
                 background_mask = polygon_mask(nuclei.shape, background["polygon"])
             fc, fo, fm = measure(
-                channels, nuclei, nucleoli, background_mask, recipe, snapshot["metadata"], field_id, manual
+                channels, nuclei, nucleoli, background_mask, recipe, snapshot["metadata"], field_id, manual,
+                nucleolar_states=nucleolar_states,
             )
+            engine_provenance[field_id]["nucleolar_states"] = {
+                row["nucleus_id"]: row["nucleolar_status"] for row in fc}
             excluded = {
                 e["nucleus_id"]: e["reason"] for e in config["exclusions"] if e["field_id"] == field_id
             }
@@ -187,6 +215,8 @@ def run_analysis(store, settings, job, output):
         "engine_provenance": engine_provenance,
         "cells": cells,
         "nucleoli": objects,
+        "nucleolar_failures": [{"field_id": row["field_id"], "nucleus_id": row["nucleus_id"]}
+                               for row in cells if row["nucleolar_status"] == "processing_failed"],
         "manual_rois": manual_rows,
         "field_failures": failures,
         "excluded_failed_fields": excluded_failures,
@@ -208,6 +238,10 @@ def run_analysis(store, settings, job, output):
 
 
 def run_statistics(store, job, output):
+    from cytellect_analysis.region_sensitivity import DEFINITION_KEYS
+    from cytellect_analysis.review import unresolved_nucleolar_failures
+    from cytellect_api.region_sensitivity import validate_region_revision
+
     revision = store.one(revisions, id=job["revision_id"])
     root = store.safe_path(revision["result_dir"])
     report = read_json(root / "measurements.json")
@@ -218,8 +252,33 @@ def run_statistics(store, job, output):
         or set(report.get("invalidated_nucleoli", [])) - accepted
     ):
         raise ValueError("review_required")
+    if unresolved_nucleolar_failures(report, revision["config"]):
+        raise ValueError("nucleolar_processing_failed")
     request = StatisticsRequest.model_validate(job["payload"])
-    result = analyze_sensitivity(report["cells"], request)
+    alternate_rows = {}
+    alternate_sources: list[dict] = []
+    for rid in request.sensitivity_region_revision_ids:
+        alternate = store.one(revisions, id=rid)
+        if alternate is None:
+            raise ValueError("region_sensitivity_revision_unavailable")
+        alternate_report = validate_region_revision(store, revision, alternate, check_masks=True)
+        alternate_rows[rid] = alternate_report["cells"]
+        relative_path = f"alternatives/{len(alternate_sources)}"
+        destination = output / relative_path
+        destination.mkdir(parents=True, exist_ok=False)
+        write_json(destination / "revision.json", {"id": rid, "config": {
+            **alternate["config"], "review_record": alternate["review_record"] or {}}})
+        write_json(destination / "measurements.json", alternate_report)
+        shutil.copyfile(store.safe_path(alternate["result_dir"], "provenance.json"), destination / "provenance.json")
+        for fid in alternate["config"]["field_ids"]:
+            target = destination / "masks" / fid / "labels.npz"
+            target.parent.mkdir(parents=True)
+            shutil.copyfile(store.safe_path(alternate["result_dir"], fid, "masks.npz"), target)
+        alternate_sources.append({"revision_id": rid, "relative_path": relative_path,
+                                  "reviewed": True, "nucleolar_definition": {
+                                      key: alternate["config"]["recipe"][key] for key in sorted(DEFINITION_KEYS)}})
+    result = analyze_sensitivity(report["cells"], request, alternate_rows=alternate_rows)
+    result["region_sensitivity_sources"] = alternate_sources
     result["revision_id"] = revision["id"]
     result["figure"] = render_figures(result, output)
     write_json(output / "result.json", result)
@@ -234,6 +293,11 @@ def run_table_statistics(store, job, output):
     result = analyze_numeric(data["rows"], StatisticsRequest.model_validate(job["payload"]))
     result["table_id"] = table["id"]
     result["figure"] = render_figures(result, output)
+    build_numeric_bundle(
+        output,
+        content=store.safe_path("workspaces", job["workspace_id"], "tables", table["id"], "input.csv").read_bytes(),
+        table_id=table["id"], result=result, provenance={"software": software_identity()},
+    )
     write_json(output / "result.json", result)
     return output
 
@@ -241,10 +305,11 @@ def run_table_statistics(store, job, output):
 def run_export(store, job, output):
     revision = store.one(revisions, id=job["revision_id"])
     root = store.safe_path(revision["result_dir"])
-    masks = {}
-    for file in root.glob("*/masks.npz"):
-        with np.load(file, allow_pickle=False) as data:
-            masks[file.parent.name] = {k: data[k] for k in ("nuclei", "nucleoli", "manual")}
+    def masks():
+        # Decode only one field while the bundle writer consumes it.
+        for file in sorted(root.glob("*/masks.npz")):
+            with np.load(file, allow_pickle=False) as data:
+                yield file.parent.name, {k: data[k] for k in ("nuclei", "nucleoli", "manual")}
     raw = []
     if job["payload"].get("include_raw", False):
         for fid, snapshot in revision["config"]["field_snapshot"].items():
@@ -255,17 +320,20 @@ def run_export(store, job, output):
                         store.safe_path("workspaces", revision["workspace_id"], "fields", fid, f"{role}.tif"),
                     )
                 )
-    statistics_results = []
+    statistics_results: list[dict] = []
+    statistics_roots = []
     for record in store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded"):
+        statistics_roots.append((len(statistics_results), store.safe_path(record["result_dir"])))
         statistics_results.append(read_json(store.safe_path(record["result_dir"], "result.json")))
     build_export_bundle(
         output,
         report=read_json(root / "measurements.json"),
         config={**revision["config"], "review_record": revision["review_record"] or {}},
         provenance=read_json(root / "provenance.json"),
-        field_masks=masks,
+        field_masks=masks(),
         raw_files=raw,
         statistics_results=statistics_results,
+        statistics_roots=statistics_roots,
         include_raw=bool(job["payload"].get("include_raw", False)),
     )
     write_json(

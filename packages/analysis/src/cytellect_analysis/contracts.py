@@ -104,7 +104,20 @@ class PlotSpec(StrictModel):
     group_order: list[str] = Field(default_factory=list, max_length=30)
 
 class StatisticsRequest(StrictModel):
-    metric: Literal["ncl_log2_nucleoplasm_over_nucleoli", "ncl_legacy_release", "ncl_nucleus_mean_corrected", "gfp_mean_corrected", "nucleolar_area_fraction", "value"] = "ncl_log2_nucleoplasm_over_nucleoli"
+    metric: Literal[
+        "ncl_nucleus_mean", "ncl_nucleus_median", "ncl_nucleus_integrated",
+        "ncl_nucleus_mean_corrected", "ncl_nucleus_median_corrected", "ncl_nucleus_integrated_corrected",
+        "ncl_nucleoli_mean", "ncl_nucleoli_median", "ncl_nucleoli_integrated",
+        "ncl_nucleoli_mean_corrected", "ncl_nucleoli_median_corrected", "ncl_nucleoli_integrated_corrected",
+        "ncl_nucleoplasm_mean", "ncl_nucleoplasm_median", "ncl_nucleoplasm_integrated",
+        "ncl_nucleoplasm_mean_corrected", "ncl_nucleoplasm_median_corrected", "ncl_nucleoplasm_integrated_corrected",
+        "gfp_mean", "gfp_median", "gfp_integrated",
+        "gfp_mean_corrected", "gfp_median_corrected", "gfp_integrated_corrected",
+        "nucleus_area_px", "nucleus_area_um2", "nucleolar_area_px", "nucleolar_area_um2",
+        "nucleoplasm_area_px", "nucleoplasm_area_um2",
+        "nucleolar_count", "nucleolar_area_fraction", "ncl_nucleoplasm_over_nucleoli",
+        "ncl_log2_nucleoplasm_over_nucleoli", "ncl_legacy_release", "value",
+    ] = "ncl_log2_nucleoplasm_over_nucleoli"
     mode: Literal["experimental-unit", "exploratory"] = "experimental-unit"
     baseline: str = Field(min_length=1, max_length=80)
     comparisons: list[tuple[str, str]] = Field(min_length=1, max_length=100)
@@ -116,6 +129,13 @@ class StatisticsRequest(StrictModel):
     sensitivity_gfp_thresholds: list[FiniteFloat] = Field(default_factory=list, max_length=10)
     sensitivity_complete_dates: bool = False
     sensitivity_legacy_high_regions: list[Literal[5, 10, 20]] = Field(default_factory=list, max_length=3)
+    sensitivity_region_revision_ids: list[Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")]] = Field(default_factory=list, max_length=10)
+
+    @model_validator(mode="after")
+    def unique_region_sensitivities(self):
+        if len(self.sensitivity_region_revision_ids) != len(set(self.sensitivity_region_revision_ids)):
+            raise ValueError("duplicate_region_sensitivity_revisions")
+        return self
 
 class ReviewInput(StrictModel):
     accept_invalidated_fields: list[str] = Field(default_factory=list, max_length=100)
@@ -123,6 +143,8 @@ class ReviewInput(StrictModel):
 class ResegmentInput(StrictModel):
     recipe: Recipe | None = None
     field_ids: list[str] = Field(min_length=1, max_length=100)
+    backgrounds: dict[str, Background] | None = None
+    exclusions: list[Exclusion] | None = Field(default=None, max_length=10000)
 
 
 

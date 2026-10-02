@@ -79,3 +79,15 @@ uv run python scripts/public_ncl_reference.py \
   --masks /private/public-nucleolar/evaluation/labels.npz \
   --output /private/public-ncl-reference --fiji /opt/fiji
 ```
+## Workflow-audit regression
+
+The published image was rerun with source `18a13a14af8379ee86ea0835413209d54ac0c3fd`
+after adding recoverable nucleolar failures and measurement metadata protocol 1.1.1.
+All 100 nuclear and 182 candidate labels matched the earlier masks pixel for pixel;
+100 nuclei retained candidate status and none had a processing failure. The independent
+ImageJ calculation again covered 482 compartments/objects: areas, raw means and midpoint
+medians matched exactly; the maximum absolute integrated-intensity discrepancy was
+9.313225746154785e-10. The 98 defined ratios and two missing ratios were unchanged.
+New nucleoplasmic pixel areas matched the ImageJ pixel count for every nucleus; unknown
+physical calibration and absent GFP remained missing. This is a regression/arithmetic
+check on the same public image, not an additional independent biological sample.

@@ -4,6 +4,7 @@ import json
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 import numpy as np
@@ -35,7 +36,79 @@ LABELS = {
         "核内 GFP 平均輝度\n（背景補正、任意単位）"),
     "nucleolar_area_fraction": ("Nucleolar area / nuclear area", "核小体面積 / 核面積"),
     "value": ("Measured value", "測定値"),
+    "ncl_nucleoplasm_over_nucleoli": ("NCL nucleoplasm / nucleoli\n(mean intensity ratio)", "NCL 核質 / 核小体\n（平均輝度比）"),
+    "nucleolar_count": ("Nucleolar candidates per nucleus", "核あたりの核小体候補数"),
 }
+
+for _region, _english, _japanese in (("nucleus", "Nuclear", "核全体"),
+                                    ("nucleoli", "Nucleolar union", "核小体和集合"),
+                                    ("nucleoplasm", "Nucleoplasmic", "核質")):
+    for _stat, _stat_en, _stat_ja in (("mean", "mean", "平均"), ("median", "median", "中央値"),
+                                     ("integrated", "integrated", "積算")):
+        for _corrected in (False, True):
+            _suffix = "_corrected" if _corrected else ""
+            _correction_en = "background corrected" if _corrected else "raw"
+            _correction_ja = "背景補正" if _corrected else "原値"
+            _unit_en, _unit_ja = ("a.u. × pixel", "任意単位 × 画素") if _stat == "integrated" else ("a.u.", "任意単位")
+            LABELS[f"ncl_{_region}_{_stat}{_suffix}"] = (
+                f"{_english} NCL {_stat_en} intensity\n({_correction_en}, {_unit_en})",
+                f"{_japanese} NCL {_stat_ja}輝度\n（{_correction_ja}、{_unit_ja}）")
+            if _region == "nucleus":
+                LABELS[f"gfp_{_stat}{_suffix}"] = (
+                    f"Nuclear GFP {_stat_en} intensity\n({_correction_en}, {_unit_en})",
+                    f"核全体 GFP {_stat_ja}輝度\n（{_correction_ja}、{_unit_ja}）")
+for _area, _english, _japanese in (("nucleus", "Nuclear", "核全体"),
+                                  ("nucleolar", "Nucleolar union", "核小体和集合"),
+                                  ("nucleoplasm", "Nucleoplasmic", "核質")):
+    LABELS[f"{_area}_area_px"] = (f"{_english} area (pixel²)", f"{_japanese}面積（画素²）")
+    LABELS[f"{_area}_area_um2"] = (f"{_english} area (µm²)", f"{_japanese}面積（µm²）")
+
+
+def metric_label(result, language):
+    """Label existing values on their actual measurement grid without recalculation."""
+    metric = result["spec"]["metric"]
+    label = LABELS.get(metric, (metric, metric))[language == "ja"]
+    legacy = any(row.get("recipe_id") == "ncl-legacy-rgb" for row in result["plot_data"])
+    if legacy:
+        if "_integrated" in metric:
+            label = label.replace("a.u. × pixel", "a.u. × scaled pixel").replace("任意単位 × 画素", "任意単位 × 縮小画素")
+        label = label.replace("Nucleolar union", "High-intensity union").replace("核小体和集合", "高輝度領域の和集合")
+    return label
+
+
+def export_statistical_tables(result, output):
+    """Expose saved inference and scenarios; no refits or extra significance correction."""
+    model = result.get("model") or {}
+    if model:
+        coefficients = model.get("coefficient_table") or [
+            {"term": term, "estimate": estimate, "status": "estimate_only_no_saved_inference"}
+            for term, estimate in model.get("coefficients", {}).items()]
+        write_csv(output / "model-coefficients.csv", coefficients)
+        write_csv(output / "repeat-trend.csv", [{
+            "status": model.get("trend_status", "succeeded" if model.get("trend") else "not_available"),
+            "reason": model.get("trend_reason"), **(model.get("trend") or {})}])
+    scenarios = result.get("sensitivities") or []
+    if not scenarios:
+        return
+    status_rows: list[dict[str, Any]] = []
+    comparisons: list[dict[str, Any]] = []
+    counts: list[dict[str, Any]] = []
+    for scenario in scenarios:
+        analysis = scenario.get("result") or {}
+        selection = analysis.get("selection") or {}
+        label = {"scenario": scenario["scenario"], "status": scenario["status"]}
+        status_rows.append({**label, "reason": scenario.get("reason"),
+                            "warnings": "; ".join(analysis.get("warnings", [])),
+                            **{key: selection.get(key) for key in
+                               ("input_rows", "excluded", "gfp_unselected", "missing_metric_selected")}})
+        comparisons.extend({**label, **row} for row in analysis.get("comparisons", []))
+        for row in analysis.get("counts", []):
+            group_selection: dict[str, Any] = next((s for s in selection.get("by_condition", []) if s["condition"] == row["condition"]), {})
+            counts.append({**label, **row, **{f"selection_{key}": value for key, value in group_selection.items() if key != "condition"}})
+    write_csv(output / "sensitivity-status.csv", status_rows)
+    # Fixed downloadable tables remain present even if every scenario is not estimable.
+    write_csv(output / "sensitivity-comparisons.csv", comparisons)
+    write_csv(output / "sensitivity-counts.csv", counts)
 
 
 FONT_FAMILIES = {
@@ -242,7 +315,7 @@ def render_figures(result, output: Path):
                         if spec["mode"] == "exploratory" else "Diamonds are means of independent experimental units. ")
                 note += ("Lines connect declared matched pairs. " if paired else "")
                 note += "Unit color/shape identities are recorded in figure-data.json; jitter affects display only (seed 0)."
-            ylabel = plot["y_label"] or LABELS.get(metric, (metric, metric))[int(ja)]
+            ylabel = plot["y_label"] or metric_label(result, "ja" if ja else "en")
             if result.get("unit"):
                 ylabel += f" ({result['unit']})"
             ax.set_ylabel(ylabel)
@@ -278,6 +351,7 @@ def render_figures(result, output: Path):
                        ("model-predictions", (result.get("model") or {}).get("prediction_grid", []))):
         if rows:
             write_csv(output / f"{name}.csv", rows)
+    export_statistical_tables(result, output)
     (output / "figure-caption.md").write_text(_caption(result, note), encoding="utf-8")
     source = {"figure_version": FIGURE_VERSION, "style": style, "spec": spec, "font": font,
               "font_metadata": font_metadata,

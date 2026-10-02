@@ -38,3 +38,11 @@ def test_no_implicit_gfp_model_for_numeric_assay():
     request = StatisticsRequest(metric="value", mode="exploratory", baseline="A", comparisons=[("A", "B")])
     with pytest.raises(ValueError, match="numeric_assay_requires"):
         analyze_numeric(rows, request)
+
+
+def test_native_region_sensitivity_cannot_be_attached_to_numeric_table():
+    rows = parse_numeric_csv(content())["rows"]
+    request = StatisticsRequest(metric="value", baseline="A", comparisons=[("A", "B")],
+                                independent_units_confirmed=True, sensitivity_region_revision_ids=["alternate"])
+    with pytest.raises(ValueError, match="image_sensitivities_not_applicable"):
+        analyze_numeric(rows, request)

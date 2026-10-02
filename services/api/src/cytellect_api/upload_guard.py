@@ -22,7 +22,7 @@ class UploadGuardMiddleware:
     first receive(). Starlette closes open spools on the raised multipart error.
     """
     def __init__(self, app, store, settings, *, concurrency=2,
-                 field_body_limit=257 * 1024**2, table_body_limit=2 * 1024**2 + 65536,
+                 field_body_limit=257 * 1024**2, table_body_limit=8 * 1024**2 + 65536,
                  idle_timeout_seconds=30):
         self.app = app
         self.store = store

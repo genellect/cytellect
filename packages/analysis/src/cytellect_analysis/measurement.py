@@ -25,7 +25,25 @@ def region_values(raw, mask, background, legacy=False):
         "integrated_corrected": float(corrected.sum())
     }
 
-def measure(channels, nuclei, nucleoli, background_mask, recipe: Recipe, metadata, field_id, manual=None):
+NUCLEOLAR_STATES = frozenset({"candidate", "no_candidate", "indeterminate", "unclassified",
+                             "review_required", "processing_failed", "not_measured_recipe", "legacy_candidate", "none_after_edit"})
+
+
+def normalize_nucleolar_states(provenance):
+    """Normalize recorded detector outcomes without inferring absent detections."""
+    states = provenance.get("nucleolar_states", provenance.get("nucleolar_status", provenance.get("candidate_status", {})))
+    if isinstance(states, list):
+        states = {item["nucleus_id"]: item["status"] for item in states}
+    aliases = {"candidates": "candidate", "none": "no_candidate", "not_applicable_no_ncl": "not_measured_recipe"}
+    result = {int(key): aliases.get(value, value) for key, value in states.items()}
+    if not set(result.values()).issubset(NUCLEOLAR_STATES):
+        raise ValueError("nucleolar_state_invalid")
+    return result
+
+
+def measure(channels, nuclei, nucleoli, background_mask, recipe: Recipe, metadata, field_id, manual=None,
+            *, nucleolar_states=None):
+    states = normalize_nucleolar_states({"nucleolar_states": nucleolar_states or {}})
     validate_labels(nuclei, nucleoli)
     if not required_channel_roles(recipe).issubset(channels) or not set(channels).issubset({"dapi", "ncl", "gfp"}):
         raise ValueError("recipe_required_channels_missing")
@@ -42,7 +60,11 @@ def measure(channels, nuclei, nucleoli, background_mask, recipe: Recipe, metadat
         from .legacy import measure_legacy
         result = measure_legacy(channels, nuclei, nucleoli, recipe, metadata, field_id, manual)
         for row in result[0]:
-            row["measurement_protocol_version"] = "1.1.0"
+            row["measurement_protocol_version"] = "1.1.1"
+            row["nucleoplasm_area_px"] = row["nucleus_area_px"] - row["nucleolar_area_px"]
+            pixel_size = metadata.get("pixel_size_um")
+            row["nucleoplasm_area_um2"] = row["nucleoplasm_area_px"] * pixel_size**2 if pixel_size else None
+            row["nucleolar_status"] = states.get(row["nucleus_id"], row["nucleolar_status"])
         return result
     if background_mask is None or background_mask.dtype != np.bool_ or background_mask.shape != nuclei.shape:
         raise ValueError("background_boolean_shape_required")
@@ -60,16 +82,18 @@ def measure(channels, nuclei, nucleoli, background_mask, recipe: Recipe, metadat
         enriched = whole & (nucleoli > 0)
         plasma = whole & ~enriched
         row = {**metadata, "field_id": field_id, "nucleus_id": int(nucleus),
-               "recipe_id": recipe.id, "recipe_version": recipe.version, "measurement_protocol_version": "1.1.0",
+               "recipe_id": recipe.id, "recipe_version": recipe.version, "measurement_protocol_version": "1.1.1",
                "channel_availability": {role: role in channels for role in ("dapi", "ncl", "gfp")},
                "nucleus_area_px": int(whole.sum()), "nucleolar_area_px": int(enriched.sum()),
+               "nucleoplasm_area_px": int(plasma.sum()),
                "nucleolar_count": int(len(np.unique(nucleoli[enriched]))),
                "nucleolar_area_fraction": float(enriched.sum() / whole.sum()),
-               "nucleolar_status": "candidate" if enriched.any() else "none_or_indeterminate",
+               "nucleolar_status": states.get(int(nucleus), "candidate" if enriched.any() else "unclassified"),
                "excluded": False, "exclusion_reason": "", "gfp_positive": True}
         pixel_size = metadata.get("pixel_size_um")
         row["nucleus_area_um2"] = float(whole.sum() * pixel_size**2) if pixel_size else None
         row["nucleolar_area_um2"] = float(enriched.sum() * pixel_size**2) if pixel_size else None
+        row["nucleoplasm_area_um2"] = float(plasma.sum() * pixel_size**2) if pixel_size else None
         for compartment, mask in [("nucleus", whole), ("nucleoli", enriched), ("nucleoplasm", plasma)]:
             row.update({f"ncl_{compartment}_{k}": v for k, v in region_values(channels.get("ncl") if recipe.id != "gfp-nuclear-2d" else None, mask, background.get("ncl", 0), legacy).items()})
         row.update({f"gfp_{k}": v for k, v in region_values(channels.get("gfp"), whole, background.get("gfp", 0), legacy).items()})
@@ -88,10 +112,22 @@ def measure(channels, nuclei, nucleoli, background_mask, recipe: Recipe, metadat
         if legacy and n is not None:
             row["ncl_legacy_release"] = math.log2((row["ncl_nucleus_mean_corrected"] + epsilon) / (n + epsilon))
         if recipe.id == "gfp-nuclear-2d":
-            for key in ("nucleolar_area_px", "nucleolar_area_um2", "nucleolar_count", "nucleolar_area_fraction"):
+            for key in ("nucleolar_area_px", "nucleolar_area_um2", "nucleoplasm_area_px", "nucleoplasm_area_um2",
+                        "nucleolar_count", "nucleolar_area_fraction"):
                 row[key] = None
             row["nucleolar_status"] = "not_measured_recipe"
             row["ratio_missing_reason"] = "ncl_not_measured_recipe"
+        elif row["nucleolar_status"] == "processing_failed":
+            # Nucleus pixels remain measurable, but neither U nor N-U was
+            # successfully defined. Empty storage masks cannot stand for absence.
+            if enriched.any():
+                raise ValueError("failed_nucleolar_mask_not_empty")
+            for key in list(row):
+                if key.startswith(("ncl_nucleoli_", "ncl_nucleoplasm_", "nucleolar_area", "nucleoplasm_area")):
+                    row[key] = None
+            row["nucleolar_count"] = None
+            row["ncl_log2_nucleoplasm_over_nucleoli"] = None
+            row["ratio_missing_reason"] = "nucleolar_processing_failed"
         cells.append(row)
         for label in np.unique(nucleoli[enriched]):
             mask = nucleoli == label
@@ -129,12 +165,12 @@ def apply_gfp_gate(rows, recipe: Recipe):
         positive = True if recipe.gfp_gate == "none" else (value is not None and threshold is not None and value >= threshold)
         if recipe.gfp_maximum is not None:
             positive = positive and value is not None and value <= recipe.gfp_maximum
-        row["gfp_selection_protocol_version"] = "1.1.0"
+        row["gfp_selection_protocol_version"] = "1.1.1"
         row["gfp_positive"] = bool(positive)
         row["gfp_gate_threshold"] = threshold
         row["gfp_gate_method"] = "confirmed-negative-control" if recipe.gfp_gate == "negative-control" else recipe.gfp_gate
         row["gfp_negative_control_fields"] = recipe.gfp_negative_control_fields if recipe.gfp_gate == "negative-control" else []
-        row["gfp_gate_exploratory"] = recipe.gfp_gate in ("otsu-batch", "manual")
+        row["gfp_gate_exploratory"] = recipe.gfp_gate in ("otsu-batch", "manual") or recipe.gfp_maximum is not None
         row["gfp_gate_maximum"] = recipe.gfp_maximum
         row["gfp_selection_reason"] = "included" if positive else "outside_gfp_gate"
     return rows

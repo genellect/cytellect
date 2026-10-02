@@ -4,6 +4,7 @@ import importlib.metadata
 import json
 import platform
 import re
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -121,6 +122,10 @@ def methods_text(config, provenance, report, statistics_results=()):
               "[measurements.json](measurements.json). A disabled GFP gate does not imply GFP positivity was measured.",
               f"Failed fields {len(report.get('field_failures', []))}; fields flagged for nucleolar review "
               f"{len(report.get('invalidated_nucleoli', []))}; review decisions in revision.json.",
+              f"Nuclei with failed nucleolar processing: {len(report.get('nucleolar_failures', []))}. "
+              "Nuclear measurements are retained; uncomputed compartment values are missing. "
+              "Diagnostic export does not confirm scientific review. Statistics and replay require correction, "
+              "successful redetection or an explicit reasoned exclusion for each failed nucleus.",
               "", "## Statistical analysis", ""]
     if not statistics_results:
         lines.append("No statistical analysis is included in this bundle.")
@@ -156,8 +161,8 @@ def methods_text(config, provenance, report, statistics_results=()):
 
 
 def build_export_bundle(destination: Path, *, report, config, provenance, field_masks,
-                        raw_files=(), statistics_results=(), include_raw=False):
-    """field_masks: {field_id: {nuclei, nucleoli, manual: uint32 2D ndarray}}.
+                        raw_files=(), statistics_results=(), statistics_roots=(), include_raw=False):
+    """field_masks: dict or lazy (field_id, {nuclei, nucleoli, manual}) records.
 
     raw_files contains (field_id/role.tif, private Path), never uploaded names.
     Files remain private: the caller must enforce ownership and expiration on this directory.
@@ -166,13 +171,15 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
     content = destination / "bundle"
     content.mkdir(exist_ok=False)
     statistics_results = list(statistics_results)
+    statistics_roots = dict(statistics_roots)
     _json(content / "measurements.json", report)
     _json(content / "revision.json", {"id": report.get("revision_id"), "config": config})
     _json(content / "provenance.json", provenance)
     _json(content / "environment.json", environment())
     for name, key in (("cells", "cells"), ("nucleoli", "nucleoli"), ("manual-rois", "manual_rois")):
         write_csv(content / f"{name}.csv", report.get(key, []))
-    for fid, masks in sorted(field_masks.items()):
+    mask_records = sorted(field_masks.items()) if hasattr(field_masks, "items") else field_masks
+    for fid, masks in mask_records:
         _safe_id(fid)
         folder = content / "masks" / fid
         folder.mkdir(parents=True)
@@ -212,6 +219,22 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
         folder.mkdir(parents=True)
         result = {**result, "figure": render_figures(result, folder)}
         _json(folder / "result.json", result)
+        for ordinal, source in enumerate(result.get("region_sensitivity_sources", [])):
+            _safe_id(source["revision_id"])
+            if source["relative_path"] != f"alternatives/{ordinal}" or index not in statistics_roots:
+                raise ValueError("alternate_revision_snapshot_missing")
+            origin = Path(statistics_roots[index]) / source["relative_path"]
+            target = folder / source["relative_path"]
+            target.mkdir(parents=True)
+            for filename in ("revision.json", "measurements.json", "provenance.json"):
+                shutil.copyfile(origin / filename, target / filename)
+            alternate_config = json.loads((target / "revision.json").read_text(encoding="utf-8"))["config"]
+            for fid in alternate_config["field_ids"]:
+                _safe_id(fid)
+                # Accepted alternate-region comparisons require every field to be measured.
+                mask_dir = target / "masks" / fid
+                mask_dir.mkdir(parents=True)
+                shutil.copyfile(origin / "masks" / fid / "labels.npz", mask_dir / "labels.npz")
     methods = methods_text(config, provenance, report, statistics_results)
     (content / "methods.md").write_text(methods, encoding="utf-8")
     (destination / "methods.md").write_text(methods, encoding="utf-8")

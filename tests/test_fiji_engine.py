@@ -181,3 +181,64 @@ def test_legacy_actual_stardist_restores_original_coordinates(tmp_path, fiji):
     assert info["coordinate_transform"]["measurement_shape"] == [320,320]
     assert info["coordinate_transform"]["scale_x"] == 0.625
     assert info["recipe"] == "ncl-legacy-rgb"
+
+
+@pytest.mark.fiji
+@pytest.mark.parametrize("fatal", [False, True])
+def test_candidate_failure_retains_nuclei_but_fatal_errors_stop_field(tmp_path, fiji, monkeypatch, fatal):
+    from pathlib import Path
+
+    from cytellect_analysis import engine
+    from cytellect_analysis.measurement import measure
+
+    # The fixed package-private function boundary is injectable only by this
+    # compiled test helper; no API parameter, user code or source rewriting.
+    exception = "OutOfMemoryError" if fatal else "IllegalStateException"
+    helper = tmp_path / "CytellectFailureProbe.java"
+    helper.write_text('''import java.nio.file.Path;
+public class CytellectFailureProbe {
+  public static void main(String[] args) {
+    final int[] calls={0};
+    try {
+      CytellectEngine.execute(Path.of(args[0]), binary -> {
+        if(++calls[0]==1) throw new ''' + exception + '''("synthetic-controlled-failure");
+        return inra.ijpb.binary.BinaryImages.componentsLabeling(binary,8,32);
+      });
+      System.exit(0);
+    } catch(Throwable failure) { System.exit(2); }
+  }
+}''', encoding="utf-8")
+    original_run = engine._run
+    def test_run(command, directory, timeout, env):
+        command = list(command)
+        if Path(command[0]).stem == "javac":
+            command.append(str(helper))
+        else:
+            command[command.index("CytellectEngine")] = "CytellectFailureProbe"
+        return original_run(command, directory, timeout, env)
+    monkeypatch.setattr(engine, "_run", test_run)
+    channels, nuclei, _ = synthetic_field()
+    output = tmp_path / "run"
+    if fatal:
+        with pytest.raises(EngineUnavailable, match="fiji_execution_failed"):
+            detect(channels, Recipe(), output, fiji, nuclei=nuclei)
+        assert not (output / "engine-result.json").exists()
+        return
+    actual, nucleoli, info = detect(channels, Recipe(), output, fiji, nuclei=nuclei)
+    np.testing.assert_array_equal(actual, nuclei)
+    assert info["nucleolar_states"][1] == "processing_failed"
+    assert set(info["nucleolar_states"].values()) == {"processing_failed", "candidate"}
+    assert not nucleoli[nuclei == 1].any()
+    assert len(np.unique(nucleoli)) - 1 == 16
+    assert info["nucleolar_status_protocol_version"] == "1.1.0"
+    background = np.zeros_like(nuclei, dtype=bool)
+    background[:4, :4] = True
+    rows, _, _ = measure(channels, actual, nucleoli, background, Recipe(), {}, "f",
+                         nucleolar_states=info["nucleolar_states"])
+    first = next(row for row in rows if row["nucleus_id"] == 1)
+    assert first["ncl_nucleus_mean"] == float(channels["ncl"][nuclei == 1].mean())
+    assert first["gfp_mean"] == float(channels["gfp"][nuclei == 1].mean())
+    assert first["ncl_nucleoplasm_mean"] is first["ncl_nucleoli_integrated"] is None
+    assert first["nucleoplasm_area_px"] is first["nucleolar_count"] is None
+    assert first["ratio_missing_reason"] == "nucleolar_processing_failed"
+    assert not first["excluded"]

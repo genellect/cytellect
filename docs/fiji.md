@@ -117,6 +117,17 @@ tile detection and merging cannot be assumed scientifically equivalent.
 
 ## Evidence and remaining validation
 
+Nucleolar status protocol 1.1.0 records recoverable per-nucleus candidate failures
+as `processing_failed`. Only a RuntimeException inside that candidate operation
+is recoverable: the parent nuclear labels remain intact, any partial child pixels
+are cleared, and other nuclei continue. Input/StarDist failures and Java Errors
+(including out-of-memory) remain fatal to the field. Measurement protocol 1.1.1
+keeps the nuclear values but leaves failed nucleolar/nucleoplasmic quantities
+missing. A package-private component-function boundary permits a fixed compiled
+test helper to exercise recovery and fatal-error behavior in actual Fiji; the
+registered CLI and HTTP recipes cannot supply that function or arbitrary code.
+The plugin/model lock is unchanged; each run records the actual bridge SHA-256.
+
 On 2026-10-02, a Windows x64 runtime with Java 21.0.7 and the pinned plugins ran
 real headless CPU inference on the public synthetic generator: **9 nuclei and
 18 nucleolar candidates**, unchanged source arrays and valid parent containment.

@@ -12,6 +12,72 @@ from PIL import Image
 MAX_SIDE = 4096
 MAX_PIXELS = MAX_SIDE * MAX_SIDE
 
+
+def _validate_ome_planes(tif, root):
+    """Reject incomplete acquisitions before tifffile can synthesize zero planes.
+
+    This deliberately supports only one grayscale 2D image, with one IFD per
+    acquired channel. OME's optional TiffData defaults are resolved explicitly.
+    """
+    images = [node for node in root if node.tag.rsplit("}", 1)[-1] == "Image"]
+    pixels = [node for image in images for node in image if node.tag.rsplit("}", 1)[-1] == "Pixels"]
+    if len(images) != 1 or len(pixels) != 1:
+        raise ValueError("single_series_required")
+    pixel = pixels[0]
+    try:
+        dims = {axis: int(pixel.attrib[f"Size{axis}"]) for axis in "XYZTC"}
+    except (KeyError, ValueError) as exc:
+        raise ValueError("invalid_ome_metadata") from exc
+    if dims["Z"] != 1 or dims["T"] != 1:
+        raise ValueError("only_2d_supported")
+    if (not 1 <= dims["C"] <= 3 or not 1 <= dims["X"] <= MAX_SIDE
+            or not 1 <= dims["Y"] <= MAX_SIDE):
+        raise ValueError("invalid_dimensions")
+    if pixel.attrib.get("Type") not in ("uint8", "uint16"):
+        raise ValueError("uint8_or_uint16_required")
+    order = pixel.attrib.get("DimensionOrder", "")
+    if not order.startswith("XY") or set(order) != set("XYZTC") or len(order) != 5:
+        raise ValueError("invalid_ome_metadata")
+    children = list(pixel)
+    channels = [node for node in children if node.tag.rsplit("}", 1)[-1] == "Channel"]
+    records = [node for node in children if node.tag.rsplit("}", 1)[-1] == "TiffData"]
+    try:
+        if len(channels) != dims["C"] or any(int(c.attrib.get("SamplesPerPixel", "1")) != 1 for c in channels):
+            raise ValueError("grayscale_axes_required")
+        if not records or len(tif.pages) != dims["C"]:
+            raise ValueError("ome_plane_coverage_invalid")
+        mapping: dict[int, int] = {}
+        for record in records:
+            attrs = record.attrib
+            if int(attrs.get("FirstZ", "0")) != 0 or int(attrs.get("FirstT", "0")) != 0:
+                raise ValueError("ome_plane_coverage_invalid")
+            first = int(attrs.get("FirstC", "0"))
+            ifd = int(attrs.get("IFD", "0"))
+            count = int(attrs.get("PlaneCount", "1" if "IFD" in attrs else str(len(tif.pages))))
+            if first < 0 or ifd < 0 or count < 1 or first + count > dims["C"] or ifd + count > len(tif.pages):
+                raise ValueError("ome_plane_coverage_invalid")
+            for offset in range(count):
+                if first + offset in mapping or ifd + offset in mapping.values():
+                    raise ValueError("ome_plane_coverage_invalid")
+                mapping[first + offset] = ifd + offset
+        if set(mapping) != set(range(dims["C"])):
+            raise ValueError("ome_plane_coverage_invalid")
+    except (TypeError, OverflowError) as exc:
+        raise ValueError("invalid_ome_metadata") from exc
+    for index in mapping.values():
+        page = tif.pages[index]
+        if (page.shape != (dims["Y"], dims["X"]) or page.dtype != np.dtype(pixel.attrib["Type"])
+                or page.samplesperpixel != 1):
+            raise ValueError("ome_plane_metadata_mismatch")
+        # Empty or out-of-file strips may otherwise decode as missing pixels.
+        if not page.dataoffsets or len(page.dataoffsets) != len(page.databytecounts):
+            raise ValueError("ome_plane_data_incomplete")
+        if any(offset <= 0 or size <= 0 or offset + size > tif.filehandle.size
+               for offset, size in zip(page.dataoffsets, page.databytecounts, strict=True)):
+            raise ValueError("ome_plane_data_incomplete")
+    return mapping
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as stream:
@@ -38,6 +104,7 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
             # OME may name its own original file. Exact UUID identity, never
             # the user-supplied FileName, establishes this self reference.
             # _multifile=False still prohibits resolving another filesystem path.
+            ome_mapping = _validate_ome_planes(tif, root)
         if len(tif.series) != 1:
             raise ValueError("single_series_required")
         series = tif.series[0]
@@ -70,6 +137,14 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
             raise ValueError("explicit_channels_required")
         if "".join(axis for axis in axes if axis not in "TCZ") != "YX":
             raise ValueError("yx_required")
+        if tif.is_ome:
+            # Verify the library resolved every declared plane to the exact IFD;
+            # never accept its warning-and-zero-fill recovery for damaged OME.
+            resolved = list(series.pages)
+            if (len(resolved) != len(ome_mapping)
+                    or any(page is None or page.offset != tif.pages[ome_mapping[i]].offset
+                           for i, page in enumerate(resolved))):
+                raise ValueError("ome_plane_coverage_invalid")
         array = series.asarray()
         for axis in "TZ":
             if axis in axes:

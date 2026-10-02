@@ -118,3 +118,40 @@ def test_ome_self_uuid_survives_renaming_but_external_uuid_is_rejected(tmp_path)
                 read_tiff(path, channel_indices=[1, 0])
         else:
             assert np.array_equal(read_tiff(path, channel_indices=[1, 0]), data[[1, 0]])
+
+
+@pytest.mark.parametrize("pages,records", [
+    (2, '<TiffData IFD="0" PlaneCount="3"/>'),  # Formerly accepted; channel 3 was invented as zeros.
+    (3, '<TiffData IFD="0" PlaneCount="2"/>'),
+    (3, '<TiffData IFD="0" FirstC="0"/><TiffData IFD="0" FirstC="1"/><TiffData IFD="2" FirstC="2"/>'),
+    (3, '<TiffData IFD="0" FirstC="0"/><TiffData IFD="1" FirstC="0"/><TiffData IFD="2" FirstC="2"/>'),
+    (3, '<TiffData IFD="0" FirstZ="1" PlaneCount="3"/>'),
+    (3, ''),
+])
+def test_incomplete_or_duplicate_ome_planes_rejected_before_pixel_decode(tmp_path, monkeypatch, pages, records):
+    path = tmp_path / "broken.ome.tif"
+    xml = ('<?xml version="1.0"?><OME xmlns="http://www.openmicroscopy.org/Schemas/OME/2016-06">'
+           '<Image ID="Image:0"><Pixels ID="Pixels:0" DimensionOrder="XYCZT" Type="uint16" '
+           'SizeX="4" SizeY="4" SizeC="3" SizeZ="1" SizeT="1">'
+           + ''.join(f'<Channel ID="Channel:0:{c}" SamplesPerPixel="1"/>' for c in range(3))
+           + records + '</Pixels></Image></OME>')
+    tifffile.imwrite(path, np.full((pages, 4, 4), 7, np.uint16),
+                     photometric="minisblack", description=xml, metadata=None)
+    def forbid_decode(*args, **kwargs):
+        raise AssertionError("invalid OME must be rejected before decoding")
+    monkeypatch.setattr(tifffile.TiffPageSeries, "asarray", forbid_decode)
+    with pytest.raises(ValueError, match="ome_plane_coverage_invalid"):
+        read_tiff(path, channel_indices=[0, 1, 2])
+
+
+def test_ome_reordered_ifds_follow_explicit_channel_records(tmp_path):
+    path = tmp_path / "reordered.ome.tif"
+    data = np.stack([np.full((9, 10), n, np.uint16) for n in (7, 91, 103)])
+    tifffile.imwrite(path, data, ome=True, metadata={"axes": "CYX"})
+    import re
+    with tifffile.TiffFile(path) as image:
+        xml = image.ome_metadata
+    xml = re.sub(r"<TiffData\b[^>]*/>", '<TiffData IFD="2" FirstC="0"/>'
+                 '<TiffData IFD="0" FirstC="1"/><TiffData IFD="1" FirstC="2"/>', xml)
+    tifffile.tiffcomment(path, xml)
+    assert np.array_equal(read_tiff(path, channel_indices=[0, 1, 2]), data[[2, 0, 1]])

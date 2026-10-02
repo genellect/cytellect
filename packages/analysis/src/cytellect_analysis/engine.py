@@ -15,6 +15,7 @@ import tifffile
 
 from .contracts import Recipe
 from .masks import validate_labels
+from .measurement import normalize_nucleolar_states
 
 # Admission bounds for the fixed -Xmx2g bridge, not a guarantee for every image.
 # The pinned CSBDeep implementation retains predicted tiles; more tiles alone
@@ -131,6 +132,8 @@ def detect(
         validate_labels(nuclei, nucleoli)
         info.update({"recipe": recipe.id, "coordinate_transform": transform,
                      "nucleolar_status": statuses, "nucleolar_algorithm": "legacy generalized Otsu compatibility pipeline"})
+        info.pop("nucleolar_states", None)  # Discard coarse nuclear-pass outcomes.
+        info["nucleolar_states"] = normalize_nucleolar_states(info)
         (output_dir / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
         return nuclei, nucleoli, info
     shape = channels["dapi"].shape
@@ -184,6 +187,7 @@ def detect(
     if nuclei is not None and not np.array_equal(labels[0], nuclei):
         raise EngineUnavailable("fiji_modified_preserved_nuclei")
     info = json.loads((output / "engine-result.json").read_text(encoding="utf-8"))
+    info["nucleolar_states"] = normalize_nucleolar_states(info)
     info.update({
         "model_sha256": lock["model"]["sha256"],
         "runtime_lock_sha256": _sha(assets / "runtime.lock.json"),

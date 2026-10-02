@@ -18,19 +18,29 @@ GFP is median-centered within acquisition date on those rows. OLS uses field-clu
 
 Adjusted means use GFP centered at zero and equal weight across observed acquisition dates. A repeat-length slope excludes the baseline; repeat length zero is never invented. Non-estimable trends have an explicit reason. No p-value-based model selection is performed.
 
+The metric selector exposes the recorded nuclear, nucleolar-union and nucleoplasmic NCL means, medians and pixel sums, both raw and background corrected; nuclear GFP equivalents; compartment areas and nucleolar counts; and the distinct native/legacy ratios. It selects existing measurements without changing their formulas. Physical areas remain missing without calibration, and absent channels/compartments remain missing. GFP-derived outcomes cannot use the same GFP channel as an adjustment covariate. Count and area outcomes in the exploratory OLS model retain its distributional and small-cluster limitations.
+
+`model-coefficients.csv` exposes each saved model coefficient, standard error, t statistic, degrees of freedom, 95% interval and unadjusted p value. `repeat-trend.csv` reports the nonbaseline repeat-length slope or an explicit missing/not-estimable reason. These exploratory coefficient/trend p values are not Holm-adjusted group contrasts and must not be described as such. Coefficient and trend intervals use the existing fitted field-clustered CRV1 covariance; exporting them does not fit another model.
+
 See [statsmodels covariance documentation](https://www.statsmodels.org/stable/generated/statsmodels.regression.linear_model.RegressionResults.get_robustcov_results.html) for correction and degrees-of-freedom semantics.
 
 ## Sensitivity analyses
 
 Users predeclare GFP thresholds and an optional restriction to dates containing all comparison groups plus the baseline. Each scenario retains its specification, counts, contrasts and warnings, or a not-estimable reason. The main result is not replaced by the scenario with the smallest p value.
 
-Alternative NCL region definitions require separately measured, reviewed revisions sharing the same source images. The helper accepts alternate revision row tables; callers must enforce ownership, input identity and review. Changing a column name does not constitute remasking. The API must explicitly connect this helper before claiming this sensitivity UI available.
+`sensitivity-status.csv`, `sensitivity-counts.csv` and `sensitivity-comparisons.csv` expose scenario status/reason, groupwise selection/counts and effect/interval/raw/Holm p values. Each scenario repeats the declared comparison family; the CSV does not claim error control across all scenarios. Authoritative nested results remain in the statistical JSON, and the figure source manifest hashes the exported CSVs.
+
+Native NCL region sensitivities select up to ten separately measured, successful reviewed revisions through `sensitivity_region_revision_ids`. The API checks ownership, workspace, the adopted field set, complete input/channel/metadata snapshots, backgrounds, exclusions, measurement protocol and all non-nucleolar recipe parameters. Before inference the worker checks that original-coordinate nucleus and manual ROI pixel sets are identical. Only nucleolar definition parameters or the reviewed nucleolar masks may differ; a different nuclear segmentation is not a like-for-like region sensitivity. Unresolved field/candidate failures and stale mask review are rejected. Explicitly excluded failed fields are also outside this complete-mask comparison path.
+
+The statistics job saves each alternative's configuration, review, measurements, detector provenance and masks. Reproducibility packages include these private snapshots; replay verifies their hashes and recomputes their measurements from the common original images before running the scenario analysis. Short ordinal snapshot directories are internal storage identifiers; the saved revision ID remains the scientific identity. Saved scenario values are not used as a substitute for remeasurement. Manual resegmentation still needs researcher review; the application does not choose a definition to produce significance. Native region selection is not applicable to numerical assay tables or the GFP-only/legacy recipes.
 
 ## Measured assay CSV
 
 UTF-8 CSV required columns: condition, experimental_unit, sample, field_id, acquisition_date, value. Optional columns: pair, repeat_length, unit, assay. A file must contain a single assay and unit. Values must be finite; missing/invalid rows are rejected, not silently dropped. RNA/DNA instrument normalization is outside this importer's scope.
 
 Maximum size is 8 MiB and 100,000 rows. The experimental hierarchy has the same declared aggregation as image measurements. Plots label the input rows observations, not cells. Numeric tables cannot invoke a fabricated GFP regression.
+
+Each numerical statistics job provides a private reproducibility ZIP containing the exact source CSV's SHA-256 and byte count, parsed observations, saved statistics and plot settings, Methods, code provenance, environment versions, figures and their source CSVs. The original uploaded CSV is omitted. Replay verifies the package manifest and exact original CSV supplied separately by the researcher, parses it again, checks the observations against the saved table and recalculates statistics and figures. It does not use stored result values as the calculation source or perform instrument normalization. Numerical tables reject image-only GFP and region-sensitivity controls.
 
 ## Figures
 
@@ -44,7 +54,7 @@ Private bundles include measurement CSV/JSON, TIFF/NPZ labels, configuration, en
 
 ROI exchange encodes each object's pixel set as integer rectangular row runs. This preserves holes, disconnected components, edge pixels and sparse IDs exactly. Fiji opens the rectangles as individual ROIs; the manifest preserves object grouping. Cytellect import accepts this format only and verifies the full pixel-set hash. Arbitrary polygons, subpixel or rounded rectangles, overlap and approximate contour conversion are rejected. This is exact pixel exchange, not a general-purpose Fiji ROI importer.
 
-Measurement replay verifies source TIFF hashes and package hashes, loads the approved masks, and recalculates measurements and recorded statistics. It does not download models or rerun detection. Original files must be placed under the recorded internal field IDs; the package gives instructions. The declared code commit and locked dependency environment must be restored for comparable results.
+Measurement replay requires recorded review and a complete manifest, verifies source TIFF and package hashes, loads the approved masks, and recalculates measurements and recorded statistics. Recorded whole-field exclusions take precedence over individual-object reasons when reconstructing exclusions. It does not download models or rerun detection. Original files must be placed under the recorded internal field IDs; the package gives instructions. The declared code commit and locked dependency environment must be restored for comparable results.
 
 CSV text starting with spreadsheet formula characters is prefixed by an apostrophe; numbers remain numeric. JSON preserves authoritative unmodified labels and metadata. Neither package nor figures may be published by default.
 
@@ -73,4 +83,4 @@ Unit labels and pairing are declarations by the researcher. The software rejects
 
 Native NCL analysis permits a genuinely absent GFP channel only with no GFP selection. The separate gfp-nuclear-2d recipe measures DAPI-defined nuclear GFP and reports NCL and nucleolar metrics as missing. A disabled gate means selection is not applied; it is not an experimentally established GFP-positive classification.
 
-Measurement and native GFP selection protocol1.1.0 also record the optional-channel semantics and exclude explicitly excluded objects when fitting a native batch Otsu gate. Recipe parameters and exact per-cell thresholds remain saved independently.
+Measurement and native GFP selection protocol 1.1.0 introduced optional-channel semantics and exclusion of explicitly excluded objects when fitting a native batch Otsu gate. Current protocol 1.1.1 extends the recorded compartment-area, candidate-state and exploratory-selection metadata. Recipe parameters and exact per-cell thresholds remain saved independently.

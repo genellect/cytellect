@@ -2,6 +2,21 @@
 
 SAFE_ERRORS = frozenset(
     {
+        "nucleolar_processing_failed",
+        "region_sensitivity_requires_native_ncl",
+        "region_sensitivity_fields_differ",
+        "region_sensitivity_inputs_or_metadata_differ",
+        "region_sensitivity_backgrounds_differ",
+        "region_sensitivity_exclusions_differ",
+        "region_sensitivity_nonregion_parameters_differ",
+        "region_sensitivity_complete_reviewed_masks_required",
+        "region_sensitivity_nuclear_or_manual_masks_differ",
+        "region_sensitivity_requires_alternate_revision",
+        "region_sensitivity_workspace_mismatch",
+        "region_sensitivity_review_required",
+        "region_sensitivity_measurement_protocol_differs",
+        "region_sensitivity_revision_unavailable",
+        "region_sensitivity_snapshots_required",
         "paired_plot_requires_paired_inference",
         "scatter_requires_finite_gfp_for_all_selected_rows",
         "nature_preset_requires_height_at_most_170mm_and_font_5_to_7pt",

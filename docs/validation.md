@@ -22,3 +22,28 @@ Private acceptance remains open until raw images are supplied and evaluated. Pro
 - [Statistical audit](scientific-audit-2026-10-02.md): closed-form t references, explicit CRV1 matrix calculation, selection/missingness/pairing checks.
 - [Figures](figures.md): physical/vector/font/source checks.
 - [Browser evidence](web.md), [Fiji installation evidence](fiji.md), and [release path](deployment.md).
+
+## Completion audit regression coverage
+
+The post-local.6 audit follows the researcher workflow against requirements, including combinations
+that individual module tests did not exercise. A source fix is not evidence that an already
+downloaded release contains it; see the exact release source in [local delivery](local-release-0.1.0.md).
+
+- Incomplete OME plane mappings are rejected before tifffile can create zero-filled missing channels.
+  Valid explicitly reordered channels and self-referencing UUID metadata remain covered.
+- Re-segmenting only some fields cannot adopt new global detection parameters. Background ROI and
+  exclusion changes travel atomically with the new immutable revision.
+- Measurement tests cover nucleoplasmic area, distinct candidate states and a manual GFP upper
+  bound's exploratory provenance. A recoverable nucleolar operation failure retains nucleus
+  measurements and missing compartment values; it requires correction or reasoned exclusion.
+- `test_export.py` recalculates a six-field comparison and its source-linked figure from original
+  pixels and saved masks. Explicitly excluded failed fields remain excluded during replay.
+  Native definition sensitivities carry alternate reviewed masks for independent recalculation.
+- `test_numeric_export.py` verifies original CSV hashes, normalized observations, saved statistical
+  conditions, Methods and replay figures, plus ownership and deletion for the downloadable package.
+- Independent statistical reference tests cover the repeat-length coefficient with an explicit
+  matrix/sandwich calculation, in addition to Welch, paired and group-model comparisons.
+
+These are software regression checks. They do not establish that a selected biological unit is
+independent, that an exploratory adjustment estimates a causal effect, or that the detector fits
+the user's private experiment.
