@@ -91,4 +91,3 @@ medians matched exactly; the maximum absolute integrated-intensity discrepancy w
 New nucleoplasmic pixel areas matched the ImageJ pixel count for every nucleus; unknown
 physical calibration and absent GFP remained missing. This is a regression/arithmetic
 check on the same public image, not an additional independent biological sample.
-
