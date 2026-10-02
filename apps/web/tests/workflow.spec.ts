@@ -211,6 +211,7 @@ test("two-channel inputs preserve actual roles; GFP field trial and figure prese
  expect(report.nucleoli).toHaveLength(0);
  expect(report.cells.every((c:Record<string,unknown>)=>c.ncl_nucleus_mean_corrected===undefined||c.ncl_nucleus_mean_corrected===null)).toBeTruthy();
  await expect(page.getByRole("columnheader",{name:"GFP 補正平均",exact:true})).toBeVisible();
+ await expect(page.locator("tbody tr")).toHaveCount(report.cells.length);
  await expect(page.getByRole("columnheader",{name:"NCL 核全体",exact:true})).toHaveCount(0);
  const shot=process.env.CYTELLECT_SCREENSHOT_DIR;
  if(shot){fs.mkdirSync(shot,{recursive:true});await page.screenshot({path:path.join(shot,"public-gfp-private-workbench.png"),fullPage:true});}
