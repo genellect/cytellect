@@ -45,11 +45,49 @@ ahead of the distribution classpath. Removing this pin requires a real model
 inference regression test.
 
 ImageJ preferences are process-local memory. Temporary images, extracted models,
-Java temp files and masks stay inside the private attempt directory. The adapter
+Java temp files and masks stay inside the private attempt directory. Model/native
+scratch uses a short random child of the owning attempt, separate from the longer
+per-field output path. It is removed after Java exits, including on exceptions;
+forced termination leaves any residue within existing attempt-retention cleanup.
+This layout is required because TensorFlow 1.15 on Windows failed to open model
+variables at a 264-character path even though a shorter installer smoke passed.
+The adapter rejects a configured scratch root whose longest known model path
+would exceed a conservative 240 characters with `fiji_temporary_path_too_long`.
+It never moves research images into a shared operating-system temp directory.
+The installer now checks a deliberately long canonical field path as well.
+The adapter
 suppresses third-party stdout/stderr because those streams include paths. Only
 fixed error codes are exposed. The worker must enforce process-tree cancellation,
 memory limits, retention cleanup, and network isolation. Java heap is bounded at
 2 GiB; the surrounding worker/container limit must also account for native TF memory.
+
+## Automatic detection capacity
+
+The provisional **standard-2g** profile admits automatic nuclear detection only
+when **each edge is at most 2048 pixels and total area is at most 2,700,000 pixels**.
+The adapter checks these bounds before runtime inspection, image copies or Java
+startup. Excess returns `fiji_detection_capacity_exceeded`; it never silently
+downsamples a native image. The separate 4096x4096 upload ceiling is an input
+security limit, not a claim that automatic detection works at that size.
+
+This conservative admission rule follows one successful published 1536x1739
+field and failed 4096x4096 capacity runs with both 2 GiB and experimental 4 GiB
+Java heaps; see [the resource benchmark](resource-benchmark.md). It does not
+certify every admitted image or a particular cloud instance. Image content,
+object density, native TensorFlow memory and other processing stages still
+matter. Existing worker time/memory limits remain necessary. Supplying existing
+nuclear masks bypasses the automatic-nucleus guard because StarDist is not run;
+nucleolar processing, measurements and uploads retain their existing bounds.
+The admission profile and whether it applied are saved in engine provenance.
+
+Increasing the tile count alone is not a memory-bounded fix. The pinned
+[CSBDeep 0.6.0 network](https://github.com/CSBDeep/CSBDeep_fiji/blob/csbdeep-0.6.0/src/main/java/de/csbdresden/csbdeep/network/model/DefaultNetwork.java)
+retains the predicted tiles and futures, while
+[ImageJ TensorFlow 1.1.9](https://github.com/imagej/imagej-tensorflow/blob/imagej-tensorflow-1.1.9/src/main/java/net/imagej/tensorflow/Tensors.java)
+copies output tensors to heap arrays. Both capacity failures occurred in that
+conversion. A future streaming implementation needs explicit global
+normalization, overlap and cross-boundary suppression validation; independent
+tile detection and merging cannot be assumed scientifically equivalent.
 
 ## Scientific behavior
 

@@ -46,7 +46,8 @@ def _initial_masks(field, folder, channels, recipe, settings, destination, nucle
     if settings.fiji_executable:
         from cytellect_analysis.engine import detect
 
-        result = detect(channels, recipe, destination / "engine", settings.fiji_executable, nuclei=nuclei)
+        result = detect(channels, recipe, destination / "engine", settings.fiji_executable, nuclei=nuclei,
+                        scratch_root=destination.parent.parent)
         return *result[:2], np.zeros_like(result[0]), result[2]
     if field["synthetic"]:
         if nuclei is not None:

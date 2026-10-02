@@ -43,7 +43,18 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");
  const connections:string[]=[];page.on("request",r=>{if(r.url().includes(":8000")||r.url().includes("/v1/"))connections.push(r.url());});
  await page.goto("/");
- await expect(page.getByRole("button",{name:"ワークスペースに接続"})).toBeDisabled();
+ const release=process.env.CYTELLECT_EXPECT_RELEASE_URL;
+ if(release){
+  await expect(page.getByRole("link",{name:/Cytellectをダウンロード/})).toHaveAttribute("href",release);
+  await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
+  await expect(page.getByText("Windows · x64",{exact:false})).toBeVisible();
+  await page.getByText("保存先と削除について",{exact:true}).click();
+  await expect(page.getByText(/終了中に期限を迎えたデータは次回起動時に削除します。/)).toBeVisible();
+ }else{
+  await expect(page.getByRole("button",{name:"ワークスペースに接続"})).toBeDisabled();
+  await expect(page.getByRole("link",{name:/Cytellectをダウンロード/})).toHaveCount(0);
+ }
+ for(const width of [1440,390]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();}
  await expect(page.getByRole("link",{name:/サンプルを試す/})).toBeVisible();
  await page.getByRole("link",{name:/サンプルを試す/}).click();
  await expect(page.getByAltText(/4DN.*公開実画像/)).toBeVisible();

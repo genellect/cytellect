@@ -23,3 +23,6 @@ export const metricLabels: Record<string,string> = {ncl_log2_nucleoplasm_over_nu
 export function formatValue(value:unknown):string { if(value === null || value === undefined) return "—"; if(typeof value==="number") return Number.isFinite(value) ? Number(value.toPrecision(5)).toLocaleString("en-US",{maximumFractionDigits:5}):"—"; return String(value); }
 
 export const fieldRoles = (field?:Field):string[] => field?.image_info.channel_roles ?? ["dapi","ncl","gfp"];
+
+const qualityReasons:Record<string,string>={ncl_not_measured_recipe:"NCL対象外",no_compartment:"比の領域不足",nonpositive_signal:"補正値≤0",native_ratio_not_defined_in_legacy:"比は対象外"};
+export const qualityReasonLabel=(reason:unknown):string=>typeof reason==="string"?(qualityReasons[reason]??reason):"";

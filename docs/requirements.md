@@ -19,7 +19,7 @@ I03: Native 8/16-bit grayscale channel TIFF and verified single-series OME-TIFF 
 I04: Missing pixel size means px only. CZI initially converted with Bio-Formats. RGB TIFF is separate compatibility mode.
 I05: Immutable original measurement pixels; display LUT and detection preprocessing separate. Native masks canonical at original resolution; store detection coordinate transform.
 I06: User-confirmed background ROI median. Extranuclear pixels not automatically background. Save raw/corrected values and preserve native negative corrections.
-I07: Configurable initial limits 100 fields/workspace, 4096x4096 plane, 3 channels, 2 GiB total. Internal IDs for paths, not uploaded filenames.
+I07: Configurable input-security limits 100 fields/workspace, 4096x4096 plane, 3 channels, 2 GiB total. The input ceiling does not promise automatic detection at that size. The provisional standard-2g automatic-nucleus admission profile requires both sides ≤2048 px and total area ≤2,700,000 pixels; reject excess before Fiji without resizing. Reusing supplied nuclear masks bypasses automatic-nucleus admission, while input/worker limits still apply. Internal IDs for paths, not uploaded filenames.
 
 ## Segmentation, editing and metrics
 
@@ -71,3 +71,11 @@ D07: Future Supabase identity/Postgres/private Storage adapters preserve owner I
 I08: Native NCL analysis accepts confirmed DAPI+NCL with optional GFP only when no GFP gate/range is requested. GFP-nuclear recipe requires DAPI+GFP, keeps NCL metrics missing, and never fabricates absent channels. Two-channel OME uses an explicit role/index mapping. Published DNA stains such as DRAQ are labelled by their actual stain, even when transported through the historical dapi role.
 S08: Nature presets set 89/183 mm widths, height≤170 mm, editable vector text, 5–7 pt labels, embedded PDF fonts and source-linked metadata/caption. Publication formatting is distinct from scientific acceptance. Exploratory regression bands use the saved clustered covariance; no additional cell-independent band is introduced.
 T11: Normal source publication follows PR → required CI → main merge → automatic Vercel deployment. The initial CLI bootstrap is recorded separately in deployment.md.
+
+## Local delivery and later cloud execution
+
+L01: Initial low-cost delivery uses the existing browser UI with API/worker on the same PC. Windows setup automates pinned dependencies without modifying system Python or an existing Fiji. Routine startup requires no command or invitation. Installation/browser acceptance precedes an advertised download.
+L02: Bind only literal loopback; local session bootstrap is absent from cloud mode. Exact Host/Origin, browser Fetch Metadata, CSRF, HttpOnly cookies and frame restrictions protect browser access. Local OS processes are trusted; this is not shared-account isolation.
+L03: The same analysis, revision, measurement, statistics and export contracts serve local and future cloud modes. No local-only scientific fork. Standard Vercel builds do not silently connect to localhost.
+L04: Local expiry blocks access after24h; physical deletion while the launcher/PC is off resumes at next launch, disclosed before upload. A future cloud host must satisfy its own continuous deletion and isolation acceptance.
+L05: Versioned release bundles contain tracked allowlisted sources and static UI, per-file hashes and a package checksum; no research data, credentials or developer runtime. Git/PR checkpoints record implementation and remaining gates.

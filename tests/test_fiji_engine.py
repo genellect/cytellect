@@ -9,10 +9,75 @@ from cytellect_analysis.masks import validate_labels
 from cytellect_analysis.synthetic import synthetic_field
 
 
+@pytest.mark.parametrize("recipe_id", ["ncl-native-2d", "gfp-nuclear-2d"])
+@pytest.mark.parametrize("shape", [(2049, 1), (1, 2049), (2048, 1319), (4096, 4096)])
+def test_automatic_detection_capacity_rejected_before_runtime_or_writes(tmp_path, monkeypatch, recipe_id, shape):
+    from cytellect_analysis import engine
+    from cytellect_worker.errors import SAFE_ERRORS
+
+    def forbidden_runtime(_):
+        pytest.fail("An over-capacity request must not inspect or launch Fiji")
+
+    monkeypatch.setattr(engine, "runtime_info", forbidden_runtime)
+    # Broadcast views exercise admission without allocating full image buffers.
+    pixels = np.broadcast_to(np.zeros((1, 1), dtype=np.uint16), shape)
+    channels = {"dapi": pixels, "ncl": pixels, "gfp": pixels}
+    output = tmp_path / "attempt"
+    with pytest.raises(EngineUnavailable, match="^fiji_detection_capacity_exceeded$"):
+        detect(channels, Recipe(id=recipe_id), output, "unused")
+    assert not output.exists()
+    assert "fiji_detection_capacity_exceeded" in SAFE_ERRORS
+
+
+@pytest.mark.parametrize("shape,reuse", [
+    ((1536, 1739), False),  # The published NCL field used in resource profiling.
+    ((2048, 1318), False),  # Just below the pixel ceiling and at the edge ceiling.
+    ((1800, 1500), False),  # Exactly 2,700,000 pixels.
+    ((4096, 4096), True),  # Supplied labels do not invoke automatic nuclei inference.
+])
+def test_capacity_admission_and_edited_nuclei_reuse(tmp_path, monkeypatch, shape, reuse):
+    from cytellect_analysis import engine
+
+    class RuntimeReached(Exception):
+        pass
+
+    def runtime_reached(_):
+        raise RuntimeReached
+
+    monkeypatch.setattr(engine, "runtime_info", runtime_reached)
+    pixels = np.broadcast_to(np.zeros((1, 1), dtype=np.uint16), shape)
+    labels = np.broadcast_to(np.zeros((1, 1), dtype=np.uint32), shape) if reuse else None
+    with pytest.raises(RuntimeReached):
+        detect({"dapi": pixels, "ncl": pixels}, Recipe(), tmp_path, "unused", nuclei=labels)
+
+
 def test_unconfigured_engine_fails_closed(tmp_path):
     channels, *_ = synthetic_field()
     with pytest.raises(EngineUnavailable, match="fiji_not_configured"):
         detect(channels, Recipe(), tmp_path, "")
+
+
+def test_java_scratch_cleanup_preserves_owning_attempt(tmp_path):
+    from cytellect_analysis.engine import _private_java_scratch
+
+    preserved = tmp_path / "preserved.txt"
+    preserved.write_text("keep")
+    with pytest.raises(RuntimeError, match="simulated_failure"):
+        with _private_java_scratch(tmp_path / "output", tmp_path) as scratch:
+            (scratch / "generated-model.bin").write_bytes(b"fixed model")
+            raise RuntimeError("simulated_failure")
+    assert list(tmp_path.iterdir()) == [preserved]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Legacy TensorFlow Windows path limit")
+def test_overlong_java_scratch_root_fails_before_creation(tmp_path):
+    from cytellect_analysis.engine import _private_java_scratch
+
+    root = tmp_path / ("long" * 35)
+    with pytest.raises(EngineUnavailable, match="fiji_temporary_path_too_long"):
+        with _private_java_scratch(tmp_path / "output", root):
+            pytest.fail("An overlong root cannot create a Java scratch directory")
+    assert not root.exists()
 
 
 @pytest.fixture
@@ -33,9 +98,31 @@ def test_real_cpu_stardist_and_nucleoli(tmp_path, fiji):
     assert len(np.unique(nucleoli)) - 1 == 18
     validate_labels(nuclei, nucleoli)
     assert provenance["headless"] is True
+    assert provenance["automatic_detection_admission"] == {
+        "profile": "standard-2g", "applied": True, "max_side_px": 2048, "max_pixels": 2_700_000,
+    }
     assert provenance["model_sha256"] == "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3"
     assert all(np.array_equal(channels[key], original[key]) for key in channels)
     assert (tmp_path / "engine-result.json").is_file()
+
+
+@pytest.mark.fiji
+def test_public_gfp_in_long_attempt_path_uses_short_private_model_scratch(tmp_path, fiji):
+    from pathlib import Path
+
+    import tifffile
+
+    root = Path(__file__).resolve().parents[1]
+    channels = {role: tifffile.imread(root / "fixtures/public/bbbc013" / f"A01-{role}.tif")
+                for role in ("dapi", "gfp")}
+    attempt = tmp_path.parent / "long-path-attempt"
+    output = attempt / ("a" * 36) / "output" / ("b" * 36) / "engine"
+    nuclei, nucleoli, info = detect(channels, Recipe(id="gfp-nuclear-2d"), output, fiji, scratch_root=attempt)
+    assert len(np.unique(nuclei)) - 1 == 350
+    assert not nucleoli.any()
+    assert info["automatic_detection_admission"]["applied"] is True
+    assert not list(attempt.glob("j-*"))
+    assert (output / "engine-result.json").is_file()
 
 
 @pytest.mark.fiji
@@ -46,6 +133,7 @@ def test_edited_nuclei_preserved_and_uniform_signal_not_substituted(tmp_path, fi
     np.testing.assert_array_equal(detected, nuclei)
     assert np.count_nonzero(nucleoli) == 0
     assert set(info["nucleolar_status"].values()) == {"indeterminate"}
+    assert info["automatic_detection_admission"]["applied"] is False
 
 
 @pytest.mark.fiji

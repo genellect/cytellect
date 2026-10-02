@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .config import Settings, configure_private_tmp
@@ -7,8 +8,13 @@ from .db import Store
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "local":
+        from .local import main as local_main
+
+        return local_main(sys.argv[2:])
     parser = argparse.ArgumentParser(prog="cytellect")
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("local", help="Start the private loopback UI and supervised worker")
     invite = sub.add_parser("invite")
     invite.add_argument("--hours", type=int, default=24)
     sub.add_parser("cleanup")

@@ -56,6 +56,13 @@ def configure_private_tmp(settings: Settings) -> Path:
     temporary.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
         temporary.chmod(0o700)
+    matplotlib_cache = temporary / "matplotlib"
+    if matplotlib_cache.is_symlink() or matplotlib_cache.resolve().parent != temporary:
+        raise ValueError("Private font cache cannot redirect outside runtime")
+    matplotlib_cache.mkdir(exist_ok=True, mode=0o700)
+    if os.name != "nt":
+        matplotlib_cache.chmod(0o700)
+    os.environ["MPLCONFIGDIR"] = str(matplotlib_cache)
     for variable in ("TMPDIR", "TEMP", "TMP"):
         os.environ[variable] = str(temporary)
     # tempfile caches its selected directory; assigning explicitly also protects

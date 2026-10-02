@@ -5,7 +5,9 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -14,9 +16,16 @@ import tifffile
 from .contracts import Recipe
 from .masks import validate_labels
 
+# Admission bounds for the fixed -Xmx2g bridge, not a guarantee for every image.
+# The pinned CSBDeep implementation retains predicted tiles; more tiles alone
+# do not bound total memory. Never silently resize a native quantitative input.
+AUTOMATIC_DETECTION_PROFILE = "standard-2g"
+MAX_AUTOMATIC_DETECTION_SIDE = 2048
+MAX_AUTOMATIC_DETECTION_PIXELS = 2_700_000
+
 
 class EngineUnavailable(RuntimeError):
-    """A required pinned engine component is unavailable."""
+    """The pinned engine cannot safely execute the requested operation."""
 
 
 def _assets() -> Path:
@@ -74,18 +83,35 @@ def _run(command: list[str], directory: Path, timeout: int, env: dict) -> None:
         raise EngineUnavailable("fiji_execution_failed")
 
 
+@contextmanager
+def _private_java_scratch(output: Path, scratch_root: Path | None):
+    base = scratch_root if scratch_root is not None else output.parent
+    if base.is_symlink() or base.is_junction():
+        raise EngineUnavailable("fiji_temporary_path_invalid")
+    base = base.resolve()
+    # The legacy TF1.15 Windows binary does not support long model paths.
+    longest_suffix = "/j-12345678/models/GenericNetwork_" + "0" * 32 + "/variables/variables.data-00000-of-00001"
+    if os.name == "nt" and len(str(base) + longest_suffix) > 240:
+        raise EngineUnavailable("fiji_temporary_path_too_long")
+    base.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="j-", dir=base) as temporary:
+        yield Path(temporary)
+
+
 def detect(
     channels: dict[str, np.ndarray],
     recipe: Recipe,
     output_dir: Path,
     executable: str,
     nuclei: np.ndarray | None = None,
+    scratch_root: Path | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     """Detect on original-resolution copies; optional edited nuclei are preserved exactly.
 
     The worker owns process-tree cancellation and memory/time enforcement. All
-    transient pixels, Java preferences, model extraction and temporary files stay
-    inside this attempt directory, which must be on the private workspace volume.
+    transient pixels stay inside the private attempt directory. Short model/native
+    scratch is also private and must be within the owning attempt when used by a
+    worker, so forced termination remains covered by attempt-retention cleanup.
     """
     if recipe.id == "ncl-legacy-rgb":
         from .legacy import detect_legacy_nucleoli, labels_to_original, prepare_legacy_channels
@@ -95,7 +121,7 @@ def detect(
         if nuclei is None:
             coarse_channels = {"dapi": coarse_dapi, "ncl": np.zeros_like(coarse_dapi)}
             coarse, _, info = detect(coarse_channels, recipe.model_copy(update={"id": "ncl-native-2d"}),
-                                    output_dir / "coarse-nuclei", executable)
+                                    output_dir / "coarse-nuclei", executable, scratch_root=scratch_root)
             nuclei = labels_to_original(coarse, channels["dapi"].shape)
         else:
             _, java, lock = runtime_info(executable)
@@ -107,15 +133,20 @@ def detect(
                      "nucleolar_status": statuses, "nucleolar_algorithm": "legacy generalized Otsu compatibility pipeline"})
         (output_dir / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
         return nuclei, nucleoli, info
-    runtime, java, lock = runtime_info(executable)
-    output = output_dir.resolve()
-    output.mkdir(parents=True, exist_ok=True)
     shape = channels["dapi"].shape
     input_roles = ("dapi",) if recipe.id == "gfp-nuclear-2d" else ("dapi", "ncl")
     if len(shape) != 2 or any(channels[key].shape != shape for key in input_roles):
         raise ValueError("fiji_input_dimensions")
     if max(shape) > 4096 or any(channels[key].dtype not in (np.uint8, np.uint16) for key in input_roles):
         raise ValueError("fiji_input_format")
+    if nuclei is None and (
+        max(shape) > MAX_AUTOMATIC_DETECTION_SIDE
+        or shape[0] * shape[1] > MAX_AUTOMATIC_DETECTION_PIXELS
+    ):
+        raise EngineUnavailable("fiji_detection_capacity_exceeded")
+    runtime, java, lock = runtime_info(executable)
+    output = output_dir.resolve()
+    output.mkdir(parents=True, exist_ok=True)
     for name in input_roles:
         tifffile.imwrite(output / f"{name}.tif", channels[name], photometric="minisblack")
     if nuclei is not None:
@@ -126,24 +157,23 @@ def detect(
     (output / "request.json").write_text(json.dumps(request), encoding="utf-8")
     compiled = output / "classes"
     compiled.mkdir(exist_ok=True)
-    scratch = output / "tmp"
-    scratch.mkdir(exist_ok=True)
-    classpath = _classpath(runtime, compiled)
-    env = os.environ.copy()
-    env.update({"CUDA_VISIBLE_DEVICES": "-1", "TF_CPP_MIN_LOG_LEVEL": "3", "OMP_NUM_THREADS": "1"})
-    javac = java.with_name("javac.exe" if os.name == "nt" else "javac")
-    assets = _assets()
-    _run([str(javac), "-encoding", "UTF-8", "-cp", classpath, "-d", str(compiled),
-          str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output, 120, env)
-    command = [
-        str(java), "--add-opens=java.base/java.lang=ALL-UNNAMED", "-Djava.awt.headless=true",
-        "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",
-        "-Djava.io.tmpdir=" + str(scratch), "-Duser.home=" + str(scratch),
-        "-Dimagej.tensorflow.models.dir=" + str(output / "models"),
-        "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error",
-        "-Xmx2g", "-cp", classpath, "CytellectEngine", str(output / "request.json"),
-    ]
-    _run(command, output, 1800, env)
+    with _private_java_scratch(output, scratch_root) as scratch:
+        classpath = _classpath(runtime, compiled)
+        env = os.environ.copy()
+        env.update({"CUDA_VISIBLE_DEVICES": "-1", "TF_CPP_MIN_LOG_LEVEL": "3", "OMP_NUM_THREADS": "1"})
+        javac = java.with_name("javac.exe" if os.name == "nt" else "javac")
+        assets = _assets()
+        _run([str(javac), "-encoding", "UTF-8", "-cp", classpath, "-d", str(compiled),
+              str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output, 120, env)
+        command = [
+            str(java), "--add-opens=java.base/java.lang=ALL-UNNAMED", "-Djava.awt.headless=true",
+            "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",
+            "-Djava.io.tmpdir=" + str(scratch), "-Duser.home=" + str(scratch),
+            "-Dimagej.tensorflow.models.dir=" + str(scratch / "models"),
+            "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error",
+            "-Xmx2g", "-cp", classpath, "CytellectEngine", str(output / "request.json"),
+        ]
+        _run(command, output, 1800, env)
     labels = []
     for name in ("nuclei", "nucleoli"):
         array = tifffile.imread(output / f"{name}.tif")
@@ -161,6 +191,12 @@ def detect(
         "coordinate_transform": {"scale_x": 1, "scale_y": 1},
         "artifacts": [{"path": p["path"], "sha256": p["sha256"]} for p in lock["plugins"]],
         "java_executable_sha256": _sha(java),
+        "automatic_detection_admission": {
+            "profile": AUTOMATIC_DETECTION_PROFILE,
+            "applied": nuclei is None,
+            "max_side_px": MAX_AUTOMATIC_DETECTION_SIDE,
+            "max_pixels": MAX_AUTOMATIC_DETECTION_PIXELS,
+        },
     })
     # No local paths, image names, or submitted metadata in exported provenance.
     (output / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")

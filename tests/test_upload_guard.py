@@ -153,15 +153,18 @@ def test_valid_multipart_reaches_parser_and_frees_slot():
 
 
 def test_private_tmp_is_explicit_even_if_tempfile_was_previously_cached(tmp_path, monkeypatch):
+    import os
     import tempfile
     from pathlib import Path
 
     from cytellect_api.config import Settings, configure_private_tmp
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "old"))
-    for variable in ("TMPDIR", "TEMP", "TMP"):
+    for variable in ("TMPDIR", "TEMP", "TMP", "MPLCONFIGDIR"):
         monkeypatch.setenv(variable, str(tmp_path / "old"))
     private = tmp_path / "runtime"
     directory = configure_private_tmp(Settings(private))
     with tempfile.NamedTemporaryFile() as handle:
         assert Path(handle.name).parent == directory == private / "tmp"
     assert tempfile.gettempdir() == str(directory)
+    assert Path(os.environ["MPLCONFIGDIR"]) == directory / "matplotlib"
+    assert (directory / "matplotlib").is_dir()

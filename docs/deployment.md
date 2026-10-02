@@ -10,15 +10,23 @@ CI checks Python lint/types/numerical/API/security tests, generated contracts, W
 
 After merge, verify the deployment commit SHA equals main, build state is READY, then run hosted public Desktop/Mobile tests. When an analysis host exists, repeat the private access/upload/edit/statistics/export/expiry checks on that host before inviting researchers. Roll back by reverting the release commit through the same Git workflow. Emergency alias rollback must be recorded and followed by a matching Git revert.
 
-## Analysis host proposal (not purchased)
+## Current delivery decision
 
-Start with one Linux x86-64 host, 8 GB RAM, local SSD, 2–6 CPU cores and one analysis job at a time. The current worker limit is 5 GB, leaving space for API/SQLite/OS. Four or more cores are preferable; speed at maximum 4096² input has not yet been established. A larger server is an adjustment after measured memory/time, not a claimed requirement. GPU is not required by the current CPU-verified engine.
+The first verified implementation was merged through PR #1 as ee81ebfe33f1e99a8f58a8f70fb4b0916acc3810. Its required Python, Web, Linux Fiji/browser and actual isolated worker-container checks passed. Hosted browser acceptance for that deployment is tracked separately.
+
+The next release adds local browser operation because a low-cost hosted backend has not yet passed cost, persistence and retention review. Researchers still use the Web interface; the API and Fiji worker run on the same PC. This is a deployment adapter, not a replacement for shared measurement/statistics contracts. Local setup, browser acceptance and cloud migration remain separate gates. See the [cost/constraint comparison](hosting-costs.ja.md) and [resource measurements](resource-benchmark.md).
+
+No hosting provider, paid plan or new domain has been purchased. The following VM comparison is retained as a baseline, not a selected deployment.
+
+## Always-on host baseline (not purchased)
+
+The existing Compose option uses one Linux x86-64 host, local SSD and one analysis job at a time. Its worker-container limit is 5 GB. Host sizing must account for the API, SQLite and OS as well as the Java heap and native TensorFlow allocations. The 4096² capacity workload failed at both 2 and 4 GiB Java heaps; an 8 GB host is not proof of support. GPU is not required by the current CPU-verified engine.
 
 Options checked 2026-10-02:
 
 | Option | Published configuration | Listed monthly cost | Consideration |
 |---|---|---|---|
-| Sakura VPS, Ishikari | 6 virtual cores, 8 GB, 400 GB SSD | JPY 7,040 incl. tax, monthly billing | Domestic storage and Japanese operations; proposed default |
+| Sakura VPS, Ishikari | 6 virtual cores, 8 GB, 400 GB SSD | JPY 7,040 incl. tax, monthly billing | Baseline comparison; outside the desired low-cost starting point |
 | AWS Lightsail, Tokyo | 2 vCPU, 8 GB, 160 GB SSD, public IPv4 bundle | USD 44 before applicable taxes/extra usage | Existing AWS familiarity can simplify operations; lower CPU headroom |
 
 Sources: [Sakura specifications](https://vps.sakura.ad.jp/specification/), [Lightsail bundles](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-bundles.html), [Lightsail regions](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-regions-and-availability-zones-in-amazon-lightsail.html). Prices are not a purchase authorization. Domain, Vercel plan suitability and any excess usage remain separate decisions. No automatic snapshots of research volumes in this PoC.

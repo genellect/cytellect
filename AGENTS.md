@@ -26,3 +26,4 @@ Inspect Git status. Preserve user work and original research outputs.
 - Distinguish source implementation, CI, deployment, hosted behavior and scientific validation.
 - Follow the user's current authorization for publishing, external transmission, settings changes and deployment. Do not install paid services or add LLM/Supabase dependencies to the MVP.
 - Keep README status truthful. An unfinished requirement remains open in docs/roadmap.md.
+- Local browser delivery is an execution adapter. Keep one shared measurement/statistics implementation and preserve the future hosted API boundary. Read docs/local.md before changing local bootstrap, installer, session or retention behavior.

@@ -6,7 +6,7 @@
 | Image integration | Published real microscopy, source/axes/stains recorded | TIFF/engine/editor behavior on actual cells; detector comparison where annotation exists |
 | Public interface | Redistribution-cleared real images with attribution | Browser display, selection, layout and accurate explanation of supported channels |
 | Private scientific validation | User-provided raw images outside repo/Cloud | Suitability for the actual experiment, manual/Fiji agreement and legacy reconciliation |
-| Researcher PoC | Approved private host and participants | Completion, correction time, comprehensibility and reuse demand |
+| Researcher PoC | Accepted local installation or approved private host, and participants | Completion, correction time, comprehensibility and reuse demand |
 
 Public image availability does not make an RGB figure an unmodified quantitative raw input. Do not fabricate missing GFP/NCL channels or use a different stain as NCL. Label projections/crops and display conversions. Keep a fixed evaluation subset; record StarDist training-overlap uncertainty rather than claim held-out generalization.
 

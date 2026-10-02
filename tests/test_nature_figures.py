@@ -4,11 +4,16 @@ import hashlib
 import json
 import re
 import xml.etree.ElementTree as ET
+from types import SimpleNamespace
 
 import pytest
+from cytellect_analysis import figures
 from cytellect_analysis.contracts import PlotSpec, StatisticsRequest
-from cytellect_analysis.figures import figure_settings, render_figures
+from cytellect_analysis.figures import figure_settings, render_figures, select_font
 from cytellect_analysis.statistics import analyze
+from matplotlib import font_manager
+from matplotlib.figure import Figure
+from matplotlib.text import Text
 from PIL import Image
 
 
@@ -104,3 +109,96 @@ def test_legacy_gfp_axis_names_actual_transform(tmp_path):
     data["spec"]["gfp_transform"] = "legacy-log2p1"
     render_figures(data, tmp_path)
     assert "max(GFP, 0) + 1" in (tmp_path/"figure.svg").read_text(encoding="utf-8")
+
+
+def font_fixture(monkeypatch, definitions):
+    entries, loaded = [], {}
+    for family, cached_weight, actual_weight, text in definitions:
+        entry = SimpleNamespace(name=family, weight=cached_weight, style="normal", stretch="normal",
+                                fname=f"{family}-{cached_weight}.ttf")
+        entries.append(entry)
+        characters = {ord(c): 1 for c in text + "0123456789.eE+-"}
+        loaded[entry.fname] = SimpleNamespace(
+            actual=SimpleNamespace(name=family, weight=actual_weight, style="normal"),
+            get_charmap=lambda characters=characters: characters,
+        )
+    monkeypatch.setattr(font_manager.fontManager, "ttflist", entries)
+    monkeypatch.setattr(font_manager, "get_font", lambda path: loaded[str(path)])
+    monkeypatch.setattr(font_manager, "ttfFontProperty", lambda font: font.actual)
+
+
+def test_thin_only_japanese_family_uses_actual_regular_alternative(monkeypatch):
+    font_fixture(monkeypatch, [("Noto Sans JP", 100, 100, "測定値"),
+                              ("Yu Gothic", 400, 400, "測定値")])
+    selected = select_font("ja", "測定値")
+    assert selected.family == "Yu Gothic" and selected.weight == 400
+    assert selected.path.name == "Yu Gothic-400.ttf"
+
+
+@pytest.mark.parametrize("actual_weight", [100, 300, 600, 700])
+def test_stale_cache_does_not_hide_thin_light_or_bold_file(monkeypatch, actual_weight):
+    font_fixture(monkeypatch, [("Noto Sans JP", 400, actual_weight, "測定値")])
+    with pytest.raises(ValueError, match="japanese_font_not_installed"):
+        select_font("ja", "測定値")
+
+
+def test_glyph_coverage_uses_complete_regular_face_or_fails(monkeypatch):
+    font_fixture(monkeypatch, [("Noto Sans JP", 400, 400, "ABC"),
+                              ("Meiryo", 400, 400, "ABC測定値")])
+    assert select_font("ja", "ABC測定値").family == "Meiryo"
+    with pytest.raises(ValueError, match="figure_font_glyphs_unavailable"):
+        select_font("ja", "\U0010ffff")
+
+
+@pytest.mark.parametrize("language", ["en", "ja"])
+@pytest.mark.parametrize("kind", ["distribution", "scatter"])
+@pytest.mark.filterwarnings("error:Glyph .* missing from font")
+def test_actual_font_file_weight_glyphs_and_private_metadata(tmp_path, monkeypatch, language, kind):
+    data = result(kind=kind, mode="exploratory" if kind == "scatter" else "experimental-unit")
+    data["spec"]["plot"]["language"] = language
+    try:
+        selected = select_font(language, "測定値" if language == "ja" else "Measured value")
+    except ValueError as exc:
+        if language == "ja" and str(exc) == "japanese_font_not_installed":
+            pytest.skip("No installed regular Japanese font; no runtime font download")
+        raise
+    original_save = Figure.savefig
+    recorded_paths = []
+    selected_faces = []
+
+    def inspect_bound_fonts(figure, *args, **kwargs):
+        texts = figure.findobj(match=Text)
+        selected = select_font(language, "".join(text.get_text() for text in texts))
+        selected_faces.append(selected)
+        for text in texts:
+            if text.get_text():
+                path = text.get_fontproperties().get_file()
+                assert path is not None
+                actual = font_manager.ttfFontProperty(font_manager.get_font(path))
+                assert actual.style == "normal" and 350 <= actual.weight <= 500
+                assert path == str(selected.path)
+                recorded_paths.append(path)
+        return original_save(figure, *args, **kwargs)
+
+    monkeypatch.setattr(Figure, "savefig", inspect_bound_fonts)
+    meta = render_figures(data, tmp_path)
+    selected = selected_faces[0]
+    assert all(face == selected for face in selected_faces)
+    assert recorded_paths and meta["figure_version"] == "1.1.1"
+    assert meta["font_metadata"] == selected.metadata()
+    encoded = (tmp_path / "figure-data.json").read_text(encoding="utf-8")
+    source = json.loads(encoded)
+    assert source["font_metadata"] == meta["font_metadata"]
+    assert str(selected.path) not in encoded and "path" not in source["font_metadata"]
+    assert source["means"] == data["means"] and source["counts"] == data["counts"]
+    pdf = (tmp_path / "figure.pdf").read_bytes()
+    assert b"/FontFile2" in pdf and b"/CIDFontType2" in pdf and b"/ToUnicode" in pdf
+    assert ET.parse(tmp_path / "figure.svg").findall(".//{http://www.w3.org/2000/svg}text")
+
+
+def test_missing_glyph_fails_before_any_figure_is_published(tmp_path):
+    data = result()
+    data["spec"]["plot"]["y_label"] = "Undefined glyph \U0010ffff"
+    with pytest.raises(ValueError, match="figure_font_glyphs_unavailable"):
+        figures.render_figures(data, tmp_path)
+    assert not list(tmp_path.glob("figure.*"))
