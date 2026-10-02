@@ -11,7 +11,7 @@ The [requirement coverage audit](completion-audit.md) maps the implemented workf
 | M2 | Japanese Konva editor, immutable edits, Undo/Redo, background/exclusion/review, supervised durable jobs and retry | Local and Linux browser regression passed; actual hosted analysis acceptance remains open |
 | M3 | Independent/paired/exploratory statistics, sensitivity, numerical CSV, plots, Methods, pixel-exact ROI and replay | Nature-sized vector export and independent math references tested; private scientific suitability remains M4 |
 | M4 | Published real-image integration adds external examples | User-provided private raw images, field/sample-separated evaluation and legacy reconciliation |
-| M5 | Invite/session/ownership/retention implementation, automated protection tests and accepted Windows local.8 installation/browser workflow | Operator acceptance on the intended research machine and researcher usability evaluation; private hosted acceptance remains separate |
+| M5 | Invite/session/ownership/retention implementation, automated protection tests and accepted Windows local.9 installation/browser workflow | Operator acceptance on the intended research machine and researcher usability evaluation; private hosted acceptance remains separate |
 
 Public Vercel UI publication is authorized. It may expose only cleared published image samples until the private analysis API is configured and host checks pass. It must not point to localhost in production or accept research uploads without a backend.
 
@@ -23,7 +23,7 @@ Normal publication follows [PR → required CI → main → Vercel](deployment.m
 
 Local delivery implements automated setup, same-origin browser operation and supervised local API/worker startup. Shared analysis, immutable revisions, statistics and export contracts remain unchanged. Each package must install fixed dependencies in an isolated directory, open the browser, execute a real published-image workflow and stop cleanly before publication. The public Vercel sample viewer remains available independently of local package validation.
 
-[Windows preview 0.1.0-local.8](local-release-0.1.0.md) passed its installed-copy acceptance and is published. Its exact-source CI, dedicated installation, 97 installed scientific checks, 22 figure tests, 12 renderings and public GFP browser workflow are recorded separately. Earlier releases retain their own acceptance records. This completes the local package delivery gate; it does not complete M4 or the researcher evaluation in M5.
+[Windows preview 0.1.0-local.9](local-release-0.1.0.md) passed its installed-copy acceptance and is published. Its exact-source CI, dedicated installation,114 installed scientific checks,22 figure tests,12 renderings and public GFP browser/QC workflow are recorded separately. The two suites share four cases and are not added into a unique total. Earlier releases retain their own acceptance records. This completes the local package delivery gate; it does not complete M4 or the researcher evaluation in M5.
 
 The user's local-first delivery decision changes the initial operating environment, not M4/M5 scientific and usability acceptance. A paid server is not required for the local PoC. Hosted-only acceptance (public TLS/domain routing, continuous deletion while clients are offline, operator server isolation) remains a separate gate before future cloud uploads. Windows local mode explicitly discloses its trusted OS-user boundary and cleanup on next launch.
 
