@@ -16,15 +16,18 @@ def software_identity():
 
     files = {}
     for module in (cytellect_analysis, cytellect_api, cytellect_worker):
-        directory = Path(module.__file__).parent
+        source_file = module.__file__
+        if source_file is None:
+            raise RuntimeError("source_identity_unavailable")
+        directory = Path(source_file).parent
         for path in sorted(directory.rglob("*.py")):
             key = module.__name__ + "/" + path.relative_to(directory).as_posix()
             files[key] = hashlib.sha256(path.read_bytes()).hexdigest()
     aggregate = hashlib.sha256(
         "".join(k + ":" + v + "\n" for k, v in sorted(files.items())).encode()
     ).hexdigest()
-    revision = os.environ.get("CYTELLECT_CODE_REVISION", "")
-    if not re.fullmatch(r"[a-f0-9]{40}", revision):
+    revision: str | None = os.environ.get("CYTELLECT_CODE_REVISION", "")
+    if not revision or not re.fullmatch(r"[a-f0-9]{40}", revision):
         revision = None
     return {
         "version": importlib.metadata.version("cytellect"),

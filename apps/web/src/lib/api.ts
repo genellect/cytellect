@@ -15,6 +15,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 }
 export const post = <T,>(path: string, body?: unknown) => request<T>(path, {method:"POST",body:body === undefined ? undefined : JSON.stringify(body)});
 export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+ if(!API) throw new ApiError("server_not_configured",503);
  const result = await fetch(API + path, {credentials:"include",cache:"no-store",signal});
  if (!result.ok) throw new ApiError("artifact_unavailable", result.status);
  return result.blob();
@@ -25,6 +26,8 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ recipe_required_channels_missing:"このレシピに必要なチャンネルが不足しています。NCL解析には核染色とNCL、GFP解析には核染色とGFPが必要です。",
+ outcome_cannot_be_its_own_gfp_covariate:"GFPを目的変数と説明変数の両方に指定できません。独立実験単位での比較を選択してください。",
  invitation_invalid:"招待コードが無効、期限切れ、または使用済みです。",
  session_required:"セッションが失効しました。新しい招待で接続してください。",
  too_many_attempts:"試行が多いため、1分後にお試しください。",

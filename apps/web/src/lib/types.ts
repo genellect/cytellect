@@ -4,7 +4,7 @@ export type Point = [number,number];
 export type Session = {authenticated:boolean;retention_hours:number;demo:boolean};
 export type Workspace = {id:string;title:string;active_revision:string|null;expires:number;bytes:number};
 export type Metadata = Required<components["schemas"]["FieldMetadata"]>;
-export type Field = {id:string;metadata:Metadata;image_info:{shape:[number,number];dtype:string;legacy:boolean};synthetic:boolean};
+export type Field = {id:string;metadata:Metadata;image_info:{shape:[number,number];dtype:string;legacy:boolean;channel_roles?:string[]};synthetic:boolean};
 export type Background = Required<components["schemas"]["Background"]>;
 export type Recipe = Required<components["schemas"]["Recipe"]>;
 export type Exclusion = Required<components["schemas"]["Exclusion"]>;
@@ -21,3 +21,5 @@ export type Edit = {field_id:string;layer:Layer;operation:Exclude<Operation,"sel
 export const defaultRecipe = recipeDefaults as Recipe;
 export const metricLabels: Record<string,string> = {ncl_log2_nucleoplasm_over_nucleoli:"NCL log₂ 核質 / 核小体",ncl_legacy_release:"NCL 互換指標（核全体 / 高輝度）",ncl_nucleus_mean_corrected:"核内NCL平均（背景補正）",gfp_mean_corrected:"核内GFP平均（背景補正）",nucleolar_area_fraction:"核小体 / 核の面積割合"};
 export function formatValue(value:unknown):string { if(value === null || value === undefined) return "—"; if(typeof value==="number") return Number.isFinite(value) ? Number(value.toPrecision(5)).toLocaleString("en-US",{maximumFractionDigits:5}):"—"; return String(value); }
+
+export const fieldRoles = (field?:Field):string[] => field?.image_info.channel_roles ?? ["dapi","ncl","gfp"];

@@ -1,4 +1,5 @@
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,3 +42,23 @@ class Settings:
             max_fields=int(os.environ.get("CYTELLECT_MAX_FIELDS", "100")),
             worker_memory_mb=int(os.environ.get("CYTELLECT_WORKER_MEMORY_MB", "4096")),
         )
+
+
+def configure_private_tmp(settings: Settings) -> Path:
+    """Multipart and library scratch stays in the private runtime volume."""
+    root = settings.data_dir.resolve()
+    checkout = Path(__file__).resolve().parents[4]
+    if root == checkout or root.is_relative_to(checkout):
+        raise ValueError("Research data must be outside the repository")
+    temporary = root / "tmp"
+    if temporary.is_symlink() or temporary.resolve().parent != root:
+        raise ValueError("Private temporary directory cannot redirect outside runtime")
+    temporary.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if os.name != "nt":
+        temporary.chmod(0o700)
+    for variable in ("TMPDIR", "TEMP", "TMP"):
+        os.environ[variable] = str(temporary)
+    # tempfile caches its selected directory; assigning explicitly also protects
+    # imports that queried it before application startup.
+    tempfile.tempdir = str(temporary)
+    return temporary

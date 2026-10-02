@@ -1,0 +1,116 @@
+{
+  "dataset": "BBBC013v1",
+  "source": "https://bbbc.broadinstitute.org/BBBC013",
+  "license": "CC-BY-3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/",
+  "attribution": "Images by Ilya Ravkin, Broad Bioimage Benchmark Collection BBBC013v1. TIFF containers derived from official 8-bit BMP exports; pixel samples unchanged.",
+  "citation": "Ljosa et al., Nature Methods 2012, doi:10.1038/nmeth.2083",
+  "published_analysis": "Carpenter et al., Genome Biology 2006, doi:10.1186/gb-2006-7-10-r100",
+  "selection": "Fixed wells A01, A06, A12 selected before Cytellect measurements. One acquired field per well, no outcome-based selection.",
+  "scope": "GFP measurement integration; DRAQ nuclear segmentation. No NCL or segmentation ground truth. DRAQ maps to the historical dapi input role; it is not DAPI staining.",
+  "measurement_source": "Published 8-bit BMP exports, not validated native FRM intensities. Pinned Bio-Formats reader exposes only one of two FRM planes.",
+  "archive": {
+    "url": "https://data.broadinstitute.org/bbbc/BBBC013/BBBC013_v1_images_bmp.zip",
+    "sha256": "c059b569d96f70ad5626fad144867e6ece4353622119c46a8af8f9794f1e7985"
+  },
+  "native_archive": {
+    "url": "https://data.broadinstitute.org/bbbc/BBBC013/BBBC013_v1_images_frm.zip",
+    "sha256": "dd54c1cd3037203f41bcd40201c71422caf0fb5f5eb536aa32b5d0b3b3d2ca73",
+    "validation": "not_used_for_quantitative_claim"
+  },
+  "images": [
+    {
+      "id": "A01",
+      "channels": {
+        "gfp": {
+          "path": "A01-gfp.tif",
+          "stain": "FKHR-EGFP",
+          "source_member": "BBBC013_v1_images_bmp/Channel1-01-A-01.BMP",
+          "source_sha256": "39fe5efdad79eb2cea8447c32d78424d4c8c5aada5a50c2cedb6b58d0ebfa888",
+          "sha256": "ef0bd8c6903d78fb5145e65eae8f7dd8aa721cbe7693783799b9a965c19e1616",
+          "pixel_sha256": "8518dd5601d5a67c627e6b3f8164f0ce3d7cf29159de0f629c9027fc5d040010",
+          "dtype": "uint8",
+          "shape": [
+            640,
+            640
+          ]
+        },
+        "dapi": {
+          "path": "A01-dapi.tif",
+          "stain": "DRAQ (DNA)",
+          "source_member": "BBBC013_v1_images_bmp/Channel2-01-A-01.BMP",
+          "source_sha256": "11b2e022fb1dfef12963c479a9a14aa0806ae972ed80493b49bebdf0046998e9",
+          "sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e",
+          "pixel_sha256": "d498ff570f685959b32d9e7266897ba6ebe6f686bce4838d949baad15f5dda1f",
+          "dtype": "uint8",
+          "shape": [
+            640,
+            640
+          ]
+        }
+      }
+    },
+    {
+      "id": "A06",
+      "channels": {
+        "gfp": {
+          "path": "A06-gfp.tif",
+          "stain": "FKHR-EGFP",
+          "source_member": "BBBC013_v1_images_bmp/Channel1-06-A-06.BMP",
+          "source_sha256": "8ce5fea94d02026ac487d2b7917b52d1920740a7c32422a52a1e10e2ccead672",
+          "sha256": "16806dcfa7db483270393b3596d3a621c9bd3a884301fe2f6fffd38a6803145c",
+          "pixel_sha256": "1fc1fcc5bb897d574fb7e0fa4ac1f85c8e37110b147c2dc5f26fe249b29f8791",
+          "dtype": "uint8",
+          "shape": [
+            640,
+            640
+          ]
+        },
+        "dapi": {
+          "path": "A06-dapi.tif",
+          "stain": "DRAQ (DNA)",
+          "source_member": "BBBC013_v1_images_bmp/Channel2-06-A-06.BMP",
+          "source_sha256": "e7a7adcb6c2094ed088db88153720f3614f31e1fc8976f0a29d8d9bdf00f699a",
+          "sha256": "6b9a76bce10d42d378f974ee0b92d37d9b85e426eb142b1cbd8b81bdbd14b37a",
+          "pixel_sha256": "3b149657369fb26b2aa122a8376120bbc81960104bfb5726d919f56b437434dc",
+          "dtype": "uint8",
+          "shape": [
+            640,
+            640
+          ]
+        }
+      }
+    },
+    {
+      "id": "A12",
+      "channels": {
+        "gfp": {
+          "path": "A12-gfp.tif",
+          "stain": "FKHR-EGFP",
+          "source_member": "BBBC013_v1_images_bmp/Channel1-12-A-12.BMP",
+          "source_sha256": "bf2f03076714af42a1a3734ff4f8949785dee0522e8b5f28f928c98290017ce6",
+          "sha256": "20d3d969bc265752cb408e965818afb3ac73badd9338b401eeb9701f3b85b371",
+          "pixel_sha256": "099adf2e026576d4c7b6aa323c7ca5f1864ef68f5a10af6a40a428293c59fe72",
+          "dtype": "uint8",
+          "shape": [
+            640,
+            640
+          ]
+        },
+        "dapi": {
+          "path": "A12-dapi.tif",
+          "stain": "DRAQ (DNA)",
+          "source_member": "BBBC013_v1_images_bmp/Channel2-12-A-12.BMP",
+          "source_sha256": "25b415c1e573daa9553d2943b935496ebeb068c85083c20786486284f1129ecf",
+          "sha256": "ce90a36a347e1dc0c9ca7323070ae5eebb410c04960e8e22d5133da2f730a88e",
+          "pixel_sha256": "c7fc0e72d7b2375767dd0752d3e3db35a9298e919f1e083eb41bd437a40b868f",
+          "dtype": "uint8",
+          "shape": [
+            640,
+            640
+          ]
+        }
+      }
+    }
+  ]
+}

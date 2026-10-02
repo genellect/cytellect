@@ -23,5 +23,6 @@ RUN python /app/scripts/fiji_setup.py /opt/fiji --platform linux-x64
 FROM base AS worker
 COPY --from=fiji-build /opt/fiji /opt/fiji
 COPY engines/fiji /app/engines/fiji
+COPY scripts/container_smoke.py /app/scripts/container_smoke.py
 ENV CYTELLECT_FIJI_EXECUTABLE=/opt/fiji CYTELLECT_ENGINE_ASSETS=/app/engines/fiji
 CMD ["cytellect-worker"]

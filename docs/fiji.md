@@ -90,6 +90,24 @@ DAPI-low/smoothing/watershed/size filters, and actual ImageJ ROI decoding of
 pixel-run rectangles with holes, edges and large object IDs. Run the tests to
 record the current result; absent runtime means skipped, never passed.
 
+The clean Windows archive was independently downloaded, SHA-256 verified, installed
+into a new runtime directory, and passed all 9 engine/BBBC039 tests in 96.45 seconds
+on 2026-10-02. This includes the real CPU engine and exact ImageJ ROI exchange.
+No original user Fiji installation was modified.
+
+The GFP-only recipe runs the same DNA detector and explicitly disables nucleoli.
+It never transports or measures a fabricated NCL channel.
+
 A synthetic count is not experimental F1 or scientific validation. Private
 representative-image comparison and researcher PoC remain separate acceptance
-gates. Linux execution must be evidenced by its own integration run.
+gates. Linux CPU execution is independently evidenced at commit
+`f172afbf4396a8a4fb6be839435af375fc9f03bf`: the
+[GitHub Linux Fiji/browser job](https://github.com/genellect/cytellect/actions/runs/37021236116/job/110884557308)
+installed the hash-checked runtime and passed **6 actual Fiji tests**, with no Fiji
+skips, in 42.59 seconds. Its browser flow passed 3 tests; the public-build-without-API
+check was intentionally skipped because this job configures an API. The overall
+workflow at that commit failed a separate Python type-check step. This evidence
+is distinct from a production-host or Docker-runtime smoke. The CI now also
+requires building the worker container and running actual Fiji as UID10001 with
+a read-only root, private temporary volume, only loopback networking and a denied
+outbound connection; that new container check awaits its own recorded result.

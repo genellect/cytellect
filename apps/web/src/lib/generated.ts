@@ -553,6 +553,11 @@ export interface components {
              * @default [0,1,2]
              */
             mapping: string;
+            /**
+             * Channel Roles
+             * @default ["dapi","ncl","gfp"]
+             */
+            channel_roles: string;
         };
         /** ContourView */
         ContourView: {
@@ -624,6 +629,12 @@ export interface components {
             axes: string;
             /** Channel Mapping */
             channel_mapping: (string | number)[];
+            /** Channel Roles */
+            channel_roles?: ("dapi" | "ncl" | "gfp")[];
+            /** Channel Dtypes */
+            channel_dtypes?: {
+                [key: string]: string;
+            };
         };
         /** InviteInput */
         InviteInput: {

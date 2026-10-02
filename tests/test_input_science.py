@@ -88,3 +88,33 @@ def test_uint32_sparse_contours_and_edit_do_not_overflow():
     with pytest.raises(ValueError, match="label_id_exhausted"):
         apply_edit(bad, np.zeros_like(bad), np.zeros_like(bad), edit)
 
+
+
+def test_gfp_recipe_does_not_measure_ncl_even_if_extra_channel_is_acquired():
+    nuclei, nucleoli, bg, channels, metadata = inputs()
+    cells, _, _ = measure(channels, nuclei, np.zeros_like(nucleoli), bg, Recipe(id="gfp-nuclear-2d"), metadata, "f")
+    assert cells[0]["channel_availability"]["ncl"]
+    assert cells[0]["ncl_nucleus_mean_corrected"] is None
+    assert cells[0]["ratio_missing_reason"] == "ncl_not_measured_recipe"
+
+
+def test_ome_self_uuid_survives_renaming_but_external_uuid_is_rejected(tmp_path):
+    import re
+
+    data = np.stack([np.full((9, 10), 7, np.uint16), np.full((9, 10), 91, np.uint16)])
+    for external in (False, True):
+        path = tmp_path / f"internal-id-{external}.ome.tif"
+        tifffile.imwrite(path, data, ome=True, metadata={"axes": "CYX"})
+        with tifffile.TiffFile(path) as image:
+            xml = image.ome_metadata
+        uuid = re.search(r'UUID="([^"]+)"', xml).group(1)
+        reference_uuid = "urn:uuid:00000000-0000-0000-0000-000000000001" if external else uuid
+        xml = re.sub(r"<TiffData\b[^>]*/>",
+                     lambda match: match.group(0)[:-2] + '><UUID FileName="../never-open-this.tif">'
+                     + reference_uuid + "</UUID></TiffData>", xml)
+        tifffile.tiffcomment(path, xml)
+        if external:
+            with pytest.raises(ValueError, match="external_ome"):
+                read_tiff(path, channel_indices=[1, 0])
+        else:
+            assert np.array_equal(read_tiff(path, channel_indices=[1, 0]), data[[1, 0]])

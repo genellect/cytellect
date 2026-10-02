@@ -38,69 +38,120 @@ def environment():
             "packages": versions}
 
 
+def _engine_chain(record):
+    parts = []
+    seen = set()
+    while isinstance(record, dict) and record and id(record) not in seen:
+        seen.add(id(record))
+        identity = record.get("engine", record.get("name", "engine identity unavailable"))
+        details = {k: v for k, v in record.items() if k in
+                   ("version", "model", "model_name", "model_sha256", "runtime_sha256", "n_tiles",
+                    "nucleolar_detection", "source_revision")}
+        parts.append(str(identity) + (" " + json.dumps(details, ensure_ascii=False, sort_keys=True) if details else ""))
+        record = record.get("source_provenance")
+    return " <- ".join(parts)
+
+
 def methods_text(config, provenance, report, statistics_results=()):
     recipe = config.get("recipe", report.get("recipe", {}))
     legacy = recipe.get("id") == "ncl-legacy-rgb"
-    lines = ["# Cytellect Methods", "", "Generated from the recorded configuration; review before publication.", "",
-             f"Analysis revision: {report.get('revision_id', 'not recorded')}.",
-             f"Recipe: {recipe.get('id', 'not recorded')} {recipe.get('version', 'not recorded')}.",
-             f"Detection engine: {provenance.get('engine', 'not recorded')}. Random seed: {recipe.get('seed', 'not recorded')}.",
-             "", "## Images and regions", "",
-             "Input hashes, axis/channel assignments and per-field metadata are preserved in revision.json.",
-             "Saved label masks in original pixel coordinates define nuclei and nucleolar candidates; "
-             "the nucleoplasm is the nuclear pixel set minus the nucleolar union. "
-             "Nucleolar mean intensity uses all union pixels, not an unweighted mean of individual objects.",
-             f"Candidate definition: {recipe.get('nucleolar_method', 'not recorded')}; "
-             f"Gaussian sigma {recipe.get('smoothing_sigma_px', 'not recorded')} px; "
-             f"minimum area {recipe.get('minimum_area_px', 'not recorded')} px; "
-             f"split touching candidates {recipe.get('split_touching', False)}.",
-             "NCL-defined candidates can change as NCL redistributes; this is a region-definition limitation.",
-             "Display LUTs do not change measurement pixels. Source images are immutable.",
-             "", "## Quantification and selection", "",
-             ("Legacy background is the median of all pixels outside all nuclei on the downsampled measurement grid; "
-              "if there are no outside pixels, zero is used as in the historical procedure. This assumption is specific "
-              "to compatibility analysis. Raw values and clipped nonnegative corrected values are both retained."
-              if legacy else "Background is the median of the recorded user-confirmed background ROI. "
-              "Raw and background-corrected mean, median and integrated intensities are retained."),
-             ("This is a compatibility recipe. Its recorded grayscale conversion, resampling, clipping and epsilon "
-              "are distinct from native quantification; consult recipe provenance for the exact implementation."
-              if legacy else "Native background correction preserves negative values. "
-              "The nucleoplasm/nucleolar ratio and its log2 value require positive means for both compartments; "
-              "undefined ratios retain a missing-value reason rather than an arbitrary epsilon."),
-             f"GFP selection: {recipe.get('gfp_gate', 'not recorded')}; "
-             f"threshold {recipe.get('gfp_threshold')}; maximum {recipe.get('gfp_maximum')}. "
-             "Batch-specific thresholds and per-object selection reasons are recorded in measurements.json.",
-             "Explicit exclusions are retained. Missing physical calibration is reported in pixels, without invented micrometre units.",
-             f"Failed fields: {len(report.get('field_failures', []))}. "
-             f"Fields awaiting nucleolar review: {len(report.get('invalidated_nucleoli', []))}.",
-             "", "## Statistical analysis", ""]
+    gfp_only = recipe.get("id") == "gfp-nuclear-2d"
+    fields = provenance.get("fields") or report.get("engine_provenance") or {}
+    lines = ["# Cytellect Methods", "", "Generated from recorded configuration; review before publication.", "",
+             f"Analysis revision: {report.get('revision_id', provenance.get('revision_id', 'unavailable'))}.",
+             f"Recipe: {recipe.get('id')} {recipe.get('version')}; random seed {recipe.get('seed')}.",
+             "Measurement protocol versions: " + ", ".join(sorted({
+                 str(row.get("measurement_protocol_version", "unrecorded")) for row in report.get("cells", [])})) + ".",
+             "", "## Detection and region history", ""]
+    if fields:
+        lines += [f"- Field {fid}: {_engine_chain(record)}." for fid, record in sorted(fields.items())]
+    else:
+        lines.append(f"Detection engine: {provenance.get('engine', 'engine identity unavailable in this export')}.")
+    lines += ["",
+              "Reused masks retain their source revision and nested detector provenance; edits determine the saved canonical pixel sets.",
+              f"StarDist normalization percentiles {recipe.get('percentile_low')}–{recipe.get('percentile_high')}; "
+              f"probability threshold {recipe.get('probability')}; NMS threshold {recipe.get('nms')}.",
+              "Input hashes, acquired channel roles, axis assignments and calibration are in "
+              "[revision.json](revision.json); detector versions, model/runtime hashes and code identity are in "
+              "[provenance.json](provenance.json). Absent channels are missing, never measured zero.",
+              "Source images are immutable. Display LUTs do not change measurement pixels.",
+              "Saved masks use original image coordinates. The nucleoplasm is the nucleus minus the nucleolar union; "
+              "the union mean uses all pixels, not an unweighted mean of object means."]
+    if gfp_only:
+        lines += ["This GFP nuclear recipe measures DAPI-defined nuclear GFP. NCL and nucleolar detection are not performed. "
+                  "Nucleolar counts, areas and NCL intensities are not measured."]
+    elif legacy:
+        parameters = recipe.get("legacy", {})
+        lines += ["Compatibility RGB conversion takes max(R,G,B) and ignores alpha. The longest dimension is resized to "
+                  f"at most {parameters.get('target_long_dimension_px')} pixels without upsampling, using anti-aliased bilinear "
+                  "resampling. Floating resized values are used for measurement; only detection DAPI is rounded to source dtype. "
+                  "Canonical labels are restored by nearest-neighbour resampling and reprojected to the recorded measurement grid.",
+                  "Within each nucleus the compatibility high region uses strict greater-than Otsu. A uniform signal uses "
+                  "the whole nucleus; fewer than max(3, ceil(0.01*nuclear pixels)) high pixels triggers the top10-percent "
+                  "percentile rule including ties. These compatibility fallbacks are recorded and do not apply to native analysis.",
+                  "Legacy background is the median outside all nuclei on the measurement grid; if no outside pixels exist, "
+                  "zero is used. Corrected negative pixels are clipped to zero. Epsilon=max(1, 1.4826*MAD of background NCL). "
+                  "The compatibility index is log2[(whole-nucleus corrected mean+epsilon)/(high-region corrected mean+epsilon)].",
+                  f"Legacy QC enabled {parameters.get('apply_quality_exclusions')}; minimum 20 measurement-grid nuclear pixels; "
+                  f"area range {parameters.get('nucleus_area_min_scaled_px')}–{parameters.get('nucleus_area_max_scaled_px')} scaled pixels; "
+                  f"DAPI SNR minimum {parameters.get('dapi_snr_min')}; saturation fraction maximum "
+                  f"{parameters.get('saturation_fraction_max')}; touching image borders is excluded when QC is enabled.",
+                  f"Legacy GFP mode: {parameters.get('gfp_mode')}. In otsu-qc-batch mode the batch threshold is fitted only "
+                  "to independently QC-passing nuclei; a constant distribution uses its median."]
+    else:
+        lines += [f"Nucleolar candidate definition {recipe.get('nucleolar_method')}; Gaussian sigma "
+                  f"{recipe.get('smoothing_sigma_px')} px; minimum area {recipe.get('minimum_area_px')} px; "
+                  f"split touching {recipe.get('split_touching')}; DAPI-low percentile {recipe.get('dapi_low_percentile')}.",
+                  "Native candidates have no whole-nucleus/top-fraction fallback. Background is the median of each recorded "
+                  "user-confirmed ROI. Corrected negative values remain signed. Nucleoplasm/nucleolar mean ratios and log2 "
+                  "ratios require both corrected means to be positive; otherwise a missing-value reason is retained."]
+    if not gfp_only:
+        lines.append("NCL-defined regions can change with the NCL distribution; this circular region-definition limitation "
+                     "requires interpretation and sensitivity checks independent of the desired outcome.")
+    lines += ["", "## Quantification and selection", "",
+              ("Background is the median of the confirmed ROI and native negative corrections remain signed." if not legacy else "Compatibility background and clipping follow the recorded procedure above."),
+              "Raw/corrected mean, median and pixel-sum intensities are retained. Pixel-sum units depend on the stated grid. "
+              "Missing physical calibration produces pixel areas, not invented micrometre units. Saturation fractions count "
+              "pixels at the stored integer dtype maximum; camera-specific effective-bit saturation is not inferred.",
+              f"Recorded GFP gate {recipe.get('gfp_gate')}; threshold {recipe.get('gfp_threshold')}; "
+              f"maximum {recipe.get('gfp_maximum')}; negative-control fields "
+              f"{json.dumps(recipe.get('gfp_negative_control_fields', []))}; explicit control confirmation "
+              f"{recipe.get('gfp_negative_control_confirmed', False)}.",
+              "Actual batch thresholds, epsilon, coordinate transforms, selection reasons and exclusions are retained in "
+              "[measurements.json](measurements.json). A disabled GFP gate does not imply GFP positivity was measured.",
+              f"Failed fields {len(report.get('field_failures', []))}; fields flagged for nucleolar review "
+              f"{len(report.get('invalidated_nucleoli', []))}; review decisions in revision.json.",
+              "", "## Statistical analysis", ""]
     if not statistics_results:
         lines.append("No statistical analysis is included in this bundle.")
     for index, result in enumerate(statistics_results):
         spec = result["spec"]
-        lines += [f"Analysis {index}: statistics protocol {result.get('statistics_version', 'not recorded')}; "
-                  f"metric {spec['metric']}; mode {spec['mode']}.",
-                  f"Aggregation: {result.get('aggregation', 'recorded in result.json')}.",
-                  f"Baseline: {spec['baseline']}; planned comparisons: {json.dumps(spec['comparisons'], ensure_ascii=False)}; "
-                  f"Holm family: {spec.get('comparison_family', 'all')}; paired: {spec['paired']}.",
-                  "Observation, field and independent experimental unit counts are reported separately. "
-                  "Intervals for individual comparisons are 95% and are not simultaneous multiplicity-adjusted intervals."]
+        lines += [f"Analysis {index}: statistics protocol {result.get('statistics_version')}; metric {spec['metric']}; "
+                  f"mode {spec['mode']}. [Recorded result](statistics/{index}/result.json).",
+                  f"Aggregation: {result.get('aggregation')}.",
+                  f"Baseline {spec['baseline']}; planned comparisons {json.dumps(spec['comparisons'], ensure_ascii=False)}; "
+                  f"Holm family {spec.get('comparison_family', 'all')}; paired {spec['paired']}.",
+                  "Tests are two-sided. Exact statistic, degrees of freedom, effect estimate, standard error, p value and "
+                  "Holm-adjusted p value are retained. Individual 95% intervals are not simultaneous multiplicity-adjusted intervals. "
+                  "Observation, field and independent-unit counts and groupwise missingness are reported separately."]
         if result.get("model"):
-            lines += [f"Model: {result['model']['formula']}.",
-                      f"GFP transform: {result['model']['gfp_transform']}; {result['model']['gfp_centering']}.",
-                      "OLS uses field-clustered CRV1 standard errors with finite-sample correction and t inference "
-                      "with number-of-fields minus one degrees of freedom. Cell/field inference is exploratory.",
-                      f"Adjusted means: {result['model']['adjusted_means']}."]
+            model = result["model"]
+            lines += [f"Model {model['formula']}; GFP transform {model['gfp_transform']}; {model['gfp_centering']}.",
+                      "OLS uses field-clustered CRV1 finite-sample covariance and t inference with fields minus one degrees "
+                      "of freedom. Between-field dependence within one biological unit is not accounted for by field clustering. "
+                      "These analyses are exploratory.",
+                      f"Adjusted means: {model['adjusted_means']}."]
         lines += ["Warnings: " + "; ".join(result.get("warnings", []))]
     lines += ["", "## Reproducibility and exchange", "",
-              "measurement JSON is authoritative. CSV strings that could execute spreadsheet formulas are prefixed "
-              "with an apostrophe; numeric values remain numeric. SVG uses editable text, PDF embeds TrueType fonts.",
-              "Fiji ROI ZIPs contain exact integer rectangles for each horizontal object run. "
-              "Use Cytellect's manifest to reconstruct object IDs. Arbitrary imported polygon ROIs are unsupported.",
-              "Run replay.py with the documented raw-image directory and the recorded environment. "
-              "Masks are replayed as approved regions; automatic detection is not rerun by the measurement replay.",
-              "Original images are omitted unless explicitly requested. Bundles contain confidential derived research "
-              "information and must be stored privately.", ""]
+              "The complete recorded recipe, including inactive options for auditability, is:", "",
+              chr(96)*3 + "json", json.dumps(recipe, ensure_ascii=False, indent=2, sort_keys=True), chr(96)*3, "",
+              "Measurement JSON is authoritative. Potential spreadsheet formulas in text are prefixed with an apostrophe in "
+              "CSV; numeric values remain numeric. Fiji ROI ZIPs preserve exact pixel sets as integer horizontal-run rectangles; "
+              "their manifest preserves object grouping. Arbitrary polygon imports are unsupported.",
+              "Restore the code and [environment](environment.json), then follow [REPLAY.md](REPLAY.md) and run "
+              "[replay.py](replay.py). [manifest.json](manifest.json) records package hashes. Replay verifies original hashes "
+              "and uses approved saved masks; it does not redownload models or rerun detection.",
+              "Original images are omitted unless explicitly requested. Derived results remain confidential.", ""]
     return "\n".join(lines)
 
 
@@ -159,8 +210,8 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
     for index, result in enumerate(statistics_results):
         folder = content / "statistics" / str(index)
         folder.mkdir(parents=True)
+        result = {**result, "figure": render_figures(result, folder)}
         _json(folder / "result.json", result)
-        render_figures(result, folder)
     methods = methods_text(config, provenance, report, statistics_results)
     (content / "methods.md").write_text(methods, encoding="utf-8")
     (destination / "methods.md").write_text(methods, encoding="utf-8")

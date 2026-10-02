@@ -1528,6 +1528,11 @@
             "type": "string",
             "title": "Mapping",
             "default": "[0,1,2]"
+          },
+          "channel_roles": {
+            "type": "string",
+            "title": "Channel Roles",
+            "default": "[\"dapi\",\"ncl\",\"gfp\"]"
           }
         },
         "type": "object",
@@ -1759,6 +1764,25 @@
             },
             "type": "array",
             "title": "Channel Mapping"
+          },
+          "channel_roles": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "dapi",
+                "ncl",
+                "gfp"
+              ]
+            },
+            "type": "array",
+            "title": "Channel Roles"
+          },
+          "channel_dtypes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Channel Dtypes"
           }
         },
         "type": "object",

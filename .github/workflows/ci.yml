@@ -89,3 +89,12 @@ jobs:
         env:
           CYTELLECT_RUNTIME_DIR: /tmp/cytellect-compose
         run: docker compose config --quiet
+      - name: Build production worker container
+        run: docker build --target worker -f infra/Dockerfile.python -t cytellect-worker-ci .
+      - name: Actual Fiji in non-root offline read-only container
+        run: |
+          sudo install -d -m 0700 -o 10001 -g 10001 /tmp/cytellect-container-smoke
+          docker run --rm --network none --read-only --user 10001:10001 \
+            --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 5g \
+            -v /tmp/cytellect-container-smoke:/data \
+            cytellect-worker-ci python /app/scripts/container_smoke.py

@@ -27,9 +27,17 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
             if not xml or len(xml) > 4 * 1024 * 1024:
                 raise ValueError("invalid_ome_metadata")
             root = ElementTree.fromstring(xml)
-            if any(e.tag.rsplit("}", 1)[-1] == "UUID" and e.attrib.get("FileName")
-                   for e in root.iter()):
-                raise ValueError("external_ome_files_unsupported")
+            root_uuid = root.attrib.get("UUID", "").strip()
+            for reference in root.iter():
+                if reference.tag.rsplit("}", 1)[-1] != "UUID":
+                    continue
+                referenced_uuid = (reference.text or "").strip()
+                if (reference.attrib.get("FileName") or referenced_uuid) and (
+                        not root_uuid or referenced_uuid != root_uuid):
+                    raise ValueError("external_ome_files_unsupported")
+            # OME may name its own original file. Exact UUID identity, never
+            # the user-supplied FileName, establishes this self reference.
+            # _multifile=False still prohibits resolving another filesystem path.
         if len(tif.series) != 1:
             raise ValueError("single_series_required")
         series = tif.series[0]

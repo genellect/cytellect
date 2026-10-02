@@ -95,11 +95,11 @@ def statistical_result(language="en", kind="distribution"):
             for cell in range(3):
                 rows.append({"condition": group, "experimental_unit": f"{group}{unit}", "sample": f"{group}{unit}",
                              "field_id": f"{group}{unit}", "acquisition_date": "d",
-                             "ncl_nucleus_mean_corrected": effect + unit + cell*.2,
+                             "ncl_nucleus_mean_corrected": effect + unit + cell*.2 + effect*unit*.05,
                              "gfp_mean_corrected": 1 + cell + unit*.2, "pair": f"pair{unit}",
                              "gfp_positive": True, "excluded": False})
     request = StatisticsRequest(metric="ncl_nucleus_mean_corrected", baseline="A", comparisons=[("A", "B")],
-                                independent_units_confirmed=True,
+                                independent_units_confirmed=True, paired=kind == "paired",
                                 plot=PlotSpec(language=language, kind=kind))
     return analyze(rows, request)
 
@@ -109,12 +109,13 @@ def test_figure_vector_text_counts_and_source_tables(tmp_path, kind):
     result = statistical_result(kind=kind)
     render_figures(result, tmp_path)
     svg = (tmp_path / "figure.svg").read_text(encoding="utf-8")
-    assert "<text" in svg and "units=3" in svg
+    assert "<text" in svg
+    assert "independent units=3" in (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
     assert (tmp_path / "figure.pdf").read_bytes().startswith(b"%PDF")
     assert (tmp_path / "figure.png").read_bytes().startswith(b"\x89PNG")
     assert (tmp_path / "field-summary.csv").is_file()
     if kind == "scatter":
-        assert "not cluster-adjusted" in svg
+        assert "no regression or cell-independent confidence band" in (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
 
 
 def test_japanese_figure_font_is_explicit(tmp_path):
@@ -125,3 +126,44 @@ def test_japanese_figure_font_is_explicit(tmp_path):
     metadata = render_figures(statistical_result(language="ja"), tmp_path)
     assert metadata["font"] == font
     assert "独立実験単位" in (tmp_path / "figure.svg").read_text(encoding="utf-8")
+
+
+def test_methods_describe_real_field_engine_chain_and_complete_legacy_parameters():
+    from cytellect_analysis.exports import methods_text
+    recipe = Recipe(id="ncl-legacy-rgb", gfp_gate="negative-control", gfp_threshold=6,
+                    gfp_negative_control_fields=["negative"], gfp_negative_control_confirmed=True)
+    provenance = {"fields": {"f": {"engine": "reused-reviewed-labels", "source_revision": "parent",
+                                   "source_provenance": {"engine": "Fiji StarDist", "model_sha256": "abc", "n_tiles": 4}}}}
+    methods = methods_text({"recipe": recipe.model_dump()}, provenance, {"revision_id": "new"})
+    assert "Field f: reused-reviewed-labels" in methods and "Fiji StarDist" in methods
+    assert "engine identity unavailable" not in methods
+    for text in ("320", "anti-aliased bilinear", "MAD", "clipped to zero", "300", "6000",
+                 "negative", "otsu-qc-batch", "provenance.json", "REPLAY.md", '"seed": 0'):
+        assert text in methods
+
+
+@pytest.mark.parametrize("ome", [False, True])
+def test_gfp_only_bundle_replays_without_fabricated_ncl(tmp_path, ome):
+    report, config, masks, files = example(tmp_path)
+    recipe = Recipe(id="gfp-nuclear-2d")
+    config["recipe"] = report["recipe"] = recipe.model_dump()
+    info = config["field_snapshot"]["field"]["image_info"]
+    info["inputs"].pop("ncl")
+    masks["field"]["nucleoli"][:] = 0
+    config["field_snapshot"]["field"]["image_info"]["channel_roles"] = ["dapi", "gfp"]
+    channels = {role: tifffile.imread(tmp_path / "originals" / "field" / f"{role}.tif") for role in ("dapi", "gfp")}
+    cells, objects, manual = measure(channels, masks["field"]["nuclei"], masks["field"]["nucleoli"],
+                                    polygon_mask(channels["dapi"].shape, config["backgrounds"]["field"]["polygon"]),
+                                    recipe, config["field_snapshot"]["field"]["metadata"], "field", masks["field"]["manual"])
+    report.update(cells=apply_gfp_gate(cells, recipe), nucleoli=objects, manual_rois=manual)
+    if ome:
+        path = tmp_path / "originals" / "field" / "ome.tif"
+        tifffile.imwrite(path, np.stack([channels["gfp"], channels["dapi"]]), ome=True, metadata={"axes": "CYX"})
+        info["inputs"] = {"ome": {"sha256": sha256(path)}}
+        info["channel_mapping"] = [1, 0]
+        files = [("field/ome.tif", path)]
+    build_export_bundle(tmp_path / "export", report=report, config=config,
+                         provenance={}, field_masks=masks, raw_files=[v for v in files if not v[0].endswith("ncl.tif")])
+    fresh = replay(tmp_path / "export" / "bundle", tmp_path / "originals", tmp_path / "replayed")
+    assert fresh["cells"] == report["cells"]
+    assert fresh["cells"][0]["ncl_nucleus_mean_corrected"] is None

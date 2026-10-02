@@ -39,6 +39,22 @@ ERROR_CODES = {
 }
 
 
+def lease_is_live(store, job, parent, parent_started):
+    """Any inability to establish the lease/owner state fails closed."""
+    try:
+        current = store.one(jobs, id=job["id"])
+        workspace = store.one(workspaces, id=job["workspace_id"])
+        return bool(
+            parent.is_running() and parent.create_time() == parent_started
+            and current and current["state"] == "running"
+            and current["lease"] == job["lease"] and current["lease_until"] > time.time()
+            and workspace and not workspace["deleted"]
+        )
+    except Exception:
+        # Never let an unhandled DB/psutil error silently kill just this thread.
+        return False
+
+
 def main():
     descriptor = Path(sys.argv[1])
     data = read_json(descriptor)
@@ -52,24 +68,12 @@ def main():
 
     def watchdog():
         while not stopped.wait(0.5):
-            current = store.one(jobs, id=job["id"])
-            workspace = store.one(workspaces, id=job["workspace_id"])
-            try:
-                parent_alive = parent.is_running() and parent.create_time() == parent_started
-            except psutil.NoSuchProcess:
-                parent_alive = False
-            if (
-                not parent_alive
-                or not current
-                or current["state"] != "running"
-                or current["lease"] != job["lease"]
-                or current["lease_until"] <= time.time()
-                or not workspace
-                or workspace["deleted"]
-            ):
-                for child in psutil.Process().children():
-                    terminate_tree(child.pid)
-                os._exit(2)
+            if not lease_is_live(store, job, parent, parent_started):
+                try:
+                    for child in psutil.Process().children():
+                        terminate_tree(child.pid)
+                finally:
+                    os._exit(2)
 
     threading.Thread(target=watchdog, daemon=True).start()
     output = descriptor.parent / "output"

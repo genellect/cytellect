@@ -1,4 +1,6 @@
 """Versioned statistical protocol: explicit units, contrasts and cluster inference."""
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
@@ -8,7 +10,7 @@ from statsmodels.stats.multitest import multipletests
 
 from .contracts import StatisticsRequest
 
-STATISTICS_VERSION = "1.1.0"
+STATISTICS_VERSION = "1.2.0"
 AGGREGATION = "field median -> mean of fields within sample -> mean of samples within independent unit"
 
 
@@ -55,9 +57,20 @@ def _selected(rows, metric):
     selected = data[eligible & finite].copy()
     if selected.empty:
         raise ValueError("no_valid_selected_measurements")
-    counts = {"input_rows": len(data), "excluded": int(data.excluded.sum()),
+    counts: dict[str, Any] = {"input_rows": len(data), "excluded": int(data.excluded.sum()),
               "gfp_unselected": int((~data.excluded & ~data.gfp_positive).sum()),
               "missing_metric_selected": int((eligible & ~finite).sum())}
+    counts["by_condition"] = []
+    for condition, group in data.groupby("condition", observed=True):
+        adopted = selected[selected.condition == condition]
+        counts["by_condition"].append({
+            "condition": condition, "input_rows": len(group), "selected_rows": len(adopted),
+            "excluded": int(group.excluded.sum()),
+            "gfp_unselected": int((~group.excluded & ~group.gfp_positive).sum()),
+            "missing_metric_selected": int((~group.excluded & group.gfp_positive & ~np.isfinite(group[metric])).sum()),
+            "input_fields": int(group.field_id.nunique()), "selected_fields": int(adopted.field_id.nunique()),
+            "input_units": int(group.experimental_unit.nunique()),
+            "selected_units": int(adopted.experimental_unit.nunique())})
     return selected, counts
 
 
@@ -98,14 +111,22 @@ def _contrast(fit, vector):
     effect = float(np.asarray(test.effect).item())
     ci = np.asarray(test.conf_int())[0]
     p = float(np.asarray(test.pvalue).item())
+    statistic = float(np.asarray(test.tvalue).item())
+    standard_error = float(np.asarray(test.sd).item())
+    if standard_error <= 0 or not np.isfinite(statistic):
+        raise ValueError("comparison_not_estimable")
     if not np.isfinite([effect, *ci, p]).all():
         raise ValueError("comparison_not_estimable")
-    return {"estimate": effect, "ci_low": float(ci[0]), "ci_high": float(ci[1]), "p_value": p}
+    return {"estimate": effect, "ci_low": float(ci[0]), "ci_high": float(ci[1]), "p_value": p,
+            "statistic": statistic, "degrees_of_freedom": float(test.df_denom), "standard_error": standard_error,
+            "alternative": "two-sided", "confidence_level": 0.95}
 
 
 def _model(selected, request, groups, warnings):
     if request.paired:
         raise ValueError("paired_option_requires_experimental_unit_mode")
+    if request.metric == "gfp_mean_corrected":
+        raise ValueError("outcome_cannot_be_its_own_gfp_covariate")
     if "gfp_mean_corrected" not in selected:
         raise ValueError("gfp_required_for_exploratory_model")
     gfp = pd.to_numeric(selected.gfp_mean_corrected, errors="coerce")
@@ -129,6 +150,12 @@ def _model(selected, request, groups, warnings):
         warnings.append("incomplete_conditions_within_acquisition_date")
     if any(request.baseline not in g for g in completeness):
         warnings.append("baseline_missing_within_acquisition_date")
+    if selected.field_id.nunique() < 3:
+        raise ValueError("at_least_three_fields_for_cluster_model")
+    if selected.groupby("condition", observed=True).field_id.nunique().lt(2).any():
+        raise ValueError("two_fields_per_condition_for_cluster_model")
+    if selected.groupby(["condition", "experimental_unit"], observed=True).field_id.nunique().gt(1).any():
+        warnings.append("field_clustering_does_not_model_dependence_between_fields_from_the_same_unit")
     if selected.field_id.nunique() < 20:
         warnings.append("few_clusters_confidence_intervals_are_exploratory")
     formula = "outcome ~ C(condition) + gfp_centered"
@@ -139,7 +166,7 @@ def _model(selected, request, groups, warnings):
         request.baseline, *[g for g in groups if g != request.baseline]], ordered=True)
     fit = _cluster_fit(selected, formula)
     dates = sorted(selected.acquisition_date.unique())
-    vectors, means, comparisons = {}, [], []
+    vectors, means, comparisons, predictions = {}, [], [], []
     for group in groups:
         grid = pd.DataFrame({"condition": [group] * len(dates),
                              "gfp_centered": [0.] * len(dates), "acquisition_date": dates})
@@ -148,12 +175,25 @@ def _model(selected, request, groups, warnings):
         value = _contrast(fit, vector)
         means.append({"condition": group, "mean": value["estimate"],
                       "ci_low": value["ci_low"], "ci_high": value["ci_high"]})
+        observed = selected.loc[selected.condition == group, "gfp_centered"]
+        for centered in np.linspace(float(observed.min()), float(observed.max()), 60):
+            prediction_design = pd.DataFrame({"condition": [group] * len(dates),
+                                              "gfp_centered": [centered] * len(dates),
+                                              "acquisition_date": dates})
+            prediction_vector = np.asarray(build_design_matrices([
+                (getattr(fit.model.data, "design_info", None) or fit.model.data.model_spec)], prediction_design)[0]).mean(axis=0)
+            prediction = _contrast(fit, prediction_vector)
+            predictions.append({"condition": group, "gfp_centered": float(centered), "mean": prediction["estimate"],
+                                "ci_low": prediction["ci_low"], "ci_high": prediction["ci_high"]})
     for a, b in request.comparisons:
         comparisons.append({"group_a": a, "group_b": b, **_contrast(fit, vectors[a] - vectors[b]),
                             "method": "OLS; field-clustered CRV1 SE; t with clusters-1 df",
                             "n_a": int((selected.condition == a).sum()),
                             "n_b": int((selected.condition == b).sum()), "n_unit": "cells"})
-    details = {"formula": formula, "baseline": request.baseline, "gfp_transform": transform,
+    details = {"prediction_grid": predictions, "acquisition_dates": list(dates),
+               "gfp_date_medians": {str(date): float(value) for date, value in selected.groupby("acquisition_date", observed=True).gfp_log2.median().items()},
+               "prediction_interval": "pointwise 95% adjusted-mean CI; field-cluster CRV1; t with fields-1 df; equal date weights",
+               "formula": formula, "baseline": request.baseline, "gfp_transform": transform,
                "gfp_centering": "median within acquisition date on selected model rows",
                "gfp_excluded_count": removed,
                "adjusted_means": "GFP centered=0; equal weight across observed acquisition dates",
@@ -185,6 +225,19 @@ def analyze(rows, request: StatisticsRequest):
     groups = sorted(selected.condition.unique())
     _validate_comparisons(request, groups)
     warnings, comparisons, means = [], [], []
+    if selection["missing_metric_selected"]:
+        warnings.append("missing_outcomes_excluded_inspect_groupwise_missingness")
+    if any(x["selected_units"] < x["input_units"] for x in selection["by_condition"]):
+        warnings.append("some_experimental_units_have_no_selected_outcomes")
+    if selected.get("gfp_gate_exploratory", pd.Series(False, index=selected.index)).any():
+        warnings.append("data_derived_or_manual_gfp_selection_requires_predeclared_or_independent_validation")
+    if selected.get("recipe_id", pd.Series("", index=selected.index)).isin(["ncl-native-2d", "ncl-legacy-rgb"]).any():
+        warnings.append("ncl_defined_regions_can_change_with_the_measured_ncl_distribution")
+    if request.paired:
+        if "pair" not in selected or selected.pair.isna().any() or selected.pair.astype(str).str.strip().eq("").any():
+            raise ValueError("unique_complete_pairs_required")
+        if selected.groupby("experimental_unit").pair.nunique().gt(1).any():
+            raise ValueError("inconsistent_pair_identity_for_shared_unit")
     model_details = None
     if request.mode == "exploratory":
         warnings.append("exploratory_cells_and_fields_are_not_biological_replicates")
@@ -226,6 +279,9 @@ def analyze(rows, request: StatisticsRequest):
             comparisons.append({"group_a": a, "group_b": b, "estimate": float(va.mean() - vb.mean()),
                                 "ci_low": float(ci.low), "ci_high": float(ci.high),
                                 "p_value": float(test.pvalue), "method": method,
+                                "statistic": float(test.statistic), "degrees_of_freedom": float(test.df),
+                                "standard_error": float((ci.high - ci.low) / (2 * stats.t.ppf(.975, test.df))),
+                                "alternative": "two-sided", "confidence_level": .95,
                                 "n_a": len(va), "n_b": len(vb), "n_unit": "independent experimental units"})
         for group, values in units.groupby("condition", observed=True)[metric]:
             mean = float(values.mean())
@@ -263,6 +319,12 @@ def analyze_sensitivity(rows, request: StatisticsRequest, alternate_rows=None):
         for row in rows]) for threshold in getattr(request, "sensitivity_gfp_thresholds", [])]
     if getattr(request, "sensitivity_complete_dates", False):
         eligible, _ = _selected(rows, request.metric)
+        if request.mode == "exploratory":
+            gfp = pd.to_numeric(eligible.get("gfp_mean_corrected"), errors="coerce")
+            valid_gfp = np.isfinite(gfp)
+            if request.gfp_transform == "positive-log2":
+                valid_gfp &= gfp > 0
+            eligible = eligible[valid_gfp]
         required = {request.baseline, *[group for pair in request.comparisons for group in pair]}
         complete = eligible.groupby("acquisition_date").condition.agg(set)
         dates = {date for date, present in complete.items() if required.issubset(present)}

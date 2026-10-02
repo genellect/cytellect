@@ -38,7 +38,7 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     config = _read(bundle_dir / "revision.json")["config"]
     recipe = Recipe.model_validate(config["recipe"])
     expected = _read(bundle_dir / "measurements.json")
-    if expected.get("field_failures") or set(expected.get("invalidated_nucleoli", [])) - set(config.get("review_record", {}).get("accept_invalidated_fields", [])):
+    if expected.get("field_failures") or set(expected.get("invalidated_nucleoli", [])) - set(config.get("review_record", {}).get("accepted_invalidated_fields", [])):
         raise ValueError("replay_requires_complete_reviewed_masks")
     output_dir.mkdir(parents=True, exist_ok=False)
     cells, objects, manual_rows = [], [], []
@@ -81,7 +81,7 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         spec = StatisticsRequest.model_validate(recorded["spec"])
         fresh = analyze_sensitivity(cells, spec)
         folder = output_dir / "statistics" / stats_path.parent.name
-        render_figures(fresh, folder)
+        fresh["figure"] = render_figures(fresh, folder)
         _json(folder / "result.json", fresh)
     return result
 

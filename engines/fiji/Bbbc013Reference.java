@@ -61,6 +61,19 @@ public class Bbbc013Reference {
                 JsonObject row=new JsonObject();
                 row.addProperty("id",id);row.addProperty("count",statistics.pixelCount);
                 row.addProperty("mean",statistics.mean);row.addProperty("median",statistics.median);
+                // Independent reference for Cytellect's defined midpoint median;
+                // ImageJ's histogram median is also retained to expose its different
+                // even-pixel convention instead of silently redefining the metric.
+                double[] samples=new double[statistics.pixelCount];
+                int sampleIndex=0;
+                java.awt.Rectangle bounds=roi.getBounds();
+                for(int y=bounds.y;y<bounds.y+bounds.height;y++) for(int x=bounds.x;x<bounds.x+bounds.width;x++) if(roi.contains(x,y))
+                    samples[sampleIndex++]=image.getProcessor().getf(x,y);
+                if(sampleIndex!=samples.length) throw new IllegalStateException("roi_count_mismatch");
+                Arrays.sort(samples);
+                int middle=samples.length/2;
+                double midpoint=samples.length%2==0?(samples[middle-1]+samples[middle])/2.0:samples[middle];
+                row.addProperty("median_midpoint",midpoint);
                 row.addProperty("integrated",statistics.mean*statistics.pixelCount);
                 results.add(row);
             }

@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .config import Settings
+from .config import Settings, configure_private_tmp
 from .db import Store
 
 
@@ -19,6 +19,7 @@ def main():
     sub.add_parser("migrate")
     args = parser.parse_args()
     settings = Settings.from_env()
+    configure_private_tmp(settings)
     if args.command == "invite":
         if not 1 <= args.hours <= 168:
             parser.error("hours must be 1..168")

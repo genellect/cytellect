@@ -2,6 +2,20 @@
 
 SAFE_ERRORS = frozenset(
     {
+        "paired_plot_requires_paired_inference",
+        "scatter_requires_finite_gfp_for_all_selected_rows",
+        "nature_preset_requires_height_at_most_170mm_and_font_5_to_7pt",
+        "cluster_prediction_grid_required",
+        "recipe_required_channels_missing",
+        "gfp_gate_requires_acquired_channel",
+        "nucleolar_masks_disabled_for_gfp_recipe",
+        "background_boolean_shape_required",
+        "measurement_source_shape_or_dtype_invalid",
+        "invalid_label_array",
+        "label_id_exhausted",
+        "two_fields_per_condition_for_cluster_model",
+        "inconsistent_pair_identity_for_shared_unit",
+        "outcome_cannot_be_its_own_gfp_covariate",
         "invalid_polygon",
         "replay_bundle_hash_mismatch",
         "roi_archive_too_large",

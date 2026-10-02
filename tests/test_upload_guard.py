@@ -150,3 +150,18 @@ def test_valid_multipart_reaches_parser_and_frees_slot():
     guard = UploadGuardMiddleware(parse, AuthStore(), settings())
     messages, reads = asyncio.run(invoke(guard, context(route="tables"), [(body, False)]))
     assert status(messages) == 201 and reads == 1 and guard.active == 0
+
+
+def test_private_tmp_is_explicit_even_if_tempfile_was_previously_cached(tmp_path, monkeypatch):
+    import tempfile
+    from pathlib import Path
+
+    from cytellect_api.config import Settings, configure_private_tmp
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "old"))
+    for variable in ("TMPDIR", "TEMP", "TMP"):
+        monkeypatch.setenv(variable, str(tmp_path / "old"))
+    private = tmp_path / "runtime"
+    directory = configure_private_tmp(Settings(private))
+    with tempfile.NamedTemporaryFile() as handle:
+        assert Path(handle.name).parent == directory == private / "tmp"
+    assert tempfile.gettempdir() == str(directory)

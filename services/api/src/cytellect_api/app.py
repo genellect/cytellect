@@ -16,6 +16,7 @@ from cytellect_analysis.contracts import (
     ResegmentInput,
     ReviewInput,
     StatisticsRequest,
+    required_channel_roles,
 )
 from cytellect_analysis.images import read_tiff, render_preview, sha256
 from cytellect_analysis.masks import contours
@@ -27,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select, update
 
-from .config import Settings
+from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
@@ -48,6 +49,7 @@ class RevisionInput(BaseModel):
 
 def create_app(settings: Settings | None = None):
     settings = settings or Settings.from_env()
+    configure_private_tmp(settings)
     store = Store(settings.data_dir)
     api = FastAPI(title="Cytellect private API", version="0.1.0", docs_url=None, redoc_url=None)
     api.state.store, api.state.settings = store, settings
@@ -292,6 +294,7 @@ def create_app(settings: Settings | None = None):
         gfp: UploadFile | None = File(None),
         ome: UploadFile | None = File(None),
         mapping: str = Form("[0,1,2]"),
+        channel_roles: str = Form('["dapi","ncl","gfp"]'),
     ):
         workspace(wid, who)
         if settings.demo:
@@ -300,14 +303,14 @@ def create_app(settings: Settings | None = None):
             md = FieldMetadata.model_validate_json(metadata)
         except ValidationError:
             raise HTTPException(422, "invalid_field_metadata") from None
-        if (ome is None and any(f is None for f in (dapi, ncl, gfp))) or (
+        if (ome is None and (dapi is None or (ncl is None and gfp is None))) or (
             ome is not None and any(f is not None for f in (dapi, ncl, gfp))
         ):
-            raise HTTPException(422, "provide_three_channels_or_one_ome")
+            raise HTTPException(422, "provide_dapi_and_ncl_or_gfp_or_one_ome")
         fid = uid()
         folder = store.safe_path("workspaces", wid, "fields", fid)
         folder.mkdir(parents=True)
-        uploads = {"ome": ome} if ome else {"dapi": dapi, "ncl": ncl, "gfp": gfp}
+        uploads = {"ome": ome} if ome else {r: f for r, f in {"dapi": dapi, "ncl": ncl, "gfp": gfp}.items() if f is not None}
         total = 0
         try:
             input_info = {}
@@ -327,9 +330,15 @@ def create_app(settings: Settings | None = None):
                 if not isinstance(indices, list) or any(type(v) is not int for v in indices):
                     raise ValueError("invalid_mapping")
                 stack = read_tiff(folder / "ome.tif", channel_indices=indices)
-                channels = dict(zip(("dapi", "ncl", "gfp"), stack, strict=True))
+                roles = json.loads(channel_roles)
+                if (not isinstance(roles, list) or any(r not in ("dapi", "ncl", "gfp") for r in roles)
+                        or len(roles) != len(set(roles)) or "dapi" not in roles or len(roles) not in (2, 3)):
+                    raise ValueError("invalid_channel_roles")
+                channels = dict(zip(roles, stack, strict=True))
             else:
-                channels = {c: read_tiff(folder / f"{c}.tif", legacy=legacy) for c in ("dapi", "ncl", "gfp")}
+                channels = {c: read_tiff(folder / f"{c}.tif", legacy=legacy) for c in uploads}
+            if legacy and set(channels) != {"dapi", "ncl", "gfp"}:
+                raise ValueError("legacy_requires_three_channels")
             if len({a.shape for a in channels.values()}) != 1:
                 raise ValueError("channel_dimensions_mismatch")
             for role, array in channels.items():
@@ -340,7 +349,9 @@ def create_app(settings: Settings | None = None):
                 "legacy": legacy,
                 "inputs": input_info,
                 "axes": "YX",
-                "channel_mapping": json.loads(mapping) if ome else ["dapi", "ncl", "gfp"],
+                "channel_mapping": json.loads(mapping) if ome else list(channels),
+                "channel_roles": list(channels),
+                "channel_dtypes": {role: str(array.dtype) for role, array in channels.items()},
             }
             with store.transaction() as c:
                 w = c.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
@@ -458,7 +469,10 @@ def create_app(settings: Settings | None = None):
         ):
             raise HTTPException(422, "invalid_display_settings")
         folder = store.safe_path("workspaces", f["workspace_id"], "fields", fid)
-        channels = {c: np.load(folder / f"{c}.npy", allow_pickle=False) for c in ("dapi", "ncl", "gfp")}
+        roles = f["image_info"].get("channel_roles", ["dapi", "ncl", "gfp"])
+        if channel != "merge" and channel not in roles:
+            raise HTTPException(422, "channel_not_acquired")
+        channels = {c: np.load(folder / f"{c}.npy", allow_pickle=False) for c in roles}
         return Response(render_preview(channels, channel, low, high, gain), media_type="image/png")
 
     @api.post("/v1/workspaces/{wid}/analyses", status_code=202)
@@ -479,8 +493,10 @@ def create_app(settings: Settings | None = None):
             raise HTTPException(422, "unknown_exclusion_field")
         for f in selected:
             bg = body.backgrounds.get(f["id"])
-            if body.recipe.id == "ncl-native-2d" and (not bg or not bg.confirmed):
+            if body.recipe.id != "ncl-legacy-rgb" and (not bg or not bg.confirmed):
                 raise HTTPException(422, "confirm_background_for_every_field")
+            if not required_channel_roles(body.recipe).issubset(f["image_info"].get("channel_roles", ["dapi", "ncl", "gfp"])):
+                raise HTTPException(422, "recipe_required_channels_missing")
             if f["image_info"]["legacy"] != (body.recipe.id == "ncl-legacy-rgb"):
                 raise HTTPException(422, "recipe_input_mode_mismatch")
         rid = uid()
@@ -676,7 +692,10 @@ def create_app(settings: Settings | None = None):
             raise HTTPException(422, "unknown_exclusion_field")
         excluded_fields = {e.field_id for e in body.exclusions if e.nucleus_id is None}
         for fid in selected - excluded_fields:
-            if body.recipe.id == "ncl-native-2d" and (
+            roles = parent["config"]["field_snapshot"][fid]["image_info"].get("channel_roles", ["dapi", "ncl", "gfp"])
+            if not required_channel_roles(body.recipe).issubset(roles):
+                raise HTTPException(422, "recipe_required_channels_missing")
+            if body.recipe.id != "ncl-legacy-rgb" and (
                 fid not in body.backgrounds or not body.backgrounds[fid].confirmed
             ):
                 raise HTTPException(422, "confirm_background_for_every_field")
@@ -702,6 +721,9 @@ def create_app(settings: Settings | None = None):
             for key in ("id", "version", "probability", "nms", "percentile_low", "percentile_high"):
                 if getattr(old, key) != getattr(body.recipe, key):
                     raise HTTPException(409, "nucleus_parameters_require_new_analysis")
+            for snapshot in config["field_snapshot"].values():
+                if not required_channel_roles(body.recipe).issubset(snapshot["image_info"].get("channel_roles", ["dapi", "ncl", "gfp"])):
+                    raise HTTPException(422, "recipe_required_channels_missing")
             config["recipe"] = body.recipe.model_dump()
         return child_revision(parent, config)
 
@@ -837,6 +859,9 @@ def create_app(settings: Settings | None = None):
         allowed = {
             "figure.png": "image/png",
             "figure.svg": "image/svg+xml",
+            "figure-caption.md": "text/markdown; charset=utf-8",
+            "figure-data.json": "application/json",
+            "model-predictions.csv": "text/csv",
             "figure.pdf": "application/pdf",
             "plot-data.csv": "text/csv",
             "comparisons.csv": "text/csv",

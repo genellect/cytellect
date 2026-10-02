@@ -11,7 +11,7 @@ from cytellect_analysis.figures import render_figures
 from cytellect_analysis.masks import apply_edit, detect_nucleoli, polygon_mask
 from cytellect_analysis.measurement import apply_gfp_gate, measure
 from cytellect_analysis.numerical_csv import analyze_numeric
-from cytellect_analysis.statistics import analyze, analyze_sensitivity
+from cytellect_analysis.statistics import analyze_sensitivity
 from cytellect_api.config import Settings
 from cytellect_api.db import Store, attempts, fields, jobs, revisions, sessions, tables, workspaces
 from cytellect_api.storage import read_json, write_json
@@ -37,8 +37,9 @@ FIELD_ERRORS = {
 }
 
 
-def _load_channels(folder):
-    return {name: np.load(folder / f"{name}.npy", allow_pickle=False) for name in ("dapi", "ncl", "gfp")}
+def _load_channels(folder, image_info):
+    return {name: np.load(folder / f"{name}.npy", allow_pickle=False)
+            for name in image_info.get("channel_roles", ("dapi", "ncl", "gfp"))}
 
 
 def _initial_masks(field, folder, channels, recipe, settings, destination, nuclei=None):
@@ -49,7 +50,10 @@ def _initial_masks(field, folder, channels, recipe, settings, destination, nucle
         return *result[:2], np.zeros_like(result[0]), result[2]
     if field["synthetic"]:
         if nuclei is not None:
-            nucleoli, statuses = detect_nucleoli(nuclei, channels["ncl"], channels["dapi"], recipe)
+            if recipe.id == "gfp-nuclear-2d":
+                nucleoli, statuses = np.zeros_like(nuclei), {}
+            else:
+                nucleoli, statuses = detect_nucleoli(nuclei, channels["ncl"], channels["dapi"], recipe)
             return (
                 nuclei,
                 nucleoli,
@@ -59,7 +63,7 @@ def _initial_masks(field, folder, channels, recipe, settings, destination, nucle
         with np.load(folder / "synthetic-truth.npz", allow_pickle=False) as truth:
             return (
                 truth["nuclei"],
-                truth["nucleoli"],
+                np.zeros_like(truth["nuclei"]) if recipe.id == "gfp-nuclear-2d" else truth["nucleoli"],
                 np.zeros_like(truth["nuclei"]),
                 {"engine": "synthetic-truth"},
             )
@@ -109,7 +113,7 @@ def run_analysis(store, settings, job, output):
                 raise ValueError("field_snapshot_missing")
             snapshot = config["field_snapshot"][field_id]
             folder = store.safe_path("workspaces", revision["workspace_id"], "fields", field_id)
-            channels = _load_channels(folder)
+            channels = _load_channels(folder, snapshot["image_info"])
             destination = output / field_id
             destination.mkdir()
             old_path = store.safe_path(parent["result_dir"], field_id, "masks.npz") if parent else None
@@ -124,7 +128,7 @@ def run_analysis(store, settings, job, output):
                 }
                 if edit and edit.field_id == field_id:
                     nuclei, nucleoli, manual = apply_edit(nuclei, nucleoli, manual, edit)
-                    if edit.layer == "nuclei":
+                    if edit.layer == "nuclei" and recipe.id != "gfp-nuclear-2d":
                         invalidated.add(field_id)
                 if field_id in config.get("resegment_fields", []):
                     nuclei, nucleoli, _, provenance = _initial_masks(
@@ -214,15 +218,9 @@ def run_statistics(store, job, output):
     ):
         raise ValueError("review_required")
     request = StatisticsRequest.model_validate(job["payload"])
-    result = analyze(report["cells"], request)
-    if (
-        request.sensitivity_gfp_thresholds
-        or request.sensitivity_complete_dates
-        or request.sensitivity_legacy_high_regions
-    ):
-        result["sensitivity"] = analyze_sensitivity(report["cells"], request)
+    result = analyze_sensitivity(report["cells"], request)
     result["revision_id"] = revision["id"]
-    render_figures(result, output)
+    result["figure"] = render_figures(result, output)
     write_json(output / "result.json", result)
     return output
 
@@ -234,7 +232,7 @@ def run_table_statistics(store, job, output):
     data = read_json(store.safe_path("workspaces", job["workspace_id"], "tables", table["id"], "table.json"))
     result = analyze_numeric(data["rows"], StatisticsRequest.model_validate(job["payload"]))
     result["table_id"] = table["id"]
-    render_figures(result, output)
+    result["figure"] = render_figures(result, output)
     write_json(output / "result.json", result)
     return output
 
@@ -262,7 +260,7 @@ def run_export(store, job, output):
     build_export_bundle(
         output,
         report=read_json(root / "measurements.json"),
-        config=revision["config"],
+        config={**revision["config"], "review_record": revision["review_record"] or {}},
         provenance=read_json(root / "provenance.json"),
         field_masks=masks,
         raw_files=raw,

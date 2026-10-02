@@ -35,3 +35,47 @@ From the repository in the locked Python environment:
 The downloader accepts only the pinned public accession and validates its size and SHA-256. Runtime data and originals must stay outside the checkout. No model or package is downloaded by the detector. The script produces demo.json, per-channel/display PNGs, canonical labels and detailed engine provenance.
 
 The public image helps test realistic appearance and data handling. Synthetic analytical tests remain useful for exact expected arithmetic and failure cases. Private experimental validation and research-user evaluation remain separate requirements.
+
+
+## Independent ImageJ measurement reference
+
+A separate check executed actual ImageJ ROI statistics on the same original
+16-bit NCL plane and canonical masks. It covered **100 nuclei, 100 per-nucleus
+nucleolar unions, 100 nucleoplasmic regions and 182 individual candidates**.
+The [numerical reference report](../fixtures/public/nucleolar/imagej-comparison.json)
+contains every compared region and source/mask/bridge hashes. Original TIFF
+pixels remain outside Git.
+
+For all 482 regions, Cytellect's ROI area, raw mean and specified midpoint median
+agree exactly with independently calculated ImageJ/Java reference values.
+The greatest integrated-intensity difference is 9.32e-10 intensity-pixels;
+corrected means differ by at most 4.55e-13. Signed corrected medians agree exactly.
+All 98 defined nucleoplasm/nucleolar ratios and log2 ratios agree with values
+derived from ImageJ compartment means within 1e-12. The remaining two ratios
+are missing in both calculations because a corrected compartment mean is
+non-positive; no arbitrary epsilon is used to force a result. Tolerances fixed by the
+validator are 1e-10 for scalar statistics, 1e-6 for large integrated sums, and
+1e-12 for ratios; these tolerances represent floating arithmetic, not biological
+measurement uncertainty.
+
+The reference uses `ThresholdToSelection` and `ImagePlus.getStatistics` on exact
+label pixels. For midpoint medians, it independently sorts pixels inside the
+ImageJ ROI in Java. ImageJ's own histogram median differs for 175 even-sized
+regions; those convention differences are explicitly recorded. See the
+[GFP reference methodology](public-gfp-validation.md) for the same distinction.
+
+Correction uses a fixed spatial reference-offset ROI: the first nuclear-mask-free
+15x15 block, with ImageJ median **374**. Its biological suitability as cell-free
+background is **not established**. This validates the subtraction implementation;
+it does not approve this ROI for research conclusions. The source channel-order
+conflict above remains unresolved, and arithmetic agreement does not resolve it.
+No segmentation F1, treatment effect or private-experiment validity is implied.
+
+After reproducing the public masks, run:
+
+```bash
+uv run python scripts/public_ncl_reference.py \
+  --image /private/public-nucleolar/4DNFI7FAWT6C.tiff \
+  --masks /private/public-nucleolar/evaluation/labels.npz \
+  --output /private/public-ncl-reference --fiji /opt/fiji
+```

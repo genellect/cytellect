@@ -2,10 +2,13 @@ import { test, expect } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
 test("public real-image viewer: selection, channels, measurements, mobile",async({page})=>{
- const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+ const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));page.on("console",m=>{if(m.type()==="error")errors.push(m.text());});
  await page.goto("/demo");
  await expect(page.getByAltText(/4DN.*公開実画像/)).toBeVisible();
  await expect(page.getByRole("heading",{name:"Nucleus 01",exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"DAPI",exact:true}).click();
+ await expect(page.getByAltText(/4DN.*公開実画像/)).toHaveAttribute("src",/demo-dapi/);
+ await page.getByRole("button",{name:"DAPI + NCL",exact:true}).click();
  await page.getByRole("button",{name:"次の核",exact:true}).click();
  await expect(page.getByRole("heading",{name:"Nucleus 02",exact:true})).toBeVisible();
  await page.getByLabel("輪郭",{exact:true}).uncheck();
@@ -21,6 +24,18 @@ test("public real-image viewer: selection, channels, measurements, mobile",async
  if(dir)await page.screenshot({path:path.join(dir,"public-demo-mobile.png"),fullPage:true});
  await page.getByLabel("画像",{exact:true}).selectOption("bbbc039");
  await expect(page.getByAltText(/BBBC039.*公開実画像/)).toBeVisible();
+ await page.getByLabel("画像",{exact:true}).selectOption("bbbc013");
+ await expect(page.getByAltText(/BBBC013v1.*公開実画像/)).toBeVisible();
+ await expect(page.getByText("GFP 平均輝度（原値）",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"DRAQ · 核染色",exact:true}).click();
+ await expect(page.getByAltText(/BBBC013v1.*公開実画像/)).toHaveAttribute("src",/demo-dapi/);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+ if(dir)await page.screenshot({path:path.join(dir,"public-gfp-mobile.png"),fullPage:true});
+ await page.setViewportSize({width:1440,height:900});
+ if(dir)await page.screenshot({path:path.join(dir,"public-gfp-desktop.png"),fullPage:true});
+ await page.getByRole("button",{name:/02 測定値/}).click();
+ await expect(page.locator("tbody tr")).toHaveCount(350);
+ const gfpCsv=page.waitForEvent("download");await page.getByRole("button",{name:"CSV ↓",exact:true}).click();expect((await gfpCsv).suggestedFilename()).toContain("BBBC013v1");
  expect(errors).toEqual([]);
 });
 

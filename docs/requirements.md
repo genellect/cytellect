@@ -65,3 +65,9 @@ D04: M4 representative private images split by field/sample into tuning and eval
 D05: Corrected-mask measurement agreement with reference pixels essential; explain counts/legacy differences rather than force old significance.
 D06: M5 preferably >=3 researchers across labs evaluate completion/time/edit burden/understanding/reuse. Record operational metrics without research content.
 D07: Future Supabase identity/Postgres/private Storage adapters preserve owner IDs with verified guest transfer and RLS. Optional structured LLM method proposals require adoption before recipe execution; no arbitrary code/significance search. Mixed models/R/other segmentation/spots/3D later recipes. Teams/retention/billing depend on PoC evidence.
+
+## Published-image and figure extensions
+
+I08: Native NCL analysis accepts confirmed DAPI+NCL with optional GFP only when no GFP gate/range is requested. GFP-nuclear recipe requires DAPI+GFP, keeps NCL metrics missing, and never fabricates absent channels. Two-channel OME uses an explicit role/index mapping. Published DNA stains such as DRAQ are labelled by their actual stain, even when transported through the historical dapi role.
+S08: Nature presets set 89/183 mm widths, height≤170 mm, editable vector text, 5–7 pt labels, embedded PDF fonts and source-linked metadata/caption. Publication formatting is distinct from scientific acceptance. Exploratory regression bands use the saved clustered covariance; no additional cell-independent band is introduced.
+T11: Normal source publication follows PR → required CI → main merge → automatic Vercel deployment. The initial CLI bootstrap is recorded separately in deployment.md.

@@ -33,3 +33,24 @@ Run `cytellect cleanup` manually if the worker was offline. Durable leases recov
 Alembic upgrades execute under the SQLite write lock at startup, including adoption of the initial unversioned checkpoint. Deploy code/schema changes with API and worker stopped together. Do not automatically downgrade or copy live WAL files. Before any operator-approved schema recovery, use an offline, private, short-lived metadata snapshot and follow the workspace retention policy. Research-file backups are outside this PoC.
 
 See [SECURITY](../SECURITY.md) for private vulnerability reporting.
+
+
+## Watchdog and container verification
+
+The parent and child both require a live fenced lease. Database/monitor errors
+fail closed: the supervisor terminates the scientific process tree, retains no
+published result and removes the private launch descriptor; the child watchdog
+also terminates computation if it cannot verify the DB or parent identity.
+A process-launch failure records only a fixed error code and releases the lease.
+If the database remains unavailable, finite lease recovery handles the orphaned
+job after its child has stopped. Linux attempts have dedicated process groups so
+Fiji descendants are terminated even if the direct Python child exits first.
+No raw subprocess output is retained. Uncommitted attempt artifacts stay on the
+private volume and are removed by workspace-retention cleanup.
+
+Container CI checks the real worker image as UID10001, root-filesystem read-only,
+with a writable private `/data` volume, `network none`, no Linux capabilities,
+and bounded memory/process count. It verifies loopback-only interfaces and a
+denied outbound socket, then runs the actual pinned Fiji detector on known
+synthetic pixels. This is infrastructure evidence, not scientific performance
+on user images or acceptance of an Internet-facing production host.
