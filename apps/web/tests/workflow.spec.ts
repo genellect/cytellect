@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIResponse } from "@playwright/test";
 import fs from "node:fs";
+import { expectGfpPreview } from "./image-preview";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 const root=path.resolve(__dirname,"../../..");
@@ -214,6 +215,7 @@ test("two-channel inputs preserve actual roles; GFP field trial and figure prese
  await expect(page.locator("tbody tr")).toHaveCount(report.cells.length);
  await expect(page.getByRole("columnheader",{name:"NCL 核全体",exact:true})).toHaveCount(0);
  const shot=process.env.CYTELLECT_SCREENSHOT_DIR;
+ await expectGfpPreview(page);
  if(shot){fs.mkdirSync(shot,{recursive:true});await page.screenshot({path:path.join(shot,"public-gfp-private-workbench.png"),fullPage:true});}
  await page.getByRole("button",{name:/02 統計と図表/}).click();
  await expect(page.getByLabel("指標",{exact:true})).toHaveValue("gfp_mean_corrected");

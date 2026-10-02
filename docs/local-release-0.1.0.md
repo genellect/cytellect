@@ -1,46 +1,49 @@
-# Windows preview 0.1.0-local.6 — acceptance record
+# Windows preview 0.1.0-local.8 — acceptance record
 
-The [published Windows x86-64 preview](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.6) provides the browser workspace with a local API and pinned Fiji worker. It supports nuclear/nucleolar review and correction, GFP/NCL measurements, statistics, editable figures and reproducibility exports. This is acceptance of the recorded software package, not validation of a private experiment or journal acceptance.
+The [published Windows x86-64 preview](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.8) provides the browser workspace, local API and pinned Fiji worker. It supports nuclear/nucleolar correction, GFP/NCL measurements, independent-unit comparisons, exploratory models, editable figures and reproducibility exports. This is acceptance of the recorded software package, not validation of a private experiment or journal acceptance.
 
 ## Release identity
 
 | Item | Value |
 |---|---|
-| Source | `81047dc8001d4ecb456eab1aceafec278d9533e8` |
-| Archive | `Cytellect-0.1.0-local.6-windows-x64.zip` |
-| Archive bytes | 5,683,514 |
-| SHA-256 | `2cb9fbf64a5ad91931e39a20c8ee2df6d9cc62a118a76f1d938d75f580780668` |
-| Exact-source CI | [Run 37039980341](https://github.com/genellect/cytellect/actions/runs/37039980341) |
+| Source | `8b87f21ae9ce5449b2a327c368477249983c7a9d` |
+| Archive | `Cytellect-0.1.0-local.8-windows-x64.zip` |
+| Archive bytes | 5,701,069 |
+| SHA-256 | `5c49c0b64eac78ce6a89a9aa8db5cf529c132044315ed0eb306a3c6e86ac5cc5` |
+| Source PR | [#4](https://github.com/genellect/cytellect/pull/4) |
+| Exact-source main CI | [Run 37050026779](https://github.com/genellect/cytellect/actions/runs/37050026779) |
 | Installed Python | 3.12.15 |
 
-Required Python, Web, Windows lifecycle and actual Fiji/browser checks passed on that source. Source merge, package installation, published release and public-site behavior are distinct checks. The public site remains a sample viewer; this release does not provide a hosted private analysis backend.
+Required Python, Web, Windows lifecycle and actual Fiji/browser checks passed on that source. The immutable bundle was built from the clean merged main commit and verified on Windows before publication. Source merge, installation, release publication and hosted download behavior are separate checks. The public site remains a sample viewer; private analysis runs locally.
 
-The setup archive includes redistribution-cleared public demo derivatives, attribution and a hash allowlist alongside source and static UI. It excludes private research data, raw study inputs, credentials and developer runtimes.
+The setup archive includes redistribution-cleared public demo derivatives, attribution and a hash allowlist alongside source and static UI. It excludes private research data, raw study inputs, credentials and developer runtimes. The earlier [local.6 acceptance record](local-release-0.1.0-local.6.md) remains available; local.7 was an unpublished release-automation draft and is superseded by this version.
 
-## Installed local.6 checks
+## Changes since local.6
 
-- The manifest and archive checksum verified. Setup completed in **107.587 seconds using an existing owned installation root and cached dependencies**. This was an upgrade acceptance run, not a fresh-download benchmark. Shortcut creation was disabled in this isolated run.
-- Actual installed Tk and pinned Fiji passed their installation checks. The known-pixel Fiji check produced 9 nuclei and 18 nucleolar candidates. These counts check installation and arithmetic, not biological detection accuracy.
-- The installed public BBBC013 GFP workflow completed analysis, review and export with **350 nuclei**, no field failures and absent NCL values preserved as missing. It uses the registered public 8-bit image export; it does not establish quantitative equivalence with native FRM data or the user's images. See [public GFP validation](public-gfp-validation.md).
-- The exported reproducibility package recorded the release source, verified **17 manifest file hashes** and excluded original images. The GFP-only table displayed NCL as outside the recipe's scope while preserving the underlying quality flags.
-- Desktop and mobile browser checks found no application errors, failed requests, CSP violations or external requests during the tested local workflow. The 350-row table scrolled to its end with its header retained; mobile table scrolling did not cause page overflow. Browser local/session storage contained no entries.
-- Shutdown left no matching installed application processes or listener. This is lifecycle evidence for the tested installed run, not OS-level network isolation.
+- Incomplete OME channel/IFD mappings are rejected before decoding. Explicitly reordered channels remain supported.
+- Nucleoplasmic area and nucleolar detection states are explicit. Recoverable nucleolar failures preserve nuclear measurements while leaving unresolved compartments missing; review and statistics require correction or a reasoned exclusion.
+- Re-detection saves background/exclusion settings atomically and prevents inconsistent partial adoption of global conditions. Revision navigation retains the chosen edit branch.
+- Reviewed native nucleolar definitions can be compared using saved alternative masks. Reproducibility exports recalculate these alternatives from supplied original pixels.
+- Model coefficients, repeat trends and sensitivity results have source-linked CSVs. Numerical-table imports now export their data, conditions, Methods and a hash-verified replay package.
 
-## Earlier installed checks on unchanged code
+## Checks on this installed package
 
-The local.6 manifest comparison found all **56 non-Web package files byte-identical** to local.5, source `f1af4aba215c4b0524e49598d976a1f59290a5b8`. The intervening source changes affected Web QC presentation only. The following checks were actually run on local.5, not rerun on local.6:
+- All **106 package manifest entries** verified. Setup completed in **415.963 seconds** in an existing task-owned installation root. Dedicated Python/dependency caches were reused and a new pinned Fiji runtime was downloaded. This is neither a fresh-download benchmark nor a fully cached upgrade. Shortcut creation was disabled in this isolated run.
+- Actual installed Tk and Fiji passed. The known-pixel installation check produced 9 nuclei and 18 nucleolar candidates; these are installation checks, not biological accuracy estimates.
+- **97 numerical/input/ROI/statistics/replay tests passed with zero skips** using scientific modules loaded from the installed application. A separate pytest-only tooling overlay and fixed test definitions were used; development scientific libraries were not substituted.
+- **22 figure tests passed with zero skips**, followed by 12 English/Japanese distribution, paired and exploratory scatter renderings at 89/183 mm. All actual PDFs were rendered and visually inspected. Regular-weight Arial/DejaVu Sans/Yu Gothic, editable SVG text, embedded TrueType PDF fonts, Unicode mappings, physical dimensions and source correspondence passed. Synthetic plotting data establishes formatting, not biological validity.
+- The installed public BBBC013 GFP workflow completed image registration, detection, explicit review, export and reload in **48.7 seconds** for the tested browser run. It yielded 350 nuclei, no field failures and missing NCL metrics. This is a single acceptance run, not a general performance benchmark or validation of native FRM intensities.
+- Export identity matched this release source; all **17 manifest file hashes** verified and original images were excluded. Desktop/mobile checks verified the actual preview image, all 350 table rows, scrolling, no page overflow, no application/CSP errors and no external requests. Browser local/session storage remained empty.
+- Stopping the launcher left no local application listener or local launcher/worker processes. Native Windows execution still does not provide an OS-enforced worker egress block.
 
-- **22 figure tests and 12 rendering cases**, using the installed scientific dependencies and a pytest-only tooling overlay. English/Japanese distribution, paired and exploratory scatter figures covered 89/183 mm presets, 7 pt text, editable SVG text and embedded TrueType PDF fonts. All 12 rendered PDFs were visually checked. The selected regular-weight fonts were Arial, DejaVu Sans or Yu Gothic according to glyph coverage; no missing-glyph warning was accepted. These synthetic figures establish formatting and source correspondence, not biological validity.
-- **Two real Pythonw/Tk launcher cases**, invoking the Stop button and window-close callback in test-owned windows. Both verified local session creation, the browser-open callback, session revocation, child-process shutdown and port release. Browser navigation was verified separately.
-
-The independent installed numerical/reference suite of **27 tests** was run on local.3, source `0419b55a821ef1f5a16b23d9f7cc1b843623d704`, with installed scientific packages and a pytest-only tooling overlay. Measurement, statistics, legacy and ROI implementation files remained unchanged through local.6; `figures.py` was the only analysis-package change and received the later figure checks above. This is an evidence chain, not a claim that all historical tests were re-executed on the release source. See [validation layers](validation.md) and [figure semantics](figures.md).
+The updated public 16-bit NCL reference comparison is recorded in [published NCL validation](public-nucleolar-validation.md): 100 nuclei and 182 candidates, pixel-identical masks to the prior reference, and ImageJ comparisons for 482 compartment/object measurements. That comparison was run on the scientific source in PR #4 before packaging; its engine bridge/model match this installation. It is distinct from the installed numerical tests above and does not establish nucleolar ground-truth accuracy.
 
 ## Remaining acceptance
 
-- **M4:** user-provided original images in a separately approved private environment; field/sample-separated tuning and evaluation; corrected-mask reference measurements, legacy reconciliation and measured detection quality. Provisional detection targets remain unconfirmed for the user's experiment.
-- **M5:** operator acceptance on the intended research machine and researcher evaluation of completion, correction time, understanding of independent units and reuse demand. Automated browser checks do not replace participant evaluation.
-- **Future cloud service:** private storage and ownership, actual TLS/domain/session behavior, continuous deletion while clients are offline, durable recovery and host-enforced worker isolation. No hosted private backend is claimed here.
+- **M4:** user-provided original images in a private environment; field/sample-separated tuning and evaluation, corrected-mask reference measurements, legacy reconciliation and measured detection quality.
+- **M5:** operator acceptance on the intended research machine and researcher evaluation of completion, correction time, independent-unit understanding and reuse demand. Automated browser checks do not replace participant evaluation.
+- **Future cloud service:** actual private hosting, TLS/domain/session behavior, continuous deletion while clients are offline, durable recovery and host-enforced worker isolation.
 
-Native automatic nuclear detection currently requires both image sides at most 2048 px and at most 2,700,000 pixels under the standard-2g profile; excess inputs are rejected without silently resizing measurement pixels. NCL-defined nucleolar candidates need biological review because NCL redistribution can change the segmented region.
+Native automatic nuclear detection currently requires both image sides at most 2048 px and at most 2,700,000 pixels under the standard-2g profile. Excess inputs are rejected without silently resizing measurement pixels. NCL-defined candidates need biological review because NCL redistribution can change the segmented region.
 
-Local work expires 24 hours after explicit activity. Physical cleanup while the launcher or PC is off resumes at the next launch. Native Windows execution trusts the OS user and does not install an OS-enforced worker egress block. Read [local operation](local.md), [data protection](security.md) and the [roadmap](roadmap.md) before using private images. Private research material does not belong in GitHub issues or public verification artifacts.
+Local work expires 24 hours after explicit activity; cleanup while the launcher or PC is off resumes at next launch. Read [local operation](local.md), [data protection](security.md), [figure semantics](figures.md) and the [roadmap](roadmap.md). Private research material does not belong in GitHub issues or public verification artifacts.

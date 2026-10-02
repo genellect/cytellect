@@ -16,7 +16,7 @@ The local edition uses the browser workspace with a private API and Fiji worker 
 
 The same scientific code and contracts support the later hosted edition. No cloud analysis server or paid plan is included in this preview.
 
-[Download Windows preview 0.1.0-local.6](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.6) · [Checksum and acceptance record](docs/local-release-0.1.0.md)
+[Download Windows preview 0.1.0-local.8](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.8) · [Checksum and acceptance record](docs/local-release-0.1.0.md)
 
 ## Local development
 

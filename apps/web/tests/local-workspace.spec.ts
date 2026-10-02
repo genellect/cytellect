@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
+import { expectGfpPreview } from "./image-preview";
 const root=path.resolve(__dirname,"../../..");
 const origin=process.env.CYTELLECT_WEB_URL||"http://127.0.0.1:8765";
 test("local package starts without invitation, processes real GFP, and retains work",async({page})=>{
@@ -55,6 +56,7 @@ test("local package starts without invitation, processes real GFP, and retains w
  await expect(page.getByRole("columnheader",{name:"GFP 補正平均",exact:true})).toBeVisible();
  const response=await page.request.get(origin+`/v1/revisions/${trial.revision_id}/measurements`);
  const report=await response.json();expect(report.cells.length).toBeGreaterThan(100);expect(report.nucleoli).toHaveLength(0);
+ await expectGfpPreview(page);
  if(screenshot)await page.screenshot({path:path.join(screenshot,"local-gfp-workbench.png"),fullPage:true});
  await page.getByLabel("領域、背景、対象選別、失敗・除外理由を確認しました。").check();
  await mutation("/review",()=>page.getByRole("button",{name:"品質確認を完了",exact:true}).click());
