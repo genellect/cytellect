@@ -9,6 +9,48 @@ from cytellect_analysis.masks import validate_labels
 from cytellect_analysis.synthetic import synthetic_field
 
 
+@pytest.mark.parametrize("recipe_id", ["ncl-native-2d", "gfp-nuclear-2d"])
+@pytest.mark.parametrize("shape", [(2049, 1), (1, 2049), (2048, 1319), (4096, 4096)])
+def test_automatic_detection_capacity_rejected_before_runtime_or_writes(tmp_path, monkeypatch, recipe_id, shape):
+    from cytellect_analysis import engine
+    from cytellect_worker.errors import SAFE_ERRORS
+
+    def forbidden_runtime(_):
+        pytest.fail("An over-capacity request must not inspect or launch Fiji")
+
+    monkeypatch.setattr(engine, "runtime_info", forbidden_runtime)
+    # Broadcast views exercise admission without allocating full image buffers.
+    pixels = np.broadcast_to(np.zeros((1, 1), dtype=np.uint16), shape)
+    channels = {"dapi": pixels, "ncl": pixels, "gfp": pixels}
+    output = tmp_path / "attempt"
+    with pytest.raises(EngineUnavailable, match="^fiji_detection_capacity_exceeded$"):
+        detect(channels, Recipe(id=recipe_id), output, "unused")
+    assert not output.exists()
+    assert "fiji_detection_capacity_exceeded" in SAFE_ERRORS
+
+
+@pytest.mark.parametrize("shape,reuse", [
+    ((1536, 1739), False),  # The published NCL field used in resource profiling.
+    ((2048, 1318), False),  # Just below the pixel ceiling and at the edge ceiling.
+    ((1800, 1500), False),  # Exactly 2,700,000 pixels.
+    ((4096, 4096), True),  # Supplied labels do not invoke automatic nuclei inference.
+])
+def test_capacity_admission_and_edited_nuclei_reuse(tmp_path, monkeypatch, shape, reuse):
+    from cytellect_analysis import engine
+
+    class RuntimeReached(Exception):
+        pass
+
+    def runtime_reached(_):
+        raise RuntimeReached
+
+    monkeypatch.setattr(engine, "runtime_info", runtime_reached)
+    pixels = np.broadcast_to(np.zeros((1, 1), dtype=np.uint16), shape)
+    labels = np.broadcast_to(np.zeros((1, 1), dtype=np.uint32), shape) if reuse else None
+    with pytest.raises(RuntimeReached):
+        detect({"dapi": pixels, "ncl": pixels}, Recipe(), tmp_path, "unused", nuclei=labels)
+
+
 def test_unconfigured_engine_fails_closed(tmp_path):
     channels, *_ = synthetic_field()
     with pytest.raises(EngineUnavailable, match="fiji_not_configured"):
@@ -33,6 +75,9 @@ def test_real_cpu_stardist_and_nucleoli(tmp_path, fiji):
     assert len(np.unique(nucleoli)) - 1 == 18
     validate_labels(nuclei, nucleoli)
     assert provenance["headless"] is True
+    assert provenance["automatic_detection_admission"] == {
+        "profile": "standard-2g", "applied": True, "max_side_px": 2048, "max_pixels": 2_700_000,
+    }
     assert provenance["model_sha256"] == "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3"
     assert all(np.array_equal(channels[key], original[key]) for key in channels)
     assert (tmp_path / "engine-result.json").is_file()
@@ -46,6 +91,7 @@ def test_edited_nuclei_preserved_and_uniform_signal_not_substituted(tmp_path, fi
     np.testing.assert_array_equal(detected, nuclei)
     assert np.count_nonzero(nucleoli) == 0
     assert set(info["nucleolar_status"].values()) == {"indeterminate"}
+    assert info["automatic_detection_admission"]["applied"] is False
 
 
 @pytest.mark.fiji

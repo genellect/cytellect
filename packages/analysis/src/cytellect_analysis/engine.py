@@ -14,9 +14,16 @@ import tifffile
 from .contracts import Recipe
 from .masks import validate_labels
 
+# Admission bounds for the fixed -Xmx2g bridge, not a guarantee for every image.
+# The pinned CSBDeep implementation retains predicted tiles; more tiles alone
+# do not bound total memory. Never silently resize a native quantitative input.
+AUTOMATIC_DETECTION_PROFILE = "standard-2g"
+MAX_AUTOMATIC_DETECTION_SIDE = 2048
+MAX_AUTOMATIC_DETECTION_PIXELS = 2_700_000
+
 
 class EngineUnavailable(RuntimeError):
-    """A required pinned engine component is unavailable."""
+    """The pinned engine cannot safely execute the requested operation."""
 
 
 def _assets() -> Path:
@@ -107,15 +114,20 @@ def detect(
                      "nucleolar_status": statuses, "nucleolar_algorithm": "legacy generalized Otsu compatibility pipeline"})
         (output_dir / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
         return nuclei, nucleoli, info
-    runtime, java, lock = runtime_info(executable)
-    output = output_dir.resolve()
-    output.mkdir(parents=True, exist_ok=True)
     shape = channels["dapi"].shape
     input_roles = ("dapi",) if recipe.id == "gfp-nuclear-2d" else ("dapi", "ncl")
     if len(shape) != 2 or any(channels[key].shape != shape for key in input_roles):
         raise ValueError("fiji_input_dimensions")
     if max(shape) > 4096 or any(channels[key].dtype not in (np.uint8, np.uint16) for key in input_roles):
         raise ValueError("fiji_input_format")
+    if nuclei is None and (
+        max(shape) > MAX_AUTOMATIC_DETECTION_SIDE
+        or shape[0] * shape[1] > MAX_AUTOMATIC_DETECTION_PIXELS
+    ):
+        raise EngineUnavailable("fiji_detection_capacity_exceeded")
+    runtime, java, lock = runtime_info(executable)
+    output = output_dir.resolve()
+    output.mkdir(parents=True, exist_ok=True)
     for name in input_roles:
         tifffile.imwrite(output / f"{name}.tif", channels[name], photometric="minisblack")
     if nuclei is not None:
@@ -161,6 +173,12 @@ def detect(
         "coordinate_transform": {"scale_x": 1, "scale_y": 1},
         "artifacts": [{"path": p["path"], "sha256": p["sha256"]} for p in lock["plugins"]],
         "java_executable_sha256": _sha(java),
+        "automatic_detection_admission": {
+            "profile": AUTOMATIC_DETECTION_PROFILE,
+            "applied": nuclei is None,
+            "max_side_px": MAX_AUTOMATIC_DETECTION_SIDE,
+            "max_pixels": MAX_AUTOMATIC_DETECTION_PIXELS,
+        },
     })
     # No local paths, image names, or submitted metadata in exported provenance.
     (output / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")

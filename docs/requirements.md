@@ -19,7 +19,7 @@ I03: Native 8/16-bit grayscale channel TIFF and verified single-series OME-TIFF 
 I04: Missing pixel size means px only. CZI initially converted with Bio-Formats. RGB TIFF is separate compatibility mode.
 I05: Immutable original measurement pixels; display LUT and detection preprocessing separate. Native masks canonical at original resolution; store detection coordinate transform.
 I06: User-confirmed background ROI median. Extranuclear pixels not automatically background. Save raw/corrected values and preserve native negative corrections.
-I07: Configurable initial limits 100 fields/workspace, 4096x4096 plane, 3 channels, 2 GiB total. Internal IDs for paths, not uploaded filenames.
+I07: Configurable input-security limits 100 fields/workspace, 4096x4096 plane, 3 channels, 2 GiB total. The input ceiling does not promise automatic detection at that size. The provisional standard-2g automatic-nucleus admission profile requires both sides ≤2048 px and total area ≤2,700,000 pixels; reject excess before Fiji without resizing. Reusing supplied nuclear masks bypasses automatic-nucleus admission, while input/worker limits still apply. Internal IDs for paths, not uploaded filenames.
 
 ## Segmentation, editing and metrics
 
