@@ -1,4 +1,5 @@
 import json
+import shutil
 import zipfile
 
 import numpy as np
@@ -11,8 +12,8 @@ from cytellect_analysis.figures import japanese_font, render_figures
 from cytellect_analysis.images import sha256
 from cytellect_analysis.masks import polygon_mask
 from cytellect_analysis.measurement import apply_gfp_gate, measure
-from cytellect_analysis.replay import replay
-from cytellect_analysis.statistics import analyze
+from cytellect_analysis.replay import remeasure, replay
+from cytellect_analysis.statistics import analyze, analyze_sensitivity
 
 
 def example(tmp_path):
@@ -44,6 +45,7 @@ def example(tmp_path):
         inputs[role] = {"sha256": sha256(path)}
         files.append((f"field/{role}.tif", path))
     config = {"recipe": recipe.model_dump(), "field_ids": ["field"], "exclusions": [],
+              "review_record": {"confirmed_at": 1.0, "accepted_invalidated_fields": []},
               "backgrounds": {"field": {"polygon": polygon, "confirmed": True}},
               "field_snapshot": {"field": {"metadata": metadata,
                   "image_info": {"inputs": inputs, "legacy": False, "channel_mapping": ["dapi", "ncl", "gfp"]}}}}
@@ -86,6 +88,137 @@ def test_csv_strings_do_not_become_spreadsheet_formulas(tmp_path):
     write_csv(path, [{"condition": "=1+1", "value": -2.5}, {"condition": "normal", "value": 2}])
     text = path.read_text(encoding="utf-8-sig")
     assert "'=1+1,-2.5" in text
+
+
+def test_replay_skips_only_explicitly_excluded_failed_fields(tmp_path):
+    report, config, masks, _ = example(tmp_path)
+    config["field_ids"].append("unreadable")
+    config["field_snapshot"]["unreadable"] = config["field_snapshot"]["field"]
+    config["exclusions"] = [{"field_id": "unreadable", "nucleus_id": None, "reason": "unreadable input"}]
+    report["excluded_failed_fields"] = [{"field_id": "unreadable", "reason": "unreadable input"}]
+    build_export_bundle(tmp_path / "export", report=report, config=config, provenance={}, field_masks=masks)
+    fresh = replay(tmp_path / "export" / "bundle", tmp_path / "originals", tmp_path / "replayed")
+    assert fresh["cells"] == report["cells"]
+    assert fresh["excluded_failed_fields"] == report["excluded_failed_fields"]
+    config["exclusions"] = []
+    build_export_bundle(tmp_path / "invalid", report=report, config=config, provenance={}, field_masks=masks)
+    with pytest.raises(ValueError, match="replay_excluded_field_inconsistent"):
+        replay(tmp_path / "invalid" / "bundle", tmp_path / "originals", tmp_path / "invalid-output")
+
+
+def test_diagnostic_bundle_needs_recorded_review_before_replay(tmp_path):
+    report, config, masks, _ = example(tmp_path)
+    config.pop("review_record")
+    build_export_bundle(tmp_path / "diagnostic", report=report, config=config, provenance={}, field_masks=masks)
+    with pytest.raises(ValueError, match="replay_requires_complete_reviewed_masks"):
+        replay(tmp_path / "diagnostic" / "bundle", tmp_path / "originals", tmp_path / "unreviewed")
+
+
+@pytest.mark.parametrize("removed", ["revision.json", "masks/field/labels.npz"])
+def test_replay_rejects_an_incomplete_hash_manifest(tmp_path, removed):
+    report, config, masks, _ = example(tmp_path)
+    build_export_bundle(tmp_path / "export", report=report, config=config, provenance={}, field_masks=masks)
+    manifest_path = tmp_path / "export" / "bundle" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"].pop(removed)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="replay_manifest_incomplete"):
+        replay(manifest_path.parent, tmp_path / "originals", tmp_path / "unhashed")
+
+
+def test_replay_uses_whole_field_exclusion_precedence(tmp_path):
+    report, config, masks, _ = example(tmp_path)
+    config["exclusions"] = [{"field_id": "field", "nucleus_id": 1, "reason": "specific object"},
+                            {"field_id": "field", "nucleus_id": None, "reason": "whole field"}]
+    report["cells"][0].update(excluded=True, exclusion_reason="whole field")
+    build_export_bundle(tmp_path / "export", report=report, config=config, provenance={}, field_masks=masks)
+    fresh = replay(tmp_path / "export" / "bundle", tmp_path / "originals", tmp_path / "replayed")
+    assert fresh["cells"] == report["cells"]
+
+
+def test_export_consumes_field_masks_without_materializing_all_fields(tmp_path):
+    report, config, masks, _ = example(tmp_path)
+    def records():
+        yield "field", masks["field"]
+        assert (tmp_path / "export" / "bundle" / "masks" / "field" / "labels.npz").is_file()
+        yield "second-field", masks["field"]
+    build_export_bundle(tmp_path / "export", report=report, config=config, provenance={}, field_masks=records())
+    assert (tmp_path / "export" / "bundle" / "masks" / "second-field" / "labels.npz").is_file()
+
+
+@pytest.mark.parametrize("with_alternate", [False, True])
+def test_replayed_statistics_and_figures_retain_adopted_revision(tmp_path, with_alternate):
+    report = {"revision_id": "adopted-revision", "cells": [], "nucleoli": [], "manual_rois": [],
+              "field_failures": [], "invalidated_nucleoli": []}
+    config = {"recipe": Recipe().model_dump(), "field_ids": [], "field_snapshot": {},
+              "backgrounds": {}, "exclusions": [],
+              "review_record": {"confirmed_at": 1.0, "accepted_invalidated_fields": []}}
+    masks = {}
+    for group, effect in (("A", 0), ("B", 4)):
+        for unit in range(3):
+            fid = f"{group}{unit}"
+            field_report, field_config, field_masks, _ = example(tmp_path / fid)
+            snapshot = field_config["field_snapshot"]["field"]
+            snapshot["metadata"].update(condition=group, experimental_unit=fid, sample=fid)
+            raw = tmp_path / "originals" / fid
+            shutil.copytree(tmp_path / fid / "originals" / "field", raw)
+            ncl = tifffile.imread(raw / "ncl.tif")
+            ncl[field_masks["field"]["nuclei"] > 0] += effect + unit
+            tifffile.imwrite(raw / "ncl.tif", ncl)
+            snapshot["image_info"]["inputs"]["ncl"]["sha256"] = sha256(raw / "ncl.tif")
+            channels = {role: tifffile.imread(raw / f"{role}.tif") for role in ("dapi", "ncl", "gfp")}
+            layers = field_masks["field"]
+            background = field_config["backgrounds"]["field"]
+            measured = measure(channels, layers["nuclei"], layers["nucleoli"],
+                               polygon_mask(ncl.shape, background["polygon"]), Recipe(),
+                               snapshot["metadata"], fid, layers["manual"])
+            for key, values in zip(("cells", "nucleoli", "manual_rois"), measured, strict=True):
+                report[key].extend(values)
+            config["field_ids"].append(fid)
+            config["field_snapshot"][fid] = snapshot
+            config["backgrounds"][fid] = background
+            masks[fid] = layers
+    report["cells"] = apply_gfp_gate(report["cells"], Recipe())
+    spec = StatisticsRequest(metric="ncl_nucleoplasm_mean_corrected", baseline="A", comparisons=[("A", "B")],
+                             independent_units_confirmed=True)
+    alternate_rows = {}
+    if with_alternate:
+        spec.sensitivity_region_revision_ids = ["alternate"]
+        alternate_config = json.loads(json.dumps(config))
+        alternate_config["recipe"]["nucleolar_method"] = "dapi-low"
+        snapshot_root = tmp_path / "statistics-job" / "alternatives" / "0"
+        snapshot_root.mkdir(parents=True)
+        for fid, layers in masks.items():
+            folder = snapshot_root / "masks" / fid
+            folder.mkdir(parents=True)
+            alternative = layers["nucleoli"].copy()
+            alternative[4] = 0
+            np.savez_compressed(folder / "labels.npz", **{**layers, "nucleoli": alternative})
+        alternate_report = remeasure(alternate_config, {**report, "revision_id": "alternate"},
+                                     snapshot_root / "masks", tmp_path / "originals")
+        for name, data in (("revision.json", {"id": "alternate", "config": alternate_config}),
+                           ("measurements.json", alternate_report), ("provenance.json", {"synthetic": True})):
+            (snapshot_root / name).write_text(json.dumps(data), encoding="utf-8")
+        alternate_rows["alternate"] = alternate_report["cells"]
+        assert alternate_report["cells"][0][spec.metric] != report["cells"][0][spec.metric]
+    result = analyze_sensitivity(report["cells"], spec, alternate_rows=alternate_rows)
+    if with_alternate:
+        result["region_sensitivity_sources"] = [{"revision_id": "alternate", "reviewed": True,
+            "relative_path": "alternatives/0", "nucleolar_definition": {"nucleolar_method": "dapi-low"}}]
+    result["revision_id"] = report["revision_id"]
+    build_export_bundle(tmp_path / "export", report=report, config=config, provenance={},
+                         field_masks=masks, statistics_results=[result],
+                         statistics_roots=[(0, tmp_path / "statistics-job")] if with_alternate else [])
+    replay(tmp_path / "export" / "bundle", tmp_path / "originals", tmp_path / "replayed")
+    folder = tmp_path / "replayed" / "statistics" / "0"
+    fresh = json.loads((folder / "result.json").read_text(encoding="utf-8"))
+    figure = json.loads((folder / "figure-data.json").read_text(encoding="utf-8"))
+    assert fresh["comparisons"] == result["comparisons"]
+    assert fresh["revision_id"] == figure["revision_id"] == "adopted-revision"
+    assert fresh["sensitivities"] == json.loads(json.dumps(result["sensitivities"]))
+    if with_alternate:
+        recalculated = json.loads((folder / "alternatives" / "0" / "measurements.json").read_text(encoding="utf-8"))
+        assert recalculated["cells"] == alternate_rows["alternate"]
 
 
 def statistical_result(language="en", kind="distribution"):

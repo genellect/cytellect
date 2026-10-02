@@ -879,6 +879,12 @@ export interface components {
             recipe?: components["schemas"]["Recipe"] | null;
             /** Field Ids */
             field_ids: string[];
+            /** Backgrounds */
+            backgrounds?: {
+                [key: string]: components["schemas"]["Background"];
+            } | null;
+            /** Exclusions */
+            exclusions?: components["schemas"]["Exclusion"][] | null;
         };
         /** ReviewInput */
         ReviewInput: {
@@ -919,7 +925,7 @@ export interface components {
              * @default ncl_log2_nucleoplasm_over_nucleoli
              * @enum {string}
              */
-            metric: "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release" | "ncl_nucleus_mean_corrected" | "gfp_mean_corrected" | "nucleolar_area_fraction" | "value";
+            metric: "ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release" | "value";
             /**
              * Mode
              * @default experimental-unit
@@ -965,6 +971,8 @@ export interface components {
             sensitivity_complete_dates: boolean;
             /** Sensitivity Legacy High Regions */
             sensitivity_legacy_high_regions?: (5 | 10 | 20)[];
+            /** Sensitivity Region Revision Ids */
+            sensitivity_region_revision_ids?: string[];
         };
         /** ValidationError */
         ValidationError: {

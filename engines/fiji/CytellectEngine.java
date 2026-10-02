@@ -49,6 +49,11 @@ public class CytellectEngine {
         }
     }
     static void execute(Path request) throws Exception {
+        execute(request, binary -> BinaryImages.componentsLabeling(binary,8,32));
+    }
+    // Package-private dependency boundary permits a fixed test helper to make a
+    // component operation fail. CLI/API requests cannot replace this function.
+    static void execute(Path request, java.util.function.Function<ByteProcessor,ImageProcessor> labelComponents) throws Exception {
         JsonObject root=JsonParser.parseString(Files.readString(request)).getAsJsonObject();
         if(root.has("roi_zip")) { verifyRois(root); return; }
         JsonObject recipe=root.getAsJsonObject("recipe");
@@ -110,6 +115,7 @@ public class CytellectEngine {
             int label=nucleus.getKey();int[] box=nucleus.getValue();
             if(!hasNcl) {statuses.addProperty(""+label,"not_applicable_no_ncl");continue;}
             int x0=box[0],y0=box[1],cw=box[2]-x0+1,ch=box[3]-y0+1;
+            try {
             float[] values=new float[cw*ch];int count=0;
             float low=Float.POSITIVE_INFINITY,high=Float.NEGATIVE_INFINITY;
             for(int y=0;y<ch;y++) for(int x=0;x<cw;x++) {
@@ -136,7 +142,7 @@ public class CytellectEngine {
                 }
             }
             if(recipe.get("split_touching").getAsBoolean()) new EDM().toWatershed(binary);
-            ImageProcessor components=BinaryImages.componentsLabeling(binary,8,32);
+            ImageProcessor components=labelComponents.apply(binary);
             Map<Integer,Integer> area=new TreeMap<>();
             for(int i=0;i<cw*ch;i++) {int id=(int)components.getf(i);if(id>0) area.merge(id,1,Integer::sum);}
             Map<Integer,Integer> ids=new HashMap<>();
@@ -145,6 +151,14 @@ public class CytellectEngine {
                 Integer id=ids.get((int)components.getf(x,y));if(id!=null) nucleoli[(y0+y)*w+x0+x]=id;
             }
             statuses.addProperty(""+label,ids.isEmpty()?"no_candidate":"candidates");
+            } catch (RuntimeException recoverable) {
+                // Never report an unfinished candidate mask as biological absence.
+                // Errors such as OOM, input loading, and StarDist failure remain fatal.
+                for(int y=0;y<ch;y++) for(int x=0;x<cw;x++) {
+                    int i=(y0+y)*w+x0+x;if(nuclei[i]==label) nucleoli[i]=0;
+                }
+                statuses.addProperty(""+label,"processing_failed");
+            }
         }
         save(nuclei,w,h,out.resolve("nuclei.tif"));save(nucleoli,w,h,out.resolve("nucleoli.tif"));
         JsonObject info=new JsonObject();
@@ -155,6 +169,7 @@ public class CytellectEngine {
         info.addProperty("model","Versatile (fluorescent nuclei)");
         info.addProperty("nucleolar_algorithm",!hasNcl?"not_applicable_no_ncl":dapiLow?"DAPI low percentile; MorphoLibJ 8-connectivity":"ImageJ 256-bin per-nucleus Otsu; MorphoLibJ 8-connectivity");
         info.addProperty("nuclei_reused",root.get("reuse_nuclei").getAsBoolean());
+        info.addProperty("nucleolar_status_protocol_version","1.1.0");
         info.add("nucleolar_status",statuses);
         Files.writeString(out.resolve("engine-result.json"),new GsonBuilder().setPrettyPrinting().create().toJson(info));
     }

@@ -20,6 +20,7 @@ from cytellect_analysis.contracts import (
 )
 from cytellect_analysis.images import read_tiff, render_preview, sha256
 from cytellect_analysis.masks import contours
+from cytellect_analysis.review import unresolved_nucleolar_failures
 from cytellect_analysis.synthetic import synthetic_field
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -600,6 +601,8 @@ def create_app(settings: Settings | None = None):
         report = read_json(root / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "resolve_or_explicitly_exclude_failed_fields")
+        if unresolved_nucleolar_failures(report, rev["config"]):
+            raise HTTPException(409, "resolve_or_explicitly_exclude_failed_nucleoli")
         invalidated = set(report.get("invalidated_nucleoli", []))
         if invalidated != set(body.accept_invalidated_fields):
             raise HTTPException(409, "explicit_review_of_invalidated_nucleoli_required")
@@ -623,6 +626,16 @@ def create_app(settings: Settings | None = None):
         rev = revision(rid, who)
         if rev["state"] != "succeeded" or not rev["reviewed"]:
             raise HTTPException(409, "review_required")
+        if unresolved_nucleolar_failures(read_json(result_root(rev) / "measurements.json"), rev["config"]):
+            raise HTTPException(409, "resolve_or_explicitly_exclude_failed_nucleoli")
+        from .region_sensitivity import validate_region_revision
+
+        for alternate_id in body.sensitivity_region_revision_ids:
+            alternate = revision(alternate_id, who)
+            try:
+                validate_region_revision(store, rev, alternate)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from None
         with store.transaction() as c:
             jid = queue(c, rev["workspace_id"], rid, "statistics", body.model_dump())
         return {"job_id": jid}
@@ -714,6 +727,8 @@ def create_app(settings: Settings | None = None):
         config.update(reuse_revision=rid, resegment_fields=body.field_ids)
         if body.recipe:
             old = Recipe.model_validate(config["recipe"])
+            if old != body.recipe and set(body.field_ids) != set(config["field_ids"]):
+                raise HTTPException(409, "resegment_changed_recipe_requires_all_fields")
             if old.legacy.target_long_dimension_px != body.recipe.legacy.target_long_dimension_px:
                 raise HTTPException(409, "nucleus_parameters_require_new_analysis")
             if not set(body.recipe.gfp_negative_control_fields).issubset(config["field_ids"]):
@@ -725,6 +740,19 @@ def create_app(settings: Settings | None = None):
                 if not required_channel_roles(body.recipe).issubset(snapshot["image_info"].get("channel_roles", ["dapi", "ncl", "gfp"])):
                     raise HTTPException(422, "recipe_required_channels_missing")
             config["recipe"] = body.recipe.model_dump()
+        if body.backgrounds is not None:
+            if not set(body.backgrounds).issubset(config["field_ids"]):
+                raise HTTPException(422, "unknown_background_field")
+            config["backgrounds"] = {fid: background.model_dump() for fid, background in body.backgrounds.items()}
+        if body.exclusions is not None:
+            if any(entry.field_id not in config["field_ids"] for entry in body.exclusions):
+                raise HTTPException(422, "unknown_exclusion_field")
+            config["exclusions"] = [entry.model_dump() for entry in body.exclusions]
+        excluded = {entry["field_id"] for entry in config["exclusions"] if entry["nucleus_id"] is None}
+        if config["recipe"]["id"] != "ncl-legacy-rgb":
+            for fid in set(config["field_ids"]) - excluded:
+                if not config["backgrounds"].get(fid, {}).get("confirmed"):
+                    raise HTTPException(422, "confirm_background_for_every_field")
         return child_revision(parent, config)
 
     @api.post("/v1/jobs/{jid}/retry", status_code=202)
@@ -757,9 +785,9 @@ def create_app(settings: Settings | None = None):
         workspace(wid, who)
         if settings.demo:
             raise HTTPException(403, "demo_accepts_synthetic_only")
-        content = await file.read(2 * 1024**2 + 1)
+        content = await file.read(8 * 1024**2 + 1)
         await file.close()
-        if len(content) > 2 * 1024**2:
+        if len(content) > 8 * 1024**2:
             raise HTTPException(413, "table_size_limit")
         parsed = parse_numeric_csv(content)
         tid = uid()
@@ -867,6 +895,11 @@ def create_app(settings: Settings | None = None):
             "comparisons.csv": "text/csv",
             "experimental-units.csv": "text/csv",
             "field-summary.csv": "text/csv",
+            "model-coefficients.csv": "text/csv",
+            "repeat-trend.csv": "text/csv",
+            "sensitivity-comparisons.csv": "text/csv",
+            "sensitivity-counts.csv": "text/csv",
+            "sensitivity-status.csv": "text/csv",
             "analysis.zip": "application/zip",
             "methods.md": "text/markdown",
         }

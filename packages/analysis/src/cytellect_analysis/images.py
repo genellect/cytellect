@@ -46,7 +46,7 @@ def _validate_ome_planes(tif, root):
             raise ValueError("grayscale_axes_required")
         if not records or len(tif.pages) != dims["C"]:
             raise ValueError("ome_plane_coverage_invalid")
-        mapping = {}
+        mapping: dict[int, int] = {}
         for record in records:
             attrs = record.attrib
             if int(attrs.get("FirstZ", "0")) != 0 or int(attrs.get("FirstT", "0")) != 0:
@@ -141,8 +141,9 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
             # Verify the library resolved every declared plane to the exact IFD;
             # never accept its warning-and-zero-fill recovery for damaged OME.
             resolved = list(series.pages)
-            if (len(resolved) != len(ome_mapping) or any(page is None for page in resolved)
-                    or any(page.offset != tif.pages[ome_mapping[i]].offset for i, page in enumerate(resolved))):
+            if (len(resolved) != len(ome_mapping)
+                    or any(page is None or page.offset != tif.pages[ome_mapping[i]].offset
+                           for i, page in enumerate(resolved))):
                 raise ValueError("ome_plane_coverage_invalid")
         array = series.asarray()
         for axis in "TZ":

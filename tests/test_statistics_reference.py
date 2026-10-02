@@ -84,6 +84,16 @@ def test_field_cluster_covariance_matches_explicit_sandwich():
     half_width = critical * math.sqrt(float(vector @ covariance @ vector))
     assert point["mean"] == pytest.approx(estimate)
     assert [point["ci_low"], point["ci_high"]] == pytest.approx([estimate-half_width, estimate+half_width])
+    # Newly exposed coefficient intervals use the same independently constructed
+    # sandwich, not a second model fit or a cell-independent standard error.
+    for index, coefficient in enumerate(result["model"]["coefficient_table"]):
+        error = math.sqrt(covariance[index, index])
+        assert coefficient["estimate"] == pytest.approx(beta[index])
+        assert coefficient["standard_error"] == pytest.approx(error)
+        assert coefficient["degrees_of_freedom"] == df
+        assert [coefficient["ci_low"], coefficient["ci_high"]] == pytest.approx(
+            [beta[index] - critical * error, beta[index] + critical * error])
+    assert result["model"]["gfp_relationship"]["term"] == "gfp_centered"
 
 
 
@@ -106,3 +116,33 @@ def test_self_covariate_and_partial_pair_metadata_are_rejected():
     rows.append({**rows[0], "pair": None})
     with pytest.raises(ValueError, match="unique_complete_pairs"):
         analyze(rows, spec(paired=True))
+
+
+def test_repeat_length_slope_uses_nonbaseline_fields_and_cluster_sandwich():
+    from test_statistics import request, rows
+    data = rows()
+    result = analyze(data, request(mode="exploratory"))
+    trend = [row for row in data if row["condition"] != "A"]
+    centers = {day: np.median([math.log2(row["gfp_mean_corrected"]) for row in data
+                              if row["acquisition_date"] == day]) for day in ("date0", "date1")}
+    x = np.array([[1., row["repeat_length"], math.log2(row["gfp_mean_corrected"]) - centers[row["acquisition_date"]],
+                   float(row["acquisition_date"] == "date1")] for row in trend])
+    y = np.array([row["ncl_nucleus_mean_corrected"] for row in trend])
+    bread = np.linalg.inv(x.T @ x)
+    beta = bread @ x.T @ y
+    residual = y - x @ beta
+    fields = sorted({row["field_id"] for row in trend})
+    scores = [x[[row["field_id"] == field for row in trend]].T
+              @ residual[[row["field_id"] == field for row in trend]] for field in fields]
+    g, n, k = len(fields), len(trend), x.shape[1]
+    covariance = bread @ sum(np.outer(s, s) for s in scores) @ bread * g / (g-1) * (n-1) / (n-k)
+    expected_error = math.sqrt(covariance[1, 1])
+    df = g - 1
+    density_scale = math.exp(math.lgamma((df+1)/2) - math.lgamma(df/2)) / math.sqrt(df * math.pi)
+    expected_p = 2 * quad(lambda t: density_scale * (1+t*t/df)**(-(df+1)/2), abs(beta[1]/expected_error), math.inf)[0]
+    actual = result["model"]["trend"]
+    assert actual["estimate"] == pytest.approx(beta[1])
+    assert actual["standard_error"] == pytest.approx(expected_error)
+    assert actual["p_value"] == pytest.approx(expected_p, rel=1e-8)
+    assert actual["degrees_of_freedom"] == 15
+    assert actual["baseline_excluded"] is True and actual["p_adjustment"] == "none"

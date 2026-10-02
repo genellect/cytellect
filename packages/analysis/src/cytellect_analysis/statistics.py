@@ -125,7 +125,7 @@ def _contrast(fit, vector):
 def _model(selected, request, groups, warnings):
     if request.paired:
         raise ValueError("paired_option_requires_experimental_unit_mode")
-    if request.metric == "gfp_mean_corrected":
+    if request.metric.startswith("gfp_"):
         raise ValueError("outcome_cannot_be_its_own_gfp_covariate")
     if "gfp_mean_corrected" not in selected:
         raise ValueError("gfp_required_for_exploratory_model")
@@ -165,6 +165,17 @@ def _model(selected, request, groups, warnings):
     selected["condition"] = pd.Categorical(selected.condition, categories=[
         request.baseline, *[g for g in groups if g != request.baseline]], ordered=True)
     fit = _cluster_fit(selected, formula)
+    coefficient_table = []
+    for index, term in enumerate(fit.params.index):
+        vector = np.zeros(len(fit.params))
+        vector[index] = 1
+        entry: dict[str, Any] = {"term": str(term), "p_adjustment": "none", "inference": "exploratory field-clustered CRV1"}
+        try:
+            entry.update(status="succeeded", **_contrast(fit, vector))
+        except ValueError:
+            entry.update(status="not_estimable", reason="coefficient_inference_not_estimable",
+                         estimate=float(fit.params.iloc[index]))
+        coefficient_table.append(entry)
     dates = sorted(selected.acquisition_date.unique())
     vectors, means, comparisons, predictions = {}, [], [], []
     for group in groups:
@@ -198,9 +209,12 @@ def _model(selected, request, groups, warnings):
                "gfp_excluded_count": removed,
                "adjusted_means": "GFP centered=0; equal weight across observed acquisition dates",
                "coefficients": {str(k): float(v) for k, v in fit.params.items()},
+               "coefficient_table": coefficient_table,
+               "gfp_relationship": next(row for row in coefficient_table if row["term"] == "gfp_centered"),
                "clusters": int(selected.field_id.nunique()), "inference_df": int(selected.field_id.nunique()) - 1,
                "gfp_coefficient": float(fit.params["gfp_centered"]),
-               "gfp_p_value": float(fit.pvalues["gfp_centered"]), "trend": None}
+               "gfp_p_value": float(fit.pvalues["gfp_centered"]), "trend": None,
+               "trend_status": "not_available", "trend_reason": "two_nonbaseline_repeat_lengths_required"}
     if "repeat_length" in selected:
         trend = selected[(selected.condition != request.baseline) & selected.repeat_length.notna()].copy()
         trend["repeat_length"] = pd.to_numeric(trend.repeat_length, errors="coerce")
@@ -213,8 +227,11 @@ def _model(selected, request, groups, warnings):
                 vector = np.zeros(len(fitted.params))
                 vector[list(fitted.params.index).index("repeat_length")] = 1
                 details["trend"] = {**_contrast(fitted, vector), "formula": tf, "baseline_excluded": True,
-                                    "clusters": int(trend.field_id.nunique())}
+                                    "clusters": int(trend.field_id.nunique()), "p_adjustment": "none",
+                                    "inference": "exploratory field-clustered CRV1"}
+                details.update(trend_status="succeeded", trend_reason=None)
             except ValueError:
+                details.update(trend_status="not_estimable", trend_reason="repeat_length_trend_not_estimable")
                 warnings.append("repeat_length_trend_not_estimable")
     return selected, means, comparisons, details
 
@@ -309,6 +326,9 @@ def analyze_sensitivity(rows, request: StatisticsRequest, alternate_rows=None):
     alternate_rows maps revision IDs to already remeasured, reviewed row lists. The caller
     must verify common input IDs/ownership/review; a metric column is not a new mask definition.
     """
+    requested = set(request.sensitivity_region_revision_ids)
+    if requested and set(alternate_rows or {}) != requested:
+        raise ValueError("region_sensitivity_snapshots_required")
     result = analyze(rows, request)
     results = []
     options = [(f"gfp_threshold:{threshold}", [
