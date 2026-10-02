@@ -30,6 +30,23 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ region_sensitivity_requires_native_ncl:"核小体領域の感度解析には通常NCLレシピの解析版を選択してください。",
+ region_sensitivity_fields_differ:"比較する解析版の対象視野が異なります。同じ視野を使った解析版を選択してください。",
+ region_sensitivity_inputs_or_metadata_differ:"比較する解析版の原画像または実験情報が異なります。",
+ region_sensitivity_backgrounds_differ:"比較する解析版の背景ROIが異なります。核小体領域だけを変更した版を選択してください。",
+ region_sensitivity_exclusions_differ:"比較する解析版の除外指定が異なります。核小体領域だけを変更した版を選択してください。",
+ region_sensitivity_nonregion_parameters_differ:"核小体以外の解析条件が異なります。同じGFP選別・核検出条件の版を選択してください。",
+ region_sensitivity_nuclear_or_manual_masks_differ:"比較する解析版の核または手動ROIが異なります。核小体領域だけを変更した版を選択してください。",
+ region_sensitivity_review_required:"比較する両方の解析版で品質確認を完了してください。",
+ region_sensitivity_complete_reviewed_masks_required:"未解決の失敗や再確認待ちの領域がある解析版は比較できません。",
+ region_sensitivity_measurement_protocol_differs:"測定方式の版が異なります。同じ測定方式で再測定してください。",
+
+ nucleolar_processing_failed:"核小体の処理に失敗した核があります。再検出、手動修正、または理由を記録して除外してください。",
+ detection_parameters_require_explicit_resegmentation:"核小体の検出条件を変更しました。核小体候補の再検出を実行してください。核検出条件の変更には新しい全視野解析が必要です。",
+ nucleus_parameters_require_new_analysis:"核の検出条件が変更されています。新しい全視野解析を実行してください。",
+ resegment_changed_recipe_requires_all_fields:"検出条件を変更した場合は、解析版の全視野に同じ条件を適用してください。",
+ field_analysis_failed:"この視野の解析に失敗しました。処理履歴と入力条件を確認してください。",
+
  fiji_temporary_path_too_long:"解析用の保存先パスが長すぎます。短い保存先での再セットアップが必要です。原画像は変更されていません。",
  fiji_temporary_path_invalid:"解析用の一時保存先が正しく設定されていません。セットアップを確認してください。",
  japanese_font_not_installed:"図に使用できる通常の太さの日本語フォントが見つかりません。フォント環境を確認してください。",

@@ -4,6 +4,7 @@ import { LOCAL_MODE, request } from "@/lib/api";
 import type { Recipe } from "@/lib/types";
 import styles from "./workspace.module.css";
 export default function UploadPanel({wid,onDone,run,demo}:{wid:string;onDone:(recipeId:Recipe["id"])=>void;run:(fn:()=>Promise<void>)=>void;demo:boolean}){
+ const [open,setOpen]=useState(false);
  const [mode,setMode]=useState("channels");const [purpose,setPurpose]=useState("ncl");const [includeGfp,setIncludeGfp]=useState(false);const [sending,setSending]=useState(false);
  const roles=mode==="legacy"?["dapi","ncl","gfp"]:purpose==="gfp"?["dapi","gfp"]:includeGfp?["dapi","ncl","gfp"]:["dapi","ncl"];
  const names:Record<string,string>={dapi:"核染色（DAPI等）",ncl:"NCL",gfp:"GFP"};
@@ -14,9 +15,9 @@ export default function UploadPanel({wid,onDone,run,demo}:{wid:string;onDone:(re
   data.set("channel_roles",JSON.stringify(roles));
   if(mode==="ome"){data.set("ome",source.get("ome")!);data.set("mapping",JSON.stringify(roles.map(role=>Number(source.get(role+"_index")))));}else for(const role of roles)data.set(role,source.get(role)!);
   data.set("legacy",String(mode==="legacy"));
-  setSending(true);try{await request(`/v1/workspaces/${wid}/fields`,{method:"POST",body:data});form.reset();onDone(mode==="legacy"?"ncl-legacy-rgb":purpose==="gfp"?"gfp-nuclear-2d":"ncl-native-2d");}finally{setSending(false);}
+  setSending(true);try{await request(`/v1/workspaces/${wid}/fields`,{method:"POST",body:data});form.reset();setOpen(false);onDone(mode==="legacy"?"ncl-legacy-rgb":purpose==="gfp"?"gfp-nuclear-2d":"ncl-native-2d");}finally{setSending(false);}
  }
- return <details className={styles.upload} open={false}><summary>＋ 画像を登録</summary>{demo?<p className={styles.notice}>この環境は合成データ専用です。研究画像をアップロードできません。</p>:<form onSubmit={e=>{e.preventDefault();run(()=>upload(e));}}>
+ return <details className={styles.upload} open={open} onToggle={e=>setOpen(e.currentTarget.open)}><summary>＋ 画像を登録</summary>{demo?<p className={styles.notice}>この環境は合成データ専用です。研究画像をアップロードできません。</p>:<form onSubmit={e=>{e.preventDefault();run(()=>upload(e));}}>
   <div className={styles.notice}>8/16-bitグレースケール2D TIFF、または単一シリーズ OME-TIFF（Z=1、T=1）。{LOCAL_MODE?"画像はローカルに保存されます。保存期限は最終操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。":"原画像は非公開APIへ直接送信します。"}</div>
   <div className={styles.formGrid}><label>入力形式<select aria-label="入力形式" value={mode} onChange={e=>setMode(e.target.value)}><option value="channels">チャンネル別TIFF</option><option value="ome">OME-TIFF（2–3チャンネル）</option><option value="legacy">RGB表示TIFF・互換モード</option></select></label>{mode!=="legacy"&&<label>測定対象<select aria-label="測定対象" value={purpose} onChange={e=>setPurpose(e.target.value)}><option value="ncl">NCL · 核と核小体</option><option value="gfp">GFP · 核内輝度</option></select></label>}</div>
   {mode!=="legacy"&&purpose==="ncl"&&<label className={styles.checkbox}><input type="checkbox" checked={includeGfp} onChange={e=>setIncludeGfp(e.target.checked)}/>GFPチャンネルも登録する</label>}
