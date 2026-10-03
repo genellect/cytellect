@@ -21,13 +21,18 @@ from .region_contracts import (
     RegionAnalysisRequest,
     RegionImageInfo,
     RegionNuclearRecipe,
+    region_report_from_json,
     scientific_specification,
+    validate_region_report_policy,
 )
-from .regions import _array_hash, measure_regions
+from .region_measurement_v2 import measure_regions_versioned
+from .regions import _array_hash
 from .roi import export_roi_zip
 
 FORMAT = "cytellect-region-reproducibility/1"
 METHODS_VERSION = "1.1.0"
+AREA_FORMAT = "cytellect-region-reproducibility/2"
+AREA_METHODS_VERSION = "1.2.0"
 
 
 def _json(path: Path, value):
@@ -52,7 +57,7 @@ def _request(config):
     if config.get("analysis_kind") != "region-2d":
         raise ValueError("region_bundle_kind_mismatch")
     request = RegionAnalysisRequest.model_validate({
-        key: config[key] for key in ("field_ids", "recipe", "backgrounds", "exclusions") if key in config
+        key: config[key] for key in ("field_ids", "recipe", "backgrounds", "exclusions", "measurement") if key in config
     })
     if not request.field_ids or set(config.get("field_snapshot", {})) != set(request.field_ids):
         raise ValueError("region_bundle_snapshot_invalid")
@@ -61,24 +66,30 @@ def _request(config):
 
 def region_methods(config, report, provenance):
     request = _request(config)
+    validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
+    area_only = request.measurement is not None
     nuclear = isinstance(request.recipe, RegionNuclearRecipe)
     initial = ("Initial masks: a confirmed nuclear-stain channel was submitted to the fixed offline Fiji/StarDist 2D "
                "Versatile (fluorescent nuclei) model. This model defines nuclei, not whole cells or nucleoli."
                if nuclear else f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.")
     lines = ["# Cytellect region measurement Methods", "",
              "Generated from recorded settings; review the biological definitions before publication.", "",
-             f"Methods template {METHODS_VERSION}; region measurement protocol 1.0.0.",
+             (f"Methods template {AREA_METHODS_VERSION}; region measurement protocol 2.0.0." if area_only else
+              f"Methods template {METHODS_VERSION}; region measurement protocol 1.0.0."),
              f"Analysis revision: {report['revision_id']}.",
              f"Region definition: {request.recipe.label}; logical ID {request.recipe.region_set_id}.",
              initial,
              "Saved integer labels in original image coordinates define measured pixel unions. "
              "A region ID does not by itself establish a whole biological cell.",
              "Measurement uses unchanged native 8/16-bit grayscale values. Display LUTs are not measurements.",
-             "For each channel, a user-confirmed ROI outside all measured regions supplies the background median. "
+             ("Area-only measurement was requested. No fluorescence summary, signal-saturation fraction or "
+              "background correction was calculated; unavailable values are null with explicit not-requested reasons." if area_only else
+              "For each channel, a user-confirmed ROI outside all measured regions supplies the background median. "
              "Raw mean, midpoint median and pixel sum are reported with their background-subtracted counterparts. "
-             "Negative corrected intensities remain signed; integrated intensity is not concentration.",
-             "Physical area requires confirmed X and Y pixel sizes; otherwise only pixel area is available. "
-             "Storage-limit and confirmed acquisition-saturation fractions are distinct; unknown limits remain missing.", ""]
+              "Negative corrected intensities remain signed; integrated intensity is not concentration."),
+             ("Physical area requires confirmed X and Y pixel sizes; otherwise only pixel area is available." if area_only else
+              "Physical area requires confirmed X and Y pixel sizes; otherwise only pixel area is available. "
+              "Storage-limit and confirmed acquisition-saturation fractions are distinct; unknown limits remain missing."), ""]
     if isinstance(request.recipe, RegionNuclearRecipe):
         detector = request.recipe.detector
         lines.extend([
@@ -180,6 +191,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
                         raw_files=(), statistics_results=(), include_raw=False):
     """Bundle owned server paths only; public URL/access checks belong to the API."""
     request = _request(config)
+    validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
     if report.get("analysis_kind") != "region-2d" or report.get("recipe") != request.recipe.model_dump(mode="json"):
         raise ValueError("region_bundle_report_mismatch")
     mask_files = dict(mask_files)
@@ -217,7 +229,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
         export_roi_zip(labels, folder / "regions-rois.zip")
         # Failed fields may have invalid background geometry; its original input
         # is retained in config, without falsely exporting a confirmed raster.
-        if fid in report["field_tables"]:
+        if fid in report["field_tables"] and request.measurement is None:
             for cid, background in request.backgrounds[fid].items():
                 mask = polygon_mask(labels.shape, background.polygon)
                 np.save(_safe_path(folder, f"background-{cid}.npy"), mask, allow_pickle=False)
@@ -259,7 +271,8 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
         "It does not confirm biological annotation correctness. Keep input and output directories private.\n", encoding="utf-8")
     members = sorted(path for path in content.rglob("*") if path.is_file())
     _json(content / "manifest.json", {
-        "format": FORMAT, "revision_id": report["revision_id"], "raw_included": include_raw, "raw_files": raw_manifest,
+        "format": AREA_FORMAT if request.measurement is not None else FORMAT,
+        "revision_id": report["revision_id"], "raw_included": include_raw, "raw_files": raw_manifest,
         "replay_scope": "saved masks of measured fields -> measurements -> recorded statistics and figures; failures preserved",
         "files": {path.relative_to(content).as_posix(): sha256(path) for path in members},
     })
@@ -277,7 +290,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
 def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     """Recompute successful fields with saved masks; retain failure diagnostics."""
     manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("format") != FORMAT:
+    if manifest.get("format") not in (FORMAT, AREA_FORMAT):
         raise ValueError("region_bundle_format_unsupported")
     for relative, expected_hash in manifest["files"].items():
         path = _safe_path(bundle_dir, relative)
@@ -287,6 +300,14 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     config = record["config"]
     request = _request(config)
     report = json.loads((bundle_dir / "measurements.json").read_text(encoding="utf-8"))
+    validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
+    expected_format = AREA_FORMAT if request.measurement is not None else FORMAT
+    if manifest["format"] != expected_format:
+        raise ValueError("region_measurement_protocol_mismatch")
+    if request.measurement is not None and (
+            any(re.fullmatch(r"masks/[^/]+/background-[^/]+\.npy", name) for name in manifest["files"])
+            or any((bundle_dir / "masks").glob("*/background-*.npy"))):
+        raise ValueError("region_area_only_backgrounds_forbidden")
     if record["id"] != report["revision_id"] or manifest["revision_id"] != report["revision_id"]:
         raise ValueError("region_bundle_revision_mismatch")
     output_dir.mkdir(parents=True, exist_ok=False)
@@ -307,11 +328,12 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         validate_label_array(labels)
         if _array_hash(labels, "<u4") != mask_record["mask_sha256"] or list(labels.shape) != mask_record["shape"]:
             raise ValueError("region_bundle_mask_pixels_mismatch")
-        backgrounds = {cid: polygon_mask(labels.shape, background.polygon)
-                       for cid, background in request.backgrounds[fid].items()}
-        table = measure_regions(channels, labels, backgrounds, scientific_specification(
+        backgrounds = ({cid: polygon_mask(labels.shape, background.polygon)
+                        for cid, background in request.backgrounds[fid].items()}
+                       if request.measurement is None else {})
+        table = measure_regions_versioned(channels, labels, backgrounds, scientific_specification(
             field_id=fid, revision_id=report["revision_id"], mask_revision_id=mask_record["mask_revision_id"],
-            recipe=request.recipe, image_info=info,
+            recipe=request.recipe, image_info=info, measurement=request.measurement,
         ))
         tables[fid] = table.model_dump(mode="json")
     reproduced = {**report, "field_tables": tables}

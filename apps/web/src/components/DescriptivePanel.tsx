@@ -12,11 +12,11 @@ import RegionTraceTable from "./RegionTraceTable";
 import styles from "./workspace.module.css";
 
 export type DescriptiveOption = {id:string;label:string;selection:DescriptiveSelection};
-type Props = {revisionId?:string;reviewed:boolean;options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;run:(fn:()=>Promise<void>)=>void;fieldLabels?:Record<string,string>;revisionLabels?:Record<string,string>;onInspectField?:(fieldId:string,revisionId:string)=>void;onInspectRegion?:(target:RegionTraceTarget)=>void;traceBlocked?:boolean;planSelection?:PlanResolution|null};
+type Props = {revisionId?:string;reviewed:boolean;options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;run:(fn:()=>Promise<void>)=>void;fieldLabels?:Record<string,string>;revisionLabels?:Record<string,string>;onInspectField?:(fieldId:string,revisionId:string)=>void;onInspectRegion?:(target:RegionTraceTarget)=>void;traceBlocked?:boolean;planSelection?:PlanResolution|null;backgroundRequired?:boolean};
 const files:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","field-summary.csv":"視野別の要約","selection.csv":"採用・除外の記録","missingness.csv":"欠測の記録","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
 const jobStatuses:Record<string,string>={queued:"図の生成を待っています。",running:"図と元データを生成しています。",failed:"図を生成できませんでした。",cancelled:"図の生成を中止しました。"};
 
-export default function DescriptivePanel({revisionId,reviewed,options,jobs,blocked,dirty,run,fieldLabels={},revisionLabels={},onInspectField,onInspectRegion,traceBlocked=false,planSelection}:Props){
+export default function DescriptivePanel({revisionId,reviewed,options,jobs,blocked,dirty,run,fieldLabels={},revisionLabels={},onInspectField,onInspectRegion,traceBlocked=false,planSelection,backgroundRequired=true}:Props){
  const [choice,setChoice]=useState("");
  const [language,setLanguage]=useState("en");
  const [preset,setPreset]=useState("nature-double");
@@ -43,7 +43,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
     <label>図の幅<select aria-label="記述図の幅" value={preset} onChange={e=>setPreset(e.target.value)}><option value="nature-single">89 mm</option><option value="nature-double">183 mm</option></select></label>
    </div>
    <p className={styles.small}>SVG・PDFは編集可能な文字で出力します。撮影条件や領域定義の妥当性は、画像と解析記録で確認してください。</p>
-   {!reviewed&&<p className={styles.notice}>領域・背景・失敗や除外の理由を確認してから、図を作成できます。</p>}
+    {!reviewed&&<p className={styles.notice}>{backgroundRequired?"領域・背景・失敗や除外の理由を確認してから、図を作成できます。":"領域・面積・失敗や除外の理由を確認してから、図を作成できます。"}</p>}
    {dirty&&<p className={styles.notice}>未反映の変更があります。再測定して品質確認を完了してください。</p>}
    <button className={styles.primary} disabled={submitting||blocked||dirty||!reviewed||!revisionId||!option} onClick={()=>run(async()=>{
     if(!option)return;

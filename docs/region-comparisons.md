@@ -19,6 +19,15 @@ The adapter validates the saved mask identity, image shape, calibration, actual
 channel metadata and area agreement between channel rows before selecting values.
 It shares this validation with descriptive figures.
 
+The area-only development increment supports measurement protocol 2.0.0 without
+changing this comparison protocol or its inference formulas. Report, saved
+configuration and tables must agree on the explicit area policy. An intensity
+selector is unavailable; both area metrics remain channel-neutral. Pixel-area
+comparison still requires confirmed comparable spatial sampling. Physical-area
+comparison requires actual XY calibration; differing calibrations require the
+explicit calibrated-area acquisition basis. No zero background or experimental
+unit is invented. These source changes are not yet merged or distributed.
+
 Record the independently allocated experimental unit and, for a paired design,
 the matching basis and pair identifiers. Define the units from the experimental
 allocation, not by simply treating all images, wells or cells as independent. The
@@ -160,6 +169,12 @@ checks original file hashes and remeasures saved masks, then repeats aggregation
 inference and figures. A matching numerical replay does not validate segmentation
 annotations, experimental independence or the biological conclusion. Failed and
 unmeasured fields remain diagnostic and are not reassessed during replay.
+
+For protocol 2.0.0, the fingerprint additionally includes its measurement policy.
+Old v1 fingerprints keep their original shape; area-only results cannot be
+attached to a v1 configuration. The new bundle `/2` remeasures area and repeats
+the same field → sample → unit aggregation, Welch/paired tests and complete
+Holm family. See [area-only contracts and bounded evidence](generic-regions.md).
 
 ## Evidence and remaining limits
 

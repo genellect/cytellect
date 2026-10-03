@@ -8,11 +8,24 @@ from pathlib import Path
 import numpy as np
 from matplotlib.text import Text
 
+from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest
 from .exports_csv import write_csv
 from .figures import LABELS, _validate_text_layout, figure_settings, plt, select_font
 
 FIGURE_VERSION = "1.0.1"
+
+
+def _source_measurement_policy(result):
+    if result.get("source_kind") != "region-2d":
+        return None
+    policies = [region_report_measurement_policy({
+        "protocol_version": field.get("measurement_protocol", "1.0.0"),
+        "measurement": field.get("measurement"),
+    }) for field in result["source_fields"]]
+    if not policies or any(policy != policies[0] for policy in policies[1:]):
+        raise ValueError("region_measurement_protocol_mismatch")
+    return policies[0]
 
 
 def _selected_channel(result):
@@ -25,6 +38,7 @@ def _selected_channel(result):
 
 def _caption(result, labels):
     ja = result["spec"]["plot"]["language"] == "ja"
+    area_only = _source_measurement_policy(result) is not None
     numeric = result["source_kind"] == "measured-numerical-assay"
     observation = {"regions": ("regions", "領域"), "nuclei": ("nuclei", "核"),
                    "observations": ("observations", "観測値")}[result["observation_kind"]][ja]
@@ -68,7 +82,9 @@ def _caption(result, labels):
                      f"status={summary['status']}; definition={definition}; {identity}")
     for item in result.get("excluded_failed_fields", []):
         lines.append(f"- Explicitly excluded failed field: {item['field_id']}; reason={item['reason']}.")
-    lines += ["", "Selection reasons, source revisions, masks, backgrounds and channel identities are recorded in "
+    lines += ["", ("Selection reasons, source revisions, masks, area-only measurement policy and channel identities are recorded in "
+                   if area_only else
+                   "Selection reasons, source revisions, masks, backgrounds and channel identities are recorded in ") +
               "figure-data.json and source tables. Review the recorded measurement definition before publication.",
               "A journal-size preset controls formatting; it does not establish biological validity or journal acceptance."]
     lines.extend(f"- {warning}" for warning in result["warnings"])
@@ -78,6 +94,7 @@ def _caption(result, labels):
 def descriptive_methods(result):
     """Record the selected protocol rather than borrowing inferential Methods text."""
     spec = DescriptiveRequest.model_validate(result["spec"])
+    policy = _source_measurement_policy(result)
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.", "",
              f"Descriptive protocol: {result['descriptive_version']}; source: {result['source_kind']}.",
              f"Selector: {json.dumps(spec.selection.model_dump(), ensure_ascii=False, sort_keys=True)}.",
@@ -87,11 +104,19 @@ def descriptive_methods(result):
              "No hypothesis test, regression, standard error or confidence interval was calculated. "
              "Known sample or condition labels were retained as metadata, not evidence of independence or comparability.",
              "Saved exclusions and selection flags were preserved. Missing outcomes were counted with reasons, "
-             "not replaced with zeros. Native negative background-corrected values were retained.",
+             "not replaced with zeros. " + ("Area-only measurement was requested under measurement protocol 2.0.0 "
+             f"and policy {policy.version} ({policy.mode}). Region area was computed from reviewed masks in original image coordinates. "
+             "Pixel areas count mask pixels; physical areas use the saved confirmed X and Y pixel sizes when available. "
+             "Fluorescence intensity and signal-saturation fractions were not measured. "
+             "Background estimation and correction were not performed." if policy is not None else
+             "Native negative background-corrected values were retained."),
              "Generic-region area repeated across channels was checked for agreement and counted once per region. "
-             "Region identity does not establish one biological cell. Integrated intensity is a pixel sum, not concentration.",
+             "Region identity does not establish one biological cell." + ("" if policy is not None else
+             " Integrated intensity is a pixel sum, not concentration."),
              "No new normalization, image processing or selection was performed by this descriptive protocol.",
-             "Input, channel, mask and background provenance is stored in figure-data.json. Original acquisition settings "
+             ("Input, channel, mask, calibration and area-only policy provenance is stored in figure-data.json. "
+              if policy is not None else
+              "Input, channel, mask and background provenance is stored in figure-data.json. ") + "Original acquisition settings "
              "and biological suitability require researcher review. Output contains research information and must remain private.", "",
              "Selection: " + json.dumps(result["selection"], ensure_ascii=False, sort_keys=True),
              "Warnings: " + "; ".join(result["warnings"]), ""]

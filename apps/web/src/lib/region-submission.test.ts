@@ -21,4 +21,7 @@ describe("generic detection scope preserves explicit edits",()=>{
   expect(regionSubmission(config,{...active,state:"failed"},["first"],"first","batch").reuse_revision).toBeNull();
   expect(sameRegionRecipe(config.recipe,regionRecipe)).toBe(false);
  });
+ it("keeps exact masks when measurement policy changes under the same region recipe",()=>{
+  expect(regionSubmission({...config,measurement:{version:"1.0.0",mode:"area_only"}},active,["first","second"],"first","batch")).toMatchObject({reuse_revision:"corrected",preservedCount:1,replacedCount:0,confirmationRequired:false,recipeChanged:false});
+ });
 });

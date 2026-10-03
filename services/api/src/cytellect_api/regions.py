@@ -18,7 +18,10 @@ from cytellect_analysis.region_contracts import (
     RegionImageInfo,
     RegionMaskEdit,
     RegionMetadataEdit,
-    RegionReport,
+    RegionReportType,
+    region_report_from_json,
+    region_request_config,
+    validate_region_report_policy,
 )
 from cytellect_analysis.region_metadata import region_metadata_child_config
 from fastapi import Depends, File, Form, HTTPException, Response, UploadFile
@@ -79,6 +82,10 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 ):
                     raise HTTPException(422, "fiji_detection_capacity_exceeded")
             if f["id"] in excluded:
+                continue
+            if body.measurement is not None:
+                # The request model requires exactly {} for area-only; absence
+                # of background is never converted into a zero-valued ROI.
                 continue
             backgrounds = body.backgrounds.get(f["id"], {})
             if set(backgrounds) != channels:
@@ -245,11 +252,12 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             reused_masks = read_json(root / "measurements.json").get("field_masks", {})
         validate_request(body, selected, reused_masks)
         rid = uid()
-        config = {**body.model_dump(mode="json"), "analysis_kind": "region-2d",
+        config = {**region_request_config(body), "analysis_kind": "region-2d",
                   "field_ids": [f["id"] for f in selected], "field_snapshot": {f["id"]: f for f in selected}}
         if parent is not None and "plan_resolution" not in body.model_fields_set:
             inherit_plan_resolution(config, parent["config"])
-        bind_revision_plan(config, workspace_record.get("analysis_plan"))
+        bind_revision_plan(config, workspace_record.get("analysis_plan"),
+                           parent_config=parent["config"] if parent is not None else None)
         with store.transaction() as conn:
             w = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
             if parent is not None and w["active_revision"] != parent["id"]:
@@ -260,11 +268,13 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             conn.execute(update(workspaces).where(workspaces.c.id == wid).values(active_revision=rid))
         return {"revision_id": rid, "job_id": jid}
 
-    @api.get("/v1/revisions/{rid}/region-measurements", response_model=RegionReport)
+    @api.get("/v1/revisions/{rid}/region-measurements", response_model=RegionReportType)
     def measurements(rid: str, who: Owner):
         rev = region_revision(rid, who)
         report = read_json(result_root(rev) / "measurements.json")
-        return RegionReport.model_validate_json(json.dumps(report))
+        typed = region_report_from_json(json.dumps(report))
+        validate_region_report_policy(typed, rev["config"])
+        return typed
 
     @api.get("/v1/revisions/{rid}/region-masks")
     def masks(rid: str, field_id: str, who: Owner):
@@ -308,10 +318,16 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         selected = list(parent["config"]["field_snapshot"].values())
         validate_request(body, selected, read_json(root / "measurements.json").get("field_masks", {}))
         config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit")}
-        config.update(body.model_dump(mode="json", exclude={"field_ids"}), reuse_revision=rid)
+        # Returning to v1 removes the v2 policy instead of retaining it through
+        # an update of the old revision dictionary. Other v1 defaults stay exact.
+        config.pop("measurement", None)
+        request_config = region_request_config(body)
+        request_config.pop("field_ids", None)
+        config.update(request_config, reuse_revision=rid)
         if "plan_resolution" not in body.model_fields_set:
             inherit_plan_resolution(config, parent["config"])
-        bind_revision_plan(config, workspace(parent["workspace_id"], who).get("analysis_plan"))
+        bind_revision_plan(config, workspace(parent["workspace_id"], who).get("analysis_plan"),
+                           parent_config=parent["config"])
         return child_revision(parent, config)
 
     @api.post("/v1/revisions/{rid}/region-metadata", status_code=202)

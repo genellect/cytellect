@@ -769,6 +769,21 @@ export interface components {
             exclusions?: components["schemas"]["Exclusion"][];
             plan_resolution?: components["schemas"]["PlanResolution"] | null;
         };
+        /** AreaBackgroundProvenance */
+        AreaBackgroundProvenance: {
+            /**
+             * Status
+             * @default not_measured
+             * @constant
+             */
+            status: "not_measured";
+            /**
+             * Reason
+             * @default not_required_for_area
+             * @constant
+             */
+            reason: "not_required_for_area";
+        };
         /** Background */
         Background: {
             /** Polygon */
@@ -860,6 +875,23 @@ export interface components {
             background_median: number;
             /** Storage Maximum */
             storage_maximum: number;
+        };
+        /** ChannelProvenanceV2 */
+        ChannelProvenanceV2: {
+            channel: components["schemas"]["ChannelSpec"];
+            /**
+             * Dtype
+             * @enum {string}
+             */
+            dtype: "uint8" | "uint16";
+            /** Pixel Sha256 */
+            pixel_sha256: string;
+            /**
+             * Storage Maximum
+             * @enum {integer}
+             */
+            storage_maximum: 255 | 65535;
+            background: components["schemas"]["AreaBackgroundProvenance"];
         };
         /** ChannelSpec */
         ChannelSpec: {
@@ -1334,15 +1366,16 @@ export interface components {
             required_channel_roles: ("image" | "measurement" | "nuclear-stain" | "ncl" | "gfp")[];
             /** Actual Review Required */
             actual_review_required: ("native-input" | "channel-mapping" | "nuclear-stain" | "background-rois" | "region-definition" | "metric-selection" | "mask-quality" | "gfp-gate" | "calibration-for-physical-area")[];
+            measurement?: components["schemas"]["RegionMeasurementPolicy"] | null;
         };
         /** PlanDecision */
         PlanDecision: {
             /**
              * Version
              * @default 2.0.0
-             * @constant
+             * @enum {string}
              */
-            version: "2.0.0";
+            version: "2.0.0" | "2.1.0";
             /**
              * Status
              * @default planning-only-not-adopted
@@ -1395,9 +1428,9 @@ export interface components {
             format: "cytellect-analysis-plan";
             /**
              * Version
-             * @constant
+             * @enum {string}
              */
-            version: "2.0.0";
+            version: "2.0.0" | "2.1.0";
             answers: components["schemas"]["PlanAnswers"];
         };
         /** PlanReference */
@@ -1417,9 +1450,9 @@ export interface components {
             /**
              * Version
              * @default 1.0.0
-             * @constant
+             * @enum {string}
              */
-            version: "1.0.0";
+            version: "1.0.0" | "1.1.0";
             /** Plan Sha256 */
             plan_sha256: string;
             /**
@@ -1436,6 +1469,7 @@ export interface components {
              * @default false
              */
             changes_acknowledged: boolean;
+            measurement?: components["schemas"]["RegionMeasurementPolicy"] | null;
         };
         /** PlanSnapshot */
         PlanSnapshot: {
@@ -1585,6 +1619,7 @@ export interface components {
             /** Reuse Revision */
             reuse_revision?: string | null;
             plan_resolution?: components["schemas"]["PlanResolution"] | null;
+            measurement?: components["schemas"]["RegionMeasurementPolicy"] | null;
             /** Recipe */
             recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
             /** Backgrounds */
@@ -1917,6 +1952,19 @@ export interface components {
             /** Expected Mask Revision Id */
             expected_mask_revision_id?: string | null;
         };
+        /** RegionMeasurementPolicy */
+        RegionMeasurementPolicy: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "area_only";
+        };
         /** RegionMeasurementRow */
         RegionMeasurementRow: {
             /** Field Id */
@@ -1958,6 +2006,60 @@ export interface components {
             /** Touches Border */
             touches_border: boolean;
         };
+        /** RegionMeasurementRowV2 */
+        RegionMeasurementRowV2: {
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Region Id */
+            region_id: number;
+            /** Channel Id */
+            channel_id: string;
+            /** Area Px */
+            area_px: number;
+            /** Area Um2 */
+            area_um2: number | null;
+            /** Area Missing Reason */
+            area_missing_reason: "calibration_unknown" | null;
+            /** Mean */
+            mean: null;
+            /** Median */
+            median: null;
+            /** Integrated */
+            integrated: null;
+            /** Mean Corrected */
+            mean_corrected: null;
+            /** Median Corrected */
+            median_corrected: null;
+            /** Integrated Corrected */
+            integrated_corrected: null;
+            /**
+             * Intensity Missing Reason
+             * @constant
+             */
+            intensity_missing_reason: "not_requested";
+            /** Storage Limit Fraction */
+            storage_limit_fraction: null;
+            /**
+             * Storage Limit Missing Reason
+             * @constant
+             */
+            storage_limit_missing_reason: "not_requested";
+            /** Acquisition Saturation Fraction */
+            acquisition_saturation_fraction: null;
+            /**
+             * Acquisition Saturation Missing Reason
+             * @constant
+             */
+            acquisition_saturation_missing_reason: "not_requested";
+            /** Touches Border */
+            touches_border: boolean;
+        };
         /** RegionMeasurementTable */
         RegionMeasurementTable: {
             /**
@@ -1994,6 +2096,44 @@ export interface components {
             channel_provenance: components["schemas"]["ChannelProvenance"][];
             /** Rows */
             rows: components["schemas"]["RegionMeasurementRow"][];
+        };
+        /** RegionMeasurementTableV2 */
+        RegionMeasurementTableV2: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             * @constant
+             */
+            protocol_version: "2.0.0";
+            measurement: components["schemas"]["RegionMeasurementPolicy"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "no_regions";
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            region_set: components["schemas"]["RegionSetSpec"];
+            /** Shape Yx */
+            shape_yx: [
+                number,
+                number
+            ];
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /**
+             * Hash Format
+             * @default cytellect-array-v1
+             * @constant
+             */
+            hash_format: "cytellect-array-v1";
+            calibration: components["schemas"]["Calibration2D"] | null;
+            /** Channel Provenance */
+            channel_provenance: components["schemas"]["ChannelProvenanceV2"][];
+            /** Rows */
+            rows: components["schemas"]["RegionMeasurementRowV2"][];
         };
         /** RegionMetadataEdit */
         RegionMetadataEdit: {
@@ -2080,9 +2220,8 @@ export interface components {
              */
             analysis_kind: "region-2d";
             /**
-             * Protocol Version
-             * @default 1.0.0
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             protocol_version: "1.0.0";
             /** Revision Id */
@@ -2092,6 +2231,46 @@ export interface components {
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
+            };
+            /** Field Masks */
+            field_masks: {
+                [key: string]: components["schemas"]["RegionFieldMask"];
+            };
+            /** Field Outcomes */
+            field_outcomes: {
+                [key: string]: "measured" | "no_regions" | "failed" | "excluded_failed";
+            };
+            /** Field Failures */
+            field_failures: components["schemas"]["RegionFieldFailure"][];
+            /** Excluded Failed Fields */
+            excluded_failed_fields: components["schemas"]["RegionExcludedFailure"][];
+            /** Exclusions */
+            exclusions: components["schemas"]["RegionExclusion"][];
+        };
+        /**
+         * RegionReportV2
+         * @description Explicit area-only report; v1 persisted data retains its original model.
+         */
+        RegionReportV2: {
+            /**
+             * Analysis Kind
+             * @default region-2d
+             * @constant
+             */
+            analysis_kind: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "2.0.0";
+            measurement: components["schemas"]["RegionMeasurementPolicy"];
+            /** Revision Id */
+            revision_id: string;
+            /** Recipe */
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
+            /** Field Tables */
+            field_tables: {
+                [key: string]: components["schemas"]["RegionMeasurementTableV2"];
             };
             /** Field Masks */
             field_masks: {
@@ -3519,7 +3698,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegionReport"];
+                    "application/json": components["schemas"]["RegionReport"] | components["schemas"]["RegionReportV2"];
                 };
             };
             /** @description Validation Error */

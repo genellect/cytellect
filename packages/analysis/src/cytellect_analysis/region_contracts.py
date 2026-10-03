@@ -5,11 +5,19 @@ scientific models in ``regions`` remain strict, with explicit tuple conversion.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat, field_validator, model_validator
+from pydantic import Field, FiniteFloat, TypeAdapter, field_validator, model_validator
 
 from .plan_adoption import PlanResolution
+from .region_measurement_v2 import (
+    RegionMeasurementPolicy,
+    RegionMeasurementSpecType,
+    RegionMeasurementSpecV2,
+    RegionMeasurementTableV2,
+    validate_area_backgrounds,
+)
 from .regions import (
     BackgroundSpec,
     Calibration2D,
@@ -179,6 +187,7 @@ class RegionAnalysisRequest(RegionModel):
     field_ids: Annotated[list[Id], Field(min_length=1, max_length=100)] | None = None
     reuse_revision: Id | None = None
     plan_resolution: PlanResolution | None = None
+    measurement: RegionMeasurementPolicy | None = None
     recipe: RegionRecipeType
     backgrounds: dict[Id, dict[Id, RegionBackground]] = Field(default_factory=dict)
     exclusions: Annotated[list[RegionExclusion], Field(max_length=10000)] = Field(default_factory=list)
@@ -194,12 +203,21 @@ class RegionAnalysisRequest(RegionModel):
 
     @model_validator(mode="after")
     def unique_field_and_exclusion_ids(self):
+        validate_area_backgrounds(self.measurement, self.backgrounds)
         if self.field_ids is not None and len(self.field_ids) != len(set(self.field_ids)):
             raise ValueError("duplicate_region_fields")
         exclusions = [(item.field_id, item.region_id) for item in self.exclusions]
         if len(exclusions) != len(set(exclusions)):
             raise ValueError("duplicate_region_exclusions")
         return self
+
+
+def region_request_config(request: RegionAnalysisRequest) -> dict:
+    """Preserve historical config bytes: only the new absent policy is omitted."""
+    value = request.model_dump(mode="json")
+    if request.measurement is None:
+        value.pop("measurement")
+    return value
 
 
 class RegionMaskEdit(RegionModel):
@@ -230,15 +248,22 @@ class RegionMaskEdit(RegionModel):
 
 
 def scientific_specification(*, field_id: str, revision_id: str, mask_revision_id: str,
-                             recipe: RegionRecipeType, image_info: RegionImageInfo) -> RegionMeasurementSpec:
+                             recipe: RegionRecipeType, image_info: RegionImageInfo,
+                             measurement: RegionMeasurementPolicy | None = None) -> RegionMeasurementSpecType:
     """Explicit JSON-list → immutable science-tuple boundary, shared with replay."""
+    region_set = RegionSetSpec(
+        region_set_id=recipe.region_set_id, label=recipe.label,
+        mask_revision_id=mask_revision_id, source=recipe.source,
+        defining_channel_id=recipe.defining_channel_id,
+    )
+    if measurement is not None:
+        return RegionMeasurementSpecV2(
+            measurement=measurement, field_id=field_id, analysis_revision_id=revision_id,
+            region_set=region_set, channels=tuple(image_info.channels), calibration=image_info.calibration,
+        )
     return RegionMeasurementSpec(
         field_id=field_id, analysis_revision_id=revision_id,
-        region_set=RegionSetSpec(
-            region_set_id=recipe.region_set_id, label=recipe.label,
-            mask_revision_id=mask_revision_id, source=recipe.source,
-            defining_channel_id=recipe.defining_channel_id,
-        ),
+        region_set=region_set,
         channels=tuple(image_info.channels), calibration=image_info.calibration,
         backgrounds=tuple(BackgroundSpec(channel_id=channel.channel_id, roi_revision_id=revision_id, confirmed=True)
                           for channel in image_info.channels),
@@ -284,30 +309,78 @@ class RegionReport(RegionModel):
 
     @model_validator(mode="after")
     def complete_outcomes(self):
-        failed = [item.field_id for item in self.field_failures]
-        excluded = [item.field_id for item in self.excluded_failed_fields]
-        if len(failed) != len(set(failed)) or len(excluded) != len(set(excluded)):
-            raise ValueError("region_report_duplicate_failure")
-        expected: dict[str, str] = {fid: table.status for fid, table in self.field_tables.items()}
-        if set(expected) & (set(failed) | set(excluded)) or set(failed) & set(excluded):
-            raise ValueError("region_report_conflicting_outcome")
-        expected.update(dict.fromkeys(failed, "failed"))
-        expected.update(dict.fromkeys(excluded, "excluded_failed"))
-        if (expected != self.field_outcomes or not expected
-                or not set(self.field_masks).issubset(expected)
-                or any(item.field_id not in expected for item in self.exclusions)):
-            raise ValueError("region_report_field_coverage_invalid")
-        if any(mask.region_set_id != self.recipe.region_set_id or mask.source != self.recipe.source
-               for mask in self.field_masks.values()):
-            raise ValueError("region_report_mask_definition_mismatch")
-        for fid, table in self.field_tables.items():
-            mask = self.field_masks.get(fid)
-            if (mask is None or table.field_id != fid or table.analysis_revision_id != self.revision_id
-                    or table.region_set.region_set_id != self.recipe.region_set_id
-                    or table.region_set.label != self.recipe.label
-                    or table.region_set.source != self.recipe.source
-                    or table.region_set.defining_channel_id != self.recipe.defining_channel_id
-                    or table.region_set.mask_revision_id != mask.mask_revision_id
-                    or table.mask_sha256 != mask.mask_sha256 or list(table.shape_yx) != mask.shape):
-                raise ValueError("region_report_table_mask_mismatch")
+        _validate_report_outcomes(self)
         return self
+
+
+class RegionReportV2(RegionModel):
+    """Explicit area-only report; v1 persisted data retains its original model."""
+    analysis_kind: Literal["region-2d"] = "region-2d"
+    protocol_version: Literal["2.0.0"] = "2.0.0"
+    measurement: RegionMeasurementPolicy
+    revision_id: Id
+    recipe: RegionRecipeType
+    field_tables: dict[Id, RegionMeasurementTableV2]
+    field_masks: dict[Id, RegionFieldMask]
+    field_outcomes: dict[Id, Literal["measured", "no_regions", "failed", "excluded_failed"]]
+    field_failures: list[RegionFieldFailure]
+    excluded_failed_fields: list[RegionExcludedFailure]
+    exclusions: list[RegionExclusion]
+
+    @model_validator(mode="after")
+    def complete_outcomes(self):
+        _validate_report_outcomes(self)
+        if any(table.measurement != self.measurement for table in self.field_tables.values()):
+            raise ValueError("region_measurement_protocol_mismatch")
+        return self
+
+
+RegionReportType = Annotated[RegionReport | RegionReportV2, Field(discriminator="protocol_version")]
+_REPORT: TypeAdapter[RegionReport | RegionReportV2] = TypeAdapter(RegionReportType)
+
+
+def region_report_from_json(value: str) -> RegionReportType:
+    return _REPORT.validate_json(value, strict=True)
+
+
+def validate_region_report_policy(report: RegionReportType, config: Mapping) -> None:
+    """Bind a strictly parsed report to its saved measurement policy."""
+    raw_policy = config.get("measurement")
+    try:
+        policy = None if raw_policy is None else RegionMeasurementPolicy.model_validate(raw_policy, strict=True)
+    except ValueError as exc:
+        raise ValueError("region_measurement_protocol_mismatch") from exc
+    if isinstance(report, RegionReportV2):
+        if policy != report.measurement:
+            raise ValueError("region_measurement_protocol_mismatch")
+    elif policy is not None:
+        raise ValueError("region_measurement_protocol_mismatch")
+
+
+def _validate_report_outcomes(report: RegionReport | RegionReportV2) -> None:
+    failed = [item.field_id for item in report.field_failures]
+    excluded = [item.field_id for item in report.excluded_failed_fields]
+    if len(failed) != len(set(failed)) or len(excluded) != len(set(excluded)):
+        raise ValueError("region_report_duplicate_failure")
+    expected: dict[str, str] = {fid: table.status for fid, table in report.field_tables.items()}
+    if set(expected) & (set(failed) | set(excluded)) or set(failed) & set(excluded):
+        raise ValueError("region_report_conflicting_outcome")
+    expected.update(dict.fromkeys(failed, "failed"))
+    expected.update(dict.fromkeys(excluded, "excluded_failed"))
+    if (expected != report.field_outcomes or not expected
+            or not set(report.field_masks).issubset(expected)
+            or any(item.field_id not in expected for item in report.exclusions)):
+        raise ValueError("region_report_field_coverage_invalid")
+    if any(mask.region_set_id != report.recipe.region_set_id or mask.source != report.recipe.source
+           for mask in report.field_masks.values()):
+        raise ValueError("region_report_mask_definition_mismatch")
+    for fid, table in report.field_tables.items():
+        mask = report.field_masks.get(fid)
+        if (mask is None or table.field_id != fid or table.analysis_revision_id != report.revision_id
+                or table.region_set.region_set_id != report.recipe.region_set_id
+                or table.region_set.label != report.recipe.label
+                or table.region_set.source != report.recipe.source
+                or table.region_set.defining_channel_id != report.recipe.defining_channel_id
+                or table.region_set.mask_revision_id != mask.mask_revision_id
+                or table.mask_sha256 != mask.mask_sha256 or list(table.shape_yx) != mask.shape):
+            raise ValueError("region_report_table_mask_mismatch")

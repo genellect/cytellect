@@ -16,4 +16,13 @@ describe("generic region figure choices",()=>{
   expect(regionFigureOptions(regionRecipe,[field(true)]).some(option=>option.id==="area_um2")).toBe(true);
   expect(regionFigureOptions(regionRecipe,[field(true),field(false)]).some(option=>option.id==="area_um2")).toBe(false);
  });
+ it("offers only channel-neutral area metrics for the saved area-only policy",()=>{
+  const measurement={version:"1.0.0",mode:"area_only"} as const;
+  expect(regionFigureOptions(regionRecipe,[field(true)],measurement).map(option=>option.selection)).toEqual([
+   {source:"region",region_set_id:"regions",channel_id:null,metric:"area_px"},
+   {source:"region",region_set_id:"regions",channel_id:null,metric:"area_um2"},
+  ]);
+  expect(regionFigureOptions(regionRecipe,[field(false)],measurement).map(option=>option.id)).toEqual(["area_px"]);
+  expect(regionFigureOptions(regionRecipe,[field(true)]).some(option=>option.selection.metric==="mean_corrected")).toBe(true);
+ });
 });

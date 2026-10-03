@@ -1,4 +1,4 @@
-# Analysis planning — version 2.0.0
+# Analysis planning — versions 2.0.0 and 2.1.0
 
 Planning translates an explicit measurement question into supported workflow
 candidates. It is deterministic guidance based on known choices and cited
@@ -6,9 +6,17 @@ methodological literature. It runs no image analysis, statistics, model selectio
 LLM request or code supplied by a user. A planning answer is not evidence that
 an image, region definition, acquisition setting or experimental design is valid.
 
+Development status (2026-10-04): the area-only branch adds guide 2.1.0 and
+actual-source resolution 1.1.0. It is not yet merged, publicly deployed or in an
+accepted Windows package. Public canonical planning remains 2.0.0 for compatibility
+with the advertised package. The new source chooses 2.1.0 only in local/API-configured
+builds. PR #17 runtime-only evidence remains separate. The planned combined
+`local.12` package must pass all fifteen installed browser cases before
+publication or updating the public planning default.
+
 ## Canonical input and decision
 
-`PlanInput` accepts only `format="cytellect-analysis-plan"`, `version="2.0.0"`
+`PlanInput` accepts only `format="cytellect-analysis-plan"`, version `2.0.0` or `2.1.0`
 and strict `PlanAnswers`. Unknown fields and values are rejected. No file paths,
 channel names, experiment labels, free text, URLs, external guidance, code or
 executable recipe parameters are accepted in this input.
@@ -66,8 +74,18 @@ Area does not require a measurement marker or a nuclear stain for a manual or
 imported region. Physical area stays an option requiring actual calibration;
 the plan never generates micrometre values. Raw and background-corrected intensity
 remain separate metric choices. Integrated intensity is a pixel sum and is not
-concentration. Current execution paths still require a reviewed background ROI
-per measured channel, including workflows that later display area.
+concentration. Guide 2.0.0 retains its original candidate decisions and background
+review tasks, including workflows that later display area. Existing snapshots
+are recomputed under their recorded version, not upgraded or rehashed as 2.1.0.
+
+Guide 2.1.0 proposes `measurement={version:"1.0.0",mode:"area_only"}` for generic
+manual, imported or confirmed-nuclear candidates when the question is area. These
+candidates omit the background-ROI task and offer only pixel/physical area. The
+existing GFP/NCL candidates retain their background requirements, including when
+shown alongside a generic area candidate. No signal identity, calibration,
+background, nuclear-stain confirmation or independent unit is inferred from the
+plan. This is the same strict policy used by the scientific input, defined once
+in dependency-free `region_policy.py` to avoid a planning/analysis import cycle.
 
 Nuclear detection requires a reported nuclear stain and applies only to nuclei.
 It does not infer nucleoli or whole cells. Any measured marker can remain itself
@@ -145,6 +163,24 @@ distinguish planning intent from actual-source review and state that later
 statistical requests retain their own metric and design. Planning responses never
 generate independent units, pairs, acquisition comparability confirmations or
 negative-control confirmations.
+
+### Area-aware resolution 1.1.0
+
+The adopted-plan envelope remains protocol 1.0.0. `PlanResolution` 1.1.0 adds an
+explicit `measurement` choice: the strict area policy or null for the original
+background-corrected path. Its omission is invalid. Historical resolution 1.0.0
+retains its original serialized fields, rejects an added measurement key and
+cannot approve an area-only candidate or actual area-only execution.
+
+The actual mode must match the resolution and metric. Differences from the
+selected candidate are recorded as `measurement_mode` and require a fresh strict
+acknowledgement. For example, adopting an old 2.0.0 candidate as area-only needs
+resolution 1.1.0 and acknowledgement of that change. Returning to that candidate's
+original mode requires explicit `measurement:null` and a new unreviewed revision;
+when it again matches the candidate, no invented candidate difference is recorded.
+Mode changes cannot silently inherit the old policy approval or restore an old
+background map. Compatible corrected masks may be reused. Methods and replay
+retain the original plan, resolved policy, measurement protocol and actual inputs.
 
 ## Evidence
 

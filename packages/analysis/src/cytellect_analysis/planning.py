@@ -5,7 +5,9 @@ import hashlib
 import json
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+
+from .region_policy import RegionMeasurementPolicy
 
 VERSION: Literal["2.0.0"] = "2.0.0"
 SAFE_ERROR_CODES = frozenset({"planning_legacy_requires_review", "planning_snapshot_mismatch"})
@@ -42,7 +44,7 @@ class PlanAnswers(PlanModel):
 
 class PlanInput(PlanModel):
     format: Literal["cytellect-analysis-plan"] = "cytellect-analysis-plan"
-    version: Literal["2.0.0"]
+    version: Literal["2.0.0", "2.1.0"]
     answers: PlanAnswers
 
     @model_validator(mode="before")
@@ -91,10 +93,18 @@ class PlanCandidate(PlanModel):
         "native-input", "channel-mapping", "nuclear-stain", "background-rois", "region-definition",
         "metric-selection", "mask-quality", "gfp-gate", "calibration-for-physical-area",
     ]]
+    measurement: RegionMeasurementPolicy | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_shape(self, handler):
+        value = handler(self)
+        if self.measurement is None:
+            value.pop("measurement", None)
+        return value
 
 
 class PlanDecision(PlanModel):
-    version: Literal["2.0.0"] = VERSION
+    version: Literal["2.0.0", "2.1.0"] = VERSION
     status: Literal["planning-only-not-adopted"] = "planning-only-not-adopted"
     candidates: list[PlanCandidate]
     comparison_intent: Literal["undetermined", "descriptive", "independent-candidate", "paired-candidate"]
@@ -103,6 +113,18 @@ class PlanDecision(PlanModel):
     decisions: list[PlanFinding]
     limits: list[PlanFinding]
     references: list[PlanReference]
+
+    @model_validator(mode="after")
+    def versioned_measurement_suggestions(self):
+        for candidate in self.candidates:
+            if self.version == "2.0.0" and "measurement" in candidate.model_fields_set:
+                raise ValueError("planning_snapshot_mismatch")
+            if candidate.measurement is not None and (
+                candidate.workflow != "regions" or not candidate.allowed_metrics
+                or not set(candidate.allowed_metrics).issubset({"area_px", "area_um2"})
+            ):
+                raise ValueError("planning_snapshot_mismatch")
+        return self
 
 
 class PlanSnapshot(PlanModel):
@@ -233,7 +255,25 @@ def evaluate_plan(value: PlanInput | dict) -> PlanDecision:
         add(limits, "integrated-not-concentration", "積算値は領域内の画素値の合計", "面積や画素サイズにも依存し、平均輝度や濃度と同じ意味ではありません。比較時は空間的なサンプリングも確認します。", "waters-2009")
     add(decisions, "actual-adoption", "原画像で確認してから条件を採用する", "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。")
     add(decisions, "traceability", "採用した条件と図の元の値を残す", "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。", "schmied-2024")
-    return PlanDecision(candidates=candidates, comparison_intent=comparison, questions=questions,
+    if plan.version == "2.1.0":
+        candidates = [candidate.model_copy(update={
+            "measurement": RegionMeasurementPolicy(version="1.0.0", mode="area_only"),
+            "actual_review_required": [task for task in candidate.actual_review_required if task != "background-rois"],
+        }) if candidate.workflow == "regions" and a.measurement == "area" else candidate for candidate in candidates]
+        if candidates and all(candidate.measurement is not None for candidate in candidates):
+            questions = [question for question in questions if question.id != "background"]
+            decisions = [decision if decision.id != "actual-adoption" else PlanFinding(
+                id="actual-adoption-area", title="原画像で確認してから条件を採用する",
+                detail="候補は実行設定ではありません。実チャンネル、領域、面積の単位を確認し、代表視野で試してから条件を固定します。輝度と背景補正はこの測定では行いません。",
+                reference="senft-2023",
+            ) for decision in decisions]
+        elif any(candidate.measurement is not None for candidate in candidates):
+            questions = [question if question.id != "background" else PlanFinding(
+                id="background-candidate", title="輝度解析を含む候補では背景領域を確認する",
+                detail="面積のみの領域測定には背景ROIは不要です。核内GFPなどの輝度解析を含む候補では、各チャンネルの信号がない領域を原画像で確認します。",
+                reference="waters-2009",
+            ) for question in questions]
+    return PlanDecision(version=plan.version, candidates=candidates, comparison_intent=comparison, questions=questions,
                         decisions=decisions, limits=limits, references=list(REFERENCES))
 
 

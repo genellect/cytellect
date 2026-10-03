@@ -41,7 +41,7 @@ Those nuclear/comparison paths passed PR #12's four required checks and are publ
 
 ## Agent roles and execution loop
 
-The next source increment makes a saved descriptive figure inspectable at the
+The PR #15 source increment makes a saved descriptive figure inspectable at the
 individual-region level. Its measurement table uses the saved values, channel,
 mask identity and analysis version; opening a row selects that original region.
 Navigation must preserve draft edits and recover from a failed request. This is
@@ -50,7 +50,7 @@ public-image browser fixture tests identity with deliberately artificial masks;
 it does not estimate segmentation accuracy.
 
 Independent source review also found that applying one common registration
-field could erase other row-specific experimental metadata. The next increment
+field could erase other row-specific experimental metadata. That increment
 applies populated columns only, previews replacements and supports undo without
 discarding later manual edits. This fixes form behavior; it does not infer
 experimental units or revise existing registered analyses.
@@ -64,12 +64,29 @@ can interpret the interface: participant results remain pending. The published
 local.11 package is unchanged by later source work.
 
 PR #15 published the tracing and metadata-protection source increment through
-required CI and main. The next implementation makes comparison points inspectable
+required CI and main. PR #16 makes comparison points inspectable
 as saved unit → sample → field values, with exact historical image links. Review
 must preserve paired identity and omissions, and keep field names consistent with
-the viewer. The following proposed increment is area-only measurement without
-background gestures; it requires a separate availability/provenance contract,
-historical replay compatibility and a complete browser/export path before release.
+the viewer. The separate area-only increment now implements measurement policy
+1.0.0 with report 2.0.0, explicit unmeasured fluorescence values, bundle `/2` and
+Methods 1.2.0. Background gestures are unnecessary for area, while image identity,
+mask review, calibration, exclusions and experimental units still need their
+own evidence. Compatible corrected masks survive mode changes in new unreviewed
+revisions; old results remain tied to their actual mode.
+
+Guide 2.1.0 and resolution 1.1.0 distinguish an area proposal from its actual
+adoption. Canonical public planning remains 2.0.0; the new local/API-configured
+source uses 2.1.0. This area work is not yet merged, publicly deployed or included
+in an accepted package. PR #17 verifies the runtime separately. After both source
+increments pass review and merge, build one combined `local.12` package from main;
+its fifteen installed browser cases must pass before publication. Earlier
+runtime-only candidates remain scoped evidence, not the combined release.
+The [region protocol](generic-regions.md) records the focused 150-case core/contract
+run and separate 89-case integrated adapter/export run, including nine new area
+cases. Independent source review is recorded separately from test execution.
+Browser/installed/release checks still require their own completed evidence.
+Removing an irrelevant input step is a proposed reduction in researcher burden,
+not a demonstrated usability or biological-validity improvement. M4/M5 remain open.
 
 | Role | Owns | Independent check |
 |---|---|---|

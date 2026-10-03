@@ -1,4 +1,4 @@
-# Generic region measurements — protocol 1.0.0
+# Generic region measurements — protocols 1.0.0 and 2.0.0
 
 `cytellect_analysis.regions` supplies the typed measurement primitive for confirmed
 2D fluorescence channels. The generic API and supervised worker add native
@@ -8,6 +8,13 @@ does not by itself establish an installed release or hosted analysis service;
 delivery status is tracked in the README and roadmap. Existing NCL/GFP recipes,
 scientific identifiers and measurement protocols are unchanged.
 
+Development checkpoint (2026-10-04): protocol 2.0.0 adds explicit **area-only**
+measurement in the area worktree. This increment is not yet merged, publicly
+deployed or distributed in an accepted Windows package. The earlier PR #17
+runtime-only candidates do not establish area acceptance. A combined `local.12`
+package will be built after both increments are accepted on main, then checked
+with all fifteen installed browser cases before publication.
+
 ## Inputs and biological identity
 
 `RegionMeasurementSpec` records an analysis revision, field, region set/mask
@@ -15,24 +22,30 @@ revision, one to three channel identities, background ROI revisions, and optiona
 confirmed XY calibration. Each channel has an explicit ID and label, an optional
 actual stain name, and required identity confirmation. Unknown chemical identity
 remains unknown; actin or FITC need not become GFP/NCL to be measured.
+`RegionMeasurementSpecV2` retains these identities and calibration but has no
+background specification. Its required measurement policy is
+`{"version":"1.0.0","mode":"area_only"}`; no raw-only or other new mode is supported.
 
 The function `measure_regions(channels, labels, background_masks, specification)`
 accepts 8/16-bit unsigned grayscale arrays and same-size, original-coordinate
-integer labels. Label zero is unmeasured background; positive, possibly sparse
+integer labels. Label zero is outside measured regions, not proof of biological
+background; positive, possibly sparse
 IDs identify regions. A disconnected union may deliberately share one ID and is
 measured over all its pixels; it does not imply one biological cell. No detection,
 cell boundary, nucleolus or channel meaning is inferred by this module.
 
 RGB/extra axes, dimension/dtype mismatches, negative/noninteger/overflowing labels,
-unknown channel IDs, duplicate metadata, missing or unconfirmed background ROIs,
-and planes larger than 4096 pixels per side are rejected. Background masks must
+unknown channel IDs, duplicate metadata and planes larger than 4096 pixels per
+side are rejected in both protocols. Protocol 1.0.0 additionally rejects missing
+or unconfirmed background ROIs. Its background masks must
 be boolean, nonempty, confirmed separately for every channel and outside the
 union of measured regions. Being outside a nucleus does not itself establish
 biological background.
 
 ## Measurements and calibration
 
-One long-table row is emitted per nonzero region and acquired channel. It carries
+Both protocols emit one long-table row per nonzero region and acquired channel.
+In protocol 1.0.0, it carries
 region/channel/revision IDs, pixel area, raw mean/midpoint median/integral, and
 the same values after subtracting that channel's background ROI median. The
 shared existing `region_values` primitive computes intensities. Native negative
@@ -58,11 +71,28 @@ Thus a confirmed 12-bit acquisition may detect 4095-valued pixels stored in a
 16-bit TIFF, while the storage-limit fraction remains zero. These flags do not
 change measurements or exclude regions automatically.
 
+Protocol 2.0.0 counts the original mask pixels and computes calibrated area with
+the same formula. No background ROI is needed, even when a region fills the
+image. All six raw/corrected intensity values and both signal-limit fractions are
+required nulls with `not_requested` reasons. They are not zeros, negative findings
+or failed fluorescence measurements. Per-channel provenance records
+`background={status:"not_measured",reason:"not_required_for_area"}` without a
+fabricated background median, mask or confirmation.
+
+The area path still validates unchanged source pixels and hashes, actual channel
+identity, mask shape and acquisition metadata. A confirmed saturation limit below
+an observed source value or above the dtype maximum remains invalid. Not
+calculating saturation fractions does not establish unsaturated acquisition.
+`area_px` and `area_um2` are the only available metric IDs; unknown calibration
+remains `calibration_unknown`, while requesting intensity is rejected as
+`region_metric_not_measured`.
+
 ## Traceability and scope
 
 Table metadata stores the complete channel/region/calibration specifications,
 source shape, original-pixel hashes, canonical mask hash, per-channel background
-hashes/revisions, pixel counts and medians. Hash format `cytellect-array-v1`
+hashes/revisions, pixel counts and medians for protocol 1.0.0, or the explicit
+not-measured background record for protocol 2.0.0. Hash format `cytellect-array-v1`
 includes the array shape and canonical sample dtype plus little-endian samples;
 these are pixel/mask hashes, not file-container hashes. API integration must
 add the input file hashes and retain the same immutable revision boundary.
@@ -85,6 +115,14 @@ scientific specification. `RegionReport` response validation uses JSON mode for
 nested strict scientific tables; it does not disable their validation. Unknown
 condition, sample, date or experimental unit remains null. A name or field ID is
 not evidence of an independent replicate.
+
+`RegionReportType` dispatches the original report and separate `RegionReportV2`
+by protocol version. The v2 report, every table and saved request must agree on
+the area policy. Area requests require exactly `backgrounds={}`; supplied
+backgrounds are rejected, not silently dropped. Absent/None policy keeps v1, and
+`region_request_config` omits the new key in that case to preserve historical
+JSON and fingerprints. The single strict policy type lives in dependency-free
+`region_policy.py` so planning can share it without importing the analysis engine.
 
 The initial generic upload accepts one to three channel TIFF files and an optional
 original-coordinate integer label TIFF. This generic upload does not yet provide
@@ -124,6 +162,12 @@ measurement. Thus an edit that intersects a background ROI remains retrievable
 after the visible measurement failure: correcting the background reuses the edited
 pixels, not the original import. Previous revisions remain unchanged.
 
+Changing measurement mode creates an unreviewed child while retaining compatible
+corrected masks. The area child's empty background map is authoritative; opening
+it must not restore a previous revision's background. Returning to intensity
+measurement requires actual reviewed backgrounds. Planning answers do not supply
+those confirmations; see [versioned adoption](analysis-planning.md).
+
 Experimental metadata can be changed through `region-metadata`. This creates an
 unreviewed child revision with explicit metadata changes, unchanged image identity
 and reused masks. It does not mutate upload rows or prior scientific snapshots.
@@ -151,19 +195,26 @@ but are outside this initial per-field selector.
 
 The private reproducibility bundle contains the long region CSV, field outcomes,
 canonical NPY/TIFF masks, pixel-exact Fiji ROI exchange, background masks, settings,
-Methods, source/environment identity and a file manifest. CSV string cells are
+Methods, source/environment identity and a file manifest. Background masks are
+included only for protocol 1.0.0. CSV string cells are
 protected against spreadsheet formula interpretation; negative numerical values
 remain numerical. Raw TIFF files are included only with explicit opt-in.
 
 Source-linked statistical figures require a reviewed revision. Before export,
 the corresponding adapter recomputes the saved selector/design from the source table;
 a changed plot value or source revision is rejected. Replay validates bundle and
-raw-image hashes, remeasures saved masks through `measure_regions`, and regenerates
+raw-image hashes, remeasures saved masks through `measure_regions_versioned`, and regenerates
 recorded SVG/PDF/PNG and source tables. It reports exact equality of
 saved measurements, descriptions and experimental-unit comparisons when present.
 Failed or unmeasured fields remain diagnostic
 and are explicitly not reassessed by this measurement replay. No detector or model
 download runs during replay.
+
+V1 retains bundle `cytellect-region-reproducibility/1` and Methods 1.1.0. Area-only
+uses bundle `/2` and Methods 1.2.0, retaining nulls and their reasons in the CSV
+and report. Replay rejects a changed/missing policy, mixed protocols or added
+background rasters, even if outer file hashes have been updated. It does not
+retroactively convert old bundles or measurement tables.
 
 ## Validation scope
 
@@ -190,6 +241,21 @@ do not erase the database or create an automatic research-data backup to force
 a rollback. Download needed results before changing the installed application.
 
 ### Evidence boundaries
+
+The 2026-10-04 area source checkpoint passed 150 focused tests across
+`test_region_measurement_v2.py`, `test_region_area_contracts.py`, `test_regions.py`
+and `test_region_contracts.py`, with no failures/skips. These check 6/12-pixel
+regions and anisotropic .36/.72 µm² reference areas, strict null/provenance
+contracts, invalid inputs and unchanged v1 serialization/signed calculations.
+This is a focused core/contract run, not full CI or installed acceptance.
+After integration, the coordinator separately completed 89 cases across the
+existing descriptive/comparison/export suites and `test_region_area_exports.py`.
+The latter contributes nine area cases covering source-linked descriptions,
+closed-form Welch/paired arithmetic, mode rejection and original-pixel
+export/replay with regenerated figures. These counts describe separate focused
+runs, not a total full-suite claim. Independent
+source review checked these adapter/export changes; reading code is not another
+test execution. Private-image M4 and human-researcher M5 remain open.
 
 Hand-calculated and adversarial tests cover strict JSON round trips, no-Fiji
 manual/imported execution, signed arithmetic, source-file tampering, mask edits,

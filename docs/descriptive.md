@@ -45,6 +45,15 @@ For area, the repeated per-channel area values, calibration and missing reasons
 must agree, then one region contributes one observation. Channel-row count is
 never reported as a region count.
 
+The area-only development increment accepts region measurement protocol 2.0.0
+through the same descriptive 1.0.0 contract. Its explicit area policy permits
+only `area_px`/`area_um2`; intensity requests fail with `region_metric_not_measured`
+instead of being presented as an all-missing fluorescence experiment. Unknown
+calibration still produces `calibration_unknown`. Source-field records carry
+the measurement protocol/policy, with no background ROI or inferred confirmation.
+This increment is not yet merged or included in an accepted package; see the
+[region protocol and evidence scope](generic-regions.md).
+
 Region keys include field, region set and region ID. Different fields may use
 the same region ID. A field may not mix mask or analysis revisions, duplicate
 an object-channel pair, omit a channel or contradict its snapshot's channel
