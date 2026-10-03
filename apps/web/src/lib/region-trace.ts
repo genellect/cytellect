@@ -6,6 +6,7 @@ export type RegionTraceTarget={
  maskSha256:string;maskSource:string;shape:number[];channelId:string|null;
  channelLabel:string|null;channelStain:string|null;regionLabel:string;observationId:string;
 };
+export type RegionFieldTraceTarget=Omit<RegionTraceTarget,"regionId"|"observationId">;
 export type RegionTraceRow={observationId:string;fieldId:string;regionId:number|null;value:number|null;target:RegionTraceTarget|null};
 
 // Only identities and saved values are read here; measurement arithmetic belongs to the API.
@@ -37,7 +38,7 @@ export function regionTraceRows(result:DescriptiveResult):RegionTraceRow[]{
  });
 }
 
-export function traceDisplayChannel(target:RegionTraceTarget,field:RegionField,currentChannelId:string){
+export function traceDisplayChannel(target:RegionFieldTraceTarget,field:RegionField,currentChannelId:string){
  const channels=field.image_info.channels;
  if(target.channelId!==null){
   const channel=channels.find(item=>item.channel_id===target.channelId);
@@ -47,13 +48,19 @@ export function traceDisplayChannel(target:RegionTraceTarget,field:RegionField,c
  return channels.find(item=>item.channel_id===currentChannelId)||channels[0]||null;
 }
 
-export function regionTraceMismatch(target:RegionTraceTarget,field:RegionField,masks:RegionMasks):string|null{
+export function regionFieldTraceMismatch(target:RegionFieldTraceTarget,field:RegionField,masks:RegionMasks):string|null{
  const metadata=masks.metadata;
- if(field.id!==target.fieldId||field.image_info.shape.some((size,index)=>size!==target.shape[index])||
+ if(target.shape.length!==2||field.image_info.shape.length!==2||metadata.shape.length!==2||
+  field.id!==target.fieldId||field.image_info.shape.some((size,index)=>size!==target.shape[index])||
   metadata.region_set_id!==target.regionSetId||metadata.mask_revision_id!==target.maskRevisionId||
   metadata.mask_sha256!==target.maskSha256||metadata.source!==target.maskSource||
   metadata.shape.some((size,index)=>size!==target.shape[index]))
   return "保存済みの図と領域の出典が一致しません。図の履歴から選び直してください。";
+ return null;
+}
+
+export function regionTraceMismatch(target:RegionTraceTarget,field:RegionField,masks:RegionMasks):string|null{
+ const mismatch=regionFieldTraceMismatch(target,field,masks);if(mismatch)return mismatch;
  if(!masks.regions.some(region=>region.id===target.regionId))return "この図に記録された領域を確認できません。別の測定値を選ぶか、図の履歴を確認してください。";
  return null;
 }

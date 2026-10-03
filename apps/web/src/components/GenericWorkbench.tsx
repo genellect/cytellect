@@ -11,7 +11,7 @@ import RegionBatchUploadPanel from "./RegionBatchUploadPanel";
 import DescriptivePanel from "./DescriptivePanel";
 import RegionComparisonPanel from "./RegionComparisonPanel";
 import PlanResolutionPanel,{planChanges} from "./PlanResolutionPanel";
-import {regionTraceMismatch,traceDisplayChannel,type RegionTraceTarget} from "@/lib/region-trace";
+import {regionFieldTraceMismatch,regionTraceMismatch,traceDisplayChannel,type RegionFieldTraceTarget,type RegionTraceTarget} from "@/lib/region-trace";
 import styles from "./workspace.module.css";
 
 const FieldCanvas=dynamic(()=>import("./FieldCanvas"),{ssr:false,loading:()=> <div className={styles.canvasLoading}>画像を準備しています…</div>});
@@ -26,7 +26,8 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
  const [pendingTrace,setPendingTrace]=useState<{target:RegionTraceTarget;channelId:string}|null>(null);const [traceError,setTraceError]=useState("");const [verifiedTrace,setVerifiedTrace]=useState<{target:RegionTraceTarget;channelId:string}|null>(null);
  const [traceTransition,setTraceTransition]=useState(false);const [traceRecovery,setTraceRecovery]=useState(false);
  const [appliedRevisionId,setAppliedRevisionId]=useState("");const [settledViewKey,setSettledViewKey]=useState("");
- const [pendingField,setPendingField]=useState<{revisionId:string;fieldId:string}|null>(null);
+ const [pendingField,setPendingField]=useState<{revisionId:string;fieldId:string;source?:RegionFieldTraceTarget;channelId?:string}|null>(null);
+ const [verifiedField,setVerifiedField]=useState<{target:RegionFieldTraceTarget;channelId:string}|null>(null);
  const traceGuard=useRef(false);const draftRegion=polygon.length>0||coordinates.trim().length>0;
  const [reviewed,setReviewed]=useState(false);const [exclusionReason,setExclusionReason]=useState("");const [redoBranches,setRedoBranches]=useState<Record<string,string>>({});const [includeRaw,setIncludeRaw]=useState(false);const [deleteConfirmed,setDeleteConfirmed]=useState(false);
  const [nuclearConfirmed,setNuclearConfirmed]=useState(false);const [pendingScope,setPendingScope]=useState<"add"|"batch"|"redetect"|null>(null);const methodChosen=useRef(false);
@@ -69,11 +70,19 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
  },[pendingTrace,busy,client]);
  useEffect(()=>{
   if(!pendingField)return;
+  if(traceGuard.current){setPendingField(null);setTraceTransition(false);setTraceError("未保存の領域・設定があるため、画像への切り替えを中止しました。");return;}
   if(busy||active?.id!==pendingField.revisionId||appliedRevisionId!==pendingField.revisionId||settledViewKey!==viewKey||fid!==pendingField.fieldId)return;
+  if(pendingField.source&&cid!==pendingField.channelId)return;
   if(masks.isError){setPendingField(null);setTraceTransition(false);setTraceError("保存済みの視野を読み込めませんでした。図の履歴からもう一度お試しください。");return;}
-  if(!masks.data)return;
+  if(!masks.data||!field)return;
+  if(pendingField.source){
+   const mismatch=regionFieldTraceMismatch(pendingField.source,field,masks.data);
+   if(mismatch){setPendingField(null);setTraceTransition(false);setTraceError(mismatch);return;}
+   setSelected([]);setOperation("select");setShowMasks(true);
+   setVerifiedField({target:pendingField.source,channelId:pendingField.channelId!});
+  }
   setPendingField(null);setTraceTransition(false);editor.current?.scrollIntoView({behavior:"smooth",block:"center"});
- },[pendingField,busy,active,appliedRevisionId,settledViewKey,viewKey,fid,masks.data,masks.isError]);
+ },[pendingField,busy,active,appliedRevisionId,settledViewKey,viewKey,fid,cid,field,masks.data,masks.isError]);
  useEffect(()=>{
   if(!pendingField||busy)return;
   const timeout=setTimeout(()=>{void client.cancelQueries({queryKey:["region-masks",pendingField.revisionId,pendingField.fieldId]}).then(()=>{setPendingField(null);setTraceTransition(false);setTraceError("保存済みの視野を開けませんでした。図の履歴からもう一度お試しください。");});},15000);
@@ -127,7 +136,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
   if(blocked||traceTransition||traceGuard.current)return;
   setTraceTransition(true);
   void navigate(async()=>{
-   setTraceError("");setVerifiedTrace(null);
+   setTraceError("");setVerifiedTrace(null);setVerifiedField(null);
     const revision=history.find(item=>item.id===target.revisionId);const sourceField=fields.data?.find(item=>item.id===target.fieldId);
     if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(target.fieldId)||!sourceField)throw Error("保存済みの解析版または視野を確認できません。図の履歴から選び直してください。");
     const displayChannel=traceDisplayChannel(target,sourceField,cid);
@@ -141,7 +150,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
  }
  function inspectField(fieldId:string,revisionId:string){
   if(blocked||traceTransition||traceGuard.current)return;
-  setTraceTransition(true);setVerifiedTrace(null);setTraceError("");
+  setTraceTransition(true);setVerifiedTrace(null);setVerifiedField(null);setTraceError("");
   void navigate(async()=>{
    try{
     const revision=history.find(item=>item.id===revisionId);
@@ -149,6 +158,22 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
     if(active?.id!==revisionId)await request(`/v1/workspaces/${id}/current`,{method:"POST",body:JSON.stringify({revision_id:revisionId}),signal:AbortSignal.timeout(15000)});
     setFieldId(fieldId);setTab("analysis");setPendingField({revisionId,fieldId});
    }catch{throw Error("保存済みの視野を開けませんでした。図の履歴からもう一度お試しください。");}
+  });
+ }
+ function inspectSourceField(target:RegionFieldTraceTarget){
+  if(blocked||traceTransition||traceGuard.current)return;
+  setTraceTransition(true);setVerifiedTrace(null);setVerifiedField(null);setTraceError("");
+  void navigate(async()=>{
+   const revision=history.find(item=>item.id===target.revisionId);const sourceField=fields.data?.find(item=>item.id===target.fieldId);
+   if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(target.fieldId)||!sourceField)throw Error("保存済みの解析版または視野を確認できません。図の履歴から選び直してください。");
+   const displayChannel=traceDisplayChannel(target,sourceField,cid);
+   if(!displayChannel)throw Error("保存済みの測定チャンネルを確認できません。図の履歴から選び直してください。");
+   const savedMasks=await request<RegionMasks>(`/v1/revisions/${target.revisionId}/region-masks?field_id=${encodeURIComponent(target.fieldId)}`,{signal:AbortSignal.timeout(15000)});
+   const mismatch=regionFieldTraceMismatch(target,sourceField,savedMasks);if(mismatch)throw Error(mismatch);
+   if(traceGuard.current)throw Error("未保存の領域・設定があるため、画像への切り替えを中止しました。");
+   if(active?.id!==target.revisionId)await request(`/v1/workspaces/${id}/current`,{method:"POST",body:JSON.stringify({revision_id:target.revisionId}),signal:AbortSignal.timeout(15000)});
+   setFieldId(target.fieldId);setChannelId(displayChannel.channel_id);setTab("analysis");
+   setPendingField({revisionId:target.revisionId,fieldId:target.fieldId,source:target,channelId:displayChannel.channel_id});
   });
  }
  function applyPolygon(){
@@ -159,6 +184,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
  function exclude(regionId:number|null){if(!exclusionReason.trim()){onError("除外理由を入力してください。");return;}change({exclusions:[...config.exclusions.filter(exclusion=>!(exclusion.field_id===fid&&exclusion.region_id===regionId)),{field_id:fid,region_id:regionId,reason:exclusionReason.trim()}]});}
  const scopeCount=active?.config.field_ids?.length||0;const remaining=(fields.data?.length||0)-scopeCount;
  const traceVisible=verifiedTrace&&active?.id===verifiedTrace.target.revisionId&&fid===verifiedTrace.target.fieldId&&cid===verifiedTrace.channelId&&selected.length===1&&selected[0]===verifiedTrace.target.regionId&&showMasks&&!dirty&&!draftRegion&&field&&masks.data&&!regionTraceMismatch(verifiedTrace.target,field,masks.data);
+ const fieldTraceVisible=verifiedField&&active?.id===verifiedField.target.revisionId&&fid===verifiedField.target.fieldId&&cid===verifiedField.channelId&&showMasks&&!dirty&&!draftRegion&&field&&masks.data&&!regionFieldTraceMismatch(verifiedField.target,field,masks.data);
  const message=processing?"処理を実行しています。完了後に領域と値を確認してください。":nextMissing?"測定するチャンネルごとに、信号を含まない背景を指定してください。":!active||!included?"背景を確認したら、代表視野の領域を用意します。":failures.length?"処理できなかった視野があります。背景・領域を修正するか、理由を記録して除外してください。":noRegions?"画像を囲んで測りたい領域を追加してください。":recipeChanged?"検出条件を変更しました。再作成する範囲と修正領域の扱いを確認してください。":dirty?"背景や除外の変更を再測定へ反映してください。":!active.reviewed?"領域と背景、測定値を確認してから図へ進みます。":remaining>0?`採用した領域を保持して、残り ${remaining} 視野を測定できます。`:"品質確認済みです。測定値の分布を図にできます。";
  function nextAction(){if(nextMissing){setFieldId(nextMissing.field.id);setChannelId(nextMissing.channel.channel_id);setOperation("background");editor.current?.scrollIntoView({behavior:"smooth",block:"center"});}else if(noRegions){setOperation("add");editor.current?.scrollIntoView({behavior:"smooth",block:"center"});}else if(active?.reviewed&&!dirty&&!remaining)setTab("figures");else values.current?.scrollIntoView({behavior:"smooth",block:"start"});}
  if(fields.isPending)return <main className={styles.workbench}><p>画像を確認しています…</p></main>;
@@ -170,6 +196,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
   <nav className={styles.tabs} aria-label="解析工程"><button className={tab==="analysis"?styles.activeTab:""} onClick={()=>setTab("analysis")}>01 <b>画像と領域</b></button><button className={tab==="figures"?styles.activeTab:""} onClick={()=>setTab("figures")}>02 <b>分布と図</b></button><button className={tab==="comparison"?styles.activeTab:""} onClick={()=>setTab("comparison")}>03 <b>実験単位で比較</b></button><button className={tab==="export"?styles.activeTab:""} onClick={()=>setTab("export")}>04 <b>保存と履歴</b></button><span className={styles.tabStatus}>{processing?"● 処理中":dirty?"● 未反映の変更があります":"画像・領域・測定値を同じ解析版で保存します"}</span></nav>
   {(fields.error||space.error)&&<p role="alert" className={styles.error}>{errorMessage(fields.error||space.error)}</p>}
   {traceVisible&&tab==="analysis"&&<p role="status" className={styles.notice}>図に記録された領域 {verifiedTrace.target.regionId} を表示しています。{verifiedTrace.target.channelId===null?`面積測定にはチャンネルを使用していません。表示: ${channel?.label||verifiedTrace.channelId}`:`測定チャンネル: ${verifiedTrace.target.channelLabel}`}</p>}
+  {fieldTraceVisible&&tab==="analysis"&&<p role="status" aria-label="保存済み比較の視野" className={styles.notice}>この集計に記録された視野と領域を表示しています。{verifiedField.target.channelId===null?`面積測定にはチャンネルを使用していません。表示: ${channel?.label||verifiedField.channelId}`:`測定チャンネル: ${verifiedField.target.channelLabel}`} 採用・除外の内訳は、比較の集計表から確認できます。</p>}
   {tab==="analysis"&&<>
    <RegionUploadPanel wid={id} channels={fields.data?.[0]?.image_info.channels} maskSource={fields.data?.length?(fields.data[0].image_info.labels_array?"imported":"manual"):config.recipe.source==="imported"?"imported":"manual"} hasFields={!!fields.data?.length} run={run} onDone={registered=>{setFieldId(registered.id);if(!fields.data?.length&&!active&&!methodChosen.current)setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:registered.image_info.labels_array?"imported":"manual"}}));}}/>
    <RegionBatchUploadPanel onInspect={()=>editor.current?.closest("section")?.scrollIntoView({behavior:"smooth",block:"start"})} wid={id} channels={fields.data?.[0]?.image_info.channels} maskSource={fields.data?.length?(fields.data[0].image_info.labels_array?"imported":"manual"):config.recipe.source==="imported"?"imported":"manual"} hasFields={!!fields.data?.length} run={run} onDone={registered=>{setFieldId(registered.id);if(!fields.data?.length&&!active&&!methodChosen.current)setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:registered.image_info.labels_array?"imported":"manual"}}));}}/>
@@ -219,7 +246,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
    </section>}
   </>}
   {tab==="figures"&&<DescriptivePanel onInspectRegion={inspectRegion} traceBlocked={draftRegion} planSelection={active?.config.plan_resolution} revisionId={active?.id} reviewed={!!active?.reviewed} options={options} jobs={(jobs.data||[]).filter(job=>history.some(revision=>revision.id===job.revision_id))} blocked={blocked} dirty={dirty} run={run} fieldLabels={Object.fromEntries(effectiveFields.map((field,i)=>[field.id,`画像一覧の視野 ${i+1} · ${field.metadata.sample||"試料未記録"}`]))} revisionLabels={Object.fromEntries(history.map((revision,i)=>[revision.id,`解析版 ${i+1}`]))} onInspectField={inspectField}/>}
-  {tab==="comparison"&&<RegionComparisonPanel key={active?.id||"no-revision"} revision={active} fields={availableFields} options={options} jobs={(jobs.data||[]).filter(job=>history.some(revision=>revision.id===job.revision_id))} blocked={blocked} dirty={dirty} run={run} onReview={()=>setTab("analysis")} revisionLabels={Object.fromEntries(history.map((revision,i)=>[revision.id,`解析版 ${i+1}`]))} onInspectField={inspectField}/>}
+  {tab==="comparison"&&<RegionComparisonPanel key={active?.id||"no-revision"} revision={active} fields={availableFields} options={options} jobs={(jobs.data||[]).filter(job=>history.some(revision=>revision.id===job.revision_id))} blocked={blocked} dirty={dirty} traceBlocked={draftRegion} run={run} onReview={()=>setTab("analysis")} revisionLabels={Object.fromEntries(history.map((revision,i)=>[revision.id,`解析版 ${i+1}`]))} onInspectField={inspectField} onInspectSourceField={inspectSourceField} fieldLabels={Object.fromEntries(effectiveFields.map((item,i)=>[item.id,`視野 ${i+1}`]))}/>}
   {tab==="export"&&<section className={styles.exportPage}><div className={styles.card}><h2>測定値と条件を保存</h2><p>測定表、領域、背景、Methodsと実行条件をまとめます。</p><label className={styles.checkbox}><input type="checkbox" checked={includeRaw} onChange={event=>setIncludeRaw(event.target.checked)}/>原画像もZIPへ含める</label><button className={styles.primary} disabled={blocked||dirty||!active?.reviewed} onClick={()=>run(async()=>{await post(`/v1/revisions/${active!.id}/export?include_raw=${includeRaw}`);})}>解析パッケージを生成</button>{exports.map(job=><div className={styles.downloadRow} key={job.id}><span>{job.revision_id===active?.id?"採用中の版":"旧版"} · {new Date(job.created*1000).toLocaleString("ja-JP")}</span><button onClick={()=>run(()=>download(`/v1/jobs/${job.id}/files/analysis.zip`,"cytellect-regions.zip"))}>ZIPを保存 ↓</button><button onClick={()=>run(()=>download(`/v1/jobs/${job.id}/files/methods.md`,"methods.md"))}>Methods ↓</button></div>)}</div>
    <div className={styles.card}><h2>解析版の履歴</h2>{history.map((revision,i)=><div className={styles.downloadRow} key={revision.id}><span>解析版 {i+1} · {revision.reviewed?"確認済み":"未確認"}{revision.id===active?.id?" / 採用中":""}</span><button disabled={blocked||revision.state!=="succeeded"||revision.id===active?.id} onClick={()=>run(()=>adopt(revision.id))}>この版を採用</button></div>)}</div>
    <div className={styles.card}><h2>作業を削除</h2><p>画像・領域・測定値へのアクセスを遮断し、実行を停止してから削除します。</p><label className={styles.checkbox}><input type="checkbox" checked={deleteConfirmed} onChange={event=>setDeleteConfirmed(event.target.checked)}/>必要な結果を保存しました。この作業を削除します。</label><button className={styles.danger} disabled={busy||!deleteConfirmed} onClick={()=>run(async()=>{await request(`/v1/workspaces/${id}`,{method:"DELETE"});onBack();})}>この作業を削除</button></div>

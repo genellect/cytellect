@@ -163,6 +163,28 @@ unmeasured fields remain diagnostic and are not reassessed during replay.
 
 ## Evidence and remaining limits
 
+### Inspecting saved aggregation
+
+The source implementation exposes each saved unit value as an expandable sample
+and field hierarchy. It joins the saved ledgers and intermediate tables by exact
+condition/unit/sample/field identities. Paired results start from the saved pair
+ledger. It does not compute new means, medians, observation counts or independent
+n in the browser, and does not substitute current editable metadata into history.
+
+Excluded fields and units remain visible. Missing values are shown as uncomputed;
+an excluded failed field has unknown observation counts, not an observed zero.
+An ambiguous or orphaned join stops the hierarchy display while preserving the
+saved result and downloads. Invalid measurement-source metadata disables that
+field's verified image link instead of selecting a different channel or mask.
+
+Opening a contributing field verifies the historical revision, canonical mask
+hash, mask revision, shape, source and actual channel identity. It displays the
+whole field without pretending that an aggregate point is an individual region.
+Area stays channel-neutral; any fluorescence layer is explicitly for viewing.
+Field names match the image viewer. Pending changes to regions, settings or
+experimental metadata prevent source navigation until resolved. These are source
+features; the immutable local.11 package retains its documented earlier behavior.
+
 Deterministic numeric fixtures independently check unequal nested sampling,
 Welch/paired arithmetic, scale changes, large-offset paired differences, unsigned
 subtraction, area deduplication, family-wide Holm, metadata conflicts, missing units,

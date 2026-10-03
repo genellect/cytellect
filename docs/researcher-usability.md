@@ -35,28 +35,32 @@ Use registered public images and fixed example metadata for onboarding, followed
 
 Record task completion, time, wrong turns, requests for help, correction burden, data-loss incidents, understanding of the measurement/n, and reuse intent. Compare the same bounded task with the participant's current Fiji workflow rather than a hypothetical unassisted manual baseline. Report failures and uncompleted tasks as such; no adoption/time-saving claim before evidence exists.
 
-PRs #11–#14 are published through required CI and main. Nuclear initialization,
+PRs #11–#15 are published through required CI and main. Nuclear initialization,
 independent-unit comparisons, adopted plans and batch registration have scoped
 source and browser evidence; the installed local.11 release has its own
 acceptance record. The earlier plan/default, calibration, imported-mask input
 and nuclear-area selection findings were addressed in that sequence. These are
 agent findings and automated checks, not participant observations.
 
-The next source increment addresses individual-region tracing from a saved
+PR #15 addresses individual-region tracing from a saved
 descriptive figure and common-information application that could erase
 row-specific metadata. It also prepares the [unequal-replicate
 task](usability-practice.ja.md). None of these source changes retrospectively
 updates local.11 or establishes human usability.
 
-Two further source-derived priorities remain. First, the comparison screen
-currently exposes final unit values and separate CSVs for field/sample
-aggregation; a researcher should be able to expand a saved unit value and inspect
-its saved sample means and field medians directly. Use server values and retain
-missing/excluded inputs; a unit point is not one cell. Second, area-only analysis
+The current source increment exposes saved unit values as an expandable
+sample/field hierarchy. It uses server values and ledgers, keeps exclusions and
+unknown failed-field counts visible, and verifies historical masks/channels before
+opening a field. A unit point is not one cell. Source review also corrected a
+display-order mismatch so that a field has the same name in the hierarchy and
+image viewer. Browser and package acceptance are recorded separately; these
+changes do not establish participant understanding or time savings.
+
+The next source-derived priority is area-only analysis, which
 currently requires per-channel backgrounds because it produces the full
 measurement table. Reducing that burden needs a versioned measurement contract
 that leaves unmeasured corrected intensities missing; it must not silently assume
-zero background. Neither change is an already available feature.
+zero background. That measurement-policy change is not yet implemented.
 
 Continue public-data work while human/private evidence is unavailable; keep M4
 and M5 open. Actual task completion, recovery and understanding determine whether

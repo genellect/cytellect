@@ -12,6 +12,15 @@ PR #13 connects [explicit planning adoption](analysis-planning.md), reviewed fil
 
 The [requirement coverage audit](completion-audit.md) maps the implemented workflow, regression corrections and remaining private/human/hosted acceptance. Later source fixes do not retroactively change accepted release evidence.
 
+PR #15 passed its four required checks and merged as
+`c215e70a563797d07181b6febbd5cdb04b9e39ba`. The same source reached Vercel production
+READY as `dpl_FyfBb2jvarcWBFf8PEeVJjxrTguc`; canonical home/planning checks at
+1440/390 px passed separately. It adds source inspection for saved individual
+region measurements, preserves per-field metadata during common-field edits,
+and improves installer diagnosis. These later changes are not included in the
+immutable local.11 package. Comparison aggregation inspection is the next
+source increment; background-free area measurement remains a design task.
+
 | Stage | Implemented | Remaining acceptance |
 |---|---|---|
 | M0 | Public monorepo, bilingual docs, agent guidance, locked Python/Web/Fiji, actual Java21 CPU detection, Alembic, CI and container definitions | Linux Fiji/browser and actual isolated worker container passed in PR #1; complete hosted stack acceptance remains open |
