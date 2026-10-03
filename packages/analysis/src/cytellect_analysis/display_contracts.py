@@ -1,5 +1,5 @@
 """Display-only provenance; never an input to measurement or detection."""
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
@@ -37,7 +37,7 @@ class PreviewDisplayMetadata(BaseModel):
     planes: list[PreviewPlaneDisplay] = Field(min_length=1, max_length=3)
 
 
-PREVIEW_PNG_RESPONSE = {
+PREVIEW_PNG_RESPONSE: dict[int | str, dict[str, Any]] = {
     200: {
         "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}},
         "headers": {
