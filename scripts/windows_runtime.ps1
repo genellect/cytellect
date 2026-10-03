@@ -1,4 +1,4 @@
-# Functions only. Explicit setup supplies Get-SafeChild and Update-SetupStatus.
+﻿# Functions only. Explicit setup supplies Get-SafeChild and Update-SetupStatus.
 # No system Python, PATH, registry, application-control or MSI changes.
 Set-StrictMode -Version Latest
 

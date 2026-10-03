@@ -12,6 +12,15 @@ pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows runtime bootstr
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_non_ascii_windows_setup_scripts_declare_utf8_for_legacy_powershell():
+    # PS5.1 otherwise decodes UTF-8 bytes with the workstation ANSI code page.
+    # A Japanese developer PC can parse a file that fails on a US CI runner.
+    for name in ("local_setup.ps1", "windows_runtime.ps1", "prepare_windows_runtime_data.ps1"):
+        raw = (ROOT / "scripts" / name).read_bytes()
+        raw.decode("utf-8-sig")
+        assert raw.isascii() or raw.startswith(b"\xef\xbb\xbf"), name
+
+
 def extract(archive, destination, count, maximum=4096, required=None, data_only=True):
     specification = archive.with_suffix(".spec.json")
     specification.write_text(json.dumps({"files": required or [], "count": count,
