@@ -11,6 +11,7 @@ import RegionUploadPanel from "./RegionUploadPanel";
 import RegionBatchUploadPanel from "./RegionBatchUploadPanel";
 import DescriptivePanel from "./DescriptivePanel";
 import RegionComparisonPanel from "./RegionComparisonPanel";
+import RegionQualityOverview from "./RegionQualityOverview";
 import PlanResolutionPanel,{planChanges} from "./PlanResolutionPanel";
 import {regionFieldTraceMismatch,regionTraceMismatch,traceDisplayChannel,type RegionFieldTraceTarget,type RegionTraceTarget} from "@/lib/region-trace";
 import styles from "./workspace.module.css";
@@ -18,17 +19,19 @@ import styles from "./workspace.module.css";
 const FieldCanvas=dynamic(()=>import("./FieldCanvas"),{ssr:false,loading:()=> <div className={styles.canvasLoading}>画像を準備しています…</div>});
 const operations:Record<Operation,string>={select:"選択",background:"背景",add:"追加",replace:"輪郭修正",delete:"削除",merge:"結合",split:"分割"};
 type Props={id:string;session:Session;onBack:()=>void;onError:(message:string)=>void};
+const sourceMessage=(message:string,quality:boolean)=>quality?message.replaceAll("この図","この品質一覧").replaceAll("保存済みの図","保存済みの品質情報").replaceAll("図の履歴から選び直してください","品質一覧を読み直してください").replaceAll("図の履歴から","品質一覧から").replaceAll("図の測定値から","品質一覧から"):message;
 
 export default function GenericWorkbench({id,onBack,onError}:Props){
  const client=useQueryClient();const loaded=useRef<string|undefined>(undefined);const editor=useRef<HTMLDivElement>(null);const values=useRef<HTMLElement>(null);
  const [busy,setBusy]=useState(false);const [tab,setTab]=useState("analysis");const [fieldId,setFieldId]=useState("");const [channelId,setChannelId]=useState("");
  const [config,setConfig]=useState<RegionConfig>({recipe:{...regionRecipe},backgrounds:{},exclusions:[]});const [dirty,setDirty]=useState(false);
  const [operation,setOperation]=useState<Operation>("select");const [selected,setSelected]=useState<number[]>([]);const [polygon,setPolygon]=useState<Point[]>([]);const [coordinates,setCoordinates]=useState("");const [gain,setGain]=useState(1);const [showMasks,setShowMasks]=useState(true);
- const [pendingTrace,setPendingTrace]=useState<{target:RegionTraceTarget;channelId:string}|null>(null);const [traceError,setTraceError]=useState("");const [verifiedTrace,setVerifiedTrace]=useState<{target:RegionTraceTarget;channelId:string}|null>(null);
+ const [pendingTrace,setPendingTrace]=useState<{target:RegionTraceTarget;channelId:string;origin?:"quality"}|null>(null);const [traceError,setTraceError]=useState("");const [verifiedTrace,setVerifiedTrace]=useState<{target:RegionTraceTarget;channelId:string;origin?:"quality"}|null>(null);
  const [traceTransition,setTraceTransition]=useState(false);const [traceRecovery,setTraceRecovery]=useState(false);
  const [appliedRevisionId,setAppliedRevisionId]=useState("");const [settledViewKey,setSettledViewKey]=useState("");
- const [pendingField,setPendingField]=useState<{revisionId:string;fieldId:string;source?:RegionFieldTraceTarget;channelId?:string}|null>(null);
- const [verifiedField,setVerifiedField]=useState<{target:RegionFieldTraceTarget;channelId:string}|null>(null);
+ const [pendingField,setPendingField]=useState<{revisionId:string;fieldId:string;source?:RegionFieldTraceTarget;channelId?:string;origin?:"quality";inputOnly?:boolean}|null>(null);
+ const [verifiedField,setVerifiedField]=useState<{target:RegionFieldTraceTarget;channelId:string;origin?:"quality"}|null>(null);
+ const [verifiedInput,setVerifiedInput]=useState<{revisionId:string;fieldId:string;channelId:string}|null>(null);
  const traceGuard=useRef(false);const draftRegion=polygon.length>0||coordinates.trim().length>0;
  const [reviewed,setReviewed]=useState(false);const [exclusionReason,setExclusionReason]=useState("");const [redoBranches,setRedoBranches]=useState<Record<string,string>>({});const [includeRaw,setIncludeRaw]=useState(false);const [deleteConfirmed,setDeleteConfirmed]=useState(false);
  const [nuclearConfirmed,setNuclearConfirmed]=useState(false);const [pendingScope,setPendingScope]=useState<"add"|"batch"|"redetect"|null>(null);const methodChosen=useRef(false);
@@ -56,37 +59,42 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
   if(traceGuard.current){setPendingTrace(null);setTraceTransition(false);setTraceError("未保存の領域・設定があるため、画像への切り替えを中止しました。");return;}
   // Wait for query refresh and the reset/config state to commit before applying the exact selection.
   if(busy||active?.id!==target.revisionId||appliedRevisionId!==target.revisionId||settledViewKey!==viewKey||fid!==target.fieldId||cid!==displayChannel)return;
-  if(masks.isError){setPendingTrace(null);setTraceTransition(false);setTraceError("領域を読み込めませんでした。図の測定値からもう一度お試しください。");return;}
+  if(masks.isError){setPendingTrace(null);setTraceTransition(false);setTraceError(sourceMessage("領域を読み込めませんでした。図の測定値からもう一度お試しください。",pendingTrace.origin==="quality"));return;}
   if(!masks.data||!field)return;
   const mismatch=regionTraceMismatch(target,field,masks.data);
-  if(mismatch){setPendingTrace(null);setTraceTransition(false);setTraceError(mismatch);return;}
+  if(mismatch){setPendingTrace(null);setTraceTransition(false);setTraceError(sourceMessage(mismatch,pendingTrace.origin==="quality"));return;}
   setSelected([target.regionId]);setOperation("select");setShowMasks(true);setPendingTrace(null);setTraceTransition(false);
   setVerifiedTrace(pendingTrace);
   editor.current?.scrollIntoView({behavior:"smooth",block:"center"});
  },[pendingTrace,busy,active,appliedRevisionId,settledViewKey,viewKey,fid,cid,masks.data,masks.isError,field,channel]);
  useEffect(()=>{
   if(!pendingTrace||busy)return;
-  const timeout=setTimeout(()=>{void client.cancelQueries({queryKey:["region-masks",pendingTrace.target.revisionId,pendingTrace.target.fieldId]}).then(()=>{setPendingTrace(null);setTraceTransition(false);setTraceError("保存済みの領域を開けませんでした。図の測定値からもう一度お試しください。");});},15000);
+  const timeout=setTimeout(()=>{void client.cancelQueries({queryKey:["region-masks",pendingTrace.target.revisionId,pendingTrace.target.fieldId]}).then(()=>{setPendingTrace(null);setTraceTransition(false);setTraceError(sourceMessage("保存済みの領域を開けませんでした。図の測定値からもう一度お試しください。",pendingTrace.origin==="quality"));});},15000);
   return()=>clearTimeout(timeout);
  },[pendingTrace,busy,client]);
  useEffect(()=>{
   if(!pendingField)return;
   if(traceGuard.current){setPendingField(null);setTraceTransition(false);setTraceError("未保存の領域・設定があるため、画像への切り替えを中止しました。");return;}
   if(busy||active?.id!==pendingField.revisionId||appliedRevisionId!==pendingField.revisionId||settledViewKey!==viewKey||fid!==pendingField.fieldId)return;
-  if(pendingField.source&&cid!==pendingField.channelId)return;
-  if(masks.isError){setPendingField(null);setTraceTransition(false);setTraceError("保存済みの視野を読み込めませんでした。図の履歴からもう一度お試しください。");return;}
+  if((pendingField.source||pendingField.inputOnly)&&cid!==pendingField.channelId)return;
+  if(pendingField.inputOnly){
+   setSelected([]);setOperation("select");setShowMasks(false);
+   setVerifiedInput({revisionId:pendingField.revisionId,fieldId:pendingField.fieldId,channelId:pendingField.channelId!});
+   setPendingField(null);setTraceTransition(false);editor.current?.scrollIntoView({behavior:"smooth",block:"center"});return;
+  }
+  if(masks.isError){setPendingField(null);setTraceTransition(false);setTraceError(sourceMessage("保存済みの視野を読み込めませんでした。図の履歴からもう一度お試しください。",pendingField.origin==="quality"||!!pendingField.inputOnly));return;}
   if(!masks.data||!field)return;
   if(pendingField.source){
    const mismatch=regionFieldTraceMismatch(pendingField.source,field,masks.data);
-   if(mismatch){setPendingField(null);setTraceTransition(false);setTraceError(mismatch);return;}
+   if(mismatch){setPendingField(null);setTraceTransition(false);setTraceError(sourceMessage(mismatch,pendingField.origin==="quality"));return;}
    setSelected([]);setOperation("select");setShowMasks(true);
-   setVerifiedField({target:pendingField.source,channelId:pendingField.channelId!});
+   setVerifiedField({target:pendingField.source,channelId:pendingField.channelId!,origin:pendingField.origin});
   }
   setPendingField(null);setTraceTransition(false);editor.current?.scrollIntoView({behavior:"smooth",block:"center"});
  },[pendingField,busy,active,appliedRevisionId,settledViewKey,viewKey,fid,cid,field,masks.data,masks.isError]);
  useEffect(()=>{
   if(!pendingField||busy)return;
-  const timeout=setTimeout(()=>{void client.cancelQueries({queryKey:["region-masks",pendingField.revisionId,pendingField.fieldId]}).then(()=>{setPendingField(null);setTraceTransition(false);setTraceError("保存済みの視野を開けませんでした。図の履歴からもう一度お試しください。");});},15000);
+  const timeout=setTimeout(()=>{void client.cancelQueries({queryKey:["region-masks",pendingField.revisionId,pendingField.fieldId]}).then(()=>{setPendingField(null);setTraceTransition(false);setTraceError(sourceMessage("保存済みの視野を開けませんでした。図の履歴からもう一度お試しください。",pendingField.origin==="quality"||!!pendingField.inputOnly));});},15000);
   return()=>clearTimeout(timeout);
  },[pendingField,busy,client]);
  useEffect(()=>{if(!active&&!loaded.current&&!methodChosen.current&&fields.data?.[0])setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:fields.data[0].image_info.labels_array?"imported":"manual"}}));},[active,fields.data]);
@@ -101,7 +109,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
  }
  async function navigate(work:()=>Promise<void>){
   setBusy(true);setTraceRecovery(false);onError("");let pending=false;
-  try{await work();pending=true;}catch(error){setPendingTrace(null);setPendingField(null);setTraceError(error instanceof Error&&!("code" in error)&&error.name!=="TimeoutError"?error.message:"保存済みの画像を開けませんでした。図の履歴からもう一度お試しください。");}
+  try{await work();pending=true;}catch(error){setPendingTrace(null);setPendingField(null);setTraceError(error instanceof Error&&!("code" in error)&&error.name!=="TimeoutError"?error.message:"保存済みの画像を開けませんでした。作業を開き直してもう一度お試しください。");}
   try{await refreshNavigation();if(!pending)setTraceTransition(false);}
   catch{setPendingTrace(null);setPendingField(null);setTraceRecovery(true);setTraceError("採用中の解析版を確認できません。作業を開き直してください。");}
   finally{setBusy(false);}
@@ -138,25 +146,25 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
   await post(`/v1/workspaces/${id}/region-analyses`,{...payload(spec.field_ids),reuse_revision:spec.reuse_revision});setPendingScope(null);
  }
  async function adopt(revisionId:string){if(active?.parent_id===revisionId)setRedoBranches(current=>({...current,[revisionId]:active.id}));await post(`/v1/workspaces/${id}/current`,{revision_id:revisionId});}
- function inspectRegion(target:RegionTraceTarget){
+ function inspectRegion(target:RegionTraceTarget,origin?:"quality"){
   if(blocked||traceTransition||traceGuard.current)return;
   setTraceTransition(true);
   void navigate(async()=>{
-   setTraceError("");setVerifiedTrace(null);setVerifiedField(null);
+   setTraceError("");setVerifiedTrace(null);setVerifiedField(null);setVerifiedInput(null);
     const revision=history.find(item=>item.id===target.revisionId);const sourceField=fields.data?.find(item=>item.id===target.fieldId);
-    if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(target.fieldId)||!sourceField)throw Error("保存済みの解析版または視野を確認できません。図の履歴から選び直してください。");
+    if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(target.fieldId)||!sourceField)throw Error(sourceMessage("保存済みの解析版または視野を確認できません。図の履歴から選び直してください。",origin==="quality"));
     const displayChannel=traceDisplayChannel(target,sourceField,cid);
-    if(!displayChannel)throw Error("保存済みの測定チャンネルを確認できません。図の履歴から選び直してください。");
+    if(!displayChannel)throw Error(sourceMessage("保存済みの測定チャンネルを確認できません。図の履歴から選び直してください。",origin==="quality"));
     const savedMasks=await request<RegionMasks>(`/v1/revisions/${target.revisionId}/region-masks?field_id=${encodeURIComponent(target.fieldId)}`,{signal:AbortSignal.timeout(15000)});
-    const mismatch=regionTraceMismatch(target,sourceField,savedMasks);if(mismatch)throw Error(mismatch);
-    if(traceGuard.current)throw Error("未保存の領域・設定があるため、画像への切り替えを中止しました。");
+    const mismatch=regionTraceMismatch(target,sourceField,savedMasks);if(mismatch)throw Error(sourceMessage(mismatch,origin==="quality"));
+    if(traceGuard.current)throw Error(sourceMessage("未保存の領域・設定があるため、画像への切り替えを中止しました。",origin==="quality"));
     if(active?.id!==target.revisionId)await request(`/v1/workspaces/${id}/current`,{method:"POST",body:JSON.stringify({revision_id:target.revisionId}),signal:AbortSignal.timeout(15000)});
-    setFieldId(target.fieldId);setChannelId(displayChannel.channel_id);setTab("analysis");setPendingTrace({target,channelId:displayChannel.channel_id});
+    setFieldId(target.fieldId);setChannelId(displayChannel.channel_id);setTab("analysis");setPendingTrace({target,channelId:displayChannel.channel_id,origin});
   });
  }
  function inspectField(fieldId:string,revisionId:string){
   if(blocked||traceTransition||traceGuard.current)return;
-  setTraceTransition(true);setVerifiedTrace(null);setVerifiedField(null);setTraceError("");
+  setTraceTransition(true);setVerifiedTrace(null);setVerifiedField(null);setVerifiedInput(null);setTraceError("");
   void navigate(async()=>{
    try{
     const revision=history.find(item=>item.id===revisionId);
@@ -166,20 +174,32 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
    }catch{throw Error("保存済みの視野を開けませんでした。図の履歴からもう一度お試しください。");}
   });
  }
- function inspectSourceField(target:RegionFieldTraceTarget){
+ function inspectSourceField(target:RegionFieldTraceTarget,origin?:"quality"){
   if(blocked||traceTransition||traceGuard.current)return;
-  setTraceTransition(true);setVerifiedTrace(null);setVerifiedField(null);setTraceError("");
+  setTraceTransition(true);setVerifiedTrace(null);setVerifiedField(null);setVerifiedInput(null);setTraceError("");
   void navigate(async()=>{
    const revision=history.find(item=>item.id===target.revisionId);const sourceField=fields.data?.find(item=>item.id===target.fieldId);
-   if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(target.fieldId)||!sourceField)throw Error("保存済みの解析版または視野を確認できません。図の履歴から選び直してください。");
+   if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(target.fieldId)||!sourceField)throw Error(sourceMessage("保存済みの解析版または視野を確認できません。図の履歴から選び直してください。",origin==="quality"));
    const displayChannel=traceDisplayChannel(target,sourceField,cid);
-   if(!displayChannel)throw Error("保存済みの測定チャンネルを確認できません。図の履歴から選び直してください。");
+   if(!displayChannel)throw Error(sourceMessage("保存済みの測定チャンネルを確認できません。図の履歴から選び直してください。",origin==="quality"));
    const savedMasks=await request<RegionMasks>(`/v1/revisions/${target.revisionId}/region-masks?field_id=${encodeURIComponent(target.fieldId)}`,{signal:AbortSignal.timeout(15000)});
-   const mismatch=regionFieldTraceMismatch(target,sourceField,savedMasks);if(mismatch)throw Error(mismatch);
-   if(traceGuard.current)throw Error("未保存の領域・設定があるため、画像への切り替えを中止しました。");
+   const mismatch=regionFieldTraceMismatch(target,sourceField,savedMasks);if(mismatch)throw Error(sourceMessage(mismatch,origin==="quality"));
+   if(traceGuard.current)throw Error(sourceMessage("未保存の領域・設定があるため、画像への切り替えを中止しました。",origin==="quality"));
    if(active?.id!==target.revisionId)await request(`/v1/workspaces/${id}/current`,{method:"POST",body:JSON.stringify({revision_id:target.revisionId}),signal:AbortSignal.timeout(15000)});
    setFieldId(target.fieldId);setChannelId(displayChannel.channel_id);setTab("analysis");
-   setPendingField({revisionId:target.revisionId,fieldId:target.fieldId,source:target,channelId:displayChannel.channel_id});
+   setPendingField({revisionId:target.revisionId,fieldId:target.fieldId,source:target,channelId:displayChannel.channel_id,origin});
+  });
+ }
+ function inspectQualityInput(fieldId:string){
+  if(blocked||traceTransition||traceGuard.current||!active)return;
+  setTraceTransition(true);setVerifiedTrace(null);setVerifiedField(null);setVerifiedInput(null);setTraceError("");
+  void navigate(async()=>{
+   const outcome=report.data?.field_outcomes[fieldId];const input=fields.data?.find(item=>item.id===fieldId);
+   if(!input||!active.config.field_ids?.includes(fieldId)||!(outcome==="failed"||outcome==="excluded_failed"))throw Error("この視野の入力画像を確認できません。一覧を読み直してください。");
+   const displayChannel=input.image_info.channels.find(item=>item.channel_id===cid)||input.image_info.channels[0];
+   if(!displayChannel)throw Error("入力画像のチャンネルを確認できません。");
+   setFieldId(fieldId);setChannelId(displayChannel.channel_id);setTab("analysis");
+   setPendingField({revisionId:active.id,fieldId,channelId:displayChannel.channel_id,inputOnly:true});
   });
  }
  function applyPolygon(){
@@ -191,6 +211,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
  const scopeCount=active?.config.field_ids?.length||0;const remaining=(fields.data?.length||0)-scopeCount;
  const traceVisible=verifiedTrace&&active?.id===verifiedTrace.target.revisionId&&fid===verifiedTrace.target.fieldId&&cid===verifiedTrace.channelId&&selected.length===1&&selected[0]===verifiedTrace.target.regionId&&showMasks&&!dirty&&!draftRegion&&field&&masks.data&&!regionTraceMismatch(verifiedTrace.target,field,masks.data);
  const fieldTraceVisible=verifiedField&&active?.id===verifiedField.target.revisionId&&fid===verifiedField.target.fieldId&&cid===verifiedField.channelId&&showMasks&&!dirty&&!draftRegion&&field&&masks.data&&!regionFieldTraceMismatch(verifiedField.target,field,masks.data);
+ const inputTraceVisible=verifiedInput&&active?.id===verifiedInput.revisionId&&fid===verifiedInput.fieldId&&cid===verifiedInput.channelId&&!dirty&&!draftRegion&&!showMasks;
  const message=processing?"処理を実行しています。完了後に領域と値を確認してください。":nextMissing?"測定するチャンネルごとに、信号を含まない背景を指定してください。":!active||!included?(areaOnly?"代表視野の領域を用意し、面積を確認します。背景の指定は不要です。":"背景を確認したら、代表視野の領域を用意します。"):failures.length?(areaOnly?"処理できなかった視野があります。領域を修正するか、理由を記録して除外してください。":"処理できなかった視野があります。背景・領域を修正するか、理由を記録して除外してください。"):noRegions?"画像を囲んで測りたい領域を追加してください。":recipeChanged?"検出条件を変更しました。再作成する範囲と修正領域の扱いを確認してください。":dirty?(measurementChanged?"測定する量を変更しました。領域を保持して再測定し、品質を確認してください。":areaOnly?"除外の変更を再測定へ反映してください。":"背景や除外の変更を再測定へ反映してください。"):!active.reviewed?(savedAreaOnly?"領域と面積、失敗・除外理由を確認してから図へ進みます。":"領域と背景、測定値を確認してから図へ進みます。"):remaining>0?`採用した領域を保持して、残り ${remaining} 視野を測定できます。`:"品質確認済みです。測定値の分布を図にできます。";
  function nextAction(){if(nextMissing){setFieldId(nextMissing.field.id);setChannelId(nextMissing.channel.channel_id);setOperation("background");editor.current?.scrollIntoView({behavior:"smooth",block:"center"});}else if(noRegions){setOperation("add");editor.current?.scrollIntoView({behavior:"smooth",block:"center"});}else if(active?.reviewed&&!dirty&&!remaining)setTab("figures");else values.current?.scrollIntoView({behavior:"smooth",block:"start"});}
  if(fields.isPending)return <main className={styles.workbench}><p>画像を確認しています…</p></main>;
@@ -201,8 +222,9 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
   <div className={styles.workHeader}><div><button className={styles.back} onClick={onBack}>← 作業一覧</button><h1>{space.data?.title||"ワークスペース"}</h1><span className={styles.muted}>{fields.data?.length||0} 視野 · {active?`解析版 ${index+1} / 対象 ${scopeCount} 視野`:"解析前"} · {active?.reviewed?"品質確認済み":"品質確認前"}</span></div><div className={styles.workHeaderRight}><span className={styles.small}>有効期限 {space.data?new Date(space.data.expires*1000).toLocaleString("ja-JP"):"—"}</span><button className={styles.secondary} disabled={busy} onClick={()=>run(async()=>{await post(`/v1/workspaces/${id}/touch`);})}>保存期限を24時間延長</button></div></div>
   <nav className={styles.tabs} aria-label="解析工程"><button className={tab==="analysis"?styles.activeTab:""} onClick={()=>setTab("analysis")}>01 <b>画像と領域</b></button><button className={tab==="figures"?styles.activeTab:""} onClick={()=>setTab("figures")}>02 <b>分布と図</b></button><button className={tab==="comparison"?styles.activeTab:""} onClick={()=>setTab("comparison")}>03 <b>実験単位で比較</b></button><button className={tab==="export"?styles.activeTab:""} onClick={()=>setTab("export")}>04 <b>保存と履歴</b></button><span className={styles.tabStatus}>{processing?"● 処理中":dirty?"● 未反映の変更があります":"画像・領域・測定値を同じ解析版で保存します"}</span></nav>
   {(fields.error||space.error)&&<p role="alert" className={styles.error}>{errorMessage(fields.error||space.error)}</p>}
-  {traceVisible&&tab==="analysis"&&<p role="status" className={styles.notice}>図に記録された領域 {verifiedTrace.target.regionId} を表示しています。{verifiedTrace.target.channelId===null?`面積測定にはチャンネルを使用していません。表示: ${channel?.label||verifiedTrace.channelId}`:`測定チャンネル: ${verifiedTrace.target.channelLabel}`}</p>}
-  {fieldTraceVisible&&tab==="analysis"&&<p role="status" aria-label="保存済み比較の視野" className={styles.notice}>この集計に記録された視野と領域を表示しています。{verifiedField.target.channelId===null?`面積測定にはチャンネルを使用していません。表示: ${channel?.label||verifiedField.channelId}`:`測定チャンネル: ${verifiedField.target.channelLabel}`} 採用・除外の内訳は、比較の集計表から確認できます。</p>}
+  {traceVisible&&tab==="analysis"&&<p role="status" className={styles.notice}>{verifiedTrace.origin==="quality"?"品質一覧":"図"}に記録された領域 {verifiedTrace.target.regionId} を表示しています。{verifiedTrace.target.channelId===null?(verifiedTrace.origin==="quality"?`領域の形状を確認しています。表示チャンネル: ${channel?.label||verifiedTrace.channelId}`:`面積測定にはチャンネルを使用していません。表示: ${channel?.label||verifiedTrace.channelId}`):`測定チャンネル: ${verifiedTrace.target.channelLabel}`}</p>}
+  {fieldTraceVisible&&tab==="analysis"&&<p role="status" aria-label={verifiedField.origin==="quality"?"保存済み品質一覧の視野":"保存済み比較の視野"} className={styles.notice}>{verifiedField.origin==="quality"?"この品質一覧":"この集計"}に記録された視野と領域を表示しています。{verifiedField.target.channelId===null?(verifiedField.origin==="quality"?`領域の形状を確認しています。表示チャンネル: ${channel?.label||verifiedField.channelId}`:`面積測定にはチャンネルを使用していません。表示: ${channel?.label||verifiedField.channelId}`):`測定チャンネル: ${verifiedField.target.channelLabel}`} 採用・除外の内訳は、{verifiedField.origin==="quality"?"品質一覧":"比較の集計表"}から確認できます。</p>}
+  {inputTraceVisible&&tab==="analysis"&&<p role="status" aria-label="品質確認の入力画像" className={styles.notice}>処理できなかった視野の入力画像です。表示チャンネル：{channel?.label}。保存済みの測定結果・領域の確認とは区別してください。</p>}
   {tab==="analysis"&&<>
    <RegionUploadPanel wid={id} channels={fields.data?.[0]?.image_info.channels} maskSource={fields.data?.length?(fields.data[0].image_info.labels_array?"imported":"manual"):config.recipe.source==="imported"?"imported":"manual"} hasFields={!!fields.data?.length} run={run} onDone={registered=>{setFieldId(registered.id);if(!fields.data?.length&&!active&&!methodChosen.current)setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:registered.image_info.labels_array?"imported":"manual"}}));}}/>
    <RegionBatchUploadPanel backgroundRequired={!areaOnly} onInspect={()=>editor.current?.closest("section")?.scrollIntoView({behavior:"smooth",block:"start"})} wid={id} channels={fields.data?.[0]?.image_info.channels} maskSource={fields.data?.length?(fields.data[0].image_info.labels_array?"imported":"manual"):config.recipe.source==="imported"?"imported":"manual"} hasFields={!!fields.data?.length} run={run} onDone={registered=>{setFieldId(registered.id);if(!fields.data?.length&&!active&&!methodChosen.current)setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:registered.image_info.labels_array?"imported":"manual"}}));}}/>
@@ -244,6 +266,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
     </aside>
    </div></>}
    {active&&<section className={styles.measurements} ref={values}><div className={styles.sectionHeader}><h2>測定値と品質確認</h2><span className={styles.statusPill}>{regionIds.length} 領域{savedAreaOnly?"":` · ${channel?.label||"—"}`}</span></div>
+    {report.data&&<RegionQualityOverview report={report.data} revision={active} revisionLabel={`解析版 ${index+1}`} fieldLabels={Object.fromEntries(effectiveFields.map((item,i)=>[item.id,`視野 ${i+1}`]))} fieldOrder={effectiveFields.map(item=>item.id)} disabled={blocked||dirty||draftRegion||traceTransition} onInspectField={target=>inspectSourceField(target,"quality")} onInspectRegion={target=>inspectRegion(target,"quality")} onInspectInput={inspectQualityInput}/>}
     {report.error&&<p role="alert" className={styles.error}>{errorMessage(report.error)}</p>}
     {!!failures.length&&<div className={styles.error}>{failures.map(failure=><p key={failure.field_id}>視野 {(fields.data||[]).findIndex(item=>item.id===failure.field_id)+1}：{errorCodeMessage(failure.reason)}</p>)}{areaOnly?"領域を修正して再測定するか、理由を記録して視野を除外してください。":"領域と背景を修正して再測定するか、理由を記録して視野を除外してください。"}</div>}
     {noRegions&&<p className={styles.notice}>領域はまだありません。画像を囲んで追加してください。領域なしを輝度0として扱いません。</p>}

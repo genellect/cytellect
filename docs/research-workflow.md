@@ -132,3 +132,11 @@ belongs to the frozen local.12 package. Human interpretation remains untested.
 The original MVP goal stays active. This revision broadens the scientific question and defines successive release gates; it does not mark M4/M5 complete. [Roadmap](roadmap.md) and [requirements](requirements.md) remain the status record. Code, CI, installed execution, production deployment, scientific applicability and human usability must be reported separately. Old release evidence remains immutable.
 
 For the new workflow, success means a researcher can identify a supported measurement, inspect/correct its region, explain the independent unit, regenerate the figure and trace each point back to an accepted measurement. Number of tests, number of agents, attractive plots and agreement with a historical p-value are not product acceptance criteria.
+
+The next bounded usability increment is a [read-only all-field quality overview](region-quality-overview.md).
+Existing diagnostics on a nonselected field/channel were available only after
+switching the image. The overview brings those saved diagnostics together and
+links to the exact source while retaining the existing global review. It adds no
+individual approval clicks, new scientific threshold or automatic exclusion.
+Private/human acceptance remains open; source review and browser checks must not
+be presented as observed reductions in missed warnings or researcher time.
