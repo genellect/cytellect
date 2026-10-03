@@ -63,7 +63,7 @@ its PSF/third-party notices. The setup ZIP contains source and compiled Web asse
 not a copy of the developer's Python/Fiji installation. Preserve Web dependency
 license texts in the assembled package separately from Cytellect's own license.
 
-The Windows installer pins **CPython 3.12.15**, the
+The immutable local.11 Windows installer pins **CPython 3.12.15**, the
 [September 30 security release](https://www.python.org/downloads/release/python-31215/),
 using the official Astral standalone **20261001 Windows x86-64** distribution.
 The stripped install archive has SHA-256
@@ -74,6 +74,16 @@ uv0.12.2's embedded catalog predates this Python patch. Setup records the Python
 version/build/archive hash and uv hash in its completion record. Local installer
 acceptance must use this downloaded interpreter, including actual Tcl/Tk window
 creation; earlier developer-runtime Python3.12.14 results are separate evidence.
+
+The next source candidate uses the official PSF **Python3.14.8** x64 ZIP,
+signed standard-library venv launchers and unchanged Tcl/Tk9.0.4 scripts from
+the same release's pinned MSI. [Composition details](windows-runtime.md) and
+the runtime/member manifests identify each input and derived asset. The base
+PSF/historical/native terms, Tcl/Tk license texts and separate Vimix icon
+CC-BY-SA4.0 attribution are preserved. This is a maintained composition,
+not a PSF-certified distribution or an Apache-only third-party bundle. Normal
+project wheels and dependencies are installed by recorded hash. The source
+candidate does not alter local.11 or imply intended-PC acceptance.
 
 The source repository contains installer recipes, not third-party runtime
 binaries or pretrained weights. Before distributing a binary/container, retain

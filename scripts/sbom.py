@@ -1,7 +1,8 @@
 """Installed dependency/license evidence, not a legal compatibility decision.
 
 Python CycloneDX is produced by the existing pip-audit CI invocation. This
-inventory combines Python, actual Web notices and the fixed Fiji manifest.
+inventory combines Python, actual Web notices, the fixed Fiji manifest and
+the separately recorded Windows Python/Tcl/Tk runtime composition.
 """
 from __future__ import annotations
 
@@ -84,8 +85,10 @@ def inventory(root: Path, distributions=None) -> tuple[dict, str]:
         "python": python,
         "web": web,
         "fiji": json.loads((root / "engines/fiji/runtime.lock.json").read_text(encoding="utf-8")),
+        "windows_runtime": json.loads((root / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8")),
         "lockfiles": {name: hashlib.sha256((root / name).read_bytes()).hexdigest()
-                      for name in ("uv.lock", "pnpm-lock.yaml")},
+                      for name in ("uv.lock", "pnpm-lock.yaml", "engines/python/windows-runtime.lock.json",
+                                   "engines/python/windows-tcltk-members.json")},
         "notice": "Declared evidence and included notice hashes only. No inferred SPDX mapping, "
                   "legal compatibility decision, complete redistribution review or vulnerability guarantee.",
     }

@@ -15,13 +15,14 @@ jobs:
   package:
     if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     permissions:
       contents: read
       checks: read
     env:
       RELEASE_VERSION: ${{ inputs.version }}
       NEXT_TELEMETRY_DISABLED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
       CYTELLECT_TEST_LOCAL: "1"
       CYTELLECT_WEB_URL: http://127.0.0.1:8765
       CYTELLECT_TEST_API_ORIGIN: http://127.0.0.1:8765
@@ -45,7 +46,7 @@ jobs:
             const checks = await github.paginate(github.rest.checks.listForRef, {
               ...context.repo, ref: context.sha, filter: 'latest', per_page: 100
             });
-            for (const name of ['python', 'web', 'fiji-browser', 'local-windows']) {
+            for (const name of ['python', 'web', 'fiji-browser', 'local-windows', 'python-windows-314']) {
               const check = checks.find(c => c.name === name && c.app?.slug === 'github-actions');
               if (check?.conclusion !== 'success') throw new Error(`${name} has not passed on this commit`);
             }
@@ -53,6 +54,8 @@ jobs:
         with: {node-version: "24"}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --group build
       - run: npm install --global pnpm@11.19.0
       - run: pnpm install --frozen-lockfile
       - run: node apps/web/node_modules/@playwright/test/cli.js install chromium
@@ -62,7 +65,20 @@ jobs:
           $releaseDir = Join-Path $env:RUNNER_TEMP 'release'
           New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
           $archive = Join-Path $releaseDir "Cytellect-$env:RELEASE_VERSION-windows-x64.zip"
-          python scripts/build_local_bundle.py --version $env:RELEASE_VERSION --output $archive
+          $inputs = Join-Path $env:RUNNER_TEMP 'release-inputs'
+          New-Item -ItemType Directory -Path $inputs | Out-Null
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          $data = Join-Path $inputs 'windows-tcltk-9.0.4-data.zip'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/prepare_windows_runtime_data.ps1 -Python $python -CacheRoot (Join-Path $inputs 'cache') -ScratchRoot (Join-Path $inputs 'extraction') -Output $data
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned runtime data preparation failed' }
+          & $python -B -m hatchling build -t wheel -d (Join-Path $inputs 'wheels')
+          if ($LASTEXITCODE -ne 0) { throw 'Normal locked wheel build failed' }
+          $requirements = Join-Path $inputs 'requirements.txt'
+          uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Hashed production dependency export failed' }
+          $wheels = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')
+          if ($wheels.Count -ne 1) { throw 'Expected one project wheel' }
+          & $python -B scripts/build_local_bundle.py --version $env:RELEASE_VERSION --output $archive --runtime-data $data --wheel $wheels[0].FullName --requirements $requirements
           if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
           "CYTELLECT_RELEASE_DIR=$releaseDir" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CYTELLECT_RELEASE_ZIP=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -105,11 +121,11 @@ jobs:
             schema = 'cytellect-installed-release-acceptance/1'; source_commit = $env:GITHUB_SHA
             version = $env:RELEASE_VERSION; archive_sha256 = (Get-FileHash -LiteralPath $env:CYTELLECT_RELEASE_ZIP).Hash.ToLowerInvariant()
             harness_sha256 = (Get-FileHash -LiteralPath 'scripts/verify_installed_regions.py').Hash.ToLowerInvariant()
-            browser = @{ passed = $false; expected_cases = 9 }
+            browser = @{ passed = $false; expected_cases = 12 }
             numerical_replay_passed = $false; launcher_stopped = $false
             scope = 'Installed public microscopy, planning and retry workflows with generated numerical references; no private-study or human-usability acceptance'
           }
-          $arguments = @('-m', 'cytellect_api.local', '--data-dir', "`"$data`"", '--web-dir', "`"$web`"", '--fiji', "`"$($setup.fiji)`"", '--no-browser')
+          $arguments = @('-B', '-m', 'cytellect_api.local', '--data-dir', "`"$data`"", '--web-dir', "`"$web`"", '--fiji', "`"$($setup.fiji)`"", '--no-browser')
           $launcher = Start-Process -FilePath $python -ArgumentList $arguments -WindowStyle Hidden -PassThru
           try {
             $ready = $false
@@ -121,16 +137,16 @@ jobs:
               } catch { Start-Sleep -Seconds 1 }
             }
             if (-not $ready) { throw 'Installed application did not start' }
-            pnpm --filter @cytellect/web test:e2e tests/local-workspace.spec.ts tests/generic-workspace.spec.ts tests/nuclear-region-comparison.spec.ts tests/plan-batch-workflow.spec.ts --reporter=json
+            pnpm --filter @cytellect/web test:e2e tests/local-workspace.spec.ts tests/generic-workspace.spec.ts tests/nuclear-region-comparison.spec.ts tests/plan-batch-workflow.spec.ts tests/region-trace.spec.ts tests/batch-common-metadata.spec.ts tests/comparison-hierarchy.spec.ts --reporter=json
             $browserExit = $LASTEXITCODE
             if (Test-Path -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE) {
               $browser = Get-Content -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE -Raw | ConvertFrom-Json
-              $receipt.browser = @{ passed = ($browserExit -eq 0 -and $browser.stats.expected -eq 9 -and $browser.stats.unexpected -eq 0 -and $browser.stats.skipped -eq 0 -and $browser.stats.flaky -eq 0)
-                expected_cases = 9; passed_cases = $browser.stats.expected; failed_cases = $browser.stats.unexpected
+              $receipt.browser = @{ passed = ($browserExit -eq 0 -and $browser.stats.expected -eq 12 -and $browser.stats.unexpected -eq 0 -and $browser.stats.skipped -eq 0 -and $browser.stats.flaky -eq 0)
+                expected_cases = 12; passed_cases = $browser.stats.expected; failed_cases = $browser.stats.unexpected
                 skipped_cases = $browser.stats.skipped; flaky_cases = $browser.stats.flaky }
             }
             if (-not $receipt.browser.passed) { throw 'Installed browser verification failed or incomplete' }
-            & $python scripts/verify_installed_regions.py --app $setup.app --expected-source $env:GITHUB_SHA --origin $env:CYTELLECT_WEB_URL --output (Join-Path $acceptance 'generated-regions')
+            & $python -B scripts/verify_installed_regions.py --app $setup.app --expected-source $env:GITHUB_SHA --origin $env:CYTELLECT_WEB_URL --output (Join-Path $acceptance 'generated-regions')
             if ($LASTEXITCODE -ne 0) { throw 'Installed independent numerical or replay verification failed' }
             $numerical = Get-Content -LiteralPath (Join-Path $acceptance 'generated-regions/receipt.json') -Raw | ConvertFrom-Json
             $receipt.numerical_replay_passed = ($numerical.passed -eq $true -and $numerical.identity.source_commit -eq $env:GITHUB_SHA -and $numerical.harness_sha256 -eq $receipt.harness_sha256)
@@ -189,5 +205,5 @@ jobs:
       - name: Create a draft prerelease for final review
         shell: bash
         run: |
-          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned Windows setup, nine installed browser cases covering public GFP/generic nuclear regions, planning adoption and batch-registration retries, and independent generated-pixel comparison/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned signed Python setup, twelve installed browser cases covering public GFP/generic nuclear regions, planning adoption, registration retries and saved source/experimental hierarchy, and independent generated-pixel comparison/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
           gh release create "v$RELEASE_VERSION" release/* --verify-tag --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"

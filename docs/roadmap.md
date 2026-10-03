@@ -21,6 +21,15 @@ and improves installer diagnosis. These later changes are not included in the
 immutable local.11 package. Comparison aggregation inspection is the next
 source increment; background-free area measurement remains a design task.
 
+PR #16 then added saved unit → sample → field inspection and historical source
+navigation. Its four required checks passed before main
+`636bbc9c73e60f26e6ae3310354f85494f84dedd` reached Vercel production
+`dpl_C4voNA4qdQkWGHmGSqz1cpEUy5nP`. Canonical public home/planning checks passed
+at 1440/390 px. The source-only API/browser evidence and public-page evidence are
+distinct; this increment is not in local.11. The next delivery priority is the
+intended-PC installation blocker. Signed-runtime candidate checks must precede
+any dependency-support or public-package change; area-only remains queued.
+
 | Stage | Implemented | Remaining acceptance |
 |---|---|---|
 | M0 | Public monorepo, bilingual docs, agent guidance, locked Python/Web/Fiji, actual Java21 CPU detection, Alembic, CI and container definitions | Linux Fiji/browser and actual isolated worker container passed in PR #1; complete hosted stack acceptance remains open |

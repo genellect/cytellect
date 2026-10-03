@@ -13,6 +13,7 @@ PRIVATE = r"C:\__synthetic_private__\example-study\python.exe"
 
 HARNESS = r'''
 $ErrorActionPreference='Stop'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }
@@ -90,6 +91,7 @@ def test_precise_error_mapping_without_output_disclosure(
 
 PROCESS_HARNESS = r'''
 $ErrorActionPreference='Stop'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }

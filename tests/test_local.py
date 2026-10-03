@@ -1,4 +1,6 @@
 """Local bootstrap threat boundaries and real launcher/worker lifecycle."""
+import errno
+import io
 import os
 import socket
 import subprocess
@@ -8,10 +10,12 @@ import time
 import venv
 from dataclasses import replace
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import httpx
 import psutil
 import pytest
+from cytellect_api import local as local_module
 from cytellect_api.app import create_app
 from cytellect_api.config import Settings
 from cytellect_api.db import sessions
@@ -106,6 +110,177 @@ def test_runtime_lock_and_port_are_exclusive_and_release(tmp_path):
             bind_loopback(port)
     assert parent_alive(os.getpid(), psutil.Process().create_time())
     assert not parent_alive(os.getpid(), psutil.Process().create_time() - 1)
+
+
+def test_runtime_lock_does_not_relabel_failures_inside_owned_runtime(tmp_path):
+    failure = OSError(errno.EADDRINUSE, "synthetic private port detail")
+    with pytest.raises(OSError) as caught:
+        with runtime_lock(tmp_path):
+            raise failure
+    assert caught.value is failure
+    with runtime_lock(tmp_path):
+        pass  # The owned lock is still released after a protected-body failure.
+
+
+@pytest.mark.parametrize("dont_write,inherited,expected", [
+    (False, None, None), (False, "0", "0"), (True, None, "1"), (True, "0", "1"),
+])
+def test_worker_bytecode_policy_is_only_overridden_for_no_bytecode_parent(
+    tmp_path, monkeypatch, dont_write, inherited, expected,
+):
+    monkeypatch.setattr(sys, "dont_write_bytecode", dont_write)
+    if inherited is None:
+        monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    else:
+        monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", inherited)
+    launched = []
+
+    def fake_process(pid=None):
+        return SimpleNamespace(pid=123 if pid is None else pid, create_time=lambda: 4.0, parents=lambda: [])
+
+    def fake_popen(args, **kwargs):
+        launched.append((args, kwargs))
+        return SimpleNamespace(pid=456, stdout=io.BytesIO(b"456 4.0\n"))
+
+    monkeypatch.setattr(local_module.psutil, "Process", fake_process)
+    monkeypatch.setattr(local_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(local_module, "process_alive", lambda identity: identity == (456, 4.0))
+    supervisor = WorkerSupervisor(Settings(tmp_path / "private"), lambda: None)
+    supervisor._spawn()  # Real supervisor handshake, synthetic pipe, no child is launched.
+    assert supervisor.worker_identity == (456, 4.0)
+    assert len(launched) == 1
+    args, options = launched[0]
+    assert args == [sys.executable, "-m", "cytellect_api.local_worker", "123", "4.0"]
+    assert options["env"].get("PYTHONDONTWRITEBYTECODE") == expected
+    assert os.environ.get("PYTHONDONTWRITEBYTECODE") == inherited
+
+
+@pytest.mark.parametrize("automatic", [False, True])
+def test_gui_browser_is_disabled_until_ready_and_again_during_stop(monkeypatch, automatic):
+    """Exercise the actual GUI callbacks without a native window, server or port."""
+    server = SimpleNamespace(started=False, should_exit=False)
+    buttons = {}
+    calls: list[str] = []
+    statuses = []
+    scheduled = []
+    state = {"alive": False, "destroyed": False, "joined": False}
+
+    class Widget:
+        def __init__(self, *_args, **kwargs):
+            self.options = kwargs
+            if "command" in kwargs:
+                buttons[kwargs["text"]] = self
+
+        def pack(self, **_kwargs):
+            pass
+
+        def configure(self, **kwargs):
+            self.options.update(kwargs)
+
+    class Status:
+        def __init__(self, value):
+            statuses.append(value)
+
+        def set(self, value):
+            statuses.append(value)
+
+    class Window:
+        def title(self, _value): pass
+        def geometry(self, _value): pass
+        def resizable(self, *_values): pass
+        def option_add(self, *_values): pass
+        def protocol(self, *_values): pass
+        def after(self, _delay, callback): scheduled.append(callback)
+        def destroy(self): state["destroyed"] = True
+
+        def mainloop(self):
+            button = buttons["ブラウザで開く"]
+            assert button.options["state"] == "disabled"
+            button.options["command"]()
+            assert not calls
+            scheduled.pop(0)()
+            assert button.options["state"] == "disabled"
+            server.started = True
+            scheduled.pop(0)()
+            assert button.options["state"] == "normal"
+            assert statuses[-1] == "稼働中 · " + ORIGIN
+            assert calls == ([ORIGIN] if automatic else [])
+            scheduled.pop(0)()
+            assert calls == ([ORIGIN] if automatic else [])  # No repeated auto-open.
+            button.options["command"]()
+            assert calls == [ORIGIN] * (2 if automatic else 1)
+            buttons["停止して閉じる"].options["command"]()
+            assert server.should_exit and statuses[-1] == "停止中…"
+            assert button.options["state"] == "disabled"
+            button.options["command"]()
+            assert calls == [ORIGIN] * (2 if automatic else 1)
+            scheduled.pop(0)()
+            assert button.options["state"] == "disabled"
+            state["alive"] = False
+            scheduled.pop(0)()
+            assert state["destroyed"]
+
+    class Thread:
+        def __init__(self, **_kwargs): pass
+        def start(self): state["alive"] = True
+        def is_alive(self): return state["alive"]
+        def join(self): state["joined"] = True
+
+    tk = ModuleType("tkinter")
+    monkeypatch.setattr(tk, "Tk", Window, raising=False)
+    monkeypatch.setattr(tk, "StringVar", Status, raising=False)
+    monkeypatch.setattr(tk, "ttk", SimpleNamespace(Frame=Widget, Label=Widget, Button=Widget), raising=False)
+    monkeypatch.setitem(sys.modules, "tkinter", tk)
+    monkeypatch.setattr(local_module.threading, "Thread", Thread)
+    monkeypatch.setattr(local_module.webbrowser, "open", calls.append)
+    local_module._gui(server, ORIGIN, lambda: pytest.fail("test must not start a server"), automatic)
+    assert server.should_exit and state["joined"]
+
+
+@pytest.mark.parametrize("failure,expected", [
+    (ValueError("local_runtime_already_in_use"), "Cytellectは既に起動しています"),
+    (OSError(errno.EADDRINUSE, "private synthetic path"), "接続先が使用中"),
+    (PermissionError(errno.EACCES, "private synthetic path"), "開き直しても続く場合"),
+    (RuntimeError("private synthetic path"), "開き直しても続く場合"),
+])
+def test_gui_failures_use_fixed_japanese_categories_without_exception_details(tmp_path, monkeypatch, failure, expected):
+    messages = []
+
+    def fail(*_args, **_kwargs):
+        raise failure
+
+    monkeypatch.setattr(local_module, "run_local", fail)
+    monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
+    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui: messages.append((text, gui)))
+    arguments = ["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
+                 "--fiji", str(tmp_path)]
+    with pytest.raises(SystemExit) as stopped:
+        local_module.main([*arguments, "--gui"])
+    assert stopped.value.code == 1
+    assert len(messages) == 1 and messages[0][1] is True and expected in messages[0][0]
+    assert "private" not in messages[0][0] and str(tmp_path) not in messages[0][0]
+    with pytest.raises(SystemExit) as stopped:
+        local_module.main(arguments)
+    assert stopped.value.code == 1
+    assert messages[-1] == (
+        "Cytellect could not start or stopped. Check the local port, installation and runtime directory.", False,
+    )
+
+
+def test_gui_invalid_installation_uses_fixed_japanese_message(tmp_path, monkeypatch):
+    messages = []
+    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui: messages.append((text, gui)))
+    with pytest.raises(SystemExit) as stopped:
+        local_module.main(["--gui", "--fiji", str(tmp_path / "missing")])
+    assert stopped.value.code == 2
+    assert messages == [("Cytellectの準備が完了していません。セットアップを再実行してください。", True)]
+
+
+def test_gui_recognizes_windows_port_error_code_without_reading_its_message():
+    failure = OSError("synthetic private connection detail")
+    setattr(failure, "winerror", 10048)
+    message = local_module._gui_failure_message(failure)
+    assert message.startswith("接続先が使用中") and "private" not in message
 
 
 def windows_redirector(tmp_path):
@@ -206,7 +381,7 @@ def test_worker_crash_recovery_is_bounded_and_closes_server(tmp_path, use_redire
 def test_stop_during_pending_worker_restart_reaps_unadopted_process(tmp_path, monkeypatch):
     """A real delayed child exercises Stop before the private PID handshake."""
     original_popen = subprocess.Popen
-    launched = []
+    launched: list[subprocess.Popen] = []
     restarting = threading.Event()
 
     def delayed_worker(_args, **kwargs):

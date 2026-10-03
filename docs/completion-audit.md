@@ -195,3 +195,20 @@ the passing run does not erase them. This uses artificial numerical/interaction
 inputs and does not establish biological validity or human usability. Required
 CI, publication and installed-package acceptance remain separate gates. The
 immutable local.11 package is unchanged; M4/M5 remain open.
+
+PR #16 subsequently passed all four required checks in
+[run 37149444746](https://github.com/genellect/cytellect/actions/runs/37149444746)
+at `ec7f922bf51d106477d15c5de5bbf9f348abeb35`, and merged as
+`636bbc9c73e60f26e6ae3310354f85494f84dedd`. Vercel automatically published that
+main source as production READY `dpl_C4voNA4qdQkWGHmGSqz1cpEUy5nP`.
+Canonical home/planning checks at 1440/390 px passed separately, with eight
+reviewed screenshots, image/value linkage, planning download/reset and correct
+release/guide pointers. No horizontal overflow, console errors or private API
+requests occurred on those paths. The unchanged local.11 ZIP was not downloaded
+again. Comparison hierarchy execution was verified against the source local
+API/worker, not a hosted private API or a newly installed package.
+
+Main verification also completed successfully in
+[run 37150296833](https://github.com/genellect/cytellect/actions/runs/37150296833),
+including the real Fiji/browser and offline container jobs. The Windows3.14
+source candidate and its installed-package acceptance remain separate.

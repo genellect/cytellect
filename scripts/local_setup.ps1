@@ -16,10 +16,7 @@ $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $
 $script:UvVersion = '0.12.2'
 $script:UvUrl = 'https://github.com/astral-sh/uv/releases/download/0.12.2/uv-x86_64-pc-windows-msvc.zip'
 $script:UvSha256 = '01442d8ce5c7124151a73e697c836d252c6da853c18c73206d3cc4c2378a91d2'
-$script:PythonVersion = '3.12.15'
-$script:PythonBuild = '20261001'
-$script:PythonUrl = 'https://github.com/astral-sh/python-build-standalone/releases/download/20261001/cpython-3.12.15%2B20261001-x86_64-pc-windows-msvc-install_only_stripped.tar.gz'
-$script:PythonSha256 = '52124cee54126f3f360eaa378288f6f64c402c983a3c14c95eff67f4af986aaa'
+$script:PythonVersion = '3.14.8'
 $script:Cancelled = $false
 $script:Installing = $false
 $script:RunningProcess = $null
@@ -82,7 +79,10 @@ function Get-VerifiedRelease {
         }
     }
     foreach ($required in @('pyproject.toml', 'uv.lock', 'scripts/fiji_setup.py',
-        'services/api/src/cytellect_api/local.py', 'engines/fiji/runtime.lock.json', 'apps/web/out/index.html')) {
+        'services/api/src/cytellect_api/local.py', 'engines/fiji/runtime.lock.json', 'apps/web/out/index.html',
+        'scripts/windows_runtime.ps1', 'engines/python/windows-runtime.lock.json',
+        'engines/python/windows-install.json', 'engines/python/windows-requirements.txt',
+        'engines/python/windows-tcltk-9.0.4-data.zip')) {
         if (-not $seen.Contains($required)) { throw 'release_file_missing' }
     }
     return $manifest
@@ -185,11 +185,13 @@ function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
     foreach ($key in @($start.EnvironmentVariables.Keys)) {
-        if ($key -like 'UV_*' -or $key -like 'PIP_*' -or $key -in @('PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV')) {
+        if ($key -like 'UV_*' -or $key -like 'PIP_*' -or
+            $key -in @('PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV', 'TCL_LIBRARY', 'TK_LIBRARY')) {
             $start.EnvironmentVariables.Remove($key)
         }
     }
     foreach ($key in $Environment.Keys) { $start.EnvironmentVariables[$key] = $Environment[$key] }
+    $start.EnvironmentVariables['PYTHONDONTWRITEBYTECODE'] = '1'
     $script:RunningProcess = [Diagnostics.Process]::Start($start)
     $stdout = $script:RunningProcess.StandardOutput.ReadToEndAsync()
     $stderr = $script:RunningProcess.StandardError.ReadToEndAsync()
@@ -265,6 +267,7 @@ function Get-PinnedUv([string]$Root) {
 }
 
 function Install-Cytellect {
+    $script:LaunchInfo = $null
     Update-SetupStatus 'verify_release' '配布ファイルを検証しています…'
     $manifest = Get-VerifiedRelease
     if ($VerifyOnly) { return }
@@ -298,50 +301,58 @@ function Install-Cytellect {
         }
     }
     $uv = Get-PinnedUv $root
-    $environment = @{
-        UV_NO_CONFIG = 'true'; UV_PYTHON_INSTALL_DIR = (Get-SafeChild $root 'python')
-        UV_CACHE_DIR = (Get-SafeChild $root 'setup-cache/uv'); UV_PYTHON_BIN_DIR = (Get-SafeChild $root 'tools/python-bin')
-        UV_PROJECT_ENVIRONMENT = (Get-SafeChild $app '.venv'); UV_DEFAULT_INDEX = 'https://pypi.org/simple'
-        UV_PYTHON_DOWNLOADS = 'manual'
-    }
-    # A one-entry, source-pinned catalog avoids the older uv release's frozen
-    # Python catalog. uv verifies this archive hash while installing it.
-    $catalog = @{}
-    $catalog['cpython-' + $script:PythonVersion + '-windows-x86_64-none'] = @{
-        name = 'cpython'; arch = @{ family = 'x86_64'; variant = $null }; os = 'windows'; libc = 'none'
-        major = 3; minor = 12; patch = 15; prerelease = ''; variant = $null
-        build = $script:PythonBuild; url = $script:PythonUrl; sha256 = $script:PythonSha256
-    }
-    $catalogPath = Get-SafeChild $root 'setup-cache/python-downloads.json'
-    [IO.File]::WriteAllText($catalogPath, ($catalog | ConvertTo-Json -Depth 5))
-    $environment['UV_PYTHON_DOWNLOADS_JSON_URL'] = $catalogPath
+    . (Get-SafeChild $app 'scripts/windows_runtime.ps1')
     Update-SetupStatus 'install_python' '専用のPython環境を準備しています…'
-    Invoke-SetupProcess $uv @('python', 'install', $script:PythonVersion, '--no-bin', '--no-registry', '--no-config') $app $environment 900 -UvProcess
-    Update-SetupStatus 'install_dependencies' '解析ライブラリを準備しています…'
-    Invoke-SetupProcess $uv @('sync', '--locked', '--no-dev', '--python', $script:PythonVersion,
-        '--managed-python', '--no-python-downloads', '--no-config') $app $environment -UvProcess
+    $runtime = Initialize-PinnedPythonRuntime $root $app
+    $environment = @{
+        UV_NO_CONFIG = 'true'; UV_CACHE_DIR = (Get-SafeChild $root 'setup-cache/uv')
+        UV_DEFAULT_INDEX = 'https://pypi.org/simple'; UV_PYTHON_DOWNLOADS = 'never'
+        PYTHONDONTWRITEBYTECODE = '1'
+    }
+    Assert-SignedPythonVenv $app $runtime -IfPresent
+    Invoke-SetupProcess (Get-SafeChild $runtime.path 'python.exe') @('-B', '-m', 'venv', '--without-pip',
+        (Get-SafeChild $app '.venv')) $app $environment 180
+    Assert-SignedPythonVenv $app $runtime
     $python = Get-SafeChild $app '.venv/Scripts/python.exe'
     $pythonw = Get-SafeChild $app '.venv/Scripts/pythonw.exe'
+    $install = Get-Content -LiteralPath (Get-SafeChild $app 'engines/python/windows-install.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($install.schema -cne 'cytellect-windows-install/1' -or
+        $install.requirements.path -cne 'engines/python/windows-requirements.txt' -or
+        $install.wheel.path -cnotmatch '^wheels/cytellect-[0-9][0-9a-z.+]*-py3-none-any\.whl$') {
+        throw 'invalid_python_install_manifest'
+    }
+    foreach ($input in @($install.wheel, $install.requirements)) {
+        Assert-RuntimeDigest $input.sha256
+        if (-not (Test-RuntimeFile (Get-SafeChild $app $input.path) $input.bytes $input.sha256)) {
+            throw 'python_install_input_modified'
+        }
+    }
+    Update-SetupStatus 'install_dependencies' '解析ライブラリを準備しています…'
+    Invoke-SetupProcess $uv @('pip', 'sync', '--require-hashes', '--only-binary', ':all:', '--python', $python,
+        '--no-managed-python', '--no-python-downloads', '--no-config', $install.requirements.path) $app $environment -UvProcess
+    Assert-SignedPythonVenv $app $runtime
+    Invoke-SetupProcess $uv @('pip', 'check', '--python', $python, '--no-config') $app $environment 180 -UvProcess
     Update-SetupStatus 'verify_python_gui' '起動・停止ウィンドウを確認しています…'
-    Invoke-SetupProcess $python @('-c', 'import sys,tkinter; assert sys.version_info[:3] == (3,12,15); t=tkinter.Tk(); t.withdraw(); t.update(); t.destroy()') $app @{} 60
+    Invoke-SetupProcess $python @('-B', '-c', 'import sys,tkinter; assert sys.version_info[:3] == (3,14,8); t=tkinter.Tk(); t.withdraw(); t.update(); t.destroy()') $app @{} 60
     if (-not (Test-Path -LiteralPath $pythonw -PathType Leaf)) { throw 'python_gui_unavailable' }
     $lockHash = (Get-FileHash -LiteralPath (Join-Path $app 'engines/fiji/runtime.lock.json')).Hash.ToLowerInvariant()
     $fiji = Get-SafeChild $root ('runtimes/fiji-' + $lockHash.Substring(0, 16))
     if (-not (Test-Path -LiteralPath $fiji)) {
         Update-SetupStatus 'install_fiji' 'Fijiを取得・検証しています。初回は数分かかる場合があります…'
-        Invoke-SetupProcess $python @('scripts/fiji_setup.py', $fiji, '--platform', 'windows-x64') $app @{}
+        Invoke-SetupProcess $python @('-B', 'scripts/fiji_setup.py', $fiji, '--platform', 'windows-x64') $app @{}
     }
     Update-SetupStatus 'verify_fiji' 'Fijiのプラグインとモデルを検証しています…'
-    Invoke-SetupProcess $python @('-c', 'import sys; from cytellect_analysis.engine import runtime_info; runtime_info(sys.argv[1])', $fiji) $app @{} 180
+    Invoke-SetupProcess $python @('-B', '-c', 'import sys; from cytellect_analysis.engine import runtime_info; runtime_info(sys.argv[1])', $fiji) $app @{} 180
     Update-SetupStatus 'check_analysis' '合成画像で検出と計算を確認しています（実験画像の精度評価ではありません）…'
-    Invoke-SetupProcess $python @('-m', 'cytellect_analysis.install_check', '--fiji', $fiji,
+    Invoke-SetupProcess $python @('-B', '-m', 'cytellect_analysis.install_check', '--fiji', $fiji,
         '--scratch', (Get-SafeChild $root 'setup-cache'),
         '--result', (Get-SafeChild $root 'setup-cache/installation-check.json')) $app @{} 180
+    Assert-PythonRuntimeInventory $runtime.path $runtime.inventory
+    Assert-SignedPythonVenv $app $runtime
     $data = Get-SafeChild $root 'data'
     [IO.Directory]::CreateDirectory($data) | Out-Null
     $web = Get-SafeChild $app 'apps/web/out'
-    $launchArgs = @('-m', 'cytellect_api.local', '--fiji', $fiji, '--data-dir', $data, '--web-dir', $web, '--gui')
-    $script:LaunchInfo = @{ executable = $pythonw; arguments = $launchArgs; directory = $app }
+    $launchArgs = @('-B', '-m', 'cytellect_api.local', '--fiji', $fiji, '--data-dir', $data, '--web-dir', $web, '--gui')
     if (-not $NoShortcut) {
         Update-SetupStatus 'create_shortcut' 'Cytellectのショートカットを作成しています…'
         $shell = New-Object -ComObject WScript.Shell
@@ -356,9 +367,15 @@ function Install-Cytellect {
             $shortcut.Save()
         }
     }
-    $state = @{ version = $manifest.version; source_commit = $manifest.source_commit; app = $app; fiji = $fiji; python = $script:PythonVersion; python_build = $script:PythonBuild; python_url = $script:PythonUrl; python_sha256 = $script:PythonSha256; uv = $script:UvVersion; uv_sha256 = $script:UvSha256 }
+    $state = @{ version = $manifest.version; source_commit = $manifest.source_commit; app = $app; fiji = $fiji
+        python = $script:PythonVersion; python_build = $runtime.specification.composition_version
+        python_url = $runtime.specification.python.url; python_sha256 = $runtime.specification.python.sha256
+        python_data_sha256 = $runtime.specification.data_asset.sha256; python_inventory = $runtime.receipt
+        wheel_sha256 = $install.wheel.sha256; requirements_sha256 = $install.requirements.sha256
+        uv = $script:UvVersion; uv_sha256 = $script:UvSha256 }
     [IO.File]::WriteAllText((Get-SafeChild $app 'setup-complete.json'), ($state | ConvertTo-Json))
     Update-SetupStatus 'complete' '準備が完了しました。「開く」でCytellectを起動できます。'
+    $script:LaunchInfo = @{ executable = $pythonw; arguments = $launchArgs; directory = $app }
 }
 
 if ($Console -or $VerifyOnly) {

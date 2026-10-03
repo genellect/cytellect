@@ -98,11 +98,26 @@ def web_fixture(root):
         (package / "LICENSE").write_text("Copyright example\nMIT notice")
     (root / "engines/fiji").mkdir(parents=True)
     (root / "engines/fiji/runtime.lock.json").write_text(json.dumps({"model": {"sha256": "a" * 64}}))
+    (root / "engines/python").mkdir(parents=True)
+    members = root / "engines/python/windows-tcltk-members.json"
+    members.write_text(json.dumps({"files": [{"path": "Lib/tcl9.0/init.tcl", "sha256": "b" * 64}]}))
+    (root / "engines/python/windows-runtime.lock.json").write_text(json.dumps({
+        "schema": "cytellect-windows-runtime/1",
+        "python": {"version": "3.14.8", "sha256": "c" * 64},
+        "members_manifest": {"path": "engines/python/windows-tcltk-members.json",
+                             "sha256": hashlib.sha256(members.read_bytes()).hexdigest()},
+        "notices": [
+            {"scope": "base", "license": "PSF and bundled component terms"},
+            {"scope": "scripts", "path": "Lib/tcl9.0/license.terms", "license": "Tcl"},
+            {"scope": "scripts", "path": "Lib/tk9.0/license.terms", "license": "Tcl"},
+            {"scope": "scripts", "path": "Lib/tk9.0/icons.tcl", "license": "CC-BY-SA-4.0"},
+        ],
+    }))
     for name in ("uv.lock", "pnpm-lock.yaml"):
         (root / name).write_text("locked dependencies")
 
 
-def test_combined_inventory_uses_actual_web_notice_gate_and_fiji_lock(tmp_path):
+def test_combined_inventory_uses_actual_web_notice_gate_and_separate_runtime_locks(tmp_path):
     web_fixture(tmp_path)
     dist = Distribution(tmp_path, expression="Apache-2.0")
     result, notices = module.inventory(tmp_path, [dist])
@@ -110,8 +125,46 @@ def test_combined_inventory_uses_actual_web_notice_gate_and_fiji_lock(tmp_path):
     assert {p["name"] for p in result["web"]["packages"]} == {"react", "react-dom", "next"}
     assert result["web"]["notice_count"] == 3 and "MIT notice" in notices
     assert result["fiji"]["model"]["sha256"] == "a" * 64
-    assert set(result["lockfiles"]) == {"uv.lock", "pnpm-lock.yaml"}
+    assert set(result["lockfiles"]) == {"uv.lock", "pnpm-lock.yaml", "engines/python/windows-runtime.lock.json",
+                                       "engines/python/windows-tcltk-members.json"}
+    for name, digest in result["lockfiles"].items():
+        assert digest == hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
+    runtime = json.loads((tmp_path / "engines/python/windows-runtime.lock.json").read_text())
+    assert result["windows_runtime"] == runtime
+    assert [notice["license"] for notice in result["windows_runtime"]["notices"]] == [
+        "PSF and bundled component terms", "Tcl", "Tcl", "CC-BY-SA-4.0"]
     assert str(tmp_path) not in json.dumps(result) + notices
     (tmp_path / "node_modules/.pnpm/react@1/node_modules/react/LICENSE").unlink()
     with pytest.raises(ValueError, match="web_licenses_required_license_text_missing"):
         module.inventory(tmp_path, [dist])
+
+
+def test_inventory_preserves_actual_pinned_runtime_composition_and_member_hash(tmp_path):
+    web_fixture(tmp_path)
+    for name in ("windows-runtime.lock.json", "windows-tcltk-members.json"):
+        (tmp_path / "engines/python" / name).write_bytes((SCRIPTS.parent / "engines/python" / name).read_bytes())
+    result, notices = module.inventory(tmp_path, [Distribution(tmp_path, expression="Apache-2.0")])
+    lock_path = "engines/python/windows-runtime.lock.json"
+    actual_lock = (SCRIPTS.parent / lock_path).read_bytes()
+    assert result["windows_runtime"] == json.loads(actual_lock)
+    assert result["lockfiles"][lock_path] == hashlib.sha256(actual_lock).hexdigest()
+    member_path = result["windows_runtime"]["members_manifest"]["path"]
+    member_hash = hashlib.sha256((SCRIPTS.parent / member_path).read_bytes()).hexdigest()
+    assert result["lockfiles"][member_path] == member_hash
+    assert result["windows_runtime"]["members_manifest"]["sha256"] == member_hash
+    assert str(tmp_path) not in json.dumps(result) + notices
+    assert str(SCRIPTS.parent) not in json.dumps(result) + notices
+
+
+@pytest.mark.parametrize("location", ["python", "notices"])
+def test_windows_runtime_private_metadata_is_rejected_without_copying_value(tmp_path, location):
+    web_fixture(tmp_path)
+    lock = tmp_path / "engines/python/windows-runtime.lock.json"
+    payload = json.loads(lock.read_text())
+    if location == "python":
+        payload["python"]["url"] = "C:/Users/example/runtime.zip"
+    else:
+        payload["notices"][0]["path"] = "/home/synthetic-private/LICENSE"
+    lock.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="^dependency_inventory_contains_private_path$"):
+        module.inventory(tmp_path, [Distribution(tmp_path, expression="Apache-2.0")])
