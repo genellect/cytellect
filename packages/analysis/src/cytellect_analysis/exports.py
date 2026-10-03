@@ -151,9 +151,10 @@ def methods_text(config, provenance, report, statistics_results=()):
     for index, result in enumerate(statistics_results):
         if result.get("analysis_kind") == "descriptive":
             from .descriptive_figures import descriptive_methods
+            from .statistical_methods import saved_methods_template
 
             lines += [f"Analysis {index}: [Recorded result](statistics/{index}/result.json).",
-                      descriptive_methods(result)]
+                      descriptive_methods(result, methods_template=saved_methods_template(result))]
             continue
         spec = result["spec"]
         lines += [f"Analysis {index}: statistics protocol {result.get('statistics_version')}; metric {spec['metric']}; "
@@ -193,12 +194,15 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
     Files remain private: the caller must enforce ownership and expiration on this directory.
     """
     statistics_results = list(statistics_results)
+    recorded_statistics_results = list(statistics_results)
     saved_descriptive_outputs = {}
     validate_revision_plan(config)
     for index, result in enumerate(statistics_results):
         if result.get("analysis_kind") == "descriptive":
             from .descriptive import validate_legacy_description
+            from .statistical_methods import saved_methods_template
 
+            saved_methods_template(result)
             statistics_results[index] = validate_legacy_description(result, report, config)
             if "figure_policy" in result["spec"]:
                 saved_descriptive_outputs[index] = result
@@ -261,7 +265,8 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
                     raise ValueError("descriptive_output_source_required")
                 figure = copy_descriptive_output(saved_descriptive_outputs[index], Path(statistics_roots[index]), folder)
             else:
-                figure = render_descriptive(result, folder)
+                figure = render_descriptive(result, folder,
+                                            methods_template=saved_methods_template(recorded_statistics_results[index]))
         else:
             figure = render_figures(result, folder)
         result = {**result, "figure": figure}
@@ -282,7 +287,7 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
                 mask_dir = target / "masks" / fid
                 mask_dir.mkdir(parents=True)
                 shutil.copyfile(origin / "masks" / fid / "labels.npz", mask_dir / "labels.npz")
-    methods = methods_text(config, provenance, report, statistics_results)
+    methods = methods_text(config, provenance, report, recorded_statistics_results)
     (content / "methods.md").write_text(methods, encoding="utf-8")
     (destination / "methods.md").write_text(methods, encoding="utf-8")
     (content / "replay.py").write_text(

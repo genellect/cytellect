@@ -12,6 +12,7 @@ from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
 from .figures import LABELS, _validate_text_layout, figure_settings, plt, select_font
+from .statistical_methods import methods_metadata, readable_descriptive_methods
 
 FIGURE_VERSION = "1.0.1"
 
@@ -91,8 +92,10 @@ def _caption(result, labels):
     return "\n".join(lines) + "\n"
 
 
-def descriptive_methods(result):
+def descriptive_methods(result, *, methods_template=None):
     """Record the selected protocol rather than borrowing inferential Methods text."""
+    if methods_metadata(methods_template):
+        return readable_descriptive_methods(result)
     spec = parse_descriptive_request(result["spec"])
     policy = _source_measurement_policy(result)
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.", "",
@@ -146,7 +149,8 @@ def _ylabel(result, ja):
     return label + (f"\n({suffix})" if suffix else "")
 
 
-def render_descriptive(result, output: Path):
+def render_descriptive(result, output: Path, *, methods_template=None):
+    document_metadata = methods_metadata(methods_template)
     if result.get("analysis_kind") != "descriptive":
         raise ValueError("descriptive_result_required")
     request = DescriptiveRequest.model_validate(result["spec"])
@@ -233,15 +237,16 @@ def render_descriptive(result, output: Path):
             write_csv(output / f"{name}.csv", items)
             files.append(f"{name}.csv")
     (output / "figure-caption.md").write_text(_caption(result, labels), encoding="utf-8")
-    (output / "methods.md").write_text(descriptive_methods(result), encoding="utf-8")
+    (output / "methods.md").write_text(descriptive_methods(result, methods_template=methods_template), encoding="utf-8")
     source = {key: value for key, value in result.items() if key != "figure"}
     source.update(descriptive_figure_version=FIGURE_VERSION, style=style, field_labels=labels,
                   font_metadata=selected_font.metadata(), jitter_seed=0,
                   source_hashes={name: hashlib.sha256((output / name).read_bytes()).hexdigest()
                                  for name in files if name.endswith(".csv")})
+    source.update(document_metadata)
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
                                            encoding="utf-8")
     files.extend(["figure-caption.md", "figure-data.json", "methods.md"])
-    return {"descriptive_figure_version": FIGURE_VERSION, "style": style,
+    return {**document_metadata, "descriptive_figure_version": FIGURE_VERSION, "style": style,
             "font": selected_font.family, "font_metadata": selected_font.metadata(),
             "formats": ["svg", "pdf", "png"], "svg_text": "editable", "source_files": files}

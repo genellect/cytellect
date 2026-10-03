@@ -76,11 +76,13 @@ revisions; old results remain tied to their actual mode.
 
 Guide 2.1.0 and resolution 1.1.0 distinguish an area proposal from its actual
 adoption. Canonical public planning remains 2.0.0; the new local/API-configured
-source uses 2.1.0. This area work is not yet merged, publicly deployed or included
-in an accepted package. PR #17 verifies the runtime separately. After both source
-increments pass review and merge, build one combined `local.12` package from main;
-its fifteen installed browser cases must pass before publication. Earlier
-runtime-only candidates remain scoped evidence, not the combined release.
+source uses 2.1.0. PR #17's runtime corrections and PR #18's area source are now
+merged as main `d385eb0722a9df9068683fbc89a474c60b6e88af`. PR #18 passed all five
+required checks; the exact main source reached the canonical site and passed
+desktop/mobile public-page checks. Build the combined `local.12` package only
+after its main checks pass, then verify all fifteen installed browser cases
+before publication. Earlier runtime-only candidates remain scoped evidence,
+not the combined release. Public local.11 downloads remain unchanged meanwhile.
 The [region protocol](generic-regions.md) records the focused 150-case core/contract
 run and separate 89-case integrated adapter/export run, including nine new area
 cases. Independent source review is recorded separately from test execution.
@@ -118,9 +120,14 @@ This work is being reviewed in a separate branch from the combined `local.12`
 runtime/area release. Source tests, actual browser checks and a later installed
 package each require their own evidence. A renderable graph and a visible scale
 do not complete private-image validation or researcher task evaluation. The
-Methods prose review remains a separate follow-up: machine-readable provenance
-must remain complete without substituting a large JSON object for an intelligible
-description of the procedure actually used.
+Methods prose review identified incorrect compatibility background wording,
+overlong embedded selection records and generic rather than actual test wording.
+The subsequent [versioned Methods change](statistical-methods.md) describes saved
+facts in readable prose while preserving complete source records and historical
+documents. Its [recipe guidance](native-recipe-guidance.md) shows missing channel
+roles before a request, without choosing a method or silently removing fields.
+These are separate source changes pending browser and release acceptance; neither
+belongs to the frozen local.12 package. Human interpretation remains untested.
 
 The original MVP goal stays active. This revision broadens the scientific question and defines successive release gates; it does not mark M4/M5 complete. [Roadmap](roadmap.md) and [requirements](requirements.md) remain the status record. Code, CI, installed execution, production deployment, scientific applicability and human usability must be reported separately. Old release evidence remains immutable.
 

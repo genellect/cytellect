@@ -2,6 +2,7 @@
 import math
 
 from cytellect_analysis.region_comparison_contracts import RegionComparisonRequest
+from cytellect_analysis.statistical_methods import CURRENT_METHODS_TEMPLATE
 from cytellect_api.db import revisions
 from cytellect_api.storage import read_json, write_json
 
@@ -9,7 +10,6 @@ from cytellect_api.storage import read_json, write_json
 def run_region_comparison(store, job, output):
     from cytellect_analysis.region_comparison import compare_regions, source_fingerprint
     from cytellect_analysis.region_comparison_figures import (
-        region_comparison_methods,
         render_region_comparison,
     )
 
@@ -34,8 +34,7 @@ def run_region_comparison(store, job, output):
         raise ValueError("region_comparison_source_review_mismatch")
     request = RegionComparisonRequest.model_validate(payload)
     result = compare_regions(report, config, request)
-    result["figure"] = render_region_comparison(result, output)
-    (output / "methods.md").write_text(region_comparison_methods(result), encoding="utf-8")
+    result["figure"] = render_region_comparison(result, output, methods_template=CURRENT_METHODS_TEMPLATE)
     write_json(output / "source-review.json", accepted)
     write_json(output / "result.json", result)
     return output

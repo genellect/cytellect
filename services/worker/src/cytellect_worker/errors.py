@@ -7,6 +7,8 @@ from cytellect_analysis.region_comparison import SAFE_ERROR_CODES as REGION_COMP
 
 SAFE_ERRORS = frozenset(
     {
+        "statistical_methods_template_invalid",
+        "statistical_methods_source_invalid",
         "region_export_statistics_source_mismatch",
         "nucleolar_processing_failed",
         "region_sensitivity_requires_native_ncl",

@@ -62,10 +62,12 @@ masks and reports unmeasured intensity and signal-QC values as missing with
 reasons, never as zero. Three actual-API browser cases cover mode changes and
 source export, calibrated area comparisons with their saved source hierarchy,
 and planning 2.1 with explicit actual-input review. Coordinator inspection of the
-resulting screens is a visual review, not a participant evaluation. This increment
-is not yet merged or distributed; its evidence does not update the installed
-release or the runtime-only PR #17 candidates. The next accepted package is to
-combine both source increments and pass all fifteen installed browser cases.
+resulting screens is a visual review, not a participant evaluation. PR #18 has
+since passed five required checks, merged as main
+`d385eb0722a9df9068683fbc89a474c60b6e88af` and reached the canonical public UI.
+Its source evidence does not update the installed release or the runtime-only
+PR #17 candidates. The next accepted package must combine both source increments
+and pass all fifteen installed browser cases.
 Reducing background setup
 for area measurements is an expected benefit, not an observed time saving.
 

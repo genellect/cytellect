@@ -1,10 +1,12 @@
 """Explicit descriptive-only contracts; existing inferential requests are unchanged."""
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictInt, model_serializer, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from .contracts import PlotSpec, StrictModel
 from .regions import Id
+from .statistical_methods import StatisticalMethodsTemplate
 
 LegacyMetric = Literal[
     "ncl_nucleus_mean", "ncl_nucleus_median", "ncl_nucleus_integrated",
@@ -148,6 +150,10 @@ class DescriptiveRenderError(OutputModel):
     page_index: Annotated[StrictInt, Field(ge=1, le=999)] | None
 
 
+def _omit_template_default(schema: dict[str, Any]) -> None:
+    schema.pop("default", None)
+
+
 class PagedDescriptiveOutput(OutputModel):
     descriptive_figure_version: Literal["2.0.0"]
     status: Literal["ready", "tables_only"]
@@ -162,6 +168,22 @@ class PagedDescriptiveOutput(OutputModel):
     source_result_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     source_files: list[str]
     files: dict[str, DescriptiveOutputFile]
+    methods_template: StatisticalMethodsTemplate | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=_omit_template_default)
+
+    @model_validator(mode="before")
+    @classmethod
+    def explicit_template_not_null(cls, value):
+        if isinstance(value, dict) and "methods_template" in value and value["methods_template"] is None:
+            raise ValueError("statistical_methods_template_invalid")
+        return value
+
+    @model_serializer(mode="wrap")
+    def retain_historical_shape(self, handler):
+        value = handler(self)
+        if self.methods_template is None:
+            value.pop("methods_template", None)
+        return value
 
     @model_validator(mode="after")
     def internally_consistent(self):

@@ -162,6 +162,12 @@ Nonempty pair, missingness and excluded-failed-field ledgers have their own CSVs
 Source CSV hashes, original saved settings, actual channel metadata and a source
 fingerprint are included. IDs and manuscript text remain private research data.
 
+New worker outputs select the separately versioned [statistical Methods
+template](statistical-methods.md), which names the saved test, independent-unit
+counts, matched-pair count when applicable and the actual outcome definition.
+Old artifacts keep their historical document version during export/replay;
+comparison and inference protocols and captions are unchanged.
+
 The fingerprint covers the report plus recipe, fields, immutable metadata and
 image identity, backgrounds, exclusions and source review. Export recomputes the
 result from that source and rejects substituted or unknown result fields. Replay
