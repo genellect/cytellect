@@ -3,7 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from .descriptive_figures import _ylabel
+from .descriptive_figures import _source_measurement_policy, _ylabel
 from .exports_csv import write_csv
 from .figures import render_figures
 from .region_comparison_contracts import RegionComparisonResult
@@ -54,13 +54,20 @@ def _caption(result):
 
 
 def region_comparison_methods(result):
+    policy = _source_measurement_policy(result)
     return "\n".join([
         "# Cytellect generic-region comparison Methods", "", "Generated from saved settings; review before publication.",
         f"Region comparison protocol: {result['region_comparison_version']}; inference core: {result['inference_version']}.",
         f"Measurement: {result['metric']} ({result['unit']}); region: {result['region']['label']}.",
         "Channel: " + json.dumps(result["channel"], ensure_ascii=False, sort_keys=True),
         "Design: " + json.dumps(result["spec"]["design"], ensure_ascii=False, sort_keys=True),
-        "Original-pixel measurements and reviewed masks/backgrounds were used without normalization or additional gating.",
+        (f"Area-only measurement used measurement protocol 2.0.0 and policy {policy.version} ({policy.mode}). "
+         "Region area was computed from reviewed masks in original image coordinates. "
+         "Pixel areas count mask pixels; physical areas use the saved confirmed X and Y pixel sizes when available. "
+         "Fluorescence intensity and signal-saturation fractions were not measured. "
+         "Background estimation and correction were not performed. No normalization or additional gating was applied."
+         if policy is not None else
+         "Original-pixel measurements and reviewed masks/backgrounds were used without normalization or additional gating."),
         "Field medians were averaged within sample; sample summaries were averaged within experimental unit. "
         "Each retained independent unit contributed one value per condition. Unequal numbers of regions did not weight units.",
         "Independent groups used Welch t tests; declared paired designs used paired differences. All tests were two-sided. "

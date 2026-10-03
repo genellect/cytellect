@@ -134,6 +134,26 @@ def test_area_bundle_replays_measured_pixels_figures_and_inference_without_backg
     for index in (0, 1):
         for extension in ("svg", "pdf", "png"):
             assert (tmp_path / "replay/statistics" / str(index) / f"figure.{extension}").is_file()
+        for parent in (bundle, tmp_path / "replay"):
+            figures = parent / "statistics" / str(index)
+            individual_methods = (figures / "methods.md").read_text(encoding="utf-8")
+            assert "protocol 2.0.0" in individual_methods and "policy 1.0.0 (area_only)" in individual_methods
+            assert "Region area was computed from reviewed masks in original image coordinates." in individual_methods
+            assert "Fluorescence intensity and signal-saturation fractions were not measured." in individual_methods
+            assert "Background estimation and correction were not performed." in individual_methods
+            assert "reviewed masks/backgrounds were used" not in individual_methods
+            assert "Native negative background-corrected values were retained" not in individual_methods
+            assert "mask and background provenance is stored" not in individual_methods
+            source = read_json(figures / "figure-data.json")
+            assert source["spec"]["selection"]["metric"] == "area_px"
+            assert source["spec"]["selection"]["channel_id"] is None
+            assert all(field["measurement_protocol"] == "2.0.0" and field["measurement"] == POLICY
+                       and field["region_set"]["source"] == config["recipe"]["source"]
+                       for field in source["source_fields"])
+        assert (bundle / "statistics" / str(index) / "methods.md").read_bytes() == (
+            tmp_path / "replay/statistics" / str(index) / "methods.md").read_bytes()
+    assert "masks, backgrounds and channel identities are recorded" not in (
+        bundle / "statistics/0/figure-caption.md").read_text(encoding="utf-8")
     # An attacker updating the outer hashes still cannot add a background to
     # an area-only replay. Hash integrity and measurement semantics are distinct.
     path = bundle / "masks/f1/background-actin.npy"
