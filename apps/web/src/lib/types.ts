@@ -36,7 +36,15 @@ export function availableMetricIds({hasGfp,hasNcl,legacy,calibrated}:{hasGfp:boo
  if(["ncl_nucleoplasm_over_nucleoli","ncl_log2_nucleoplasm_over_nucleoli"].includes(key))return !legacy;
  return true;
 });}
-export function formatValue(value:unknown):string { if(value === null || value === undefined) return "—"; if(typeof value==="number") return Number.isFinite(value) ? Number(value.toPrecision(5)).toLocaleString("en-US",{maximumFractionDigits:5}):"—"; return String(value); }
+export function formatValue(value:unknown):string {
+ if(value===null||value===undefined)return "—";
+ if(typeof value!=="number")return String(value);
+ if(!Number.isFinite(value))return "—";
+ const rounded=Number(value.toPrecision(5));
+ // Preserve small nonzero measurements and p values rather than displaying zero.
+ if(rounded!==0&&Math.abs(rounded)<0.0001)return rounded.toExponential();
+ return rounded.toLocaleString("en-US",{maximumSignificantDigits:5});
+}
 
 export const fieldRoles = (field?:Field):string[] => field?.image_info.channel_roles ?? ["dapi","ncl","gfp"];
 
