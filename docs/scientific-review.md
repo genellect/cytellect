@@ -16,7 +16,7 @@ uv run python scripts/scientific_review.py --junit /private/evidence/tests.xml \
 
 Add `--source-dirty` if testing uncommitted changes; a commit ID alone does not identify those changes. For a release, rerun required CI at the committed source. No receipt retrospectively changes an older release's evidence.
 
-Registered checks cover original-pixel/compartment arithmetic, independent inferential calculations, figure/source consistency and public-input regression boundaries. Public dataset regression tests do **not** download and run the real dataset. Real Fiji, independent ImageJ measurements, source hashes, accepted/rejected fields and the exact preprocessing belong in the dataset run report. Biological validity is never inferred from a passing Python check.
+Registered checks cover original-pixel/compartment arithmetic, independent inferential calculations, figure/source consistency, public-input regression boundaries, generic API/edit/replay integrity and descriptive output without fabricated replication. Public dataset regression tests do **not** download and run the real dataset. Real Fiji, independent ImageJ measurements, source hashes, accepted/rejected fields and the exact preprocessing belong in the dataset run report. Biological validity is never inferred from a passing Python check.
 
 Each review cycle must also inspect applicability: model training overlap, acquisition metadata, segmentation ground truth, experimental allocation, missing data, selection effects, cluster count and traceability. Preserve negative and inconclusive results. When a defect is found, first reproduce it independently, change the appropriate scientific protocol/version, add the regression, then repeat the affected runtime and visual checks.
 

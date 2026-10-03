@@ -1,8 +1,11 @@
 # Generic region measurements — protocol 1.0.0
 
-`cytellect_analysis.regions` adds a separately typed analysis primitive for
-confirmed 2D fluorescence channels. **It is not connected to the current Web UI,
-upload API, statistics selector or installer release.** Existing NCL/GFP recipes,
+`cytellect_analysis.regions` supplies the typed measurement primitive for confirmed
+2D fluorescence channels. The generic API and supervised worker add native
+channel-TIFF input, imported/manual region masks, immutable edits and remeasurement,
+source-linked descriptive figures, and private export/replay. This implementation
+does not by itself establish an installed release or hosted analysis service;
+delivery status is tracked in the README and roadmap. Existing NCL/GFP recipes,
 scientific identifiers and measurement protocols are unchanged.
 
 ## Inputs and biological identity
@@ -74,7 +77,89 @@ segmentation validation. The two rejected RGB fields remain rejected. Background
 selection in that audit is a numerical reference offset, not a certified
 cell-free ROI.
 
-Connecting this primitive to the product still requires upload/channel mapping,
-mask review and revision lifecycle, long CSV export, metric selection, and a
-source-linked figure path. No p-values, statistical unit assumptions or generic
-automatic object detector are introduced here.
+## API, revisions and recovery
+
+`region_contracts` is the JSON-native wire boundary. Channel/point collections are
+lists in API/DB JSON and become tuples explicitly when constructing the strict
+scientific specification. `RegionReport` response validation uses JSON mode for
+nested strict scientific tables; it does not disable their validation. Unknown
+condition, sample, date or experimental unit remains null. A name or field ID is
+not evidence of an independent replicate.
+
+The initial generic upload accepts one to three channel TIFF files and an optional
+original-coordinate integer label TIFF. This generic upload does not yet provide
+multi-channel OME mapping; the existing recipe-specific OME path is unchanged.
+Original filenames are not storage paths. Raw input and decoded-array files have
+separate hashes and byte counts, checked by the worker. All storage stays inside
+the owned private workspace.
+
+The generic recipe initially permits `manual` and `imported` sources only. Manual
+initialization creates an explicit empty editable label plane. Automatic nuclei
+and nested nucleus/nucleolus relationships remain in the existing recipes until
+their generic adapter is verified. No arbitrary stain is passed as GFP/NCL to
+unlock those recipes.
+
+Generic edits reuse the pure label-plane operation extracted from the existing
+mask implementation. The old wrapper still enforces nucleus/nucleolus containment
+and dependent-child invalidation. Generic add, replace, delete, merge and split
+operate on one logical region set without assigning parent/child biology.
+
+Every edit or background/exclusion change creates an unreviewed analysis revision.
+Unchanged masks preserve their mask revision ID; edited masks receive a new one.
+An explicit `reuse_revision` can expand a representative-field trial into a batch:
+previously analyzed selected fields retain their corrected masks, while newly
+selected fields initialize from the chosen manual/imported source. The recipe
+and every reused field snapshot must be unchanged. Batch reuse must retain all
+parent fields; omitted parent fields are rejected rather than silently dropped.
+Canonical labels and their metadata are saved before background-dependent
+measurement. Thus an edit that intersects a background ROI remains retrievable
+after the visible measurement failure: correcting the background reuses the edited
+pixels, not the original import. Previous revisions remain unchanged.
+
+Partial failures and explicit reasons for excluding failed fields remain in the
+report. Successful measurement rows are not erased by object exclusions; those
+exclusions are separate statistical selection annotations. The shared supervisor
+continues to own cancellation, recovery, lease fencing and final publication.
+API ownership, active-parent CAS, review and retention apply to generic routes.
+
+## Descriptive figures and reproducible exports
+
+The first generic statistical adapter supports per-field descriptive output with
+an explicit region/channel/metric selector. Area duplicated across channel rows
+is checked for agreement and counted once per region. No p-value, inferential
+confidence interval or independent replicate count is synthesized. This first
+slice does not generalize the existing GFP regression or experiment-unit tests.
+Descriptive distributions by other groupings can be scientifically meaningful,
+but are outside this initial per-field selector.
+
+The private reproducibility bundle contains the long region CSV, field outcomes,
+canonical NPY/TIFF masks, pixel-exact Fiji ROI exchange, background masks, settings,
+Methods, source/environment identity and a file manifest. CSV string cells are
+protected against spreadsheet formula interpretation; negative numerical values
+remain numerical. Raw TIFF files are included only with explicit opt-in.
+
+Source-linked descriptive figures require a reviewed revision. Before export,
+the shared descriptive adapter recomputes the saved selector from the source table;
+a changed plot value or source revision is rejected. Replay validates bundle and
+raw-image hashes, remeasures saved masks through `measure_regions`, and regenerates
+recorded descriptive SVG/PDF/PNG and source tables. It reports exact equality of
+saved measurements/descriptions. Failed or unmeasured fields remain diagnostic
+and are explicitly not reassessed by this measurement replay. No detector or model
+download runs during replay.
+
+## Validation scope
+
+Hand-calculated and adversarial tests cover strict JSON round trips, no-Fiji
+manual/imported execution, signed arithmetic, source-file tampering, mask edits,
+background-collision recovery, partial failures and exclusions, exact Fiji ROI
+round trips, raw opt-in, export review/source gates and replay equality. Legacy
+nuclear/nucleolar mask regressions are retained.
+
+The BBBC007 public-image integration additionally exercised actual HTTP upload,
+SQLite JSON snapshots, the supervised worker and HTTP measurement retrieval for
+DNA plus actin. It produced 1,230 channel rows across six fixed mask sets; the 615
+actin ROI measurements agree with the saved independent ImageJ references. The
+DNA rows did not receive a new independent ImageJ comparison. Both previously
+rejected RGB fields remained rejected at upload. This is arithmetic and input/API
+integration evidence, not a new Fiji run, biological instance-mask validation,
+verified camera-native radiometry or independent biological replication.

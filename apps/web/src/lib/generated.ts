@@ -497,6 +497,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/region-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Region Fields */
+        get: operations["list_region_fields_v1_workspaces__wid__region_fields_get"];
+        put?: never;
+        /** Upload Region Field */
+        post: operations["upload_region_field_v1_workspaces__wid__region_fields_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/region-fields/{fid}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview */
+        get: operations["preview_v1_region_fields__fid__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/region-analyses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start */
+        post: operations["start_v1_workspaces__wid__region_analyses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/region-measurements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Measurements */
+        get: operations["measurements_v1_revisions__rid__region_measurements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/region-masks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Masks */
+        get: operations["masks_v1_revisions__rid__region_masks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/region-edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Edit */
+        post: operations["edit_v1_revisions__rid__region_edits_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/region-reconfigure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reconfigure */
+        post: operations["reconfigure_v1_revisions__rid__region_reconfigure_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/descriptive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Descriptive */
+        post: operations["descriptive_v1_revisions__rid__descriptive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -505,6 +642,8 @@ export interface components {
         AnalysisRequest: {
             /** Field Ids */
             field_ids?: string[] | null;
+            /** Reuse Revision */
+            reuse_revision?: string | null;
             recipe?: components["schemas"]["Recipe"];
             /** Backgrounds */
             backgrounds?: {
@@ -559,6 +698,73 @@ export interface components {
              */
             channel_roles: string;
         };
+        /** Body_upload_region_field_v1_workspaces__wid__region_fields_post */
+        Body_upload_region_field_v1_workspaces__wid__region_fields_post: {
+            /** Specification */
+            specification: string;
+            /** Ch0 */
+            ch0: string;
+            /** Ch1 */
+            ch1?: string | null;
+            /** Ch2 */
+            ch2?: string | null;
+            /** Labels */
+            labels?: string | null;
+        };
+        /** Calibration2D */
+        Calibration2D: {
+            /** Pixel Size X Um */
+            pixel_size_x_um: number;
+            /** Pixel Size Y Um */
+            pixel_size_y_um: number;
+            /**
+             * Confirmed
+             * @constant
+             */
+            confirmed: true;
+        };
+        /** ChannelProvenance */
+        ChannelProvenance: {
+            channel: components["schemas"]["ChannelSpec"];
+            /**
+             * Dtype
+             * @enum {string}
+             */
+            dtype: "uint8" | "uint16";
+            /** Pixel Sha256 */
+            pixel_sha256: string;
+            /** Background Mask Sha256 */
+            background_mask_sha256: string;
+            /** Background Revision Id */
+            background_revision_id: string;
+            /** Background Pixel Count */
+            background_pixel_count: number;
+            /** Background Median */
+            background_median: number;
+            /** Storage Maximum */
+            storage_maximum: number;
+        };
+        /** ChannelSpec */
+        ChannelSpec: {
+            /** Channel Id */
+            channel_id: string;
+            /** Label */
+            label: string;
+            /** Stain */
+            stain?: string | null;
+            /**
+             * Identity Confirmed
+             * @constant
+             */
+            identity_confirmed: true;
+            /** Acquisition Saturation Value */
+            acquisition_saturation_value?: number | null;
+            /**
+             * Acquisition Saturation Confirmed
+             * @default false
+             */
+            acquisition_saturation_confirmed: boolean;
+        };
         /** ContourView */
         ContourView: {
             /** Id */
@@ -568,6 +774,71 @@ export interface components {
                 number,
                 number
             ][];
+        };
+        /** DescriptivePlot */
+        DescriptivePlot: {
+            /**
+             * Preset
+             * @default nature-single
+             * @enum {string}
+             */
+            preset: "custom" | "nature-single" | "nature-double";
+            /**
+             * Kind
+             * @default distribution
+             * @constant
+             */
+            kind: "distribution";
+            /**
+             * Language
+             * @default en
+             * @enum {string}
+             */
+            language: "en" | "ja";
+            /**
+             * Width Inches
+             * @default 7
+             */
+            width_inches: number;
+            /**
+             * Height Inches
+             * @default 3
+             */
+            height_inches: number;
+            /**
+             * Font Size
+             * @default 7
+             */
+            font_size: number;
+            /**
+             * X Label
+             * @default
+             */
+            x_label: string;
+            /**
+             * Y Label
+             * @default
+             */
+            y_label: string;
+            /** Group Order */
+            group_order?: string[];
+        };
+        /** DescriptiveRequest */
+        DescriptiveRequest: {
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "descriptive";
+            /** Selection */
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"];
+            /**
+             * Group By
+             * @default field
+             * @constant
+             */
+            group_by: "field";
+            plot?: components["schemas"]["DescriptivePlot"];
         };
         /** Exclusion */
         Exclusion: {
@@ -663,6 +934,8 @@ export interface components {
             error: string | null;
             /** Attempts */
             attempts: number;
+            /** Analysis Mode */
+            analysis_mode?: ("experimental-unit" | "exploratory" | "descriptive") | null;
         };
         /** LegacyParameters */
         LegacyParameters: {
@@ -709,6 +982,19 @@ export interface components {
              */
             gfp_mode: "otsu-qc-batch" | "recipe";
         };
+        /** LegacySelection */
+        LegacySelection: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source: "legacy-cell";
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release";
+        };
         /** MaskEdit */
         MaskEdit: {
             /** Field Id */
@@ -741,6 +1027,20 @@ export interface components {
             nucleoli: components["schemas"]["ContourView"][];
             /** Manual */
             manual: components["schemas"]["ContourView"][];
+        };
+        /** NumericalSelection */
+        NumericalSelection: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source: "numerical";
+            /**
+             * Metric
+             * @default value
+             * @constant
+             */
+            metric: "value";
         };
         /** PlotSpec */
         PlotSpec: {
@@ -875,6 +1175,333 @@ export interface components {
              */
             seed: number;
             legacy?: components["schemas"]["LegacyParameters"];
+        };
+        /** RegionAnalysisRequest */
+        RegionAnalysisRequest: {
+            /** Field Ids */
+            field_ids?: string[] | null;
+            /** Reuse Revision */
+            reuse_revision?: string | null;
+            recipe: components["schemas"]["RegionRecipe"];
+            /** Backgrounds */
+            backgrounds?: {
+                [key: string]: {
+                    [key: string]: components["schemas"]["RegionBackground"];
+                };
+            };
+            /** Exclusions */
+            exclusions?: components["schemas"]["RegionExclusion"][];
+        };
+        /** RegionBackground */
+        RegionBackground: {
+            /** Polygon */
+            polygon: number[][];
+            /**
+             * Confirmed
+             * @constant
+             */
+            confirmed: true;
+        };
+        /** RegionExcludedFailure */
+        RegionExcludedFailure: {
+            /** Field Id */
+            field_id: string;
+            /** Reason */
+            reason: string;
+            /** Error */
+            error: string;
+        };
+        /** RegionExclusion */
+        RegionExclusion: {
+            /** Field Id */
+            field_id: string;
+            /** Region Id */
+            region_id?: number | null;
+            /** Reason */
+            reason: string;
+        };
+        /** RegionFieldFailure */
+        RegionFieldFailure: {
+            /** Field Id */
+            field_id: string;
+            /** Reason */
+            reason: string;
+        };
+        /** RegionFieldMask */
+        RegionFieldMask: {
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "imported";
+            /** Shape */
+            shape: number[];
+            file: components["schemas"]["RegionStoredFile"];
+        };
+        /** RegionFieldMetadata */
+        RegionFieldMetadata: {
+            /** Condition */
+            condition?: string | null;
+            /** Experimental Unit */
+            experimental_unit?: string | null;
+            /** Sample */
+            sample?: string | null;
+            /** Acquisition Date */
+            acquisition_date?: string | null;
+            /** Pair */
+            pair?: string | null;
+            /** Repeat Length */
+            repeat_length?: number | null;
+        };
+        /** RegionFieldView */
+        RegionFieldView: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            metadata: components["schemas"]["RegionFieldMetadata"];
+            image_info: components["schemas"]["RegionImageInfo"];
+            /** Synthetic */
+            synthetic: boolean;
+        };
+        /** RegionImageInfo */
+        RegionImageInfo: {
+            /**
+             * Kind
+             * @default region-2d
+             * @constant
+             */
+            kind: "region-2d";
+            /** Shape */
+            shape: number[];
+            /**
+             * Axes
+             * @default YX
+             * @constant
+             */
+            axes: "YX";
+            /** Channels */
+            channels: components["schemas"]["ChannelSpec"][];
+            /** Inputs */
+            inputs: {
+                [key: string]: components["schemas"]["RegionStoredFile"];
+            };
+            /** Channel Arrays */
+            channel_arrays: {
+                [key: string]: components["schemas"]["RegionStoredFile"];
+            };
+            labels_array?: components["schemas"]["RegionStoredFile"] | null;
+            calibration?: components["schemas"]["Calibration2D"] | null;
+        };
+        /** RegionMaskEdit */
+        RegionMaskEdit: {
+            /** Field Id */
+            field_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "add" | "replace" | "delete" | "merge" | "split";
+            /** Ids */
+            ids?: number[];
+            /** Polygon */
+            polygon?: number[][];
+            /** Expected Mask Revision Id */
+            expected_mask_revision_id?: string | null;
+        };
+        /** RegionMeasurementRow */
+        RegionMeasurementRow: {
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Region Id */
+            region_id: number;
+            /** Channel Id */
+            channel_id: string;
+            /** Area Px */
+            area_px: number;
+            /** Area Um2 */
+            area_um2: number | null;
+            /** Area Missing Reason */
+            area_missing_reason: "calibration_unknown" | null;
+            /** Mean */
+            mean: number;
+            /** Median */
+            median: number;
+            /** Integrated */
+            integrated: number;
+            /** Mean Corrected */
+            mean_corrected: number;
+            /** Median Corrected */
+            median_corrected: number;
+            /** Integrated Corrected */
+            integrated_corrected: number;
+            /** Storage Limit Fraction */
+            storage_limit_fraction: number;
+            /** Acquisition Saturation Fraction */
+            acquisition_saturation_fraction: number | null;
+            /** Acquisition Saturation Missing Reason */
+            acquisition_saturation_missing_reason: "acquisition_limit_unknown" | null;
+            /** Touches Border */
+            touches_border: boolean;
+        };
+        /** RegionMeasurementTable */
+        RegionMeasurementTable: {
+            /**
+             * Protocol Version
+             * @default 1.0.0
+             * @constant
+             */
+            protocol_version: "1.0.0";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "no_regions";
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            region_set: components["schemas"]["RegionSetSpec"];
+            /** Shape Yx */
+            shape_yx: [
+                number,
+                number
+            ];
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /**
+             * Hash Format
+             * @default cytellect-array-v1
+             * @constant
+             */
+            hash_format: "cytellect-array-v1";
+            calibration: components["schemas"]["Calibration2D"] | null;
+            /** Channel Provenance */
+            channel_provenance: components["schemas"]["ChannelProvenance"][];
+            /** Rows */
+            rows: components["schemas"]["RegionMeasurementRow"][];
+        };
+        /** RegionRecipe */
+        RegionRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "imported";
+            /** Defining Channel Id */
+            defining_channel_id?: string | null;
+        };
+        /**
+         * RegionReport
+         * @description Validate persisted JSON with model_validate_json, preserving strict tuples.
+         *
+         *     FastAPI should return that validated instance, rather than asking its Python
+         *     response validator to reinterpret tuple-valued science fields from JSON lists.
+         */
+        RegionReport: {
+            /**
+             * Analysis Kind
+             * @default region-2d
+             * @constant
+             */
+            analysis_kind: "region-2d";
+            /**
+             * Protocol Version
+             * @default 1.0.0
+             * @constant
+             */
+            protocol_version: "1.0.0";
+            /** Revision Id */
+            revision_id: string;
+            recipe: components["schemas"]["RegionRecipe"];
+            /** Field Tables */
+            field_tables: {
+                [key: string]: components["schemas"]["RegionMeasurementTable"];
+            };
+            /** Field Masks */
+            field_masks: {
+                [key: string]: components["schemas"]["RegionFieldMask"];
+            };
+            /** Field Outcomes */
+            field_outcomes: {
+                [key: string]: "measured" | "no_regions" | "failed" | "excluded_failed";
+            };
+            /** Field Failures */
+            field_failures: components["schemas"]["RegionFieldFailure"][];
+            /** Excluded Failed Fields */
+            excluded_failed_fields: components["schemas"]["RegionExcludedFailure"][];
+            /** Exclusions */
+            exclusions: components["schemas"]["RegionExclusion"][];
+        };
+        /** RegionSelection */
+        RegionSelection: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source: "region";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Channel Id */
+            channel_id?: string | null;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected";
+        };
+        /** RegionSetSpec */
+        RegionSetSpec: {
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "imported" | "stardist_nuclear";
+            /** Defining Channel Id */
+            defining_channel_id?: string | null;
+        };
+        /** RegionStoredFile */
+        RegionStoredFile: {
+            /** Sha256 */
+            sha256: string;
+            /** Bytes */
+            bytes: number;
         };
         /** ResegmentInput */
         ResegmentInput: {
@@ -2070,6 +2697,312 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_region_fields_v1_workspaces__wid__region_fields_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionFieldView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_region_field_v1_workspaces__wid__region_fields_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_region_field_v1_workspaces__wid__region_fields_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionFieldView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_v1_region_fields__fid__preview_get: {
+        parameters: {
+            query: {
+                channel_id: string;
+                low?: number;
+                high?: number;
+                gain?: number;
+            };
+            header?: never;
+            path: {
+                fid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_v1_workspaces__wid__region_analyses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionAnalysisRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    measurements_v1_revisions__rid__region_measurements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    masks_v1_revisions__rid__region_masks_get: {
+        parameters: {
+            query: {
+                field_id: string;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_v1_revisions__rid__region_edits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionMaskEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reconfigure_v1_revisions__rid__region_reconfigure_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionAnalysisRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    descriptive_v1_revisions__rid__descriptive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DescriptiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

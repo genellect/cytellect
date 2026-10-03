@@ -86,45 +86,72 @@ def contours(labels):
             result.append({"id": int(ids[region.label]), "points": points})
     return result
 
+def apply_label_edit(labels, operation, ids, polygon, *, allowed_mask=None):
+    """Edit one original-coordinate plane without assigning biological meaning."""
+    validate_label_array(labels)
+    if len(set(ids)) != len(ids):
+        raise ValueError("invalid_edit_labels")
+    layer = labels.astype(np.uint32, copy=True)
+    available = set(np.unique(layer)) - {0}
+    if any(i not in available for i in ids):
+        raise ValueError("unknown_label")
+    if operation in ("add", "split") and int(layer.max()) == np.iinfo(np.uint32).max:
+        raise ValueError("label_id_exhausted")
+    if operation in ("add", "replace"):
+        selected = polygon_mask(layer.shape, polygon)
+        if operation == "replace" and len(ids) != 1:
+            raise ValueError("replace_requires_one_label")
+        target = ids[0] if operation == "replace" else int(layer.max()) + 1
+        if (selected & (layer > 0) & (layer != target)).any():
+            raise ValueError("overlap_requires_explicit_merge")
+        if allowed_mask is not None:
+            if (not isinstance(allowed_mask, np.ndarray) or allowed_mask.dtype != np.bool_
+                    or allowed_mask.shape != layer.shape):
+                raise ValueError("invalid_allowed_mask")
+            if (selected & ~allowed_mask).any():
+                raise ValueError("label_outside_allowed_mask")
+        layer[layer == target] = 0
+        layer[selected] = target
+    elif operation == "delete":
+        if not ids:
+            raise ValueError("select_labels")
+        layer[np.isin(layer, ids)] = 0
+    elif operation == "merge":
+        if len(ids) < 2:
+            raise ValueError("merge_requires_multiple_labels")
+        layer[np.isin(layer, ids)] = min(ids)
+    elif operation == "split":
+        if len(ids) != 1:
+            raise ValueError("split_requires_one_label")
+        selected = polygon_mask(layer.shape, polygon) & (layer == ids[0])
+        if not selected.any() or np.array_equal(selected, layer == ids[0]):
+            raise ValueError("split_requires_partial_region")
+        layer[selected] = int(layer.max()) + 1
+    else:
+        raise ValueError("unsupported_label_operation")
+    return layer
+
+
 def apply_edit(nuclei, nucleoli, manual, edit: MaskEdit):
     validate_labels(nuclei, nucleoli)
     validate_label_array(manual)
     if manual.shape != nuclei.shape or len(set(edit.ids)) != len(edit.ids):
         raise ValueError("invalid_edit_labels")
-    nuclei, nucleoli, manual = (x.astype(np.uint32, copy=True) for x in (nuclei, nucleoli, manual))
-    layer = {"nuclei": nuclei, "nucleoli": nucleoli, "manual": manual}[edit.layer]
-    available = set(np.unique(layer)) - {0}
-    if any(i not in available for i in edit.ids):
-        raise ValueError("unknown_label")
     before = nuclei.copy()
-    if edit.operation in ("add", "split") and int(layer.max()) == np.iinfo(np.uint32).max:
-        raise ValueError("label_id_exhausted")
-    if edit.operation in ("add", "replace"):
-        selected = polygon_mask(layer.shape, edit.polygon)
-        if edit.operation == "replace" and len(edit.ids) != 1:
-            raise ValueError("replace_requires_one_label")
-        target = edit.ids[0] if edit.operation == "replace" else int(layer.max()) + 1
-        if (selected & (layer > 0) & (layer != target)).any():
-            raise ValueError("overlap_requires_explicit_merge")
-        if edit.layer == "nucleoli" and (edit.parent_id is None or (selected & (nuclei != edit.parent_id)).any()):
-            raise ValueError("nucleolus_outside_parent")
-        layer[layer == target] = 0
-        layer[selected] = target
-    elif edit.operation == "delete":
-        if not edit.ids:
-            raise ValueError("select_labels")
-        layer[np.isin(layer, edit.ids)] = 0
-    elif edit.operation == "merge":
-        if len(edit.ids) < 2:
-            raise ValueError("merge_requires_multiple_labels")
-        layer[np.isin(layer, edit.ids)] = min(edit.ids)
-    elif edit.operation == "split":
-        if len(edit.ids) != 1:
-            raise ValueError("split_requires_one_label")
-        selected = polygon_mask(layer.shape, edit.polygon) & (layer == edit.ids[0])
-        if not selected.any() or np.array_equal(selected, layer == edit.ids[0]):
-            raise ValueError("split_requires_partial_region")
-        layer[selected] = int(layer.max()) + 1
+    layers = {"nuclei": nuclei, "nucleoli": nucleoli, "manual": manual}
+    allowed = None
+    if edit.layer == "nucleoli" and edit.operation in ("add", "replace"):
+        allowed = nuclei == edit.parent_id if edit.parent_id is not None else np.zeros(nuclei.shape, bool)
+    try:
+        changed_layer = apply_label_edit(layers[edit.layer], edit.operation, edit.ids, edit.polygon,
+                                         allowed_mask=allowed)
+    except ValueError as exc:
+        if str(exc) == "label_outside_allowed_mask":
+            raise ValueError("nucleolus_outside_parent") from None
+        raise
+    layers = {name: changed_layer if name == edit.layer else array.astype(np.uint32, copy=True)
+              for name, array in layers.items()}
+    nuclei, nucleoli, manual = (layers[name] for name in ("nuclei", "nucleoli", "manual"))
     if edit.layer == "nuclei":
         changed = before != nuclei
         affected = set(np.unique(before[changed])) | set(np.unique(nuclei[changed]))

@@ -12,9 +12,9 @@ Cytellect brings DAPI nuclear segmentation, NCL nucleolar candidates, manual mas
 
 ## Current improvement cycle
 
-The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The planning page explains applicable existing recipes and unresolved conditions without uploading images or automatically adopting a method. Arbitrary markers/regions are not yet available through the product API. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
+The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The planning page explains applicable existing recipes and unresolved conditions without uploading images or automatically adopting a method. The source now adds [named channels and manual/imported regions](docs/generic-regions.md), with optional experimental metadata, original-pixel area/intensity measurements and [per-field descriptive figures](docs/descriptive.md). Automatic detection for arbitrary regions and general-channel group inference remain later steps. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
 
-Source changes in this cycle include statistics1.2.2 and figure1.1.2. The currently published local.10 ZIP retains its previously recorded source and protocols until a new package passes installation acceptance.
+Source changes in this cycle include statistics1.2.2, figure1.1.2, generic regions1.0.0 and descriptive output1.0.0. The currently published local.10 ZIP retains its previously recorded source and protocols until a new package passes installation acceptance. A deployed public UI does not update an installed local package.
 
 ## Windows preview
 

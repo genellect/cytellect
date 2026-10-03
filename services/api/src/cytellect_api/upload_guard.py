@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 
 from .db import digest, fields, sessions, workspaces
 
-UPLOAD_ROUTE = re.compile(r"^/v1/workspaces/([^/]+)/(fields|tables)$")
+UPLOAD_ROUTE = re.compile(r"^/v1/workspaces/([^/]+)/(fields|region-fields|tables)$")
 
 
 class UploadGuardMiddleware:
@@ -59,7 +59,7 @@ class UploadGuardMiddleware:
         if self.settings.demo:
             await reject(403, "demo_uploads_disabled")
             return
-        if kind == "fields" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
+        if kind != "tables" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
             await reject(413, "workspace_limit")
             return
         remaining = self.settings.max_upload_bytes - workspace["bytes"]
@@ -69,7 +69,7 @@ class UploadGuardMiddleware:
         if not request.headers.get("content-type", "").lower().startswith("multipart/form-data;"):
             await reject(415, "multipart_required")
             return
-        limit = min(self.field_limit if kind == "fields" else self.table_limit, remaining + 1024**2)
+        limit = min(self.table_limit if kind == "tables" else self.field_limit, remaining + 1024**2)
         length = request.headers.get("content-length")
         if length is not None:
             try:

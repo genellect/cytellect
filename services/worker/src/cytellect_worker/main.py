@@ -77,6 +77,12 @@ def run_analysis(store, settings, job, output):
     if revision is None:
         raise ValueError("revision_not_found")
     config = revision["config"]
+    if config.get("analysis_kind") == "region-2d":
+        from .regions import run_region_analysis
+
+        return run_region_analysis(store, settings, job, output)
+    if config.get("analysis_kind") is not None:
+        raise ValueError("unknown_analysis_kind")
     recipe = Recipe.model_validate(config["recipe"])
     output.mkdir(parents=True, exist_ok=False)
     parent = None
@@ -238,6 +244,10 @@ def run_analysis(store, settings, job, output):
 
 
 def run_statistics(store, job, output):
+    if job["payload"].get("mode") == "descriptive":
+        from .descriptive import run_descriptive
+
+        return run_descriptive(store, job, output)
     from cytellect_analysis.region_sensitivity import DEFINITION_KEYS
     from cytellect_analysis.review import unresolved_nucleolar_failures
     from cytellect_api.region_sensitivity import validate_region_revision
@@ -304,6 +314,10 @@ def run_table_statistics(store, job, output):
 
 def run_export(store, job, output):
     revision = store.one(revisions, id=job["revision_id"])
+    if revision["config"].get("analysis_kind") == "region-2d":
+        from .regions import run_region_export
+
+        return run_region_export(store, job, output)
     root = store.safe_path(revision["result_dir"])
     def masks():
         # Decode only one field while the bundle writer consumes it.

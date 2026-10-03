@@ -148,6 +148,12 @@ def methods_text(config, provenance, report, statistics_results=()):
     if not statistics_results:
         lines.append("No statistical analysis is included in this bundle.")
     for index, result in enumerate(statistics_results):
+        if result.get("analysis_kind") == "descriptive":
+            from .descriptive_figures import descriptive_methods
+
+            lines += [f"Analysis {index}: [Recorded result](statistics/{index}/result.json).",
+                      descriptive_methods(result)]
+            continue
         spec = result["spec"]
         lines += [f"Analysis {index}: statistics protocol {result.get('statistics_version')}; metric {spec['metric']}; "
                   f"mode {spec['mode']}. [Recorded result](statistics/{index}/result.json).",
@@ -185,10 +191,15 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
     raw_files contains (field_id/role.tif, private Path), never uploaded names.
     Files remain private: the caller must enforce ownership and expiration on this directory.
     """
+    statistics_results = list(statistics_results)
+    for index, result in enumerate(statistics_results):
+        if result.get("analysis_kind") == "descriptive":
+            from .descriptive import validate_legacy_description
+
+            statistics_results[index] = validate_legacy_description(result, report, config)
     destination.mkdir(parents=True, exist_ok=True)
     content = destination / "bundle"
     content.mkdir(exist_ok=False)
-    statistics_results = list(statistics_results)
     statistics_roots = dict(statistics_roots)
     _json(content / "measurements.json", report)
     _json(content / "revision.json", {"id": report.get("revision_id"), "config": config})
@@ -235,7 +246,13 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
     for index, result in enumerate(statistics_results):
         folder = content / "statistics" / str(index)
         folder.mkdir(parents=True)
-        result = {**result, "figure": render_figures(result, folder)}
+        if result.get("analysis_kind") == "descriptive":
+            from .descriptive_figures import render_descriptive
+
+            figure = render_descriptive(result, folder)
+        else:
+            figure = render_figures(result, folder)
+        result = {**result, "figure": figure}
         _json(folder / "result.json", result)
         for ordinal, source in enumerate(result.get("region_sensitivity_sources", [])):
             _safe_id(source["revision_id"])

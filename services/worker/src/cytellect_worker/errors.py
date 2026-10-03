@@ -1,5 +1,7 @@
 """Allowlisted non-research diagnostics from validated scientific operations."""
 
+from cytellect_analysis.descriptive import SAFE_ERROR_CODES as DESCRIPTIVE_ERRORS
+
 SAFE_ERRORS = frozenset(
     {
         "nucleolar_processing_failed",
@@ -136,4 +138,4 @@ SAFE_ERRORS = frozenset(
         "figure_labels_overlap",
         "figure_text_outside_canvas",
     }
-)
+) | DESCRIPTIVE_ERRORS

@@ -31,6 +31,14 @@ A cross-community survey found demand for intuitive tools, written tutorials and
 
 Method support starts with explicit, cited decision rules. Product LLM proposals remain optional, with separate authorization for cost and research-data transmission. No new paid API or autonomous parameter search is part of this phase. Hosting remains local API/worker plus browser UI until an affordable host passes its own privacy and operational acceptance.
 
+### Current checkpoint and next decisions
+
+The first LP/planning/scientific-review increment is published through PR #10 and main. The next increment connects generic manual/imported regions, optional metadata, trial-mask reuse, source-bound descriptive figures and return-to-image links. It is a source increment until its own CI, browser and installed-release gates pass; local.10 remains unchanged.
+
+After this checkpoint, prioritize two remaining breaks in the researcher workflow: (1) confirmed nuclear-stain detection through the existing pinned Fiji model, without fabricated GFP/NCL channels; (2) experiment-unit comparisons for an explicitly selected generic region/channel metric. Keep the manual/imported 1.0 recipe serialization stable when adding detector-specific settings. General-channel comparisons need source selection, complete experimental metadata and confirmed design; reuse the marker-neutral aggregation/inference core, not GFP regression under another name. Unknown metadata continues to permit descriptive work only. Unequal object counts, nested technical replicates, paired identities, missingness and duplicate channel-area rows need independent reference tests before this path becomes available.
+
+Adopted planning records, efficient batch registration and the next validated Windows package follow these connected paths. Existing low-performing or ambiguous public detector results remain visible; adding a button does not establish new segmentation accuracy. Human usability and private-data performance remain open acceptance gates.
+
 ## Agent roles and execution loop
 
 | Role | Owns | Independent check |

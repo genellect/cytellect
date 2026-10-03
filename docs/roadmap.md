@@ -4,6 +4,8 @@ The active 2026-10-03 improvement sequence is recorded in [Researcher workflow](
 
 This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).
 
+The next source increment adds a separate manual/imported generic region workspace and per-field descriptive figures to both image workflows. Unknown experimental metadata is allowed for descriptive work; existing group comparisons retain their explicit design checks. Trial-to-batch execution preserves corrected masks, and registration reuses confirmed metadata/channel definitions in memory. Generic automatic detection, experiment-unit inference for arbitrary channel metrics, adopted planning contracts and researcher usability remain subsequent work. These source features are not yet included in the distributed local.10 ZIP. [Generic regions](generic-regions.md) · [Descriptive figures](descriptive.md).
+
 The [requirement coverage audit](completion-audit.md) maps the implemented workflow, regression corrections and remaining private/human/hosted acceptance. Later source fixes do not retroactively change accepted release evidence.
 
 | Stage | Implemented | Remaining acceptance |
