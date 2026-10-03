@@ -1,5 +1,5 @@
 import {describe,it,expect} from "vitest";
-import {regionTraceRows,regionTraceMismatch,traceDisplayChannel} from "./region-trace";
+import {regionTraceRows,regionTraceMismatch,regionFieldTraceMismatch,traceDisplayChannel,type RegionFieldTraceTarget} from "./region-trace";
 import type {DescriptiveResult} from "./descriptive-view";
 import type {RegionField,RegionMasks} from "./region-types";
 
@@ -40,5 +40,26 @@ describe("saved descriptive region tracing",()=>{
  it("does not fabricate trace rows for older missing data or native-cell results",()=>{
   expect(regionTraceRows({...saved,plot_data:undefined})).toEqual([]);
   expect(regionTraceRows({...saved,spec:{...saved.spec,selection:{source:"legacy-cell",metric:"gfp_mean"}}})).toEqual([]);
+ });
+});
+
+describe("saved comparison field tracing",()=>{
+ const regionTarget=regionTraceRows(saved)[0].target!;
+ const target:RegionFieldTraceTarget={revisionId:regionTarget.revisionId,fieldId:regionTarget.fieldId,regionSetId:regionTarget.regionSetId,maskRevisionId:regionTarget.maskRevisionId,maskSha256:regionTarget.maskSha256,maskSource:regionTarget.maskSource,shape:regionTarget.shape,channelId:regionTarget.channelId,channelLabel:regionTarget.channelLabel,channelStain:regionTarget.channelStain,regionLabel:regionTarget.regionLabel};
+ it("opens the saved field without fabricating one aggregate region ID",()=>{
+  expect(regionFieldTraceMismatch(target,field,{...masks,regions:[]})).toBeNull();
+  expect(target).not.toHaveProperty("regionId");expect(target).not.toHaveProperty("observationId");
+  expect(traceDisplayChannel(target,field,"dna")?.channel_id).toBe("actin");
+ });
+ it("requires exact field, canonical mask, dimensions and source",()=>{
+  for(const patch of [{mask_sha256:"c".repeat(64)},{mask_revision_id:"other"},{region_set_id:"other"},{source:"manual" as const},{shape:[20,30,1]}])expect(regionFieldTraceMismatch(target,field,{...masks,metadata:{...masks.metadata,...patch}})).not.toBeNull();
+  expect(regionFieldTraceMismatch({...target,shape:[20]},field,masks)).not.toBeNull();
+  expect(regionFieldTraceMismatch(target,{...field,id:"other"},masks)).not.toBeNull();
+  const invalidDimensions={...field,image_info:{...field.image_info,shape:[20,30,1]}} as unknown as RegionField;
+  expect(regionFieldTraceMismatch(target,invalidDimensions,masks)).not.toBeNull();
+ });
+ it("does not give an area comparison a measurement channel",()=>{
+  const area={...target,channelId:null,channelLabel:null,channelStain:null};
+  expect(traceDisplayChannel(area,field,"dna")?.channel_id).toBe("dna");expect(area.channelId).toBeNull();
  });
 });

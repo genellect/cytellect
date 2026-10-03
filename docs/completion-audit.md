@@ -159,3 +159,39 @@ timing condition was reproduced. The independent practice tests and controlled
 Windows failure tests have separate receipts. Required CI, main publication and
 any new installed package remain separate gates. The public local.11 package
 does not change with this source increment; M4/M5 remain open.
+
+PR #15 subsequently passed all four required checks at
+`916c2279a9abf7f777fba31085c964d940181ba5` and merged as
+`c215e70a563797d07181b6febbd5cdb04b9e39ba`. Vercel automatically published that
+main source; all four main checks also passed in
+[run 37147920398](https://github.com/genellect/cytellect/actions/runs/37147920398).
+The deployment reached
+production READY `dpl_FyfBb2jvarcWBFf8PEeVJjxrTguc`. Separate
+canonical `/` and `/plan` checks at 1440/390 px passed: image/value linkage,
+planning download/reload behavior, release/guide pointers and responsive layout.
+Eight screenshots were reviewed; no page/console errors, horizontal overflow or
+private API requests occurred on the tested paths. An initial sandbox network
+denial is retained separately from the completed browser run. The unchanged
+local.11 archive was not downloaded or accepted again. This public-interface
+check does not exercise a hosted private analysis API or a new installed package.
+
+## Source checkpoint — comparison hierarchy
+
+S12 exposes saved experimental-unit values through sample means and field
+medians, with historical image/channel navigation. Paired membership comes from
+the saved pair ledger. Exclusions, missingness and failed-field unknown counts
+remain explicit. The browser joins identities and displays saved values; it does
+not recompute aggregation or scientific n. Ambiguous records disable this view
+without suppressing the saved result or exports.
+
+The source checks passed 159 Web unit tests, type/lint/build and a new browser
+case against the real local API/worker. Three affected browser regressions also
+passed before the final presentation-only ordering/alignment changes. The final
+case verifies those changes, unequal aggregation (field medians 2/4/10, sample
+means 3/10, unit value 6.5), saved pair membership, historical revision/channel
+restoration, draft preservation and recovery from a failed source request.
+Nine final screenshots were reviewed. Two earlier locator failures are retained;
+the passing run does not erase them. This uses artificial numerical/interaction
+inputs and does not establish biological validity or human usability. Required
+CI, publication and installed-package acceptance remain separate gates. The
+immutable local.11 package is unchanged; M4/M5 remain open.

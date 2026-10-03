@@ -63,6 +63,14 @@ from pooling objects. Passing these checks does not establish that a researcher
 can interpret the interface: participant results remain pending. The published
 local.11 package is unchanged by later source work.
 
+PR #15 published the tracing and metadata-protection source increment through
+required CI and main. The next implementation makes comparison points inspectable
+as saved unit → sample → field values, with exact historical image links. Review
+must preserve paired identity and omissions, and keep field names consistent with
+the viewer. The following proposed increment is area-only measurement without
+background gestures; it requires a separate availability/provenance contract,
+historical replay compatibility and a complete browser/export path before release.
+
 | Role | Owns | Independent check |
 |---|---|---|
 | Coordinator | requirements, API/contracts, generic region architecture, integration, Git/PR/release | reconcile all findings; never infer scientific validity from a green build |

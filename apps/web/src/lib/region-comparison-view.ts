@@ -3,6 +3,12 @@ import type {Job} from "./types";
 import {regionMetricLabels,type RegionMetric} from "./region-types";
 
 export type RegionComparisonResult=components["schemas"]["RegionComparisonView"];
+// Keep the saved-result contract generated from OpenAPI; the trace adapter validates
+// its deliberately untyped nested ledger rows before exposing a UI hierarchy.
+export type RegionComparisonTraceInput=Pick<RegionComparisonResult,
+ "revision_id"|"source_fingerprint"|"spec"|"metric"|"region"|"channel"|
+ "source_fields"|"source_field_ledger"|"observation_ledger"|"field_summary"|
+ "sample_summary"|"unit_summary"|"unit_ledger"|"pair_ledger"|"missingness"|"excluded_failed_fields">;
 export function regionComparisonJobs(jobs:Job[]){return jobs.filter(job=>job.kind==="statistics"&&job.analysis_mode==="region-experimental-unit").toSorted((a,b)=>b.created-a.created);}
 export function selectedRegionComparisonJob(jobs:Job[],selectedId:string,revisionId?:string){const available=regionComparisonJobs(jobs);return selectedId?available.find(job=>job.id===selectedId):available.find(job=>job.revision_id===revisionId);}
 export function comparisonLabel(result:RegionComparisonResult){return [result.region.label,result.channel?.label,regionMetricLabels[result.metric as RegionMetric]||result.metric].filter(Boolean).join(" · ");}
