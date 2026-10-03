@@ -148,8 +148,34 @@ function Stop-SetupProcess {
     $killer.Dispose()
 }
 
+function Get-SetupFailureCode([Exception]$Exception = $null, [int]$ExitCode = 0,
+    [string]$StandardError = '', [switch]$UvProcess) {
+    # Inspect typed native errors and our own fixed marker, never arbitrary messages.
+    $failure = $Exception
+    while ($null -ne $failure) {
+        if (($failure -is [ComponentModel.Win32Exception] -and $failure.NativeErrorCode -eq 4551) -or
+            ($failure.Data.Contains('CytellectSetupFailure') -and
+             $failure.Data['CytellectSetupFailure'] -ceq 'windows_application_control_blocked')) {
+            return 'windows_application_control_blocked'
+        }
+        $failure = $failure.InnerException
+    }
+    # uv wraps a child launch failure in its stderr; retain only the fixed code.
+    if ($UvProcess -and $ExitCode -ne 0 -and $StandardError -cmatch '\(os error 4551\)') {
+        return 'windows_application_control_blocked'
+    }
+    return $null
+}
+
+function Get-SetupFailureText([string]$Code, [string]$Phase) {
+    if ($Code -ceq 'windows_application_control_blocked') {
+        return 'Windowsの保護機能により実行が拒否されました（4551）。PCの管理者に配布物の確認を依頼してください。'
+    }
+    return '準備を停止しました (' + $Phase + ')。接続・空き容量を確認して再試行してください。'
+}
+
 function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]$Directory,
-    [hashtable]$Environment = @{}, [int]$TimeoutSeconds = 1800) {
+    [hashtable]$Environment = @{}, [int]$TimeoutSeconds = 1800, [switch]$UvProcess) {
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $Executable
     $start.Arguments = ($Arguments | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
@@ -176,8 +202,17 @@ function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]
         }
         # Do not persist third-party output, which can include local paths.
         $stdout.GetAwaiter().GetResult() | Out-Null
-        $stderr.GetAwaiter().GetResult() | Out-Null
-        if ($script:RunningProcess.ExitCode -ne 0) { throw 'setup_stage_failed' }
+        $standardError = $stderr.GetAwaiter().GetResult()
+        if ($script:RunningProcess.ExitCode -ne 0) {
+            $code = Get-SetupFailureCode -ExitCode $script:RunningProcess.ExitCode `
+                -StandardError $standardError -UvProcess:$UvProcess
+            if ($null -ne $code) {
+                $failure = [InvalidOperationException]::new($code)
+                $failure.Data['CytellectSetupFailure'] = $code
+                throw $failure
+            }
+            throw 'setup_stage_failed'
+        }
     } finally {
         Stop-SetupProcess
         $script:RunningProcess.Dispose()
@@ -281,10 +316,10 @@ function Install-Cytellect {
     [IO.File]::WriteAllText($catalogPath, ($catalog | ConvertTo-Json -Depth 5))
     $environment['UV_PYTHON_DOWNLOADS_JSON_URL'] = $catalogPath
     Update-SetupStatus 'install_python' '専用のPython環境を準備しています…'
-    Invoke-SetupProcess $uv @('python', 'install', $script:PythonVersion, '--no-bin', '--no-registry', '--no-config') $app $environment 900
+    Invoke-SetupProcess $uv @('python', 'install', $script:PythonVersion, '--no-bin', '--no-registry', '--no-config') $app $environment 900 -UvProcess
     Update-SetupStatus 'install_dependencies' '解析ライブラリを準備しています…'
     Invoke-SetupProcess $uv @('sync', '--locked', '--no-dev', '--python', $script:PythonVersion,
-        '--managed-python', '--no-python-downloads', '--no-config') $app $environment
+        '--managed-python', '--no-python-downloads', '--no-config') $app $environment -UvProcess
     $python = Get-SafeChild $app '.venv/Scripts/python.exe'
     $pythonw = Get-SafeChild $app '.venv/Scripts/pythonw.exe'
     Update-SetupStatus 'verify_python_gui' '起動・停止ウィンドウを確認しています…'
@@ -329,7 +364,9 @@ function Install-Cytellect {
 if ($Console -or $VerifyOnly) {
     try { Install-Cytellect; exit 0 } catch {
         # Fixed stage and code only; never print arbitrary exceptions or paths.
-        Write-Host ('Cytellect setup failed: ' + $script:Phase)
+        $code = Get-SetupFailureCode -Exception $_.Exception
+        $suffix = if ($null -ne $code) { ' (' + $code + ')' } else { '' }
+        Write-Host ('Cytellect setup failed: ' + $script:Phase + $suffix)
         exit 1
     }
 }
@@ -394,15 +431,17 @@ $installButton.Add_Click({
     $installButton.Enabled = $false
     $closeButton.Text = 'キャンセル'
     $progress.Style = 'Marquee'
+    $setupFailureCode = $null
     try {
         Install-Cytellect
         $installButton.Text = '開く'
     } catch {
-        $script:StatusLabel.Text = '準備を停止しました (' + $script:Phase + ')。接続・空き容量を確認して再試行してください。'
-        $installButton.Text = '再試行'
+        $setupFailureCode = Get-SetupFailureCode -Exception $_.Exception
+        $script:StatusLabel.Text = Get-SetupFailureText -Code $setupFailureCode -Phase $script:Phase
+        $installButton.Text = if ($null -ne $setupFailureCode) { 'セットアップ' } else { '再試行' }
     } finally {
         $script:Installing = $false
-        $installButton.Enabled = $true
+        $installButton.Enabled = ($null -eq $setupFailureCode)
         $closeButton.Text = '閉じる'
         $progress.Style = 'Blocks'
         if ($null -ne $script:LaunchInfo) { $progress.Value = 100 }
