@@ -83,6 +83,7 @@ class Exclusion(StrictModel):
 
 class AnalysisRequest(StrictModel):
     field_ids: list[str] | None = Field(default=None, min_length=1, max_length=100)
+    reuse_revision: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")] | None = None
     recipe: Recipe = Field(default_factory=Recipe)
     backgrounds: dict[str, Background] = Field(default_factory=dict)
     exclusions: list[Exclusion] = Field(default_factory=list, max_length=10000)

@@ -70,13 +70,30 @@
       "id": "generic-region-measurement",
       "question": "Can explicitly named channels and original-coordinate regions be measured without false biological labels or assumed calibration?",
       "tests": [
-        "tests/test_regions.py"
+        "tests/test_regions.py",
+        "tests/test_region_contracts.py",
+        "tests/test_region_worker.py",
+        "tests/test_region_api.py",
+        "tests/test_workspace_workflow_kind.py",
+        "tests/test_region_export.py",
+        "tests/test_trial_batch.py"
       ],
       "references": [
         "waters-2009",
         "schmied-2024"
       ],
-      "limit": "Independent primitive only; API, workflow adoption and new marker-specific detection remain separate acceptance."
+      "limit": "Exact pixels, API ownership, corrections and replay are checked; new biological detector applicability and actual browser execution retain separate receipts."
+    },
+    {
+      "id": "descriptive-source-integrity",
+      "question": "Can one reviewed field yield honest source-linked descriptions without inventing independent replication or inference?",
+      "tests": [
+        "tests/test_descriptive.py",
+        "tests/test_descriptive_figures.py",
+        "tests/test_descriptive_export.py"
+      ],
+      "references": ["lazic-2018", "waters-2009", "schmied-2024", "nature-final-artwork"],
+      "limit": "Per-field distributions do not establish acquisition comparability, biological independence or group effects."
     }
   ],
   "separate_gates": [

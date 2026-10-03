@@ -28,6 +28,7 @@ test("local package starts without invitation, processes real GFP, and retains w
  expect(denied.status()).toBe(403);
  const title="Public GFP local browser check "+Date.now();
  await page.getByLabel("作業名",{exact:true}).fill(title);
+ await page.getByRole("combobox",{name:"解析の種類",exact:true}).selectOption("nuclear");
  await page.getByRole("button",{name:"作業を作成"}).click();
  await page.getByText("＋ 画像を登録",{exact:true}).click();
  await page.getByLabel("測定対象",{exact:true}).selectOption("gfp");

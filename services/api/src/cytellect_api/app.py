@@ -31,6 +31,8 @@ from sqlalchemy import func, select, update
 
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
+from .descriptive import register_descriptive_routes
+from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
 from .views import FieldView, JobView, MasksView, RevisionView, WorkspaceView
@@ -115,6 +117,12 @@ def create_app(settings: Settings | None = None):
         if not value:
             raise HTTPException(404, "revision_not_found")
         workspace(value["workspace_id"], who)
+        return value
+
+    def legacy_revision(rid, who):
+        value = revision(rid, who)
+        if is_region(value):
+            raise HTTPException(409, "legacy_analysis_required")
         return value
 
     def touch(conn, wid):
@@ -282,7 +290,7 @@ def create_app(settings: Settings | None = None):
     @api.get("/v1/workspaces/{wid}/fields", response_model=list[FieldView])
     def list_fields(wid: str, who: Owner):
         workspace(wid, who)
-        return [dict(r) for r in store.rows(fields, workspace_id=wid)]
+        return [dict(r) for r in store.rows(fields, workspace_id=wid) if not is_region(r)]
 
     @api.post("/v1/workspaces/{wid}/fields", status_code=201, response_model=FieldView)
     async def upload_field(
@@ -361,6 +369,10 @@ def create_app(settings: Settings | None = None):
                 ).scalar_one()
                 if w["deleted"] or w["expires"] <= time.time():
                     raise HTTPException(404, "workspace_not_found")
+                if any(is_region(existing) for existing in c.execute(
+                    select(fields).where(fields.c.workspace_id == wid)
+                ).mappings()):
+                    raise HTTPException(409, "workflow_kind_mismatch")
                 if count >= settings.max_fields or w["bytes"] + total > settings.max_upload_bytes:
                     raise HTTPException(413, "workspace_limit")
                 c.execute(
@@ -395,6 +407,10 @@ def create_app(settings: Settings | None = None):
                 count = c.execute(
                     select(func.count()).select_from(fields).where(fields.c.workspace_id == wid)
                 ).scalar_one()
+                if any(is_region(existing) for existing in c.execute(
+                    select(fields).where(fields.c.workspace_id == wid)
+                ).mappings()):
+                    raise HTTPException(409, "workflow_kind_mismatch")
                 if count + 6 > settings.max_fields:
                     raise HTTPException(413, "field_limit")
                 for i in range(6):
@@ -463,6 +479,8 @@ def create_app(settings: Settings | None = None):
         fid: str, who: Owner, channel: str = "merge", low: float = 0, high: float = 100, gain: float = 1
     ):
         f = field_record(fid, who)
+        if is_region(f):
+            raise HTTPException(404, "field_not_found")
         if (
             channel not in ("dapi", "ncl", "gfp", "merge")
             or not 0 <= low < high <= 100
@@ -479,7 +497,7 @@ def create_app(settings: Settings | None = None):
     @api.post("/v1/workspaces/{wid}/analyses", status_code=202)
     def start_analysis(wid: str, body: AnalysisRequest, who: Owner):
         workspace(wid, who)
-        selected = store.rows(fields, workspace_id=wid)
+        selected = [f for f in store.rows(fields, workspace_id=wid) if not is_region(f)]
         if body.field_ids is not None:
             requested = set(body.field_ids)
             if len(requested) != len(body.field_ids) or not requested.issubset({f["id"] for f in selected}):
@@ -488,6 +506,16 @@ def create_app(settings: Settings | None = None):
         if not selected:
             raise HTTPException(422, "images_required")
         selected_ids = {f["id"] for f in selected}
+        parent = None
+        if body.reuse_revision:
+            parent = legacy_revision(body.reuse_revision, who)
+            if parent["workspace_id"] != wid:
+                raise HTTPException(404, "revision_not_found")
+            result_root(parent)
+            if not set(parent["config"]["field_ids"]).issubset(selected_ids):
+                raise HTTPException(409, "batch_must_include_reused_fields")
+            if Recipe.model_validate(parent["config"]["recipe"]) != body.recipe:
+                raise HTTPException(409, "batch_reuse_requires_unchanged_recipe")
         if not set(body.recipe.gfp_negative_control_fields).issubset(selected_ids):
             raise HTTPException(422, "negative_control_fields_must_be_in_analysis")
         if any(e.field_id not in selected_ids for e in body.exclusions):
@@ -506,6 +534,8 @@ def create_app(settings: Settings | None = None):
         config["field_snapshot"] = {f["id"]: dict(f) for f in selected}
         with store.transaction() as c:
             w = c.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
+            if parent is not None and w["active_revision"] != parent["id"]:
+                raise HTTPException(409, "stale_revision")
             c.execute(
                 revisions.insert().values(
                     id=rid,
@@ -537,7 +567,7 @@ def create_app(settings: Settings | None = None):
 
     @api.get("/v1/revisions/{rid}/fields/{fid}/masks", response_model=MasksView)
     def get_masks(rid: str, fid: str, who: Owner):
-        rev = revision(rid, who)
+        rev = legacy_revision(rid, who)
         if fid not in rev["config"]["field_ids"]:
             raise HTTPException(404, "field_not_found")
         path = result_root(rev) / fid / "masks.npz"
@@ -552,7 +582,7 @@ def create_app(settings: Settings | None = None):
 
     @api.post("/v1/revisions/{rid}/edits", status_code=202)
     def edit(rid: str, body: MaskEdit, who: Owner):
-        parent = revision(rid, who)
+        parent = legacy_revision(rid, who)
         result_root(parent)
         if body.field_id not in parent["config"]["field_ids"]:
             raise HTTPException(404, "field_not_found")
@@ -601,7 +631,7 @@ def create_app(settings: Settings | None = None):
         report = read_json(root / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "resolve_or_explicitly_exclude_failed_fields")
-        if unresolved_nucleolar_failures(report, rev["config"]):
+        if not is_region(rev) and unresolved_nucleolar_failures(report, rev["config"]):
             raise HTTPException(409, "resolve_or_explicitly_exclude_failed_nucleoli")
         invalidated = set(report.get("invalidated_nucleoli", []))
         if invalidated != set(body.accept_invalidated_fields):
@@ -623,7 +653,7 @@ def create_app(settings: Settings | None = None):
 
     @api.post("/v1/revisions/{rid}/statistics", status_code=202)
     def statistics(rid: str, body: StatisticsRequest, who: Owner):
-        rev = revision(rid, who)
+        rev = legacy_revision(rid, who)
         if rev["state"] != "succeeded" or not rev["reviewed"]:
             raise HTTPException(409, "review_required")
         if unresolved_nucleolar_failures(read_json(result_root(rev) / "measurements.json"), rev["config"]):
@@ -676,7 +706,7 @@ def create_app(settings: Settings | None = None):
 
     @api.post("/v1/revisions/{rid}/reconfigure", status_code=202)
     def reconfigure(rid: str, body: AnalysisRequest, who: Owner):
-        parent = revision(rid, who)
+        parent = legacy_revision(rid, who)
         result_root(parent)
         previous = Recipe.model_validate(parent["config"]["recipe"])
         detection_keys = {
@@ -719,7 +749,7 @@ def create_app(settings: Settings | None = None):
 
     @api.post("/v1/revisions/{rid}/resegment", status_code=202)
     def resegment(rid: str, body: ResegmentInput, who: Owner):
-        parent = revision(rid, who)
+        parent = legacy_revision(rid, who)
         result_root(parent)
         if not set(body.field_ids).issubset(parent["config"]["field_ids"]):
             raise HTTPException(422, "unknown_resegmentation_field")
@@ -842,7 +872,8 @@ def create_app(settings: Settings | None = None):
     def list_jobs(wid: str, who: Owner):
         workspace(wid, who)
         return [
-            {k: r[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")}
+            {**{k: r[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")},
+             "analysis_mode": r["payload"].get("mode") if r["kind"] in ("statistics", "table-statistics") else None}
             for r in store.rows(jobs, workspace_id=wid)
         ]
 
@@ -856,7 +887,8 @@ def create_app(settings: Settings | None = None):
     @api.get("/v1/jobs/{jid}", response_model=JobView)
     def get_job(jid: str, who: Owner):
         j = job_record(jid, who)
-        return {k: j[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")}
+        return {**{k: j[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")},
+                "analysis_mode": j["payload"].get("mode") if j["kind"] in ("statistics", "table-statistics") else None}
 
     @api.post("/v1/jobs/{jid}/cancel")
     def cancel(jid: str, who: Owner):
@@ -895,6 +927,8 @@ def create_app(settings: Settings | None = None):
             "comparisons.csv": "text/csv",
             "experimental-units.csv": "text/csv",
             "field-summary.csv": "text/csv",
+            "selection.csv": "text/csv",
+            "missingness.csv": "text/csv",
             "model-coefficients.csv": "text/csv",
             "repeat-trend.csv": "text/csv",
             "sensitivity-comparisons.csv": "text/csv",
@@ -910,4 +944,7 @@ def create_app(settings: Settings | None = None):
             raise HTTPException(404, "artifact_not_found")
         return FileResponse(path, media_type=allowed[name], filename=name)
 
+    register_region_routes(api, store, settings, owner, workspace, revision,
+                           field_record, result_root, queue, touch, child_revision)
+    register_descriptive_routes(api, store, owner, revision, result_root, queue)
     return api

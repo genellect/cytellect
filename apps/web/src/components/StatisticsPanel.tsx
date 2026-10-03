@@ -6,9 +6,17 @@ import { usePrivateImage } from "@/lib/usePrivateImage";
 import { availableMetricIds, fieldRoles, metricLabels, type Field, type Job, type Revision } from "@/lib/types";
 import styles from "./workspace.module.css";
 import { ComparisonTable, ModelResult, ResultWarnings, SensitivityResults, type StatisticalResult } from "./StatisticalResults";
+import DescriptivePanel from "./DescriptivePanel";
 type NumericTable={id:string;row_count:number;metadata:{groups?:string[];conditions?:string[]}};
-type Props={wid:string;revision?:Revision;jobs:Job[];fields:Field[];revisions:Revision[];dirty:boolean;blocked:boolean;run:(fn:()=>Promise<void>)=>void};
-export default function StatisticsPanel({wid,revision,jobs,fields,revisions,dirty,blocked,run}:Props){
+type Props={wid:string;revision?:Revision;jobs:Job[];fields:Field[];revisions:Revision[];dirty:boolean;blocked:boolean;run:(fn:()=>Promise<void>)=>void;onInspectField?:(fieldId:string,revisionId:string)=>void};
+export default function StatisticsPanel(props:Props){
+ const [view,setView]=useState<"descriptive"|"comparison">("descriptive");
+ const {revision,jobs,fields,dirty,blocked,run}=props;
+ const included=fields.filter(f=>revision?.config.field_ids?.includes(f.id));
+ const metrics=availableMetricIds({hasGfp:!!included.length&&included.every(f=>fieldRoles(f).includes("gfp")),hasNcl:revision?.config.recipe.id!=="gfp-nuclear-2d"&&!!included.length&&included.every(f=>fieldRoles(f).includes("ncl")),legacy:revision?.config.recipe.id==="ncl-legacy-rgb",calibrated:!!included.length&&included.every(f=>!!f.metadata.pixel_size_um)});
+ return <div><div className={styles.downloadBar} role="group" aria-label="図の目的"><button className={view==="descriptive"?styles.primary:styles.secondary} aria-pressed={view==="descriptive"} onClick={()=>setView("descriptive")}>測定値と分布</button><button className={view==="comparison"?styles.primary:styles.secondary} aria-pressed={view==="comparison"} onClick={()=>setView("comparison")}>群間比較・関連解析</button></div>{view==="descriptive"?<DescriptivePanel revisionId={revision?.id} reviewed={!!revision?.reviewed} options={metrics.map(metric=>({id:metric,label:metricLabels[metric],selection:{source:"legacy-cell",metric}}))} jobs={jobs} dirty={dirty} blocked={blocked} run={run} fieldLabels={Object.fromEntries(fields.map((field,i)=>[field.id,`画像一覧の視野 ${i+1} · ${field.metadata.sample||"試料未記録"}`]))} revisionLabels={Object.fromEntries(props.revisions.map((rev,i)=>[rev.id,`解析版 ${i+1}`]))} onInspectField={props.onInspectField}/>:<ComparisonPanel {...props}/>}</div>;
+}
+function ComparisonPanel({wid,revision,jobs,fields,revisions,dirty,blocked,run}:Props){
  const qc=useQueryClient();
  const [metric,setMetric]=useState("ncl_log2_nucleoplasm_over_nucleoli");const [mode,setMode]=useState("experimental-unit");const [design,setDesign]=useState("unselected");const paired=design==="paired";const [confirmed,setConfirmed]=useState(false);const [kind,setKind]=useState("distribution");const [language,setLanguage]=useState("en");const [baseline,setBaseline]=useState("");const [targets,setTargets]=useState<string[]>([]);const [family,setFamily]=useState("baseline");const [customComparisons,setCustomComparisons]=useState("");const [selectedJob,setSelectedJob]=useState("");
  const [preset,setPreset]=useState("nature-single");const [highRegions,setHighRegions]=useState<number[]>([]);const [width,setWidth]=useState(7);const [height,setHeight]=useState(3);const [font,setFont]=useState(7);const [xLabel,setXLabel]=useState("");const [yLabel,setYLabel]=useState("");const [order,setOrder]=useState("");const [thresholds,setThresholds]=useState("");const [completeDates,setCompleteDates]=useState(false);const [transform,setTransform]=useState("positive-log2");const [source,setSource]=useState("images");
@@ -24,7 +32,7 @@ export default function StatisticsPanel({wid,revision,jobs,fields,revisions,dirt
  useEffect(()=>{if(revision?.config.recipe.id==="ncl-legacy-rgb"){setMetric("ncl_legacy_release");setTransform("legacy-log2p1");}else{setMetric(revision?.config.recipe.id==="gfp-nuclear-2d"?"gfp_mean_corrected":"ncl_log2_nucleoplasm_over_nucleoli");setTransform("positive-log2");}},[revision?.config.recipe.id]);
  useEffect(()=>{if(!metricIds.includes(metric)&&metricIds.length){const preferred=revision?.config.recipe.id==="gfp-nuclear-2d"?"gfp_mean_corrected":revision?.config.recipe.id==="ncl-legacy-rgb"?"ncl_legacy_release":"ncl_log2_nucleoplasm_over_nucleoli";setMetric(metricIds.includes(preferred)?preferred:metricIds[0]);}},[metricIds,metric,revision?.config.recipe.id]);
  useEffect(()=>{if(!canGfpRelate){setMode("experimental-unit");setKind(k=>k==="scatter"?"distribution":k);}},[canGfpRelate]);
- const available=jobs.filter(j=>(source==="images"?j.kind==="statistics":j.kind==="table-statistics"&&j.revision_id===source)&&j.state==="succeeded").toSorted((a,b)=>b.created-a.created);
+ const available=jobs.filter(j=>j.analysis_mode!=="descriptive"&&(source==="images"?j.kind==="statistics":j.kind==="table-statistics"&&j.revision_id===source)&&j.state==="succeeded").toSorted((a,b)=>b.created-a.created);
  const job=available.find(j=>j.id===selectedJob)||available.find(j=>j.revision_id===revision?.id)||available[0];
  const result=useQuery({queryKey:["statistics",job?.id],queryFn:()=>request<StatisticalResult>(`/v1/jobs/${job!.id}/result`),enabled:!!job});
  const image=usePrivateImage(job?`/v1/jobs/${job.id}/files/figure.png`:null);

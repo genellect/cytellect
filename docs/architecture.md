@@ -28,6 +28,9 @@ The generated [OpenAPI document](../packages/contracts/openapi.json) is the cont
 - `/analyses`, `/v1/revisions/{id}`: automatic detection and immutable measurements.
 - Revision `/edits`, `/reconfigure`, `/resegment`, `/review`: masks, gates/background, nucleolar redetection and explicit review.
 - `/statistics`, `/export`, `/v1/jobs`: asynchronous processing, cancellation/retry and permission-checked files.
+- Workspace `/region-fields`, `/region-analyses`: named 2D channels, optional metadata and manual/imported masks through the same upload guard, ownership, quotas and job lifecycle. Native nuclear recipe endpoints retain their existing contracts.
+- Revision `/region-measurements`, `/region-masks`, `/region-edits`, `/region-reconfigure`: typed region results, canonical labels and immutable corrections. Reusing the current revision explicitly preserves trial masks when adding fields; stale mask/revision writes are rejected.
+- Revision `/descriptive`: reviewed per-field distributions for either image workflow. Explicit source/region/channel/metric selection; no inferred experimental units. A statistics job carries `analysis_mode` so clients distinguish these results from inferential models.
 - Workspace DELETE blocks access immediately; worker cleanup removes original/derived/temporary data after execution stops.
 
 No registration, LLM, analytics or billing endpoint is installed.

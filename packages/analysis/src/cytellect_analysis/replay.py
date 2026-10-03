@@ -114,6 +114,15 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         write_csv(output_dir / filename, data)
     for stats_path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         recorded = _read(stats_path)
+        if recorded.get("analysis_kind") == "descriptive":
+            from .descriptive import validate_legacy_description
+            from .descriptive_figures import render_descriptive
+
+            fresh_description = validate_legacy_description(recorded, result, config)
+            folder = output_dir / "statistics" / stats_path.parent.name
+            fresh_description["figure"] = render_descriptive(fresh_description, folder)
+            _json(folder / "result.json", fresh_description)
+            continue
         spec = StatisticsRequest.model_validate(recorded["spec"])
         alternate_rows = {}
         sources = recorded.get("region_sensitivity_sources", [])

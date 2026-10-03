@@ -58,6 +58,7 @@ class JobView(BaseModel):
     created: float
     error: str | None
     attempts: int
+    analysis_mode: Literal["experimental-unit", "exploratory", "descriptive"] | None = None
 
 
 class ContourView(BaseModel):

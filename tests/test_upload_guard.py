@@ -68,9 +68,10 @@ def status(messages):
 
 @pytest.mark.parametrize("case,expected", [("no-session", 401), ("foreign", 404), ("deleted", 404),
                                           ("expired", 404), ("oversized-header", 413)])
-def test_rejects_before_first_body_read(case, expected):
+@pytest.mark.parametrize("route", ["fields", "region-fields"])
+def test_rejects_before_first_body_read(case, expected, route):
     store = AuthStore()
-    scope = context(auth=case != "no-session")
+    scope = context(auth=case != "no-session", route=route)
     if case == "foreign":
         store.workspace["owner"] = "someone-else"
     if case == "deleted":
