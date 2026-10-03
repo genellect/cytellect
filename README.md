@@ -12,9 +12,9 @@ Cytellect brings DAPI nuclear segmentation, NCL nucleolar candidates, manual mas
 
 ## Current improvement cycle
 
-The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The planning page explains applicable existing recipes and unresolved conditions without uploading images or automatically adopting a method. The source now adds [named channels and manual/imported regions](docs/generic-regions.md), with optional experimental metadata, original-pixel area/intensity measurements and [per-field descriptive figures](docs/descriptive.md). Automatic detection for arbitrary regions and general-channel group inference remain later steps. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
+The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The planning page explains applicable recipes and unresolved conditions without uploading images or automatically adopting a method. The working source adds [named channels, manual/imported regions and confirmed nuclear-stain detection](docs/generic-regions.md), optional experimental metadata, original-pixel area/intensity measurements, [per-field descriptive figures](docs/descriptive.md) and explicit [experimental-unit comparisons](docs/region-comparisons.md). Arbitrary-object detection and automatic cell boundaries remain outside this slice. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
 
-Source changes in this cycle include statistics1.2.2, figure1.1.2, generic regions1.0.0 and descriptive output1.0.0. The currently published local.10 ZIP retains its previously recorded source and protocols until a new package passes installation acceptance. A deployed public UI does not update an installed local package.
+Source changes in this cycle include statistics1.2.3, figure1.1.2, generic measurement1.0.0, nuclear initialization recipe1.1.0, descriptive output1.0.0 and region comparisons1.0.0. The currently published local.10 ZIP retains its previously recorded source and protocols until a new package passes installation acceptance. A deployed public UI does not update an installed local package.
 
 ## Windows preview
 
@@ -40,7 +40,7 @@ export CYTELLECT_FIJI_EXECUTABLE=/absolute/private/fiji
 uv run cytellect invite --hours 24
 ```
 
-Run `uv run cytellect serve`, `uv run cytellect-worker`, and `pnpm dev` in separate terminals with the same environment. On Windows use PowerShell environment variables and `--platform windows-x64`. The invite is private: never paste it into logs/issues. Without Fiji, only the explicitly synthetic numerical test path can execute; actual uploads never fall back to a different detector.
+Run `uv run cytellect serve`, `uv run cytellect-worker`, and `pnpm dev` in separate terminals with the same environment. On Windows use PowerShell environment variables and `--platform windows-x64`. The invite is private: never paste it into logs/issues. Nuclear detection requires pinned Fiji. Manual/imported generic region measurements do not run a detector. An unavailable detector produces an explicit failure, never a fallback to another model.
 
 For containers, set `CYTELLECT_RUNTIME_DIR` to a private Linux directory owned by UID10001, outside the checkout, then `docker compose up --build -d`. See [operations](docs/security.md) and [Fiji](docs/fiji.md) for host verification and TLS.
 

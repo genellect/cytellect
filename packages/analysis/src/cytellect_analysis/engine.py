@@ -16,6 +16,8 @@ import tifffile
 from .contracts import Recipe
 from .masks import validate_labels
 from .measurement import normalize_nucleolar_states
+from .region_contracts import NuclearDetectorSpec
+from .regions import _array_hash
 
 # Admission bounds for the fixed -Xmx2g bridge, not a guarantee for every image.
 # The pinned CSBDeep implementation retains predicted tiles; more tiles alone
@@ -99,6 +101,84 @@ def _private_java_scratch(output: Path, scratch_root: Path | None):
         yield Path(temporary)
 
 
+def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path | None) -> Path:
+    """One locked process path for the legacy and nuclear-only operations."""
+    compiled = output / "classes"
+    compiled.mkdir(exist_ok=True)
+    assets = _assets()
+    with _private_java_scratch(output, scratch_root) as scratch:
+        classpath = _classpath(runtime, compiled)
+        env = os.environ.copy()
+        env.update({"CUDA_VISIBLE_DEVICES": "-1", "TF_CPP_MIN_LOG_LEVEL": "3", "OMP_NUM_THREADS": "1"})
+        javac = java.with_name("javac.exe" if os.name == "nt" else "javac")
+        _run([str(javac), "-encoding", "UTF-8", "-cp", classpath, "-d", str(compiled),
+              str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output, 120, env)
+        command = [
+            str(java), "--add-opens=java.base/java.lang=ALL-UNNAMED", "-Djava.awt.headless=true",
+            "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",
+            "-Djava.io.tmpdir=" + str(scratch), "-Duser.home=" + str(scratch),
+            "-Dimagej.tensorflow.models.dir=" + str(scratch / "models"),
+            "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error",
+            "-Xmx2g", "-cp", classpath, "CytellectEngine", str(output / "request.json"),
+        ]
+        _run(command, output, 1800, env)
+    return assets
+
+
+def _engine_identity(assets: Path, java: Path, lock: dict, *, automatic: bool) -> dict:
+    return {
+        "model_sha256": lock["model"]["sha256"],
+        "runtime_lock_sha256": _sha(assets / "runtime.lock.json"),
+        "bridge_sha256": _sha(assets / "CytellectEngine.java"),
+        "coordinate_transform": {"scale_x": 1, "scale_y": 1},
+        "artifacts": [{"path": p["path"], "sha256": p["sha256"]} for p in lock["plugins"]],
+        "java_executable_sha256": _sha(java),
+        "automatic_detection_admission": {
+            "profile": AUTOMATIC_DETECTION_PROFILE, "applied": automatic,
+            "max_side_px": MAX_AUTOMATIC_DETECTION_SIDE, "max_pixels": MAX_AUTOMATIC_DETECTION_PIXELS,
+        },
+    }
+
+
+def detect_nuclei(image: np.ndarray, parameters: NuclearDetectorSpec, output_dir: Path,
+                  executable: str, scratch_root: Path | None = None) -> tuple[np.ndarray, dict]:
+    """Detect fluorescent nuclei from one native plane, without fabricated channels.
+
+    Channel identity and explicit nuclear-stain confirmation belong to the
+    versioned region recipe. This fixed adapter never changes measurement pixels.
+    """
+    parameters = NuclearDetectorSpec.model_validate(parameters)
+    if not isinstance(image, np.ndarray) or image.ndim != 2 or min(image.shape) < 1:
+        raise ValueError("fiji_input_dimensions")
+    if image.dtype not in (np.uint8, np.uint16):
+        raise ValueError("fiji_input_format")
+    if max(image.shape) > MAX_AUTOMATIC_DETECTION_SIDE or image.size > MAX_AUTOMATIC_DETECTION_PIXELS:
+        raise EngineUnavailable("fiji_detection_capacity_exceeded")
+    runtime, java, lock = runtime_info(executable)
+    output = output_dir.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    tifffile.imwrite(output / "nuclear.tif", image, photometric="minisblack")
+    request = {"directory": str(output), "mode": "nuclear-only",
+               "detector": parameters.model_dump(mode="json"), "reuse_nuclei": False}
+    (output / "request.json").write_text(json.dumps(request), encoding="utf-8")
+    assets = _execute_bridge(output, runtime, java, scratch_root)
+    array = tifffile.imread(output / "nuclei.tif")
+    if (array.shape != image.shape or not np.isfinite(array).all() or np.any(array < 0)
+            or np.any(array != np.floor(array)) or np.any(array >= 2**24)):
+        raise EngineUnavailable("fiji_invalid_output_labels")
+    labels = array.astype(np.uint32)
+    info = json.loads((output / "engine-result.json").read_text(encoding="utf-8"))
+    if (info.get("operation") != "nuclear-only" or info.get("model") != parameters.model
+            or info.get("parameters") != parameters.model_dump(mode="json")):
+        raise EngineUnavailable("fiji_invalid_output_provenance")
+    info.update(_engine_identity(assets, java, lock, automatic=True))
+    info.update({"nuclear_detector_protocol_version": "1.0.0", "input_shape_yx": list(image.shape),
+                 "input_dtype": image.dtype.name,
+                 "input_sha256": _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")})
+    (output / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
+    return labels, info
+
+
 def detect(
     channels: dict[str, np.ndarray],
     recipe: Recipe,
@@ -158,25 +238,7 @@ def detect(
         tifffile.imwrite(output / "nuclei-input.tif", nuclei.astype(np.float32), photometric="minisblack")
     request = {"directory": str(output), "recipe": recipe.model_dump(), "reuse_nuclei": nuclei is not None, "has_ncl": "ncl" in input_roles}
     (output / "request.json").write_text(json.dumps(request), encoding="utf-8")
-    compiled = output / "classes"
-    compiled.mkdir(exist_ok=True)
-    with _private_java_scratch(output, scratch_root) as scratch:
-        classpath = _classpath(runtime, compiled)
-        env = os.environ.copy()
-        env.update({"CUDA_VISIBLE_DEVICES": "-1", "TF_CPP_MIN_LOG_LEVEL": "3", "OMP_NUM_THREADS": "1"})
-        javac = java.with_name("javac.exe" if os.name == "nt" else "javac")
-        assets = _assets()
-        _run([str(javac), "-encoding", "UTF-8", "-cp", classpath, "-d", str(compiled),
-              str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output, 120, env)
-        command = [
-            str(java), "--add-opens=java.base/java.lang=ALL-UNNAMED", "-Djava.awt.headless=true",
-            "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",
-            "-Djava.io.tmpdir=" + str(scratch), "-Duser.home=" + str(scratch),
-            "-Dimagej.tensorflow.models.dir=" + str(scratch / "models"),
-            "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error",
-            "-Xmx2g", "-cp", classpath, "CytellectEngine", str(output / "request.json"),
-        ]
-        _run(command, output, 1800, env)
+    assets = _execute_bridge(output, runtime, java, scratch_root)
     labels = []
     for name in ("nuclei", "nucleoli"):
         array = tifffile.imread(output / f"{name}.tif")
@@ -188,20 +250,7 @@ def detect(
         raise EngineUnavailable("fiji_modified_preserved_nuclei")
     info = json.loads((output / "engine-result.json").read_text(encoding="utf-8"))
     info["nucleolar_states"] = normalize_nucleolar_states(info)
-    info.update({
-        "model_sha256": lock["model"]["sha256"],
-        "runtime_lock_sha256": _sha(assets / "runtime.lock.json"),
-        "bridge_sha256": _sha(assets / "CytellectEngine.java"),
-        "coordinate_transform": {"scale_x": 1, "scale_y": 1},
-        "artifacts": [{"path": p["path"], "sha256": p["sha256"]} for p in lock["plugins"]],
-        "java_executable_sha256": _sha(java),
-        "automatic_detection_admission": {
-            "profile": AUTOMATIC_DETECTION_PROFILE,
-            "applied": nuclei is None,
-            "max_side_px": MAX_AUTOMATIC_DETECTION_SIDE,
-            "max_pixels": MAX_AUTOMATIC_DETECTION_PIXELS,
-        },
-    })
+    info.update(_engine_identity(assets, java, lock, automatic=nuclei is None))
     # No local paths, image names, or submitted metadata in exported provenance.
     (output / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
     return labels[0], labels[1], info

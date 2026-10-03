@@ -42,6 +42,15 @@ class RegionFieldMetadata(RegionModel):
         return value
 
 
+class RegionMetadataEdit(RegionModel):
+    version: Literal["1.0.0"] = "1.0.0"
+    fields: Annotated[dict[Id, RegionFieldMetadata], Field(min_length=1, max_length=100)]
+
+
+class RegionMetadataChange(RegionMetadataEdit):
+    source_revision_id: Id
+
+
 class RegionFieldInput(RegionModel):
     version: Literal["1.0.0"] = "1.0.0"
     channels: Annotated[list[ChannelSpec], Field(min_length=1, max_length=3)]
@@ -100,6 +109,50 @@ class RegionRecipe(RegionModel):
         return value
 
 
+class NuclearDetectorSpec(RegionModel):
+    """Allowlisted, offline nucleus model; never an arbitrary image classifier."""
+    engine: Literal["fiji-stardist-2d"] = "fiji-stardist-2d"
+    model: Literal["Versatile (fluorescent nuclei)"] = "Versatile (fluorescent nuclei)"
+    probability: Annotated[FiniteFloat, Field(gt=0, lt=1)] = 0.5
+    nms: Annotated[FiniteFloat, Field(gt=0, lt=1)] = 0.3
+    percentile_low: Annotated[FiniteFloat, Field(ge=0, lt=100)] = 1.0
+    percentile_high: Annotated[FiniteFloat, Field(gt=0, le=100)] = 99.8
+
+    @model_validator(mode="after")
+    def normalization_interval(self):
+        if self.percentile_low >= self.percentile_high:
+            raise ValueError("nuclear_normalization_interval_invalid")
+        return self
+
+
+class RegionNuclearRecipe(RegionModel):
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.1.0"] = "1.1.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["stardist_nuclear"] = "stardist_nuclear"
+    defining_channel_id: Id
+    nuclear_stain_confirmed: Literal[True]
+    detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
+
+    @field_validator("nuclear_stain_confirmed", mode="before")
+    @classmethod
+    def actual_confirmation(cls, value):
+        if type(value) is not bool or value is not True:
+            raise ValueError("nuclear_stain_confirmation_required")
+        return value
+
+    @field_validator("label")
+    @classmethod
+    def nonblank_label(cls, value):
+        if not value.strip() or any(ord(char) < 32 for char in value):
+            raise ValueError("region_label_invalid")
+        return value
+
+
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe, Field(discriminator="version")]
+
+
 class RegionBackground(RegionModel):
     polygon: Annotated[list[Point], Field(min_length=3, max_length=1000)]
     confirmed: Literal[True]
@@ -121,9 +174,18 @@ class RegionExclusion(RegionModel):
 class RegionAnalysisRequest(RegionModel):
     field_ids: Annotated[list[Id], Field(min_length=1, max_length=100)] | None = None
     reuse_revision: Id | None = None
-    recipe: RegionRecipe
+    recipe: RegionRecipeType
     backgrounds: dict[Id, dict[Id, RegionBackground]] = Field(default_factory=dict)
     exclusions: Annotated[list[RegionExclusion], Field(max_length=10000)] = Field(default_factory=list)
+
+    @field_validator("recipe", mode="before")
+    @classmethod
+    def historical_recipe_default(cls, value):
+        # Original HTTP callers could omit the v1.0 version. Its persisted JSON
+        # stays identical; automatic recipes must explicitly select v1.1.
+        if isinstance(value, dict) and "version" not in value:
+            return {**value, "version": "1.0.0"}
+        return value
 
     @model_validator(mode="after")
     def unique_field_and_exclusion_ids(self):
@@ -163,7 +225,7 @@ class RegionMaskEdit(RegionModel):
 
 
 def scientific_specification(*, field_id: str, revision_id: str, mask_revision_id: str,
-                             recipe: RegionRecipe, image_info: RegionImageInfo) -> RegionMeasurementSpec:
+                             recipe: RegionRecipeType, image_info: RegionImageInfo) -> RegionMeasurementSpec:
     """Explicit JSON-list → immutable science-tuple boundary, shared with replay."""
     return RegionMeasurementSpec(
         field_id=field_id, analysis_revision_id=revision_id,
@@ -182,7 +244,7 @@ class RegionFieldMask(RegionModel):
     mask_revision_id: Id
     mask_sha256: Digest
     region_set_id: Id
-    source: Literal["manual", "imported"]
+    source: Literal["manual", "imported", "stardist_nuclear"]
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     file: RegionStoredFile
 
@@ -207,7 +269,7 @@ class RegionReport(RegionModel):
     analysis_kind: Literal["region-2d"] = "region-2d"
     protocol_version: Literal["1.0.0"] = "1.0.0"
     revision_id: Id
-    recipe: RegionRecipe
+    recipe: RegionRecipeType
     field_tables: dict[Id, RegionMeasurementTable]
     field_masks: dict[Id, RegionFieldMask]
     field_outcomes: dict[Id, Literal["measured", "no_regions", "failed", "excluded_failed"]]

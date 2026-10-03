@@ -6,6 +6,10 @@ packages/analysis
 engines
 fixtures
 tests
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
 infra
 scripts
 docs

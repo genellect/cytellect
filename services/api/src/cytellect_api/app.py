@@ -32,6 +32,7 @@ from sqlalchemy import func, select, update
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
+from .region_comparisons import register_region_comparison_routes
 from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
@@ -639,7 +640,9 @@ def create_app(settings: Settings | None = None):
         with store.transaction() as c:
             c.execute(
                 update(revisions)
-                .where(revisions.c.id == rid)
+                # Immutable scientific inputs are reviewed once. A retried or
+                # concurrent confirmation must not invalidate source-bound jobs.
+                .where(revisions.c.id == rid, revisions.c.reviewed.is_(False))
                 .values(
                     reviewed=True,
                     review_record={
@@ -927,6 +930,13 @@ def create_app(settings: Settings | None = None):
             "comparisons.csv": "text/csv",
             "experimental-units.csv": "text/csv",
             "field-summary.csv": "text/csv",
+            "sample-summary.csv": "text/csv",
+            "observations.csv": "text/csv",
+            "pair-ledger.csv": "text/csv",
+            "unit-ledger.csv": "text/csv",
+            "source-fields.csv": "text/csv",
+            "excluded-failed-fields.csv": "text/csv",
+            "source-review.json": "application/json",
             "selection.csv": "text/csv",
             "missingness.csv": "text/csv",
             "model-coefficients.csv": "text/csv",
@@ -947,4 +957,5 @@ def create_app(settings: Settings | None = None):
     register_region_routes(api, store, settings, owner, workspace, revision,
                            field_record, result_root, queue, touch, child_revision)
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
+    register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
     return api

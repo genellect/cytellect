@@ -114,6 +114,7 @@ def test_reviewed_description_is_recomputed_from_source_for_export_and_replay(tm
 
 @pytest.mark.parametrize("fault,expected", [("unreviewed", "review_required"), ("changed_value", "source_mismatch"),
                                            ("inference", "unrecognized_fields"), ("bool_review", "review_required"),
+                                           ("changed_exclusion", "source_mismatch"),
                                            ("negative_review", "review_required"), ("infinite_review", "review_required")])
 def test_figure_export_cannot_bypass_review_or_substitute_source_values(tmp_path, fault, expected):
     store, settings, config = setup_fields(tmp_path)
@@ -135,6 +136,9 @@ def test_figure_export_cannot_bypass_review_or_substitute_source_values(tmp_path
         config["review_record"]["confirmed_at"] = -1.0
     if fault == "infinite_review":
         config["review_record"]["confirmed_at"] = float("inf")
+    if fault == "changed_exclusion":
+        config = {**config, "exclusions": [{"field_id": next(iter(config["field_snapshot"])),
+                                           "region_id": None, "reason": "Changed after review"}]}
     with pytest.raises(ValueError, match=expected):
         build_region_bundle(tmp_path / "export", **bundle_inputs(store, config, report), statistics_results=[result])
 

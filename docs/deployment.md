@@ -44,3 +44,19 @@ Use app.<controlled-domain> for Vercel and api.<same-controlled-domain> for the 
 7. Issue one-use invitations privately. Only then permit private research uploads. Run M4 scientific and M5 usability acceptance separately.
 
 See security.md for retention and recovery. Server deployment is pending host selection; UI publication is not reported as full hosted-MVP completion.
+
+## Research-workflow publication checkpoints
+
+PR #10 published the revised landing page and no-upload planning guide as main
+0a2d6ff1ea263b3980a9288f6e08eba3a185a918. PR #11 published the guided generic
+region and descriptive-output source as main dd64f26db0e4ea15970828aaa6dbcae3f9365696.
+For PR #11, required CI run 37132236632 passed Python, Web, Linux Fiji/browser
+and Windows checks. Vercel Git integration produced READY production deployment
+`dpl_ECpWNqM2x2DEUkWSAQWPYCEGjhk9` from that exact merge SHA.
+
+Canonical `https://cytellect.vercel.app/` browser verification covered the public
+landing/planning interaction, saved planning JSON, 1440/390 px layout, console
+errors and unexpected API/origin requests. This public-page evidence is separate
+from the production-build private API/worker workflows: nine cases, followed by
+two generic reruns after the scoped mobile control fix. The distributed local.10
+package and hosted private-analysis status were unchanged by these releases.

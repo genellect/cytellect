@@ -5,9 +5,11 @@ This worker independently validates snapshots and source files before measuring.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
+from cytellect_analysis.engine import detect_nuclei
 from cytellect_analysis.images import sha256
 from cytellect_analysis.masks import apply_label_edit, polygon_mask, validate_label_array
 from cytellect_analysis.region_contracts import (
@@ -15,9 +17,11 @@ from cytellect_analysis.region_contracts import (
     RegionFieldMetadata,
     RegionImageInfo,
     RegionMaskEdit,
+    RegionNuclearRecipe,
     RegionStoredFile,
     scientific_specification,
 )
+from cytellect_analysis.region_metadata import validate_region_reuse
 from cytellect_analysis.regions import _array_hash, measure_regions
 from cytellect_api.db import fields, jobs, revisions
 from cytellect_api.storage import read_json, write_json
@@ -39,6 +43,12 @@ REGION_FIELD_ERRORS = {
     "select_labels", "merge_requires_multiple_labels", "split_requires_one_label",
     "split_requires_partial_region", "invalid_polygon", "polygon_outside_image",
     "degenerate_polygon", "empty_polygon", "unsupported_label_operation",
+    "region_automatic_source_has_imported_labels", "region_parent_detector_provenance_invalid",
+    "fiji_not_configured", "fiji_assets_unavailable", "fiji_artifact_hash_mismatch", "fiji_model_hash_mismatch",
+    "fiji_bundled_jdk_unavailable", "fiji_detection_capacity_exceeded", "fiji_timeout",
+    "fiji_process_unavailable", "fiji_execution_failed", "fiji_input_dimensions", "fiji_input_format",
+    "fiji_invalid_output_labels", "fiji_invalid_output_provenance",
+    "fiji_temporary_path_invalid", "fiji_temporary_path_too_long",
 }
 
 
@@ -78,7 +88,7 @@ def _initial_labels(folder: Path, image_info: RegionImageInfo, source: str) -> n
 
 
 def run_region_analysis(store, settings, job, output):
-    """Run manual/imported generic fields; no Fiji dependency or invented markers."""
+    """Measure manual/imported or confirmed nuclear regions without invented markers."""
     revision = store.one(revisions, id=job["revision_id"])
     if revision is None or revision["workspace_id"] != job["workspace_id"]:
         raise ValueError("revision_not_found")
@@ -105,13 +115,7 @@ def run_region_analysis(store, settings, job, output):
                 or parent["state"] != "succeeded" or not parent["result_dir"]
                 or parent["config"].get("analysis_kind") != "region-2d"):
             raise ValueError("parent_revision_unavailable")
-        previous_snapshots = parent["config"]["field_snapshot"]
-        if not set(previous_snapshots).issubset(selected):
-            raise ValueError("region_parent_fields_must_be_retained")
-        if (any(previous_snapshots[fid] != config["field_snapshot"][fid]
-                for fid in set(previous_snapshots) & set(selected))
-                or parent["config"]["recipe"] != request.recipe.model_dump(mode="json")):
-            raise ValueError("region_parent_definition_changed")
+        validate_region_reuse(parent, config, request.recipe.model_dump(mode="json"))
         previous_report = read_json(store.safe_path(parent["result_dir"], "measurements.json"))
         previous_provenance = read_json(store.safe_path(parent["result_dir"], "provenance.json"))
     elif edit:
@@ -120,9 +124,12 @@ def run_region_analysis(store, settings, job, output):
     field_tables, field_masks, provenance_fields = {}, {}, {}
     outcomes: dict[str, str] = {}
     failures, excluded_failures = [], []
+    detector_executed = False
+    detector_attempted = False
     for fid in selected:
         field_exclusion = next((item.reason for item in request.exclusions
                                 if item.field_id == fid and item.region_id is None), None)
+        detection_started = False
         try:
             field = store.one(fields, id=fid)
             snapshot = config["field_snapshot"][fid]
@@ -143,10 +150,20 @@ def run_region_analysis(store, settings, job, output):
                 raise ValueError("region_source_shape_or_dtype_invalid")
             if request.recipe.defining_channel_id is not None and request.recipe.defining_channel_id not in channels:
                 raise ValueError("region_unknown_defining_channel")
+            nuclear = isinstance(request.recipe, RegionNuclearRecipe)
+            if nuclear and image_info.labels_array is not None:
+                raise ValueError("region_automatic_source_has_imported_labels")
             previously_selected = parent is not None and fid in parent["config"]["field_snapshot"]
             old_mask = previous_report.get("field_masks", {}).get(fid) if previously_selected else None
             mask_revision_id = revision["id"]
             history = list(previous_provenance.get("fields", {}).get(fid, {}).get("history", []))
+            if fid in config.get("region_metadata_edit", {}).get("fields", {}):
+                history.append({"revision_id": revision["id"], "operation": "metadata",
+                                "metadata_edit_version": "1.0.0"})
+            provenance_fields[fid] = {"history": history, "inputs": image_info.model_dump(mode="json")["inputs"],
+                                      "source_channels": [c.model_dump(mode="json") for c in image_info.channels]}
+            destination = output / fid
+            destination.mkdir()
             if old_mask is not None:
                 assert parent is not None
                 labels = _load_array(store.safe_path(parent["result_dir"], fid, "labels.npy"),
@@ -158,10 +175,45 @@ def run_region_analysis(store, settings, job, output):
                         or _array_hash(labels, "<u4") != old_mask["mask_sha256"]):
                     raise ValueError("region_parent_mask_mismatch")
                 mask_revision_id = old_mask["mask_revision_id"]
+                if isinstance(request.recipe, RegionNuclearRecipe):
+                    detector = deepcopy(previous_provenance.get("fields", {}).get(fid, {}).get("detector"))
+                    channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
+                    image = channels[channel.channel_id]
+                    pixel_hash = _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
+                    if (not isinstance(detector, dict) or not detector.get("origin_revision_id")
+                            or not isinstance(detector.get("engine"), dict)
+                            or detector.get("defining_channel") != channel.model_dump(mode="json")
+                            or detector.get("input_sha256") != pixel_hash
+                            or detector.get("parameters") != request.recipe.detector.model_dump(mode="json")):
+                        raise ValueError("region_parent_detector_provenance_invalid")
+                    detector["executed_this_attempt"] = False
+                    provenance_fields[fid]["detector"] = detector
             else:
                 if (edit and edit.field_id == fid) or (previously_selected and fid in previous_report.get("field_tables", {})):
                     raise ValueError("region_parent_mask_missing")
-                labels = _initial_labels(folder, image_info, request.recipe.source)
+                if isinstance(request.recipe, RegionNuclearRecipe):
+                    channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
+                    image = channels[channel.channel_id]
+                    detection_started = True
+                    detector_attempted = True
+                    labels, engine_info = detect_nuclei(
+                        image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
+                        scratch_root=output.parent,
+                    )
+                    validate_label_array(labels)
+                    if list(labels.shape) != image_info.shape:
+                        raise ValueError("fiji_invalid_output_labels")
+                    detector_executed = True
+                    provenance_fields[fid]["detector"] = {
+                        "protocol_version": "1.0.0", "origin_revision_id": revision["id"],
+                        "defining_channel": channel.model_dump(mode="json"),
+                        "input_sha256": _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2"),
+                        "parameters": request.recipe.detector.model_dump(mode="json"),
+                        "engine": engine_info, "executed_this_attempt": True,
+                    }
+                    detection_started = False
+                else:
+                    labels = _initial_labels(folder, image_info, request.recipe.source)
                 history.append({"revision_id": revision["id"], "operation": "initialize",
                                 "source": request.recipe.source})
             if edit and edit.field_id == fid:
@@ -172,8 +224,6 @@ def run_region_analysis(store, settings, job, output):
                 mask_revision_id = revision["id"]
                 history.append({"revision_id": revision["id"], "operation": "edit",
                                 "edit": edit.model_dump(mode="json")})
-            destination = output / fid
-            destination.mkdir()
             label_path = destination / "labels.npy"
             np.save(label_path, np.asarray(labels, dtype=np.uint32), allow_pickle=False)
             # Geometry survives background/measurement errors for recovery and review.
@@ -182,8 +232,6 @@ def run_region_analysis(store, settings, job, output):
                 "region_set_id": request.recipe.region_set_id, "source": request.recipe.source,
                 "shape": list(labels.shape), "file": _file_record(label_path),
             }
-            provenance_fields[fid] = {"history": history, "inputs": image_info.model_dump(mode="json")["inputs"],
-                                      "source_channels": [c.model_dump(mode="json") for c in image_info.channels]}
             excluded_objects = {item.region_id for item in request.exclusions
                                 if item.field_id == fid and item.region_id is not None}
             if not excluded_objects.issubset(set(np.unique(labels)) - {0}):
@@ -204,6 +252,10 @@ def run_region_analysis(store, settings, job, output):
             outcomes[fid] = table.status
         except Exception as exc:
             error = str(exc) if str(exc) in REGION_FIELD_ERRORS else "region_field_analysis_failed"
+            if detection_started:
+                provenance_fields[fid]["history"].append({
+                    "revision_id": revision["id"], "operation": "detection_failed", "error": error,
+                })
             if field_exclusion:
                 excluded_failures.append({"field_id": fid, "reason": field_exclusion, "error": error})
                 outcomes[fid] = "excluded_failed"
@@ -221,7 +273,8 @@ def run_region_analysis(store, settings, job, output):
     write_json(output / "provenance.json", {
         "analysis_kind": "region-2d", "revision_id": revision["id"], "fields": provenance_fields,
         "software": software_identity(), "recipe": request.recipe.model_dump(mode="json"),
-        "measurement_protocol": "1.0.0", "detector_executed": False,
+        "measurement_protocol": "1.0.0", "detector_executed": detector_executed,
+        "detector_attempted": detector_attempted,
     })
     return output
 

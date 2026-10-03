@@ -1,6 +1,6 @@
 # Statistical and export protocol
 
-Protocol version **1.2.2** makes the paired-difference degeneracy check invariant to measurement units and calculates reported t-test standard errors directly from the selected unit values. Version 1.2.1 corrected persisted GFP-threshold sensitivity provenance without changing selection arithmetic or statistical formulas. Version 1.2.0 introduced the validation, reference coding and sample-selection rules below. This is a software protocol, not a claim of validation on private images.
+Protocol version **1.2.3** computes the paired effect directly as the mean of paired differences. This avoids cancellation from subtracting separately rounded, large group means. Version 1.2.2 made the paired-difference degeneracy check invariant to measurement units and calculates reported t-test standard errors directly from the selected unit values. Version 1.2.1 corrected persisted GFP-threshold sensitivity provenance without changing selection arithmetic or statistical formulas. Version 1.2.0 introduced the validation, reference coding and sample-selection rules below. This is a software protocol, not a claim of validation on private images.
 
 ## Unit comparisons
 
@@ -11,6 +11,8 @@ Unpaired comparisons use Welch's t test and require at least two units per group
 The paired near-zero-variance tolerance is relative to the absolute scale of the paired differences; it has no absolute floor tied to a particular measurement unit. Version 1.2.1 and earlier could wrongly reject nonconstant differences when values were expressed in very small units. Reported paired standard error is the sample standard deviation of paired differences divided by the square root of the number of pairs; Welch standard error is the square root of the sum of the two variance-of-mean estimates. They are not reconstructed from rounded confidence-interval endpoints, which could previously lose precision for large effects. Tests, selection, aggregation and confidence-interval definitions are unchanged. Recompute affected small-valued or large-effect exports using 1.2.2; previous exports are not rewritten.
 
 Planned differences are group A minus group B. Holm correction applies to the explicit comparison list. Baseline comparisons and repeat-group comparisons must be separate jobs/families; reversed duplicates are rejected. Individual 95% confidence intervals are not simultaneous family-wise intervals. All tests are two-sided. Outputs include the exact statistic, degrees of freedom, standard error, confidence level and raw/adjusted p values. Groupwise missingness shows whether selection removes entire fields or units.
+
+In 1.2.3, paired inputs `A=[1e16+2,1e16+4,1e16+8]`, `B=[1e16,1e16,1e16]` have representable differences `[2,4,8]`: the reported effect is `14/3`, matching the paired confidence interval's center. Subtracting the separately rounded means previously reported `6`. The shared core converts validated numeric arrays to floating point before subtraction, preventing unsigned integer wrap, and rejects nonfinite estimates, standard errors, statistics or degrees of freedom. The intended numerical change is confined to stable paired-effect evaluation and invalid-result rejection; selection, grouping, test definitions and multiplicity remain unchanged. Recompute affected exports with 1.2.3; existing exports are not rewritten. Generic-region comparisons use a separate source/design protocol and share only the unit aggregation and inferential arithmetic.
 
 ## Exploratory model
 
@@ -48,13 +50,26 @@ Each numerical statistics job provides a private reproducibility ZIP containing 
 
 ## Figures
 
+Figure protocol **1.1.3** selects fonts from the actual complete label text.
+The output language sets the preferred family order; it does not restrict the
+scripts allowed in source labels. English figures containing Japanese marker
+or condition labels can use an installed, verified regular Japanese-capable
+face. Every label must still have exact glyph coverage in the same chosen file;
+unsupported characters fail before export. Source labels are never translated
+or removed. Font identity and hash remain in the figure metadata. This fixes
+mixed-language rendering without changing measurement or statistical values.
+Generated English logarithmic labels also use literal `log2`, matching the
+Japanese labels, so that a supported Japanese source label does not conflict
+with a built-in Unicode subscript absent from Noto Sans CJK. User-provided
+subscripts and other characters are not rewritten and still require coverage.
+
 Matplotlib writes PNG plus SVG with editable text and PDF with embedded TrueType text. A Japanese-capable font is required for Japanese labels; missing fonts are a clear error. Linux runtime must install fonts-noto-cjk. Plot-data, field-summary, experimental-unit and comparison CSVs accompany each figure.
 
 Figure protocol **1.1.2** checks the rendered regular-font geometry before writing figure files. Overlapping axis tick labels or text extending outside the canvas are rejected with a request to widen/enlarge the figure or shorten the labels. The exporter never shrinks text below the selected size or changes the data to make it fit. This detects specific layout failures; it does not replace visual review of the finished figure. The 89/183 mm presets follow Nature's [final figure production guide](https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/), checked 2026-10-03. Nature's [general formatting guide](https://www.nature.com/nature/for-authors/formatting-guide) separately gives approximate 90/180 mm guidance. The current presets retain their explicit 89/183 mm dimensions; they do not assert full journal acceptance.
 
 Distribution plots distinguish observations, field medians, independent units, and mean/95% CI. Exploratory adjusted means are labeled separately from unadjusted unit points. Exploratory scatter lines and pointwise 95% mean intervals use the exact fitted group/GFP/date model and field-clustered CRV1 covariance, evaluated at equal weights across acquisition dates. The x axis is within-date median-centered log2 GFP; observed y values remain unadjusted and the prediction is explicitly date-adjusted. Experimental-unit-mode scatter shows points without an inferential line or interval. Counts show observations, fields and independent units.
 
-Figure protocol 1.1.2 uses literal `log2` in built-in Japanese labels because the
+Since figure protocol 1.1.2, built-in Japanese labels use literal `log2` because the
 regular Noto Sans CJK JP face lacks the Unicode subscript-two glyph U+2082.
 This is a notation change only; base-two transformations and numerical outputs
 are unchanged. User-supplied text is not rewritten and must still pass exact

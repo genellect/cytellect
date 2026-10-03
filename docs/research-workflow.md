@@ -1,6 +1,6 @@
 # Researcher workflow and continuous improvement
 
-Revision: 2026-10-03. This extends the accepted scope; it does not replace the native or compatibility recipes. Researcher needs below are literature-informed hypotheses, not results of Cytellect user interviews.
+Revision: 2026-10-04. This extends the accepted scope; it does not replace the native or compatibility recipes. Researcher needs below are literature-informed hypotheses, not results of Cytellect user interviews. The [UX review and usability tasks](researcher-usability.md) translate these hypotheses into observable acceptance tasks.
 
 ## Product goal
 
@@ -33,9 +33,9 @@ Method support starts with explicit, cited decision rules. Product LLM proposals
 
 ### Current checkpoint and next decisions
 
-The first LP/planning/scientific-review increment is published through PR #10 and main. The next increment connects generic manual/imported regions, optional metadata, trial-mask reuse, source-bound descriptive figures and return-to-image links. It is a source increment until its own CI, browser and installed-release gates pass; local.10 remains unchanged.
+The LP/planning/scientific-review increment and the generic manual/imported-region increment are published through PRs #10 and #11, their required CI and main. The latter connects optional metadata, trial-mask reuse, source-bound descriptive figures and return-to-image links; actual public-image private-API browser workflows and canonical public-page checks have separate evidence. The distributed local.10 package remains unchanged.
 
-After this checkpoint, prioritize two remaining breaks in the researcher workflow: (1) confirmed nuclear-stain detection through the existing pinned Fiji model, without fabricated GFP/NCL channels; (2) experiment-unit comparisons for an explicitly selected generic region/channel metric. Keep the manual/imported 1.0 recipe serialization stable when adding detector-specific settings. General-channel comparisons need source selection, complete experimental metadata and confirmed design; reuse the marker-neutral aggregation/inference core, not GFP regression under another name. Unknown metadata continues to permit descriptive work only. Unequal object counts, nested technical replicates, paired identities, missingness and duplicate channel-area rows need independent reference tests before this path becomes available.
+The current implementation addresses two remaining breaks: (1) confirmed nuclear-stain detection through the existing pinned Fiji model, without fabricated GFP/NCL channels; (2) experiment-unit comparisons for an explicitly selected generic region/channel metric. Manual/imported 1.0 recipe serialization stays stable. General-channel comparisons require source selection, recorded experimental metadata and confirmed design; they share marker-neutral aggregation/inference rather than GFP regression. Unknown metadata continues to permit descriptive work. Independent tests cover unequal object counts, nested technical replicates, paired identities, missingness and duplicate channel-area rows. A coordinator reference check also found and corrected large-offset paired-estimate cancellation under statistics1.2.3. Public-image performance, biological applicability and human usability retain their separate limits.
 
 Adopted planning records, efficient batch registration and the next validated Windows package follow these connected paths. Existing low-performing or ambiguous public detector results remain visible; adding a button does not establish new segmentation accuracy. Human usability and private-data performance remain open acceptance gates.
 

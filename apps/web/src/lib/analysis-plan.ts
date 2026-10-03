@@ -1,5 +1,5 @@
 /** Planning guidance, not a numerical analysis or an automatic recipe adoption. */
-export const PLAN_VERSION = "1.0.0";
+export const PLAN_VERSION = "1.0.1";
 
 export type PlanAnswers = {
   region: "unknown" | "nucleus" | "nucleolus" | "custom";
@@ -49,7 +49,7 @@ export function buildPlan(a: PlanAnswers): PlanResult {
     add(result.questions, "input", "測定用の原画像を確認する", a.input === "zt" ? "この版の対象はZ=1・T=1の2D画像です。投影や断面を自動選択しません。目的に合う2Dデータを準備し、変換手順を残してください。" : "通常解析は8/16-bitグレースケールTIFF、または確認済みの単一シリーズ2D OME-TIFFです。表示用RGBから元の輝度は復元できません。", "waters-2009");
   }
   if (a.region === "custom" || a.signal === "other") {
-    add(result.limits, "general-regions", "任意の領域・マーカーは対応を拡張中", "この計画は整理できますが、現在の公開版は核内GFP、核・核小体のNCLレシピに限られます。別のマーカーをGFPやNCLとして登録しないでください。");
+    add(result.decisions, "general-regions", "汎用領域のワークスペースで定量する", "実際のチャンネル名を登録し、手動の領域や取り込んだラベル画像から面積・蛍光量を測定できます。蛍光核は確認済みの核染色から初期領域を検出できます。その他の構造を核のモデルで自動検出したことにはしません。");
   } else if (a.region !== "unknown" && a.signal !== "unknown") {
     if (a.nuclearStain !== "yes") {
       add(result.questions, "nuclear-stain", "核を識別するチャンネルを確認する", "現在の自動検出には核染色チャンネルが必要です。撮影記録で染色名を確認してください。ファイル名や色だけでは判断しません。");
@@ -72,7 +72,7 @@ export function buildPlan(a: PlanAnswers): PlanResult {
   }
   if (a.comparison === "descriptive") {
     result.statistics = "descriptive";
-    add(result.decisions, "descriptive", "まず測定表を確認する", "領域・視野・試料を区別して測定値を確認します。独立反復が未確認なら、p値で群の効果を確定しません。検定を伴わない記述図の出力経路は拡張中です。", "lord-2020");
+    add(result.decisions, "descriptive", "測定値と分布を確認する", "領域・視野・試料を区別した分布図と元の測定表を保存できます。独立反復が未確認でも検定を伴わない図を作成でき、独立性を確定してから実験単位の比較へ進めます。", "lord-2020");
   } else if (a.comparison === "unknown" || a.allocation !== "biological") {
     add(result.questions, "independence", "処置を別々に割り付けた単位を確認する", "同じ試料の細胞や視野を増やしても独立反復は増えません。動物、独立培養など、研究の結論を広げたい単位と割付方法を確認します。撮影日だけでは判断できません。", "lazic-2018");
   } else {

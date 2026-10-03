@@ -16,12 +16,17 @@ from .exports import environment
 from .exports_csv import write_csv
 from .images import read_tiff, sha256
 from .masks import polygon_mask, validate_label_array
-from .region_contracts import RegionAnalysisRequest, RegionImageInfo, scientific_specification
+from .region_contracts import (
+    RegionAnalysisRequest,
+    RegionImageInfo,
+    RegionNuclearRecipe,
+    scientific_specification,
+)
 from .regions import _array_hash, measure_regions
 from .roi import export_roi_zip
 
 FORMAT = "cytellect-region-reproducibility/1"
-METHODS_VERSION = "1.0.0"
+METHODS_VERSION = "1.1.0"
 
 
 def _json(path: Path, value):
@@ -54,12 +59,16 @@ def _request(config):
 
 def region_methods(config, report, provenance):
     request = _request(config)
+    nuclear = isinstance(request.recipe, RegionNuclearRecipe)
+    initial = ("Initial masks: a confirmed nuclear-stain channel was submitted to the fixed offline Fiji/StarDist 2D "
+               "Versatile (fluorescent nuclei) model. This model defines nuclei, not whole cells or nucleoli."
+               if nuclear else f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.")
     lines = ["# Cytellect region measurement Methods", "",
              "Generated from recorded settings; review the biological definitions before publication.", "",
              f"Methods template {METHODS_VERSION}; region measurement protocol 1.0.0.",
              f"Analysis revision: {report['revision_id']}.",
              f"Region definition: {request.recipe.label}; logical ID {request.recipe.region_set_id}.",
-             f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.",
+             initial,
              "Saved integer labels in original image coordinates define measured pixel unions. "
              "A region ID does not by itself establish a whole biological cell.",
              "Measurement uses unchanged native 8/16-bit grayscale values. Display LUTs are not measurements.",
@@ -68,16 +77,36 @@ def region_methods(config, report, provenance):
              "Negative corrected intensities remain signed; integrated intensity is not concentration.",
              "Physical area requires confirmed X and Y pixel sizes; otherwise only pixel area is available. "
              "Storage-limit and confirmed acquisition-saturation fractions are distinct; unknown limits remain missing.", ""]
+    if isinstance(request.recipe, RegionNuclearRecipe):
+        detector = request.recipe.detector
+        lines.extend([
+            f"Nuclear recipe {request.recipe.version}; confirmed defining channel {request.recipe.defining_channel_id}.",
+            f"Detection normalization percentiles {detector.percentile_low:g}–{detector.percentile_high:g}; "
+            f"probability threshold {detector.probability:g}; NMS threshold {detector.nms:g}.",
+            "Detection and saved labels use original image coordinates. Detection preprocessing does not alter "
+            "measurement pixels. Corrected labels are preserved when metadata/background changes or a batch expands.",
+        ])
     for fid in request.field_ids:
         info = RegionImageInfo.model_validate(config["field_snapshot"][fid]["image_info"])
         labels = "; ".join(f"{channel.channel_id}: {channel.label} (stain: {channel.stain or 'not recorded'})"
                            for channel in info.channels)
         lines.append(f"Field {fid}: {labels}.")
+        event = provenance.get("fields", {}).get(fid, {}).get("detector")
+        if nuclear and event:
+            engine = event.get("engine", {})
+            lines.append(f"Field {fid} detector origin: revision {event.get('origin_revision_id')}; "
+                         f"executed in this attempt: {event.get('executed_this_attempt')}; "
+                         f"source pixels SHA-256: {event.get('input_sha256')}; "
+                         f"model SHA-256: {engine.get('model_sha256', 'unavailable')}.")
+        elif nuclear:
+            lines.append(f"Field {fid}: no successful detector origin is recorded; inspect the retained failure ledger.")
     lines.extend(["", f"Unresolved failed fields: {len(report.get('field_failures', []))}; "
                   f"explicitly excluded failed fields: {len(report.get('excluded_failed_fields', []))}.",
                   "Failures, absent regions, exclusions and missing calibration/saturation are retained in measurements.json. "
                   "Exclusions do not overwrite raw measurements. Independent replication is not inferred from regions or fields.",
-                  "Descriptive figures, when present, display observations without inferential confidence intervals or p-values.",
+                  "Descriptive figures display observations without inferential confidence intervals or p-values. "
+                  "Experimental-unit comparisons, when present, have separately recorded design, acquisition review, "
+                  "aggregation, contrast families, missingness and statistical Methods.",
                   "Replay validates original file hashes and remeasures the saved masks of successfully measured fields. "
                   "Failed/unmeasured fields are preserved diagnostically and are not reclassified by replay. "
                   "No model download or automatic segmentation is executed.",
@@ -101,11 +130,11 @@ def _long_rows(report, config):
     return rows
 
 
-def _recompute_description(report, config, result):
+def _recompute_statistics(report, config, result):
     from .descriptive import describe_regions
     from .descriptive_contracts import DescriptiveRequest
 
-    if result.get("analysis_kind") != "descriptive" or result.get("source_kind") != "region-2d":
+    if result.get("analysis_kind") not in ("descriptive", "region-comparison") or result.get("source_kind") != "region-2d":
         raise ValueError("region_export_statistics_unsupported")
     if result.get("revision_id") != report["revision_id"]:
         raise ValueError("region_export_statistics_revision_mismatch")
@@ -114,13 +143,35 @@ def _recompute_description(report, config, result):
         raise ValueError("region_export_statistics_review_required")
     if not math.isfinite(confirmed_at) or confirmed_at <= 0:
         raise ValueError("region_export_statistics_review_required")
+    if config.get("exclusions", []) != report.get("exclusions", []):
+        raise ValueError("region_export_statistics_source_mismatch")
     # The shared adapter enforces coverage, explicit exclusions, channel identity,
     # units and source selection; exporting a figure cannot bypass those checks.
-    calculated = describe_regions(report, config["field_snapshot"], DescriptiveRequest.model_validate(result["spec"]))
+    if result["analysis_kind"] == "region-comparison":
+        from .region_comparison import compare_regions
+        from .region_comparison_contracts import RegionComparisonRequest
+
+        calculated = compare_regions(report, config, RegionComparisonRequest.model_validate(result["spec"]))
+    else:
+        calculated = describe_regions(report, config["field_snapshot"], DescriptiveRequest.model_validate(result["spec"]))
     calculated["revision_id"] = report["revision_id"]
     if set(result) - (set(calculated) | {"figure"}):
         raise ValueError("region_export_statistics_unrecognized_fields")
     return calculated
+
+
+def _render_statistics(calculated, folder):
+    if calculated["analysis_kind"] == "region-comparison":
+        from .region_comparison_figures import region_comparison_methods, render_region_comparison
+
+        manifest = render_region_comparison(calculated, folder)
+        (folder / "methods.md").write_text(region_comparison_methods(calculated), encoding="utf-8")
+        return manifest
+    from .descriptive_figures import descriptive_methods, render_descriptive
+
+    manifest = render_descriptive(calculated, folder)
+    (folder / "methods.md").write_text(descriptive_methods(calculated), encoding="utf-8")
+    return manifest
 
 
 def build_region_bundle(destination: Path, *, report, config, provenance, mask_files,
@@ -134,7 +185,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
         raise ValueError("region_bundle_masks_incomplete")
     descriptions = []
     for result in statistics_results:
-        calculated = _recompute_description(report, config, result)
+        calculated = _recompute_statistics(report, config, result)
         if any(result.get(key) != value for key, value in calculated.items()):
             raise ValueError("region_export_statistics_source_mismatch")
         descriptions.append(calculated)
@@ -183,11 +234,9 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
             raw_manifest.append({"path": f"raw/{name}", "sha256": expected[name]["sha256"]})
-    from .descriptive_figures import render_descriptive
-
     for index, calculated in enumerate(descriptions):
         folder = content / "statistics" / str(index)
-        figure = render_descriptive(calculated, folder)
+        figure = _render_statistics(calculated, folder)
         _json(folder / "result.json", {**calculated, "figure": figure})
     methods = region_methods(config, report, provenance)
     (content / "methods.md").write_text(methods, encoding="utf-8")
@@ -202,13 +251,14 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
         "Originals are mapped to `<field_id>/<internal_slot>.tif` from revision.json. Use `--raw-dir raw` only "
         "when source files were explicitly included. Every original file needed by a successfully measured field "
         "is hash-checked. Saved corrected labels are canonical; segmentation is not rerun. Failed/unmeasured "
-        "fields remain diagnostic and are not reassessed. Descriptive figures are regenerated from the recorded "
-        "selector. A zero exit status confirms the regenerated measurement tables equal the saved values. "
+        "fields remain diagnostic and are not reassessed. Descriptive or experimental-unit figures are regenerated "
+        "from the recorded selector, design and source metadata. A zero exit status confirms regenerated "
+        "measurements and statistical values equal the saved values. "
         "It does not confirm biological annotation correctness. Keep input and output directories private.\n", encoding="utf-8")
     members = sorted(path for path in content.rglob("*") if path.is_file())
     _json(content / "manifest.json", {
         "format": FORMAT, "revision_id": report["revision_id"], "raw_included": include_raw, "raw_files": raw_manifest,
-        "replay_scope": "saved masks of measured fields -> measurements -> recorded descriptive figures; failures preserved",
+        "replay_scope": "saved masks of measured fields -> measurements -> recorded statistics and figures; failures preserved",
         "files": {path.relative_to(content).as_posix(): sha256(path) for path in members},
     })
     archive_path = destination / "analysis.zip"
@@ -265,15 +315,20 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     reproduced = {**report, "field_tables": tables}
     _json(output_dir / "measurements.json", reproduced)
     write_csv(output_dir / "regions.csv", _long_rows(reproduced, config))
-    from .descriptive_figures import render_descriptive
-
     descriptions_match = True
+    comparisons_match = True
+    has_comparisons = False
     for path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         result = json.loads(path.read_text(encoding="utf-8"))
-        replayed = _recompute_description(reproduced, config, result)
-        descriptions_match &= all(result.get(key) == value for key, value in replayed.items())
+        replayed = _recompute_statistics(reproduced, config, result)
+        matches = all(result.get(key) == value for key, value in replayed.items())
+        if result["analysis_kind"] == "region-comparison":
+            has_comparisons = True
+            comparisons_match &= matches
+        else:
+            descriptions_match &= matches
         folder = output_dir / "statistics" / path.parent.name
-        replayed["figure"] = render_descriptive(replayed, folder)
+        replayed["figure"] = _render_statistics(replayed, folder)
         _json(folder / "result.json", replayed)
     comparison = {
         "matched_saved_measurements": tables == report["field_tables"],
@@ -281,6 +336,8 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         "measured_fields_replayed": sorted(tables),
         "unmeasured_fields_preserved_not_reassessed": sorted(set(request.field_ids or []) - set(tables)),
     }
+    if has_comparisons:
+        comparison["matched_saved_comparisons"] = comparisons_match
     _json(output_dir / "replay-verification.json", comparison)
     return comparison
 
@@ -292,7 +349,8 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     result = replay_region_bundle(args.bundle_dir, args.raw_dir, args.output_dir)
-    if not result["matched_saved_measurements"] or not result["matched_saved_descriptions"]:
+    if (not result["matched_saved_measurements"] or not result["matched_saved_descriptions"]
+            or not result.get("matched_saved_comparisons", True)):
         raise SystemExit("region_replay_measurement_mismatch")
 
 

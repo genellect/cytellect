@@ -150,6 +150,16 @@ def test_glyph_coverage_uses_complete_regular_face_or_fails(monkeypatch):
         select_font("ja", "\U0010ffff")
 
 
+def test_language_prefers_typography_without_restricting_literal_source_scripts(monkeypatch):
+    font_fixture(monkeypatch, [("Arial", 400, 400, "Measured value"),
+                              ("Noto Sans CJK JP", 400, 400, "Measured value測定領域検証信号")])
+    assert select_font("en", "Measured value").family == "Arial"
+    assert select_font("en", "Measured value検証信号").family == "Noto Sans CJK JP"
+    assert select_font("ja", "Measured value").family == "Noto Sans CJK JP"
+    with pytest.raises(ValueError, match="figure_font_glyphs_unavailable"):
+        select_font("en", "検証信号\U0010ffff")
+
+
 @pytest.mark.parametrize("language", ["en", "ja"])
 @pytest.mark.parametrize("kind", ["distribution", "scatter"])
 @pytest.mark.filterwarnings("error:Glyph .* missing from font")
@@ -184,7 +194,7 @@ def test_actual_font_file_weight_glyphs_and_private_metadata(tmp_path, monkeypat
     meta = render_figures(data, tmp_path)
     selected = selected_faces[0]
     assert all(face == selected for face in selected_faces)
-    assert recorded_paths and meta["figure_version"] == "1.1.2"
+    assert recorded_paths and meta["figure_version"] == "1.1.3"
     assert meta["font_metadata"] == selected.metadata()
     encoded = (tmp_path / "figure-data.json").read_text(encoding="utf-8")
     source = json.loads(encoded)
@@ -204,14 +214,18 @@ def test_missing_glyph_fails_before_any_figure_is_published(tmp_path):
     assert not list(tmp_path.glob("figure.*"))
 
 
+@pytest.mark.parametrize("language", ["en", "ja"])
 @pytest.mark.parametrize("label_case", ["native-ratio", "legacy-ratio", "positive-log2", "legacy-log2p1"])
 @pytest.mark.filterwarnings("error:Glyph .* missing from font")
-def test_japanese_builtin_log_labels_use_portable_base_two_notation(tmp_path, label_case):
+def test_mixed_script_builtin_log_labels_use_portable_base_two_notation(tmp_path, label_case, language):
     # Noto Sans CJK regular lacks U+2082. Built-in labels use literal log2;
     # user labels still require exact font coverage and are never rewritten.
     data = result(kind="scatter" if "log2" in label_case else "distribution",
                   mode="exploratory" if "log2" in label_case else "experimental-unit")
-    data["spec"]["plot"].update(language="ja", preset="nature-double")
+    data["spec"]["plot"].update(language=language, preset="nature-double", x_label="条件" if "log2" not in label_case else "")
+    if "log2" in label_case:
+        # Preserve the generated log2 x axis and require a Japanese-capable face.
+        data["spec"]["plot"]["y_label"] = "検証信号"
     if label_case in {"native-ratio", "legacy-ratio"}:
         metric = "ncl_log2_nucleoplasm_over_nucleoli" if label_case == "native-ratio" else "ncl_legacy_release"
         old = data["spec"]["metric"]

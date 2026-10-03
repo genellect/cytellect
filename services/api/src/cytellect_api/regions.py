@@ -3,9 +3,11 @@
 import json
 import shutil
 import time
+from copy import deepcopy
 from typing import Annotated
 
 import numpy as np
+from cytellect_analysis.engine import MAX_AUTOMATIC_DETECTION_PIXELS, MAX_AUTOMATIC_DETECTION_SIDE
 from cytellect_analysis.images import read_tiff, render_preview, sha256
 from cytellect_analysis.masks import contours, polygon_mask
 from cytellect_analysis.region_contracts import (
@@ -14,8 +16,10 @@ from cytellect_analysis.region_contracts import (
     RegionFieldMetadata,
     RegionImageInfo,
     RegionMaskEdit,
+    RegionMetadataEdit,
     RegionReport,
 )
+from cytellect_analysis.region_metadata import region_metadata_child_config
 from fastapi import Depends, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select, update
@@ -48,7 +52,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             raise HTTPException(409, "region_analysis_required")
         return rev
 
-    def validate_request(body, selected):
+    def validate_request(body, selected, reused_masks=()):
         ids = {f["id"] for f in selected}
         if not ids:
             raise HTTPException(422, "images_required")
@@ -64,6 +68,14 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 raise HTTPException(422, "region_labels_required")
             if body.recipe.source == "manual" and info.labels_array is not None:
                 raise HTTPException(422, "manual_region_source_requires_no_imported_labels")
+            if body.recipe.source == "stardist_nuclear":
+                if info.labels_array is not None:
+                    raise HTTPException(422, "nuclear_source_requires_no_imported_labels")
+                if f["id"] not in reused_masks and (
+                    max(info.shape) > MAX_AUTOMATIC_DETECTION_SIDE
+                    or info.shape[0] * info.shape[1] > MAX_AUTOMATIC_DETECTION_PIXELS
+                ):
+                    raise HTTPException(422, "fiji_detection_capacity_exceeded")
             if f["id"] in excluded:
                 continue
             backgrounds = body.backgrounds.get(f["id"], {})
@@ -176,17 +188,23 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             if set(body.field_ids) - {f["id"] for f in selected}:
                 raise HTTPException(422, "unknown_region_field")
             selected = [f for f in selected if f["id"] in body.field_ids]
-        validate_request(body, selected)
         parent = None
+        reused_masks = ()
         if body.reuse_revision:
             parent = region_revision(body.reuse_revision, who)
             if parent["workspace_id"] != wid:
                 raise HTTPException(404, "revision_not_found")
-            result_root(parent)
+            root = result_root(parent)
             if not set(parent["config"]["field_ids"]).issubset({f["id"] for f in selected}):
                 raise HTTPException(409, "batch_must_include_reused_fields")
             if parent["config"]["recipe"] != body.recipe.model_dump(mode="json"):
                 raise HTTPException(409, "batch_reuse_requires_unchanged_recipe")
+            # Experimental metadata is versioned in snapshots, not rewritten on
+            # the original upload row. Expanding a trial retains its adopted data.
+            previous = parent["config"]["field_snapshot"]
+            selected = [deepcopy(previous[f["id"]]) if f["id"] in previous else f for f in selected]
+            reused_masks = read_json(root / "measurements.json").get("field_masks", {})
+        validate_request(body, selected, reused_masks)
         rid = uid()
         config = {**body.model_dump(mode="json"), "analysis_kind": "region-2d",
                   "field_ids": [f["id"] for f in selected], "field_snapshot": {f["id"]: f for f in selected}}
@@ -233,20 +251,30 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             metadata = read_json(root / "measurements.json").get("field_masks", {}).get(body.field_id, {})
             if metadata.get("mask_revision_id") != body.expected_mask_revision_id:
                 raise HTTPException(409, "stale_region_mask")
-        config = {k: v for k, v in parent["config"].items() if k != "region_edit"}
+        config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit")}
         config.update(reuse_revision=rid, region_edit=body.model_dump(mode="json"))
         return child_revision(parent, config)
 
     @api.post("/v1/revisions/{rid}/region-reconfigure", status_code=202)
     def reconfigure(rid: str, body: RegionAnalysisRequest, who: Owner):
         parent = region_revision(rid, who)
-        result_root(parent)
+        root = result_root(parent)
         if body.recipe.model_dump(mode="json") != parent["config"]["recipe"]:
             raise HTTPException(409, "region_definition_requires_new_analysis")
         if body.field_ids is not None and set(body.field_ids) != set(parent["config"]["field_ids"]):
             raise HTTPException(409, "field_selection_requires_new_analysis")
         selected = list(parent["config"]["field_snapshot"].values())
-        validate_request(body, selected)
-        config = {k: v for k, v in parent["config"].items() if k != "region_edit"}
+        validate_request(body, selected, read_json(root / "measurements.json").get("field_masks", {}))
+        config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit")}
         config.update(body.model_dump(mode="json", exclude={"field_ids"}), reuse_revision=rid)
+        return child_revision(parent, config)
+
+    @api.post("/v1/revisions/{rid}/region-metadata", status_code=202)
+    def metadata(rid: str, body: RegionMetadataEdit, who: Owner):
+        parent = region_revision(rid, who)
+        result_root(parent)
+        try:
+            config = region_metadata_child_config(parent, body)
+        except ValueError:
+            raise HTTPException(422, "unknown_region_metadata_field") from None
         return child_revision(parent, config)

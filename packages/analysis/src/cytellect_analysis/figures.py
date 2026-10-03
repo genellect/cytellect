@@ -18,15 +18,15 @@ from matplotlib.text import Text
 
 from .exports_csv import write_csv
 
-FIGURE_VERSION = "1.1.2"
+FIGURE_VERSION = "1.1.3"
 COLORS = ["#0072b2", "#d55e00", "#009e73", "#cc79a7", "#e69f00", "#56b4e9", "#000000"]
 MARKERS = ["o", "s", "^", "v", "P", "X", "D", "<", ">"]
 LABELS = {
     "ncl_log2_nucleoplasm_over_nucleoli": (
-        "NCL nucleoplasm / nucleoli\n(log₂ mean intensity ratio)",
+        "NCL nucleoplasm / nucleoli\n(log2 mean intensity ratio)",
         "NCL 核質 / 核小体\n（平均輝度比の log2）"),
     "ncl_legacy_release": (
-        "NCL nucleus / high-intensity region\n(legacy log₂ ratio)",
+        "NCL nucleus / high-intensity region\n(legacy log2 ratio)",
         "NCL 核全体 / 高輝度領域\n（互換 log2 比）"),
     "ncl_nucleus_mean_corrected": (
         "Nuclear NCL mean intensity\n(background corrected, a.u.)",
@@ -139,7 +139,11 @@ def select_font(language, text=""):
     """Choose an actual normal-weight face covering every literal figure glyph."""
     required = {ord(character) for character in text + "0123456789.eE+-" if not character.isspace()}
     normal_available = False
-    for family in FONT_FAMILIES[language]:
+    # Output language chooses the preferred typography, not the scripts allowed
+    # in literal source labels. Every candidate still needs complete glyphs.
+    fallback_language = "ja" if language == "en" else "en"
+    families = tuple(dict.fromkeys((*FONT_FAMILIES[language], *FONT_FAMILIES[fallback_language])))
+    for family in families:
         candidates = [entry for entry in font_manager.fontManager.ttflist
                       if entry.name == family and entry.style == "normal"
                       and NORMAL_WEIGHT_RANGE[0] <= _weight_number(entry.weight) <= NORMAL_WEIGHT_RANGE[1]]
@@ -285,9 +289,9 @@ def render_figures(result, output: Path):
                         ax.fill_between(prediction.gfp_centered, prediction.ci_low, prediction.ci_high,
                                         color=COLORS[i % len(COLORS)], alpha=.15, linewidth=0)
                 ax.set_xlabel(plot["x_label"] or (
-                    (("log2(max(GFP, 0) + 1)（撮影日内中心化）" if ja else "log₂(max(GFP, 0) + 1)\n(centered within acquisition date)")
+                    (("log2(max(GFP, 0) + 1)（撮影日内中心化）" if ja else "log2(max(GFP, 0) + 1)\n(centered within acquisition date)")
                      if spec.get("gfp_transform") == "legacy-log2p1" else
-                     ("log2 GFP（撮影日内中央値で中心化）" if ja else "log₂ GFP (centered within acquisition date)"))
+                     ("log2 GFP（撮影日内中央値で中心化）" if ja else "log2 GFP (centered within acquisition date)"))
                     if exploratory else LABELS["gfp_mean_corrected"][int(ja)]))
                 ax.legend(frameon=False, markerscale=1.5, handletextpad=.5)
                 note = ("Points are observed outcomes. Lines average the fitted mean over acquisition dates; "

@@ -12,7 +12,7 @@ from .descriptive_contracts import DescriptiveRequest
 from .exports_csv import write_csv
 from .figures import LABELS, _validate_text_layout, figure_settings, plt, select_font
 
-FIGURE_VERSION = "1.0.0"
+FIGURE_VERSION = "1.0.1"
 
 
 def _selected_channel(result):

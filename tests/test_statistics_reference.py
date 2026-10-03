@@ -45,6 +45,17 @@ def test_paired_closed_form_df_two_reference():
     assert result["p_value"] == pytest.approx(1 - math.sqrt(6 / 7))
 
 
+def test_large_common_offset_paired_effect_agrees_with_paired_difference_interval():
+    rows = [observation(group, i, value, pair=f"p{i}")
+            for group, values in (("A", [1e16 + 2, 1e16 + 4, 1e16 + 8]), ("B", [1e16] * 3))
+            for i, value in enumerate(values)]
+    result = analyze(rows, spec(paired=True))
+    contrast = result["comparisons"][0]
+    assert result["statistics_version"] == "1.2.3"
+    assert contrast["estimate"] == pytest.approx(14 / 3)
+    assert (contrast["ci_low"] + contrast["ci_high"]) / 2 == pytest.approx(14 / 3)
+
+
 @pytest.mark.parametrize("scale", [1e-18, 1., 1e18])
 def test_paired_inference_is_invariant_to_measurement_units(scale):
     rows = [observation(g, i, v * scale, pair=f"p{i}")

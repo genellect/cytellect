@@ -29,7 +29,7 @@ for (const width of [1440, 390]) {
     expect(receipt.guidance.statistics).toBe("undetermined");
     expect(receipt.guidance.questions.some((q: { id: string }) => q.id === "independence")).toBe(true);
     await page.getByLabel("測定する蛍光チャンネル", { exact: true }).selectOption("other");
-    await expect(page.getByRole("heading", { name: "任意の領域・マーカーは対応を拡張中" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "汎用領域のワークスペースで定量する" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "核内GFP定量", exact: true })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 });

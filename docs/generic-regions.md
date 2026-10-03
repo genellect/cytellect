@@ -93,11 +93,19 @@ Original filenames are not storage paths. Raw input and decoded-array files have
 separate hashes and byte counts, checked by the worker. All storage stays inside
 the owned private workspace.
 
-The generic recipe initially permits `manual` and `imported` sources only. Manual
-initialization creates an explicit empty editable label plane. Automatic nuclei
-and nested nucleus/nucleolus relationships remain in the existing recipes until
-their generic adapter is verified. No arbitrary stain is passed as GFP/NCL to
-unlock those recipes.
+Recipe 1.0 retains `manual` and `imported` sources and its original serialized
+contract. Manual initialization creates an empty editable label plane. Recipe 1.1
+adds `stardist_nuclear` with an explicitly confirmed nuclear-stain channel and the
+fixed offline Fiji/StarDist fluorescent-nuclei model. The same Java bridge executes
+on the actual selected plane; no GFP/NCL plane is fabricated. Nested
+nucleus/nucleolus relationships retain their existing specialized recipes.
+
+Nuclear probability, NMS and normalization percentiles are recorded. Native
+coordinates and original measurement pixels are preserved. The standard-2g
+automatic admission bounds remain 2048 px per side and 2,700,000 total pixels;
+the worker never shrinks an image to fit. Reusing corrected labels does not rerun
+Fiji. Per-field provenance distinguishes the original detector event from execution
+in the current attempt, including source pixel/model hashes and correction history.
 
 Generic edits reuse the pure label-plane operation extracted from the existing
 mask implementation. The old wrapper still enforces nucleus/nucleolus containment
@@ -108,13 +116,20 @@ Every edit or background/exclusion change creates an unreviewed analysis revisio
 Unchanged masks preserve their mask revision ID; edited masks receive a new one.
 An explicit `reuse_revision` can expand a representative-field trial into a batch:
 previously analyzed selected fields retain their corrected masks, while newly
-selected fields initialize from the chosen manual/imported source. The recipe
+selected fields initialize from the chosen source. The recipe
 and every reused field snapshot must be unchanged. Batch reuse must retain all
 parent fields; omitted parent fields are rejected rather than silently dropped.
 Canonical labels and their metadata are saved before background-dependent
 measurement. Thus an edit that intersects a background ROI remains retrievable
 after the visible measurement failure: correcting the background reuses the edited
 pixels, not the original import. Previous revisions remain unchanged.
+
+Experimental metadata can be changed through `region-metadata`. This creates an
+unreviewed child revision with explicit metadata changes, unchanged image identity
+and reused masks. It does not mutate upload rows or prior scientific snapshots.
+Subsequent trial-to-batch expansion retains the adopted parent metadata. The worker
+independently verifies that an authorized metadata child changed no other source
+properties; an altered image, recipe or unrelated source revision is rejected.
 
 Partial failures and explicit reasons for excluding failed fields remain in the
 report. Successful measurement rows are not erased by object exclusions; those
@@ -127,8 +142,10 @@ API ownership, active-parent CAS, review and retention apply to generic routes.
 The first generic statistical adapter supports per-field descriptive output with
 an explicit region/channel/metric selector. Area duplicated across channel rows
 is checked for agreement and counted once per region. No p-value, inferential
-confidence interval or independent replicate count is synthesized. This first
-slice does not generalize the existing GFP regression or experiment-unit tests.
+confidence interval or independent replicate count is synthesized. A separate
+[experimental-unit comparison](region-comparisons.md) explicitly records design,
+acquisition comparability and the planned contrast family for generic markers.
+It does not relabel another marker as GFP or enable the GFP regression implicitly.
 Descriptive distributions by other groupings can be scientifically meaningful,
 but are outside this initial per-field selector.
 
@@ -138,12 +155,13 @@ Methods, source/environment identity and a file manifest. CSV string cells are
 protected against spreadsheet formula interpretation; negative numerical values
 remain numerical. Raw TIFF files are included only with explicit opt-in.
 
-Source-linked descriptive figures require a reviewed revision. Before export,
-the shared descriptive adapter recomputes the saved selector from the source table;
+Source-linked statistical figures require a reviewed revision. Before export,
+the corresponding adapter recomputes the saved selector/design from the source table;
 a changed plot value or source revision is rejected. Replay validates bundle and
 raw-image hashes, remeasures saved masks through `measure_regions`, and regenerates
-recorded descriptive SVG/PDF/PNG and source tables. It reports exact equality of
-saved measurements/descriptions. Failed or unmeasured fields remain diagnostic
+recorded SVG/PDF/PNG and source tables. It reports exact equality of
+saved measurements, descriptions and experimental-unit comparisons when present.
+Failed or unmeasured fields remain diagnostic
 and are explicitly not reassessed by this measurement replay. No detector or model
 download runs during replay.
 
@@ -163,3 +181,11 @@ DNA rows did not receive a new independent ImageJ comparison. Both previously
 rejected RGB fields remained rejected at upload. This is arithmetic and input/API
 integration evidence, not a new Fiji run, biological instance-mask validation,
 verified camera-native radiometry or independent biological replication.
+
+The nuclear-only adapter was also compared against the existing fixed detector:
+two real-Fiji old/new command comparisons (default and nondefault parameters),
+the five fixed BBBC039 fields and the two valid BBBC007 fields had identical nuclear
+label pixels. The two preselected RGB rejections and previously reported low or
+ambiguous detection scores remain in the evaluation record. Adapter equivalence
+is not a new claim of biological accuracy or independent model evaluation. Original
+NCL/GFP/legacy/ROI and recoverable-failure Fiji regression checks were retained.
