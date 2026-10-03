@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.text import Text
 
 from .descriptive import region_report_measurement_policy
-from .descriptive_contracts import DescriptiveRequest
+from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
 from .figures import LABELS, _validate_text_layout, figure_settings, plt, select_font
 
@@ -93,7 +93,7 @@ def _caption(result, labels):
 
 def descriptive_methods(result):
     """Record the selected protocol rather than borrowing inferential Methods text."""
-    spec = DescriptiveRequest.model_validate(result["spec"])
+    spec = parse_descriptive_request(result["spec"])
     policy = _source_measurement_policy(result)
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.", "",
              f"Descriptive protocol: {result['descriptive_version']}; source: {result['source_kind']}.",

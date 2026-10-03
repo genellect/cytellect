@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from cytellect_analysis.descriptive_contracts import DescriptiveRequest
+from cytellect_analysis.descriptive_contracts import DescriptiveRequestType
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from fastapi import Depends, HTTPException
 
@@ -14,7 +14,7 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
     Owner = Annotated[str, Depends(owner)]
 
     @api.post("/v1/revisions/{rid}/descriptive", status_code=202)
-    def descriptive(rid: str, body: DescriptiveRequest, who: Owner):
+    def descriptive(rid: str, body: DescriptiveRequestType, who: Owner):
         rev = revision(rid, who)
         if rev["state"] != "succeeded" or not rev["reviewed"]:
             raise HTTPException(409, "review_required")

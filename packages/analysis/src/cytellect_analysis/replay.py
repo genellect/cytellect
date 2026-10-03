@@ -114,6 +114,7 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     _json(output_dir / "measurements.json", result)
     for filename, data in (("cells.csv", result["cells"]), ("nucleoli.csv", result["nucleoli"]), ("manual-rois.csv", result["manual_rois"])):
         write_csv(output_dir / filename, data)
+    descriptive_figures_ready = True
     for stats_path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         recorded = _read(stats_path)
         if recorded.get("analysis_kind") == "descriptive":
@@ -122,7 +123,13 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
 
             fresh_description = validate_legacy_description(recorded, result, config)
             folder = output_dir / "statistics" / stats_path.parent.name
-            fresh_description["figure"] = render_descriptive(fresh_description, folder)
+            if "figure_policy" in fresh_description["spec"]:
+                from .descriptive_output import replay_descriptive_output
+
+                fresh_description["figure"] = replay_descriptive_output(recorded, fresh_description, stats_path.parent, folder)
+                descriptive_figures_ready &= fresh_description["figure"]["status"] == "ready"
+            else:
+                fresh_description["figure"] = render_descriptive(fresh_description, folder)
             _json(folder / "result.json", fresh_description)
             continue
         spec = StatisticsRequest.model_validate(recorded["spec"])
@@ -158,6 +165,8 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         folder = output_dir / "statistics" / stats_path.parent.name
         fresh["figure"] = render_figures(fresh, folder)
         _json(folder / "result.json", fresh)
+    if not descriptive_figures_ready:
+        raise ValueError("descriptive_replay_figure_unavailable")
     return result
 
 

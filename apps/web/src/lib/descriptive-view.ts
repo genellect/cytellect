@@ -1,5 +1,9 @@
 import { metricLabels, type Job } from "./types";
 import { regionMetricLabels } from "./region-types";
+import type {components} from "./generated";
+
+type PagedOutput = components["schemas"]["PagedDescriptiveOutput"];
+type FigurePolicy = components["schemas"]["DescriptiveFigurePolicy"];
 
 export type DescriptiveSelection =
   | { source: "legacy-cell"; metric: string }
@@ -8,7 +12,7 @@ export type DescriptiveSelection =
 export type DescriptiveResult = {
   analysis_kind: "descriptive";
   revision_id: string;
-  spec: { selection: DescriptiveSelection; plot: { language: string; preset: string; group_order?:string[] } };
+  spec: { selection: DescriptiveSelection; figure_policy?:FigurePolicy; plot: { language: string; preset: string; group_order?:string[] } };
   metric: string;
   unit: string;
   counts: { observations: number; input_fields: number; selected_fields: number; excluded_failed_fields: number; experimental_units: null };
@@ -17,9 +21,78 @@ export type DescriptiveResult = {
   plot_data?: Array<Record<string, unknown>>;
   source_fields: Array<{ field_id: string; analysis_revision_id?:string; mask_sha256?:string; hash_format?:string; image_info?:{shape?:number[]}; region_set?: { label: string;region_set_id?:string;mask_revision_id?:string;source?:string }; channel_provenance?: Array<{ channel: { channel_id: string; label: string; stain: string | null } }> }>;
   excluded_failed_fields: Array<{ field_id: string; reason: string }>;
-  figure: { source_files: string[] };
+  figure: { source_files: string[]; descriptive_figure_version?:"1.0.0"|"1.0.1" } | PagedOutput;
   warnings: string[];
 };
+
+export const descriptiveTableFiles:Record<string,string>={"plot-data.csv":"全視野の元データ","field-summary.csv":"全視野の要約","selection.csv":"採用・除外の記録","missingness.csv":"欠測の記録","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
+const presentationCodes = new Set(["figure_labels_overlap","figure_text_outside_canvas","japanese_font_not_installed","sans_serif_font_not_installed","figure_font_glyphs_unavailable"]);
+type PageView = {index:number;fieldIds:string[];fieldNumbers:number[];files:{svg:string;pdf:string;png:string}};
+export type DescriptiveFigureView =
+ | {kind:"legacy";pages:PageView[]}
+ | {kind:"ready";pages:PageView[];limits:number[];fieldCount:number}
+ | {kind:"tables_only";code:string;failedPage:number|null;plannedPages:number;limits:number[]}
+ | {kind:"invalid"};
+const record=(value:unknown):value is Record<string,unknown>=>typeof value==="object"&&value!==null&&!Array.isArray(value);
+
+// Validate saved display identities only. Values, limits and summaries are never recomputed here.
+// An incomplete new manifest must not fall back to a previous single figure.
+export function descriptiveFigureView(result:DescriptiveResult):DescriptiveFigureView{
+ const raw:unknown=result.figure;
+ if(!record(raw)||!Array.isArray(raw.source_files)||!raw.source_files.every(name=>typeof name==="string"))return {kind:"invalid"};
+ const sourceFiles=raw.source_files as string[];
+ if(!("figure_policy" in result.spec)&&(!("descriptive_figure_version" in raw)||raw.descriptive_figure_version==="1.0.0"||raw.descriptive_figure_version==="1.0.1")){
+  if(!["figure.svg","figure.pdf","figure.png"].every(name=>sourceFiles.includes(name)))return {kind:"invalid"};
+  return {kind:"legacy",pages:[{index:1,fieldIds:[],fieldNumbers:[],files:{svg:"figure.svg",pdf:"figure.pdf",png:"figure.png"}}]};
+ }
+ if(result.spec.figure_policy?.version!=="2.0.0"||result.spec.figure_policy.layout!=="field-pages"||raw.descriptive_figure_version!=="2.0.0"||
+  !Array.isArray(raw.field_order)||!Array.isArray(raw.page_plan)||!raw.page_plan.length||!Array.isArray(raw.pages)||
+  !Array.isArray(raw.y_limits)||raw.y_limits.length!==2||!raw.y_limits.every(value=>typeof value==="number"&&Number.isFinite(value))||!(raw.y_limits[0]<raw.y_limits[1])||
+  !Array.isArray(raw.y_ticks)||!raw.y_ticks.every(value=>typeof value==="number"&&Number.isFinite(value))||
+  typeof raw.source_result_sha256!=="string"||!/^[a-f0-9]{64}$/.test(raw.source_result_sha256)||!record(raw.files))return {kind:"invalid"};
+ const expectedOrder=result.spec.plot.group_order?.length?result.spec.plot.group_order:result.field_summary.map(row=>row.field_id);
+ const summaryIds=result.field_summary.map(row=>row.field_id);
+ if(new Set(summaryIds).size!==summaryIds.length||expectedOrder.length!==summaryIds.length||new Set(expectedOrder).size!==expectedOrder.length||
+  expectedOrder.some(id=>!summaryIds.includes(id))||raw.field_order.length!==expectedOrder.length||raw.field_order.some((id,index)=>id!==expectedOrder[index])||
+  new Set(sourceFiles).size!==sourceFiles.length||Object.keys(raw.files).length!==sourceFiles.length)return {kind:"invalid"};
+ for(const name of sourceFiles){
+  const file=raw.files[name];
+  if(!record(file)||typeof file.sha256!=="string"||!/^[a-f0-9]{64}$/.test(file.sha256)||!Number.isSafeInteger(file.bytes)||Number(file.bytes)<0||
+   !Object.hasOwn(descriptiveTableFiles,name)&&!/^figure-[0-9]{3}\.(svg|pdf|png)$/.test(name))return {kind:"invalid"};
+ }
+ if(!["plot-data.csv","field-summary.csv","selection.csv","methods.md","figure-data.json","figure-caption.md"].every(name=>sourceFiles.includes(name)))return {kind:"invalid"};
+ const plans:Array<{index:number;fieldIds:string[];fieldNumbers:number[]}>=[];
+ let offset=0;
+ for(const [index,plan] of raw.page_plan.entries()){
+  if(!record(plan)||plan.page_index!==index+1||!Array.isArray(plan.field_ids)||!plan.field_ids.length||plan.field_ids.length>8||
+   !Array.isArray(plan.field_numbers)||plan.field_ids.length!==plan.field_numbers.length||
+   plan.field_ids.some((id,n)=>id!==expectedOrder[offset+n])||plan.field_numbers.some((number,n)=>number!==offset+n+1))return {kind:"invalid"};
+  plans.push({index:index+1,fieldIds:plan.field_ids as string[],fieldNumbers:plan.field_numbers as number[]});offset+=plan.field_ids.length;
+ }
+ if(offset!==expectedOrder.length)return {kind:"invalid"};
+ if(raw.status==="tables_only"){
+  if(raw.pages.length||raw.font_metadata!==null||!record(raw.error)||typeof raw.error.code!=="string"||!presentationCodes.has(raw.error.code)||
+   !(raw.error.page_index===null||Number.isInteger(raw.error.page_index)&&Number(raw.error.page_index)>=1&&Number(raw.error.page_index)<=plans.length)||sourceFiles.some(name=>name.startsWith("figure-")&&/\.(svg|pdf|png)$/.test(name)))return {kind:"invalid"};
+  return {kind:"tables_only",code:raw.error.code,failedPage:raw.error.page_index as number|null,plannedPages:plans.length,limits:raw.y_limits as number[]};
+ }
+ if(raw.status!=="ready"||raw.error!==null||!record(raw.font_metadata)||raw.pages.length!==plans.length)return {kind:"invalid"};
+ const pages:PageView[]=[];
+ for(const [index,page] of raw.pages.entries()){
+  if(!record(page)||page.page_index!==index+1||!record(page.files))return {kind:"invalid"};
+  for(const suffix of ["svg","pdf","png"]){const name=`figure-${String(index+1).padStart(3,"0")}.${suffix}`;if(page.files[suffix]!==name||!sourceFiles.includes(name))return {kind:"invalid"};}
+  pages.push({...plans[index],files:page.files as PageView["files"]});
+ }
+ if(sourceFiles.filter(name=>/^figure-[0-9]{3}\.(svg|pdf|png)$/.test(name)).length!==pages.length*3)return {kind:"invalid"};
+ return {kind:"ready",pages,limits:raw.y_limits as number[],fieldCount:expectedOrder.length};
+}
+
+export function descriptiveRequest(selection:DescriptiveSelection,language:string,preset:string,savedPlot?:DescriptiveResult["spec"]["plot"]){
+ return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{kind:"distribution",width_inches:7,height_inches:3,font_size:7,x_label:"",y_label:"",group_order:[],...savedPlot,preset,language}};
+}
+
+export function descriptiveRecovery(result:DescriptiveResult,language:string,preset:string){
+ return {path:`/v1/revisions/${result.revision_id}/descriptive`,body:descriptiveRequest(result.spec.selection,language,preset,result.spec.plot)};
+}
 
 export function descriptiveJobs(jobs: Job[]) {
   return jobs.filter(job => job.kind === "statistics" && job.analysis_mode === "descriptive").toSorted((a, b) => b.created - a.created);

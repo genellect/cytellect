@@ -9,6 +9,8 @@ import tifffile
 from defusedxml import ElementTree
 from PIL import Image
 
+from .display_contracts import PreviewDisplayMetadata, PreviewPlaneDisplay
+
 MAX_SIDE = 4096
 MAX_PIXELS = MAX_SIDE * MAX_SIDE
 
@@ -162,16 +164,48 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
         return array
 
 
-def render_preview(channels: dict[str, np.ndarray], channel="merge", low=0., high=100., gain=1.) -> bytes:
-    def scale(a):
+def render_preview_with_display(
+    channels: dict[str, np.ndarray], channel="merge", low=0., high=100., gain=1.,
+    *, field_id: str = "", legacy: bool = False, composite: bool | None = None,
+) -> tuple[bytes, PreviewDisplayMetadata]:
+    """Return pixels and their display transform together, without mutating inputs."""
+    if not 0 <= low < high <= 100 or not 0.1 <= gain <= 10:
+        raise ValueError("invalid_display_settings")
+    merge = channel == "merge" if composite is None else composite
+    ids = [c for c in ("ncl", "gfp", "dapi") if c in channels] if merge else [channel]
+    if not ids or any(c not in channels for c in ids):
+        raise ValueError("invalid_display_channels")
+    planes: list[PreviewPlaneDisplay] = []
+
+    def scale(c):
+        a = channels[c]
+        if a.ndim != 2 or not a.size or a.dtype.kind not in "uif" or not np.isfinite(a).all():
+            raise ValueError("invalid_display_pixels")
         lo, hi = np.percentile(a, [low, high])
+        span = max(hi - lo, 1)
+        minimum, maximum = float(a.min()), float(a.max())
+        planes.append(PreviewPlaneDisplay(
+            channel_id=c, dtype=str(a.dtype),
+            value_basis="legacy-imported" if legacy else "native-grayscale",
+            source_min=minimum, source_max=maximum,
+            percentile_low_value=float(lo), percentile_high_value=float(hi),
+            normalization_span=float(span), display_black_value=float(lo),
+            display_white_value=float(lo + span / gain), constant_plane=minimum == maximum,
+        ))
         return np.clip((a.astype(float) - lo) / max(hi - lo, 1) * gain, 0, 1)
-    if channel == "merge":
+    if merge:
         zero = np.zeros_like(next(iter(channels.values())), dtype=float)
-        rgb = np.stack([scale(channels[c]) if c in channels else zero for c in ("ncl", "gfp", "dapi")], axis=-1)
+        rgb = np.stack([scale(c) if c in channels else zero for c in ("ncl", "gfp", "dapi")], axis=-1)
     else:
-        v = scale(channels[channel])
+        v = scale(channel)
         rgb = np.stack([v, v, v], axis=-1)
     stream = io.BytesIO()
     Image.fromarray((rgb * 255).astype(np.uint8)).save(stream, format="PNG")
-    return stream.getvalue()
+    return stream.getvalue(), PreviewDisplayMetadata(
+        field_id=field_id, requested_channel=channel, composite=merge,
+        low_percentile=low, high_percentile=high, gain=gain, planes=planes,
+    )
+
+
+def render_preview(channels: dict[str, np.ndarray], channel="merge", low=0., high=100., gain=1.) -> bytes:
+    return render_preview_with_display(channels, channel, low, high, gain)[0]

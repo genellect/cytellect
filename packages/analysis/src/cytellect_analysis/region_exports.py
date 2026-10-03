@@ -145,7 +145,7 @@ def _long_rows(report, config):
 
 def _recompute_statistics(report, config, result):
     from .descriptive import describe_regions
-    from .descriptive_contracts import DescriptiveRequest
+    from .descriptive_contracts import parse_descriptive_request
 
     if result.get("analysis_kind") not in ("descriptive", "region-comparison") or result.get("source_kind") != "region-2d":
         raise ValueError("region_export_statistics_unsupported")
@@ -166,7 +166,7 @@ def _recompute_statistics(report, config, result):
 
         calculated = compare_regions(report, config, RegionComparisonRequest.model_validate(result["spec"]))
     else:
-        calculated = describe_regions(report, config["field_snapshot"], DescriptiveRequest.model_validate(result["spec"]))
+        calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
     calculated["revision_id"] = report["revision_id"]
     if set(result) - (set(calculated) | {"figure"}):
         raise ValueError("region_export_statistics_unrecognized_fields")
@@ -188,7 +188,7 @@ def _render_statistics(calculated, folder):
 
 
 def build_region_bundle(destination: Path, *, report, config, provenance, mask_files,
-                        raw_files=(), statistics_results=(), include_raw=False):
+                        raw_files=(), statistics_results=(), statistics_roots=(), include_raw=False):
     """Bundle owned server paths only; public URL/access checks belong to the API."""
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
@@ -197,6 +197,8 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
     mask_files = dict(mask_files)
     if set(mask_files) != set(report["field_masks"]):
         raise ValueError("region_bundle_masks_incomplete")
+    statistics_results = list(statistics_results)
+    statistics_roots = dict(statistics_roots)
     descriptions = []
     for result in statistics_results:
         calculated = _recompute_statistics(report, config, result)
@@ -250,7 +252,14 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
             raw_manifest.append({"path": f"raw/{name}", "sha256": expected[name]["sha256"]})
     for index, calculated in enumerate(descriptions):
         folder = content / "statistics" / str(index)
-        figure = _render_statistics(calculated, folder)
+        if calculated["analysis_kind"] == "descriptive" and "figure_policy" in calculated["spec"]:
+            from .descriptive_output import copy_descriptive_output
+
+            if index not in statistics_roots:
+                raise ValueError("descriptive_output_source_required")
+            figure = copy_descriptive_output(statistics_results[index], Path(statistics_roots[index]), folder)
+        else:
+            figure = _render_statistics(calculated, folder)
         _json(folder / "result.json", {**calculated, "figure": figure})
     methods = region_methods(config, report, provenance)
     (content / "methods.md").write_text(methods, encoding="utf-8")
@@ -342,6 +351,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     descriptions_match = True
     comparisons_match = True
     has_comparisons = False
+    paged_outputs = []
     for path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         result = json.loads(path.read_text(encoding="utf-8"))
         replayed = _recompute_statistics(reproduced, config, result)
@@ -352,7 +362,13 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         else:
             descriptions_match &= matches
         folder = output_dir / "statistics" / path.parent.name
-        replayed["figure"] = _render_statistics(replayed, folder)
+        if replayed["analysis_kind"] == "descriptive" and "figure_policy" in replayed["spec"]:
+            from .descriptive_output import replay_descriptive_output
+
+            replayed["figure"] = replay_descriptive_output(result, replayed, path.parent, folder)
+            paged_outputs.append({"statistics_index": path.parent.name, "status": replayed["figure"]["status"]})
+        else:
+            replayed["figure"] = _render_statistics(replayed, folder)
         _json(folder / "result.json", replayed)
     comparison = {
         "matched_saved_measurements": tables == report["field_tables"],
@@ -362,6 +378,9 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     }
     if has_comparisons:
         comparison["matched_saved_comparisons"] = comparisons_match
+    if paged_outputs:
+        comparison["descriptive_outputs"] = paged_outputs
+        comparison["descriptive_figures_ready"] = all(item["status"] == "ready" for item in paged_outputs)
     _json(output_dir / "replay-verification.json", comparison)
     return comparison
 
@@ -376,6 +395,8 @@ def main():
     if (not result["matched_saved_measurements"] or not result["matched_saved_descriptions"]
             or not result.get("matched_saved_comparisons", True)):
         raise SystemExit("region_replay_measurement_mismatch")
+    if not result.get("descriptive_figures_ready", True):
+        raise SystemExit("descriptive_replay_figure_unavailable")
 
 
 if __name__ == "__main__":
