@@ -30,7 +30,9 @@ independently pinned descendants of the parent MSI. The data builder does not
 claim to have performed MSI extraction itself.
 
 The reviewed asset is 4,777,439 bytes, SHA-256
-`937ce5f76b153f2cbe69cf2770504fc259ed155974b5840009e6e4ab9da196cc`.
+`7da2d5a874c90a5691925e7d1465dca9bf93d277476b8b99f35affdd3857ff54`.
+The member manifest uses UTF-8 with LF before hashing, matching Git's canonical
+text representation across checkouts.
 Two independent output creations and complete payload round trips matched.
 This is deterministic composition evidence, not application compatibility.
 
