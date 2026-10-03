@@ -8,11 +8,13 @@ import Workbench from "./Workbench";
 import styles from "./workspace.module.css";
 import { WINDOWS_RELEASE_URL } from "@/lib/release";
 import WindowsDownload from "./WindowsDownload";
+import PublicLanding from "./PublicLanding";
 const NavigationLink=LOCAL_MODE?"a":Link;
 
 function Brand(){return <div className={styles.brand}><span className={styles.brandMark} aria-hidden="true"><i/><i/><i/></span><span>cytellect<span className={styles.brandSub}>IMAGE → INSIGHT</span></span></div>;}
 export default function WorkspaceApp(){
  const [client]=useState(()=>new QueryClient({defaultOptions:{queries:{retry:false,gcTime:0,refetchOnWindowFocus:false}}}));
+ if(!API_CONFIGURED && !LOCAL_MODE) return <PublicLanding/>;
  return <QueryClientProvider client={client}><Application/></QueryClientProvider>;
 }
 function Application(){

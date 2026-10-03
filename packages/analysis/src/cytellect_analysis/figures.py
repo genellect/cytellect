@@ -18,16 +18,16 @@ from matplotlib.text import Text
 
 from .exports_csv import write_csv
 
-FIGURE_VERSION = "1.1.1"
+FIGURE_VERSION = "1.1.2"
 COLORS = ["#0072b2", "#d55e00", "#009e73", "#cc79a7", "#e69f00", "#56b4e9", "#000000"]
 MARKERS = ["o", "s", "^", "v", "P", "X", "D", "<", ">"]
 LABELS = {
     "ncl_log2_nucleoplasm_over_nucleoli": (
         "NCL nucleoplasm / nucleoli\n(log₂ mean intensity ratio)",
-        "NCL 核質 / 核小体\n（平均輝度比の log₂）"),
+        "NCL 核質 / 核小体\n（平均輝度比の log2）"),
     "ncl_legacy_release": (
         "NCL nucleus / high-intensity region\n(legacy log₂ ratio)",
-        "NCL 核全体 / 高輝度領域\n（互換 log₂ 比）"),
+        "NCL 核全体 / 高輝度領域\n（互換 log2 比）"),
     "ncl_nucleus_mean_corrected": (
         "Nuclear NCL mean intensity\n(background corrected, a.u.)",
         "核内 NCL 平均輝度\n（背景補正、任意単位）"),
@@ -182,6 +182,34 @@ def figure_settings(plot):
             "line_width_pt": .6, "png_dpi": 300}
 
 
+def _validate_text_layout(figure, axes):
+    """Reject demonstrably unreadable labels before publishing figure files."""
+    figure.canvas.draw()
+    renderer = figure.canvas.get_renderer()
+    omitted_tick_labels = set()
+    for axis in (axes.xaxis, axes.yaxis):
+        lower, upper = sorted(axis.get_view_interval())
+        drawn_labels = []
+        for tick in axis.get_major_ticks():
+            for label in (tick.label1, tick.label2):
+                if not lower <= tick.get_loc() <= upper:
+                    omitted_tick_labels.add(label)
+                elif label.get_visible() and label.get_text():
+                    drawn_labels.append(label)
+        boxes = [label.get_window_extent(renderer) for label in drawn_labels]
+        if any(left.overlaps(right) for index, left in enumerate(boxes) for right in boxes[index + 1:]):
+            raise ValueError("figure_labels_overlap")
+    canvas = figure.bbox
+    for label in figure.findobj(match=Text):
+        if not label.get_visible() or not label.get_text() or label in omitted_tick_labels:
+            continue
+        box = label.get_window_extent(renderer)
+        # One display pixel tolerates backend/font rounding at the canvas edge.
+        if (box.x0 < canvas.x0 - 1 or box.y0 < canvas.y0 - 1
+                or box.x1 > canvas.x1 + 1 or box.y1 > canvas.y1 + 1):
+            raise ValueError("figure_text_outside_canvas")
+
+
 def _caption(result, note):
     lines = ["# Figure legend", "", note, "",
              "Aggregation: field median → mean of fields within sample → mean of samples within independent unit.",
@@ -231,7 +259,7 @@ def render_figures(result, output: Path):
           "axes.unicode_minus": False, "axes.linewidth": .6,
           "lines.linewidth": .6, "xtick.major.width": .6, "ytick.major.width": .6,
           "xtick.major.size": 2.5, "ytick.major.size": 2.5, "text.color": "black",
-          "svg.hashsalt": "cytellect-figure-v1.1.1", "savefig.facecolor": "white"}):
+          "svg.hashsalt": "cytellect-figure-v" + FIGURE_VERSION, "savefig.facecolor": "white"}):
         fig, ax = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
         rng = np.random.default_rng(0)
         try:
@@ -257,9 +285,9 @@ def render_figures(result, output: Path):
                         ax.fill_between(prediction.gfp_centered, prediction.ci_low, prediction.ci_high,
                                         color=COLORS[i % len(COLORS)], alpha=.15, linewidth=0)
                 ax.set_xlabel(plot["x_label"] or (
-                    (("log₂(max(GFP, 0) + 1)（撮影日内中心化）" if ja else "log₂(max(GFP, 0) + 1)\n(centered within acquisition date)")
+                    (("log2(max(GFP, 0) + 1)（撮影日内中心化）" if ja else "log₂(max(GFP, 0) + 1)\n(centered within acquisition date)")
                      if spec.get("gfp_transform") == "legacy-log2p1" else
-                     ("log₂ GFP（撮影日内中央値で中心化）" if ja else "log₂ GFP (centered within acquisition date)"))
+                     ("log2 GFP（撮影日内中央値で中心化）" if ja else "log₂ GFP (centered within acquisition date)"))
                     if exploratory else LABELS["gfp_mean_corrected"][int(ja)]))
                 ax.legend(frameon=False, markerscale=1.5, handletextpad=.5)
                 note = ("Points are observed outcomes. Lines average the fitted mean over acquisition dates; "
@@ -337,6 +365,7 @@ def render_figures(result, output: Path):
                 properties.set_family(font)
                 properties.set_weight(selected_font.weight)
                 item.set_fontproperties(properties)
+            _validate_text_layout(fig, ax)
             for suffix in ("svg", "pdf", "png"):
                 metadata: dict[str, str | None] = {"Creator": "Cytellect " + FIGURE_VERSION}
                 if suffix == "pdf":

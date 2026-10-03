@@ -45,6 +45,33 @@ def test_paired_closed_form_df_two_reference():
     assert result["p_value"] == pytest.approx(1 - math.sqrt(6 / 7))
 
 
+@pytest.mark.parametrize("scale", [1e-18, 1., 1e18])
+def test_paired_inference_is_invariant_to_measurement_units(scale):
+    rows = [observation(g, i, v * scale, pair=f"p{i}")
+            for g, values in (("A", [3, 8, 2]), ("B", [4, 10, 5]))
+            for i, v in enumerate(values)]
+    result = analyze(rows, spec(paired=True))["comparisons"][0]
+    # The dimensionless t statistic and p value must not change when a
+    # concentration is expressed in mol instead of attomol, for example.
+    assert result["estimate"] / scale == pytest.approx(-2)
+    assert result["standard_error"] / scale == pytest.approx(1 / math.sqrt(3))
+    assert result["statistic"] == pytest.approx(-2 * math.sqrt(3))
+    assert result["p_value"] == pytest.approx(1 - math.sqrt(6 / 7))
+
+
+@pytest.mark.parametrize("paired", [False, True])
+def test_standard_error_is_not_recovered_from_rounded_ci_endpoints(paired):
+    values = (("A", [1e12 + 1, 1e12 + 2, 1e12 + 3]), ("B", [1, 2, 4]))
+    rows = [observation(group, i, value, pair=f"p{i}")
+            for group, values in values for i, value in enumerate(values)]
+    result = analyze(rows, spec(paired=paired))["comparisons"][0]
+    # Variance(A)=1, variance(B)=7/3; paired differences are x,x,x-1,
+    # whose variance is 1/3. These closed-form SEs do not subtract two
+    # large and nearly equal, already rounded CI endpoints.
+    expected = 1 / 3 if paired else math.sqrt(10) / 3
+    assert result["standard_error"] == pytest.approx(expected, rel=1e-8)
+
+
 def test_field_cluster_covariance_matches_explicit_sandwich():
     rows = []
     for group in ("A", "B"):

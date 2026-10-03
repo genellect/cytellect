@@ -149,7 +149,7 @@ def test_threshold_sensitivity_records_actual_gate_without_changing_primary(prim
     assert "data_derived_or_manual_gfp_selection_requires_predeclared_or_independent_validation" in scenario["warnings"]
     assert all(row["gfp_gate_method"] == primary_method for row in result["plot_data"])
     assert data == original
-    assert result["statistics_version"] == scenario["statistics_version"] == "1.2.1"
+    assert result["statistics_version"] == scenario["statistics_version"] == "1.2.2"
 
 
 def test_shared_units_need_explicit_pairing():

@@ -85,6 +85,8 @@ test("synthetic invite → detect → edit → remeasure → statistics → expo
  await page.getByLabel("領域、背景、対象選別、失敗・除外理由を確認しました。").check();
  await mutation(page,"/review",()=>page.getByRole("button",{name:"品質確認を完了",exact:true}).click());
  await page.getByRole("button",{name:/02 統計と図表/}).click();
+ await expect(page.getByRole("button",{name:"統計と図を生成"})).toBeDisabled();
+ await page.getByLabel("条件間の対応",{exact:true}).selectOption("paired");
  await page.getByLabel("独立実験単位と対応関係を確認しました。").check();
  const statistics=await mutation(page,"/statistics",()=>page.getByRole("button",{name:"統計と図を生成",exact:true}).click());
  await waitJob(page,statistics.job_id);
@@ -94,7 +96,7 @@ test("synthetic invite → detect → edit → remeasure → statistics → expo
  expect(svg.status()).toBe(200);expect(svg.headers()["cache-control"]).toContain("no-store");
  const figureData=await json(await page.request.get(api+`/v1/jobs/${statistics.job_id}/files/figure-data.json`));expect(figureData.style.preset).toBe("nature-single");expect(figureData.style.width_mm).toBeCloseTo(89);
  const caption=await page.request.get(api+`/v1/jobs/${statistics.job_id}/files/figure-caption.md`);expect(caption.status()).toBe(200);
- // A model switch must not inherit the default paired test or paired plot.
+ // A model switch must not inherit the selected paired test or paired plot.
  await page.getByLabel("図の種類",{exact:true}).selectOption("paired");
  await page.getByLabel("統計モデル",{exact:true}).selectOption("exploratory");
  await expect(page.getByLabel("図の種類",{exact:true})).toHaveValue("distribution");
@@ -265,6 +267,8 @@ test("numeric CSV -> paired comparison -> Methods and replay package",async({pag
  await page.getByLabel("数値CSV",{exact:true}).setInputFiles({name:"synthetic-measurements.csv",mimeType:"text/csv",buffer:Buffer.from(csv)});
  const table=await mutation(page,"/tables",()=>page.getByRole("button",{name:"数値表を登録",exact:true}).click());
  await expect(page.getByLabel("基準群",{exact:true})).toHaveValue("Control");
+ await expect(page.getByRole("button",{name:"統計と図を生成"})).toBeDisabled();
+ await page.getByLabel("条件間の対応",{exact:true}).selectOption("paired");
  await page.getByLabel("独立実験単位と対応関係を確認しました。").check();
  const stats=await mutation(page,"/statistics",()=>page.getByRole("button",{name:"統計と図を生成",exact:true}).click());
  await waitJob(page,stats.job_id);

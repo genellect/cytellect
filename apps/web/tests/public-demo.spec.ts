@@ -53,7 +53,8 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   await page.getByText("保存先と削除について",{exact:true}).click();
   await expect(page.getByText(/終了中に期限を迎えたデータは次回起動時に削除します。/)).toBeVisible();
  }else{
-  await expect(page.getByRole("button",{name:"ワークスペースに接続"})).toBeDisabled();
+  await expect(page.getByText("公開サンプルからお試しください",{exact:true})).toBeVisible();
+  await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
   await expect(page.getByRole("link",{name:/Cytellectをダウンロード/})).toHaveCount(0);
  }
  for(const width of [1440,390]){
@@ -66,6 +67,42 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  await expect(page.getByAltText(/4DN.*公開実画像/)).toBeVisible();
  if(release){await page.getByRole("link",{name:"ダウンロード",exact:true}).click();await expect(page.getByRole("link",{name:/Cytellectをダウンロード/})).toHaveAttribute("href",release);}
  expect(connections).toEqual([]);
+});
+
+test("public landing links saved measurements to their exact image regions",async({page})=>{
+ test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Public landing only");
+ const errors:string[]=[];const analysisRequests:string[]=[];
+ page.on("pageerror",e=>errors.push(e.message));page.on("console",m=>{if(m.type()==="error")errors.push(m.text());});
+ page.on("request",r=>{if(new URL(r.url()).pathname.startsWith("/v1/"))analysisRequests.push(r.url());});
+ const source=JSON.parse(fs.readFileSync(path.resolve("public/demo/4dn-ncl/data.json"),"utf8")) as {measurements:{nucleus_id:number;area_px:number;ncl_nucleus_mean_raw:number}[]};
+ await page.goto("/");
+ await expect(page.getByRole("heading",{level:1})).toHaveText("蛍光画像から、論文の図まで。");
+ const image=page.getByAltText("4DN公開蛍光画像の領域と測定値の対応例");
+ await expect(image).toBeVisible();
+ await expect.poll(()=>image.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth===1739)).toBe(true);
+ await expect(page.getByRole("button",{name:/^図の領域 /})).toHaveCount(source.measurements.length);
+ const selected=source.measurements[21];
+ await page.getByRole("button",{name:`図の領域 ${selected.nucleus_id}`,exact:true}).click();
+ await expect(page.locator('[aria-live="polite"]')).toContainText(selected.area_px.toLocaleString("ja-JP")+" px²");
+ await expect(page.locator('[aria-live="polite"]')).toContainText(selected.ncl_nucleus_mean_raw.toFixed(1));
+ await expect(page.getByRole("button",{name:`画像の領域 ${selected.nucleus_id}`,exact:true})).toHaveAttribute("stroke","#d8f28c");
+ await page.getByRole("button",{name:"画像の領域 1",exact:true}).click();
+ await expect(page.locator('[aria-live="polite"]')).toContainText(source.measurements[0].area_px.toLocaleString("ja-JP")+" px²");
+ await page.getByLabel("輪郭",{exact:true}).uncheck();
+ await expect(page.getByRole("button",{name:"画像の領域 1",exact:true})).toHaveAttribute("stroke","none");
+ await page.getByLabel("輪郭",{exact:true}).check();
+ await page.getByText("この表示の条件",{exact:true}).click();
+ await expect(page.getByText(/OME名と画像形態に基づく暫定対応/)).toBeVisible();
+ const downloading=page.waitForEvent("download");await page.getByRole("link",{name:"図の元データを保存 ↓",exact:true}).click();
+ const download=await downloading;const downloadPath=await download.path();
+ expect(JSON.parse(fs.readFileSync(downloadPath!,"utf8")).measurements).toEqual(source.measurements);
+ await page.getByText("この表示の条件",{exact:true}).click();
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:900});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+  await expect(page.getByRole("link",{name:/解析計画を確認する/})).toHaveAttribute("href","/plan");
+ }
+ expect(errors).toEqual([]);expect(analysisRequests).toEqual([]);
 });
 
 test("published Windows asset downloads with the recorded checksum",async({page},testInfo)=>{

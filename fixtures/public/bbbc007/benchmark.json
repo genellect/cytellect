@@ -1,0 +1,350 @@
+{
+  "validation_version": "1.0.0",
+  "dataset": "BBBC007v1",
+  "source": "https://bbbc.broadinstitute.org/BBBC007",
+  "manifest_sha256": "3f61d0895e294ba2e016456d693411e2315afc3e70814fdb973d13a1b35cc68f",
+  "recipe_scope": "shared nuclear detector plus generic region_values; not full product generic-channel workflow",
+  "reference": "Actual ImageJ ROI statistics and separate Java midpoint median; source actin never labelled GFP/NCL",
+  "reference_bridge_sha256_lf": "fabe8117b379c31ccf18b90afbf66c541a26d2d345582166be31e2f7fc99c574",
+  "offset_scope": "Fixed first 15x15 region-free block; arithmetic offset only, not confirmed biological background",
+  "annotation_scope": "Bounded four-connected contour interiors, original drawn boundary pixels excluded; no contour repair; not author-provided instance masks",
+  "accuracy_scope": "Exploratory contour-interior agreement only; not the original cell-boundary metric, independent holdout evidence or nucleolar accuracy",
+  "training_overlap": "Not established; do not claim independently held-out model performance",
+  "summary": {
+    "selected": 4,
+    "passed": 2,
+    "failed": 2,
+    "compared_regions": 615
+  },
+  "raw_run_report_sha256": "804ba113a42cf9063601e5401c712649da86ce5d595a088df580ff372b966a95",
+  "performance_accepted": false,
+  "performance_exclusion_reason": "Thick published contours are not instance labels; interior-only masks shrink regions. Fill convention is unresolved. Retain values without adopting them as segmentation accuracy.",
+  "fields": [
+    {
+      "field": "a9",
+      "inputs": {
+        "dna": {
+          "member": "BBBC007_v1_images/A9/A9 p10d.tif",
+          "sha256": "1abc5c6e7c53bdb7e97fd9409ee963e9cb903496e1776f585fa338cd9f5563e2",
+          "shape": [
+            450,
+            450
+          ],
+          "dtype": "uint8"
+        },
+        "actin": {
+          "member": "BBBC007_v1_images/A9/A9 p10f.tif",
+          "sha256": "fabeb893e3060813d650cf4c233c06732fd2f0cdbf468da55381bbf334bc2313",
+          "shape": [
+            450,
+            450
+          ],
+          "dtype": "uint8"
+        },
+        "nuclear_outline": {
+          "member": "BBBC007_v1_outlines/A9/A9 p10d.tif",
+          "sha256": "c96f5f2e01746d4ce4fe6abff50d370c70abc65e94a5dbf3605c72774945d0d1",
+          "shape": [
+            450,
+            450
+          ],
+          "dtype": "bool"
+        },
+        "cell_outline": {
+          "member": "BBBC007_v1_outlines/A9/A9 p10f.tif",
+          "sha256": "f49ebad42056494a7358641413497af2ff304d63bf4c53bfa3fcdee96999b0ea",
+          "shape": [
+            450,
+            450
+          ],
+          "dtype": "bool"
+        }
+      },
+      "status": "passed",
+      "measurements": {
+        "detected_nuclei": {
+          "regions": 115,
+          "passed": true,
+          "offset_median": 9.0,
+          "maximum_absolute_errors": {
+            "area_px": 0,
+            "mean": 0.0,
+            "median": 0.0,
+            "integrated": 3.637978807091713e-12,
+            "mean_corrected": 7.105427357601002e-15,
+            "median_corrected": 0.0,
+            "integrated_corrected": 3.637978807091713e-12
+          }
+        },
+        "manual_nuclear_interiors": {
+          "regions": 87,
+          "passed": true,
+          "offset_median": 9.0,
+          "maximum_absolute_errors": {
+            "area_px": 0,
+            "mean": 0.0,
+            "median": 0.0,
+            "integrated": 9.094947017729282e-13,
+            "mean_corrected": 3.552713678800501e-15,
+            "median_corrected": 0.0,
+            "integrated_corrected": 9.094947017729282e-13
+          }
+        },
+        "manual_cell_interiors": {
+          "regions": 98,
+          "passed": true,
+          "offset_median": 9.0,
+          "maximum_absolute_errors": {
+            "area_px": 0,
+            "mean": 0.0,
+            "median": 0.0,
+            "integrated": 7.275957614183426e-12,
+            "mean_corrected": 7.105427357601002e-15,
+            "median_corrected": 0.0,
+            "integrated_corrected": 7.275957614183426e-12
+          }
+        }
+      },
+      "offset_rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 15,
+        "height": 15
+      },
+      "contour_interior_comparison": {
+        "true_instances": 87,
+        "predicted_instances": 115,
+        "tp": 6,
+        "fp": 109,
+        "fn": 81,
+        "precision": 0.05217391304347826,
+        "recall": 0.06896551724137931,
+        "f1": 0.0594059405940594,
+        "iou_threshold": 0.5
+      },
+      "engine": {
+        "engine": "Fiji / StarDist 2D / ImageJ / MorphoLibJ",
+        "java_version": "21.0.7",
+        "n_tiles": 1,
+        "model": "Versatile (fluorescent nuclei)",
+        "model_sha256": "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3",
+        "runtime_lock_sha256": "a449aebd0a0cf82cca81e86dfae1a0f17a06c50bc309aa7765bbd36e300cd4b3",
+        "bridge_sha256": "869b8f6984e510c89e22bc554adc2832f10e49c11083e3650818998adc302d3f",
+        "coordinate_transform": {
+          "scale_x": 1,
+          "scale_y": 1
+        },
+        "java_executable_sha256": "798ffec156ceb8cb1535bf68747d0ee3dfc1fc17dcd0b322f8027018404155c1"
+      }
+    },
+    {
+      "field": "f113",
+      "inputs": {
+        "dna": {
+          "member": "BBBC007_v1_images/f113/AS_09125_040701150004_A02f00d0.tif",
+          "sha256": "05d00426bbfac73cb747611e8a45199679bb2f94bef7fb1147357647d783106b",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "dtype": "uint8"
+        },
+        "actin": {
+          "member": "BBBC007_v1_images/f113/AS_09125_040701150004_A02f00d1.tif",
+          "sha256": "47a90d4cf95e437c24af391e22d4918fa27f0e6acef94668140f28e2cb3c96fb",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "dtype": "uint8"
+        },
+        "nuclear_outline": {
+          "member": "BBBC007_v1_outlines/f113/AS_09125_040701150004_A02f00d0.tif",
+          "sha256": "00e08ce95b1b69d6161b3f8bdb958aa43aa94d7b424d0838c2d8a21f60cef9b1",
+          "shape": [
+            512,
+            512
+          ],
+          "dtype": "bool"
+        },
+        "cell_outline": {
+          "member": "BBBC007_v1_outlines/f113/AS_09125_040701150004_A02f00d1.tif",
+          "sha256": "d0c336e8eb8e73c6c7564560ac44d85f17675e3b9a947b26c31f5c8cb875d42d",
+          "shape": [
+            512,
+            512
+          ],
+          "dtype": "bool"
+        }
+      },
+      "status": "failed",
+      "reason": "unsupported_rgb_or_multiaxis_source",
+      "error_type": "ValueError"
+    },
+    {
+      "field": "f96_17",
+      "inputs": {
+        "dna": {
+          "member": "BBBC007_v1_images/f96 (17)/17P1_POS0006_D_1UL.tif",
+          "sha256": "7294a0db46240b7f79f430b03511692876b0440a23247dad49dad2d1502756d8",
+          "shape": [
+            400,
+            400,
+            3
+          ],
+          "dtype": "uint8"
+        },
+        "actin": {
+          "member": "BBBC007_v1_images/f96 (17)/17P1_POS0006_F_2UL.tif",
+          "sha256": "5abb80da6d746a74fac0f04075158d226664396f85eca9fcf0cb3b9d2aead71e",
+          "shape": [
+            400,
+            400,
+            3
+          ],
+          "dtype": "uint8"
+        },
+        "nuclear_outline": {
+          "member": "BBBC007_v1_outlines/f96 (17)/17P1_POS0006_D_1UL.tif",
+          "sha256": "66cf145171a04bfd959733c4d60807da8160410985ca70728fc37879bd7d4a7f",
+          "shape": [
+            400,
+            400
+          ],
+          "dtype": "bool"
+        },
+        "cell_outline": {
+          "member": "BBBC007_v1_outlines/f96 (17)/17P1_POS0006_F_2UL.tif",
+          "sha256": "ae9aabdf477f65750923c4e22561f2eaa88c989ea608df7d4bf200dbd7f99e9c",
+          "shape": [
+            400,
+            400
+          ],
+          "dtype": "bool"
+        }
+      },
+      "status": "failed",
+      "reason": "unsupported_rgb_or_multiaxis_source",
+      "error_type": "ValueError"
+    },
+    {
+      "field": "f9620",
+      "inputs": {
+        "dna": {
+          "member": "BBBC007_v1_images/f9620/20P1_POS0002_D_1UL.tif",
+          "sha256": "69b94ba95f8e57d7efff36bbd919aebe75dabd41a77f911ee48d75548a4cd1f0",
+          "shape": [
+            400,
+            400
+          ],
+          "dtype": "uint8"
+        },
+        "actin": {
+          "member": "BBBC007_v1_images/f9620/20P1_POS0002_F_2UL.tif",
+          "sha256": "b08057f704ed82ba1fa48f1d80d88275f847a34e18bca22ff877f62f3d6b0565",
+          "shape": [
+            400,
+            400
+          ],
+          "dtype": "uint8"
+        },
+        "nuclear_outline": {
+          "member": "BBBC007_v1_outlines/f9620/20P1_POS0002_D_1UL.tif",
+          "sha256": "ec36cadec8e9a1a7a890e7b68e222d109b3bb420f4a3661a5fd65461b0e247b1",
+          "shape": [
+            400,
+            400
+          ],
+          "dtype": "bool"
+        },
+        "cell_outline": {
+          "member": "BBBC007_v1_outlines/f9620/20P1_POS0002_F_2UL.tif",
+          "sha256": "d15d35bcadb35ef9d4e1ed0e3913bfc02d149b9cfdf208e7080cac0e2a494321",
+          "shape": [
+            400,
+            400
+          ],
+          "dtype": "bool"
+        }
+      },
+      "status": "passed",
+      "measurements": {
+        "detected_nuclei": {
+          "regions": 109,
+          "passed": true,
+          "offset_median": 20.0,
+          "maximum_absolute_errors": {
+            "area_px": 0,
+            "mean": 0.0,
+            "median": 0.0,
+            "integrated": 7.275957614183426e-12,
+            "mean_corrected": 7.105427357601002e-15,
+            "median_corrected": 0.0,
+            "integrated_corrected": 7.275957614183426e-12
+          }
+        },
+        "manual_nuclear_interiors": {
+          "regions": 101,
+          "passed": true,
+          "offset_median": 20.0,
+          "maximum_absolute_errors": {
+            "area_px": 0,
+            "mean": 0.0,
+            "median": 0.0,
+            "integrated": 7.275957614183426e-12,
+            "mean_corrected": 1.4210854715202004e-14,
+            "median_corrected": 0.0,
+            "integrated_corrected": 7.275957614183426e-12
+          }
+        },
+        "manual_cell_interiors": {
+          "regions": 105,
+          "passed": true,
+          "offset_median": 20.0,
+          "maximum_absolute_errors": {
+            "area_px": 0,
+            "mean": 0.0,
+            "median": 0.0,
+            "integrated": 7.275957614183426e-12,
+            "mean_corrected": 7.105427357601002e-15,
+            "median_corrected": 0.0,
+            "integrated_corrected": 7.275957614183426e-12
+          }
+        }
+      },
+      "offset_rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 15,
+        "height": 15
+      },
+      "contour_interior_comparison": {
+        "true_instances": 101,
+        "predicted_instances": 109,
+        "tp": 70,
+        "fp": 39,
+        "fn": 31,
+        "precision": 0.6422018348623854,
+        "recall": 0.693069306930693,
+        "f1": 0.6666666666666666,
+        "iou_threshold": 0.5
+      },
+      "engine": {
+        "engine": "Fiji / StarDist 2D / ImageJ / MorphoLibJ",
+        "java_version": "21.0.7",
+        "n_tiles": 1,
+        "model": "Versatile (fluorescent nuclei)",
+        "model_sha256": "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3",
+        "runtime_lock_sha256": "a449aebd0a0cf82cca81e86dfae1a0f17a06c50bc309aa7765bbd36e300cd4b3",
+        "bridge_sha256": "869b8f6984e510c89e22bc554adc2832f10e49c11083e3650818998adc302d3f",
+        "coordinate_transform": {
+          "scale_x": 1,
+          "scale_y": 1
+        },
+        "java_executable_sha256": "798ffec156ceb8cb1535bf68747d0ee3dfc1fc17dcd0b322f8027018404155c1"
+      }
+    }
+  ]
+}

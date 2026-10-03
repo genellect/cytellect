@@ -4,11 +4,17 @@ Reproducible immunofluorescence analysis, from nuclear and nucleolar segmentatio
 
 [日本語](README.ja.md) · [Requirements](docs/requirements.md) · [Methods](docs/methods.md) · [Validation](docs/validation.md)
 
-[Public sample viewer](https://cytellect.vercel.app/demo) · [Local browser delivery](docs/local.md) · [Hosting costs and trade-offs](docs/hosting-costs.ja.md)
+[Analysis planning](https://cytellect.vercel.app/plan) · [Public sample viewer](https://cytellect.vercel.app/demo) · [Local browser delivery](docs/local.md) · [Hosting costs and trade-offs](docs/hosting-costs.ja.md)
 
 **Early research prototype.** The Web/API/worker workflow is implemented and tested with published microscopy and independent numerical references. Suitability for the user's experiment and researcher PoC remain unvalidated. The public sample viewer uses published microscopy; a UI deployment does not imply an available analysis server.
 
 Cytellect brings DAPI nuclear segmentation, NCL nucleolar candidates, manual mask correction, GFP selection, compartment measurements, statistics and editable figures into one Japanese workspace. The initial engine is Fiji + StarDist/ImageJ/MorphoLibJ. Raw measurement pixels, display settings and detection preprocessing are separate.
+
+## Current improvement cycle
+
+The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The planning page explains applicable existing recipes and unresolved conditions without uploading images or automatically adopting a method. Arbitrary markers/regions are not yet available through the product API. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
+
+Source changes in this cycle include statistics1.2.2 and figure1.1.2. The currently published local.10 ZIP retains its previously recorded source and protocols until a new package passes installation acceptance.
 
 ## Windows preview
 
