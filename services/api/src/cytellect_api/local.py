@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -34,7 +35,12 @@ def installed_source_revision(root: Path | None = None) -> str | None:
     The manifest is not a code signature. Exported per-file/aggregate source
     hashes remain the identity of executed scientific code.
     """
-    root = root or Path(__file__).resolve().parents[4]
+    # Preserve the lexical wheel location so resolving a redirected package
+    # cannot turn wheel verification into source-only manifest inspection.
+    execution_file = Path(__file__).absolute()
+    root = root or execution_file.parents[4]
+    site_packages = root / ".venv/Lib/site-packages"
+    wheel_execution = execution_file == (site_packages / "cytellect_api/local.py").absolute()
     manifest = root / "local-release.json"
     if not manifest.is_file():
         return None
@@ -63,6 +69,30 @@ def installed_source_revision(root: Path | None = None) -> str | None:
             for file in directory.rglob("*.py"):
                 if file.relative_to(root).as_posix() not in entries:
                     return None
+            if wheel_execution:
+                # A normal wheel executes its site-packages copies. Identical
+                # source files elsewhere in the release are not sufficient.
+                installed = site_packages / directory.name
+                if installed.resolve() != installed.absolute():
+                    return None
+                expected = {name[len(relative) + 1:]: entry for name, entry in entries.items()
+                            if name.startswith(relative + "/") and name.endswith(".py")}
+                paths = list(installed.rglob("*"))
+                # Check directories too: rglob need not descend into a linked
+                # directory that could still supply an unrecorded Python module.
+                if any(file.resolve() != file.absolute() for file in paths):
+                    return None
+                actual = {file.relative_to(installed).as_posix(): file for file in paths
+                          if file.suffix.lower() == ".py"}
+                if actual.keys() != expected.keys():
+                    return None
+                for name, file in actual.items():
+                    if file.resolve() != file.absolute() or not file.is_file():
+                        return None
+                    content = file.read_bytes()
+                    if (len(content) != expected[name]["size"]
+                            or hashlib.sha256(content).hexdigest() != expected[name]["sha256"]):
+                        return None
         return revision
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -159,22 +189,23 @@ def runtime_lock(root: Path):
         raise ValueError("local_lock_path_invalid")
     stream = path.open("a+b")
     try:
-        stream.seek(0)
-        if sys.platform == "win32":
-            import msvcrt
-
-            if path.stat().st_size == 0:
-                stream.write(b"0")
-                stream.flush()
+        try:
             stream.seek(0)
-            msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
+            if sys.platform == "win32":
+                import msvcrt
 
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                if path.stat().st_size == 0:
+                    stream.write(b"0")
+                    stream.flush()
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise ValueError("local_runtime_already_in_use") from exc
         yield
-    except OSError as exc:
-        raise ValueError("local_runtime_already_in_use") from exc
     finally:
         stream.close()
 
@@ -205,6 +236,8 @@ class WorkerSupervisor:
 
     def _spawn(self):
         env = os.environ.copy()
+        if sys.dont_write_bytecode:
+            env["PYTHONDONTWRITEBYTECODE"] = "1"
         env.update(CYTELLECT_DATA_DIR=str(self.settings.data_dir),
                    CYTELLECT_APP_ORIGIN=self.settings.app_origin, CYTELLECT_SECURE_COOKIES="false",
                    CYTELLECT_DEMO=str(self.settings.demo).lower(),
@@ -322,10 +355,16 @@ def _gui(server, url: str, run_server, open_browser: bool):
     def stop():
         server.should_exit = True
         status.set("停止中…")
+        browser_button.configure(state="disabled")
+
+    def open_current_browser():
+        if server.started and not server.should_exit:
+            webbrowser.open(url)
 
     controls = ttk.Frame(body)
     controls.pack(fill="x")
-    ttk.Button(controls, text="ブラウザで開く", command=lambda: webbrowser.open(url)).pack(side="left")
+    browser_button = ttk.Button(controls, text="ブラウザで開く", command=open_current_browser, state="disabled")
+    browser_button.pack(side="left")
     ttk.Button(controls, text="停止して閉じる", command=stop).pack(side="right")
     window.protocol("WM_DELETE_WINDOW", stop)
     thread = threading.Thread(target=run_server, daemon=False)
@@ -334,9 +373,11 @@ def _gui(server, url: str, run_server, open_browser: bool):
 
     def tick():
         nonlocal opened
-        if server.started and not opened and not server.should_exit:
+        running = server.started and not server.should_exit and thread.is_alive()
+        browser_button.configure(state="normal" if running else "disabled")
+        if running and not opened:
             opened = True
-            status.set("起動中 · " + url)
+            status.set("稼働中 · " + url)
             if open_browser:
                 webbrowser.open(url)
         if not thread.is_alive():
@@ -416,6 +457,16 @@ def _report_startup_error(message: str, gui: bool):
         print(message, file=sys.stderr)
 
 
+def _gui_failure_message(error: Exception) -> str:
+    """Fixed user actions only; never expose exception text or filesystem paths."""
+    if isinstance(error, ValueError) and error.args == ("local_runtime_already_in_use",):
+        return "Cytellectは既に起動しています。開いているCytellectの画面をご利用ください。"
+    if isinstance(error, OSError) and (error.errno == errno.EADDRINUSE
+                                     or getattr(error, "winerror", None) == 10048):
+        return "接続先が使用中のため起動できません。起動済みのCytellectを確認し、見当たらない場合はPCの管理者にご相談ください。"
+    return "Cytellectを起動できないか、実行が停止しました。開き直しても続く場合は、セットアップを再実行してください。"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="cytellect local")
     parser.add_argument("--data-dir", type=Path, default=os.environ.get("CYTELLECT_DATA_DIR"))
@@ -427,7 +478,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if (not args.data_dir or not args.web_dir or not args.fiji or not 1 <= args.port <= 65535
             or not Path(args.fiji).exists()):
-        _report_startup_error("Cytellect installation is incomplete. Run the setup program again.", args.gui)
+        message = ("Cytellectの準備が完了していません。セットアップを再実行してください。" if args.gui else
+                   "Cytellect installation is incomplete. Run the setup program again.")
+        _report_startup_error(message, args.gui)
         raise SystemExit(2)
     settings = Settings(args.data_dir.resolve(), app_origin=f"http://127.0.0.1:{args.port}",
                         secure_cookies=False, fiji_executable=args.fiji)
@@ -437,8 +490,9 @@ def main(argv=None):
         os.environ["CYTELLECT_CODE_REVISION"] = revision
     try:
         run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui)
-    except Exception:
-        message = "Cytellect could not start or stopped. Check the local port, installation and runtime directory."
+    except Exception as exc:
+        message = (_gui_failure_message(exc) if args.gui else
+                   "Cytellect could not start or stopped. Check the local port, installation and runtime directory.")
         _report_startup_error(message, args.gui)
         raise SystemExit(1) from None
 

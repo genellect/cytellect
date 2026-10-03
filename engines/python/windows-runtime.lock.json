@@ -1,0 +1,115 @@
+{
+  "schema": "cytellect-windows-runtime/1",
+  "composition_version": "psf-3.14.8-tcltk-9.0.4-1",
+  "platform": "windows-x64",
+  "python": {
+    "version": "3.14.8",
+    "url": "https://www.python.org/ftp/python/3.14.8/python-3.14.8-amd64.zip",
+    "sha256": "4873947a8afc037846b180312b83c744a4146a851cfd316a75c3125a4d8299da",
+    "bytes": 32879974,
+    "expanded_bytes": 117742377,
+    "member_count": 2203,
+    "file_count": 2203,
+    "manifest_url": "https://www.python.org/ftp/python/3.14.8/windows-3.14.8.json",
+    "runtime_id": "pythoncore-3.14-64",
+    "launchers": [
+      {
+        "path": "python.exe",
+        "sha256": "434b361fe0c5960d404974feed493db47f2603a1ace2574312104fbed0182c6f"
+      },
+      {
+        "path": "pythonw.exe",
+        "sha256": "4e24680bce514188c85ae91323691dcb0364990da0d6319558519e50cbb5a43c"
+      },
+      {
+        "path": "Lib/venv/scripts/nt/venvlauncher.exe",
+        "sha256": "16a377d348c3a0c8d3a58d222d96807065dd0dcd9438c6025900c842ec836603"
+      },
+      {
+        "path": "Lib/venv/scripts/nt/venvwlauncher.exe",
+        "sha256": "350ecb713be24ece65dd923ccf5f2972ca5a6d8123891ba68271cf3f8cca2ed6"
+      }
+    ]
+  },
+  "parent_msi": {
+    "version": "3.14.8150.0",
+    "url": "https://www.python.org/ftp/python/3.14.8/amd64/tcltk.msi",
+    "sha256": "ba27c006fd142951af86413de7fe2ff76c96015128fa08f1070920b6d39ae658",
+    "bytes": 5427200
+  },
+  "script_archives": [
+    {
+      "id": "tcl",
+      "version": "9.0.4",
+      "url": null,
+      "parent_member": "tcl_libtcl9.0.4.zip",
+      "sha256": "8201f2d61a95fd725d6eac46a57813389f5096967a00969663160020d848104a",
+      "bytes": 1121107,
+      "prefix": "tcl_library/",
+      "target_prefix": "Lib/tcl9.0/",
+      "member_count": 839
+    },
+    {
+      "id": "tk",
+      "version": "9.0.4",
+      "url": null,
+      "parent_member": "tcl_libtk9.0.4.zip",
+      "sha256": "d99bc63cfa4f6c93f98808ec54f17be706b67e315968c1c9d82cf974828a8b70",
+      "bytes": 297208,
+      "prefix": "tk_library/",
+      "target_prefix": "Lib/tk9.0/",
+      "member_count": 90
+    }
+  ],
+  "members_manifest": {
+    "path": "engines/python/windows-tcltk-members.json",
+    "sha256": "75a60a64f99c94f6b6348534cc481f534cce4ec7c061ed4c7d9d6418be820ae0",
+    "member_count": 929
+  },
+  "notices": [
+    {
+      "scope": "base",
+      "path": "LICENSE.txt",
+      "bytes": 35407,
+      "sha256": "935cf13e19f8c31b497d20b05d73623431a226b230c3599bc30fa3348979bc68",
+      "license": "PSF and bundled component terms",
+      "source_url": "https://www.python.org/ftp/python/3.14.8/python-3.14.8-amd64.zip"
+    },
+    {
+      "scope": "scripts",
+      "path": "Lib/tcl9.0/license.terms",
+      "bytes": 2295,
+      "sha256": "41613eabfc08921a7da9c4bfd7f3ce5d5406f55214b253d89f392ed86eebeb8f",
+      "license": "Tcl",
+      "source_url": "https://www.python.org/ftp/python/3.14.8/amd64/tcltk.msi"
+    },
+    {
+      "scope": "scripts",
+      "path": "Lib/tk9.0/license.terms",
+      "bytes": 2307,
+      "sha256": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5",
+      "license": "Tcl",
+      "source_url": "https://www.python.org/ftp/python/3.14.8/amd64/tcltk.msi"
+    },
+    {
+      "scope": "scripts",
+      "path": "Lib/tk9.0/icons.tcl",
+      "bytes": 2434,
+      "sha256": "4481d4082609843e8efb04ac9e27a6970eac74602d0c7a4f684c7b7b03910552",
+      "license": "CC-BY-SA-4.0",
+      "source_url": "https://github.com/vinceliuice/vimix-icon-theme",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/"
+    }
+  ],
+  "data_asset": {
+    "path": "engines/python/windows-tcltk-9.0.4-data.zip",
+    "sha256": "7da2d5a874c90a5691925e7d1465dca9bf93d277476b8b99f35affdd3857ff54",
+    "bytes": 4777439,
+    "member_count": 931,
+    "manifest_path": "runtime-data.json",
+    "manifest_sha256": "771e747941ce02320cdedad00be21176762eaff2af3d7a2debc3b3cf8afbfbbe",
+    "notice_sha256": "132b1452accd444fe6e83b9334a555abe63e4ab77023b2298a681c19a0fc8d98",
+    "script_count": 929,
+    "expanded_bytes": 4651085
+  }
+}

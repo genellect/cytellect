@@ -9,18 +9,25 @@ import pytest
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell installer contract")
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_ASSETS = (
+    "scripts/windows_runtime.ps1", "engines/python/windows-runtime.lock.json",
+    "engines/python/windows-install.json", "engines/python/windows-requirements.txt",
+    "engines/python/windows-tcltk-9.0.4-data.zip",
+)
 
 
-def release_fixture(directory):
+def release_fixture(directory, payloads=None):
     directory.mkdir()
     files = []
-    for name in (
+    contents = {name: b"public installer boundary test\n" for name in (
         "pyproject.toml", "uv.lock", "scripts/fiji_setup.py",
         "services/api/src/cytellect_api/local.py", "engines/fiji/runtime.lock.json", "apps/web/out/index.html",
-    ):
+        *RUNTIME_ASSETS,
+    )}
+    contents.update(payloads or {})
+    for name, content in contents.items():
         target = directory / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        content = b"public installer boundary test\n"
         target.write_bytes(content)
         files.append({"path": name, "sha256": hashlib.sha256(content).hexdigest(), "size": len(content)})
     return {"schema": "cytellect-local-release/1", "platform": "windows-x64",
@@ -63,6 +70,22 @@ def test_release_rejects_unverified_or_unsafe_files(tmp_path, fault):
         manifest["files"][0]["path"] = "pyproject.toml:stream"
     else:
         manifest["platform"] = "unexpected-platform"
+    (source / "local-release.json").write_text(json.dumps(manifest))
+    result = verify(source, tmp_path / "installation")
+    assert result.returncode == 1
+    assert not (tmp_path / "installation").exists()
+    assert str(source) not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("asset", RUNTIME_ASSETS)
+@pytest.mark.parametrize("fault", ["omitted", "modified"])
+def test_new_runtime_assets_are_required_and_hash_verified_before_install(tmp_path, asset, fault):
+    source = tmp_path / "source"
+    manifest = release_fixture(source)
+    if fault == "omitted":
+        manifest["files"] = [entry for entry in manifest["files"] if entry["path"] != asset]
+    else:
+        (source / asset).write_bytes(b"changed runtime or installation input\n")
     (source / "local-release.json").write_text(json.dumps(manifest))
     result = verify(source, tmp_path / "installation")
     assert result.returncode == 1

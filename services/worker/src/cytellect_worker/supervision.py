@@ -128,7 +128,7 @@ def execute(store, settings, job):
             if not error and (process.returncode != 0 or not output.is_dir()):
                 error = "worker_process_failed"
             if not error:
-                relative = output.relative_to(store.root).as_posix()
+                relative = store.relative_path(output)
     except Exception:
         # DB/OS messages may contain private paths or submitted metadata.
         error = "worker_process_start_failed" if process is None else "worker_supervision_failed"
