@@ -44,3 +44,4 @@
 
 
 .planAdoption{padding:16px;margin:0 0 18px;border:1px solid #d9e4df;border-radius:6px;background:#f8faf8;display:grid;gap:12px}.planAdoption .sectionHeader{gap:12px}.planAdoption .sectionHeader a{font-size:12px}.planAdoption p{margin:0}.planResolution{display:grid;gap:12px;margin:16px 0;padding:20px;border:1px solid #c8ddd3;border-radius:6px;background:#f7faf7}.planResolution p{margin:0}@media(max-width:680px){.planResolution .formGrid{grid-template-columns:1fr}.planAdoption .sectionHeader{flex-wrap:wrap}}
+.planSummary{cursor:pointer;font-size:13px;font-weight:600;overflow-wrap:anywhere}.planResolution[open]>.planSummary{margin-bottom:16px}

@@ -184,6 +184,10 @@ previously accepted upload be recovered even at quota; a new over-quota request
 may consume one bounded temporary upload before rejection and cleanup. Other
 upload routes retain their previous pre-parse quota checks. Schema migration0002
 adds nullable identity and planning columns without rewriting existing records.
+Migration is forward-only: an older package whose migration history stops at0001
+cannot reopen the upgraded database. Keep a compatible package for recovery;
+do not erase the database or create an automatic research-data backup to force
+a rollback. Download needed results before changing the installed application.
 
 ### Evidence boundaries
 

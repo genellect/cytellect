@@ -26,7 +26,9 @@ MODULES = (
     "cytellect_analysis.regions", "cytellect_analysis.region_contracts", "cytellect_analysis.engine",
     "cytellect_analysis.region_comparison", "cytellect_analysis.unit_inference",
     "cytellect_analysis.region_comparison_figures", "cytellect_analysis.region_exports",
+    "cytellect_analysis.planning", "cytellect_analysis.plan_adoption",
     "cytellect_api.regions", "cytellect_api.region_comparisons", "cytellect_api.local",
+    "cytellect_api.planning",
     "cytellect_worker.regions", "cytellect_worker.region_comparisons",
     "numpy", "scipy", "pandas", "statsmodels", "matplotlib", "tifffile", "pydantic",
 )

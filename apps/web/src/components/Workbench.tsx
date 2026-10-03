@@ -91,7 +91,7 @@ export default function Workbench({id,session,onBack,onError}:Props){
   {(space.error||fields.error)&&<div className={styles.error} role="alert">{errorMessage(space.error||fields.error)}</div>}
   {tab==="analysis"&&<>
    <UploadPanel wid={id} demo={session.demo} run={run} onDone={recipeId=>{if(!fields.data?.length&&!active)change({recipe:{...config.recipe,id:recipeId}});void refresh();}}/>
-   <PlanResolutionPanel plan={space.data?.analysis_plan} recipe={config.recipe} options={planOptions} value={config.plan_resolution} blocked={blocked} onChange={value=>change({plan_resolution:value})}/>
+   <PlanResolutionPanel plan={space.data?.analysis_plan} recipe={config.recipe} options={planOptions} value={config.plan_resolution} blocked={blocked} saved={!!active?.config.plan_resolution&&!dirty} onChange={value=>change({plan_resolution:value})}/>
    {!!fields.data?.length&&<div className={styles.nextStep} aria-label="次の操作"><p>{nextStep.text}</p>{nextStep.action&&<button className={styles.secondary} disabled={blocked} onClick={followNextStep}>{nextStep.label} →</button>}</div>}
    {!fields.data?.length?<section className={styles.emptyWorkspace}><div className={styles.emptyIcon}>◉</div><h2>画像からはじめましょう。</h2><p>チャンネル別のTIFFを登録するか、合成データで一連の操作を試せます。</p><button className={styles.primary} disabled={blocked} onClick={()=>run(async()=>{const data=await post<{field_ids:string[];background_polygon:Point[]}>(`/v1/workspaces/${id}/synthetic`);setConfig(c=>({...c,backgrounds:Object.fromEntries(data.field_ids.map(fid=>[fid,{polygon:data.background_polygon,confirmed:true}]))}));setFieldId(data.field_ids[0]);setDirty(true);})}>合成データで試す</button><p className={styles.small}>6視野 / 2群 / 3独立反復。合成画像の操作検証であり、実画像の検出性能を示しません。</p></section>:
    <div className={styles.analysisGrid}>

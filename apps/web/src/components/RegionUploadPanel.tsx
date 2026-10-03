@@ -14,6 +14,7 @@ export default function RegionUploadPanel({wid,channels,maskSource,hasFields,run
  const [drafts,setDrafts]=useState<ChannelDraft[]>(()=>channels?.map(channel=>({id:channel.channel_id,label:channel.label,stain:channel.stain||"",confirmed:false,saturation:channel.acquisition_saturation_value===null?"":String(channel.acquisition_saturation_value),saturationConfirmed:false}))||[draft(0)]);
  const [metadata,setMetadata]=useState(blankMetadata);const [importLabels,setImportLabels]=useState(maskSource==="imported");const [calibrated,setCalibrated]=useState(false);const [sending,setSending]=useState(false);
  useEffect(()=>setImportLabels(maskSource==="imported"),[maskSource]);
+ useEffect(()=>{if(hasFields)setOpen(false);},[hasFields]);
  useEffect(()=>{if(hasFields&&channels){setDrafts(channels.map(channel=>({id:channel.channel_id,label:channel.label,stain:channel.stain||"",confirmed:false,saturation:channel.acquisition_saturation_value===null?"":String(channel.acquisition_saturation_value),saturationConfirmed:false})));setImportLabels(maskSource==="imported");}},[channels,hasFields,maskSource]);
  function update(index:number,value:Partial<ChannelDraft>){setDrafts(current=>current.map((channel,i)=>i===index?{...channel,...value}:channel));}
  async function upload(event:FormEvent<HTMLFormElement>){

@@ -33,6 +33,10 @@ for (const width of [1440, 390]) {
     await page.getByLabel("測定する蛍光チャンネル", { exact: true }).selectOption("other");
     await expect(page.getByRole("radio", { name: "核染色からの核検出・測定", exact:true })).toBeVisible();
     await expect(page.getByRole("radio", { name: "核内GFP解析", exact: true })).toHaveCount(0);
+    await page.getByLabel("測りたい量",{exact:true}).selectOption("area");
+    await page.getByLabel("GFPによる陽性選別",{exact:true}).selectOption("negative-control");
+    await page.getByLabel("陽性選別に使うチャンネル",{exact:true}).selectOption("gfp");
+    await expect(page.getByRole("radio", { name: "核内GFP解析", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 });
     await page.reload();
