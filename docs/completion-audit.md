@@ -108,6 +108,19 @@ the reviewed files. The canonical site's download-button update has its own
 subsequent PR/deployment check. A public UI release does not update an installed
 package. See the [package record](local-release-0.1.0.md).
 
+That subsequent publication passed PR #14's four required checks and merged as
+`ad898312dfef21508b02e33a088838e844778ca3`; all four main checks also passed in
+[run 37144236252](https://github.com/genellect/cytellect/actions/runs/37144236252).
+Vercel automatically published the same
+source as `dpl_AmyRBWg3dxam939sLWsEn3emtD5n` (production READY). Canonical browser
+checks at 1440/390 px verified the actual local.11 download against the ZIP hash
+above, the rendered main quickstart document, public image/value linkage and
+planning memo operations. Nine screenshots were inspected; no overflow,
+Cytellect console/page errors or private API requests occurred on those paths.
+Two scratch-harness locator failures were retained separately from the completed
+run. This verifies delivery and the public interface, not the researcher's PC or
+private scientific suitability. The package source remains `c21f9057…`.
+
 A separate same-source local rebuild could not finish installation because
 Smart App Control blocked an unsigned virtual-environment Python launcher.
 That machine is not counted as an accepted installation; no security policy was
@@ -119,3 +132,30 @@ reconciliation. M5 requires the intended operator and researcher task evaluation
 including correction time, understanding of measurement/n and reuse intent.
 Published-image, agent and browser checks cannot substitute for these gates.
 Future hosted private analysis retains its separate operational/privacy acceptance.
+
+## Source checkpoint — figure inspection and metadata protection
+
+- S11: a saved generic descriptive result exposes its individual measurements
+  and exact historical region/channel. Navigation verifies mask identity, waits
+  for revision/view updates, preserves drafts and cancels outstanding refreshes
+  before recovery. Area retains a null measurement channel.
+- I11: applying a shared acquisition date preserves each row's condition, sample,
+  unit and pairing. Populated replacements are previewed and the latest local
+  application can be undone without discarding subsequent edits or image mapping.
+- Numeric display preserves small nonzero values with five significant digits;
+  this changes no saved measurement, statistic or figure computation.
+- The unequal-replicate practice generator and Windows error-4551 classification
+  support researcher evaluation and installer diagnosis. Neither establishes
+  human usability or resolves the observed target-machine installation block.
+
+At this source checkpoint, 121 Web unit checks, type/lint/build and two focused
+browser cases passed. The browser cases cover registered public pixels,
+artificial navigation masks, historical source restoration, signed values,
+drafts, request failure/late-response recovery, same-field zoom/pan recovery and
+390-pixel batch layout. Five final screenshots were reviewed. Earlier failed
+attempts are retained, including an intermittent empty selection before the
+explicit view-update barrier; passing later checks is not a claim that every
+timing condition was reproduced. The independent practice tests and controlled
+Windows failure tests have separate receipts. Required CI, main publication and
+any new installed package remain separate gates. The public local.11 package
+does not change with this source increment; M4/M5 remain open.

@@ -14,7 +14,8 @@ export type DescriptiveResult = {
   counts: { observations: number; input_fields: number; selected_fields: number; excluded_failed_fields: number; experimental_units: null };
   selection: { input_rows: number; excluded: number; gate_unselected: number; missing_metric_selected: number };
   field_summary: Array<{ field_id: string; selected_rows: number; median: number | null; q1: number | null; q3: number | null; status: string }>;
-  source_fields: Array<{ field_id: string; region_set?: { label: string }; channel_provenance?: Array<{ channel: { channel_id: string; label: string; stain: string | null } }> }>;
+  plot_data?: Array<Record<string, unknown>>;
+  source_fields: Array<{ field_id: string; analysis_revision_id?:string; mask_sha256?:string; hash_format?:string; image_info?:{shape?:number[]}; region_set?: { label: string;region_set_id?:string;mask_revision_id?:string;source?:string }; channel_provenance?: Array<{ channel: { channel_id: string; label: string; stain: string | null } }> }>;
   excluded_failed_fields: Array<{ field_id: string; reason: string }>;
   figure: { source_files: string[] };
   warnings: string[];

@@ -113,6 +113,35 @@ The journal-size preset controls layout; it does not establish biological
 validity or journal acceptance. Figure-generation failure still fails its job;
 it does not erase source measurements or a previous successful output.
 
+## Inspecting a saved region measurement
+
+The generic-region workspace provides a paged **図に使った測定値** table beside
+the saved descriptive output. These are the server's selected `plot_data` values,
+including zero and negative values; the browser does not recompute them. The
+table can filter by the saved figure's field number. A field median is a summary,
+not an individual region, and the static PNG/SVG does not acquire a new
+click-to-region meaning.
+
+Browser numeric labels use up to five significant digits and exponential notation
+for nonzero magnitudes below 0.0001. Small signed values and p values must not
+appear as zero because of a fixed decimal-place limit. This is display formatting
+only: saved measurements, statistics and downloadable source values are unchanged.
+
+An image action verifies the saved analysis revision, field, region definition,
+mask revision, canonical array hash and region membership before opening the
+source. Intensity measurements restore their actual saved channel. Area has no
+measurement channel; the current available image channel is only a display
+choice. Reused masks may have an older mask revision than the measurement's
+analysis revision.
+
+Unsaved settings, polygons and coordinate drafts prevent the transition. The
+interface locks navigation while resolving the source, and a missing or
+mismatched source produces an error instead of selecting another region. A
+source notice is shown only while the displayed revision, channel and selected
+region still match it. This UI behavior does not change the descriptive or
+figure protocols. It is a source increment after local.11, requiring its own
+accepted package before it is available in the Windows download.
+
 ## Verification and limits
 
 `tests/test_descriptive.py` uses hand-computed signed intensities, area,

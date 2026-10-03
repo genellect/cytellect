@@ -11,6 +11,7 @@ import RegionBatchUploadPanel from "./RegionBatchUploadPanel";
 import DescriptivePanel from "./DescriptivePanel";
 import RegionComparisonPanel from "./RegionComparisonPanel";
 import PlanResolutionPanel,{planChanges} from "./PlanResolutionPanel";
+import {regionTraceMismatch,traceDisplayChannel,type RegionTraceTarget} from "@/lib/region-trace";
 import styles from "./workspace.module.css";
 
 const FieldCanvas=dynamic(()=>import("./FieldCanvas"),{ssr:false,loading:()=> <div className={styles.canvasLoading}>画像を準備しています…</div>});
@@ -22,27 +23,79 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
  const [busy,setBusy]=useState(false);const [tab,setTab]=useState("analysis");const [fieldId,setFieldId]=useState("");const [channelId,setChannelId]=useState("");
  const [config,setConfig]=useState<RegionConfig>({recipe:{...regionRecipe},backgrounds:{},exclusions:[]});const [dirty,setDirty]=useState(false);
  const [operation,setOperation]=useState<Operation>("select");const [selected,setSelected]=useState<number[]>([]);const [polygon,setPolygon]=useState<Point[]>([]);const [coordinates,setCoordinates]=useState("");const [gain,setGain]=useState(1);const [showMasks,setShowMasks]=useState(true);
+ const [pendingTrace,setPendingTrace]=useState<{target:RegionTraceTarget;channelId:string}|null>(null);const [traceError,setTraceError]=useState("");const [verifiedTrace,setVerifiedTrace]=useState<{target:RegionTraceTarget;channelId:string}|null>(null);
+ const [traceTransition,setTraceTransition]=useState(false);const [traceRecovery,setTraceRecovery]=useState(false);
+ const [appliedRevisionId,setAppliedRevisionId]=useState("");const [settledViewKey,setSettledViewKey]=useState("");
+ const [pendingField,setPendingField]=useState<{revisionId:string;fieldId:string}|null>(null);
+ const traceGuard=useRef(false);const draftRegion=polygon.length>0||coordinates.trim().length>0;
  const [reviewed,setReviewed]=useState(false);const [exclusionReason,setExclusionReason]=useState("");const [redoBranches,setRedoBranches]=useState<Record<string,string>>({});const [includeRaw,setIncludeRaw]=useState(false);const [deleteConfirmed,setDeleteConfirmed]=useState(false);
  const [nuclearConfirmed,setNuclearConfirmed]=useState(false);const [pendingScope,setPendingScope]=useState<"add"|"batch"|"redetect"|null>(null);const methodChosen=useRef(false);
- const space=useQuery({queryKey:["workspace",id],queryFn:()=>request<Workspace>(`/v1/workspaces/${id}`)});
- const fields=useQuery({queryKey:["region-fields",id],queryFn:()=>request<RegionField[]>(`/v1/workspaces/${id}/region-fields`)});
- const revisions=useQuery({queryKey:["revisions",id],queryFn:()=>request<RegionRevision[]>(`/v1/workspaces/${id}/revisions`)});
- const jobs=useQuery({queryKey:["jobs",id],queryFn:()=>request<Job[]>(`/v1/workspaces/${id}/jobs`),refetchInterval:query=>query.state.data?.some(job=>["queued","running"].includes(job.state))?1500:false});
+ const space=useQuery({queryKey:["workspace",id],queryFn:({signal})=>request<Workspace>(`/v1/workspaces/${id}`,{signal})});
+ const fields=useQuery({queryKey:["region-fields",id],queryFn:({signal})=>request<RegionField[]>(`/v1/workspaces/${id}/region-fields`,{signal})});
+ const revisions=useQuery({queryKey:["revisions",id],queryFn:({signal})=>request<RegionRevision[]>(`/v1/workspaces/${id}/revisions`,{signal})});
+ const jobs=useQuery({queryKey:["jobs",id],queryFn:({signal})=>request<Job[]>(`/v1/workspaces/${id}/jobs`,{signal}),refetchInterval:query=>query.state.data?.some(job=>["queued","running"].includes(job.state))?1500:false});
  const history=(revisions.data||[]).filter(revision=>revision.config.analysis_kind==="region-2d").toSorted((a,b)=>a.created-b.created);
  const active=history.find(revision=>revision.id===space.data?.active_revision);const index=history.findIndex(revision=>revision.id===active?.id);
  const effectiveFields=(fields.data||[]).map(item=>({...item,metadata:active?.config.field_snapshot?.[item.id]?.metadata||item.metadata}));
  const fid=fieldId||fields.data?.[0]?.id||"";const field=effectiveFields.find(item=>item.id===fid);const channels=field?.image_info.channels||[];const channel=channels.find(item=>item.channel_id===channelId)||channels[0];const cid=channel?.channel_id||"";
- const processing=(jobs.data||[]).some(job=>["queued","running"].includes(job.state));const blocked=busy||processing;const included=!!active?.config.field_ids?.includes(fid);
+ const viewKey=JSON.stringify([active?.id||"",fid,cid]);
+ const processing=(jobs.data||[]).some(job=>["queued","running"].includes(job.state));const blocked=busy||processing||!!pendingTrace;const included=!!active?.config.field_ids?.includes(fid);
+ useEffect(()=>{traceGuard.current=dirty||draftRegion||processing;},[dirty,draftRegion,processing]);
  const report=useQuery({queryKey:["region-measurements",active?.id],queryFn:()=>request<RegionReport>(`/v1/revisions/${active!.id}/region-measurements`),enabled:active?.state==="succeeded"});
- const masks=useQuery({queryKey:["region-masks",active?.id,fid],queryFn:()=>request<RegionMasks>(`/v1/revisions/${active!.id}/region-masks?field_id=${encodeURIComponent(fid)}`),enabled:active?.state==="succeeded"&&included});
+ const masks=useQuery({queryKey:["region-masks",active?.id,fid],queryFn:({signal})=>request<RegionMasks>(`/v1/revisions/${active!.id}/region-masks?field_id=${encodeURIComponent(fid)}`,{signal}),enabled:active?.state==="succeeded"&&included});
  const statusKey=(jobs.data||[]).map(job=>job.id+job.state).join("|");
  useEffect(()=>{void client.invalidateQueries({queryKey:["workspace",id]});void client.invalidateQueries({queryKey:["revisions",id]});},[statusKey,client,id]);
- useEffect(()=>{if(active&&loaded.current!==active.id){loaded.current=active.id;setConfig(current=>({...active.config,backgrounds:{...current.backgrounds,...active.config.backgrounds}}));setDirty(false);setReviewed(false);setSelected([]);setPolygon([]);setCoordinates("");setNuclearConfirmed(active.config.recipe.source==="stardist_nuclear");setPendingScope(null);}},[active]);
- useEffect(()=>{setSelected([]);setPolygon([]);setCoordinates("");},[fid,cid]);
+ useEffect(()=>{if(active&&loaded.current!==active.id){loaded.current=active.id;setConfig(current=>({...active.config,backgrounds:{...current.backgrounds,...active.config.backgrounds}}));setAppliedRevisionId(active.id);setDirty(false);setReviewed(false);setNuclearConfirmed(active.config.recipe.source==="stardist_nuclear");setPendingScope(null);}},[active]);
+ useEffect(()=>{setSelected([]);setPolygon([]);setCoordinates("");setSettledViewKey(viewKey);},[viewKey]);
  useEffect(()=>{setPolygon([]);setCoordinates("");},[operation]);
+ useEffect(()=>{
+  if(!pendingTrace)return;
+  const {target,channelId:displayChannel}=pendingTrace;
+  if(traceGuard.current){setPendingTrace(null);setTraceTransition(false);setTraceError("未保存の領域・設定があるため、画像への切り替えを中止しました。");return;}
+  // Wait for query refresh and the reset/config state to commit before applying the exact selection.
+  if(busy||active?.id!==target.revisionId||appliedRevisionId!==target.revisionId||settledViewKey!==viewKey||fid!==target.fieldId||cid!==displayChannel)return;
+  if(masks.isError){setPendingTrace(null);setTraceTransition(false);setTraceError("領域を読み込めませんでした。図の測定値からもう一度お試しください。");return;}
+  if(!masks.data||!field)return;
+  const mismatch=regionTraceMismatch(target,field,masks.data);
+  if(mismatch){setPendingTrace(null);setTraceTransition(false);setTraceError(mismatch);return;}
+  setSelected([target.regionId]);setOperation("select");setShowMasks(true);setPendingTrace(null);setTraceTransition(false);
+  setVerifiedTrace(pendingTrace);
+  editor.current?.scrollIntoView({behavior:"smooth",block:"center"});
+ },[pendingTrace,busy,active,appliedRevisionId,settledViewKey,viewKey,fid,cid,masks.data,masks.isError,field,channel]);
+ useEffect(()=>{
+  if(!pendingTrace||busy)return;
+  const timeout=setTimeout(()=>{void client.cancelQueries({queryKey:["region-masks",pendingTrace.target.revisionId,pendingTrace.target.fieldId]}).then(()=>{setPendingTrace(null);setTraceTransition(false);setTraceError("保存済みの領域を開けませんでした。図の測定値からもう一度お試しください。");});},15000);
+  return()=>clearTimeout(timeout);
+ },[pendingTrace,busy,client]);
+ useEffect(()=>{
+  if(!pendingField)return;
+  if(busy||active?.id!==pendingField.revisionId||appliedRevisionId!==pendingField.revisionId||settledViewKey!==viewKey||fid!==pendingField.fieldId)return;
+  if(masks.isError){setPendingField(null);setTraceTransition(false);setTraceError("保存済みの視野を読み込めませんでした。図の履歴からもう一度お試しください。");return;}
+  if(!masks.data)return;
+  setPendingField(null);setTraceTransition(false);editor.current?.scrollIntoView({behavior:"smooth",block:"center"});
+ },[pendingField,busy,active,appliedRevisionId,settledViewKey,viewKey,fid,masks.data,masks.isError]);
+ useEffect(()=>{
+  if(!pendingField||busy)return;
+  const timeout=setTimeout(()=>{void client.cancelQueries({queryKey:["region-masks",pendingField.revisionId,pendingField.fieldId]}).then(()=>{setPendingField(null);setTraceTransition(false);setTraceError("保存済みの視野を開けませんでした。図の履歴からもう一度お試しください。");});},15000);
+  return()=>clearTimeout(timeout);
+ },[pendingField,busy,client]);
  useEffect(()=>{if(!active&&!loaded.current&&!methodChosen.current&&fields.data?.[0])setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:fields.data[0].image_info.labels_array?"imported":"manual"}}));},[active,fields.data]);
  useEffect(()=>{const plan=space.data?.analysis_plan;if(!plan||active||methodChosen.current)return;const candidate=plan.decision.candidates.find(item=>item.id===plan.selected_candidate_id);if(candidate?.workflow!=="regions")return;methodChosen.current=true;setNuclearConfirmed(false);setConfig(current=>({...current,recipe:candidate.source==="stardist_nuclear"?{...regionRecipe,version:"1.1.0",source:"stardist_nuclear",defining_channel_id:"",nuclear_stain_confirmed:true,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.5,nms:.3,percentile_low:1,percentile_high:99.8}}:{...regionRecipe,source:candidate.source==="imported"?"imported":"manual"}}));},[space.data,active]);
  async function refresh(){await Promise.all([client.invalidateQueries({queryKey:["workspace",id]}),client.invalidateQueries({queryKey:["region-fields",id]}),client.invalidateQueries({queryKey:["revisions",id]}),client.invalidateQueries({queryKey:["jobs",id]})]);}
+ async function refreshNavigation(){
+  const keys=[["workspace",id],["region-fields",id],["revisions",id],["jobs",id]];
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{await Promise.race([Promise.all(keys.map(queryKey=>client.invalidateQueries({queryKey},{throwOnError:true}))),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error("navigation_refresh_timeout")),15000);})]);}
+  catch(error){await Promise.all(keys.map(queryKey=>client.cancelQueries({queryKey})));throw error;}
+  finally{if(timer)clearTimeout(timer);}
+ }
+ async function navigate(work:()=>Promise<void>){
+  setBusy(true);setTraceRecovery(false);onError("");let pending=false;
+  try{await work();pending=true;}catch(error){setPendingTrace(null);setPendingField(null);setTraceError(error instanceof Error&&!("code" in error)&&error.name!=="TimeoutError"?error.message:"保存済みの画像を開けませんでした。図の履歴からもう一度お試しください。");}
+  try{await refreshNavigation();if(!pending)setTraceTransition(false);}
+  catch{setPendingTrace(null);setPendingField(null);setTraceRecovery(true);setTraceError("採用中の解析版を確認できません。作業を開き直してください。");}
+  finally{setBusy(false);}
+ }
  async function act(work:()=>Promise<void>){setBusy(true);onError("");try{await work();await refresh();}catch(error){onError(errorMessage(error));}finally{setBusy(false);}}
  const run=(work:()=>Promise<void>)=>{void act(work);};
  function change(next:Partial<RegionConfig>){setConfig(current=>({...current,...next,...(next.recipe&&current.plan_resolution?{plan_resolution:{...current.plan_resolution,changes_acknowledged:false}}:{})}));setDirty(true);setReviewed(false);setPendingScope(null);}
@@ -70,20 +123,53 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
   await post(`/v1/workspaces/${id}/region-analyses`,{...payload(spec.field_ids),reuse_revision:spec.reuse_revision});setPendingScope(null);
  }
  async function adopt(revisionId:string){if(active?.parent_id===revisionId)setRedoBranches(current=>({...current,[revisionId]:active.id}));await post(`/v1/workspaces/${id}/current`,{revision_id:revisionId});}
+ function inspectRegion(target:RegionTraceTarget){
+  if(blocked||traceTransition||traceGuard.current)return;
+  setTraceTransition(true);
+  void navigate(async()=>{
+   setTraceError("");setVerifiedTrace(null);
+    const revision=history.find(item=>item.id===target.revisionId);const sourceField=fields.data?.find(item=>item.id===target.fieldId);
+    if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(target.fieldId)||!sourceField)throw Error("保存済みの解析版または視野を確認できません。図の履歴から選び直してください。");
+    const displayChannel=traceDisplayChannel(target,sourceField,cid);
+    if(!displayChannel)throw Error("保存済みの測定チャンネルを確認できません。図の履歴から選び直してください。");
+    const savedMasks=await request<RegionMasks>(`/v1/revisions/${target.revisionId}/region-masks?field_id=${encodeURIComponent(target.fieldId)}`,{signal:AbortSignal.timeout(15000)});
+    const mismatch=regionTraceMismatch(target,sourceField,savedMasks);if(mismatch)throw Error(mismatch);
+    if(traceGuard.current)throw Error("未保存の領域・設定があるため、画像への切り替えを中止しました。");
+    if(active?.id!==target.revisionId)await request(`/v1/workspaces/${id}/current`,{method:"POST",body:JSON.stringify({revision_id:target.revisionId}),signal:AbortSignal.timeout(15000)});
+    setFieldId(target.fieldId);setChannelId(displayChannel.channel_id);setTab("analysis");setPendingTrace({target,channelId:displayChannel.channel_id});
+  });
+ }
+ function inspectField(fieldId:string,revisionId:string){
+  if(blocked||traceTransition||traceGuard.current)return;
+  setTraceTransition(true);setVerifiedTrace(null);setTraceError("");
+  void navigate(async()=>{
+   try{
+    const revision=history.find(item=>item.id===revisionId);
+    if(!revision||revision.state!=="succeeded"||!revision.config.field_ids?.includes(fieldId)||!fields.data?.some(item=>item.id===fieldId))throw Error();
+    if(active?.id!==revisionId)await request(`/v1/workspaces/${id}/current`,{method:"POST",body:JSON.stringify({revision_id:revisionId}),signal:AbortSignal.timeout(15000)});
+    setFieldId(fieldId);setTab("analysis");setPendingField({revisionId,fieldId});
+   }catch{throw Error("保存済みの視野を開けませんでした。図の履歴からもう一度お試しください。");}
+  });
+ }
  function applyPolygon(){
-  if(operation==="background"){change({backgrounds:{...config.backgrounds,[fid]:{...config.backgrounds[fid],[cid]:{polygon,confirmed:true}}}});setPolygon([]);return;}
+  if(operation==="background"){change({backgrounds:{...config.backgrounds,[fid]:{...config.backgrounds[fid],[cid]:{polygon,confirmed:true}}}});setPolygon([]);setCoordinates("");return;}
   run(()=>saveEdit());
  }
- async function saveEdit(){if(!active||!masks.data)return;await post(`/v1/revisions/${active.id}/region-edits`,{field_id:fid,region_set_id:config.recipe.region_set_id,operation,ids:operation==="add"?[]:selected,polygon:["delete","merge"].includes(operation)?[]:polygon,expected_mask_revision_id:masks.data.metadata.mask_revision_id});setPolygon([]);setSelected([]);}
+ async function saveEdit(){if(!active||!masks.data)return;await post(`/v1/revisions/${active.id}/region-edits`,{field_id:fid,region_set_id:config.recipe.region_set_id,operation,ids:operation==="add"?[]:selected,polygon:["delete","merge"].includes(operation)?[]:polygon,expected_mask_revision_id:masks.data.metadata.mask_revision_id});setPolygon([]);setCoordinates("");setSelected([]);}
  function exclude(regionId:number|null){if(!exclusionReason.trim()){onError("除外理由を入力してください。");return;}change({exclusions:[...config.exclusions.filter(exclusion=>!(exclusion.field_id===fid&&exclusion.region_id===regionId)),{field_id:fid,region_id:regionId,reason:exclusionReason.trim()}]});}
  const scopeCount=active?.config.field_ids?.length||0;const remaining=(fields.data?.length||0)-scopeCount;
+ const traceVisible=verifiedTrace&&active?.id===verifiedTrace.target.revisionId&&fid===verifiedTrace.target.fieldId&&cid===verifiedTrace.channelId&&selected.length===1&&selected[0]===verifiedTrace.target.regionId&&showMasks&&!dirty&&!draftRegion&&field&&masks.data&&!regionTraceMismatch(verifiedTrace.target,field,masks.data);
  const message=processing?"処理を実行しています。完了後に領域と値を確認してください。":nextMissing?"測定するチャンネルごとに、信号を含まない背景を指定してください。":!active||!included?"背景を確認したら、代表視野の領域を用意します。":failures.length?"処理できなかった視野があります。背景・領域を修正するか、理由を記録して除外してください。":noRegions?"画像を囲んで測りたい領域を追加してください。":recipeChanged?"検出条件を変更しました。再作成する範囲と修正領域の扱いを確認してください。":dirty?"背景や除外の変更を再測定へ反映してください。":!active.reviewed?"領域と背景、測定値を確認してから図へ進みます。":remaining>0?`採用した領域を保持して、残り ${remaining} 視野を測定できます。`:"品質確認済みです。測定値の分布を図にできます。";
  function nextAction(){if(nextMissing){setFieldId(nextMissing.field.id);setChannelId(nextMissing.channel.channel_id);setOperation("background");editor.current?.scrollIntoView({behavior:"smooth",block:"center"});}else if(noRegions){setOperation("add");editor.current?.scrollIntoView({behavior:"smooth",block:"center"});}else if(active?.reviewed&&!dirty&&!remaining)setTab("figures");else values.current?.scrollIntoView({behavior:"smooth",block:"start"});}
  if(fields.isPending)return <main className={styles.workbench}><p>画像を確認しています…</p></main>;
  return <main className={styles.workbench}>
+  {traceError&&<div role="alert" className={styles.notice}>{traceError} {traceRecovery?<button className={styles.linkButton} onClick={onBack}>作業一覧へ戻る</button>:<button className={styles.linkButton} onClick={()=>setTraceError("")}>閉じる</button>}</div>}
+  {traceTransition&&!traceRecovery&&<div role="status" className={styles.notice}>保存済みの領域を開いています。{!busy&&(pendingTrace||pendingField)&&<button className={styles.linkButton} onClick={()=>{setPendingTrace(null);setPendingField(null);setTraceTransition(false);}}>中止</button>}</div>}
+  <div inert={traceTransition} aria-busy={traceTransition}>
   <div className={styles.workHeader}><div><button className={styles.back} onClick={onBack}>← 作業一覧</button><h1>{space.data?.title||"ワークスペース"}</h1><span className={styles.muted}>{fields.data?.length||0} 視野 · {active?`解析版 ${index+1} / 対象 ${scopeCount} 視野`:"解析前"} · {active?.reviewed?"品質確認済み":"品質確認前"}</span></div><div className={styles.workHeaderRight}><span className={styles.small}>有効期限 {space.data?new Date(space.data.expires*1000).toLocaleString("ja-JP"):"—"}</span><button className={styles.secondary} disabled={busy} onClick={()=>run(async()=>{await post(`/v1/workspaces/${id}/touch`);})}>保存期限を24時間延長</button></div></div>
   <nav className={styles.tabs} aria-label="解析工程"><button className={tab==="analysis"?styles.activeTab:""} onClick={()=>setTab("analysis")}>01 <b>画像と領域</b></button><button className={tab==="figures"?styles.activeTab:""} onClick={()=>setTab("figures")}>02 <b>分布と図</b></button><button className={tab==="comparison"?styles.activeTab:""} onClick={()=>setTab("comparison")}>03 <b>実験単位で比較</b></button><button className={tab==="export"?styles.activeTab:""} onClick={()=>setTab("export")}>04 <b>保存と履歴</b></button><span className={styles.tabStatus}>{processing?"● 処理中":dirty?"● 未反映の変更があります":"画像・領域・測定値を同じ解析版で保存します"}</span></nav>
   {(fields.error||space.error)&&<p role="alert" className={styles.error}>{errorMessage(fields.error||space.error)}</p>}
+  {traceVisible&&tab==="analysis"&&<p role="status" className={styles.notice}>図に記録された領域 {verifiedTrace.target.regionId} を表示しています。{verifiedTrace.target.channelId===null?`面積測定にはチャンネルを使用していません。表示: ${channel?.label||verifiedTrace.channelId}`:`測定チャンネル: ${verifiedTrace.target.channelLabel}`}</p>}
   {tab==="analysis"&&<>
    <RegionUploadPanel wid={id} channels={fields.data?.[0]?.image_info.channels} maskSource={fields.data?.length?(fields.data[0].image_info.labels_array?"imported":"manual"):config.recipe.source==="imported"?"imported":"manual"} hasFields={!!fields.data?.length} run={run} onDone={registered=>{setFieldId(registered.id);if(!fields.data?.length&&!active&&!methodChosen.current)setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:registered.image_info.labels_array?"imported":"manual"}}));}}/>
    <RegionBatchUploadPanel onInspect={()=>editor.current?.closest("section")?.scrollIntoView({behavior:"smooth",block:"start"})} wid={id} channels={fields.data?.[0]?.image_info.channels} maskSource={fields.data?.length?(fields.data[0].image_info.labels_array?"imported":"manual"):config.recipe.source==="imported"?"imported":"manual"} hasFields={!!fields.data?.length} run={run} onDone={registered=>{setFieldId(registered.id);if(!fields.data?.length&&!active&&!methodChosen.current)setConfig(current=>({...current,recipe:{...regionRecipe,label:current.recipe.label,source:registered.image_info.labels_array?"imported":"manual"}}));}}/>
@@ -132,12 +218,12 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
     <div className={styles.reviewBox}><label className={styles.checkbox}><input type="checkbox" checked={reviewed} onChange={event=>setReviewed(event.target.checked)}/>領域、チャンネルごとの背景、失敗・除外理由を確認しました。</label><button className={styles.primary} disabled={blocked||dirty||!reviewed||!hasRegions||!!failures.length||active.state!=="succeeded"||active.reviewed} onClick={()=>run(async()=>{await post(`/v1/revisions/${active.id}/review`,{});})}>品質確認を完了</button>{dirty&&<p className={styles.small}>変更を再測定へ反映してから確認してください。</p>}</div>
    </section>}
   </>}
-  {tab==="figures"&&<DescriptivePanel planSelection={active?.config.plan_resolution} revisionId={active?.id} reviewed={!!active?.reviewed} options={options} jobs={(jobs.data||[]).filter(job=>history.some(revision=>revision.id===job.revision_id))} blocked={blocked} dirty={dirty} run={run} fieldLabels={Object.fromEntries(effectiveFields.map((field,i)=>[field.id,`画像一覧の視野 ${i+1} · ${field.metadata.sample||"試料未記録"}`]))} revisionLabels={Object.fromEntries(history.map((revision,i)=>[revision.id,`解析版 ${i+1}`]))} onInspectField={(fieldId,revisionId)=>run(async()=>{if(active?.id!==revisionId)await adopt(revisionId);setFieldId(fieldId);setTab("analysis");})}/>}
-  {tab==="comparison"&&<RegionComparisonPanel key={active?.id||"no-revision"} revision={active} fields={availableFields} options={options} jobs={(jobs.data||[]).filter(job=>history.some(revision=>revision.id===job.revision_id))} blocked={blocked} dirty={dirty} run={run} onReview={()=>setTab("analysis")} revisionLabels={Object.fromEntries(history.map((revision,i)=>[revision.id,`解析版 ${i+1}`]))} onInspectField={(fieldId,revisionId)=>run(async()=>{if(active?.id!==revisionId)await adopt(revisionId);setFieldId(fieldId);setTab("analysis");})}/>}
+  {tab==="figures"&&<DescriptivePanel onInspectRegion={inspectRegion} traceBlocked={draftRegion} planSelection={active?.config.plan_resolution} revisionId={active?.id} reviewed={!!active?.reviewed} options={options} jobs={(jobs.data||[]).filter(job=>history.some(revision=>revision.id===job.revision_id))} blocked={blocked} dirty={dirty} run={run} fieldLabels={Object.fromEntries(effectiveFields.map((field,i)=>[field.id,`画像一覧の視野 ${i+1} · ${field.metadata.sample||"試料未記録"}`]))} revisionLabels={Object.fromEntries(history.map((revision,i)=>[revision.id,`解析版 ${i+1}`]))} onInspectField={inspectField}/>}
+  {tab==="comparison"&&<RegionComparisonPanel key={active?.id||"no-revision"} revision={active} fields={availableFields} options={options} jobs={(jobs.data||[]).filter(job=>history.some(revision=>revision.id===job.revision_id))} blocked={blocked} dirty={dirty} run={run} onReview={()=>setTab("analysis")} revisionLabels={Object.fromEntries(history.map((revision,i)=>[revision.id,`解析版 ${i+1}`]))} onInspectField={inspectField}/>}
   {tab==="export"&&<section className={styles.exportPage}><div className={styles.card}><h2>測定値と条件を保存</h2><p>測定表、領域、背景、Methodsと実行条件をまとめます。</p><label className={styles.checkbox}><input type="checkbox" checked={includeRaw} onChange={event=>setIncludeRaw(event.target.checked)}/>原画像もZIPへ含める</label><button className={styles.primary} disabled={blocked||dirty||!active?.reviewed} onClick={()=>run(async()=>{await post(`/v1/revisions/${active!.id}/export?include_raw=${includeRaw}`);})}>解析パッケージを生成</button>{exports.map(job=><div className={styles.downloadRow} key={job.id}><span>{job.revision_id===active?.id?"採用中の版":"旧版"} · {new Date(job.created*1000).toLocaleString("ja-JP")}</span><button onClick={()=>run(()=>download(`/v1/jobs/${job.id}/files/analysis.zip`,"cytellect-regions.zip"))}>ZIPを保存 ↓</button><button onClick={()=>run(()=>download(`/v1/jobs/${job.id}/files/methods.md`,"methods.md"))}>Methods ↓</button></div>)}</div>
    <div className={styles.card}><h2>解析版の履歴</h2>{history.map((revision,i)=><div className={styles.downloadRow} key={revision.id}><span>解析版 {i+1} · {revision.reviewed?"確認済み":"未確認"}{revision.id===active?.id?" / 採用中":""}</span><button disabled={blocked||revision.state!=="succeeded"||revision.id===active?.id} onClick={()=>run(()=>adopt(revision.id))}>この版を採用</button></div>)}</div>
    <div className={styles.card}><h2>作業を削除</h2><p>画像・領域・測定値へのアクセスを遮断し、実行を停止してから削除します。</p><label className={styles.checkbox}><input type="checkbox" checked={deleteConfirmed} onChange={event=>setDeleteConfirmed(event.target.checked)}/>必要な結果を保存しました。この作業を削除します。</label><button className={styles.danger} disabled={busy||!deleteConfirmed} onClick={()=>run(async()=>{await request(`/v1/workspaces/${id}`,{method:"DELETE"});onBack();})}>この作業を削除</button></div>
   </section>}
   {!!jobs.data?.length&&<details className={styles.jobs}><summary>処理履歴 · {processing?"実行中":"待機中"}</summary>{jobs.data.toSorted((a,b)=>b.created-a.created).map(job=><div key={job.id}><span>{job.kind==="analysis"?"領域・測定":job.kind==="statistics"?"図の生成":job.kind==="export"?"パッケージ":"処理"} / {job.state}{job.error&&` — ${errorCodeMessage(job.error)}`}</span>{["queued","running"].includes(job.state)&&<button onClick={()=>run(async()=>{await post(`/v1/jobs/${job.id}/cancel`);})}>中止</button>}{["failed","cancelled"].includes(job.state)&&<button disabled={blocked} onClick={()=>run(async()=>{await post(`/v1/jobs/${job.id}/retry`);})}>再試行</button>}</div>)}</details>}
- </main>;
+ </div></main>;
 }

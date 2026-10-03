@@ -76,6 +76,15 @@ Only the ZIP/checksum and small, separate acceptance receipts become workflow ar
 
 Passing these checks creates a **draft** GitHub prerelease; it does not automatically publish a download or certify private-image validity. Review actual installed/browser evidence and scientific limitations before publication. The local.11 release passed these gates on its recorded CI attempt; it does not retrospectively expand local.10's evidence. Existing versions must never be overwritten.
 
+The current source distinguishes Windows application-control rejection (native
+error4551, including a failed uv child launch) from an ordinary setup failure.
+It emits only `windows_application_control_blocked`, displays a concise Japanese
+explanation and stops repeated setup attempts in that window. Other failures and
+cancellation retain the ordinary retry path. Synthetic Windows process tests
+check classification and output redaction; they do not establish that a blocked
+dependency can run. This correction is not part of the immutable local.11 package
+and requires a separately accepted release. No OS protection is disabled.
+
 ## Later hosted execution
 
 Preserve the browser workflow and shared analysis packages. Hosted deployment adds a suitable persistent database, private artifacts, durable dispatch and same-origin/domain routing, with access/retention checks on the actual host. Cloud spend controls must not stop required deletion jobs. See [costs and trade-offs](hosting-costs.ja.md), [deployment](deployment.md) and [remaining gates](roadmap.md).
