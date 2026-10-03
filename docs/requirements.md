@@ -10,6 +10,9 @@ P03: DAPI nuclei + NCL nucleolar candidates, manual correction, GFP selection, N
 P04: Manual ROIs for extranuclear/whole-cell GFP. DAPI does not define cell boundaries. Numeric CSV import supports previously measured RNA/DNA assays.
 P05: UBF, RNA FISH, FRAP, 3D/time series, generic spots, automatic cell boundaries and instrument-specific quantification are later recipes.
 P06: Publication-ready means editable figures, explicit conditions, traceable measurements, reproducible outputs. Not p-value matching.
+P07: The 2026-10-03 extension centers general 2D fluorescence region detection, area/intensity measurement, statistics and figures. Preserve existing nuclear/NCL/GFP recipes and their limits; never transport another stain as GFP/NCL merely to bypass a contract. See [researcher workflow](research-workflow.md) for needs, sequencing and agent responsibilities.
+P08: Method support must explain applicability, needed controls, limitations and primary sources. Begin with a no-upload, rule-based planning guide. Unsupported methods are not executable suggestions. No product LLM or additional paid service is required for this phase.
+P09: Novice usability means task-oriented choices and a clear next action, with inspectable settings for specialists. Evaluate this through researcher tasks; visual polish and automated browser tests alone do not prove usability.
 
 ## Workflow and input
 
@@ -65,6 +68,7 @@ D04: M4 representative private images split by field/sample into tuning and eval
 D05: Corrected-mask measurement agreement with reference pixels essential; explain counts/legacy differences rather than force old significance.
 D06: M5 preferably >=3 researchers across labs evaluate completion/time/edit burden/understanding/reuse. Record operational metrics without research content.
 D07: Future Supabase identity/Postgres/private Storage adapters preserve owner IDs with verified guest transfer and RLS. Optional structured LLM method proposals require adoption before recipe execution; no arbitrary code/significance search. Mixed models/R/other segmentation/spots/3D later recipes. Teams/retention/billing depend on PoC evidence.
+D08: Independent scientific reviews record the source, scientific question, reference calculation, applicable data, failures, change/version, reviewer and rerun evidence. CI must distinguish passed numerical checks from missing/skipped checks and from unmeasured biological applicability. Private-data or human-evaluation gates do not stop independent public-data or UX improvement.
 
 ## Published-image and figure extensions
 

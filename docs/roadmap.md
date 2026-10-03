@@ -1,5 +1,7 @@
 # Implementation and remaining gates
 
+The active 2026-10-03 improvement sequence is recorded in [Researcher workflow](research-workflow.md): purpose-first LP/planning, generic 2D region/channel contracts, guided workspace, independent repeated review, then researcher acceptance. This work proceeds alongside the remaining private-data gates below. No historical release evidence is retrospectively relabeled.
+
 This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).
 
 The [requirement coverage audit](completion-audit.md) maps the implemented workflow, regression corrections and remaining private/human/hosted acceptance. Later source fixes do not retroactively change accepted release evidence.

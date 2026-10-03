@@ -1,0 +1,89 @@
+{
+  "version": "1.0.0",
+  "scope": "Independent numerical and contract regression; not biological or usability certification",
+  "references": {
+    "waters-2009": "https://doi.org/10.1083/jcb.200903097",
+    "kodiha-2011": "https://doi.org/10.1186/1471-2121-12-25",
+    "lazic-2018": "https://doi.org/10.1371/journal.pbio.2005282",
+    "superplots-2020": "https://doi.org/10.1083/jcb.202001064",
+    "schmied-2024": "https://doi.org/10.1038/s41592-023-01987-9",
+    "nature-final-artwork": "https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/"
+  },
+  "checks": [
+    {
+      "id": "pixels-and-compartments",
+      "question": "Do original pixels, background correction and complementary regions yield the declared measurements?",
+      "tests": [
+        "tests/test_measurement.py",
+        "tests/test_mask_invariants.py",
+        "tests/test_signal_qc.py"
+      ],
+      "references": [
+        "waters-2009",
+        "kodiha-2011"
+      ],
+      "limit": "Known numerical fixtures and region invariants do not validate segmentation on a new biological sample."
+    },
+    {
+      "id": "independent-inference",
+      "question": "Do contrasts, uncertainty and clustering agree with independent equations, including scale changes?",
+      "tests": [
+        "tests/test_statistics_reference.py",
+        "tests/test_statistics.py",
+        "tests/test_statistics_outputs.py"
+      ],
+      "references": [
+        "lazic-2018",
+        "superplots-2020"
+      ],
+      "limit": "Algebraic agreement cannot establish experimental independence or remove acquisition and selection bias."
+    },
+    {
+      "id": "traceable-figures",
+      "question": "Are vector figures source-linked and readable within the supported geometry checks?",
+      "tests": [
+        "tests/test_nature_figures.py",
+        "tests/test_methods_channels.py"
+      ],
+      "references": [
+        "schmied-2024",
+        "nature-final-artwork"
+      ],
+      "limit": "Geometry checks are not an expert review of every legend, label collision or scientific interpretation."
+    },
+    {
+      "id": "public-input-boundaries",
+      "question": "Are registered public-image parsing, numerical-reference and metadata failure paths preserved?",
+      "tests": [
+        "tests/test_public_bbbc007.py",
+        "tests/test_public_bbbc013.py",
+        "tests/test_public_bbbc039.py",
+        "tests/test_public_ncl_reference.py"
+      ],
+      "references": [
+        "waters-2009",
+        "schmied-2024"
+      ],
+      "limit": "These are local regression fixtures. Actual downloaded images, Fiji runtime and external ImageJ measurements require their separate run receipts."
+    },
+    {
+      "id": "generic-region-measurement",
+      "question": "Can explicitly named channels and original-coordinate regions be measured without false biological labels or assumed calibration?",
+      "tests": [
+        "tests/test_regions.py"
+      ],
+      "references": [
+        "waters-2009",
+        "schmied-2024"
+      ],
+      "limit": "Independent primitive only; API, workflow adoption and new marker-specific detection remain separate acceptance."
+    }
+  ],
+  "separate_gates": [
+    "Pinned real Fiji integration and protected browser workflow",
+    "Source-hashed public raw-image runs with independent ImageJ measurements",
+    "Private field/sample-separated evaluation and legacy reconciliation",
+    "Expert and novice researcher usability sessions",
+    "Actual installed release and canonical production browser verification"
+  ]
+}

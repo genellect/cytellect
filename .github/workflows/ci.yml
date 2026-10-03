@@ -22,7 +22,18 @@ jobs:
       - run: uv sync --locked --dev
       - run: uv run ruff check .
       - run: uv run mypy packages/analysis/src services
-      - run: uv run pytest -m "not fiji"
+      - run: uv run pytest tests -m "not fiji" --junitxml=/tmp/cytellect-scientific-tests.xml --scientific-collection=/tmp/cytellect-scientific-collection.json
+      - name: Independent scientific regression receipt
+        if: always()
+        run: uv run python scripts/scientific_review.py --junit /tmp/cytellect-scientific-tests.xml --collection /tmp/cytellect-scientific-collection.json --output /tmp/cytellect-compliance/scientific-review.json --source-commit "${{ github.sha }}"
+      - name: Retain scoped scientific evidence without raw logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scientific-review
+          path: /tmp/cytellect-compliance/scientific-review.json
+          if-no-files-found: error
+          retention-days: 14
       - run: uv run python scripts/check_public_tree.py
       - run: uv run python scripts/check_docs.py
       - name: Scan complete history and tracked files with pinned Gitleaks
@@ -110,6 +121,20 @@ jobs:
       - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
       - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64
       - run: uv run pytest -m fiji
+      - name: Published DNA-actin inputs and independent ImageJ arithmetic
+        timeout-minutes: 10
+        run: |
+          uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --download
+          uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --evaluate /tmp/cytellect-bbbc007-run --fiji /tmp/cytellect-fiji
+          uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --check-report /tmp/cytellect-bbbc007-run/benchmark.json
+      - name: Retain public-image execution summary only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-bbbc007-execution
+          path: /tmp/cytellect-bbbc007-run/benchmark.json
+          if-no-files-found: error
+          retention-days: 14
       - run: pnpm build
       - name: Browser workflow against real API and Fiji
         run: |

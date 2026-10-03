@@ -1,0 +1,66 @@
+{
+  "dataset": "BBBC007v1",
+  "source": "https://bbbc.broadinstitute.org/BBBC007",
+  "license": "CC0-1.0",
+  "license_basis": "Official dataset copyright waiver by Anne Carpenter",
+  "attribution": "David Sabatini laboratory images; Chris Gang manual nuclear/cell outlines; Jones, Carpenter and Golland, CVBIA 2005; Ljosa et al., Nature Methods 2012",
+  "publication": "https://carpenter-singh-lab.broadinstitute.org/files/anne/files/16-Jones_Propagate_2005.pdf",
+  "selection": "First DNA filename in lexicographic order within each source folder; four fields fixed before inference, no replacement of unsupported fields",
+  "channels": {
+    "dna": "DNA stain; chemical identity not supplied",
+    "actin": "Actin stain; chemical identity not supplied"
+  },
+  "source_format_caveat": "Official description says grayscale 8-bit TIFF. Two selected source pairs actually encode nonidentical RGB channels. Strict grayscale verification rejects them; no RGB conversion or stain relabelling.",
+  "native_intensity_caveat": "These are official archival TIFFs, not verified camera-native radiometric data.",
+  "training_overlap": "unknown; independent holdout performance not claimed",
+  "archives": {
+    "BBBC007_v1_images.zip": {
+      "url": "https://data.broadinstitute.org/bbbc/BBBC007/BBBC007_v1_images.zip",
+      "bytes": 6435776,
+      "sha256": "b7009e2fce0a3152a5c9adda916eaa699d09696f4bd02a7d05d12d041e30c6d1"
+    },
+    "BBBC007_v1_outlines.zip": {
+      "url": "https://data.broadinstitute.org/bbbc/BBBC007/BBBC007_v1_outlines.zip",
+      "bytes": 652531,
+      "sha256": "6a5246f9a9d743d22eafdb409fae638a8461af97e9ff9c4a92f25eba236224d3"
+    }
+  },
+  "fields": [
+    {
+      "id": "a9",
+      "members": {
+        "dna": "BBBC007_v1_images/A9/A9 p10d.tif",
+        "actin": "BBBC007_v1_images/A9/A9 p10f.tif",
+        "nuclear_outline": "BBBC007_v1_outlines/A9/A9 p10d.tif",
+        "cell_outline": "BBBC007_v1_outlines/A9/A9 p10f.tif"
+      }
+    },
+    {
+      "id": "f113",
+      "members": {
+        "dna": "BBBC007_v1_images/f113/AS_09125_040701150004_A02f00d0.tif",
+        "actin": "BBBC007_v1_images/f113/AS_09125_040701150004_A02f00d1.tif",
+        "nuclear_outline": "BBBC007_v1_outlines/f113/AS_09125_040701150004_A02f00d0.tif",
+        "cell_outline": "BBBC007_v1_outlines/f113/AS_09125_040701150004_A02f00d1.tif"
+      }
+    },
+    {
+      "id": "f96_17",
+      "members": {
+        "dna": "BBBC007_v1_images/f96 (17)/17P1_POS0006_D_1UL.tif",
+        "actin": "BBBC007_v1_images/f96 (17)/17P1_POS0006_F_2UL.tif",
+        "nuclear_outline": "BBBC007_v1_outlines/f96 (17)/17P1_POS0006_D_1UL.tif",
+        "cell_outline": "BBBC007_v1_outlines/f96 (17)/17P1_POS0006_F_2UL.tif"
+      }
+    },
+    {
+      "id": "f9620",
+      "members": {
+        "dna": "BBBC007_v1_images/f9620/20P1_POS0002_D_1UL.tif",
+        "actin": "BBBC007_v1_images/f9620/20P1_POS0002_F_2UL.tif",
+        "nuclear_outline": "BBBC007_v1_outlines/f9620/20P1_POS0002_D_1UL.tif",
+        "cell_outline": "BBBC007_v1_outlines/f9620/20P1_POS0002_F_2UL.tif"
+      }
+    }
+  ]
+}

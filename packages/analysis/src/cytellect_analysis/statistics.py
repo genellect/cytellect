@@ -10,7 +10,7 @@ from statsmodels.stats.multitest import multipletests
 
 from .contracts import StatisticsRequest
 
-STATISTICS_VERSION = "1.2.1"
+STATISTICS_VERSION = "1.2.2"
 AGGREGATION = "field median -> mean of fields within sample -> mean of samples within independent unit"
 
 
@@ -276,9 +276,14 @@ def analyze(rows, request: StatisticsRequest):
                 va, vb = pairs[f"{metric}_a"].to_numpy(), pairs[f"{metric}_b"].to_numpy()
                 if len(va) < 2:
                     raise ValueError("two_pairs_required")
-                if np.std(va - vb, ddof=1) <= np.finfo(float).eps * max(1., float(np.max(np.abs(va - vb)))):
+                differences = va - vb
+                difference_sd = float(np.std(differences, ddof=1))
+                # This relative tolerance must carry the measurement's units.
+                # A floor of 1 would reject valid small-valued concentrations.
+                if difference_sd <= np.finfo(float).eps * float(np.max(np.abs(differences))):
                     raise ValueError("comparison_not_estimable")
                 test = stats.ttest_rel(va, vb)
+                standard_error = difference_sd / np.sqrt(len(va))
                 method = "paired t-test"
             else:
                 if set(aa.experimental_unit) & set(bb.experimental_unit):
@@ -289,6 +294,8 @@ def analyze(rows, request: StatisticsRequest):
                 if np.var(va, ddof=1) + np.var(vb, ddof=1) == 0:
                     raise ValueError("comparison_not_estimable")
                 test = stats.ttest_ind(va, vb, equal_var=False)
+                standard_error = np.hypot(np.std(va, ddof=1) / np.sqrt(len(va)),
+                                          np.std(vb, ddof=1) / np.sqrt(len(vb)))
                 method = "Welch t-test"
             ci = test.confidence_interval()
             if not np.isfinite([test.pvalue, ci.low, ci.high]).all():
@@ -297,7 +304,7 @@ def analyze(rows, request: StatisticsRequest):
                                 "ci_low": float(ci.low), "ci_high": float(ci.high),
                                 "p_value": float(test.pvalue), "method": method,
                                 "statistic": float(test.statistic), "degrees_of_freedom": float(test.df),
-                                "standard_error": float((ci.high - ci.low) / (2 * stats.t.ppf(.975, test.df))),
+                                "standard_error": float(standard_error),
                                 "alternative": "two-sided", "confidence_level": .95,
                                 "n_a": len(va), "n_b": len(vb), "n_unit": "independent experimental units"})
         for group, values in units.groupby("condition", observed=True)[metric]:

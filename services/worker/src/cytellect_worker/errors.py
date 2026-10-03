@@ -133,5 +133,7 @@ SAFE_ERRORS = frozenset(
         "japanese_font_not_installed",
         "sans_serif_font_not_installed",
         "figure_font_glyphs_unavailable",
+        "figure_labels_overlap",
+        "figure_text_outside_canvas",
     }
 )

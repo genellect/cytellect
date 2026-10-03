@@ -18,6 +18,8 @@ Inspect Git status. Preserve user work and original research outputs.
 - The API and analysis package own numeric results; never calculate authoritative measurements in the browser.
 
 ## Development
+- Follow docs/research-workflow.md for the active product goal, agent ownership and review loop. Start from a researcher decision, not a parameter or fashionable technology. Do not claim Fiji lacks a capability without checking its actual tools.
+- Distinguish literature-informed need hypotheses from observed Cytellect user needs. Independent review must report evidence scope, failures and missingness; a green build or matching p-value never establishes biological validity.
 - Codex Cloud is the default code environment. Use synthetic numerical fixtures and registered public datasets only. Local execution is permitted for setup and verification, especially the private validation boundary.
 - Pin dependencies and model hashes. Review licenses separately for code, weights and data.
 - No runtime package/model downloads, arbitrary submitted code/macros or remote image URLs.

@@ -30,6 +30,8 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ figure_labels_overlap:"条件名や目盛りが重なっています。図の幅を広げるか、ラベルを短くしてください。",
+ figure_text_outside_canvas:"図中の文字が枠からはみ出します。図の高さ・幅またはラベルを調整してください。",
  region_sensitivity_requires_native_ncl:"核小体領域の感度解析には通常NCLレシピの解析版を選択してください。",
  region_sensitivity_fields_differ:"比較する解析版の対象視野が異なります。同じ視野を使った解析版を選択してください。",
  region_sensitivity_inputs_or_metadata_differ:"比較する解析版の原画像または実験情報が異なります。",

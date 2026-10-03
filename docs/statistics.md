@@ -1,12 +1,14 @@
 # Statistical and export protocol
 
-Protocol version **1.2.1** corrects persisted GFP-threshold sensitivity provenance without changing selection arithmetic or statistical formulas. Version 1.2.0 introduced the validation, reference coding and sample-selection rules below. This is a software protocol, not a claim of validation on private images.
+Protocol version **1.2.2** makes the paired-difference degeneracy check invariant to measurement units and calculates reported t-test standard errors directly from the selected unit values. Version 1.2.1 corrected persisted GFP-threshold sensitivity provenance without changing selection arithmetic or statistical formulas. Version 1.2.0 introduced the validation, reference coding and sample-selection rules below. This is a software protocol, not a claim of validation on private images.
 
 ## Unit comparisons
 
 A field contributes its median selected measurement. Fields are averaged within each sample; samples are averaged within an independent experimental unit. Cell count cannot increase the weight of a field. Users must confirm independent experimental units.
 
 Unpaired comparisons use Welch's t test and require at least two units per group. The same unit ID in two compared groups requires an explicitly paired design. Paired t tests require one complete, unique pair mapping per unit, with at least two pairs. Zero-variance paired differences or wholly constant unpaired data are reported as not estimable. No epsilon is added to create a p value.
+
+The paired near-zero-variance tolerance is relative to the absolute scale of the paired differences; it has no absolute floor tied to a particular measurement unit. Version 1.2.1 and earlier could wrongly reject nonconstant differences when values were expressed in very small units. Reported paired standard error is the sample standard deviation of paired differences divided by the square root of the number of pairs; Welch standard error is the square root of the sum of the two variance-of-mean estimates. They are not reconstructed from rounded confidence-interval endpoints, which could previously lose precision for large effects. Tests, selection, aggregation and confidence-interval definitions are unchanged. Recompute affected small-valued or large-effect exports using 1.2.2; previous exports are not rewritten.
 
 Planned differences are group A minus group B. Holm correction applies to the explicit comparison list. Baseline comparisons and repeat-group comparisons must be separate jobs/families; reversed duplicates are rejected. Individual 95% confidence intervals are not simultaneous family-wise intervals. All tests are two-sided. Outputs include the exact statistic, degrees of freedom, standard error, confidence level and raw/adjusted p values. Groupwise missingness shows whether selection removes entire fields or units.
 
@@ -47,6 +49,8 @@ Each numerical statistics job provides a private reproducibility ZIP containing 
 ## Figures
 
 Matplotlib writes PNG plus SVG with editable text and PDF with embedded TrueType text. A Japanese-capable font is required for Japanese labels; missing fonts are a clear error. Linux runtime must install fonts-noto-cjk. Plot-data, field-summary, experimental-unit and comparison CSVs accompany each figure.
+
+Figure protocol **1.1.2** checks the rendered regular-font geometry before writing figure files. Overlapping axis tick labels or text extending outside the canvas are rejected with a request to widen/enlarge the figure or shorten the labels. The exporter never shrinks text below the selected size or changes the data to make it fit. This detects specific layout failures; it does not replace visual review of the finished figure. The 89/183 mm presets follow Nature's [final figure production guide](https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/), checked 2026-10-03. Nature's [general formatting guide](https://www.nature.com/nature/for-authors/formatting-guide) separately gives approximate 90/180 mm guidance. The current presets retain their explicit 89/183 mm dimensions; they do not assert full journal acceptance.
 
 Distribution plots distinguish observations, field medians, independent units, and mean/95% CI. Exploratory adjusted means are labeled separately from unadjusted unit points. Exploratory scatter lines and pointwise 95% mean intervals use the exact fitted group/GFP/date model and field-clustered CRV1 covariance, evaluated at equal weights across acquisition dates. The x axis is within-date median-centered log2 GFP; observed y values remain unadjusted and the prediction is explicitly date-adjusted. Experimental-unit-mode scatter shows points without an inferential line or interval. Counts show observations, fields and independent units.
 

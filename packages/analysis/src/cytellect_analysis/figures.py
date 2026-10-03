@@ -18,7 +18,7 @@ from matplotlib.text import Text
 
 from .exports_csv import write_csv
 
-FIGURE_VERSION = "1.1.1"
+FIGURE_VERSION = "1.1.2"
 COLORS = ["#0072b2", "#d55e00", "#009e73", "#cc79a7", "#e69f00", "#56b4e9", "#000000"]
 MARKERS = ["o", "s", "^", "v", "P", "X", "D", "<", ">"]
 LABELS = {
@@ -182,6 +182,34 @@ def figure_settings(plot):
             "line_width_pt": .6, "png_dpi": 300}
 
 
+def _validate_text_layout(figure, axes):
+    """Reject demonstrably unreadable labels before publishing figure files."""
+    figure.canvas.draw()
+    renderer = figure.canvas.get_renderer()
+    omitted_tick_labels = set()
+    for axis in (axes.xaxis, axes.yaxis):
+        lower, upper = sorted(axis.get_view_interval())
+        drawn_labels = []
+        for tick in axis.get_major_ticks():
+            for label in (tick.label1, tick.label2):
+                if not lower <= tick.get_loc() <= upper:
+                    omitted_tick_labels.add(label)
+                elif label.get_visible() and label.get_text():
+                    drawn_labels.append(label)
+        boxes = [label.get_window_extent(renderer) for label in drawn_labels]
+        if any(left.overlaps(right) for index, left in enumerate(boxes) for right in boxes[index + 1:]):
+            raise ValueError("figure_labels_overlap")
+    canvas = figure.bbox
+    for label in figure.findobj(match=Text):
+        if not label.get_visible() or not label.get_text() or label in omitted_tick_labels:
+            continue
+        box = label.get_window_extent(renderer)
+        # One display pixel tolerates backend/font rounding at the canvas edge.
+        if (box.x0 < canvas.x0 - 1 or box.y0 < canvas.y0 - 1
+                or box.x1 > canvas.x1 + 1 or box.y1 > canvas.y1 + 1):
+            raise ValueError("figure_text_outside_canvas")
+
+
 def _caption(result, note):
     lines = ["# Figure legend", "", note, "",
              "Aggregation: field median → mean of fields within sample → mean of samples within independent unit.",
@@ -231,7 +259,7 @@ def render_figures(result, output: Path):
           "axes.unicode_minus": False, "axes.linewidth": .6,
           "lines.linewidth": .6, "xtick.major.width": .6, "ytick.major.width": .6,
           "xtick.major.size": 2.5, "ytick.major.size": 2.5, "text.color": "black",
-          "svg.hashsalt": "cytellect-figure-v1.1.1", "savefig.facecolor": "white"}):
+          "svg.hashsalt": "cytellect-figure-v" + FIGURE_VERSION, "savefig.facecolor": "white"}):
         fig, ax = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
         rng = np.random.default_rng(0)
         try:
@@ -337,6 +365,7 @@ def render_figures(result, output: Path):
                 properties.set_family(font)
                 properties.set_weight(selected_font.weight)
                 item.set_fontproperties(properties)
+            _validate_text_layout(fig, ax)
             for suffix in ("svg", "pdf", "png"):
                 metadata: dict[str, str | None] = {"Creator": "Cytellect " + FIGURE_VERSION}
                 if suffix == "pdf":

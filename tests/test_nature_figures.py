@@ -184,7 +184,7 @@ def test_actual_font_file_weight_glyphs_and_private_metadata(tmp_path, monkeypat
     meta = render_figures(data, tmp_path)
     selected = selected_faces[0]
     assert all(face == selected for face in selected_faces)
-    assert recorded_paths and meta["figure_version"] == "1.1.1"
+    assert recorded_paths and meta["figure_version"] == "1.1.2"
     assert meta["font_metadata"] == selected.metadata()
     encoded = (tmp_path / "figure-data.json").read_text(encoding="utf-8")
     source = json.loads(encoded)
@@ -202,3 +202,31 @@ def test_missing_glyph_fails_before_any_figure_is_published(tmp_path):
     with pytest.raises(ValueError, match="figure_font_glyphs_unavailable"):
         figures.render_figures(data, tmp_path)
     assert not list(tmp_path.glob("figure.*"))
+
+
+def crowded_result():
+    names = [f"Condition {index:02d} measurement" for index in range(8)]
+    rows = [{"condition": name, "experimental_unit": f"u{group}-{unit}",
+             "sample": f"s{group}-{unit}", "field_id": f"f{group}-{unit}",
+             "acquisition_date": "date", "value": group + unit * .3 + cell * .2}
+            for group, name in enumerate(names) for unit in range(3) for cell in range(3)]
+    return analyze(rows, StatisticsRequest(metric="value", baseline=names[0],
+        comparisons=[(names[0], names[1])], independent_units_confirmed=True))
+
+
+def test_crowded_tick_labels_fail_before_any_output_and_allow_wider_size(tmp_path):
+    data = crowded_result()
+    with pytest.raises(ValueError, match="figure_labels_overlap"):
+        render_figures(data, tmp_path / "crowded")
+    assert not list((tmp_path / "crowded").iterdir())
+    data["spec"]["plot"].update(preset="nature-double")
+    render_figures(data, tmp_path / "wider")
+    assert (tmp_path / "wider" / "figure.pdf").exists()
+
+
+def test_long_unwrapped_axis_label_is_not_silently_clipped(tmp_path):
+    data = result()
+    data["spec"]["plot"]["x_label"] = "A" * 120
+    with pytest.raises(ValueError, match="figure_text_outside_canvas"):
+        render_figures(data, tmp_path)
+    assert not list(tmp_path.iterdir())
