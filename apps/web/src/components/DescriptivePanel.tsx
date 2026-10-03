@@ -7,14 +7,16 @@ import { download, errorCodeMessage, errorMessage, post, request } from "@/lib/a
 import { formatValue, type Job } from "@/lib/types";
 import { descriptiveFieldNumber, descriptiveFieldStatus, descriptiveJobs, descriptiveWarning, sameDescriptiveSettings, savedDescriptiveLabel, selectedDescriptiveJob, type DescriptiveResult, type DescriptiveSelection } from "@/lib/descriptive-view";
 import { usePrivateImage } from "@/lib/usePrivateImage";
+import type {RegionTraceTarget} from "@/lib/region-trace";
+import RegionTraceTable from "./RegionTraceTable";
 import styles from "./workspace.module.css";
 
 export type DescriptiveOption = {id:string;label:string;selection:DescriptiveSelection};
-type Props = {revisionId?:string;reviewed:boolean;options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;run:(fn:()=>Promise<void>)=>void;fieldLabels?:Record<string,string>;revisionLabels?:Record<string,string>;onInspectField?:(fieldId:string,revisionId:string)=>void;planSelection?:PlanResolution|null};
+type Props = {revisionId?:string;reviewed:boolean;options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;run:(fn:()=>Promise<void>)=>void;fieldLabels?:Record<string,string>;revisionLabels?:Record<string,string>;onInspectField?:(fieldId:string,revisionId:string)=>void;onInspectRegion?:(target:RegionTraceTarget)=>void;traceBlocked?:boolean;planSelection?:PlanResolution|null};
 const files:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","field-summary.csv":"視野別の要約","selection.csv":"採用・除外の記録","missingness.csv":"欠測の記録","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
 const jobStatuses:Record<string,string>={queued:"図の生成を待っています。",running:"図と元データを生成しています。",failed:"図を生成できませんでした。",cancelled:"図の生成を中止しました。"};
 
-export default function DescriptivePanel({revisionId,reviewed,options,jobs,blocked,dirty,run,fieldLabels={},revisionLabels={},onInspectField,planSelection}:Props){
+export default function DescriptivePanel({revisionId,reviewed,options,jobs,blocked,dirty,run,fieldLabels={},revisionLabels={},onInspectField,onInspectRegion,traceBlocked=false,planSelection}:Props){
  const [choice,setChoice]=useState("");
  const [language,setLanguage]=useState("en");
  const [preset,setPreset]=useState("nature-double");
@@ -72,6 +74,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
      <p className={styles.small}>観測数・視野数は、独立した実験反復数ではありません。</p>
      {image&&<img src={image} alt="領域の測定値と視野内中央値の分布図" style={{maxWidth:"100%",height:"auto"}}/>}
      <div className={styles.actionRow}>{data.figure.source_files.filter(name=>files[name]).map(name=><button className={styles.secondary} key={name} onClick={()=>run(()=>download(`/v1/jobs/${job!.id}/files/${name}`,name))}>{files[name]} ↓</button>)}</div>
+     {onInspectRegion&&data.spec.selection.source==="region"&&<RegionTraceTable key={job!.id} result={data} disabled={blocked||dirty||traceBlocked} onInspect={onInspectRegion}/>}
     </div>
     <div className={styles.card}>
      <h3>採用と欠測</h3>
@@ -80,7 +83,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
      {!!data.excluded_failed_fields.length&&<ul>{data.excluded_failed_fields.map(row=><li key={row.field_id}>{fieldLabels[row.field_id]||"現在の一覧にない視野"} — {row.reason}</li>)}</ul>}
      <div className={styles.tableWrap}><table>
       <thead><tr><th>図と画像の対応</th><th>状態</th><th>採用観測数</th><th>中央値</th><th>第1四分位</th><th>第3四分位</th></tr></thead>
-      <tbody>{data.field_summary.map(row=><tr key={row.field_id}><td>図の視野 {descriptiveFieldNumber(data,row.field_id)??"—"}<br/><small>{fieldLabels[row.field_id]||"現在の一覧にない視野"}</small>{onInspectField&&fieldLabels[row.field_id]&&<><br/><button className={styles.linkButton} disabled={blocked||dirty} onClick={()=>onInspectField(row.field_id,data.revision_id)}>この解析版の画像を確認</button></>}</td><td>{descriptiveFieldStatus(row.status)}</td><td>{row.selected_rows}</td><td>{formatValue(row.median)}</td><td>{formatValue(row.q1)}</td><td>{formatValue(row.q3)}</td></tr>)}</tbody>
+      <tbody>{data.field_summary.map(row=><tr key={row.field_id}><td>図の視野 {descriptiveFieldNumber(data,row.field_id)??"—"}<br/><small>{fieldLabels[row.field_id]||"現在の一覧にない視野"}</small>{onInspectField&&fieldLabels[row.field_id]&&<><br/><button className={styles.linkButton} disabled={blocked||dirty||traceBlocked} onClick={()=>onInspectField(row.field_id,data.revision_id)}>この解析版の画像を確認</button></>}</td><td>{descriptiveFieldStatus(row.status)}</td><td>{row.selected_rows}</td><td>{formatValue(row.median)}</td><td>{formatValue(row.q1)}</td><td>{formatValue(row.q3)}</td></tr>)}</tbody>
      </table></div>
      <p className={styles.small}>四分位数は観測値の広がりを表し、信頼区間ではありません。図の番号と画像一覧の番号は異なる場合があります。元画像を確認すると、この図を作成した解析版を開きます。</p>
      <details><summary>出典の識別情報</summary><p>解析版: <code>{data.revision_id}</code></p>{data.spec.selection.source==="region"&&<p>領域定義: <code>{data.spec.selection.region_set_id}</code> · チャンネル: <code>{data.spec.selection.channel_id??"面積測定"}</code></p>}<ul>{data.field_summary.map(row=><li key={row.field_id}>図の視野 {descriptiveFieldNumber(data,row.field_id)??"—"}: <code>{row.field_id}</code></li>)}{data.excluded_failed_fields.map(row=><li key={row.field_id}>失敗を確認して除外: <code>{row.field_id}</code></li>)}</ul></details>

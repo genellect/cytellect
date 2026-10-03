@@ -41,6 +41,28 @@ Those nuclear/comparison paths passed PR #12's four required checks and are publ
 
 ## Agent roles and execution loop
 
+The next source increment makes a saved descriptive figure inspectable at the
+individual-region level. Its measurement table uses the saved values, channel,
+mask identity and analysis version; opening a row selects that original region.
+Navigation must preserve draft edits and recover from a failed request. This is
+an interaction improvement, not a new detector or measurement definition. The
+public-image browser fixture tests identity with deliberately artificial masks;
+it does not estimate segmentation accuracy.
+
+Independent source review also found that applying one common registration
+field could erase other row-specific experimental metadata. The next increment
+applies populated columns only, previews replacements and supports undo without
+discarding later manual edits. This fixes form behavior; it does not infer
+experimental units or revise existing registered analyses.
+
+The [unequal-replicate practice](usability-practice.ja.md) prepares the human
+evaluation of experimental units. It deliberately includes unequal region,
+field and sample counts, signed corrected intensities and a missing-unit case.
+Its independent expected values distinguish correct hierarchical aggregation
+from pooling objects. Passing these checks does not establish that a researcher
+can interpret the interface: participant results remain pending. The published
+local.11 package is unchanged by later source work.
+
 | Role | Owns | Independent check |
 |---|---|---|
 | Coordinator | requirements, API/contracts, generic region architecture, integration, Git/PR/release | reconcile all findings; never infer scientific validity from a green build |
