@@ -617,6 +617,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/region-metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Metadata */
+        post: operations["metadata_v1_revisions__rid__region_metadata_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/descriptive": {
         parameters: {
             query?: never;
@@ -634,10 +651,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/region-comparisons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare */
+        post: operations["compare_v1_revisions__rid__region_comparisons_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{jid}/region-comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Result */
+        get: operations["result_v1_jobs__jid__region_comparison_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcquisitionReview */
+        AcquisitionReview: {
+            /**
+             * Confirmed
+             * @constant
+             */
+            confirmed: true;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "same-settings" | "calibrated-area";
+            /** Field Batches */
+            field_batches?: {
+                [key: string]: string;
+            };
+            /**
+             * Spatial Sampling Confirmed
+             * @default false
+             */
+            spatial_sampling_confirmed: boolean;
+        };
         /** AnalysisRequest */
         AnalysisRequest: {
             /** Field Ids */
@@ -764,6 +837,37 @@ export interface components {
              * @default false
              */
             acquisition_saturation_confirmed: boolean;
+        };
+        /** ComparisonDesign */
+        ComparisonDesign: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "independent" | "paired";
+            /**
+             * Confirmed
+             * @constant
+             */
+            confirmed: true;
+            /** Unit Definition */
+            unit_definition: string;
+            /** Pairing Basis */
+            pairing_basis?: string | null;
+        };
+        /** ComparisonFamily */
+        ComparisonFamily: {
+            /** Family Id */
+            family_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "control" | "planned";
+            /** Control */
+            control?: string | null;
+            /** Contrasts */
+            contrasts: string[][];
         };
         /** ContourView */
         ContourView: {
@@ -935,7 +1039,7 @@ export interface components {
             /** Attempts */
             attempts: number;
             /** Analysis Mode */
-            analysis_mode?: ("experimental-unit" | "exploratory" | "descriptive") | null;
+            analysis_mode?: ("experimental-unit" | "exploratory" | "descriptive" | "region-experimental-unit") | null;
         };
         /** LegacyParameters */
         LegacyParameters: {
@@ -1027,6 +1131,44 @@ export interface components {
             nucleoli: components["schemas"]["ContourView"][];
             /** Manual */
             manual: components["schemas"]["ContourView"][];
+        };
+        /**
+         * NuclearDetectorSpec
+         * @description Allowlisted, offline nucleus model; never an arbitrary image classifier.
+         */
+        NuclearDetectorSpec: {
+            /**
+             * Engine
+             * @default fiji-stardist-2d
+             * @constant
+             */
+            engine: "fiji-stardist-2d";
+            /**
+             * Model
+             * @default Versatile (fluorescent nuclei)
+             * @constant
+             */
+            model: "Versatile (fluorescent nuclei)";
+            /**
+             * Probability
+             * @default 0.5
+             */
+            probability: number;
+            /**
+             * Nms
+             * @default 0.3
+             */
+            nms: number;
+            /**
+             * Percentile Low
+             * @default 1
+             */
+            percentile_low: number;
+            /**
+             * Percentile High
+             * @default 99.8
+             */
+            percentile_high: number;
         };
         /** NumericalSelection */
         NumericalSelection: {
@@ -1182,7 +1324,8 @@ export interface components {
             field_ids?: string[] | null;
             /** Reuse Revision */
             reuse_revision?: string | null;
-            recipe: components["schemas"]["RegionRecipe"];
+            /** Recipe */
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
             /** Backgrounds */
             backgrounds?: {
                 [key: string]: {
@@ -1201,6 +1344,202 @@ export interface components {
              * @constant
              */
             confirmed: true;
+        };
+        /** RegionComparisonPlot */
+        RegionComparisonPlot: {
+            /**
+             * Preset
+             * @default nature-single
+             * @enum {string}
+             */
+            preset: "custom" | "nature-single" | "nature-double";
+            /**
+             * Kind
+             * @default distribution
+             * @enum {string}
+             */
+            kind: "distribution" | "paired";
+            /**
+             * Language
+             * @default en
+             * @enum {string}
+             */
+            language: "en" | "ja";
+            /**
+             * Width Inches
+             * @default 7
+             */
+            width_inches: number;
+            /**
+             * Height Inches
+             * @default 3
+             */
+            height_inches: number;
+            /**
+             * Font Size
+             * @default 7
+             */
+            font_size: number;
+            /**
+             * X Label
+             * @default
+             */
+            x_label: string;
+            /**
+             * Y Label
+             * @default
+             */
+            y_label: string;
+            /** Group Order */
+            group_order?: string[];
+        };
+        /** RegionComparisonRequest */
+        RegionComparisonRequest: {
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "region-experimental-unit";
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            selection: components["schemas"]["RegionSelection"];
+            design: components["schemas"]["ComparisonDesign"];
+            /** Conditions */
+            conditions: string[];
+            comparison_family: components["schemas"]["ComparisonFamily"];
+            acquisition_review: components["schemas"]["AcquisitionReview"];
+            /**
+             * Missingness Confirmed
+             * @constant
+             */
+            missingness_confirmed: true;
+            /**
+             * Aggregation
+             * @default field-median_sample-mean_unit-mean-v1
+             * @constant
+             */
+            aggregation: "field-median_sample-mean_unit-mean-v1";
+            /**
+             * Missingness Policy
+             * @default available-observations_require-unexcluded-units-v1
+             * @constant
+             */
+            missingness_policy: "available-observations_require-unexcluded-units-v1";
+            plot?: components["schemas"]["RegionComparisonPlot"];
+        };
+        /** RegionComparisonView */
+        RegionComparisonView: {
+            /**
+             * Analysis Kind
+             * @default region-comparison
+             * @constant
+             */
+            analysis_kind: "region-comparison";
+            /**
+             * Source Kind
+             * @default region-2d
+             * @constant
+             */
+            source_kind: "region-2d";
+            /**
+             * Region Comparison Version
+             * @default 1.0.0
+             * @constant
+             */
+            region_comparison_version: "1.0.0";
+            /** Inference Version */
+            inference_version: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Source Fingerprint */
+            source_fingerprint: string;
+            spec: components["schemas"]["RegionComparisonRequest"];
+            /** Metric */
+            metric: string;
+            /** Unit */
+            unit: string;
+            /** Region */
+            region: {
+                [key: string]: unknown;
+            };
+            /** Channel */
+            channel: {
+                [key: string]: unknown;
+            } | null;
+            /** Source Fields */
+            source_fields: {
+                [key: string]: unknown;
+            }[];
+            /** Source Field Ledger */
+            source_field_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Observation Ledger */
+            observation_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Plot Data */
+            plot_data: {
+                [key: string]: unknown;
+            }[];
+            /** Field Summary */
+            field_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Sample Summary */
+            sample_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Unit Summary */
+            unit_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Unit Ledger */
+            unit_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Pair Ledger */
+            pair_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Counts */
+            counts: {
+                [key: string]: unknown;
+            }[];
+            /** Selection */
+            selection: {
+                [key: string]: unknown;
+            };
+            /** Missingness */
+            missingness: {
+                [key: string]: unknown;
+            }[];
+            /** Excluded Failed Fields */
+            excluded_failed_fields: {
+                [key: string]: unknown;
+            }[];
+            /** Acquisition */
+            acquisition: {
+                [key: string]: unknown;
+            };
+            /** Comparisons */
+            comparisons: {
+                [key: string]: unknown;
+            }[];
+            /** Means */
+            means: {
+                [key: string]: unknown;
+            }[];
+            /** Warnings */
+            warnings: string[];
+            /** Figure */
+            figure: {
+                [key: string]: unknown;
+            };
         };
         /** RegionExcludedFailure */
         RegionExcludedFailure: {
@@ -1239,7 +1578,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported";
+            source: "manual" | "imported" | "stardist_nuclear";
             /** Shape */
             shape: number[];
             file: components["schemas"]["RegionStoredFile"];
@@ -1395,6 +1734,51 @@ export interface components {
             /** Rows */
             rows: components["schemas"]["RegionMeasurementRow"][];
         };
+        /** RegionMetadataEdit */
+        RegionMetadataEdit: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Fields */
+            fields: {
+                [key: string]: components["schemas"]["RegionFieldMetadata"];
+            };
+        };
+        /** RegionNuclearRecipe */
+        RegionNuclearRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.1.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default stardist_nuclear
+             * @constant
+             */
+            source: "stardist_nuclear";
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            /**
+             * Nuclear Stain Confirmed
+             * @constant
+             */
+            nuclear_stain_confirmed: true;
+            detector?: components["schemas"]["NuclearDetectorSpec"];
+        };
         /** RegionRecipe */
         RegionRecipe: {
             /**
@@ -1404,9 +1788,8 @@ export interface components {
              */
             id: "region-2d";
             /**
-             * Version
-             * @default 1.0.0
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             version: "1.0.0";
             /** Region Set Id */
@@ -1443,7 +1826,8 @@ export interface components {
             protocol_version: "1.0.0";
             /** Revision Id */
             revision_id: string;
-            recipe: components["schemas"]["RegionRecipe"];
+            /** Recipe */
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
@@ -2986,6 +3370,41 @@ export interface operations {
             };
         };
     };
+    metadata_v1_revisions__rid__region_metadata_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionMetadataEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     descriptive_v1_revisions__rid__descriptive_post: {
         parameters: {
             query?: never;
@@ -3008,6 +3427,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_v1_revisions__rid__region_comparisons_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionComparisonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    result_v1_jobs__jid__region_comparison_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionComparisonView"];
                 };
             };
             /** @description Validation Error */

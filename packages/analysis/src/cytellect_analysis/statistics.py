@@ -6,11 +6,11 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import build_design_matrices
 from scipy import stats
-from statsmodels.stats.multitest import multipletests
 
 from .contracts import StatisticsRequest
+from .unit_inference import aggregate_unit_observations, apply_holm, compare_unit_arrays
 
-STATISTICS_VERSION = "1.2.2"
+STATISTICS_VERSION = "1.2.3"
 AGGREGATION = "field median -> mean of fields within sample -> mean of samples within independent unit"
 
 
@@ -20,17 +20,7 @@ def finite_records(frame):
 
 
 def aggregate_units(frame, metric):
-    keys = ["condition", "experimental_unit", "sample", "field_id"]
-    fields = frame.groupby(keys, dropna=False, observed=True)[metric].median().reset_index()
-    samples = fields.groupby(keys[:3], dropna=False, observed=True)[metric].mean().reset_index()
-    units = samples.groupby(keys[:2], dropna=False, observed=True)[metric].mean().reset_index()
-    if "pair" in frame:
-        pairs = frame.groupby(keys[:2], dropna=False, observed=True).pair.agg(lambda v: v.dropna().unique().tolist())
-        if any(len(v) > 1 for v in pairs):
-            raise ValueError("multiple_pairs_per_unit")
-        units["pair"] = [pairs.loc[(r.condition, r.experimental_unit)][0]
-                         if pairs.loc[(r.condition, r.experimental_unit)] else None
-                         for r in units.itertuples()]
+    fields, _, units = aggregate_unit_observations(frame, metric)
     return fields, units
 
 
@@ -274,48 +264,18 @@ def analyze(rows, request: StatisticsRequest):
                 if pairs.isna().any().any():
                     raise ValueError("incomplete_pairs")
                 va, vb = pairs[f"{metric}_a"].to_numpy(), pairs[f"{metric}_b"].to_numpy()
-                if len(va) < 2:
-                    raise ValueError("two_pairs_required")
-                differences = va - vb
-                difference_sd = float(np.std(differences, ddof=1))
-                # This relative tolerance must carry the measurement's units.
-                # A floor of 1 would reject valid small-valued concentrations.
-                if difference_sd <= np.finfo(float).eps * float(np.max(np.abs(differences))):
-                    raise ValueError("comparison_not_estimable")
-                test = stats.ttest_rel(va, vb)
-                standard_error = difference_sd / np.sqrt(len(va))
-                method = "paired t-test"
             else:
                 if set(aa.experimental_unit) & set(bb.experimental_unit):
                     raise ValueError("shared_units_require_paired_analysis")
                 va, vb = aa[metric].to_numpy(), bb[metric].to_numpy()
-                if min(len(va), len(vb)) < 2:
-                    raise ValueError("two_independent_units_per_group_required")
-                if np.var(va, ddof=1) + np.var(vb, ddof=1) == 0:
-                    raise ValueError("comparison_not_estimable")
-                test = stats.ttest_ind(va, vb, equal_var=False)
-                standard_error = np.hypot(np.std(va, ddof=1) / np.sqrt(len(va)),
-                                          np.std(vb, ddof=1) / np.sqrt(len(vb)))
-                method = "Welch t-test"
-            ci = test.confidence_interval()
-            if not np.isfinite([test.pvalue, ci.low, ci.high]).all():
-                raise ValueError("comparison_not_estimable")
-            comparisons.append({"group_a": a, "group_b": b, "estimate": float(va.mean() - vb.mean()),
-                                "ci_low": float(ci.low), "ci_high": float(ci.high),
-                                "p_value": float(test.pvalue), "method": method,
-                                "statistic": float(test.statistic), "degrees_of_freedom": float(test.df),
-                                "standard_error": float(standard_error),
-                                "alternative": "two-sided", "confidence_level": .95,
-                                "n_a": len(va), "n_b": len(vb), "n_unit": "independent experimental units"})
+            comparisons.append({"group_a": a, "group_b": b,
+                                **compare_unit_arrays(va, vb, paired=request.paired)})
         for group, values in units.groupby("condition", observed=True)[metric]:
             mean = float(values.mean())
             half = float(stats.t.ppf(.975, len(values)-1) * stats.sem(values)) if len(values) > 1 else None
             means.append({"condition": group, "mean": mean, "ci_low": mean-half if half is not None else None,
                           "ci_high": mean+half if half is not None else None})
-    adjusted = multipletests([r["p_value"] for r in comparisons], method="holm")[1]
-    for row, p in zip(comparisons, adjusted, strict=True):
-        row["p_holm"] = float(p)
-        row["correction_family"] = getattr(request, "comparison_family", "all")
+    apply_holm(comparisons, getattr(request, "comparison_family", "all"))
     counts = selected.groupby("condition", observed=True).agg(
         cells=("field_id", "size"), fields=("field_id", "nunique"),
         experimental_units=("experimental_unit", "nunique")).reset_index()

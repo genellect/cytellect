@@ -62,7 +62,10 @@ partition into explicit exclusions, remaining gate exclusions, remaining
 missing values and selected finite values. Selection records and missing reasons
 are exported. Field failures are rejected unless they were explicitly excluded
 with a reason; excluded failed fields remain in the total input-field count
-and are reported separately. A successful field with no regions is distinct
+and are reported separately. For generic regions, each excluded failure must
+match a saved whole-field exclusion with the same reason; the failure ledger
+alone cannot authorize exclusion. This source-integrity check changes no valid
+measurement or summary value. A successful field with no regions is distinct
 from failure and remains visible as `no_regions`.
 
 Each field gets the selected observation count, median, minimum, maximum and
@@ -87,7 +90,7 @@ count is null and independence status is `not_assessed_in_descriptive_analysis`.
 There are no comparison/model/unit-summary/mean-confidence-interval fields.
 An absent test result is never described as nonsignificant.
 
-The separate descriptive figure protocol is 1.0.0. It reuses the existing
+The separate descriptive figure protocol is 1.0.1. It reuses the existing
 Nature-size presets, normal-font-file checks, editable SVG/PDF output, 300 dpi
 PNG and label-layout rejection. It does not change the existing inferential
 renderer. Points show selected observations and open squares show field

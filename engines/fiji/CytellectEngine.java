@@ -56,10 +56,13 @@ public class CytellectEngine {
     static void execute(Path request, java.util.function.Function<ByteProcessor,ImageProcessor> labelComponents) throws Exception {
         JsonObject root=JsonParser.parseString(Files.readString(request)).getAsJsonObject();
         if(root.has("roi_zip")) { verifyRois(root); return; }
-        JsonObject recipe=root.getAsJsonObject("recipe");
+        boolean nuclearOnly=root.has("mode") && root.get("mode").getAsString().equals("nuclear-only");
+        if(root.has("mode") && !nuclearOnly) throw new IllegalArgumentException("unknown_operation");
+        JsonObject recipe=root.getAsJsonObject(nuclearOnly?"detector":"recipe");
         Path out=Path.of(root.get("directory").getAsString());
-        ImagePlus dapi=IJ.openImage(out.resolve("dapi.tif").toString());
-        boolean hasNcl=!root.has("has_ncl") || root.get("has_ncl").getAsBoolean();
+        String nuclearInput=nuclearOnly?"nuclear.tif":"dapi.tif";
+        ImagePlus dapi=IJ.openImage(out.resolve(nuclearInput).toString());
+        boolean hasNcl=!nuclearOnly && (!root.has("has_ncl") || root.get("has_ncl").getAsBoolean());
         ImagePlus ncl=hasNcl?IJ.openImage(out.resolve("ncl.tif").toString()):null;
         int w=dapi.getWidth(),h=dapi.getHeight(),size=w*h;
         int tiles=1;
@@ -69,7 +72,7 @@ public class CytellectEngine {
         else {
             ImageJ ij=new ImageJ();
             try {
-                Dataset image=(Dataset)ij.io().open(out.resolve("dapi.tif").toString());
+                Dataset image=(Dataset)ij.io().open(out.resolve(nuclearInput).toString());
                 Map<String,Object> params=new HashMap<>();
                 params.put("input",image);
                 // Embedded, checked model. Never accept modelChoice/modelURL from clients.
@@ -95,6 +98,19 @@ public class CytellectEngine {
                     nuclei[y*w+x]=((RealType<?>)access.get()).getRealFloat();
                 }
             } finally { ij.context().dispose(); }
+        }
+        if(nuclearOnly) {
+            save(nuclei,w,h,out.resolve("nuclei.tif"));
+            JsonObject info=new JsonObject();
+            info.addProperty("operation","nuclear-only");
+            info.addProperty("engine","Fiji / StarDist 2D");
+            info.addProperty("java_version",System.getProperty("java.version"));
+            info.addProperty("headless",java.awt.GraphicsEnvironment.isHeadless());
+            info.addProperty("n_tiles",tiles);
+            info.addProperty("model","Versatile (fluorescent nuclei)");
+            info.add("parameters",recipe.deepCopy());
+            Files.writeString(out.resolve("engine-result.json"),new GsonBuilder().setPrettyPrinting().create().toJson(info));
+            return;
         }
         Map<Integer,int[]> bounds=new TreeMap<>();
         for(int y=0;y<h;y++) for(int x=0;x<w;x++) {

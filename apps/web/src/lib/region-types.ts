@@ -7,19 +7,21 @@ export type RegionChannel=Required<Schema["ChannelSpec"]>;
 export type RegionCalibration=Schema["Calibration2D"];
 export type RegionMetadata=Required<Schema["RegionFieldMetadata"]>;
 export type RegionField=Omit<Schema["RegionFieldView"],"metadata"|"image_info">&{metadata:RegionMetadata;image_info:Omit<Required<Schema["RegionImageInfo"]>,"shape"|"channels">&{shape:[number,number];channels:RegionChannel[]}};
-export type RegionRecipe=Required<Schema["RegionRecipe"]>;
+export type RegionNuclearRecipe=Omit<Required<Schema["RegionNuclearRecipe"]>,"detector">&{detector:Required<Schema["NuclearDetectorSpec"]>};
+export type RegionRecipe=Required<Schema["RegionRecipe"]>|RegionNuclearRecipe;
 export type RegionBackground=Omit<Schema["RegionBackground"],"polygon">&{polygon:Point[]};
 export type RegionExclusion=Required<Schema["RegionExclusion"]>;
-export type RegionConfig=Omit<Schema["RegionAnalysisRequest"],"recipe"|"backgrounds"|"exclusions">&{recipe:RegionRecipe;backgrounds:Record<string,Record<string,RegionBackground>>;exclusions:RegionExclusion[];analysis_kind?:"region-2d"};
+export type RegionConfig=Omit<Schema["RegionAnalysisRequest"],"recipe"|"backgrounds"|"exclusions">&{recipe:RegionRecipe;backgrounds:Record<string,Record<string,RegionBackground>>;exclusions:RegionExclusion[];analysis_kind?:"region-2d";field_snapshot?:Record<string,{metadata:RegionMetadata}>};
 export type RegionRevision={id:string;parent_id:string|null;state:string;reviewed:boolean;created:number;config:RegionConfig};
 export type RegionMaskMetadata=Schema["RegionFieldMask"];
 export type RegionMasks={regions:Contour[];metadata:RegionMaskMetadata};
 export type RegionRow=Schema["RegionMeasurementRow"];
 export type RegionTable=Schema["RegionMeasurementTable"];
 export type RegionReport=Schema["RegionReport"];
-export const regionRecipe:RegionRecipe={id:"region-2d",version:"1.0.0",region_set_id:"regions",label:"測定領域",source:"manual",defining_channel_id:null};
+export const regionRecipe:Required<Schema["RegionRecipe"]>={id:"region-2d",version:"1.0.0",region_set_id:"regions",label:"測定領域",source:"manual",defining_channel_id:null};
 export const regionMetricLabels={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均（原値）",median:"中央値（原値）",integrated:"積算（原値）",mean_corrected:"平均（背景補正）",median_corrected:"中央値（背景補正）",integrated_corrected:"積算（背景補正）"};
 export type RegionMetric=keyof typeof regionMetricLabels;
+export type RegionComparisonRequest=Schema["RegionComparisonRequest"];
 
 export function regionFigureOptions(recipe:RegionRecipe,fields:RegionField[]){
  const channels=new Map<string,RegionChannel>();fields.forEach(field=>field.image_info.channels.forEach(channel=>channels.set(channel.channel_id,channel)));

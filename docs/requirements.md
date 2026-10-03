@@ -23,7 +23,7 @@ I04: Missing pixel size means px only. CZI initially converted with Bio-Formats.
 I05: Immutable original measurement pixels; display LUT and detection preprocessing separate. Native masks canonical at original resolution; store detection coordinate transform.
 I06: User-confirmed background ROI median. Extranuclear pixels not automatically background. Save raw/corrected values and preserve native negative corrections.
 I07: Configurable input-security limits 100 fields/workspace, 4096x4096 plane, 3 channels, 2 GiB total. The input ceiling does not promise automatic detection at that size. The provisional standard-2g automatic-nucleus admission profile requires both sides ≤2048 px and total area ≤2,700,000 pixels; reject excess before Fiji without resizing. Reusing supplied nuclear masks bypasses automatic-nucleus admission, while input/worker limits still apply. Internal IDs for paths, not uploaded filenames.
-I09: Generic region entry accepts 1–3 explicitly named 2D grayscale channels with optional metadata and confirmed XY calibration. Missing unit/sample/date remains null. Reusing a channel ID with a different label/stain in the same workspace is rejected. Imported unsigned integer labels retain exact original-coordinate pixel membership. Do not claim automatic generic detection in the manual/imported slice.
+I09: Generic region entry accepts 1–3 explicitly named 2D grayscale channels with optional metadata and confirmed XY calibration. Missing unit/sample/date remains null. Reusing a channel ID with a different label/stain in the same workspace is rejected. Imported unsigned integer labels retain exact original-coordinate pixel membership. The 1.0 manual/imported recipe stays stable; the 1.1 nuclear recipe requires an explicitly confirmed defining channel and uses only the fixed nuclear model.
 
 ## Segmentation, editing and metrics
 
@@ -37,6 +37,8 @@ A07: Native positive corrected values allow nucleoplasm/nucleolus ratio and log2
 A08: Legacy whole-nucleus/high-NCL log2((nucleus+epsilon)/(high+epsilon)) is distinct metric/recipe. Explicit RGB conversion, resizing, background, clipping, epsilon, gate and version.
 A09: Saturation/edge/weak signal/detection/region QC, explicit exclusions. No hardcoded study counts, dates, paths or private results. Revision changes mark existing tables/statistics/figures old.
 A10: Expanding a representative trial to a batch explicitly reuses the current reviewed/corrected masks under the unchanged recipe; newly added fields are initialized separately. Reject stale sources, omitted source fields and implicit definition changes. Background or exclusion changes trigger new measurement revisions without discarding corrected masks.
+A11: Generic nuclear initialization uses the same pinned Fiji/StarDist model and native coordinates as existing nuclear recipes, without fabricated GFP/NCL channels. Record detector origin separately from whether it ran in the current attempt. Nuclear capacity admission applies only when running the detector. Manual corrections, metadata changes and background recovery reuse canonical masks.
+I10: Editing experimental metadata creates an unreviewed child analysis revision. Original upload records, source images and older snapshots remain immutable. Trial-to-batch expansion retains metadata from the adopted parent revision.
 
 ## Statistics and deliverables
 
@@ -48,6 +50,7 @@ S05: Sensitivities for GFP gate, NCL high-region definition and complete-compari
 S06: Matplotlib scatter/regression/95% CI, distributions with unit points, field summaries, adjusted means, paired plots; editable SVG/PDF plus PNG; Japanese/English labels. Figure values correspond to source table and adopted revision.
 S07: Measurement/statistics CSV, masks, supported pixel-exact Fiji ROI round-trip, template Methods, environment/config/provenance and replay package. Raw images excluded by default; explicit opt-in only.
 S09: First offer a reviewed per-field distribution with observation count, median, quartiles, explicit selection and missingness. One field/one valid observation is sufficient. Independent-unit count stays unknown and no tests/CI/regression are fabricated. Group comparison is a separate explicit action retaining S02–S05. Region/channel/metric identity and source revision must match before export and replay. See [descriptive protocol](descriptive.md).
+S10: Generic experimental-unit comparisons explicitly select a region/channel/metric, independent or paired design, treatment unit, acquisition basis and declared Holm comparison family. Build unit/pair coverage from the full source ledger before outcome filtering; retain exclusions and block unexplained empty units/incomplete pairs. Area is channel-deduplicated. No GFP regression, batch adjustment or independence is inferred for generic markers. Source-bound statistics and vectors must regenerate from the original pixels, saved masks and accepted design. See [generic comparisons](region-comparisons.md).
 
 ## System
 

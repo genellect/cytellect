@@ -82,3 +82,18 @@ def test_long_literal_labels_fail_before_output(tmp_path):
     with pytest.raises(ValueError, match="figure_text_outside_canvas"):
         render_descriptive(result, tmp_path)
     assert not list(tmp_path.glob("figure.*"))
+
+
+@pytest.mark.parametrize(("language", "label"), [("en", "検証信号"), ("ja", "Verified marker")])
+@pytest.mark.filterwarnings("error:Glyph .* missing from font")
+def test_actual_descriptive_mixed_script_source_label(tmp_path, language, label):
+    report, snapshots = region_fixture()
+    report["field_tables"]["f1"]["channel_provenance"][0]["channel"]["label"] = label
+    snapshots["f1"]["image_info"]["channels"][0]["label"] = label
+    result = describe_regions(report, snapshots, request(plot={"language": language}))
+    manifest = render_descriptive(result, tmp_path)
+    assert manifest["descriptive_figure_version"] == "1.0.1"
+    assert label in (tmp_path / "figure.svg").read_text(encoding="utf-8")
+    assert b"/FontFile2" in (tmp_path / "figure.pdf").read_bytes()
+    source = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    assert [row["value"] for row in source["plot_data"]] == [-5, 9]

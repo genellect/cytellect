@@ -4,10 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expectGfpPreview } from "./image-preview";
+import {workspaceTestRuntime,createRegionWorkspace} from "./workspace-session";
 
 const root=path.resolve(__dirname,"../../..");
-const api=process.env.CYTELLECT_TEST_API_ORIGIN||"http://localhost:8000";
-const python=process.env.CYTELLECT_TEST_PYTHON||path.join(root,".venv",process.platform==="win32"?"Scripts/python.exe":"bin/python");
+const {api,python}=workspaceTestRuntime();
 const publicFixture=process.env.CYTELLECT_TEST_REGION_FIXTURES;
 const evidence=process.env.CYTELLECT_SCREENSHOT_DIR;
 function fixtures(){
@@ -17,11 +17,10 @@ function fixtures(){
  execFileSync(python,["-c","import sys,numpy as np,tifffile;a=tifffile.imread(sys.argv[1]);m=np.zeros(a.shape,dtype=np.uint32);m[25:40,25:40]=1;m[50:65,50:65]=2;tifffile.imwrite(sys.argv[2],m)",path.join(root,"fixtures/public/bbbc013/A01-gfp.tif"),labels]);
  return {first:path.join(root,"fixtures/public/bbbc013/A01-gfp.tif"),second:path.join(root,"fixtures/public/bbbc013/A01-dapi.tif"),labels,names:["FKHR-EGFP","DRAQ"],count:2};
 }
-function invite(){if(!process.env.CYTELLECT_TEST_DATA_DIR)throw Error("An isolated test data directory is required");return execFileSync(python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(1))"],{encoding:"utf8",env:process.env}).trim();}
 async function json(response:Pick<APIResponse,"ok"|"json">){expect(response.ok()).toBeTruthy();return response.json();}
 async function mutation(page:Page,suffix:string,action:()=>Promise<void>){const response=page.waitForResponse(r=>r.url().includes(suffix)&&r.request().method()==="POST");await action();return json(await response);}
 async function waitJob(page:Page,id:string){await expect.poll(async()=>{const job=await json(await page.request.get(`${api}/v1/jobs/${id}`));if(["failed","cancelled"].includes(job.state))throw Error(`Job failed: ${job.error}`);return job.state;},{timeout:180000,intervals:[500,1000]}).toBe("succeeded");}
-async function create(page:Page,title:string){await page.goto("/");await page.getByLabel("招待コード",{exact:true}).fill(invite());await page.getByRole("button",{name:"ワークスペースに接続"}).click();await page.getByLabel("作業名",{exact:true}).fill(title);await expect(page.getByRole("combobox",{name:"解析の種類",exact:true})).toHaveValue("regions");return mutation(page,"/v1/workspaces",()=>page.getByRole("button",{name:"作業を作成 ＋",exact:true}).click());}
+const create=createRegionWorkspace;
 async function polygon(page:Page,coordinates:string){const details=page.locator("details").filter({has:page.locator(":scope > summary",{hasText:"座標から多角形を指定"})});if(!await details.evaluate(el=>(el as HTMLDetailsElement).open))await details.locator(":scope > summary").click();await page.getByLabel("頂点（x,y を空白または改行で区切る）").fill(coordinates);await page.getByRole("button",{name:"座標を反映",exact:true}).click();}
 async function background(page:Page,coordinates="0,0 15,0 15,15 0,15"){await page.getByRole("button",{name:"背景",exact:true}).click();await polygon(page,coordinates);await page.getByRole("button",{name:/^背景を確定/}).click();}
 async function screenshot(page:Page,name:string){if(evidence){fs.mkdirSync(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,name),fullPage:true});}}
@@ -52,7 +51,7 @@ test("public two-channel regions preserve unknown replication through edits, des
  for(const name of ["SVG ↓","図の元データ ↓"]){const pending=page.waitForEvent("download");await page.getByRole("button",{name,exact:true}).click();const file=await pending;expect(await file.failure()).toBeNull();if(evidence)await file.saveAs(path.join(evidence,file.suggestedFilename()));}
  await screenshot(page,"generic-description-desktop.png");await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await screenshot(page,"generic-description-mobile.png");await page.setViewportSize({width:1440,height:1000});
  await page.getByRole("button",{name:"この解析版の画像を確認",exact:true}).click();await expect(page.getByRole("heading",{name:"測定値と品質確認",exact:true})).toBeVisible();await expect(page.locator("tbody tr")).toHaveCount(fixture.count-1);await expectGfpPreview(page);expect((await json(await page.request.get(`${api}/v1/workspaces/${workspace.id}`))).active_revision).toBe(edited.revision_id);
- await page.getByRole("button",{name:/03 保存と履歴/}).click();await expect(page.getByLabel("原画像もZIPへ含める",{exact:true})).not.toBeChecked();const exported=await mutation(page,"/export?",()=>page.getByRole("button",{name:"解析パッケージを生成",exact:true}).click());await waitJob(page,exported.job_id);
+ await page.getByRole("button",{name:/04 保存と履歴/}).click();await expect(page.getByLabel("原画像もZIPへ含める",{exact:true})).not.toBeChecked();const exported=await mutation(page,"/export?",()=>page.getByRole("button",{name:"解析パッケージを生成",exact:true}).click());await waitJob(page,exported.job_id);
  const download=page.waitForEvent("download");await page.getByRole("button",{name:"ZIPを保存 ↓",exact:true}).click();const zip=await download;expect(await zip.failure()).toBeNull();const zipPath=evidence?path.join(evidence,"cytellect-regions.zip"):path.join(process.env.CYTELLECT_TEST_DATA_DIR!,`ui-${workspace.id}.zip`);await zip.saveAs(zipPath);
  const receipt=JSON.parse(execFileSync(python,["-c","import sys,zipfile,json,hashlib;z=zipfile.ZipFile(sys.argv[1]);m=json.loads(z.read('manifest.json'));assert m['format']=='cytellect-region-reproducibility/1';assert m['raw_included'] is False;assert not any(p.startswith('raw/') for p in z.namelist());assert all(hashlib.sha256(z.read(p)).hexdigest()==h for p,h in m['files'].items());print(json.dumps({'format':m['format'],'raw_included':m['raw_included'],'verified_files':len(m['files'])}))",zipPath],{encoding:"utf8"}));expect(receipt.verified_files).toBeGreaterThan(10);expect(errors).toEqual([]);expect(unexpectedOrigins).toEqual([]);
  if(evidence)fs.writeFileSync(path.join(evidence,"generic-browser-receipt.json"),JSON.stringify({dataset:publicFixture?"BBBC007 a9":"BBBC013 A01 with test-only rectangle labels",inputRegions:fixture.count,retainedRegions:fixture.count-1,channels:fixture.names,metadataUnknownPreserved:true,counts:result.counts,areaCounts:areaResult.counts,newFigureHidesOldDuringSubmission:true,zip:receipt,consolePageErrors:errors,unexpectedRequestOrigins:unexpectedOrigins},null,2));

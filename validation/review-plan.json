@@ -76,6 +76,7 @@
         "tests/test_region_api.py",
         "tests/test_workspace_workflow_kind.py",
         "tests/test_region_export.py",
+        "tests/test_region_metadata.py",
         "tests/test_trial_batch.py"
       ],
       "references": [
@@ -94,6 +95,30 @@
       ],
       "references": ["lazic-2018", "waters-2009", "schmied-2024", "nature-final-artwork"],
       "limit": "Per-field distributions do not establish acquisition comparability, biological independence or group effects."
+    },
+    {
+      "id": "explicit-nuclear-initialization",
+      "question": "Does the nuclear-only adapter preserve source identity, bounded execution, corrections and the original manual recipe?",
+      "tests": [
+        "tests/test_region_nuclear_contracts.py",
+        "tests/test_region_nuclear_api.py",
+        "tests/test_region_nuclear_worker.py",
+        "tests/test_nuclear_engine.py"
+      ],
+      "references": ["waters-2009", "schmied-2024"],
+      "limit": "This non-Fiji run checks contracts and execution boundaries. Real adapter equivalence, public-image accuracy and model-training overlap retain separate receipts."
+    },
+    {
+      "id": "generic-experimental-units",
+      "question": "Do generic marker comparisons retain actual experimental units, complete pairing, acquisition constraints and independently verified estimates?",
+      "tests": [
+        "tests/test_unit_inference.py",
+        "tests/test_region_comparison.py",
+        "tests/test_region_comparison_figures.py",
+        "tests/test_region_comparison_api.py"
+      ],
+      "references": ["lazic-2018", "superplots-2020", "waters-2009", "nature-final-artwork"],
+      "limit": "Exact unit-level references and source-bound exports do not prove experimental independence, acquisition equivalence, adequate power or biological conclusions."
     }
   ],
   "separate_gates": [

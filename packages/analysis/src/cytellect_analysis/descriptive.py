@@ -34,6 +34,7 @@ SAFE_ERROR_CODES = frozenset({
     "descriptive_area_channel_must_be_unset", "descriptive_intensity_channel_required",
     "descriptive_result_required", "descriptive_inference_not_allowed", "descriptive_figure_source_mismatch",
     "descriptive_review_required", "descriptive_saved_result_mismatch", "descriptive_revision_mismatch",
+    "descriptive_failure_exclusion_mismatch",
 })
 
 
@@ -232,10 +233,9 @@ def _region_exclusions(report, field_ids, objects, region_set_id):
     return exclusions
 
 
-def describe_regions(report, field_snapshot, request):
-    request = _request(request, "region")
-    selector = request.selection
-    assert isinstance(selector, RegionSelection)
+def prepare_region_observations(report, field_snapshot, selector):
+    """Validate every source observation before selection or statistical aggregation."""
+    selector = RegionSelection.model_validate(selector)
     tables = {fid: RegionMeasurementTable.model_validate_json(json.dumps(value))
               for fid, value in report.get("field_tables", {}).items()}
     excluded = _coverage(report, field_snapshot, tables)
@@ -307,6 +307,8 @@ def describe_regions(report, field_snapshot, request):
     if len(identities) > 1:
         raise ValueError("descriptive_channel_identity_mismatch")
     exclusions = _region_exclusions(report, set(field_snapshot), objects, selector.region_set_id)
+    if any(exclusions.get((item["field_id"], None)) != item["reason"] for item in excluded):
+        raise ValueError("descriptive_failure_exclusion_mismatch")
     observations = []
     for (fid, rid), row in sorted(objects.items()):
         reason = exclusions.get((fid, None)) or exclusions.get((fid, rid))
@@ -317,7 +319,13 @@ def describe_regions(report, field_snapshot, request):
                              "value": getattr(row, selector.metric), "excluded": bool(reason),
                              "exclusion_reason": reason, "gate_selected": True,
                              "missing_reason": row.area_missing_reason if selector.metric == "area_um2" else None})
-    return _finish(observations, fields, request, "region-2d", "regions", _metric_unit(selector.metric), excluded)
+    return observations, fields, _metric_unit(selector.metric), excluded
+
+
+def describe_regions(report, field_snapshot, request):
+    request = _request(request, "region")
+    observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection)
+    return _finish(observations, fields, request, "region-2d", "regions", unit, excluded)
 
 
 def describe_numeric(rows, request):

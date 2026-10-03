@@ -248,6 +248,10 @@ def run_statistics(store, job, output):
         from .descriptive import run_descriptive
 
         return run_descriptive(store, job, output)
+    if job["payload"].get("mode") == "region-experimental-unit":
+        from .region_comparisons import run_region_comparison
+
+        return run_region_comparison(store, job, output)
     from cytellect_analysis.region_sensitivity import DEFINITION_KEYS
     from cytellect_analysis.review import unresolved_nucleolar_failures
     from cytellect_api.region_sensitivity import validate_region_revision

@@ -1,9 +1,11 @@
 """Allowlisted non-research diagnostics from validated scientific operations."""
 
 from cytellect_analysis.descriptive import SAFE_ERROR_CODES as DESCRIPTIVE_ERRORS
+from cytellect_analysis.region_comparison import SAFE_ERROR_CODES as REGION_COMPARISON_ERRORS
 
 SAFE_ERRORS = frozenset(
     {
+        "region_export_statistics_source_mismatch",
         "nucleolar_processing_failed",
         "region_sensitivity_requires_native_ncl",
         "region_sensitivity_fields_differ",
@@ -125,6 +127,9 @@ SAFE_ERRORS = frozenset(
         "fiji_not_configured",
         "numeric_assay_image_sensitivities_not_applicable",
         "fiji_process_unavailable",
+        "fiji_invalid_output_provenance",
+        "region_comparison_source_review_mismatch",
+        "region_metadata_source_mismatch",
         "invalid_dimensions",
         "replace_requires_one_label",
         "at_least_three_fields_for_cluster_model",
@@ -138,4 +143,4 @@ SAFE_ERRORS = frozenset(
         "figure_labels_overlap",
         "figure_text_outside_canvas",
     }
-) | DESCRIPTIVE_ERRORS
+) | DESCRIPTIVE_ERRORS | REGION_COMPARISON_ERRORS

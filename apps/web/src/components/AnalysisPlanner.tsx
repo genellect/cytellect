@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { buildPlan, emptyPlan, planReceipt, planReferences, type PlanAnswers } from "@/lib/analysis-plan";
+import { buildPlan, emptyPlan, planReceipt, planReferences, PLAN_VERSION, type PlanAnswers } from "@/lib/analysis-plan";
 import styles from "./planner.module.css";
 
 type ChoiceProps<K extends keyof PlanAnswers> = {
@@ -40,7 +40,7 @@ export function AnalysisPlanner() {
       <div className={styles.questions}>
         <section className={styles.section} aria-labelledby="purpose"><span className={styles.number}>01</span><div><h2 id="purpose">測る対象</h2>
           <Choice name="region" label="測定する領域" value={answers.region} onChange={change} options={[["unknown", "選択してください"], ["nucleus", "核の面積・核内の蛍光量"], ["nucleolus", "核小体と核質の蛍光分布"], ["custom", "自分で決めた領域・その他の構造"]]} />
-          <Choice name="signal" label="測定する蛍光チャンネル" value={answers.signal} onChange={change} options={[["unknown", "未確認"], ["gfp", "GFP"], ["ncl", "NCL"], ["other", "その他のマーカー"]]} hint="蛍光色ではなく、撮影記録にある対象を選びます。対応するマーカーは順次拡張します。" />
+          <Choice name="signal" label="測定する蛍光チャンネル" value={answers.signal} onChange={change} options={[["unknown", "未確認"], ["gfp", "GFP"], ["ncl", "NCL"], ["other", "その他のマーカー"]]} hint="蛍光色ではなく、撮影記録にある対象を選びます。汎用領域の解析では実際のチャンネル名を登録できます。" />
         </div></section>
         <section className={styles.section} aria-labelledby="images"><span className={styles.number}>02</span><div><h2 id="images">画像の条件</h2>
           <Choice name="input" label="測定に使う画像" value={answers.input} onChange={change} options={[["unknown", "未確認"], ["grayscale-2d", "2DグレースケールTIFF / OME-TIFF"], ["rgb", "表示用RGB画像"], ["zt", "Zスタック・時系列"]]} />
@@ -66,6 +66,6 @@ export function AnalysisPlanner() {
       </aside>
     </div>
     <section className={styles.sources} aria-labelledby="sources"><h2 id="sources">判断の根拠</h2><p>公開された方法論に基づく整理です。個々の実験への適合性や、必要な反復数を自動で保証するものではありません。</p><ul>{planReferences.map(r => <li key={r.id}><a href={r.url} rel="noreferrer" target="_blank">{r.label} ↗</a></li>)}</ul></section>
-    <footer className={styles.footer}><Link href="/">Cytellect</Link><span>計画ガイド 1.0.0 · 画像・研究条件のアップロード不要</span></footer>
+    <footer className={styles.footer}><Link href="/">Cytellect</Link><span>計画ガイド {PLAN_VERSION} · 画像・研究条件のアップロード不要</span></footer>
   </main>;
 }

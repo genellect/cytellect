@@ -160,6 +160,7 @@ def test_explicit_failed_field_remains_counted_and_region_exclusion_is_not_chann
     report, snapshots = region_fixture()
     snapshots["f2"] = copy.deepcopy(snapshots["f1"])
     report["excluded_failed_fields"].append({"field_id": "f2", "reason": "reviewed failure"})
+    report["exclusions"].append({"field_id": "f2", "region_id": None, "reason": "reviewed failure"})
     report["exclusions"].append({"field_id": "f1", "region_id": 7, "reason": "edge review"})
     result = describe_regions(report, snapshots, request())
     assert [row["value"] for row in result["plot_data"]] == [9]
@@ -167,6 +168,17 @@ def test_explicit_failed_field_remains_counted_and_region_exclusion_is_not_chann
     assert result["counts"]["excluded_failed_fields"] == 1
     assert result["counts"]["input_fields"] == 2
     assert result["excluded_failed_fields"][0]["field_id"] == "f2"
+
+
+@pytest.mark.parametrize("recorded_reason", [None, "different reviewed reason"])
+def test_failed_region_field_requires_the_same_saved_whole_field_exclusion(recorded_reason):
+    report, snapshots = region_fixture()
+    snapshots["f2"] = copy.deepcopy(snapshots["f1"])
+    report["excluded_failed_fields"].append({"field_id": "f2", "reason": "reviewed failure"})
+    if recorded_reason is not None:
+        report["exclusions"].append({"field_id": "f2", "region_id": None, "reason": recorded_reason})
+    with pytest.raises(ValueError, match="descriptive_failure_exclusion_mismatch"):
+        describe_regions(report, snapshots, request())
 
 
 def test_legacy_failure_recorded_after_engine_initialization_is_explicit_not_missing():
