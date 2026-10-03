@@ -60,3 +60,19 @@ errors and unexpected API/origin requests. This public-page evidence is separate
 from the production-build private API/worker workflows: nine cases, followed by
 two generic reruns after the scoped mobile control fix. The distributed local.10
 package and hosted private-analysis status were unchanged by these releases.
+
+## Planning and local.11 delivery checkpoint
+
+PR #13 merged as `c21f9057dd130b87ba55b113d40a0396dcb79e74`; its exact-main
+[required CI](https://github.com/genellect/cytellect/actions/runs/37140066549)
+passed. Vercel automatically published that source as
+`dpl_BQMM7JgbSCFKaf6CTfj36ydzrL6S`. Separate canonical LP/planning checks at
+1440px and 390px passed, with four reviewed screenshots and no browser errors.
+
+The [local.11 release](local-release-0.1.0.md) was separately built, installed,
+accepted and published from that source. Its six public assets were retrieved
+without authentication and byte-compared to the reviewed files. Updating the
+site's download metadata and guide links follows another normal PR/CI/main
+deployment; verify the actual canonical button's downloaded bytes against the
+published SHA after that deployment. Package acceptance, public-page behavior,
+researcher usability and private scientific validation remain separate evidence.

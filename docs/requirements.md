@@ -25,7 +25,7 @@ I05: Immutable original measurement pixels; display LUT and detection preprocess
 I06: User-confirmed background ROI median. Extranuclear pixels not automatically background. Save raw/corrected values and preserve native negative corrections.
 I07: Configurable input-security limits 100 fields/workspace, 4096x4096 plane, 3 channels, 2 GiB total. The input ceiling does not promise automatic detection at that size. The provisional standard-2g automatic-nucleus admission profile requires both sides ≤2048 px and total area ≤2,700,000 pixels; reject excess before Fiji without resizing. Reusing supplied nuclear masks bypasses automatic-nucleus admission, while input/worker limits still apply. Internal IDs for paths, not uploaded filenames.
 I09: Generic region entry accepts 1–3 explicitly named 2D grayscale channels with optional metadata and confirmed XY calibration. Missing unit/sample/date remains null. Reusing a channel ID with a different label/stain in the same workspace is rejected. Imported unsigned integer labels retain exact original-coordinate pixel membership. The 1.0 manual/imported recipe stays stable; the 1.1 nuclear recipe requires an explicitly confirmed defining channel and uses only the fixed nuclear model.
-I10: Batch registration requires a reviewed field/channel file mapping and explicit metadata application. Do not infer independent units, stain identity or groups from filenames. Scope retry IDs to a workspace and compare accepted file hashes/specification; recover an identical retry without duplicate fields or bytes and reject changed content under the same ID.
+I11: Batch registration requires a reviewed field/channel file mapping and explicit metadata application. Do not infer independent units, stain identity or groups from filenames. Scope retry IDs to a workspace and compare accepted file hashes/specification; recover an identical retry without duplicate fields or bytes and reject changed content under the same ID.
 
 ## Segmentation, editing and metrics
 
@@ -41,6 +41,8 @@ A09: Saturation/edge/weak signal/detection/region QC, explicit exclusions. No ha
 A10: Expanding a representative trial to a batch explicitly reuses the current reviewed/corrected masks under the unchanged recipe; newly added fields are initialized separately. Reject stale sources, omitted source fields and implicit definition changes. Background or exclusion changes trigger new measurement revisions without discarding corrected masks.
 A11: Generic nuclear initialization uses the same pinned Fiji/StarDist model and native coordinates as existing nuclear recipes, without fabricated GFP/NCL channels. Record detector origin separately from whether it ran in the current attempt. Nuclear capacity admission applies only when running the detector. Manual corrections, metadata changes and background recovery reuse canonical masks.
 I10: Editing experimental metadata creates an unreviewed child analysis revision. Original upload records, source images and older snapshots remain immutable. Trial-to-batch expansion retains metadata from the adopted parent revision.
+
+Requirement ID clarification (2026-10-04): I10 retains its original experimental-metadata revision meaning from PR #12. The batch-registration requirement introduced in the following increment was also labelled I10; it is now I11. References to the earlier duplicated batch I10 should be read as I11. The requirement text and behavior are unchanged.
 
 ## Statistics and deliverables
 
