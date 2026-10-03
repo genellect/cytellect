@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, FiniteFloat, field_validator, model_validator
 
+from .plan_adoption import PlanResolution
 from .regions import (
     BackgroundSpec,
     Calibration2D,
@@ -53,6 +54,9 @@ class RegionMetadataChange(RegionMetadataEdit):
 
 class RegionFieldInput(RegionModel):
     version: Literal["1.0.0"] = "1.0.0"
+    client_upload_id: Annotated[str, Field(
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )] | None = None
     channels: Annotated[list[ChannelSpec], Field(min_length=1, max_length=3)]
     metadata: RegionFieldMetadata = Field(default_factory=RegionFieldMetadata)
     calibration: Calibration2D | None = None
@@ -174,6 +178,7 @@ class RegionExclusion(RegionModel):
 class RegionAnalysisRequest(RegionModel):
     field_ids: Annotated[list[Id], Field(min_length=1, max_length=100)] | None = None
     reuse_revision: Id | None = None
+    plan_resolution: PlanResolution | None = None
     recipe: RegionRecipeType
     backgrounds: dict[Id, dict[Id, RegionBackground]] = Field(default_factory=dict)
     exclusions: Annotated[list[RegionExclusion], Field(max_length=10000)] = Field(default_factory=list)

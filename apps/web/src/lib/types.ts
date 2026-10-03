@@ -1,14 +1,15 @@
 import recipeDefaults from "./recipe-defaults.json";
 import type { components } from "./generated";
+import type {AdoptedPlan,PlanResolution} from "./analysis-plan";
 export type Point = [number,number];
 export type Session = {authenticated:boolean;retention_hours:number;demo:boolean};
-export type Workspace = {id:string;title:string;active_revision:string|null;expires:number;bytes:number};
+export type Workspace = {id:string;title:string;active_revision:string|null;expires:number;bytes:number;analysis_plan?:AdoptedPlan|null};
 export type Metadata = Required<components["schemas"]["FieldMetadata"]>;
 export type Field = {id:string;metadata:Metadata;image_info:{shape:[number,number];dtype:string;legacy:boolean;channel_roles?:string[]};synthetic:boolean};
 export type Background = Required<components["schemas"]["Background"]>;
 export type Recipe = Required<components["schemas"]["Recipe"]>;
 export type Exclusion = Required<components["schemas"]["Exclusion"]>;
-export type Config = {recipe:Recipe;backgrounds:Record<string,Background>;exclusions:Exclusion[];field_ids?:string[]};
+export type Config = {recipe:Recipe;backgrounds:Record<string,Background>;exclusions:Exclusion[];field_ids?:string[];plan_resolution?:PlanResolution|null};
 export type Revision = {id:string;parent_id:string|null;state:string;reviewed:boolean;created:number;config:Config};
 export type Job = {id:string;revision_id:string;kind:string;state:string;created:number;error:string|null;attempts:number;analysis_mode?:"experimental-unit"|"exploratory"|"descriptive"|"region-experimental-unit"|null};
 export type Cell = Record<string,string|number|boolean|null> & {field_id:string;nucleus_id:number;condition:string;excluded:boolean;gfp_positive:boolean};

@@ -167,6 +167,26 @@ download runs during replay.
 
 ## Validation scope
 
+### Batch registration and retry identity
+
+The optional `client_upload_id` is a client-generated canonical UUID scoped to the
+owned workspace. Repeating it with the same normalized input specification and
+original file hashes returns the accepted field. Different bytes or metadata with
+that ID produce `region_upload_id_conflict`; they never overwrite a field.
+Uploaded filenames are not storage paths or identity. The transaction repeats
+the identity lookup, checks quotas and inserts once, so concurrent retries cannot
+double-count fields or bytes. Unused temporary files are removed.
+
+The generic upload route retains authentication, ownership, expiry, Origin/CSRF,
+body/time and concurrency limits before parsing. Its workspace count/byte quota
+check occurs in the registration transaction, after the retry lookup. This lets a
+previously accepted upload be recovered even at quota; a new over-quota request
+may consume one bounded temporary upload before rejection and cleanup. Other
+upload routes retain their previous pre-parse quota checks. Schema migration0002
+adds nullable identity and planning columns without rewriting existing records.
+
+### Evidence boundaries
+
 Hand-calculated and adversarial tests cover strict JSON round trips, no-Fiji
 manual/imported execution, signed arithmetic, source-file tampering, mask edits,
 background-collision recovery, partial failures and exclusions, exact Fiji ROI

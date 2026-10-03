@@ -12,6 +12,7 @@ import numpy as np
 import tifffile
 
 from .exports_csv import write_csv
+from .plan_adoption import planning_methods, validate_revision_plan
 from .roi import export_roi_zip
 
 ENVIRONMENT_PACKAGES = ("cytellect", "numpy", "scipy", "pandas", "statsmodels", "matplotlib",
@@ -181,7 +182,7 @@ def methods_text(config, provenance, report, statistics_results=()):
               "[replay.py](replay.py). [manifest.json](manifest.json) records package hashes. Replay verifies original hashes "
               "and uses approved saved masks; it does not redownload models or rerun detection.",
               "Original images are omitted unless explicitly requested. Derived results remain confidential.", ""]
-    return "\n".join(lines)
+    return "\n".join(lines + planning_methods(config))
 
 
 def build_export_bundle(destination: Path, *, report, config, provenance, field_masks,
@@ -192,6 +193,7 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
     Files remain private: the caller must enforce ownership and expiration on this directory.
     """
     statistics_results = list(statistics_results)
+    validate_revision_plan(config)
     for index, result in enumerate(statistics_results):
         if result.get("analysis_kind") == "descriptive":
             from .descriptive import validate_legacy_description

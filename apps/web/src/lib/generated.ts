@@ -685,6 +685,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/plans/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Plan */
+        post: operations["preview_plan_v1_plans_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -711,6 +728,32 @@ export interface components {
              */
             spatial_sampling_confirmed: boolean;
         };
+        /** AdoptedPlan */
+        AdoptedPlan: {
+            input: components["schemas"]["PlanInput"];
+            decision: components["schemas"]["PlanDecision"];
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Adoption Version
+             * @default 1.0.0
+             * @constant
+             */
+            adoption_version: "1.0.0";
+            /**
+             * Selected Candidate Id
+             * @enum {string}
+             */
+            selected_candidate_id: "regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl";
+            /** Accepted At */
+            accepted_at: number;
+            /**
+             * Scope
+             * @default planning-intent-only
+             * @constant
+             */
+            scope: "planning-intent-only";
+        };
         /** AnalysisRequest */
         AnalysisRequest: {
             /** Field Ids */
@@ -724,6 +767,7 @@ export interface components {
             };
             /** Exclusions */
             exclusions?: components["schemas"]["Exclusion"][];
+            plan_resolution?: components["schemas"]["PlanResolution"] | null;
         };
         /** Background */
         Background: {
@@ -1184,6 +1228,222 @@ export interface components {
              */
             metric: "value";
         };
+        /** PlanAnswers */
+        PlanAnswers: {
+            /**
+             * Measurement
+             * @default unknown
+             * @enum {string}
+             */
+            measurement: "unknown" | "area" | "mean" | "integrated" | "ncl-ratio";
+            /**
+             * Region
+             * @default unknown
+             * @enum {string}
+             */
+            region: "unknown" | "nucleus" | "nucleolus" | "nucleoplasm" | "custom";
+            /**
+             * Definition
+             * @default unknown
+             * @enum {string}
+             */
+            definition: "unknown" | "manual" | "imported" | "nuclear-stain" | "ncl-enrichment";
+            /**
+             * Signal
+             * @default unknown
+             * @enum {string}
+             */
+            signal: "unknown" | "ncl" | "gfp" | "other";
+            /**
+             * Input
+             * @default unknown
+             * @enum {string}
+             */
+            input: "unknown" | "grayscale-2d" | "rgb" | "zt";
+            /**
+             * Nuclear Stain
+             * @default unknown
+             * @enum {string}
+             */
+            nuclear_stain: "unknown" | "yes" | "no";
+            /**
+             * Background
+             * @default unknown
+             * @enum {string}
+             */
+            background: "unknown" | "yes" | "no";
+            /**
+             * Acquisition
+             * @default unknown
+             * @enum {string}
+             */
+            acquisition: "unknown" | "matched" | "different";
+            /**
+             * Comparison
+             * @default unknown
+             * @enum {string}
+             */
+            comparison: "unknown" | "descriptive" | "independent" | "paired";
+            /**
+             * Allocation
+             * @default unknown
+             * @enum {string}
+             */
+            allocation: "unknown" | "biological" | "fields";
+            /**
+             * Gating
+             * @default none
+             * @enum {string}
+             */
+            gating: "none" | "negative-control" | "exploratory";
+        };
+        /** PlanCandidate */
+        PlanCandidate: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl";
+            /** Label */
+            label: string;
+            /**
+             * Workflow
+             * @enum {string}
+             */
+            workflow: "regions" | "nuclear";
+            /**
+             * Recipe Id
+             * @enum {string}
+             */
+            recipe_id: "region-2d" | "ncl-native-2d" | "gfp-nuclear-2d";
+            /**
+             * Recipe Version
+             * @enum {string}
+             */
+            recipe_version: "1.0.0" | "1.1.0";
+            /** Source */
+            source: ("manual" | "imported" | "stardist_nuclear") | null;
+            /**
+             * Selection Source
+             * @enum {string}
+             */
+            selection_source: "region" | "legacy-cell";
+            /** Allowed Metrics */
+            allowed_metrics: ("area_px" | "area_um2" | "mean" | "mean_corrected" | "integrated" | "integrated_corrected" | "gfp_mean" | "gfp_mean_corrected" | "gfp_integrated" | "gfp_integrated_corrected" | "ncl_nucleus_mean" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_integrated" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_integrated" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli")[];
+            /** Required Channel Roles */
+            required_channel_roles: ("image" | "measurement" | "nuclear-stain" | "ncl" | "gfp")[];
+            /** Actual Review Required */
+            actual_review_required: ("native-input" | "channel-mapping" | "nuclear-stain" | "background-rois" | "region-definition" | "metric-selection" | "mask-quality" | "gfp-gate" | "calibration-for-physical-area")[];
+        };
+        /** PlanDecision */
+        PlanDecision: {
+            /**
+             * Version
+             * @default 2.0.0
+             * @constant
+             */
+            version: "2.0.0";
+            /**
+             * Status
+             * @default planning-only-not-adopted
+             * @constant
+             */
+            status: "planning-only-not-adopted";
+            /** Candidates */
+            candidates: components["schemas"]["PlanCandidate"][];
+            /**
+             * Comparison Intent
+             * @enum {string}
+             */
+            comparison_intent: "undetermined" | "descriptive" | "independent-candidate" | "paired-candidate";
+            /**
+             * Descriptive Allowed
+             * @default true
+             * @constant
+             */
+            descriptive_allowed: true;
+            /** Questions */
+            questions: components["schemas"]["PlanFinding"][];
+            /** Decisions */
+            decisions: components["schemas"]["PlanFinding"][];
+            /** Limits */
+            limits: components["schemas"]["PlanFinding"][];
+            /** References */
+            references: components["schemas"]["PlanReference"][];
+        };
+        /** PlanFinding */
+        PlanFinding: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Reference
+             * @enum {string}
+             */
+            reference: "senft-2023" | "kodiha-2011" | "waters-2009" | "lazic-2018" | "lord-2020" | "schmied-2024";
+        };
+        /** PlanInput */
+        PlanInput: {
+            /**
+             * Format
+             * @default cytellect-analysis-plan
+             * @constant
+             */
+            format: "cytellect-analysis-plan";
+            /**
+             * Version
+             * @constant
+             */
+            version: "2.0.0";
+            answers: components["schemas"]["PlanAnswers"];
+        };
+        /** PlanReference */
+        PlanReference: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "senft-2023" | "kodiha-2011" | "waters-2009" | "lazic-2018" | "lord-2020" | "schmied-2024";
+            /** Label */
+            label: string;
+            /** Url */
+            url: string;
+        };
+        /** PlanResolution */
+        PlanResolution: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Plan Sha256 */
+            plan_sha256: string;
+            /**
+             * Candidate Id
+             * @enum {string}
+             */
+            candidate_id: "regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl";
+            /** Metric */
+            metric: string;
+            /** Channel Id */
+            channel_id?: string | null;
+            /**
+             * Changes Acknowledged
+             * @default false
+             */
+            changes_acknowledged: boolean;
+        };
+        /** PlanSnapshot */
+        PlanSnapshot: {
+            input: components["schemas"]["PlanInput"];
+            decision: components["schemas"]["PlanDecision"];
+            /** Sha256 */
+            sha256: string;
+        };
         /** PlotSpec */
         PlotSpec: {
             /**
@@ -1324,6 +1584,7 @@ export interface components {
             field_ids?: string[] | null;
             /** Reuse Revision */
             reuse_revision?: string | null;
+            plan_resolution?: components["schemas"]["PlanResolution"] | null;
             /** Recipe */
             recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
             /** Backgrounds */
@@ -1898,6 +2159,7 @@ export interface components {
             } | null;
             /** Exclusions */
             exclusions?: components["schemas"]["Exclusion"][] | null;
+            plan_resolution?: components["schemas"]["PlanResolution"] | null;
         };
         /** ReviewInput */
         ReviewInput: {
@@ -2007,6 +2269,9 @@ export interface components {
              * @default Untitled experiment
              */
             title: string;
+            plan?: components["schemas"]["PlanInput"] | null;
+            /** Plan Candidate Id */
+            plan_candidate_id?: ("regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl") | null;
         };
         /** WorkspaceView */
         WorkspaceView: {
@@ -2026,6 +2291,7 @@ export interface components {
             active_revision: string | null;
             /** Bytes */
             bytes: number;
+            analysis_plan?: components["schemas"]["AdoptedPlan"] | null;
         };
     };
     responses: never;
@@ -3493,6 +3759,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegionComparisonView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_plan_v1_plans_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanSnapshot"];
                 };
             };
             /** @description Validation Error */

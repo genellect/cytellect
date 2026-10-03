@@ -3,13 +3,14 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { request, post, errorMessage, errorCodeMessage, download } from "@/lib/api";
-import { defaultRecipe, fieldRoles, formatValue, qualityReasonLabel, type Background, type Config, type Field, type Job, type Layer, type Masks, type Measurements, type Operation, type Point, type Revision, type Session, type Workspace } from "@/lib/types";
+import { availableMetricIds,metricLabels,defaultRecipe, fieldRoles, formatValue, qualityReasonLabel, type Background, type Config, type Field, type Job, type Layer, type Masks, type Measurements, type Operation, type Point, type Revision, type Session, type Workspace } from "@/lib/types";
 import { RevisionNavigation } from "@/lib/revision-navigation";
 import { signalQualityItems } from "@/lib/signal-quality";
 import { analysisSubmission, missingBackgroundFields, sameRecipe, type AnalysisScope } from "@/lib/analysis-submission";
 import type { Cell } from "@/lib/types";
 import UploadPanel from "./UploadPanel";
 import StatisticsPanel from "./StatisticsPanel";
+import PlanResolutionPanel,{planChanges} from "./PlanResolutionPanel";
 import styles from "./workspace.module.css";
 const FieldCanvas=dynamic(()=>import("./FieldCanvas"),{ssr:false,loading:()=> <div className={styles.canvasLoading}>ビューアを準備しています…</div>});
 const operationNames:Record<Operation,string>={select:"選択",background:"背景ROI",add:"追加",replace:"輪郭修正",delete:"削除",merge:"結合",split:"分割"};
@@ -26,6 +27,7 @@ export default function Workbench({id,session,onBack,onError}:Props){
  const [parent,setParent]=useState("");const [channel,setChannel]=useState("merge");const [gain,setGain]=useState(1);const [showMasks,setShowMasks]=useState(true);const [coordinates,setCoordinates]=useState("");
  const [ackInvalidated,setAckInvalidated]=useState(false);const [includeRaw,setIncludeRaw]=useState(false);const [confirmDelete,setConfirmDelete]=useState(false);const [reviewConfirmed,setReviewConfirmed]=useState(false);const [excludeReason,setExcludeReason]=useState("");
  const [pendingDetection,setPendingDetection]=useState<AnalysisScope|null>(null);const controlsRef=useRef<HTMLElement>(null);const measurementsRef=useRef<HTMLElement>(null);const editorRef=useRef<HTMLDivElement>(null);
+ const planPrepared=useRef(false);
  const space=useQuery({queryKey:["workspace",id],queryFn:()=>request<Workspace>(`/v1/workspaces/${id}`)});
  const fields=useQuery({queryKey:["fields",id],queryFn:()=>request<Field[]>(`/v1/workspaces/${id}/fields`)});
  const revisions=useQuery({queryKey:["revisions",id],queryFn:()=>request<Revision[]>(`/v1/workspaces/${id}/revisions`)});
@@ -38,19 +40,22 @@ export default function Workbench({id,session,onBack,onError}:Props){
  const measured=useQuery({queryKey:["measurements",active?.id],queryFn:()=>request<Measurements>(`/v1/revisions/${active!.id}/measurements`),enabled:active?.state==="succeeded"});
  const statusKey=(jobs.data||[]).map(j=>j.id+j.state).join("|");
  useEffect(()=>{void qc.invalidateQueries({queryKey:["workspace",id]});void qc.invalidateQueries({queryKey:["revisions",id]});},[statusKey,qc,id]);
- useEffect(()=>{if(active && loadedRevision.current !== active.id){loadedRevision.current=active.id;setConfig({recipe:{...defaultRecipe,...active.config.recipe},backgrounds:active.config.backgrounds,exclusions:active.config.exclusions});setDirty(false);setReviewConfirmed(false);setAckInvalidated(false);setPendingDetection(null);}},[active]); // A scientific revision is immutable.
+ useEffect(()=>{if(active && loadedRevision.current !== active.id){loadedRevision.current=active.id;setConfig({recipe:{...defaultRecipe,...active.config.recipe},backgrounds:active.config.backgrounds,exclusions:active.config.exclusions,plan_resolution:active.config.plan_resolution});setDirty(false);setReviewConfirmed(false);setAckInvalidated(false);setPendingDetection(null);}},[active]); // A scientific revision is immutable.
+ useEffect(()=>{const plan=space.data?.analysis_plan;if(!plan||active||planPrepared.current)return;const candidate=plan.decision.candidates.find(item=>item.id===plan.selected_candidate_id);if(candidate?.workflow!=="nuclear"||candidate.recipe_id==="region-2d")return;planPrepared.current=true;setConfig(current=>({...current,recipe:{...current.recipe,id:candidate.recipe_id as "gfp-nuclear-2d"|"ncl-native-2d"}}));},[space.data,active]);
  useEffect(()=>{setSelected([]);setPolygon([]);setCoordinates("");setPendingDetection(null);},[fid,layer,operation]);
  useEffect(()=>{if(!hasNcl||!nucleolarRecipe)setLayer("nuclei");},[hasNcl,nucleolarRecipe]);
  async function refresh(){await Promise.all([qc.invalidateQueries({queryKey:["workspace",id]}),qc.invalidateQueries({queryKey:["revisions",id]}),qc.invalidateQueries({queryKey:["jobs",id]}),qc.invalidateQueries({queryKey:["fields",id]})]);}
  async function act(fn:()=>Promise<void>){onError("");setBusy(true);try{await fn();await refresh();}catch(e){onError(errorMessage(e));}finally{setBusy(false);}}
  const run=(fn:()=>Promise<void>)=>{void act(fn);};
- function change(next:Partial<Config>){setConfig(c=>({...c,...next}));setDirty(true);setPendingDetection(null);}
+ function change(next:Partial<Config>){setConfig(c=>({...c,...next,...(next.recipe&&c.plan_resolution?{plan_resolution:{...c.plan_resolution,changes_acknowledged:false}}:{})}));setDirty(true);setPendingDetection(null);}
  function background(value:Background){change({backgrounds:{...config.backgrounds,[fid]:value}});}
  async function setCurrent(rid:string){await post(`/v1/workspaces/${id}/current`,{revision_id:rid});setNavigation(n=>n.selected(active,rid));}
  const sorted=(revisions.data||[]).toSorted((a,b)=>a.created-b.created);const currentIndex=sorted.findIndex(r=>r.id===active?.id);const child=navigation.redo(sorted,active);
  const onExport=()=>run(async()=>{await post(`/v1/revisions/${active!.id}/export?include_raw=${includeRaw}`);});
  const completedExports=(jobs.data||[]).filter(j=>j.kind==="export"&&j.state==="succeeded").toSorted((a,b)=>b.created-a.created);
  const blocked=busy||!!running;
+ const planOptions=fields.data?.length?availableMetricIds({hasGfp:fields.data.every(item=>fieldRoles(item).includes("gfp")),hasNcl:config.recipe.id!=="gfp-nuclear-2d"&&fields.data.every(item=>fieldRoles(item).includes("ncl")),legacy:false,calibrated:fields.data.every(item=>!!item.metadata.pixel_size_um)}).map(metric=>({id:metric,label:metricLabels[metric],metric,channel_id:metric.startsWith("gfp_")?"gfp":metric.startsWith("ncl_")?"ncl":null})):[];
+ const planReady=!space.data?.analysis_plan||!!config.plan_resolution&&planOptions.some(option=>option.metric===config.plan_resolution?.metric&&option.channel_id===config.plan_resolution.channel_id)&&(!planChanges(space.data.analysis_plan,config.recipe,config.plan_resolution.metric).length||config.plan_resolution.changes_acknowledged);
  const fieldCells=(measured.data?.cells||[]).filter(c=>c.field_id===fid);
  const failures=measured.data?.field_failures||[];const invalidated=measured.data?.invalidated_nucleoli||[];const nucleolarFailures=(measured.data?.nucleolar_failures||[]).filter(f=>!config.exclusions.some(e=>e.field_id===f.field_id&&(e.nucleus_id===null||e.nucleus_id===f.nucleus_id)&&!!e.reason.trim()));
  const recipeChanged=!!active&&!sameRecipe(config.recipe,active.config.recipe);
@@ -60,6 +65,7 @@ export default function Workbench({id,session,onBack,onError}:Props){
  const batchPlan=analysisSubmission(config,active,allFieldIds,"batch",fid);const pendingPlan=pendingDetection?analysisSubmission(config,active,allFieldIds,pendingDetection,fid):null;
  const unprocessedFields=allFieldIds.filter(fieldId=>!active?.config.field_ids?.includes(fieldId));
  async function startAnalysis(scope:AnalysisScope,confirmed=false){
+  if(!planReady)return;
   const plan=analysisSubmission(config,active,allFieldIds,scope,fid);
   if(plan.confirmationRequired&&!confirmed){setPendingDetection(scope);return;}
   setPendingDetection(null);
@@ -85,6 +91,7 @@ export default function Workbench({id,session,onBack,onError}:Props){
   {(space.error||fields.error)&&<div className={styles.error} role="alert">{errorMessage(space.error||fields.error)}</div>}
   {tab==="analysis"&&<>
    <UploadPanel wid={id} demo={session.demo} run={run} onDone={recipeId=>{if(!fields.data?.length&&!active)change({recipe:{...config.recipe,id:recipeId}});void refresh();}}/>
+   <PlanResolutionPanel plan={space.data?.analysis_plan} recipe={config.recipe} options={planOptions} value={config.plan_resolution} blocked={blocked} onChange={value=>change({plan_resolution:value})}/>
    {!!fields.data?.length&&<div className={styles.nextStep} aria-label="次の操作"><p>{nextStep.text}</p>{nextStep.action&&<button className={styles.secondary} disabled={blocked} onClick={followNextStep}>{nextStep.label} →</button>}</div>}
    {!fields.data?.length?<section className={styles.emptyWorkspace}><div className={styles.emptyIcon}>◉</div><h2>画像からはじめましょう。</h2><p>チャンネル別のTIFFを登録するか、合成データで一連の操作を試せます。</p><button className={styles.primary} disabled={blocked} onClick={()=>run(async()=>{const data=await post<{field_ids:string[];background_polygon:Point[]}>(`/v1/workspaces/${id}/synthetic`);setConfig(c=>({...c,backgrounds:Object.fromEntries(data.field_ids.map(fid=>[fid,{polygon:data.background_polygon,confirmed:true}]))}));setFieldId(data.field_ids[0]);setDirty(true);})}>合成データで試す</button><p className={styles.small}>6視野 / 2群 / 3独立反復。合成画像の操作検証であり、実画像の検出性能を示しません。</p></section>:
    <div className={styles.analysisGrid}>
@@ -113,14 +120,14 @@ export default function Workbench({id,session,onBack,onError}:Props){
      {config.recipe.id!=="ncl-legacy-rgb"&&<details><summary>弱い信号の確認（任意）</summary><label>信号 / 背景ばらつきの確認閾値<input type="number" min={0} step="any" placeholder="未設定" value={config.recipe.native_signal_qc_minimum_ratio??""} onChange={e=>change({recipe:{...config.recipe,native_signal_qc_minimum_ratio:e.target.value===""?null:Number(e.target.value)}})}/></label><p className={styles.small}>背景補正平均を背景のばらつき（1.4826 × MAD）で割った値です。指定値未満を要確認と表示します。共通の推奨閾値はなく、自動除外やGFP選別には使いません。背景のばらつきが0のときは計算できません。</p></details>}
      {nucleolarRecipe&&<p className={styles.small}>NCLを用いた領域定義はNCL再分布の影響を受けます。候補がない場合、核全体に置き換えません。</p>}
      <div className={styles.analysisLaunch}>
-      <button className={styles.secondary} disabled={blocked||!fid||trialBackgroundMissing} onClick={()=>run(()=>startAnalysis("trial"))}>この視野で試す</button>
+      <button className={styles.secondary} disabled={blocked||!fid||trialBackgroundMissing||!planReady} onClick={()=>run(()=>startAnalysis("trial"))}>この視野で試す</button>
       <p className={styles.small}>{trialBackgroundMissing?"選択した視野の背景を先に確認してください。":"選択中の1視野を検出します。既存の修正がある場合は再検出を確認します。"}</p>
-      <button className={styles.primary} disabled={blocked||!fields.data?.length||!!missingBackgrounds.length} onClick={()=>run(()=>startAnalysis("batch"))}>条件を固定して全視野を解析</button>
+      <button className={styles.primary} disabled={blocked||!fields.data?.length||!!missingBackgrounds.length||!planReady} onClick={()=>run(()=>startAnalysis("batch"))}>条件を固定して全視野を解析</button>
       <p className={styles.small} data-testid="batch-scope">{missingBackgrounds.length?`全視野の背景確認まで、あと ${missingBackgrounds.length} 視野です。`:batchPlan.preservedCount?`${batchPlan.preservedCount} 視野の修正済み領域を保持し、残り ${batchPlan.detectedCount} 視野を検出します。背景・選別条件を含め全視野を再測定します。`:batchPlan.confirmationRequired?"解析条件が変わっています。修正済み領域を置き換える再検出には確認が必要です。":`${allFieldIds.length} 視野を同じ条件で検出・測定します。`}</p>
       {pendingDetection&&pendingPlan&&<div className={styles.redetectionConfirm} role="alert" aria-label="再検出の確認"><b>修正済み領域を置き換えて再検出</b><p>{pendingDetection==="trial"?"選択中の1視野":`全 ${allFieldIds.length} 視野`}を再検出します。保存済みの {pendingPlan.replacedCount} 視野の領域は引き継ぎません。元の版は履歴に残ります。</p><button className={styles.secondary} disabled={blocked} onClick={()=>setPendingDetection(null)}>取消</button><button className={styles.primary} disabled={blocked} onClick={()=>run(()=>startAnalysis(pendingDetection,true))}>再検出して解析</button></div>}
      </div>
-     {active?.state==="succeeded"&&<button className={styles.secondary} disabled={!dirty||blocked} onClick={()=>run(async()=>{await post(`/v1/revisions/${active.id}/reconfigure`,config);})}>現在のマスクで条件を更新</button>}
-     {active?.state==="succeeded"&&nucleolarRecipe&&!!resegmentFields.length&&<><button className={styles.secondary} disabled={blocked} onClick={()=>run(async()=>{await post(`/v1/revisions/${active.id}/resegment`,{field_ids:resegmentFields,recipe:config.recipe,backgrounds:config.backgrounds,exclusions:config.exclusions});})}>核小体候補を再検出 · {resegmentFields.length} 視野</button><p className={styles.small}>{recipeChanged?"変更した条件を解析版の全視野へ適用します。":"再確認待ちの視野を再検出します。"}核の修正を保持し、背景・除外の変更も反映します。核検出条件の変更は新しい全視野解析が必要です。</p></>}
+     {active?.state==="succeeded"&&<button className={styles.secondary} disabled={!dirty||blocked||!planReady} onClick={()=>run(async()=>{await post(`/v1/revisions/${active.id}/reconfigure`,config);})}>現在のマスクで条件を更新</button>}
+     {active?.state==="succeeded"&&nucleolarRecipe&&!!resegmentFields.length&&<><button className={styles.secondary} disabled={blocked} onClick={()=>run(async()=>{await post(`/v1/revisions/${active.id}/resegment`,{field_ids:resegmentFields,recipe:config.recipe,backgrounds:config.backgrounds,exclusions:config.exclusions,plan_resolution:config.plan_resolution});})}>核小体候補を再検出 · {resegmentFields.length} 視野</button><p className={styles.small}>{recipeChanged?"変更した条件を解析版の全視野へ適用します。":"再確認待ちの視野を再検出します。"}核の修正を保持し、背景・除外の変更も反映します。核検出条件の変更は新しい全視野解析が必要です。</p></>}
      {field?.synthetic&&<div className={styles.syntheticNote}>合成画像：操作と数値の検証用です。実画像での検出性能を示すものではありません。</div>}
     </aside>
    </div>}

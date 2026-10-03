@@ -13,6 +13,7 @@ P06: Publication-ready means editable figures, explicit conditions, traceable me
 P07: The 2026-10-03 extension centers general 2D fluorescence region detection, area/intensity measurement, statistics and figures. Preserve existing nuclear/NCL/GFP recipes and their limits; never transport another stain as GFP/NCL merely to bypass a contract. See [researcher workflow](research-workflow.md) for needs, sequencing and agent responsibilities.
 P08: Method support must explain applicability, needed controls, limitations and primary sources. Begin with a no-upload, rule-based planning guide. Unsupported methods are not executable suggestions. No product LLM or additional paid service is required for this phase.
 P09: Novice usability means task-oriented choices and a clear next action, with inspectable settings for specialists. Evaluate this through researcher tasks; visual polish and automated browser tests alone do not prove usability.
+P10: Versioned planning guidance may be adopted explicitly into a new owned workspace. Recompute guidance on the API, resolve its intended metric and region against actual confirmed inputs, preserve it through immutable edits/exports/replay, and record acknowledged method changes. A plan never supplies actual channel/background/acquisition/independence confirmations. Same-runtime handoff uses memory; cross-runtime handoff uses an explicitly selected local JSON file, not URL or browser storage.
 
 ## Workflow and input
 
@@ -24,6 +25,7 @@ I05: Immutable original measurement pixels; display LUT and detection preprocess
 I06: User-confirmed background ROI median. Extranuclear pixels not automatically background. Save raw/corrected values and preserve native negative corrections.
 I07: Configurable input-security limits 100 fields/workspace, 4096x4096 plane, 3 channels, 2 GiB total. The input ceiling does not promise automatic detection at that size. The provisional standard-2g automatic-nucleus admission profile requires both sides ≤2048 px and total area ≤2,700,000 pixels; reject excess before Fiji without resizing. Reusing supplied nuclear masks bypasses automatic-nucleus admission, while input/worker limits still apply. Internal IDs for paths, not uploaded filenames.
 I09: Generic region entry accepts 1–3 explicitly named 2D grayscale channels with optional metadata and confirmed XY calibration. Missing unit/sample/date remains null. Reusing a channel ID with a different label/stain in the same workspace is rejected. Imported unsigned integer labels retain exact original-coordinate pixel membership. The 1.0 manual/imported recipe stays stable; the 1.1 nuclear recipe requires an explicitly confirmed defining channel and uses only the fixed nuclear model.
+I10: Batch registration requires a reviewed field/channel file mapping and explicit metadata application. Do not infer independent units, stain identity or groups from filenames. Scope retry IDs to a workspace and compare accepted file hashes/specification; recover an identical retry without duplicate fields or bytes and reject changed content under the same ID.
 
 ## Segmentation, editing and metrics
 

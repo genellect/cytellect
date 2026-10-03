@@ -12,6 +12,7 @@ from cytellect_analysis.masks import apply_edit, detect_nucleoli, polygon_mask
 from cytellect_analysis.measurement import apply_gfp_gate, measure, normalize_nucleolar_states
 from cytellect_analysis.numeric_export import build_numeric_bundle
 from cytellect_analysis.numerical_csv import analyze_numeric
+from cytellect_analysis.plan_adoption import validate_revision_plan
 from cytellect_analysis.statistics import analyze_sensitivity
 from cytellect_api.config import Settings
 from cytellect_api.db import Store, attempts, fields, jobs, revisions, sessions, tables, workspaces
@@ -77,6 +78,7 @@ def run_analysis(store, settings, job, output):
     if revision is None:
         raise ValueError("revision_not_found")
     config = revision["config"]
+    validate_revision_plan(config)
     if config.get("analysis_kind") == "region-2d":
         from .regions import run_region_analysis
 
@@ -244,6 +246,10 @@ def run_analysis(store, settings, job, output):
 
 
 def run_statistics(store, job, output):
+    source = store.one(revisions, id=job["revision_id"])
+    if source is None or source["workspace_id"] != job["workspace_id"]:
+        raise ValueError("revision_not_found")
+    validate_revision_plan(source["config"])
     if job["payload"].get("mode") == "descriptive":
         from .descriptive import run_descriptive
 

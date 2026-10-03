@@ -3,6 +3,7 @@
 from typing import Any, Literal
 
 from cytellect_analysis.contracts import FieldMetadata
+from cytellect_analysis.plan_adoption import AdoptedPlan
 from pydantic import BaseModel, Field
 
 
@@ -15,6 +16,7 @@ class WorkspaceView(BaseModel):
     deleted: bool
     active_revision: str | None
     bytes: int
+    analysis_plan: AdoptedPlan | None = None
 
 
 def _default_channel_roles() -> list[Literal["dapi", "ncl", "gfp"]]:

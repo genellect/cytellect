@@ -1,5 +1,6 @@
 """Additive, owned generic-region endpoints sharing the existing job lifecycle."""
 
+import hashlib
 import json
 import shutil
 import time
@@ -25,6 +26,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select, update
 
 from .db import fields, revisions, uid, workspaces
+from .planning import bind_revision_plan, inherit_plan_resolution
 from .region_inputs import read_label_tiff
 from .storage import read_json
 
@@ -108,6 +110,22 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         if labels is not None:
             uploads["labels"] = labels
         total = 0
+        keep_folder = False
+        fingerprint = None
+
+        def existing_upload(conn):
+            if spec.client_upload_id is None:
+                return None
+            existing = conn.execute(select(fields).where(
+                fields.c.workspace_id == wid,
+                fields.c.client_upload_id == spec.client_upload_id,
+            )).mappings().first()
+            if existing is None:
+                return None
+            if existing["upload_fingerprint"] != fingerprint:
+                raise HTTPException(409, "region_upload_id_conflict")
+            return dict(existing)
+
         try:
             inputs = {}
             for slot, file in uploads.items():
@@ -119,6 +137,19 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                             raise HTTPException(413, "field_upload_limit")
                         stream.write(chunk)
                 inputs[slot] = {"sha256": sha256(path), "bytes": path.stat().st_size}
+            if spec.client_upload_id is not None:
+                canonical = json.dumps({
+                    "specification": spec.model_dump(mode="json", exclude={"client_upload_id"}),
+                    "inputs": inputs,
+                }, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+                fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                # A known key is resolved before decoding and quota checks. A
+                # changed/corrupt resend must not replace the accepted input.
+                with store.transaction() as conn:
+                    touch(conn, wid)
+                    existing = existing_upload(conn)
+                    if existing is not None:
+                        return existing
             shape = None
             arrays = {}
             for i, channel in enumerate(spec.channels):
@@ -142,6 +173,11 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                                    "calibration": spec.calibration})
             with store.transaction() as conn:
                 touch(conn, wid)
+                # Decode outside the write lock, then recheck within the same
+                # transaction as quota accounting and insert for racing sends.
+                existing = existing_upload(conn)
+                if existing is not None:
+                    return existing
                 w = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
                 count = conn.execute(select(func.count()).select_from(fields).where(fields.c.workspace_id == wid)).scalar_one()
                 if count >= settings.max_fields or w["bytes"] + total > settings.max_upload_bytes:
@@ -155,16 +191,19 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                         raise HTTPException(409, "region_workspace_channel_identity_mismatch")
                 conn.execute(fields.insert().values(id=fid, workspace_id=wid,
                              metadata=spec.metadata.model_dump(mode="json"),
-                             image_info=info.model_dump(mode="json"), synthetic=False))
+                             image_info=info.model_dump(mode="json"), synthetic=False,
+                             client_upload_id=spec.client_upload_id, upload_fingerprint=fingerprint))
                 conn.execute(update(workspaces).where(workspaces.c.id == wid).values(bytes=w["bytes"] + total))
-            return dict(store.one(fields, id=fid))
+                result = dict(conn.execute(select(fields).where(fields.c.id == fid)).mappings().one())
+            keep_folder = True
+            return result
         except HTTPException:
-            shutil.rmtree(folder)
             raise
         except Exception:
-            shutil.rmtree(folder)
             raise HTTPException(422, "unsupported_or_invalid_region_image") from None
         finally:
+            if not keep_folder:
+                shutil.rmtree(folder)
             for file in uploads.values():
                 await file.close()
 
@@ -182,7 +221,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
 
     @api.post("/v1/workspaces/{wid}/region-analyses", status_code=202)
     def start(wid: str, body: RegionAnalysisRequest, who: Owner):
-        workspace(wid, who)
+        workspace_record = workspace(wid, who)
         selected = [dict(f) for f in store.rows(fields, workspace_id=wid) if is_region(f)]
         if body.field_ids is not None:
             if set(body.field_ids) - {f["id"] for f in selected}:
@@ -208,6 +247,9 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         rid = uid()
         config = {**body.model_dump(mode="json"), "analysis_kind": "region-2d",
                   "field_ids": [f["id"] for f in selected], "field_snapshot": {f["id"]: f for f in selected}}
+        if parent is not None and "plan_resolution" not in body.model_fields_set:
+            inherit_plan_resolution(config, parent["config"])
+        bind_revision_plan(config, workspace_record.get("analysis_plan"))
         with store.transaction() as conn:
             w = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
             if parent is not None and w["active_revision"] != parent["id"]:
@@ -267,6 +309,9 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         validate_request(body, selected, read_json(root / "measurements.json").get("field_masks", {}))
         config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit")}
         config.update(body.model_dump(mode="json", exclude={"field_ids"}), reuse_revision=rid)
+        if "plan_resolution" not in body.model_fields_set:
+            inherit_plan_resolution(config, parent["config"])
+        bind_revision_plan(config, workspace(parent["workspace_id"], who).get("analysis_plan"))
         return child_revision(parent, config)
 
     @api.post("/v1/revisions/{rid}/region-metadata", status_code=202)

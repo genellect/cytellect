@@ -20,18 +20,21 @@ from cytellect_analysis.contracts import (
 )
 from cytellect_analysis.images import read_tiff, render_preview, sha256
 from cytellect_analysis.masks import contours
+from cytellect_analysis.plan_adoption import adopt_plan
+from cytellect_analysis.planning import CandidateId, PlanInput
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from cytellect_analysis.synthetic import synthetic_field
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from sqlalchemy import func, select, update
 
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
+from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
 from .region_comparisons import register_region_comparison_routes
 from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
@@ -44,7 +47,16 @@ class InviteInput(BaseModel):
 
 
 class WorkspaceInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     title: str = Field(default="Untitled experiment", min_length=1, max_length=100)
+    plan: PlanInput | None = None
+    plan_candidate_id: CandidateId | None = None
+
+    @model_validator(mode="after")
+    def explicit_plan_choice(self):
+        if (self.plan is None) != (self.plan_candidate_id is None):
+            raise ValueError("planning_candidate_unavailable")
+        return self
 
 
 class RevisionInput(BaseModel):
@@ -251,6 +263,12 @@ def create_app(settings: Settings | None = None):
     @api.post("/v1/workspaces", status_code=201, response_model=WorkspaceView)
     def new_workspace(body: WorkspaceInput, who: Owner):
         wid = uid()
+        selected_plan = None
+        if body.plan is not None and body.plan_candidate_id is not None:
+            try:
+                selected_plan = adopt_plan(body.plan, body.plan_candidate_id, time.time()).model_dump(mode="json")
+            except ValueError:
+                raise HTTPException(422, "planning_candidate_unavailable") from None
         with store.transaction() as c:
             c.execute(
                 workspaces.insert().values(
@@ -261,6 +279,7 @@ def create_app(settings: Settings | None = None):
                     expires=time.time() + settings.retention_seconds,
                     deleted=False,
                     bytes=0,
+                    analysis_plan=selected_plan,
                 )
             )
         return dict(store.one(workspaces, id=wid))
@@ -445,6 +464,7 @@ def create_app(settings: Settings | None = None):
                         "inputs": inputs,
                         "axes": "YX",
                         "channel_mapping": ["dapi", "ncl", "gfp"],
+                        "channel_roles": ["dapi", "ncl", "gfp"],
                     }
                     c.execute(
                         fields.insert().values(
@@ -497,7 +517,7 @@ def create_app(settings: Settings | None = None):
 
     @api.post("/v1/workspaces/{wid}/analyses", status_code=202)
     def start_analysis(wid: str, body: AnalysisRequest, who: Owner):
-        workspace(wid, who)
+        selected_workspace = workspace(wid, who)
         selected = [f for f in store.rows(fields, workspace_id=wid) if not is_region(f)]
         if body.field_ids is not None:
             requested = set(body.field_ids)
@@ -533,6 +553,9 @@ def create_app(settings: Settings | None = None):
         config = body.model_dump()
         config["field_ids"] = [f["id"] for f in selected]
         config["field_snapshot"] = {f["id"]: dict(f) for f in selected}
+        if parent is not None and "plan_resolution" not in body.model_fields_set:
+            inherit_plan_resolution(config, parent["config"])
+        bind_revision_plan(config, selected_workspace["analysis_plan"])
         with store.transaction() as c:
             w = c.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
             if parent is not None and w["active_revision"] != parent["id"]:
@@ -747,7 +770,10 @@ def create_app(settings: Settings | None = None):
                 raise HTTPException(422, "confirm_background_for_every_field")
         config = {k: v for k, v in parent["config"].items() if k not in {"edit", "resegment_fields"}}
         config.update(body.model_dump(exclude={"field_ids"}))
+        if "plan_resolution" not in body.model_fields_set:
+            inherit_plan_resolution(config, parent["config"])
         config["reuse_revision"] = rid
+        bind_revision_plan(config, workspace(parent["workspace_id"], who)["analysis_plan"])
         return child_revision(parent, config)
 
     @api.post("/v1/revisions/{rid}/resegment", status_code=202)
@@ -786,6 +812,11 @@ def create_app(settings: Settings | None = None):
             for fid in set(config["field_ids"]) - excluded:
                 if not config["backgrounds"].get(fid, {}).get("confirmed"):
                     raise HTTPException(422, "confirm_background_for_every_field")
+        if "plan_resolution" in body.model_fields_set:
+            config["plan_resolution"] = body.plan_resolution.model_dump(mode="json") if body.plan_resolution else None
+        else:
+            inherit_plan_resolution(config, parent["config"])
+        bind_revision_plan(config, workspace(parent["workspace_id"], who)["analysis_plan"])
         return child_revision(parent, config)
 
     @api.post("/v1/jobs/{jid}/retry", status_code=202)
@@ -958,4 +989,5 @@ def create_app(settings: Settings | None = None):
                            field_record, result_root, queue, touch, child_revision)
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
+    register_planning_routes(api, owner)
     return api

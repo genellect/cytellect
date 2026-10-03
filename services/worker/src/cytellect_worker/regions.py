@@ -12,6 +12,7 @@ import numpy as np
 from cytellect_analysis.engine import detect_nuclei
 from cytellect_analysis.images import sha256
 from cytellect_analysis.masks import apply_label_edit, polygon_mask, validate_label_array
+from cytellect_analysis.plan_adoption import validate_revision_plan
 from cytellect_analysis.region_contracts import (
     RegionAnalysisRequest,
     RegionFieldMetadata,
@@ -93,6 +94,7 @@ def run_region_analysis(store, settings, job, output):
     if revision is None or revision["workspace_id"] != job["workspace_id"]:
         raise ValueError("revision_not_found")
     config = revision["config"]
+    validate_revision_plan(config)
     if config.get("analysis_kind") != "region-2d":
         raise ValueError("region_revision_kind_mismatch")
     request = RegionAnalysisRequest.model_validate({
