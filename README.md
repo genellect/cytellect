@@ -1,6 +1,6 @@
 # Cytellect
 
-Reproducible immunofluorescence analysis, from nuclear and nucleolar segmentation to quantification, statistics, and publication-ready figures.
+From 2D fluorescence images to reviewed measurements, statistics and publication-ready figures.
 
 [日本語](README.ja.md) · [Requirements](docs/requirements.md) · [Methods](docs/methods.md) · [Validation](docs/validation.md)
 
@@ -8,7 +8,7 @@ Reproducible immunofluorescence analysis, from nuclear and nucleolar segmentatio
 
 **Early research prototype.** The Web/API/worker workflow is implemented and tested with published microscopy and independent numerical references. Suitability for the user's experiment and researcher PoC remain unvalidated. The public sample viewer uses published microscopy; a UI deployment does not imply an available analysis server.
 
-Cytellect brings DAPI nuclear segmentation, NCL nucleolar candidates, manual mask correction, GFP selection, compartment measurements, statistics and editable figures into one Japanese workspace. The initial engine is Fiji + StarDist/ImageJ/MorphoLibJ. Raw measurement pixels, display settings and detection preprocessing are separate.
+Cytellect connects the measurement question, region review, fluorescence quantification and experimental-unit comparisons in one Japanese browser workspace. Researchers can inspect and correct regions, then produce editable figures linked to their source measurements and analysis conditions. Fiji + StarDist/ImageJ/MorphoLibJ supplies the initial image-analysis engine; original measurement pixels, display settings and detection preprocessing remain separate. Existing nuclear, nucleolar, NCL and GFP recipes are retained alongside generic 2D region measurements.
 
 ## Current improvement cycle
 

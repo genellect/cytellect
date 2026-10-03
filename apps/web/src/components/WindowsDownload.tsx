@@ -14,6 +14,7 @@ export default function WindowsDownload({url}:{url:string}){
    <li><b>解析を開始</b><span>ショートカットから起動し、ブラウザで画像を登録します。</span></li>
   </ol>
   <p className={styles.small}>初回セットアップにはインターネット接続が必要です。</p>
+  <a className={styles.releaseInfo} href="https://github.com/genellect/cytellect/blob/main/docs/quickstart.ja.md" target="_blank" rel="noreferrer">公開画像で、はじめての解析 ↗</a>
   <details className={styles.downloadPrivacy}>
    <summary>保存先と削除について</summary>
    <p>画像と解析結果は、PC内のCytellect専用フォルダーに保存します。Webサイトや外部AIには送信しません。</p>

@@ -53,3 +53,53 @@ This audit reconciles the [accepted requirements](requirements.md) with the impl
 - The accepted local.9 public GFP export called its nuclei DAPI-defined although the published input used DRAQ. Methods now distinguish the historical `dapi` channel role from actual stain identity, including legacy QC and auxiliary low-intensity terminology. The display label uses the nuclear-stain term as well. This changes explanatory text, not detector parameters, masks, measurements or statistics. Earlier exports retain their original wording and need manuscript review; source corrections reach a downloadable package only after its separate release acceptance.
 
 Each correction follows the normal PR/CI/release process. This audit is a coverage map, not permission to mark private M4, human M5 or future hosted operations complete.
+
+## Current source checkpoint — planning and general 2D regions
+
+This addendum describes the newer source workflow; the local.8/local.9/local.10
+observations above remain historical evidence for their exact sources and
+packages. They are not retrospectively renamed or counted as local.11 results.
+
+| Requirements | New source behavior | Evidence boundary |
+|---|---|---|
+| P07–P10 | Version 2.0.0 planning distinguishes area, mean, integrated intensity and native compartment ratios; explicit adoption 1.0.0 resolves the actual metric/channel and retains the plan and acknowledged changes in immutable revisions, Methods and replay. | Planning answers do not confirm actual channel identity, background validity, acquisition comparability or independence. |
+| I09, I11, A10–A11 | Named generic channels, manual/imported regions, confirmed nuclear-stain initialization, corrected-trial mask reuse and reviewed batch file mapping with source-bound idempotent retries. | Filenames do not establish stain identity or experimental units. New images require their own calibration confirmation. The existing fixed nuclear model has no new biological accuracy claim. |
+| I10 | Experimental-metadata edits create unreviewed child revisions while retaining source images and reviewed mask pixels. | Unknown metadata stays unknown; source registration is not proof of independent replication. |
+| S09 | Per-field descriptive figures preserve selected region/channel/metric identity, observations, exclusions and missingness; one valid field is sufficient. | No independent n, p value or inferential interval is fabricated. |
+| S10 | Generic experimental-unit comparisons require an explicit design, full unit/pair coverage, acquisition review and declared Holm family; channel-repeated area is counted once. | No GFP regression or batch correction is inferred for other markers. Unexplained missing units, incomplete pairs and failed fields still block inference. |
+| S02–S03, S06–S08 | Statistics 1.2.3 includes stable paired effects from the paired differences. Figure 1.1.3 supports verified mixed-language glyphs and portable generated log2 labels, with editable source-linked SVG/PDF. | Numeric correctness and vector formatting do not establish biological applicability or editorial acceptance. |
+
+The adopted metric/channel is used to initialize figure selections from the saved
+revision. Unavailable selections stop generation instead of silently selecting a
+different metric; deliberate changes are labelled. Supplied planning JSON is
+recomputed rather than trusted as an executable decision.
+
+**Verified source and public-interface checkpoint:** [PR #13](https://github.com/genellect/cytellect/pull/13)
+passed all four required checks on `f07487c12351198574ce442b400b05ca359dae51`
+in [run 37139192581](https://github.com/genellect/cytellect/actions/runs/37139192581).
+Merged main `c21f9057dd130b87ba55b113d40a0396dcb79e74` also passed all four checks
+in [run 37140066549](https://github.com/genellect/cytellect/actions/runs/37140066549).
+That source reached Vercel production READY as
+`dpl_BQMM7JgbSCFKaf6CTfj36ydzrL6S`. Separate canonical browser checks of the
+[landing page](https://cytellect.vercel.app/) and
+[planning guide](https://cytellect.vercel.app/plan) at 1440 px and 390 px passed
+six checks; four screenshots were reviewed and no browser errors
+were recorded. These checks cover the public interface, not hosted private
+analysis or human usability.
+
+**Installed local.11 checkpoint: withheld after failed acceptance.**
+[Windows packaging run 37140892298](https://github.com/genellect/cytellect/actions/runs/37140892298)
+passed fresh and repeat installation, then failed one of nine installed browser
+cases (eight passed; zero skipped or flaky). The initial local-workspace heading
+was not found. The independent numerical replay did not run; launcher shutdown
+passed. The draft-release job was skipped, so this attempt did not publish a
+package. The failure remains recorded while its cause is investigated. Archive
+acceptance, publication and canonical download verification remain open. A public
+UI release does not update an installed package.
+
+**Remaining acceptance is unchanged:** M4 requires the user's private originals,
+reference regions and field/sample-separated evaluation, including legacy
+reconciliation. M5 requires the intended operator and researcher task evaluation,
+including correction time, understanding of measurement/n and reuse intent.
+Published-image, agent and browser checks cannot substitute for these gates.
+Future hosted private analysis retains its separate operational/privacy acceptance.
