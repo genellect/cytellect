@@ -33,3 +33,4 @@
 
 .regionChannels{display:grid;gap:16px;margin:20px 0}.regionChannel{margin:0;padding:17px;border:1px solid #d6e3da;border-radius:5px;min-width:0}.regionChannel legend{padding:0 8px;font-size:12px;color:#426a56}.regionChannel .formGrid{grid-template-columns:repeat(3,minmax(0,1fr))}.regionChannel input[readonly]{background:#f3f6f3;color:#55725f}.regionChannel .checkbox{margin-bottom:0}.selectedRegionRow{background:#eef7f3}.canvasZoom{display:flex;gap:5px;margin-left:auto}.canvasZoom button{min-width:30px;min-height:30px;font-size:14px}
 @media(max-width:760px){.regionChannel{padding:13px}.regionChannel .formGrid{grid-template-columns:1fr}.regionChannel .checkbox{line-height:1.8}}
+@media(max-width:760px){.statsControls.descriptiveControls{grid-template-columns:minmax(0,1fr)}.descriptiveControls>.formGrid{grid-column:1/-1;grid-template-columns:minmax(0,1fr)}}

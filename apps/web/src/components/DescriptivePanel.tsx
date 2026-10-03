@@ -28,7 +28,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
  const settingsMatch=data&&sameDescriptiveSettings(data,option?.selection,language,preset);
 
  return <section className={styles.statistics} aria-label="測定値と分布">
-  <div className={styles.statsControls}>
+  <div className={`${styles.statsControls} ${styles.descriptiveControls}`}>
    <h2>測定値と分布を見る</h2>
    <p className={styles.small}>領域ごとの値と、視野内の中央値を表示します。1視野から作成できます。群間の検定や独立反復数の推定は行いません。</p>
    <label>表示する測定値<select aria-label="表示する測定値" value={option?.id||""} onChange={e=>setChoice(e.target.value)}>{options.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
