@@ -10,6 +10,8 @@ import styles from "./workspace.module.css";
 import { WINDOWS_RELEASE_URL } from "@/lib/release";
 import WindowsDownload from "./WindowsDownload";
 import PublicLanding from "./PublicLanding";
+import PlanAdoptionCard,{type ProposedPlan} from "./PlanAdoptionCard";
+import {usePlanMemory} from "./PlanMemory";
 const NavigationLink=LOCAL_MODE?"a":Link;
 type Workflow="regions"|"nuclear";
 
@@ -33,6 +35,7 @@ export default function WorkspaceApp(){
 }
 function Application(){
  const client=useQueryClient();
+ const planMemory=usePlanMemory();const [proposed,setProposed]=useState<ProposedPlan|null>(null);const [planBlocked,setPlanBlocked]=useState(false);
  const [error,setError]=useState("");
  const [busy,setBusy]=useState(false);
  const [workspaceId,setWorkspaceId]=useState("");
@@ -46,6 +49,7 @@ function Application(){
  const [help,setHelp]=useState(false);
  async function act(work:()=>Promise<void>){setError("");setBusy(true);try{await work();}catch(e){setError(errorMessage(e));if(e instanceof ApiError&&e.status===401){client.clear();setWorkspaceId("");}}finally{setBusy(false);}}
  function login(event:FormEvent){event.preventDefault();void act(async()=>{await post("/v1/invitations/redeem",{token});setToken("");await client.invalidateQueries({queryKey:["session"]});});}
+ function createWorkspace(event:FormEvent){event.preventDefault();if(planBlocked)return;void act(async()=>{const candidate=proposed?.snapshot.decision.candidates.find(item=>item.id===proposed.candidateId);const w=await post<Workspace>("/v1/workspaces",{title,...(proposed?{plan:proposed.snapshot.input,plan_candidate_id:proposed.candidateId}:{})});await client.invalidateQueries({queryKey:["workspaces"]});setTitle("");setInitialWorkflow(candidate?.workflow||workflow);setWorkspaceId(w.id);setProposed(null);planMemory.setPending(null);});}
  if(API_CONFIGURED&&session.isPending) return <div className={styles.loading}><Brand/><p>ワークスペースを開いています…</p></div>;
  if(!session.data) return <main className={styles.loginPage}>
   <section className={styles.loginIntro}><Brand/><div><span className={styles.eyebrow}>FLUORESCENCE IMAGE ANALYSIS</span><h1>蛍光画像から、<br/>論文の図まで。</h1><p>画像の確認、領域の修正、定量と図表。<br/>ひとつの作業空間で、解析の過程を残します。</p><div className={styles.workflowPreview}><span>01 画像</span><b>→</b><span>02 領域</span><b>→</b><span>03 定量</span><b>→</b><span>04 図表</span></div></div><div className={styles.statusPill}>{LOCAL_MODE||WINDOWS_RELEASE_URL?"開発プレビュー · 科学的妥当性は検証中":"開発中の招待制PoC · 科学的妥当性は検証中"}</div></section>
@@ -63,7 +67,7 @@ function Application(){
   {error&&<div className={styles.error} role="alert">{error}<button onClick={()=>setError("")} aria-label="メッセージを閉じる">×</button></div>}
   {workspaceId ? <WorkspaceRouter key={workspaceId} id={workspaceId} session={session.data} initialWorkflow={initialWorkflow} onBack={()=>{setWorkspaceId("");void client.invalidateQueries({queryKey:["workspaces"]});}} onError={setError}/> :
   <main className={styles.home}><div className={styles.homeHero}><span className={styles.eyebrow}>YOUR RESEARCH DESK</span><h1>実験ワークスペース</h1><p>実験ごとに画像と解析条件をまとめ、修正の履歴から図表まで追跡します。</p></div>
-   <div className={styles.homeGrid}><section className={styles.card}><div className={styles.sectionNumber}>01 / NEW EXPERIMENT</div><h2>新しい作業</h2><form onSubmit={e=>{e.preventDefault();void act(async()=>{const w=await post<Workspace>("/v1/workspaces",{title});await client.invalidateQueries({queryKey:["workspaces"]});setTitle("");setInitialWorkflow(workflow);setWorkspaceId(w.id);});}}><label>作業名<input value={title} onChange={e=>setTitle(e.target.value)} required maxLength={100} placeholder="例：処置前後の蛍光強度"/></label><label>解析の種類<select aria-label="解析の種類" value={workflow} onChange={e=>setWorkflow(e.target.value as Workflow)}><option value="regions">領域・輝度解析</option><option value="nuclear">核・核小体解析</option></select></label><p className={styles.small}>{workflow==="regions"?"任意の標識・1〜3チャンネル。核染色からの自動検出、手動領域、ラベルTIFFで面積・輝度を測定します。":"核染色とNCL・GFP。Fijiによる自動検出、修正、定量と群間比較を行います。"}</p><button className={styles.primary} disabled={busy}>作業を作成 <span>＋</span></button></form></section>
+   <div className={styles.homeGrid}><section className={styles.card}><div className={styles.sectionNumber}>01 / NEW EXPERIMENT</div><h2>新しい作業</h2><form onSubmit={createWorkspace}><PlanAdoptionCard onChange={(value,blocked)=>{setProposed(value);setPlanBlocked(blocked);const candidate=value?.snapshot.decision.candidates.find(item=>item.id===value.candidateId);if(candidate)setWorkflow(candidate.workflow);}}/><label>作業名<input value={title} onChange={e=>setTitle(e.target.value)} required maxLength={100} placeholder="例：処置前後の蛍光強度"/></label><label>解析の種類<select aria-label="解析の種類" disabled={!!proposed} value={workflow} onChange={e=>setWorkflow(e.target.value as Workflow)}><option value="regions">領域・輝度解析</option><option value="nuclear">核・核小体解析</option></select></label><p className={styles.small}>{workflow==="regions"?"任意の標識・1〜3チャンネル。核染色からの自動検出、手動領域、ラベルTIFFで面積・輝度を測定します。":"核染色とNCL・GFP。Fijiによる自動検出、修正、定量と群間比較を行います。"}</p><button className={styles.primary} disabled={busy||planBlocked}>作業を作成 <span>＋</span></button></form></section>
     <section className={styles.card}><div className={styles.sectionNumber}>02 / RECENT WORK</div><h2>保存中の作業</h2>{!spaces.data?.length?<p className={styles.muted}>作業はまだありません。新しく作成してはじめましょう。</p>:<div className={styles.workspaceList}>{spaces.data.map(w=><button key={w.id} onClick={()=>{setInitialWorkflow(undefined);setWorkspaceId(w.id);}}><span><b>{w.title}</b><small>有効期限 {new Date(w.expires*1000).toLocaleString("ja-JP")}</small></span><span>→</span></button>)}</div>}{spaces.error&&<p role="alert">{errorMessage(spaces.error)}</p>}</section>
    </div><p className={styles.footerNote}>Cytellect / Development preview · 実画像による検証・研究者評価は別途実施します。</p>
   </main>}

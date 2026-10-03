@@ -1,0 +1,2521 @@
+{
+  "cases": [
+    {
+      "decision": {
+        "candidates": [],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "面積、領域内の平均輝度、領域全体の積算値は別の指標です。面積だけを測る場合、測定マーカーの指定は不要です。",
+            "id": "measurement",
+            "reference": "senft-2023",
+            "title": "測る量と領域の定義を決める"
+          },
+          {
+            "detail": "8/16-bitグレースケール2D原画像が必要です。表示用RGBの輝度復元や、Z・時系列の投影・断面選択を自動では行いません。",
+            "id": "input",
+            "reference": "waters-2009",
+            "title": "測定用の2D原画像を確認する"
+          },
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "unknown",
+      "input": {
+        "answers": {},
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "calibration-for-physical-area"
+            ],
+            "allowed_metrics": [
+              "area_px",
+              "area_um2"
+            ],
+            "id": "regions-manual",
+            "label": "手動領域の面積・輝度",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "image"
+            ],
+            "selection_source": "region",
+            "source": "manual",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "descriptive",
+        "decisions": [
+          {
+            "detail": "独立反復が未確認でも、領域と視野の測定値を記述できます。独立n、p値、推論の信頼区間は生成しません。",
+            "id": "descriptive",
+            "reference": "lord-2020",
+            "title": "まず測定値と分布を確認する"
+          },
+          {
+            "detail": "実画像の校正を確認するまでµm²を作りません。複数チャンネルの同じ領域を二重に数えません。",
+            "id": "area-calibration",
+            "reference": "senft-2023",
+            "title": "画素サイズが不明なら画素面積で扱う"
+          },
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "manual-area-no-marker",
+      "input": {
+        "answers": {
+          "comparison": "descriptive",
+          "definition": "manual",
+          "input": "grayscale-2d",
+          "measurement": "area",
+          "nuclear_stain": "no",
+          "region": "custom",
+          "signal": "unknown"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "calibration-for-physical-area"
+            ],
+            "allowed_metrics": [
+              "area_px",
+              "area_um2"
+            ],
+            "id": "regions-imported",
+            "label": "保存した領域の面積・輝度",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "image"
+            ],
+            "selection_source": "region",
+            "source": "imported",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "実画像の校正を確認するまでµm²を作りません。複数チャンネルの同じ領域を二重に数えません。",
+            "id": "area-calibration",
+            "reference": "senft-2023",
+            "title": "画素サイズが不明なら画素面積で扱う"
+          },
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "imported-area",
+      "input": {
+        "answers": {
+          "definition": "imported",
+          "input": "grayscale-2d",
+          "measurement": "area",
+          "region": "custom",
+          "signal": "unknown"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality"
+            ],
+            "allowed_metrics": [
+              "mean",
+              "mean_corrected"
+            ],
+            "id": "regions-manual",
+            "label": "手動領域の面積・輝度",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "measurement"
+            ],
+            "selection_source": "region",
+            "source": "manual",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "manual-other-mean",
+      "input": {
+        "answers": {
+          "definition": "manual",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality"
+            ],
+            "allowed_metrics": [
+              "integrated",
+              "integrated_corrected"
+            ],
+            "id": "regions-imported",
+            "label": "保存した領域の面積・輝度",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "measurement"
+            ],
+            "selection_source": "region",
+            "source": "imported",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "面積や画素サイズにも依存し、平均輝度や濃度と同じ意味ではありません。比較時は空間的なサンプリングも確認します。",
+            "id": "integrated-not-concentration",
+            "reference": "waters-2009",
+            "title": "積算値は領域内の画素値の合計"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "imported-other-integrated",
+      "input": {
+        "answers": {
+          "definition": "imported",
+          "input": "grayscale-2d",
+          "measurement": "integrated",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain"
+            ],
+            "allowed_metrics": [
+              "mean",
+              "mean_corrected"
+            ],
+            "id": "regions-nuclei",
+            "label": "核染色からの核検出・測定",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.1.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "measurement"
+            ],
+            "selection_source": "region",
+            "source": "stardist_nuclear",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "nuclear-other-mean",
+      "input": {
+        "answers": {
+          "definition": "nuclear-stain",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "nuclear_stain": "yes",
+          "region": "nucleus",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain",
+              "calibration-for-physical-area"
+            ],
+            "allowed_metrics": [
+              "area_px",
+              "area_um2"
+            ],
+            "id": "regions-nuclei",
+            "label": "核染色からの核検出・測定",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.1.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "image"
+            ],
+            "selection_source": "region",
+            "source": "stardist_nuclear",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "実画像の校正を確認するまでµm²を作りません。複数チャンネルの同じ領域を二重に数えません。",
+            "id": "area-calibration",
+            "reference": "senft-2023",
+            "title": "画素サイズが不明なら画素面積で扱う"
+          },
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "nuclear-area",
+      "input": {
+        "answers": {
+          "definition": "nuclear-stain",
+          "input": "grayscale-2d",
+          "measurement": "area",
+          "nuclear_stain": "yes",
+          "region": "nucleus",
+          "signal": "unknown"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain"
+            ],
+            "allowed_metrics": [
+              "mean",
+              "mean_corrected"
+            ],
+            "id": "regions-nuclei",
+            "label": "核染色からの核検出・測定",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.1.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "measurement"
+            ],
+            "selection_source": "region",
+            "source": "stardist_nuclear",
+            "workflow": "regions"
+          },
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain"
+            ],
+            "allowed_metrics": [
+              "gfp_mean",
+              "gfp_mean_corrected"
+            ],
+            "id": "legacy-gfp-nuclear",
+            "label": "核内GFP解析",
+            "recipe_id": "gfp-nuclear-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "gfp"
+            ],
+            "selection_source": "legacy-cell",
+            "source": null,
+            "workflow": "nuclear"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "nuclear-gfp-two-paths",
+      "input": {
+        "answers": {
+          "definition": "nuclear-stain",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "nuclear_stain": "yes",
+          "region": "nucleus",
+          "signal": "gfp"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain",
+              "gfp-gate"
+            ],
+            "allowed_metrics": [
+              "gfp_mean",
+              "gfp_mean_corrected"
+            ],
+            "id": "legacy-gfp-nuclear",
+            "label": "核内GFP解析",
+            "recipe_id": "gfp-nuclear-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "gfp"
+            ],
+            "selection_source": "legacy-cell",
+            "source": null,
+            "workflow": "nuclear"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "陰性対照または探索的閾値の採用理由を実画像で記録します。処置で変わるGFP量の選別は、比較する対象と推定する効果を変えることがあります。",
+            "id": "selection",
+            "reference": "senft-2023",
+            "title": "GFP選別を結果から調整しない"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "gfp-negative-control",
+      "input": {
+        "answers": {
+          "definition": "nuclear-stain",
+          "gating": "negative-control",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "nuclear_stain": "yes",
+          "region": "nucleus",
+          "signal": "gfp"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "GFP選別は既存の核内GFP/NCLレシピに限ります。選別を行わない計画に変更するか、対応する領域定義と実際のGFP画像を用意します。",
+            "id": "gating-unsupported",
+            "reference": "senft-2023",
+            "title": "この領域経路ではGFP選別を実行しない"
+          },
+          {
+            "detail": "陰性対照または探索的閾値の採用理由を実画像で記録します。処置で変わるGFP量の選別は、比較する対象と推定する効果を変えることがあります。",
+            "id": "selection",
+            "reference": "senft-2023",
+            "title": "GFP選別を結果から調整しない"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "manual-gating-unsupported",
+      "input": {
+        "answers": {
+          "definition": "manual",
+          "gating": "exploratory",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain"
+            ],
+            "allowed_metrics": [
+              "ncl_nucleus_mean",
+              "ncl_nucleus_mean_corrected"
+            ],
+            "id": "legacy-ncl",
+            "label": "核・核小体のNCL解析",
+            "recipe_id": "ncl-native-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "ncl"
+            ],
+            "selection_source": "legacy-cell",
+            "source": null,
+            "workflow": "nuclear"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "NCLの再分布で候補領域も変わり得ます。代表視野で領域を確認し、比だけで核小体ストレスを確定しません。",
+            "id": "circularity",
+            "reference": "kodiha-2011",
+            "title": "検出に使うNCLの変化も領域に影響する"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "ncl-nucleus",
+      "input": {
+        "answers": {
+          "definition": "ncl-enrichment",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "nuclear_stain": "yes",
+          "region": "nucleus",
+          "signal": "ncl"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain"
+            ],
+            "allowed_metrics": [
+              "ncl_nucleoli_mean",
+              "ncl_nucleoli_mean_corrected"
+            ],
+            "id": "legacy-ncl",
+            "label": "核・核小体のNCL解析",
+            "recipe_id": "ncl-native-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "ncl"
+            ],
+            "selection_source": "legacy-cell",
+            "source": null,
+            "workflow": "nuclear"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "NCLの再分布で候補領域も変わり得ます。代表視野で領域を確認し、比だけで核小体ストレスを確定しません。",
+            "id": "circularity",
+            "reference": "kodiha-2011",
+            "title": "検出に使うNCLの変化も領域に影響する"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "ncl-nucleolus",
+      "input": {
+        "answers": {
+          "definition": "ncl-enrichment",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "nuclear_stain": "yes",
+          "region": "nucleolus",
+          "signal": "ncl"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain"
+            ],
+            "allowed_metrics": [
+              "ncl_nucleoplasm_integrated",
+              "ncl_nucleoplasm_integrated_corrected"
+            ],
+            "id": "legacy-ncl",
+            "label": "核・核小体のNCL解析",
+            "recipe_id": "ncl-native-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "ncl"
+            ],
+            "selection_source": "legacy-cell",
+            "source": null,
+            "workflow": "nuclear"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "NCLの再分布で候補領域も変わり得ます。代表視野で領域を確認し、比だけで核小体ストレスを確定しません。",
+            "id": "circularity",
+            "reference": "kodiha-2011",
+            "title": "検出に使うNCLの変化も領域に影響する"
+          },
+          {
+            "detail": "面積や画素サイズにも依存し、平均輝度や濃度と同じ意味ではありません。比較時は空間的なサンプリングも確認します。",
+            "id": "integrated-not-concentration",
+            "reference": "waters-2009",
+            "title": "積算値は領域内の画素値の合計"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "ncl-nucleoplasm-integrated",
+      "input": {
+        "answers": {
+          "definition": "ncl-enrichment",
+          "input": "grayscale-2d",
+          "measurement": "integrated",
+          "nuclear_stain": "yes",
+          "region": "nucleoplasm",
+          "signal": "ncl"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality",
+              "nuclear-stain",
+              "gfp-gate"
+            ],
+            "allowed_metrics": [
+              "ncl_nucleoplasm_over_nucleoli",
+              "ncl_log2_nucleoplasm_over_nucleoli"
+            ],
+            "id": "legacy-ncl",
+            "label": "核・核小体のNCL解析",
+            "recipe_id": "ncl-native-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "nuclear-stain",
+              "ncl",
+              "gfp"
+            ],
+            "selection_source": "legacy-cell",
+            "source": null,
+            "workflow": "nuclear"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "NCLの再分布で候補領域も変わり得ます。代表視野で領域を確認し、比だけで核小体ストレスを確定しません。",
+            "id": "circularity",
+            "reference": "kodiha-2011",
+            "title": "検出に使うNCLの変化も領域に影響する"
+          },
+          {
+            "detail": "陰性対照または探索的閾値の採用理由を実画像で記録します。処置で変わるGFP量の選別は、比較する対象と推定する効果を変えることがあります。",
+            "id": "selection",
+            "reference": "senft-2023",
+            "title": "GFP選別を結果から調整しない"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "ncl-ratio-gfp-gate",
+      "input": {
+        "answers": {
+          "definition": "ncl-enrichment",
+          "gating": "exploratory",
+          "input": "grayscale-2d",
+          "measurement": "ncl-ratio",
+          "nuclear_stain": "yes",
+          "region": "nucleolus",
+          "signal": "ncl"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "現行の区画比は、核内NCL濃縮領域と、それを核から除いた核質のNCL平均輝度の比です。任意領域や別マーカーへ代用しません。",
+            "id": "ratio-definition",
+            "reference": "kodiha-2011",
+            "title": "NCL区画比の領域定義を確認する"
+          },
+          {
+            "detail": "NCL濃縮領域を使う既存レシピの指標と、任意マーカーの領域測定は区別します。別のマーカーをNCLとして登録しません。",
+            "id": "ncl-definition-scope",
+            "reference": "senft-2023",
+            "title": "NCLレシピの測定対象を確認する"
+          },
+          {
+            "detail": "NCLの再分布で候補領域も変わり得ます。代表視野で領域を確認し、比だけで核小体ストレスを確定しません。",
+            "id": "circularity",
+            "reference": "kodiha-2011",
+            "title": "検出に使うNCLの変化も領域に影響する"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "ratio-other-rejected",
+      "input": {
+        "answers": {
+          "definition": "ncl-enrichment",
+          "input": "grayscale-2d",
+          "measurement": "ncl-ratio",
+          "nuclear_stain": "yes",
+          "region": "nucleolus",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "核小体や細胞全体の境界を、核用StarDistから得たものとして扱いません。手動または確認済みラベル領域を選びます。",
+            "id": "nuclear-model-scope",
+            "reference": "senft-2023",
+            "title": "核モデルで他の構造は定義しない"
+          }
+        ],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "nuclear-model-not-nucleolus",
+      "input": {
+        "answers": {
+          "definition": "nuclear-stain",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "nuclear_stain": "yes",
+          "region": "nucleolus",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "8/16-bitグレースケール2D原画像が必要です。表示用RGBの輝度復元や、Z・時系列の投影・断面選択を自動では行いません。",
+            "id": "input",
+            "reference": "waters-2009",
+            "title": "測定用の2D原画像を確認する"
+          },
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "rgb-no-recipe",
+      "input": {
+        "answers": {
+          "definition": "manual",
+          "input": "rgb",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "8/16-bitグレースケール2D原画像が必要です。表示用RGBの輝度復元や、Z・時系列の投影・断面選択を自動では行いません。",
+            "id": "input",
+            "reference": "waters-2009",
+            "title": "測定用の2D原画像を確認する"
+          },
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "zt-no-recipe",
+      "input": {
+        "answers": {
+          "definition": "manual",
+          "input": "zt",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "この自動検出は核染色が必要です。実画像のチャンネル対応と染色名を採用時に確認し、ファイル名や色から推測しません。",
+            "id": "nuclear-stain",
+            "reference": "senft-2023",
+            "title": "核を識別するチャンネルを確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "no-stain-no-auto",
+      "input": {
+        "answers": {
+          "definition": "nuclear-stain",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "nuclear_stain": "no",
+          "region": "nucleus",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality"
+            ],
+            "allowed_metrics": [
+              "mean",
+              "mean_corrected"
+            ],
+            "id": "regions-manual",
+            "label": "手動領域の面積・輝度",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "measurement"
+            ],
+            "selection_source": "region",
+            "source": "manual",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "undetermined",
+        "decisions": [
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [],
+        "questions": [
+          {
+            "detail": "現在の測定経路はチャンネルごとの背景ROIが必要です。核外全体を背景にせず、対象の信号がない領域を実画像で確認します。",
+            "id": "background",
+            "reference": "waters-2009",
+            "title": "原画像で背景領域を確認する"
+          },
+          {
+            "detail": "露光、染色、検出器、背景、飽和を確認します。バッチ補正で失われた信号は復元できません。未確認でも記述は可能ですが、群の差を生物量の差と確定しません。",
+            "id": "acquisition",
+            "reference": "waters-2009",
+            "title": "撮影・染色条件を確認する"
+          },
+          {
+            "detail": "細胞数や視野数を独立反復数に置き換えません。未確認なら記述図で進め、推論は実験単位と対応関係を確定してから行います。",
+            "id": "independence",
+            "reference": "lazic-2018",
+            "title": "処置を独立に割り付けた単位を確認する"
+          }
+        ],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "paired-unknown-allocation",
+      "input": {
+        "answers": {
+          "allocation": "fields",
+          "comparison": "paired",
+          "definition": "manual",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality"
+            ],
+            "allowed_metrics": [
+              "mean",
+              "mean_corrected"
+            ],
+            "id": "regions-manual",
+            "label": "手動領域の面積・輝度",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "measurement"
+            ],
+            "selection_source": "region",
+            "source": "manual",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "independent-candidate",
+        "decisions": [
+          {
+            "detail": "視野中央値→試料内平均→実験単位内平均で集約します。対応ありは明示したペア差、独立群はWelch検定の候補です。計画の回答だけで独立性を確認済みにはしません。",
+            "id": "units",
+            "reference": "lazic-2018",
+            "title": "実験単位と必要な対応を実記録から設定する"
+          },
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "各群2単位または2ペアは計算上の下限で、検出力や実験の妥当性を保証しません。比較集合と採否を結果を見る前に定めます。",
+            "id": "sample-size",
+            "reference": "lord-2020",
+            "title": "計算の下限と十分な反復数は異なる"
+          }
+        ],
+        "questions": [],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "independent-intent-only",
+      "input": {
+        "answers": {
+          "acquisition": "matched",
+          "allocation": "biological",
+          "background": "yes",
+          "comparison": "independent",
+          "definition": "manual",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "decision": {
+        "candidates": [
+          {
+            "actual_review_required": [
+              "native-input",
+              "channel-mapping",
+              "background-rois",
+              "region-definition",
+              "metric-selection",
+              "mask-quality"
+            ],
+            "allowed_metrics": [
+              "mean",
+              "mean_corrected"
+            ],
+            "id": "regions-manual",
+            "label": "手動領域の面積・輝度",
+            "recipe_id": "region-2d",
+            "recipe_version": "1.0.0",
+            "required_channel_roles": [
+              "measurement"
+            ],
+            "selection_source": "region",
+            "source": "manual",
+            "workflow": "regions"
+          }
+        ],
+        "comparison_intent": "paired-candidate",
+        "decisions": [
+          {
+            "detail": "視野中央値→試料内平均→実験単位内平均で集約します。対応ありは明示したペア差、独立群はWelch検定の候補です。計画の回答だけで独立性を確認済みにはしません。",
+            "id": "units",
+            "reference": "lazic-2018",
+            "title": "実験単位と必要な対応を実記録から設定する"
+          },
+          {
+            "detail": "候補は実行設定ではありません。実チャンネル、背景、領域、指標を確認し、代表視野で試してから条件を固定します。",
+            "id": "actual-adoption",
+            "reference": "senft-2023",
+            "title": "原画像で確認してから条件を採用する"
+          },
+          {
+            "detail": "採用元の計画と、実画像で変更した条件を保存します。図の出典、Methods、解析版を追跡できる形で出力します。",
+            "id": "traceability",
+            "reference": "schmied-2024",
+            "title": "採用した条件と図の元の値を残す"
+          }
+        ],
+        "descriptive_allowed": true,
+        "limits": [
+          {
+            "detail": "各群2単位または2ペアは計算上の下限で、検出力や実験の妥当性を保証しません。比較集合と採否を結果を見る前に定めます。",
+            "id": "sample-size",
+            "reference": "lord-2020",
+            "title": "計算の下限と十分な反復数は異なる"
+          }
+        ],
+        "questions": [],
+        "references": [
+          {
+            "id": "senft-2023",
+            "label": "定量画像解析の実験計画 · Senft et al. (2023)",
+            "url": "https://doi.org/10.1371/journal.pbio.3002167"
+          },
+          {
+            "id": "kodiha-2011",
+            "label": "核小体の領域定義 · Kodiha et al. (2011)",
+            "url": "https://doi.org/10.1186/1471-2121-12-25"
+          },
+          {
+            "id": "waters-2009",
+            "label": "蛍光定量と撮影条件 · Waters (2009)",
+            "url": "https://doi.org/10.1083/jcb.200903097"
+          },
+          {
+            "id": "lazic-2018",
+            "label": "実験単位と擬似反復 · Lazic et al. (2018)",
+            "url": "https://doi.org/10.1371/journal.pbio.2005282"
+          },
+          {
+            "id": "lord-2020",
+            "label": "反復を区別する図 · Lord et al. (2020)",
+            "url": "https://doi.org/10.1083/jcb.202001064"
+          },
+          {
+            "id": "schmied-2024",
+            "label": "画像と解析の報告 · Schmied et al. (2024)",
+            "url": "https://doi.org/10.1038/s41592-023-01987-9"
+          }
+        ],
+        "status": "planning-only-not-adopted",
+        "version": "2.0.0"
+      },
+      "id": "paired-intent-only",
+      "input": {
+        "answers": {
+          "acquisition": "matched",
+          "allocation": "biological",
+          "background": "yes",
+          "comparison": "paired",
+          "definition": "manual",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "error": "planning_legacy_requires_review",
+      "id": "legacy-unadopted",
+      "input": {
+        "answers": {
+          "region": "nucleus",
+          "signal": "gfp"
+        },
+        "format": "cytellect-analysis-plan",
+        "status": "planning-only-not-adopted",
+        "version": "1.0.1"
+      }
+    },
+    {
+      "error": "planning_invalid_input",
+      "id": "untrusted-guidance",
+      "input": {
+        "answers": {
+          "definition": "manual",
+          "input": "grayscale-2d",
+          "measurement": "mean",
+          "region": "custom",
+          "signal": "other"
+        },
+        "format": "cytellect-analysis-plan",
+        "guidance": {
+          "recipe": "arbitrary"
+        },
+        "version": "2.0.0"
+      }
+    }
+  ],
+  "format": "cytellect-planning-parity",
+  "scope": "Enumerated planning examples; no images, experiment labels or biological validation.",
+  "version": "2.0.0"
+}

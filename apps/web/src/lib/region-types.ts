@@ -1,5 +1,6 @@
 import type { Contour, Point } from "./types";
 import type { components } from "./generated";
+import type {PlanResolution} from "./analysis-plan";
 
 // OpenAPI is authoritative. Tuple/required refinements describe validated JSON responses.
 type Schema=components["schemas"];
@@ -11,7 +12,7 @@ export type RegionNuclearRecipe=Omit<Required<Schema["RegionNuclearRecipe"]>,"de
 export type RegionRecipe=Required<Schema["RegionRecipe"]>|RegionNuclearRecipe;
 export type RegionBackground=Omit<Schema["RegionBackground"],"polygon">&{polygon:Point[]};
 export type RegionExclusion=Required<Schema["RegionExclusion"]>;
-export type RegionConfig=Omit<Schema["RegionAnalysisRequest"],"recipe"|"backgrounds"|"exclusions">&{recipe:RegionRecipe;backgrounds:Record<string,Record<string,RegionBackground>>;exclusions:RegionExclusion[];analysis_kind?:"region-2d";field_snapshot?:Record<string,{metadata:RegionMetadata}>};
+export type RegionConfig=Omit<Schema["RegionAnalysisRequest"],"recipe"|"backgrounds"|"exclusions">&{recipe:RegionRecipe;backgrounds:Record<string,Record<string,RegionBackground>>;exclusions:RegionExclusion[];analysis_kind?:"region-2d";field_snapshot?:Record<string,{metadata:RegionMetadata}>;plan_resolution?:PlanResolution|null};
 export type RegionRevision={id:string;parent_id:string|null;state:string;reviewed:boolean;created:number;config:RegionConfig};
 export type RegionMaskMetadata=Schema["RegionFieldMask"];
 export type RegionMasks={regions:Contour[];metadata:RegionMaskMetadata};

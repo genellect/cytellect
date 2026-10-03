@@ -13,6 +13,7 @@ from .figures import render_figures
 from .images import read_tiff, sha256
 from .masks import polygon_mask
 from .measurement import apply_gfp_gate, measure
+from .plan_adoption import validate_revision_plan
 from .region_sensitivity import validate_region_configs, validate_region_masks, validate_region_reports
 from .review import unresolved_nucleolar_failures
 from .statistics import analyze_sensitivity
@@ -32,6 +33,7 @@ def _inside(root, relative):
 
 def remeasure(config, expected, masks_root: Path, raw_dir: Path):
     """Recalculate one saved, reviewed region definition from exact original pixels."""
+    validate_revision_plan(config)
     recipe = Recipe.model_validate(config["recipe"])
     confirmed = config.get("review_record", {}).get("confirmed_at")
     if (isinstance(confirmed, bool) or not isinstance(confirmed, (int, float)) or not math.isfinite(confirmed) or confirmed <= 0

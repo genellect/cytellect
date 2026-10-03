@@ -227,7 +227,13 @@ test("two-channel inputs preserve actual roles; GFP field trial and figure prese
  await page.getByRole("button",{name:/02 統計と図表/}).click();
  await page.getByRole("button",{name:"群間比較・関連解析",exact:true}).click();
  await expect(page.getByLabel("指標",{exact:true})).toHaveValue("gfp_mean_corrected");
- await expect(page.getByLabel("指標",{exact:true}).locator("option")).toHaveCount(7);
+ const metricSelect=page.getByLabel("指標",{exact:true});
+ const placeholder=metricSelect.locator('option[value=""]');
+ await expect(placeholder).toHaveText("測定値を選択してください");
+ await expect(placeholder).toHaveJSProperty("selected",false);
+ const metricValues=await metricSelect.locator("option").evaluateAll(options=>options.map(option=>(option as HTMLOptionElement).value).filter(Boolean));
+ expect(metricValues.toSorted()).toEqual(["gfp_mean","gfp_median","gfp_integrated","gfp_mean_corrected","gfp_median_corrected","gfp_integrated_corrected","nucleus_area_px"].toSorted());
+ await expect(metricSelect.locator('option[value^="ncl_"]')).toHaveCount(0);
  await expect(page.getByLabel("図のサイズ",{exact:true})).toHaveValue("nature-single");
  await expect(page.getByLabel("幅 / inch",{exact:true})).toHaveCount(0);
  await page.getByLabel("図のサイズ",{exact:true}).selectOption("custom");

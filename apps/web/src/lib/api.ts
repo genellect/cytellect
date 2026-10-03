@@ -30,6 +30,19 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ region_upload_id_conflict:"同じ登録操作の内容が変わっています。登録済みの視野を確認し、変更した画像は新しい登録として追加してください。",
+ planning_legacy_requires_review:"以前の計画メモです。現在の計画ガイドで内容を確認し直してください。",
+ planning_snapshot_mismatch:"計画の保存内容が一致しません。計画を読み込み直して確認してください。",
+ planning_candidate_unavailable:"この条件に対応する解析候補がありません。計画を見直してください。",
+ planning_resolution_required:"実画像のチャンネルと測定指標を選び、計画との対応を確認してください。",
+ planning_resolution_without_plan:"この作業には採用した計画がありません。作業と解析条件を確認してください。",
+ planning_adoption_mismatch:"選択した計画と作業の記録が一致しません。作業を開き直してください。",
+ planning_workflow_mismatch:"計画と解析の種類が一致しません。対応する作業で解析してください。",
+ planning_metric_unavailable:"この解析で測定できる指標を選択してください。",
+ planning_channel_unavailable:"選んだ測定指標に対応する実画像のチャンネルを確認してください。",
+ planning_calibration_required:"µm²で測定するには、対象となる全画像の画素サイズを確認してください。",
+ planning_changes_review_required:"計画から変更した条件を確認してから解析してください。",
+ planning_revision_record_mismatch:"解析版の計画記録が一致しません。採用中の条件を確認してください。",
  descriptive_failure_exclusion_mismatch:"失敗した視野の除外記録が解析条件と一致しません。除外理由を確認した解析版で再測定してください。",
  region_export_statistics_source_mismatch:"統計結果と出力する解析版の条件が一致しません。採用中の版で比較や図を作成し直してください。",
  region_comparison_review_required:"領域・背景・失敗や除外を確認した解析版で比較してください。",

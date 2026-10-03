@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, model_validator
 
+from .plan_adoption import PlanResolution
+
 Point = tuple[FiniteFloat, FiniteFloat]
 NonNegative = Annotated[FiniteFloat, Field(ge=0)]
 
@@ -87,6 +89,7 @@ class AnalysisRequest(StrictModel):
     recipe: Recipe = Field(default_factory=Recipe)
     backgrounds: dict[str, Background] = Field(default_factory=dict)
     exclusions: list[Exclusion] = Field(default_factory=list, max_length=10000)
+    plan_resolution: PlanResolution | None = None
 
 class MaskEdit(StrictModel):
     field_id: str
@@ -149,6 +152,7 @@ class ResegmentInput(StrictModel):
     field_ids: list[str] = Field(min_length=1, max_length=100)
     backgrounds: dict[str, Background] | None = None
     exclusions: list[Exclusion] | None = Field(default=None, max_length=10000)
+    plan_resolution: PlanResolution | None = None
 
 
 

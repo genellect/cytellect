@@ -12,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     Float,
+    Index,
     Integer,
     MetaData,
     String,
@@ -34,6 +35,7 @@ workspaces = Table(
     Column("deleted", Boolean, default=False, nullable=False),
     Column("active_revision", String),
     Column("bytes", Integer, default=0, nullable=False),
+    Column("analysis_plan", JSON),
 )
 invitations = Table(
     "invitations",
@@ -58,6 +60,9 @@ fields = Table(
     Column("metadata", JSON, nullable=False),
     Column("image_info", JSON, nullable=False),
     Column("synthetic", Boolean, default=False, nullable=False),
+    Column("client_upload_id", String),
+    Column("upload_fingerprint", String),
+    Index("uq_fields_workspace_client_upload_id", "workspace_id", "client_upload_id", unique=True),
 )
 revisions = Table(
     "revisions",

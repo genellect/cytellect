@@ -16,6 +16,7 @@ from .exports import environment
 from .exports_csv import write_csv
 from .images import read_tiff, sha256
 from .masks import polygon_mask, validate_label_array
+from .plan_adoption import planning_methods, validate_revision_plan
 from .region_contracts import (
     RegionAnalysisRequest,
     RegionImageInfo,
@@ -47,6 +48,7 @@ def _safe_path(root: Path, relative: str) -> Path:
 
 
 def _request(config):
+    validate_revision_plan(config)
     if config.get("analysis_kind") != "region-2d":
         raise ValueError("region_bundle_kind_mismatch")
     request = RegionAnalysisRequest.model_validate({
@@ -112,7 +114,7 @@ def region_methods(config, report, provenance):
                   "No model download or automatic segmentation is executed.",
                   f"Scientific source identity: {provenance.get('software', {}).get('source_sha256', 'unavailable')}.",
                   "Original images are excluded unless explicitly requested. This bundle contains research information; keep it private.", ""])
-    return "\n".join(lines)
+    return "\n".join(lines + planning_methods(config))
 
 
 def _long_rows(report, config):

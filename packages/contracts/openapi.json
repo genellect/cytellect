@@ -1944,6 +1944,44 @@
           }
         }
       }
+    },
+    "/v1/plans/preview": {
+      "post": {
+        "summary": "Preview Plan",
+        "operationId": "preview_plan_v1_plans_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1992,6 +2030,59 @@
         ],
         "title": "AcquisitionReview"
       },
+      "AdoptedPlan": {
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/PlanInput"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/PlanDecision"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256"
+          },
+          "adoption_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Adoption Version",
+            "default": "1.0.0"
+          },
+          "selected_candidate_id": {
+            "type": "string",
+            "enum": [
+              "regions-manual",
+              "regions-imported",
+              "regions-nuclei",
+              "legacy-gfp-nuclear",
+              "legacy-ncl"
+            ],
+            "title": "Selected Candidate Id"
+          },
+          "accepted_at": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Accepted At"
+          },
+          "scope": {
+            "type": "string",
+            "const": "planning-intent-only",
+            "title": "Scope",
+            "default": "planning-intent-only"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input",
+          "decision",
+          "sha256",
+          "selected_candidate_id",
+          "accepted_at"
+        ],
+        "title": "AdoptedPlan"
+      },
       "AnalysisRequest": {
         "properties": {
           "field_ids": {
@@ -2039,6 +2130,16 @@
             "type": "array",
             "maxItems": 10000,
             "title": "Exclusions"
+          },
+          "plan_resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -3230,6 +3331,537 @@
         ],
         "title": "NumericalSelection"
       },
+      "PlanAnswers": {
+        "properties": {
+          "measurement": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "area",
+              "mean",
+              "integrated",
+              "ncl-ratio"
+            ],
+            "title": "Measurement",
+            "default": "unknown"
+          },
+          "region": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "nucleus",
+              "nucleolus",
+              "nucleoplasm",
+              "custom"
+            ],
+            "title": "Region",
+            "default": "unknown"
+          },
+          "definition": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "manual",
+              "imported",
+              "nuclear-stain",
+              "ncl-enrichment"
+            ],
+            "title": "Definition",
+            "default": "unknown"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "ncl",
+              "gfp",
+              "other"
+            ],
+            "title": "Signal",
+            "default": "unknown"
+          },
+          "input": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "grayscale-2d",
+              "rgb",
+              "zt"
+            ],
+            "title": "Input",
+            "default": "unknown"
+          },
+          "nuclear_stain": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "yes",
+              "no"
+            ],
+            "title": "Nuclear Stain",
+            "default": "unknown"
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "yes",
+              "no"
+            ],
+            "title": "Background",
+            "default": "unknown"
+          },
+          "acquisition": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "matched",
+              "different"
+            ],
+            "title": "Acquisition",
+            "default": "unknown"
+          },
+          "comparison": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "descriptive",
+              "independent",
+              "paired"
+            ],
+            "title": "Comparison",
+            "default": "unknown"
+          },
+          "allocation": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "biological",
+              "fields"
+            ],
+            "title": "Allocation",
+            "default": "unknown"
+          },
+          "gating": {
+            "type": "string",
+            "enum": [
+              "none",
+              "negative-control",
+              "exploratory"
+            ],
+            "title": "Gating",
+            "default": "none"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PlanAnswers"
+      },
+      "PlanCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "regions-manual",
+              "regions-imported",
+              "regions-nuclei",
+              "legacy-gfp-nuclear",
+              "legacy-ncl"
+            ],
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "workflow": {
+            "type": "string",
+            "enum": [
+              "regions",
+              "nuclear"
+            ],
+            "title": "Workflow"
+          },
+          "recipe_id": {
+            "type": "string",
+            "enum": [
+              "region-2d",
+              "ncl-native-2d",
+              "gfp-nuclear-2d"
+            ],
+            "title": "Recipe Id"
+          },
+          "recipe_version": {
+            "type": "string",
+            "enum": [
+              "1.0.0",
+              "1.1.0"
+            ],
+            "title": "Recipe Version"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "imported",
+                  "stardist_nuclear"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "selection_source": {
+            "type": "string",
+            "enum": [
+              "region",
+              "legacy-cell"
+            ],
+            "title": "Selection Source"
+          },
+          "allowed_metrics": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "area_px",
+                "area_um2",
+                "mean",
+                "mean_corrected",
+                "integrated",
+                "integrated_corrected",
+                "gfp_mean",
+                "gfp_mean_corrected",
+                "gfp_integrated",
+                "gfp_integrated_corrected",
+                "ncl_nucleus_mean",
+                "ncl_nucleus_mean_corrected",
+                "ncl_nucleus_integrated",
+                "ncl_nucleus_integrated_corrected",
+                "ncl_nucleoli_mean",
+                "ncl_nucleoli_mean_corrected",
+                "ncl_nucleoli_integrated",
+                "ncl_nucleoli_integrated_corrected",
+                "ncl_nucleoplasm_mean",
+                "ncl_nucleoplasm_mean_corrected",
+                "ncl_nucleoplasm_integrated",
+                "ncl_nucleoplasm_integrated_corrected",
+                "nucleus_area_px",
+                "nucleus_area_um2",
+                "nucleolar_area_px",
+                "nucleolar_area_um2",
+                "nucleoplasm_area_px",
+                "nucleoplasm_area_um2",
+                "ncl_nucleoplasm_over_nucleoli",
+                "ncl_log2_nucleoplasm_over_nucleoli"
+              ]
+            },
+            "type": "array",
+            "title": "Allowed Metrics"
+          },
+          "required_channel_roles": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "image",
+                "measurement",
+                "nuclear-stain",
+                "ncl",
+                "gfp"
+              ]
+            },
+            "type": "array",
+            "title": "Required Channel Roles"
+          },
+          "actual_review_required": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "native-input",
+                "channel-mapping",
+                "nuclear-stain",
+                "background-rois",
+                "region-definition",
+                "metric-selection",
+                "mask-quality",
+                "gfp-gate",
+                "calibration-for-physical-area"
+              ]
+            },
+            "type": "array",
+            "title": "Actual Review Required"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "workflow",
+          "recipe_id",
+          "recipe_version",
+          "source",
+          "selection_source",
+          "allowed_metrics",
+          "required_channel_roles",
+          "actual_review_required"
+        ],
+        "title": "PlanCandidate"
+      },
+      "PlanDecision": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "2.0.0",
+            "title": "Version",
+            "default": "2.0.0"
+          },
+          "status": {
+            "type": "string",
+            "const": "planning-only-not-adopted",
+            "title": "Status",
+            "default": "planning-only-not-adopted"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/PlanCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "comparison_intent": {
+            "type": "string",
+            "enum": [
+              "undetermined",
+              "descriptive",
+              "independent-candidate",
+              "paired-candidate"
+            ],
+            "title": "Comparison Intent"
+          },
+          "descriptive_allowed": {
+            "type": "boolean",
+            "const": true,
+            "title": "Descriptive Allowed",
+            "default": true
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/PlanFinding"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/PlanFinding"
+            },
+            "type": "array",
+            "title": "Decisions"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/PlanFinding"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/PlanReference"
+            },
+            "type": "array",
+            "title": "References"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidates",
+          "comparison_intent",
+          "questions",
+          "decisions",
+          "limits",
+          "references"
+        ],
+        "title": "PlanDecision"
+      },
+      "PlanFinding": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "reference": {
+            "type": "string",
+            "enum": [
+              "senft-2023",
+              "kodiha-2011",
+              "waters-2009",
+              "lazic-2018",
+              "lord-2020",
+              "schmied-2024"
+            ],
+            "title": "Reference"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "detail",
+          "reference"
+        ],
+        "title": "PlanFinding"
+      },
+      "PlanInput": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "cytellect-analysis-plan",
+            "title": "Format",
+            "default": "cytellect-analysis-plan"
+          },
+          "version": {
+            "type": "string",
+            "const": "2.0.0",
+            "title": "Version"
+          },
+          "answers": {
+            "$ref": "#/components/schemas/PlanAnswers"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "answers"
+        ],
+        "title": "PlanInput"
+      },
+      "PlanReference": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "senft-2023",
+              "kodiha-2011",
+              "waters-2009",
+              "lazic-2018",
+              "lord-2020",
+              "schmied-2024"
+            ],
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "url"
+        ],
+        "title": "PlanReference"
+      },
+      "PlanResolution": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "plan_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Plan Sha256"
+          },
+          "candidate_id": {
+            "type": "string",
+            "enum": [
+              "regions-manual",
+              "regions-imported",
+              "regions-nuclei",
+              "legacy-gfp-nuclear",
+              "legacy-ncl"
+            ],
+            "title": "Candidate Id"
+          },
+          "metric": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$",
+            "title": "Metric"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "changes_acknowledged": {
+            "type": "boolean",
+            "title": "Changes Acknowledged",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_sha256",
+          "candidate_id",
+          "metric"
+        ],
+        "title": "PlanResolution"
+      },
+      "PlanSnapshot": {
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/PlanInput"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/PlanDecision"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input",
+          "decision",
+          "sha256"
+        ],
+        "title": "PlanSnapshot"
+      },
       "PlotSpec": {
         "properties": {
           "preset": {
@@ -3494,6 +4126,16 @@
               }
             ],
             "title": "Reuse Revision"
+          },
+          "plan_resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "recipe": {
             "oneOf": [
@@ -5075,6 +5717,16 @@
               }
             ],
             "title": "Exclusions"
+          },
+          "plan_resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5373,8 +6025,37 @@
             "minLength": 1,
             "title": "Title",
             "default": "Untitled experiment"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan_candidate_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "regions-manual",
+                  "regions-imported",
+                  "regions-nuclei",
+                  "legacy-gfp-nuclear",
+                  "legacy-ncl"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Candidate Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "WorkspaceInput"
       },
@@ -5418,6 +6099,16 @@
           "bytes": {
             "type": "integer",
             "title": "Bytes"
+          },
+          "analysis_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdoptedPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

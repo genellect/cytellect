@@ -59,17 +59,23 @@ class UploadGuardMiddleware:
         if self.settings.demo:
             await reject(403, "demo_uploads_disabled")
             return
-        if kind != "tables" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
+        # Generic uploads carry their retry key inside the multipart JSON. A
+        # full workspace must still reach its atomic key/fingerprint lookup;
+        # otherwise a lost success response cannot be recovered at quota.
+        retryable = kind == "region-fields"
+        if not retryable and kind != "tables" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
             await reject(413, "workspace_limit")
             return
         remaining = self.settings.max_upload_bytes - workspace["bytes"]
-        if remaining <= 0:
+        if not retryable and remaining <= 0:
             await reject(413, "workspace_limit")
             return
         if not request.headers.get("content-type", "").lower().startswith("multipart/form-data;"):
             await reject(415, "multipart_required")
             return
-        limit = min(self.table_limit if kind == "tables" else self.field_limit, remaining + 1024**2)
+        limit = self.field_limit if retryable else min(
+            self.table_limit if kind == "tables" else self.field_limit, remaining + 1024**2,
+        )
         length = request.headers.get("content-length")
         if length is not None:
             try:

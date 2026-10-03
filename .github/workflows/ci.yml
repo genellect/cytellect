@@ -24,6 +24,8 @@ jobs:
       - run: uv sync --locked --dev
       - run: uv run ruff check .
       - run: uv run mypy packages/analysis/src services
+      - name: Verify versioned planning candidates and cross-language fixtures
+        run: uv run python scripts/generate_planning_fixtures.py --check
       - run: uv run pytest tests -m "not fiji" --junitxml=/tmp/cytellect-scientific-tests.xml --scientific-collection=/tmp/cytellect-scientific-collection.json
       - name: Independent scientific regression receipt
         if: always()

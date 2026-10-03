@@ -8,6 +8,7 @@ import {comparisonLabel,comparisonWarnings,probabilityLabel,regionComparisonJobs
 import {usePrivateImage} from "@/lib/usePrivateImage";
 import type {DescriptiveOption} from "./DescriptivePanel";
 import styles from "./workspace.module.css";
+import {plannedSelection,selectionChangedFromPlan} from "@/lib/planned-selection";
 
 type Props={revision?:RegionRevision;fields:RegionField[];options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;run:(work:()=>Promise<void>)=>void;onReview:()=>void;onInspectField:(fieldId:string,revisionId:string)=>void;revisionLabels:Record<string,string>};
 const fileLabels:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","observations.csv":"観測・採否","source-fields.csv":"実験情報","field-summary.csv":"視野集計","sample-summary.csv":"試料集計","experimental-units.csv":"実験単位集計","unit-ledger.csv":"実験単位の採否","pair-ledger.csv":"対応ペア","comparisons.csv":"比較結果","missingness.csv":"欠測","excluded-failed-fields.csv":"失敗視野の除外","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
@@ -18,7 +19,7 @@ function Records({rows,columns}:{rows:Record<string,unknown>[];columns:[string,s
 export default function RegionComparisonPanel({revision,fields,options,jobs,blocked,dirty,run,onReview,onInspectField,revisionLabels}:Props){
  const [metadata,setMetadata]=useState<Record<string,RegionMetadata>>(()=>Object.fromEntries(fields.map(field=>[field.id,{...field.metadata}])));
  const [metadataDirty,setMetadataDirty]=useState(false);
- const [choice,setChoice]=useState("");const option=options.find(item=>item.id===choice)||options[0];
+ const [choice,setChoice]=useState("");const option=plannedSelection(options,choice,revision?.config.plan_resolution);
  const [design,setDesign]=useState<""|"independent"|"paired">("");const [unitDefinition,setUnitDefinition]=useState("");const [pairingBasis,setPairingBasis]=useState("");const [designConfirmed,setDesignConfirmed]=useState(false);
  const [conditions,setConditions]=useState<string[]>([]);const [familyKind,setFamilyKind]=useState<"control"|"planned">("control");const [control,setControl]=useState("");const [planned,setPlanned]=useState<string[]>([]);
  const [acquisitionConfirmed,setAcquisitionConfirmed]=useState(false);const [samplingConfirmed,setSamplingConfirmed]=useState(false);const [missingnessConfirmed,setMissingnessConfirmed]=useState(false);
@@ -53,6 +54,7 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
   </div>
   <div className={styles.statistics}><div className={`${styles.statsControls} ${styles.comparisonControls}`}><h2>実験単位で比較する</h2>
    <label>比較する測定値<select aria-label="比較する測定値" value={option?.id||""} onChange={event=>{setChoice(event.target.value);clearConfirmations();setSamplingConfirmed(false);}}>{options.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+   {revision?.config.plan_resolution&&!option&&<p className={styles.notice}>採用計画の指標・チャンネルをこの解析版で利用できません。測定値を確認して選択してください。</p>}{selectionChangedFromPlan(option,revision?.config.plan_resolution)&&<p className={styles.notice}>採用計画から指標またはチャンネルを変更しています。この選択を比較条件として保存します。</p>}
    <label>実験デザイン<select aria-label="実験デザイン" value={design} onChange={event=>{setDesign(event.target.value as typeof design);setDesignConfirmed(false);}}><option value="">選択してください</option><option value="independent">独立した実験単位の比較</option><option value="paired">同じ実験単位・対応する試料の比較</option></select></label>
    <label>独立実験単位の定義<input aria-label="独立実験単位の定義" value={unitDefinition} maxLength={200} placeholder="例：別々に培養した培養皿" onChange={event=>{setUnitDefinition(event.target.value);setDesignConfirmed(false);}}/></label>
    {design==="paired"&&<label>対応の根拠<input aria-label="対応の根拠" value={pairingBasis} maxLength={200} placeholder="どの試料同士が対応するか" onChange={event=>{setPairingBasis(event.target.value);setDesignConfirmed(false);}}/></label>}

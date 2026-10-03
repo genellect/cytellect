@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect,useState } from "react";
+import type {PlanResolution} from "@/lib/analysis-plan";
+import {plannedSelection,selectionChangedFromPlan} from "@/lib/planned-selection";
 import { useQuery } from "@tanstack/react-query";
 import { download, errorCodeMessage, errorMessage, post, request } from "@/lib/api";
 import { formatValue, type Job } from "@/lib/types";
@@ -8,17 +10,18 @@ import { usePrivateImage } from "@/lib/usePrivateImage";
 import styles from "./workspace.module.css";
 
 export type DescriptiveOption = {id:string;label:string;selection:DescriptiveSelection};
-type Props = {revisionId?:string;reviewed:boolean;options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;run:(fn:()=>Promise<void>)=>void;fieldLabels?:Record<string,string>;revisionLabels?:Record<string,string>;onInspectField?:(fieldId:string,revisionId:string)=>void};
+type Props = {revisionId?:string;reviewed:boolean;options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;run:(fn:()=>Promise<void>)=>void;fieldLabels?:Record<string,string>;revisionLabels?:Record<string,string>;onInspectField?:(fieldId:string,revisionId:string)=>void;planSelection?:PlanResolution|null};
 const files:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","field-summary.csv":"視野別の要約","selection.csv":"採用・除外の記録","missingness.csv":"欠測の記録","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
 const jobStatuses:Record<string,string>={queued:"図の生成を待っています。",running:"図と元データを生成しています。",failed:"図を生成できませんでした。",cancelled:"図の生成を中止しました。"};
 
-export default function DescriptivePanel({revisionId,reviewed,options,jobs,blocked,dirty,run,fieldLabels={},revisionLabels={},onInspectField}:Props){
+export default function DescriptivePanel({revisionId,reviewed,options,jobs,blocked,dirty,run,fieldLabels={},revisionLabels={},onInspectField,planSelection}:Props){
  const [choice,setChoice]=useState("");
  const [language,setLanguage]=useState("en");
  const [preset,setPreset]=useState("nature-double");
  const [selectedJob,setSelectedJob]=useState("");
  const [submitting,setSubmitting]=useState(false);
- const option=options.find(o=>o.id===choice)||options[0];
+ useEffect(()=>setChoice(""),[revisionId]);
+ const option=plannedSelection(options,choice,planSelection);
  const available=descriptiveJobs(jobs);
  const job=selectedDescriptiveJob(jobs,selectedJob,revisionId);
  const succeeded=job?.state==="succeeded";
@@ -31,7 +34,8 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
   <div className={`${styles.statsControls} ${styles.descriptiveControls}`}>
    <h2>測定値と分布を見る</h2>
    <p className={styles.small}>領域ごとの値と、視野内の中央値を表示します。1視野から作成できます。群間の検定や独立反復数の推定は行いません。</p>
-   <label>表示する測定値<select aria-label="表示する測定値" value={option?.id||""} onChange={e=>setChoice(e.target.value)}>{options.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
+   <label>表示する測定値<select aria-label="表示する測定値" value={option?.id||""} onChange={e=>setChoice(e.target.value)}><option value="">測定値を選択してください</option>{options.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
+   {planSelection&&!option&&<p className={styles.notice}>採用計画の指標・チャンネルをこの解析版で利用できません。表示する測定値を確認して選択してください。</p>}{selectionChangedFromPlan(option,planSelection)&&<p className={styles.notice}>採用計画から指標またはチャンネルを変更しています。この選択を図の条件として保存します。</p>}
    <div className={styles.formGrid}>
     <label>図の言語<select aria-label="記述図の言語" value={language} onChange={e=>setLanguage(e.target.value)}><option value="en">English</option><option value="ja">日本語</option></select></label>
     <label>図の幅<select aria-label="記述図の幅" value={preset} onChange={e=>setPreset(e.target.value)}><option value="nature-single">89 mm</option><option value="nature-double">183 mm</option></select></label>
@@ -40,6 +44,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
    {!reviewed&&<p className={styles.notice}>領域・背景・失敗や除外の理由を確認してから、図を作成できます。</p>}
    {dirty&&<p className={styles.notice}>未反映の変更があります。再測定して品質確認を完了してください。</p>}
    <button className={styles.primary} disabled={submitting||blocked||dirty||!reviewed||!revisionId||!option} onClick={()=>run(async()=>{
+    if(!option)return;
     setSubmitting(true);
     try {
      const created=await post<{job_id:string}>(`/v1/revisions/${revisionId}/descriptive`,{mode:"descriptive",selection:option.selection,group_by:"field",plot:{preset,kind:"distribution",language,width_inches:7,height_inches:3,font_size:7,x_label:"",y_label:"",group_order:[]}});

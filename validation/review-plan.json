@@ -119,6 +119,13 @@
       ],
       "references": ["lazic-2018", "superplots-2020", "waters-2009", "nature-final-artwork"],
       "limit": "Exact unit-level references and source-bound exports do not prove experimental independence, acquisition equivalence, adequate power or biological conclusions."
+    },
+    {
+      "id": "planning-actual-source-boundary",
+      "question": "Does guidance resolve only to supported actual-source measurements while keeping experimental confirmations explicit and preserving its source through replay?",
+      "tests": ["tests/test_planning.py", "tests/test_plan_adoption.py", "tests/test_planning_api.py"],
+      "references": ["waters-2009", "kodiha-2011", "lazic-2018", "schmied-2024"],
+      "limit": "Candidate and adoption checks cannot establish correct stain assignment, biological regions, independent replication or novice usability."
     }
   ],
   "separate_gates": [
