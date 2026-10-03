@@ -58,12 +58,10 @@ def test_mixed_workflow_upload_is_rejected_without_mutating_existing_work(tmp_pa
 def test_concurrent_first_uploads_commit_exactly_one_workflow(tmp_path, monkeypatch, nuclear_kind):
     client, app, _ = authenticated(tmp_path)
     wid = client.post("/v1/workspaces", headers=HEADERS, json={"title": "race"}).json()["id"]
-    region_client, nuclear_client = TestClient(app), TestClient(app)
-    region_client.cookies.update(client.cookies)
-    nuclear_client.cookies.update(client.cookies)
     # Both HTTP requests finish their preflight and reach the commit boundary while
     # the workspace is empty. BEGIN IMMEDIATE must serialize the identity decision.
-    barrier = threading.Barrier(2, timeout=10)
+    rendezvous = []
+    barrier = threading.Barrier(2, action=lambda: rendezvous.append(True), timeout=10)
     original_transaction = app.state.store.transaction
 
     @contextlib.contextmanager
@@ -73,11 +71,18 @@ def test_concurrent_first_uploads_commit_exactly_one_workflow(tmp_path, monkeypa
             yield connection
 
     monkeypatch.setattr(app.state.store, "transaction", synchronized_transaction)
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        region = executor.submit(submit, region_client, wid, "region")
-        nuclear = executor.submit(submit, nuclear_client, wid, nuclear_kind)
-        responses = [region.result(timeout=20), nuclear.result(timeout=20)]
-    assert sorted(response.status_code for response in responses) == [201, 409]
+    # Start the independent ASGI portals before measuring the commit race.
+    with TestClient(app) as region_client, TestClient(app) as nuclear_client:
+        region_client.cookies.update(client.cookies)
+        nuclear_client.cookies.update(client.cookies)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            region = executor.submit(submit, region_client, wid, "region")
+            nuclear = executor.submit(submit, nuclear_client, wid, nuclear_kind)
+            responses = [region.result(timeout=20), nuclear.result(timeout=20)]
+    diagnostics = [(response.status_code, response.json().get("detail")) for response in responses]
+    assert not barrier.broken, ("Concurrent uploads did not reach the transaction barrier", diagnostics)
+    assert rendezvous == [True], "Both requests must overlap at exactly one commit boundary"
+    assert sorted(response.status_code for response in responses) == [201, 409], diagnostics
     assert next(response for response in responses if response.status_code == 409).json()["detail"] == "workflow_kind_mismatch"
     stored = app.state.store.rows(fields, workspace_id=wid)
     assert len({is_region(field) for field in stored}) == 1

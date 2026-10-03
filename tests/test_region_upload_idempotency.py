@@ -138,7 +138,8 @@ def test_simultaneous_requests_commit_one_field_and_one_quota_charge(tmp_path, m
     second_spec = deepcopy(spec)
     if different:
         second_spec["metadata"]["condition"] = "other"
-    barrier = Barrier(2)
+    rendezvous = []
+    barrier = Barrier(2, action=lambda: rendezvous.append(True))
     original = region_api.read_tiff
 
     def synchronized_decode(path):
@@ -146,13 +147,19 @@ def test_simultaneous_requests_commit_one_field_and_one_quota_charge(tmp_path, m
         return original(path)
 
     monkeypatch.setattr(region_api, "read_tiff", synchronized_decode)
-    other = TestClient(client.app)
-    other.cookies.update(client.cookies)
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        a = pool.submit(upload, client, wid, spec, images)
-        b = pool.submit(upload, other, wid, second_spec, images)
-        responses = [a.result(timeout=30), b.result(timeout=30)]
-    assert sorted(response.status_code for response in responses) == ([201, 409] if different else [201, 201])
+    # Start both ASGI portals before synchronizing requests. Cold portal startup
+    # is not part of the upload race and must not consume its barrier deadline.
+    with client, TestClient(client.app) as other:
+        other.cookies.update(client.cookies)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a = pool.submit(upload, client, wid, spec, images)
+            b = pool.submit(upload, other, wid, second_spec, images)
+            responses = [a.result(timeout=30), b.result(timeout=30)]
+    diagnostics = [(response.status_code, response.json().get("detail")) for response in responses]
+    assert not barrier.broken, ("Concurrent upload requests did not reach the decode barrier", diagnostics)
+    assert rendezvous == [True], "Both requests must overlap at exactly one decode boundary"
+    statuses = sorted(response.status_code for response in responses)
+    assert statuses == ([201, 409] if different else [201, 201]), diagnostics
     successful = [response.json() for response in responses if response.status_code == 201]
     assert all(value == successful[0] for value in successful)
     if different:
