@@ -87,15 +87,31 @@ six checks; four screenshots were reviewed and no browser errors
 were recorded. These checks cover the public interface, not hosted private
 analysis or human usability.
 
-**Installed local.11 checkpoint: withheld after failed acceptance.**
+**Installed local.11 checkpoint: accepted second CI attempt; first failure retained.**
 [Windows packaging run 37140892298](https://github.com/genellect/cytellect/actions/runs/37140892298)
 passed fresh and repeat installation, then failed one of nine installed browser
 cases (eight passed; zero skipped or flaky). The initial local-workspace heading
 was not found. The independent numerical replay did not run; launcher shutdown
 passed. The draft-release job was skipped, so this attempt did not publish a
-package. The failure remains recorded while its cause is investigated. Archive
-acceptance, publication and canonical download verification remain open. A public
-UI release does not update an installed package.
+package. Its cause remains unidentified; it is not described as fixed.
+
+[Attempt 2](https://github.com/genellect/cytellect/actions/runs/37140892298/attempts/2)
+rebuilt the same source with the unchanged acceptance harness and passed nine
+browser cases (zero failed/skipped/flaky), independent numerical/replay checks
+and launcher shutdown. The accepted ZIP is a new build, not the first attempt's
+archive: 5,823,606 bytes, SHA-256
+`ba5835dd55ed9ad6df9698c6200c715c8084ef6d3990b3764f98c6e6d440819b`.
+Independent inspection verified all 138 payload files, exact-source contents
+and installed module identity. The [prerelease](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.11)
+was published; all six public assets were downloaded anonymously and matched
+the reviewed files. The canonical site's download-button update has its own
+subsequent PR/deployment check. A public UI release does not update an installed
+package. See the [package record](local-release-0.1.0.md).
+
+A separate same-source local rebuild could not finish installation because
+Smart App Control blocked an unsigned virtual-environment Python launcher.
+That machine is not counted as an accepted installation; no security policy was
+disabled. Its operating implications are documented in [local delivery](local.md).
 
 **Remaining acceptance is unchanged:** M4 requires the user's private originals,
 reference regions and field/sample-separated evaluation, including legacy

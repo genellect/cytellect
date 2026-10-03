@@ -2,7 +2,7 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
-The accepted [0.1.0-local.10 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.10) is available for Windows x86-64. See its [acceptance record](local-release-0.1.0.md) for the archive checksum, exact tested versions and remaining scientific/hosted gates. This release corrects stain identity wording in exported Methods; review earlier Methods before manuscript reuse.
+The accepted [0.1.0-local.11 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.11) is available for Windows x86-64, with adopted planning, named-channel regions, batch registration and experimental-unit comparisons. See its [acceptance record](local-release-0.1.0.md) for exact source, checksums, failed attempts and remaining scientific/operator gates. Start with the [public-image guide](quickstart.ja.md). Earlier Methods may need review for the stain-identity correction retained from local.10.
 
 ## Researcher flow
 
@@ -13,6 +13,24 @@ The accepted [0.1.0-local.10 release](https://github.com/genellect/cytellect/rel
 5. Import images, review masks, quantify, compare and export through the browser. Close the launcher to stop the local service and its worker. Closing only the browser tab does not stop the launcher.
 
 Windows x86-64 is the first installation target. Other operating systems retain the developer/Compose setup until their installation paths are tested. The runtime may consume several gigabytes of disk; the tested installer reports its completed footprint separately from the small setup archive. No code-signing certificate or automatic-update service is assumed to exist.
+
+### Windows application control
+
+An observed local setup attempt was blocked by Windows Smart App Control
+(`VerifiedAndReputableDesktop`, error 4551). Code Integrity events identified an
+unsigned Python virtual-environment launcher created by the pinned `uv`, not
+`uv` itself or the managed base interpreter. The dependency stage did not
+complete and no accepted installation was recorded. This is separate from
+installation on GitHub's Windows runner; successful CI cannot establish that a
+laboratory's application-control policy permits the package.
+
+Do not disable application control, unblock or relocate executables to work
+around this result. Keep the failure state and ask the workstation administrator
+to review the distribution under the laboratory's software policy. A signed,
+policy-compatible Windows distribution is not currently provided. These events
+identify a policy rejection, not a finding of malware or its cloud-reputation
+cause.
+See [Microsoft's policy and event-log definitions](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/test-your-app-with-smart-app-control#checking-event-logs).
 
 ## What stays the same
 
@@ -56,7 +74,7 @@ The additional `scripts/verify_installed_regions.py` gate runs with the installe
 
 Only the ZIP/checksum and small, separate acceptance receipts become workflow artifacts. Receipts identify the exact source, archive and acceptance-script hashes, test counts, numerical checks, replay and clean stop. Raw browser reports, logs, session information, uploaded images, screenshots and generated workspaces are not CI artifacts. Any image of a figure that is reviewed separately must retain its own public/generated source and scope. A Japanese or mixed-script figure requires an installed font covering its literal labels; failure is retained and blocks acceptance, rather than replacing labels or silently dropping glyphs.
 
-Passing these checks creates a **draft** GitHub prerelease; it does not automatically publish a download or certify private-image validity. Review actual installed/browser evidence and scientific limitations before publication. This workflow describes the next package's required gates; it does not retrospectively expand local.10's evidence. Existing versions must never be overwritten.
+Passing these checks creates a **draft** GitHub prerelease; it does not automatically publish a download or certify private-image validity. Review actual installed/browser evidence and scientific limitations before publication. The local.11 release passed these gates on its recorded CI attempt; it does not retrospectively expand local.10's evidence. Existing versions must never be overwritten.
 
 ## Later hosted execution
 

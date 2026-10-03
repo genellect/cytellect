@@ -1,6 +1,6 @@
 # Cytellect はじめての画像解析
 
-**Windows版 local.11 と練習画像は公開準備中です。** このガイドは、計画の引継ぎ・一括登録を含む新しい版向けです。配布版の公開確認後にご利用ください。
+このガイドは、計画の引継ぎ・一括登録に対応した **Windows版 0.1.0-local.11（開発プレビュー）** 向けです。[配布版とリリース情報](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.11)
 
 公開画像で、核の中の蛍光を測り、元画像までたどれる図を作ります。
 
@@ -8,7 +8,7 @@
 
 Windows PCと、練習用のチャンネル別TIFF画像を用意します。初回セットアップにはインターネット接続が必要です。例には、公開データ **BBBC013** のA01・A06・A12を使います。
 
-練習画像の公開予定先：[Cytellect-BBBC013-practice-v1.zip](https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-BBBC013-practice-v1.zip) — **公開待ち**。インストーラーとは別の任意ダウンロードです。公開後に展開すると、同名フォルダーに6枚のTIFFと出典説明が入ります。
+練習画像：[Cytellect-BBBC013-practice-v1.zip](https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-BBBC013-practice-v1.zip)。インストーラーとは別の任意ダウンロードです。展開すると、同名フォルダーに6枚のTIFFと出典説明が入ります。
 
 | 画像 | 実際の染色・標識 | 今回の用途 |
 |---|---|---|
@@ -19,7 +19,7 @@ Windows PCと、練習用のチャンネル別TIFF画像を用意します。初
 
 ## 1．測ることを決める
 
-公開後のWindows版ZIPを展開し、**Cytellect Setup.cmd** で初回セットアップを行います。その後はCytellectのショートカットから開き、**「解析を開始」** へ進みます。通常の起動にコマンド入力は不要です。
+[Windows版ZIP](https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-0.1.0-local.11-windows-x64.zip)を展開し、**Cytellect Setup.cmd** で初回セットアップを行います。その後はCytellectのショートカットから開き、**「解析を開始」** へ進みます。通常の起動にコマンド入力は不要です。
 
 新しい作業の「計画ガイドを開く」から、次のように選びます。
 
@@ -88,9 +88,9 @@ SVGまたはPDFと **「図の元データ」** を保存します。全チャ�
 画像提供：Ilya Ravkin／Broad Bioimage Benchmark Collection、BBBC013v1。[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)。参照：Ljosa et al., Nature Methods, 2012。
 
 <details>
-<summary>練習画像ZIPの照合情報（公開準備済みファイル）</summary>
+<summary>練習画像ZIPの照合情報</summary>
 
-サイズ：1,128,164 bytes。SHA-256：`4b9005077293b19728c9c68126943691def38d147a33e4a4f0ee3c18baa68858`。この値は準備したファイルの識別情報で、公開完了を示すものではありません。
+サイズ：1,128,164 bytes。SHA-256：`4b9005077293b19728c9c68126943691def38d147a33e4a4f0ee3c18baa68858`。公開配布物の識別情報です。
 
 </details>
 

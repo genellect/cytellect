@@ -14,7 +14,7 @@ Cytellect connects the measurement question, region review, fluorescence quantif
 
 The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The [planning guide](docs/analysis-planning.md) explains applicable recipes and unresolved conditions without uploading images; a supported choice can be explicitly adopted into a workspace and resolved against actual channels. The source includes [named channels, reviewed batch registration, manual/imported regions and confirmed nuclear-stain detection](docs/generic-regions.md), optional experimental metadata, original-pixel area/intensity measurements, [per-field descriptive figures](docs/descriptive.md) and explicit [experimental-unit comparisons](docs/region-comparisons.md). Arbitrary-object detection and automatic cell boundaries remain outside this slice. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
 
-Source changes in this cycle include statistics1.2.3, figure1.1.3, generic measurement1.0.0, nuclear initialization recipe1.1.0, descriptive output1.0.0 and region comparisons1.0.0. The currently published local.10 ZIP retains its previously recorded source and protocols until a new package passes installation acceptance. A deployed public UI does not update an installed local package.
+Source changes in this cycle include statistics1.2.3, figure1.1.3, generic measurement1.0.0, nuclear initialization recipe1.1.0, descriptive output1.0.0 and region comparisons1.0.0. These changes are included in the accepted local.11 Windows package. Its release record separates the successful CI-installed run, the retained initial browser failure and a Smart App Control block on another PC. A deployed public UI does not update an installed local package.
 
 ## Windows preview
 
@@ -22,7 +22,7 @@ The local edition uses the browser workspace with a private API and Fiji worker 
 
 The same scientific code and contracts support the later hosted edition. No cloud analysis server or paid plan is included in this preview.
 
-[Download Windows preview 0.1.0-local.10](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.10) · [Checksum and acceptance record](docs/local-release-0.1.0.md)
+[Download Windows preview 0.1.0-local.11](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.11) · [Checksum and acceptance record](docs/local-release-0.1.0.md) · [First analysis with public images (Japanese)](docs/quickstart.ja.md)
 
 ## Local development
 

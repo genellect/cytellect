@@ -9,8 +9,24 @@ test("local package starts without invitation, processes real GFP, and retains w
  const errors:string[]=[];const external:string[]=[];
  page.on("pageerror",e=>errors.push(e.message));
  page.on("request",r=>{if(/^https?:/.test(r.url())&&new URL(r.url()).origin!==new URL(origin).origin)external.push(r.url());});
+ const startupAt=Date.now();const startupHttp:{session:number|null;setup:number|null}={session:null,setup:null};
+ page.on("response",response=>{const pathname=new URL(response.url()).pathname;if(pathname==="/v1/session")startupHttp.session=response.status();if(pathname==="/v1/local/setup")startupHttp.setup=response.status();});
  await page.goto("/");
- await expect(page.getByRole("heading",{name:"ワークスペース",exact:true})).toBeVisible();
+ try{await expect(page.getByRole("heading",{name:"ワークスペース",exact:true})).toBeVisible();}
+ catch(error){
+  // Fixed categories only: never emit cookies, response bodies, URLs or research-bearing DOM.
+  try{
+   const [loading,login,workspace,startEnabled,cookies]=await Promise.all([
+    page.getByText("ワークスペースを開いています…",{exact:true}).isVisible(),
+    page.getByRole("heading",{name:"ワークスペース",exact:true}).isVisible(),
+    page.getByRole("heading",{name:"実験ワークスペース",exact:true}).isVisible(),
+    page.getByRole("button",{name:"解析を開始",exact:false}).evaluateAll(buttons=>buttons.some(button=>!(button as HTMLButtonElement).disabled)),
+    page.context().cookies(origin),
+   ]);
+   console.log("CYTELLECT_LOCAL_BOOTSTRAP_DIAGNOSTIC",JSON.stringify({version:1,elapsed_ms:Date.now()-startupAt,session_http_status:startupHttp.session,setup_http_status:startupHttp.setup,loading_visible:loading,login_heading_visible:login,workspace_heading_visible:workspace,start_button_enabled:startEnabled,cookie_count:cookies.length,page_error_count:errors.length}));
+  }catch{/* Diagnostics must never replace the original assertion failure. */}
+  throw error;
+ }
  await expect(page.getByRole("button",{name:"解析を開始",exact:false})).toBeEnabled();
  await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
  const unauthenticated=await page.request.get(origin+"/v1/session");expect(unauthenticated.status()).toBe(401);
