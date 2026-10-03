@@ -27,6 +27,62 @@ async function unitTree(view:Locator,condition:string,unit:string){
 }
 async function preview(page:Page){await expect.poll(()=>page.getByTestId("image-canvas").locator("canvas").first().evaluate(element=>{const canvas=element as HTMLCanvasElement;const pixels=canvas.getContext("2d")!.getImageData(0,0,canvas.width,canvas.height).data;let opaque=0,count=0;for(let i=3;i<pixels.length;i+=64){count++;if(pixels[i]>250)opaque++;}return opaque/count;})).toBeGreaterThan(.3);}
 
+async function verifyReadiness(page:Page,fixture:string,practice:PracticeField[]){
+ const title="Artificial comparison readiness";const workspace=await post(page,"/v1/workspaces",{title});
+ const headers={Origin:new URL(page.url()).origin,"X-Cytellect-Request":"1"};const fields:{id:string}[]=[];
+ for(const [index,row] of practice.slice(0,6).entries()){
+  // Reuse only known artificial pixels. A/B/C assignments are software fixtures,
+  // not biological replicates or claims about the underlying practice design.
+  fields.push(await json(await page.request.post(`${api}/v1/workspaces/${workspace.id}/region-fields`,{headers,multipart:{
+   specification:JSON.stringify({version:"1.0.0",channels:[{channel_id:"signal",label:"練習信号",stain:null,identity_confirmed:true}],metadata:{condition:["A","B","C"][Math.floor(index/2)],sample:index===0?null:`practice-s${index}`,experimental_unit:`practice-u${index}`,acquisition_date:index===2?null:"practice-batch",pair:null,repeat_length:null}}),
+   ch0:{name:"artificial-signal.tif",mimeType:"image/tiff",buffer:fs.readFileSync(path.join(fixture,"participant/images",`${row.field_id}-signal.tif`))},
+   labels:{name:"artificial-labels.tif",mimeType:"image/tiff",buffer:fs.readFileSync(path.join(fixture,"participant/masks",`${row.field_id}-labels.tif`))},
+  }})));
+ }
+ const bg={polygon:[[0,0],[12,0],[12,12],[0,12]],confirmed:true};
+ const initial=await post(page,`/v1/workspaces/${workspace.id}/region-analyses`,{recipe:{id:"region-2d",version:"1.0.0",region_set_id:"regions",label:"人工領域",source:"imported"},backgrounds:Object.fromEntries(fields.map(field=>[field.id,{signal:bg}])),exclusions:[]});
+ await waitJob(page,initial.job_id);await post(page,`/v1/revisions/${initial.revision_id}/review`,{});
+ await page.setViewportSize({width:1440,height:1000});await workbench(page,title);await page.getByRole("button",{name:/03 実験単位で比較/}).click();
+ const panel=byLabel(page,"実験単位で比較");const readiness=byLabel(page,"比較の前に確認すること");const submit=panel.getByRole("button",{name:"比較と図を作成",exact:true});
+ const conditions=panel.getByRole("group",{name:"比較に含める条件",exact:true});
+ const confirm=async()=>{
+  await panel.getByRole("checkbox",{name:"独立性と、必要な対応関係を実験記録で確認しました。",exact:true}).check();
+  await panel.getByRole("checkbox",{name:"撮影・標識・背景と非飽和の信号を比較できると確認しました。",exact:true}).check();
+  await panel.getByRole("checkbox",{name:"除外・欠測と比較対象を確認しました。",exact:true}).check();
+ };
+ const choose=async()=>{
+  await byLabel(panel,"比較する測定値").selectOption("signal-mean_corrected");
+  await byLabel(panel,"実験デザイン").selectOption("independent");await byLabel(panel,"独立実験単位の定義").fill("Artificial independent units for software checks only");
+  for(const condition of ["A","B","C"])await conditions.getByRole("checkbox",{name:condition,exact:true}).check();
+  await byLabel(panel,"比較する組み合わせ").selectOption("planned");await panel.getByRole("checkbox",{name:"A と B",exact:true}).check();await confirm();
+ };
+ let comparisonPosts=0;page.on("request",request=>{if(request.method()==="POST"&&new URL(request.url()).pathname.endsWith("/region-comparisons"))comparisonPosts++;});
+ await choose();await expect(submit).toBeDisabled();await expect(readiness).toContainText("「C」を使う比較がありません");
+ await expect(readiness).toContainText("視野 1：試料が未記録");await expect(readiness).toContainText("視野 3：撮影日／バッチが未記録");
+ await readiness.getByRole("button",{name:"比較の組み合わせへ",exact:true}).click();await expect(panel.getByRole("checkbox",{name:"A と B",exact:true})).toBeFocused();await expect(conditions.getByRole("checkbox",{name:"C",exact:true})).toBeChecked();
+ await shot(page,"comparison-readiness-missing-desktop.png",readiness);await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await shot(page,"comparison-readiness-missing-mobile.png");
+ await readiness.getByRole("button",{name:"視野 1 の試料へ",exact:true}).click();await expect(byLabel(page,"視野 1 の試料")).toBeFocused();await byLabel(page,"視野 1 の試料").fill("practice-s0");
+ await expect(readiness).toContainText("入力した実験情報を新しい解析版に保存");await expect(readiness).not.toContainText("視野 1：試料が未記録");
+ await byLabel(page,"視野 3 の撮影日／バッチ").fill("practice-batch");await readiness.getByRole("button",{name:"実験情報を保存する操作へ",exact:true}).click();
+ const save=panel.getByRole("button",{name:"実験情報を新しい解析版に保存",exact:true});await expect(save).toBeFocused();
+ const saving=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/region-metadata")&&response.request().method()==="POST");await save.click();const child=await json(await saving);await waitJob(page,child.job_id);
+ await expect.poll(async()=>byLabel(page,"比較の前に確認すること").textContent()).toContain("この解析版の品質確認を完了");
+ const old=await json(await page.request.get(`${api}/v1/revisions/${initial.revision_id}`));expect(old.config.field_snapshot[fields[0].id].metadata.sample).toBeNull();expect(old.config.field_snapshot[fields[2].id].metadata.acquisition_date).toBeNull();
+ await readiness.getByRole("button",{name:"画像と品質確認へ",exact:true}).click();await expect(page.getByTestId("image-canvas")).toBeVisible();
+ await post(page,`/v1/revisions/${child.revision_id}/review`,{});await workbench(page,title);await page.getByRole("button",{name:/03 実験単位で比較/}).click();await choose();
+ await expect(readiness.locator("li")).toHaveCount(1);await expect(submit).toBeDisabled();
+ await panel.getByRole("checkbox",{name:"B と C",exact:true}).check();await confirm();await expect(submit).toBeEnabled();await expect(readiness).toBeHidden();
+ await byLabel(panel,"比較する組み合わせ").selectOption("control");await byLabel(panel,"対照群").selectOption("A");await conditions.getByRole("checkbox",{name:"A",exact:true}).uncheck();await confirm();
+ await expect(readiness).toContainText("対照群「A」が比較対象から外れています");await expect(byLabel(panel,"対照群")).toHaveValue("A");await expect(submit).toBeDisabled();
+ await readiness.getByRole("button",{name:"対照群を確認する",exact:true}).click();await expect(byLabel(panel,"対照群")).toBeFocused();await shot(page,"comparison-readiness-stale-control-mobile.png");
+ await conditions.getByRole("checkbox",{name:"A",exact:true}).check();await byLabel(panel,"比較する組み合わせ").selectOption("planned");await conditions.getByRole("checkbox",{name:"C",exact:true}).uncheck();
+ await expect(readiness).toContainText("事前に決めた比較の組み合わせを選んで");await panel.getByRole("checkbox",{name:"B と A",exact:true}).check();await confirm();await expect(submit).toBeEnabled();expect(comparisonPosts).toBe(0);
+ const creating=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/region-comparisons")&&response.request().method()==="POST");await submit.click();const response=await creating;
+ const body=response.request().postDataJSON();expect(body.conditions).toEqual(["B","A"]);expect(body.comparison_family.contrasts).toEqual([["B","A"]]);
+ const job=await json(response);await waitJob(page,job.job_id);await expect(byLabel(page,"保存済みの群間比較")).toBeVisible();expect(comparisonPosts).toBe(1);
+ if(evidence)fs.writeFileSync(path.join(evidence,"comparison-readiness-receipt.json"),JSON.stringify({scope:"Artificial six-field A/B/C software choices; source-runtime only, no biological or human-usability validation",unusedConditionNamed:true,scopeNotAutomaticallyChanged:true,staleControlRetained:true,exactMetadataFocus:true,draftNotTreatedAsSaved:true,priorMetadataUnchanged:true,newRevisionRequiresReview:true,explicitAcknowledgementsPreserved:true,invalidComparisonRequests:0,submittedConditions:body.conditions,submittedContrasts:body.comparison_family.contrasts},null,2));
+}
+
 test("saved comparisons expose exact unit sample field values and protected historical measurement sources",async({page})=>{
  test.setTimeout(240000);if(!dataDir)throw Error("Isolated runtime data directory required");const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
  const title="Artificial comparison hierarchy";const workspace=await createRegionWorkspace(page,title);const fixture=fs.mkdtempSync(path.join(dataDir,"comparison-hierarchy-"));
@@ -71,4 +127,5 @@ test("saved comparisons expose exact unit sample field values and protected hist
  await page.getByRole("button",{name:"追加",exact:true}).click();await page.getByText("座標から多角形を指定",{exact:true}).click();await page.getByRole("textbox",{name:"頂点（x,y を空白または改行で区切る）",exact:true}).fill("10,60 20,60 20,70");await page.getByRole("button",{name:"座標を反映",exact:true}).click();view=await hierarchy(page);await unitTree(await open(byLabel(view,"対応ペア P-1")),"A","M-1");await expect(byLabel(view,"集計の視野 1 を保存済み画像で確認")).toBeDisabled();await page.getByRole("button",{name:/01 画像と領域/}).click();await open(page.locator("details").filter({has:page.locator(":scope>summary",{hasText:"座標から多角形を指定"})}));await expect(page.getByRole("textbox",{name:"頂点（x,y を空白または改行で区切る）",exact:true})).toHaveValue("10,60 20,60 20,70");await expect(page.getByRole("button",{name:/領域を保存・再測定 · 3 点/})).toBeVisible();await page.getByRole("button",{name:"選択",exact:true}).click();
  view=await hierarchy(page);await unitTree(await open(byLabel(view,"対応ペア P-1")),"A","M-1");await open(byLabel(view,"B 実験単位 M-1"));expect(await view.locator("details[aria-label]").evaluateAll(elements=>elements.map(element=>element.getAttribute("aria-label")).filter(label=>label?.startsWith("対応ペア ")))).toEqual(["対応ペア P-1","対応ペア P-2","対応ペア P-3"]);await shot(page,"comparison-hierarchy-paired-desktop.png");await shot(page,"comparison-hierarchy-paired-detail-desktop.png",view);await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await shot(page,"comparison-hierarchy-paired-mobile.png");await shot(page,"comparison-hierarchy-paired-detail-mobile.png",view);expect(errors).toEqual([]);
  if(evidence)fs.writeFileSync(path.join(evidence,"comparison-hierarchy-receipt.json"),JSON.stringify({scope:"Artificial 12-field practice fixture; no biological observations, human usability or installed-release acceptance",reference:{fields:[2,4,10],samples:[3,10],unitA:6.5,pairedUnitB:9.5,completePairs:3},measurementChannel:"signal",auxiliaryChannel:"Identical artificial pixels for display-channel restoration only",serverSavedValuesRendered:true,expansionMutations:0,pairedConditionIdentitiesDistinct:true,newerMetadataDoesNotReplaceSavedMembership:true,metadataAndPolygonDraftsRetained:true,failedHistoricalSourceDoesNotAdopt:true,sourceChannelAndReusedMaskRestored:true,aggregateFieldDoesNotSelectOneRegion:true,pageErrors:errors},null,2));
+ await verifyReadiness(page,fixture,prepared.fields);expect(errors).toEqual([]);
 });
