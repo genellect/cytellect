@@ -3,8 +3,10 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
+import psutil
 import pytest
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell release preparation")
@@ -49,6 +51,20 @@ try {
         }
         'process' {
             $shell=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+            if ($case.PSObject.Properties['stop_command']) {
+                # Test-only replacement: exercise the real drain/deadline/target gate.
+                function Start-PrepareStopCommand([int]$ProcessId) {
+                    $start=[Diagnostics.ProcessStartInfo]::new()
+                    $start.FileName=$shell
+                    $start.Arguments=(@('-NoProfile','-NonInteractive','-Command',$case.stop_command) | ForEach-Object {ConvertTo-PrepareArgument $_}) -join ' '
+                    $start.WorkingDirectory=$env:CYTELLECT_TEST_ROOT
+                    $start.UseShellExecute=$false
+                    $start.CreateNoWindow=$true
+                    $start.RedirectStandardOutput=$true
+                    $start.RedirectStandardError=$true
+                    return [Diagnostics.Process]::Start($start)
+                }
+            }
             Invoke-PrepareProcess $shell @('-NoProfile','-NonInteractive','-Command',$case.command) $env:CYTELLECT_TEST_ROOT 'data_builder' $case.timeout
             @{ok=$true;released=($null -eq $script:PrepareProcess);processes=@($script:PrepareProcesses.ToArray())} | ConvertTo-Json -Depth 5 -Compress
         }
@@ -68,18 +84,68 @@ try {
 '''
 
 
-def run(tmp_path, case):
+def owned_command(command, identity):
+    """Record only synthetic child identity, for exact PID/creation-time cleanup."""
+    return (
+        "$owned=[Diagnostics.Process]::GetCurrentProcess();"
+        "$identity=@{pid=$PID;created=$owned.StartTime.ToFileTimeUtc()} | ConvertTo-Json -Compress;"
+        f"[IO.File]::WriteAllText('{identity}',$identity);"
+        + command
+    )
+
+
+def cleanup_owned_processes(tmp_path):
+    cleaned = []
+    for name in ("owned-child.json", "owned-stop.json"):
+        path = tmp_path / name
+        if not path.exists():
+            continue
+        identity = json.loads(path.read_text(encoding="utf-8-sig"))
+        try:
+            process = psutil.Process(identity["pid"])
+            created = identity["created"] / 10_000_000 - 11_644_473_600
+            # Never terminate an unrelated process after PID reuse.
+            if abs(process.create_time() - created) >= 0.0001:
+                continue
+            process.kill()
+            process.wait(timeout=5)
+            cleaned.append(name)
+        except psutil.NoSuchProcess:
+            continue
+    return cleaned
+
+
+def run(tmp_path, case, *, expect_live_target=False):
+    case = dict(case)
+    if case["action"] == "process":
+        case["command"] = owned_command(case["command"], "owned-child.json")
+        if "stop_command" in case:
+            case["stop_command"] = owned_command(case["stop_command"], "owned-stop.json")
     specification = tmp_path / "case.json"
     specification.write_text(json.dumps(case), encoding="utf-8")
     shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-    result = subprocess.run([str(shell), "-NoProfile", "-NonInteractive", "-Command", HARNESS],
-                            env={**os.environ, "CYTELLECT_TEST_SCRIPT": str(SCRIPT),
-                                 "CYTELLECT_TEST_ROOT": str(tmp_path), "CYTELLECT_TEST_CASE": str(specification)},
-                            text=True, capture_output=True, check=False, timeout=25)
-    assert result.stdout.strip(), result.stderr
-    assert str(tmp_path) not in result.stdout
-    assert "synthetic-private-error" not in result.stdout + result.stderr
-    return result.returncode, json.loads(result.stdout)
+    try:
+        # File-backed capture avoids communicate() waiting for inherited pipe handles
+        # after a deliberately unkillable target outlives the PowerShell harness.
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            result = subprocess.run(
+                [str(shell), "-NoProfile", "-NonInteractive", "-Command", HARNESS],
+                env={**os.environ, "CYTELLECT_TEST_SCRIPT": str(SCRIPT),
+                     "CYTELLECT_TEST_ROOT": str(tmp_path), "CYTELLECT_TEST_CASE": str(specification)},
+                stdout=stdout, stderr=stderr, check=False, timeout=40,
+            )
+            stdout.seek(0)
+            stderr.seek(0)
+            output, error = stdout.read().decode("utf-8"), stderr.read().decode("utf-8")
+    finally:
+        cleaned = cleanup_owned_processes(tmp_path)
+    assert output.strip(), error
+    assert str(tmp_path) not in output
+    assert "synthetic-private-error" not in output + error
+    receipt = json.loads(output)
+    (tmp_path / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+    assert cleaned == (["owned-child.json"] if expect_live_target else []), (cleaned, receipt)
+    return result.returncode, receipt
 
 
 def artifact(raw):
@@ -165,8 +231,8 @@ def test_exact_two_derived_archives_are_located_by_name_and_identity(tmp_path, f
 @pytest.mark.parametrize("command,timeout,expected", [
     ("[Console]::WriteLine('synthetic-private-error'); exit 0", 5, None),
     ("[Console]::Error.WriteLine('synthetic-private-error'); exit 7", 5, "prepare_process_failed"),
-    ("Start-Sleep -Seconds 10", 1, "prepare_process_timeout"),
-    ("[IO.File]::WriteAllText('cancel.request','cancel'); Start-Sleep -Seconds 10", 5, "prepare_cancelled"),
+    ("Start-Sleep -Seconds 90", 3, "prepare_process_timeout"),
+    ("[IO.File]::WriteAllText('cancel.request','cancel'); Start-Sleep -Seconds 90", 5, "prepare_cancelled"),
 ])
 def test_hidden_child_is_bounded_and_raw_output_is_not_logged(tmp_path, command, timeout, expected):
     code, receipt = run(tmp_path, {"action": "process", "command": command, "timeout": timeout})
@@ -175,8 +241,57 @@ def test_hidden_child_is_bounded_and_raw_output_is_not_logged(tmp_path, command,
     assert receipt["processes"][0]["stopped"] is True, receipt
     assert receipt["processes"][0]["elapsed_ms"] >= 0
     assert receipt["processes"][0]["started_utc"] <= receipt["processes"][0]["finished_utc"]
+    assert receipt["processes"][0]["elapsed_ms"] < 30_000  # Cannot pass by natural 90 s exit.
     if expected:
         assert receipt["code"] == expected
+    if expected in {"prepare_process_timeout", "prepare_cancelled"}:
+        stop = receipt["processes"][0]["stop_command"]
+        assert stop == {"attempted": True, "command_failed": False, "command_stopped": True,
+                        "exit_code": 0, "output_drained": True, "timed_out": False}
+
+
+@pytest.mark.parametrize("stop_command,exit_code,timed_out", [
+    ("exit 0", 0, False),
+    ("[Console]::Write('synthetic-private-error' * 10000);"
+     "[Console]::Error.Write('synthetic-private-error' * 10000); exit 5", 5, False),
+    ("Start-Sleep -Seconds 90", None, True),
+])
+def test_unconfirmed_stop_retains_target_failure_and_bounds_stop_command(
+    tmp_path, stop_command, exit_code, timed_out,
+):
+    code, receipt = run(tmp_path, {
+        "action": "process", "timeout": 5,
+        "command": "[IO.File]::WriteAllText('cancel.request','cancel'); Start-Sleep -Seconds 90",
+        "stop_command": stop_command,
+    }, expect_live_target=True)
+    assert code == 1 and receipt["code"] == "prepare_process_stop_unconfirmed"
+    process = receipt["processes"][0]
+    assert receipt["released"] is True  # Disposed handle is not stopped-process evidence.
+    assert process["stopped"] is False and process["exit_code"] is None
+    assert process["cancelled"] is True and process["timed_out"] is False
+    assert process["elapsed_ms"] < 30_000
+    stop = process["stop_command"]
+    assert stop["command_stopped"] is True and stop["output_drained"] is True
+    assert stop["timed_out"] is timed_out
+    if exit_code is not None:
+        assert stop["exit_code"] == exit_code
+        assert stop["command_failed"] is (exit_code != 0)
+    else:
+        assert stop["exit_code"] is not None
+
+
+def test_failed_tree_stop_is_not_replaced_by_parent_natural_exit(tmp_path):
+    code, receipt = run(tmp_path, {
+        "action": "process", "timeout": 5,
+        "command": "[IO.File]::WriteAllText('cancel.request','cancel'); Start-Sleep -Seconds 3",
+        "stop_command": "exit 5",
+    })
+    assert code == 1 and receipt["code"] == "prepare_process_stop_unconfirmed"
+    process = receipt["processes"][0]
+    assert process["stopped"] is True and process["exit_code"] == 0
+    assert process["cancelled"] is True
+    assert process["stop_command"]["command_failed"] is True
+    assert process["stop_command"]["exit_code"] == 5
 
 
 def test_prestart_cancellation_does_not_start_child(tmp_path):

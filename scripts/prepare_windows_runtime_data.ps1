@@ -1,4 +1,4 @@
-# Release-builder preparation only. Never called by the researcher installer.
+﻿# Release-builder preparation only. Never called by the researcher installer.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$Python,
@@ -137,19 +137,62 @@ function Get-PrepareMsiArguments([string]$Msi, [string]$Target, [string]$Log) {
     return '/a "' + $Msi + '" /qn /norestart TARGETDIR="' + $Target + '" /L*V "' + $Log + '"'
 }
 
-function Stop-PrepareProcess {
-    if ($null -eq $script:PrepareProcess -or $script:PrepareProcess.HasExited) { return }
+function Start-PrepareStopCommand([int]$ProcessId) {
     # Only this launched process tree. Never target Windows Installer services.
     $stop = [Diagnostics.ProcessStartInfo]::new()
     $stop.FileName = Join-Path $env:SystemRoot 'System32/taskkill.exe'
-    $stop.Arguments = '/PID ' + $script:PrepareProcess.Id + ' /T /F'
+    $stop.Arguments = '/PID ' + $ProcessId + ' /T /F'
     $stop.UseShellExecute = $false
     $stop.CreateNoWindow = $true
     $stop.RedirectStandardOutput = $true
     $stop.RedirectStandardError = $true
-    $killer = [Diagnostics.Process]::Start($stop)
-    try { $killer.WaitForExit(10000) | Out-Null } finally { $killer.Dispose() }
-    if (-not $script:PrepareProcess.WaitForExit(10000)) { throw 'prepare_process_stop_unconfirmed' }
+    return [Diagnostics.Process]::Start($stop)
+}
+
+function Stop-PrepareProcess([hashtable]$Record) {
+    if ($null -eq $script:PrepareProcess -or $script:PrepareProcess.HasExited) { return }
+    $status = @{ attempted = $true; exit_code = $null; timed_out = $false
+        command_stopped = $false; output_drained = $false; command_failed = $false }
+    $Record.stop_command = $status
+    $killer = $null
+    try {
+        $killer = Start-PrepareStopCommand $script:PrepareProcess.Id
+        # Drain both pipes immediately. Keep their contents private even on failure.
+        $out = $killer.StandardOutput.ReadToEndAsync()
+        $err = $killer.StandardError.ReadToEndAsync()
+        if (-not $killer.WaitForExit(10000)) {
+            $status.timed_out = $true
+            # This handle is our own stop command, never an unrelated system process.
+            $killer.Kill()
+            $null = $killer.WaitForExit(2000)
+        }
+        $status.command_stopped = $killer.HasExited
+        if ($status.command_stopped) {
+            $status.exit_code = $killer.ExitCode
+            $drain = [Threading.Tasks.Task]::WhenAll([Threading.Tasks.Task[]]@($out, $err))
+            $status.output_drained = $drain.Wait(2000)
+            $status.command_failed = ($status.exit_code -ne 0)
+        }
+    } catch {
+        $status.command_failed = $true
+    } finally {
+        if ($null -ne $killer) {
+            # A pipe/read/startup exception must not leave the owned stop command alive.
+            if (-not $killer.HasExited) {
+                try { $killer.Kill(); $null = $killer.WaitForExit(2000) } catch { }
+            }
+            $status.command_stopped = $killer.HasExited
+            if ($status.command_stopped) { $status.exit_code = $killer.ExitCode }
+            $killer.Dispose()
+        }
+    }
+    # A successful command alone is not proof that our launched process stopped.
+    # Retain this original process handle; never reopen a potentially reused PID.
+    $targetStopped = $script:PrepareProcess.WaitForExit(10000)
+    if (-not $targetStopped -or -not $status.command_stopped -or $status.command_failed -or
+        $status.timed_out -or $status.exit_code -ne 0 -or -not $status.output_drained) {
+        throw 'prepare_process_stop_unconfirmed'
+    }
 }
 
 function Invoke-PrepareProcess([string]$Executable, [string[]]$Arguments, [string]$Directory,
@@ -174,6 +217,7 @@ function Invoke-PrepareProcess([string]$Executable, [string[]]$Arguments, [strin
     $start.EnvironmentVariables['PYTHONDONTWRITEBYTECODE'] = '1'
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $record = @{ stage = $Stage; exit_code = $null; stopped = $false; timed_out = $false; cancelled = $false
+        stop_command = $null
         started_utc = [DateTime]::UtcNow.ToString('o') }
     try {
         $script:PrepareProcess = [Diagnostics.Process]::Start($start)
@@ -194,7 +238,7 @@ function Invoke-PrepareProcess([string]$Executable, [string[]]$Arguments, [strin
         if ($_.Exception.Message -ceq 'prepare_cancelled') { $record.cancelled = $true }
         throw
     } finally {
-        try { Stop-PrepareProcess } finally {
+        try { Stop-PrepareProcess $record } finally {
             if ($null -ne $script:PrepareProcess) {
                 $record.stopped = $script:PrepareProcess.HasExited
                 if ($record.stopped -and $null -eq $record.exit_code) { $record.exit_code = $script:PrepareProcess.ExitCode }

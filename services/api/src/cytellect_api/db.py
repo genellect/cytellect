@@ -5,7 +5,7 @@ import hashlib
 import secrets
 import time
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePath, PureWindowsPath
 
 from sqlalchemy import (
     JSON,
@@ -126,6 +126,52 @@ def uid():
 
 def digest(token):
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _windows_storage_path(path: PureWindowsPath) -> PureWindowsPath | None:
+    """Compare resolved drive/UNC paths without stripping extended semantics."""
+    if not path.is_absolute() or ".." in path.parts:
+        return None
+    drive = path.drive
+    extended = drive.startswith("\\\\?\\")
+    plain_drive = drive[4:] if extended else drive
+    if (len(plain_drive) == 2 and plain_drive[0] in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            and plain_drive[1] == ":"):
+        return path if extended else PureWindowsPath("\\\\?\\" + str(path))
+    # Do not reinterpret device paths (\\.\, GLOBALROOT, volume GUIDs) as UNC.
+    if extended:
+        if not plain_drive.startswith("UNC\\"):
+            return None
+        share = plain_drive[4:].split("\\")
+    else:
+        if not drive.startswith("\\\\"):
+            return None
+        share = drive[2:].split("\\")
+    if len(share) != 2 or any(part in {"", ".", "..", "?"} for part in share):
+        return None
+    return path if extended else PureWindowsPath("\\\\?\\UNC\\" + str(path)[2:])
+
+
+def _relative_storage_path(target: PurePath, root: PurePath) -> str:
+    if isinstance(target, PureWindowsPath) or isinstance(root, PureWindowsPath):
+        if not isinstance(target, PureWindowsPath) or not isinstance(root, PureWindowsPath):
+            raise ValueError("invalid_storage_path")
+        windows_target, windows_root = _windows_storage_path(target), _windows_storage_path(root)
+        if windows_target is None or windows_root is None:
+            raise ValueError("invalid_storage_path")
+        target, root = windows_target, windows_root
+    try:
+        return target.relative_to(root).as_posix()
+    except ValueError:
+        raise ValueError("invalid_storage_path") from None
+
+
+def _is_within_storage(target: PurePath, root: PurePath) -> bool:
+    try:
+        _relative_storage_path(target, root)
+        return True
+    except ValueError:
+        return False
 
 
 class Store:
@@ -289,6 +335,13 @@ class Store:
 
     def safe_path(self, *parts):
         target = self.root.joinpath(*parts).resolve()
-        if not target.is_relative_to(self.root):
+        # Windows realpath may retain \\?\ if a missing parent appears between
+        # lookups. Compare both resolved paths in one namespace, but keep the
+        # resolved I/O path (including junction resolution) unchanged.
+        if not _is_within_storage(target, self.root):
             raise ValueError("invalid_storage_path")
         return target
+
+    def relative_path(self, path: Path) -> str:
+        """Return a checked POSIX artifact name without altering its I/O path."""
+        return _relative_storage_path(path.resolve(), self.root)
