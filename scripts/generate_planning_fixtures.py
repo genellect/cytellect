@@ -19,7 +19,7 @@ def payload(**answers):
     }}
 
 
-def cases():
+def cases(version="2.0.0"):
     specifications = [
         ("unknown", {"version": "2.0.0", "answers": {}}),
         ("manual-area-no-marker", payload(measurement="area", signal="unknown", nuclear_stain="no", comparison="descriptive")),
@@ -47,8 +47,18 @@ def cases():
                               "status": "planning-only-not-adopted", "answers": {"region": "nucleus", "signal": "gfp"}}),
         ("untrusted-guidance", {**payload(), "guidance": {"recipe": "arbitrary"}}),
     ]
+    if version == "2.1.0":
+        specifications += [
+            ("area-mixed-gfp-background-needed", payload(measurement="area", region="nucleus", definition="nuclear-stain", nuclear_stain="yes", signal="gfp")),
+            ("area-gfp-gated-background-needed", payload(measurement="area", region="nucleus", definition="nuclear-stain", nuclear_stain="yes", signal="gfp", gating="negative-control")),
+            ("area-background-unavailable", payload(measurement="area", background="no")),
+            ("area-background-previously-answered", payload(measurement="area", background="yes")),
+            ("ncl-area-retains-background", payload(measurement="area", region="nucleolus", definition="ncl-enrichment", nuclear_stain="yes", signal="ncl")),
+        ]
     result = []
     for identifier, source in specifications:
+        if version == "2.1.0" and source["version"] == "2.0.0":
+            source = {**source, "version": version}
         try:
             row = {"id": identifier, "input": source, "decision": evaluate_plan(source).model_dump(mode="json")}
         except ValidationError as exc:
@@ -57,17 +67,13 @@ def cases():
             ) else "planning_invalid_input"
             row = {"id": identifier, "input": source, "error": error}
         result.append(row)
-    return {"format": "cytellect-planning-parity", "version": "2.0.0",
+    return {"format": "cytellect-planning-parity", "version": version,
             "scope": "Enumerated planning examples; no images, experiment labels or biological validation.",
             "cases": result}
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true")
-    args = parser.parse_args()
-    data = cases()
-    catalog = {"version": "2.0.0", "references": [], "findings": {}, "candidates": {}}
+def make_catalog(data):
+    catalog = {"version": data["version"], "references": [], "findings": {}, "candidates": {}}
     for row in data["cases"]:
         if "decision" not in row:
             continue
@@ -82,7 +88,20 @@ def main():
             previous = catalog["candidates"].setdefault(candidate["id"], static)
             if previous != static:
                 raise ValueError("planning_candidate_static_properties_changed")
-    for destination, value in ((DESTINATION, data), (CATALOG, catalog)):
+    return catalog
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    data = cases()
+    current = cases("2.1.0")
+    catalog = make_catalog(data)
+    current_catalog = make_catalog(current)
+    for destination, value in ((DESTINATION, data), (CATALOG, catalog),
+                               (DESTINATION.with_name("decisions-v21.json"), current),
+                               (CATALOG.with_name("planning-catalog-v21.json"), current_catalog)):
         content = json.dumps(value, sort_keys=True, ensure_ascii=False, indent=2) + "\n"
         if args.check:
             if not destination.is_file() or destination.read_text(encoding="utf-8") != content:
@@ -90,7 +109,7 @@ def main():
         else:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(content, encoding="utf-8")
-    print(f"planning parity: {len(data['cases'])} cases; {len(catalog['findings'])} findings")
+    print(f"planning parity: {len(data['cases'])} preserved 2.0 cases; {len(current['cases'])} 2.1 cases")
 
 
 if __name__ == "__main__":

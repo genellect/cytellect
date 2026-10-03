@@ -121,7 +121,7 @@ jobs:
             schema = 'cytellect-installed-release-acceptance/1'; source_commit = $env:GITHUB_SHA
             version = $env:RELEASE_VERSION; archive_sha256 = (Get-FileHash -LiteralPath $env:CYTELLECT_RELEASE_ZIP).Hash.ToLowerInvariant()
             harness_sha256 = (Get-FileHash -LiteralPath 'scripts/verify_installed_regions.py').Hash.ToLowerInvariant()
-            browser = @{ passed = $false; expected_cases = 12 }
+            browser = @{ passed = $false; expected_cases = 15 }
             numerical_replay_passed = $false; launcher_stopped = $false
             scope = 'Installed public microscopy, planning and retry workflows with generated numerical references; no private-study or human-usability acceptance'
           }
@@ -137,12 +137,12 @@ jobs:
               } catch { Start-Sleep -Seconds 1 }
             }
             if (-not $ready) { throw 'Installed application did not start' }
-            pnpm --filter @cytellect/web test:e2e tests/local-workspace.spec.ts tests/generic-workspace.spec.ts tests/nuclear-region-comparison.spec.ts tests/plan-batch-workflow.spec.ts tests/region-trace.spec.ts tests/batch-common-metadata.spec.ts tests/comparison-hierarchy.spec.ts --reporter=json
+            pnpm --filter @cytellect/web test:e2e tests/local-workspace.spec.ts tests/generic-workspace.spec.ts tests/nuclear-region-comparison.spec.ts tests/plan-batch-workflow.spec.ts tests/region-trace.spec.ts tests/batch-common-metadata.spec.ts tests/comparison-hierarchy.spec.ts tests/area-only.spec.ts --reporter=json
             $browserExit = $LASTEXITCODE
             if (Test-Path -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE) {
               $browser = Get-Content -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE -Raw | ConvertFrom-Json
-              $receipt.browser = @{ passed = ($browserExit -eq 0 -and $browser.stats.expected -eq 12 -and $browser.stats.unexpected -eq 0 -and $browser.stats.skipped -eq 0 -and $browser.stats.flaky -eq 0)
-                expected_cases = 12; passed_cases = $browser.stats.expected; failed_cases = $browser.stats.unexpected
+              $receipt.browser = @{ passed = ($browserExit -eq 0 -and $browser.stats.expected -eq 15 -and $browser.stats.unexpected -eq 0 -and $browser.stats.skipped -eq 0 -and $browser.stats.flaky -eq 0)
+                expected_cases = 15; passed_cases = $browser.stats.expected; failed_cases = $browser.stats.unexpected
                 skipped_cases = $browser.stats.skipped; flaky_cases = $browser.stats.flaky }
             }
             if (-not $receipt.browser.passed) { throw 'Installed browser verification failed or incomplete' }
@@ -205,5 +205,5 @@ jobs:
       - name: Create a draft prerelease for final review
         shell: bash
         run: |
-          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned signed Python setup, twelve installed browser cases covering public GFP/generic nuclear regions, planning adoption, registration retries and saved source/experimental hierarchy, and independent generated-pixel comparison/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned signed Python setup, fifteen installed browser cases covering public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy and area-only measurement/planning, and independent generated-pixel comparison/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
           gh release create "v$RELEASE_VERSION" release/* --verify-tag --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"

@@ -13,7 +13,8 @@ from .descriptive_contracts import (
     NumericalSelection,
     RegionSelection,
 )
-from .regions import Calibration2D, ChannelSpec, RegionMeasurementTable
+from .region_measurement_v2 import RegionMeasurementPolicy, region_table_from_json, require_region_metric
+from .regions import Calibration2D, ChannelSpec
 from .review import unresolved_nucleolar_failures
 
 VERSION = "1.0.0"
@@ -35,6 +36,7 @@ SAFE_ERROR_CODES = frozenset({
     "descriptive_result_required", "descriptive_inference_not_allowed", "descriptive_figure_source_mismatch",
     "descriptive_review_required", "descriptive_saved_result_mismatch", "descriptive_revision_mismatch",
     "descriptive_failure_exclusion_mismatch",
+    "region_measurement_protocol_mismatch", "region_metric_not_measured",
 })
 
 
@@ -233,11 +235,31 @@ def _region_exclusions(report, field_ids, objects, region_set_id):
     return exclusions
 
 
+def region_report_measurement_policy(report):
+    # Retain the v1 adapter's historical minimal dictionaries. Only an explicit
+    # v2 protocol and strict policy can make area-only values available.
+    protocol = report.get("protocol_version", "1.0.0")
+    if protocol == "1.0.0" and report.get("measurement") is None:
+        return None
+    if protocol == "2.0.0":
+        try:
+            return RegionMeasurementPolicy.model_validate(report.get("measurement"))
+        except ValueError:
+            pass
+    raise ValueError("region_measurement_protocol_mismatch")
+
+
 def prepare_region_observations(report, field_snapshot, selector):
     """Validate every source observation before selection or statistical aggregation."""
     selector = RegionSelection.model_validate(selector)
-    tables = {fid: RegionMeasurementTable.model_validate_json(json.dumps(value))
+    measurement = region_report_measurement_policy(report)
+    require_region_metric(measurement, selector.metric)
+    tables = {fid: region_table_from_json(json.dumps(value))
               for fid, value in report.get("field_tables", {}).items()}
+    for table in tables.values():
+        if (table.protocol_version != ("2.0.0" if measurement else "1.0.0")
+                or getattr(table, "measurement", None) != measurement):
+            raise ValueError("region_measurement_protocol_mismatch")
     excluded = _coverage(report, field_snapshot, tables)
     fields, objects, definitions, identities = [], {}, set(), set()
     for fid, table in sorted(tables.items()):
@@ -302,6 +324,8 @@ def prepare_region_observations(report, field_snapshot, selector):
                        "mask_sha256": table.mask_sha256, "hash_format": table.hash_format,
                        "calibration": table.calibration.model_dump(mode="json") if table.calibration else None,
                        "channel_provenance": [item.model_dump(mode="json") for item in table.channel_provenance]})
+        if measurement is not None:
+            fields[-1].update(measurement_protocol="2.0.0", measurement=measurement.model_dump(mode="json"))
     if len(definitions) > 1:
         raise ValueError("descriptive_region_definition_mismatch")
     if len(identities) > 1:

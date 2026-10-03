@@ -56,11 +56,18 @@ display-order mismatch so that a field has the same name in the hierarchy and
 image viewer. Browser and package acceptance are recorded separately; these
 changes do not establish participant understanding or time savings.
 
-The next source-derived priority is area-only analysis, which
-currently requires per-channel backgrounds because it produces the full
-measurement table. Reducing that burden needs a versioned measurement contract
-that leaves unmeasured corrected intensities missing; it must not silently assume
-zero background. That measurement-policy change is not yet implemented.
+The current area-only source increment implements an explicit, versioned
+measurement policy without background ROIs. It preserves original-coordinate
+masks and reports unmeasured intensity and signal-QC values as missing with
+reasons, never as zero. Three actual-API browser cases cover mode changes and
+source export, calibrated area comparisons with their saved source hierarchy,
+and planning 2.1 with explicit actual-input review. Coordinator inspection of the
+resulting screens is a visual review, not a participant evaluation. This increment
+is not yet merged or distributed; its evidence does not update the installed
+release or the runtime-only PR #17 candidates. The next accepted package is to
+combine both source increments and pass all fifteen installed browser cases.
+Reducing background setup
+for area measurements is an expected benefit, not an observed time saving.
 
 Continue public-data work while human/private evidence is unavailable; keep M4
 and M5 open. Actual task completion, recovery and understanding determine whether

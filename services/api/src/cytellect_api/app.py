@@ -555,7 +555,8 @@ def create_app(settings: Settings | None = None):
         config["field_snapshot"] = {f["id"]: dict(f) for f in selected}
         if parent is not None and "plan_resolution" not in body.model_fields_set:
             inherit_plan_resolution(config, parent["config"])
-        bind_revision_plan(config, selected_workspace["analysis_plan"])
+        bind_revision_plan(config, selected_workspace["analysis_plan"],
+                           parent_config=parent["config"] if parent is not None else None)
         with store.transaction() as c:
             w = c.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
             if parent is not None and w["active_revision"] != parent["id"]:
@@ -773,7 +774,8 @@ def create_app(settings: Settings | None = None):
         if "plan_resolution" not in body.model_fields_set:
             inherit_plan_resolution(config, parent["config"])
         config["reuse_revision"] = rid
-        bind_revision_plan(config, workspace(parent["workspace_id"], who)["analysis_plan"])
+        bind_revision_plan(config, workspace(parent["workspace_id"], who)["analysis_plan"],
+                           parent_config=parent["config"])
         return child_revision(parent, config)
 
     @api.post("/v1/revisions/{rid}/resegment", status_code=202)
@@ -816,7 +818,8 @@ def create_app(settings: Settings | None = None):
             config["plan_resolution"] = body.plan_resolution.model_dump(mode="json") if body.plan_resolution else None
         else:
             inherit_plan_resolution(config, parent["config"])
-        bind_revision_plan(config, workspace(parent["workspace_id"], who)["analysis_plan"])
+        bind_revision_plan(config, workspace(parent["workspace_id"], who)["analysis_plan"],
+                           parent_config=parent["config"])
         return child_revision(parent, config)
 
     @api.post("/v1/jobs/{jid}/retry", status_code=202)

@@ -27,7 +27,7 @@ for (const width of [1440, 390]) {
     const chunks: Buffer[] = [];
     for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
     const receipt = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    expect(receipt.version).toBe("2.0.0");
+    expect(receipt.version).toBe(process.env.CYTELLECT_EXPECT_PLAN_VERSION||(process.env.CYTELLECT_TEST_LOCAL==="1"||process.env.CYTELLECT_TEST_API_ORIGIN?"2.1.0":"2.0.0"));
     expect(receipt.answers.comparison).toBe("paired");expect(receipt.answers.allocation).toBe("fields");
     expect(Object.keys(receipt).sort()).toEqual(["answers","format","version"]);
     await page.getByLabel("測定する蛍光チャンネル", { exact: true }).selectOption("other");

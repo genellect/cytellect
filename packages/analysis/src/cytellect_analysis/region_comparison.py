@@ -11,8 +11,9 @@ import pandas as pd
 from scipy import stats
 
 from .descriptive import SAFE_ERROR_CODES as DESCRIPTIVE_ERRORS
-from .descriptive import _finite, prepare_region_observations
+from .descriptive import _finite, prepare_region_observations, region_report_measurement_policy
 from .region_comparison_contracts import RegionComparisonRequest, RegionComparisonResult
+from .region_measurement_v2 import RegionMeasurementPolicy
 from .statistics import finite_records
 from .unit_inference import VERSION, aggregate_unit_observations, apply_holm, compare_unit_arrays
 
@@ -34,13 +35,29 @@ SAFE_ERROR_CODES = DESCRIPTIVE_ERRORS | frozenset({
 
 
 def source_fingerprint(report, config):
+    measurement = _measurement_policy(report, config)
     source = {key: config.get(key) for key in (
         "recipe", "field_ids", "field_snapshot", "backgrounds", "exclusions", "review_record")}
+    if measurement is not None:
+        source["measurement"] = measurement.model_dump(mode="json")
     return hashlib.sha256(json.dumps({"report": report, "source": source}, sort_keys=True,
                                     separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()).hexdigest()
 
 
+def _measurement_policy(report, config):
+    measurement = region_report_measurement_policy(report)
+    recorded = config.get("measurement")
+    try:
+        actual = RegionMeasurementPolicy.model_validate(recorded) if recorded is not None else None
+    except ValueError:
+        raise ValueError("region_measurement_protocol_mismatch") from None
+    if actual != measurement:
+        raise ValueError("region_measurement_protocol_mismatch")
+    return measurement
+
+
 def _source(report, config, request):
+    _measurement_policy(report, config)
     confirmed = (config.get("review_record") or {}).get("confirmed_at")
     if isinstance(confirmed, bool) or not isinstance(confirmed, (int, float)):
         raise ValueError("region_comparison_review_required")

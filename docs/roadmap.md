@@ -19,7 +19,7 @@ READY as `dpl_FyfBb2jvarcWBFf8PEeVJjxrTguc`; canonical home/planning checks at
 region measurements, preserves per-field metadata during common-field edits,
 and improves installer diagnosis. These later changes are not included in the
 immutable local.11 package. Comparison aggregation inspection is the next
-source increment; background-free area measurement remains a design task.
+source increment at that checkpoint; background-free area measurement was a design task.
 
 PR #16 then added saved unit → sample → field inspection and historical source
 navigation. Its four required checks passed before main
@@ -28,7 +28,28 @@ navigation. Its four required checks passed before main
 at 1440/390 px. The source-only API/browser evidence and public-page evidence are
 distinct; this increment is not in local.11. The next delivery priority is the
 intended-PC installation blocker. Signed-runtime candidate checks must precede
-any dependency-support or public-package change; area-only remains queued.
+any dependency-support or public-package change; area-only was queued at that checkpoint.
+
+### Area-only development checkpoint — not yet released
+
+The separate area worktree now implements explicit measurement policy 1.0.0,
+region measurement/report 2.0.0, bundle `/2` and Methods 1.2.0. Manual/imported or
+confirmed nuclear regions can provide area without a background ROI. Fluorescence
+values and saturation fractions remain unmeasured with explicit reasons. Existing
+v1, GFP/NCL recipes and inference rules retain their versions and behavior.
+[Protocol details and focused evidence](generic-regions.md).
+
+Guide 2.1.0 and resolution 1.1.0 connect that choice to actual reviewed inputs;
+old 2.0.0 plans remain reproducible. Canonical public planning stays 2.0.0; the
+new local/API-configured source selects 2.1.0. This area increment is not yet
+merged, deployed or accepted in a Windows package. PR #17 runtime-only candidates
+do not include these area changes. Once both source increments are accepted on
+main, build one combined `local.12` package and verify its fifteen installed
+browser cases before publication. Required CI,
+actual browser/figure inspection and installed acceptance are separate gates;
+running checks are not recorded as passed. M4 private-image validation and M5
+human researcher evaluation remain open. Reducing background gestures for area
+is a usability hypothesis, not an observed reduction in researcher effort.
 
 | Stage | Implemented | Remaining acceptance |
 |---|---|---|

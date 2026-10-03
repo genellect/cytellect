@@ -7,7 +7,7 @@ import { usePrivateImage } from "@/lib/usePrivateImage";
 import styles from "./workspace.module.css";
 const colors={nuclei:"#7bbbea",nucleoli:"#f2bb67",manual:"#b6a1f0",regions:"#8bcbe3"};
 type DisplayLayer=Layer|"regions";
-type Props={fieldId:string;shape:[number,number];masks?:Partial<Record<DisplayLayer,Contour[]>>;layer:DisplayLayer;operation:Operation;selected:number[];onSelect:(ids:number[])=>void;polygon:Point[];onPolygon:(points:Point[])=>void;background?:Point[];channel:string;gain:number;showMasks:boolean;previewPath?:string;regionLabel?:string};
+type Props={fieldId:string;shape:[number,number];masks?:Partial<Record<DisplayLayer,Contour[]>>;layer:DisplayLayer;operation:Operation;selected:number[];onSelect:(ids:number[])=>void;polygon:Point[];onPolygon:(points:Point[])=>void;background?:Point[];channel:string;gain:number;showMasks:boolean;previewPath?:string;regionLabel?:string;showBackgroundLegend?:boolean};
 export default function FieldCanvas(p:Props){
  const box=useRef<HTMLDivElement>(null);const stage=useRef<Konva.Stage>(null);
  const [width,setWidth]=useState(640);const [zoom,setZoom]=useState(1);const [offset,setOffset]=useState({x:0,y:0});
@@ -33,6 +33,6 @@ export default function FieldCanvas(p:Props){
     {!image&&<Text text="画像を読み込み中…" fill="#bbc5c8" x={5} y={10} fontSize={13/scale}/>}
    </CanvasLayer>
   </Stage>
-  <div className={styles.canvasBottom}><div className={styles.legend}>{p.layer==="regions"?<span style={{color:colors.regions}}>● {p.regionLabel||"領域"}</span>:<><span style={{color:colors.nuclei}}>● 核</span><span style={{color:colors.nucleoli}}>● 核小体</span><span style={{color:colors.manual}}>● 手動ROI</span></>}<span style={{color:"#72e0b9"}}>▱ 背景</span></div>{p.layer==="regions"&&<div className={styles.canvasZoom}><button aria-label="縮小" onClick={()=>setZoom(z=>Math.max(.5,z/1.25))}>−</button><button aria-label="拡大" onClick={()=>setZoom(z=>Math.min(8,z*1.25))}>＋</button></div>}<button onClick={()=>{setZoom(1);setOffset({x:0,y:0});}}>全体を表示 · {Math.round(zoom*100)}%</button></div>
+  <div className={styles.canvasBottom}><div className={styles.legend}>{p.layer==="regions"?<span style={{color:colors.regions}}>● {p.regionLabel||"領域"}</span>:<><span style={{color:colors.nuclei}}>● 核</span><span style={{color:colors.nucleoli}}>● 核小体</span><span style={{color:colors.manual}}>● 手動ROI</span></>}{p.showBackgroundLegend!==false&&<span style={{color:"#72e0b9"}}>▱ 背景</span>}</div>{p.layer==="regions"&&<div className={styles.canvasZoom}><button aria-label="縮小" onClick={()=>setZoom(z=>Math.max(.5,z/1.25))}>−</button><button aria-label="拡大" onClick={()=>setZoom(z=>Math.min(8,z*1.25))}>＋</button></div>}<button onClick={()=>{setZoom(1);setOffset({x:0,y:0});}}>全体を表示 · {Math.round(zoom*100)}%</button></div>
  </div>;
 }

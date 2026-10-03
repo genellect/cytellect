@@ -12,7 +12,7 @@ type Finding=Schema["PlanFinding"];
 export type PlanDecision=Schema["PlanDecision"];
 export type PlanSnapshot=Omit<Schema["PlanSnapshot"],"input">&{input:PlanInput};
 export type AdoptedPlan=Omit<Schema["AdoptedPlan"],"input">&{input:PlanInput};
-export type PlanResolution=Required<Schema["PlanResolution"]>;
+export type PlanResolution=Required<Omit<Schema["PlanResolution"],"measurement">>&Pick<Schema["PlanResolution"],"measurement">;
 export const emptyPlan:PlanAnswers={measurement:"unknown",region:"unknown",definition:"unknown",signal:"unknown",input:"unknown",nuclear_stain:"unknown",background:"unknown",acquisition:"unknown",comparison:"unknown",allocation:"unknown",gating:"none"};
 export const planReferences=catalog.references as PlanDecision["references"];
 export function parsePlan(value:unknown):PlanInput{

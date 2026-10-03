@@ -1607,7 +1607,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RegionReport"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RegionReport"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RegionReportV2"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "protocol_version",
+                    "mapping": {
+                      "1.0.0": "#/components/schemas/RegionReport",
+                      "2.0.0": "#/components/schemas/RegionReportV2"
+                    }
+                  },
+                  "title": "Response Measurements V1 Revisions  Rid  Region Measurements Get"
                 }
               }
             }
@@ -2146,6 +2161,25 @@
         "type": "object",
         "title": "AnalysisRequest"
       },
+      "AreaBackgroundProvenance": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "not_measured",
+            "title": "Status",
+            "default": "not_measured"
+          },
+          "reason": {
+            "type": "string",
+            "const": "not_required_for_area",
+            "title": "Reason",
+            "default": "not_required_for_area"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AreaBackgroundProvenance"
+      },
       "Background": {
         "properties": {
           "polygon": {
@@ -2406,6 +2440,47 @@
           "storage_maximum"
         ],
         "title": "ChannelProvenance"
+      },
+      "ChannelProvenanceV2": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ChannelSpec"
+          },
+          "dtype": {
+            "type": "string",
+            "enum": [
+              "uint8",
+              "uint16"
+            ],
+            "title": "Dtype"
+          },
+          "pixel_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Pixel Sha256"
+          },
+          "storage_maximum": {
+            "type": "integer",
+            "enum": [
+              255,
+              65535
+            ],
+            "title": "Storage Maximum"
+          },
+          "background": {
+            "$ref": "#/components/schemas/AreaBackgroundProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "dtype",
+          "pixel_sha256",
+          "storage_maximum",
+          "background"
+        ],
+        "title": "ChannelProvenanceV2"
       },
       "ChannelSpec": {
         "properties": {
@@ -3593,6 +3668,16 @@
             },
             "type": "array",
             "title": "Actual Review Required"
+          },
+          "measurement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegionMeasurementPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -3615,7 +3700,10 @@
         "properties": {
           "version": {
             "type": "string",
-            "const": "2.0.0",
+            "enum": [
+              "2.0.0",
+              "2.1.0"
+            ],
             "title": "Version",
             "default": "2.0.0"
           },
@@ -3736,7 +3824,10 @@
           },
           "version": {
             "type": "string",
-            "const": "2.0.0",
+            "enum": [
+              "2.0.0",
+              "2.1.0"
+            ],
             "title": "Version"
           },
           "answers": {
@@ -3787,7 +3878,10 @@
         "properties": {
           "version": {
             "type": "string",
-            "const": "1.0.0",
+            "enum": [
+              "1.0.0",
+              "1.1.0"
+            ],
             "title": "Version",
             "default": "1.0.0"
           },
@@ -3828,6 +3922,16 @@
             "type": "boolean",
             "title": "Changes Acknowledged",
             "default": false
+          },
+          "measurement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegionMeasurementPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4131,6 +4235,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PlanResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "measurement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegionMeasurementPolicy"
               },
               {
                 "type": "null"
@@ -5023,6 +5137,27 @@
         ],
         "title": "RegionMaskEdit"
       },
+      "RegionMeasurementPolicy": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version"
+          },
+          "mode": {
+            "type": "string",
+            "const": "area_only",
+            "title": "Mode"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "mode"
+        ],
+        "title": "RegionMeasurementPolicy"
+      },
       "RegionMeasurementRow": {
         "properties": {
           "field_id": {
@@ -5172,6 +5307,157 @@
         ],
         "title": "RegionMeasurementRow"
       },
+      "RegionMeasurementRowV2": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "analysis_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Analysis Revision Id"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Mask Revision Id"
+          },
+          "region_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Region Id"
+          },
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "area_px": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Area Px"
+          },
+          "area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Um2"
+          },
+          "area_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "calibration_unknown"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Missing Reason"
+          },
+          "mean": {
+            "type": "null",
+            "title": "Mean"
+          },
+          "median": {
+            "type": "null",
+            "title": "Median"
+          },
+          "integrated": {
+            "type": "null",
+            "title": "Integrated"
+          },
+          "mean_corrected": {
+            "type": "null",
+            "title": "Mean Corrected"
+          },
+          "median_corrected": {
+            "type": "null",
+            "title": "Median Corrected"
+          },
+          "integrated_corrected": {
+            "type": "null",
+            "title": "Integrated Corrected"
+          },
+          "intensity_missing_reason": {
+            "type": "string",
+            "const": "not_requested",
+            "title": "Intensity Missing Reason"
+          },
+          "storage_limit_fraction": {
+            "type": "null",
+            "title": "Storage Limit Fraction"
+          },
+          "storage_limit_missing_reason": {
+            "type": "string",
+            "const": "not_requested",
+            "title": "Storage Limit Missing Reason"
+          },
+          "acquisition_saturation_fraction": {
+            "type": "null",
+            "title": "Acquisition Saturation Fraction"
+          },
+          "acquisition_saturation_missing_reason": {
+            "type": "string",
+            "const": "not_requested",
+            "title": "Acquisition Saturation Missing Reason"
+          },
+          "touches_border": {
+            "type": "boolean",
+            "title": "Touches Border"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "analysis_revision_id",
+          "region_set_id",
+          "mask_revision_id",
+          "region_id",
+          "channel_id",
+          "area_px",
+          "area_um2",
+          "area_missing_reason",
+          "mean",
+          "median",
+          "integrated",
+          "mean_corrected",
+          "median_corrected",
+          "integrated_corrected",
+          "intensity_missing_reason",
+          "storage_limit_fraction",
+          "storage_limit_missing_reason",
+          "acquisition_saturation_fraction",
+          "acquisition_saturation_missing_reason",
+          "touches_border"
+        ],
+        "title": "RegionMeasurementRowV2"
+      },
       "RegionMeasurementTable": {
         "properties": {
           "protocol_version": {
@@ -5268,6 +5554,114 @@
           "rows"
         ],
         "title": "RegionMeasurementTable"
+      },
+      "RegionMeasurementTableV2": {
+        "properties": {
+          "protocol_version": {
+            "type": "string",
+            "const": "2.0.0",
+            "title": "Protocol Version",
+            "default": "2.0.0"
+          },
+          "measurement": {
+            "$ref": "#/components/schemas/RegionMeasurementPolicy"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "no_regions"
+            ],
+            "title": "Status"
+          },
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "analysis_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Analysis Revision Id"
+          },
+          "region_set": {
+            "$ref": "#/components/schemas/RegionSetSpec"
+          },
+          "shape_yx": {
+            "prefixItems": [
+              {
+                "type": "integer",
+                "maximum": 4096.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "integer",
+                "maximum": 4096.0,
+                "minimum": 1.0
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Shape Yx"
+          },
+          "mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Mask Sha256"
+          },
+          "hash_format": {
+            "type": "string",
+            "const": "cytellect-array-v1",
+            "title": "Hash Format",
+            "default": "cytellect-array-v1"
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Calibration2D"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channel_provenance": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelProvenanceV2"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Channel Provenance"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RegionMeasurementRowV2"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "measurement",
+          "status",
+          "field_id",
+          "analysis_revision_id",
+          "region_set",
+          "shape_yx",
+          "mask_sha256",
+          "calibration",
+          "channel_provenance",
+          "rows"
+        ],
+        "title": "RegionMeasurementTableV2"
       },
       "RegionMetadataEdit": {
         "properties": {
@@ -5538,6 +5932,131 @@
         ],
         "title": "RegionReport",
         "description": "Validate persisted JSON with model_validate_json, preserving strict tuples.\n\nFastAPI should return that validated instance, rather than asking its Python\nresponse validator to reinterpret tuple-valued science fields from JSON lists."
+      },
+      "RegionReportV2": {
+        "properties": {
+          "analysis_kind": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Analysis Kind",
+            "default": "region-2d"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "2.0.0",
+            "title": "Protocol Version",
+            "default": "2.0.0"
+          },
+          "measurement": {
+            "$ref": "#/components/schemas/RegionMeasurementPolicy"
+          },
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          },
+          "recipe": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RegionRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionNuclearRecipe"
+              }
+            ],
+            "title": "Recipe",
+            "discriminator": {
+              "propertyName": "version",
+              "mapping": {
+                "1.0.0": "#/components/schemas/RegionRecipe",
+                "1.1.0": "#/components/schemas/RegionNuclearRecipe"
+              }
+            }
+          },
+          "field_tables": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/RegionMeasurementTableV2"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Tables"
+          },
+          "field_masks": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/RegionFieldMask"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Masks"
+          },
+          "field_outcomes": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "type": "string",
+                "enum": [
+                  "measured",
+                  "no_regions",
+                  "failed",
+                  "excluded_failed"
+                ]
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Outcomes"
+          },
+          "field_failures": {
+            "items": {
+              "$ref": "#/components/schemas/RegionFieldFailure"
+            },
+            "type": "array",
+            "title": "Field Failures"
+          },
+          "excluded_failed_fields": {
+            "items": {
+              "$ref": "#/components/schemas/RegionExcludedFailure"
+            },
+            "type": "array",
+            "title": "Excluded Failed Fields"
+          },
+          "exclusions": {
+            "items": {
+              "$ref": "#/components/schemas/RegionExclusion"
+            },
+            "type": "array",
+            "title": "Exclusions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "measurement",
+          "revision_id",
+          "recipe",
+          "field_tables",
+          "field_masks",
+          "field_outcomes",
+          "field_failures",
+          "excluded_failed_fields",
+          "exclusions"
+        ],
+        "title": "RegionReportV2",
+        "description": "Explicit area-only report; v1 persisted data retains its original model."
       },
       "RegionSelection": {
         "properties": {

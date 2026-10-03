@@ -11,6 +11,7 @@ import styles from "./workspace.module.css";
 import {plannedSelection,selectionChangedFromPlan} from "@/lib/planned-selection";
 import RegionComparisonHierarchy from "./RegionComparisonHierarchy";
 import type {RegionFieldTraceTarget} from "@/lib/region-trace";
+import {isAreaOnly} from "@/lib/region-measurement";
 
 type Props={revision?:RegionRevision;fields:RegionField[];options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;traceBlocked?:boolean;fieldLabels?:Record<string,string>;run:(work:()=>Promise<void>)=>void;onReview:()=>void;onInspectField:(fieldId:string,revisionId:string)=>void;onInspectSourceField?:(target:RegionFieldTraceTarget)=>void;revisionLabels:Record<string,string>};
 const fileLabels:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","observations.csv":"観測・採否","source-fields.csv":"実験情報","field-summary.csv":"視野集計","sample-summary.csv":"試料集計","experimental-units.csv":"実験単位集計","unit-ledger.csv":"実験単位の採否","pair-ledger.csv":"対応ペア","comparisons.csv":"比較結果","missingness.csv":"欠測","excluded-failed-fields.csv":"失敗視野の除外","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
@@ -52,7 +53,7 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
     <div className={`${styles.tableWrap} ${styles.metadataTable}`}><table><thead><tr><th>視野</th>{metadataLabels.map(([key,label])=><th key={key}>{label}</th>)}</tr></thead><tbody>{fields.map((field,i)=><tr key={field.id}><th>視野 {i+1}</th>{metadataLabels.map(([key,label])=><td key={key}><input aria-label={`視野 ${i+1} の${label}`} value={metadata[field.id]?.[key]??""} type={key==="repeat_length"?"number":"text"} min={key==="repeat_length"?0:undefined} step={key==="repeat_length"?"any":undefined} maxLength={80} disabled={blocked} onChange={event=>metadataUpdate(field.id,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div>
     <button className={styles.secondary} disabled={blocked||dirty||!metadataDirty||revision?.state!=="succeeded"} onClick={()=>run(async()=>{await post(`/v1/revisions/${revision!.id}/region-metadata`,{version:"1.0.0",fields:Object.fromEntries(Object.entries(metadata).map(([fid,values])=>[fid,Object.fromEntries(Object.entries(values).map(([key,value])=>[key,typeof value==="string"?value.trim()||null:value]))]))});})}>実験情報を新しい解析版に保存</button><p className={styles.small}>画像と修正領域を保持し、新しい解析版で再測定します。元の情報も旧版に残ります。</p>
    </details>
-   {!revision?.reviewed&&<div className={styles.notice}>保存後は領域・背景と採否を確認してください。<button className={styles.secondary} onClick={onReview}>画像と品質確認へ</button></div>}
+    {!revision?.reviewed&&<div className={styles.notice}>{isAreaOnly(revision?.config.measurement)?"保存後は領域・面積と採否を確認してください。":"保存後は領域・背景と採否を確認してください。"}<button className={styles.secondary} onClick={onReview}>画像と品質確認へ</button></div>}
   </div>
   <div className={styles.statistics}><div className={`${styles.statsControls} ${styles.comparisonControls}`}><h2>実験単位で比較する</h2>
    <label>比較する測定値<select aria-label="比較する測定値" value={option?.id||""} onChange={event=>{setChoice(event.target.value);clearConfirmations();setSamplingConfirmed(false);}}>{options.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>

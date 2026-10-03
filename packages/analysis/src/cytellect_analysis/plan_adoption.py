@@ -4,9 +4,10 @@ import json
 import math
 from typing import Annotated, Literal, get_args
 
-from pydantic import Field, FiniteFloat, StrictBool, TypeAdapter
+from pydantic import Field, FiniteFloat, StrictBool, TypeAdapter, model_serializer, model_validator
 
 from .planning import CandidateId, PlanInput, PlanModel, PlanSnapshot, snapshot_plan, validate_plan_snapshot
+from .region_policy import RegionMeasurementPolicy
 
 Id = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")]
 
@@ -17,6 +18,7 @@ SAFE_ERROR_CODES = frozenset({
     "planning_revision_record_mismatch",
     "planning_inputs_required",
     "planning_recipe_invalid",
+    "planning_measurement_mismatch", "planning_measurement_policy_invalid",
 })
 
 
@@ -28,12 +30,27 @@ class AdoptedPlan(PlanSnapshot):
 
 
 class PlanResolution(PlanModel):
-    version: Literal["1.0.0"] = "1.0.0"
+    version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     plan_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     candidate_id: CandidateId
     metric: Id
     channel_id: Id | None = None
     changes_acknowledged: StrictBool = False
+    measurement: RegionMeasurementPolicy | None = None
+
+    @model_validator(mode="after")
+    def explicit_policy_choice(self):
+        supplied = "measurement" in self.model_fields_set
+        if (self.version == "1.0.0" and supplied) or (self.version == "1.1.0" and not supplied):
+            raise ValueError("planning_measurement_mismatch")
+        return self
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_shape(self, handler):
+        value = handler(self)
+        if self.version == "1.0.0":
+            value.pop("measurement", None)
+        return value
 
 
 def adopt_plan(value: PlanInput, candidate_id: str, accepted_at: float) -> AdoptedPlan:
@@ -52,7 +69,13 @@ def validate_adopted_plan(value) -> AdoptedPlan:
     return saved
 
 
-def resolve_plan(value, resolution, recipe, fields, workflow):
+def resolve_plan(value, resolution, recipe, fields, workflow, measurement=None):
+    try:
+        actual_policy = RegionMeasurementPolicy.model_validate(measurement) if measurement is not None else None
+    except ValueError:
+        raise ValueError("planning_measurement_policy_invalid") from None
+    if actual_policy is not None and workflow != "regions":
+        raise ValueError("planning_workflow_mismatch")
     if value is None:
         if resolution is not None:
             raise ValueError("planning_resolution_without_plan")
@@ -66,6 +89,10 @@ def resolve_plan(value, resolution, recipe, fields, workflow):
     candidate = next(item for item in saved.decision.candidates if item.id == saved.selected_candidate_id)
     if candidate.workflow != workflow:
         raise ValueError("planning_workflow_mismatch")
+    if chosen.version == "1.0.0" and (actual_policy is not None or candidate.measurement is not None):
+        raise ValueError("planning_resolution_required")
+    if chosen.measurement != actual_policy:
+        raise ValueError("planning_measurement_mismatch")
     if not fields:
         raise ValueError("planning_inputs_required")
     # Imported locally to avoid a cycle with the HTTP AnalysisRequest contracts.
@@ -82,6 +109,8 @@ def resolve_plan(value, resolution, recipe, fields, workflow):
     recipe = actual_recipe.model_dump(mode="json")
     metric = chosen.metric
     if metric not in get_args(RegionMetric if generic else LegacyMetric):
+        raise ValueError("planning_metric_unavailable")
+    if actual_policy is not None and metric not in {"area_px", "area_um2"}:
         raise ValueError("planning_metric_unavailable")
     area = metric.startswith("area_") if generic else "_area_" in metric
     source_channel = None
@@ -146,6 +175,8 @@ def resolve_plan(value, resolution, recipe, fields, workflow):
         changes.append("region_definition")
     if metric not in candidate.allowed_metrics:
         changes.append("measurement")
+    if actual_policy != candidate.measurement:
+        changes.append("measurement_mode")
     actual_gate = recipe.get("gfp_gate", "none")
     expected_gate = saved.input.answers.gating
     gate_matches = actual_gate == expected_gate or (expected_gate == "exploratory" and actual_gate in ("manual", "otsu-batch"))
@@ -156,6 +187,10 @@ def resolve_plan(value, resolution, recipe, fields, workflow):
     resolved = {"workflow": workflow, "selection_source": candidate.selection_source,
                 "metric": metric, "channel": source_channel, "recipe_id": recipe["id"],
                 "region_set_id": recipe.get("region_set_id"), "region_source": recipe.get("source")}
+    if chosen.version == "1.1.0":
+        resolved["measurement"] = actual_policy.model_dump(mode="json") if actual_policy is not None else None
+        if generic:
+            resolved["measurement_protocol"] = "2.0.0" if actual_policy is not None else "1.0.0"
     record = {**saved.model_dump(mode="json"), "resolution": chosen.model_dump(mode="json"),
               "resolved": resolved, "changes": changes}
     record["resolution_sha256"] = hashlib.sha256(json.dumps(record, ensure_ascii=False, sort_keys=True,
@@ -172,7 +207,8 @@ def validate_revision_plan(config):
     adopted = {key: record[key] for key in AdoptedPlan.model_fields if key in record}
     calculated = resolve_plan(adopted, config.get("plan_resolution"), config["recipe"],
                               list(config["field_snapshot"].values()),
-                              "regions" if config.get("analysis_kind") == "region-2d" else "nuclear")
+                              "regions" if config.get("analysis_kind") == "region-2d" else "nuclear",
+                              measurement=config.get("measurement"))
     if calculated != record:
         raise ValueError("planning_revision_record_mismatch")
     return calculated
@@ -183,7 +219,7 @@ def planning_methods(config):
     if record is None:
         return []
     resolved = record["resolved"]
-    return ["", "## Adopted planning intent", "",
+    lines = ["", "## Adopted planning intent", "",
             f"Guide {record['input']['version']}; adoption protocol {record['adoption_version']}; plan SHA-256 {record['sha256']}.",
             f"Selected candidate: {record['selected_candidate_id']}; actual recipe: {resolved['recipe_id']}.",
             f"Intended output metric resolved from the actual inputs: {resolved['metric']}.",
@@ -192,3 +228,7 @@ def planning_methods(config):
             "Recorded changes from the proposed method: " + (", ".join(record["changes"]) or "none") + ".",
             "The adopted plan and explicit resolved choices are retained in revision.json; later statistical "
             "requests record their own selected metric and design."]
+    if record["resolution"]["version"] == "1.1.0" and resolved["workflow"] == "regions":
+        mode = "area_only" if resolved["measurement"] is not None else "area_and_background_corrected_intensity"
+        lines.append(f"Explicit measurement choice: {mode}; measurement protocol {resolved['measurement_protocol']}.")
+    return lines

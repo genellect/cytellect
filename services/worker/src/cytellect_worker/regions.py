@@ -5,6 +5,7 @@ This worker independently validates snapshots and source files before measuring.
 """
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from pathlib import Path
 
@@ -20,10 +21,13 @@ from cytellect_analysis.region_contracts import (
     RegionMaskEdit,
     RegionNuclearRecipe,
     RegionStoredFile,
+    region_report_from_json,
     scientific_specification,
+    validate_region_report_policy,
 )
+from cytellect_analysis.region_measurement_v2 import measure_regions_versioned
 from cytellect_analysis.region_metadata import validate_region_reuse
-from cytellect_analysis.regions import _array_hash, measure_regions
+from cytellect_analysis.regions import _array_hash
 from cytellect_api.db import fields, jobs, revisions
 from cytellect_api.storage import read_json, write_json
 
@@ -50,6 +54,8 @@ REGION_FIELD_ERRORS = {
     "fiji_process_unavailable", "fiji_execution_failed", "fiji_input_dimensions", "fiji_input_format",
     "fiji_invalid_output_labels", "fiji_invalid_output_provenance",
     "fiji_temporary_path_invalid", "fiji_temporary_path_too_long",
+    "region_area_only_backgrounds_forbidden", "region_measurement_protocol_mismatch",
+    "region_metric_not_measured",
 }
 
 
@@ -98,7 +104,8 @@ def run_region_analysis(store, settings, job, output):
     if config.get("analysis_kind") != "region-2d":
         raise ValueError("region_revision_kind_mismatch")
     request = RegionAnalysisRequest.model_validate({
-        key: config[key] for key in ("field_ids", "reuse_revision", "recipe", "backgrounds", "exclusions") if key in config
+        key: config[key] for key in ("field_ids", "reuse_revision", "recipe", "backgrounds", "exclusions", "measurement")
+        if key in config
     })
     selected = request.field_ids
     if not selected or set(config.get("field_snapshot", {})) != set(selected):
@@ -119,6 +126,7 @@ def run_region_analysis(store, settings, job, output):
             raise ValueError("parent_revision_unavailable")
         validate_region_reuse(parent, config, request.recipe.model_dump(mode="json"))
         previous_report = read_json(store.safe_path(parent["result_dir"], "measurements.json"))
+        validate_region_report_policy(region_report_from_json(json.dumps(previous_report)), parent["config"])
         previous_provenance = read_json(store.safe_path(parent["result_dir"], "provenance.json"))
     elif edit:
         raise ValueError("region_edit_requires_parent")
@@ -239,15 +247,16 @@ def run_region_analysis(store, settings, job, output):
             if not excluded_objects.issubset(set(np.unique(labels)) - {0}):
                 raise ValueError("region_unknown_excluded_object")
             backgrounds = request.backgrounds.get(fid, {})
-            if set(backgrounds) != set(channels):
+            if request.measurement is None and set(backgrounds) != set(channels):
                 raise ValueError("region_channel_or_background_mapping_mismatch")
             background_masks = {cid: polygon_mask(labels.shape, background.polygon)
                                 for cid, background in backgrounds.items()}
             specification = scientific_specification(
                 field_id=fid, revision_id=revision["id"], mask_revision_id=mask_revision_id,
                 recipe=request.recipe, image_info=image_info,
+                measurement=request.measurement,
             )
-            table = measure_regions(channels, labels, background_masks, specification)
+            table = measure_regions_versioned(channels, labels, background_masks, specification)
             for cid, background in background_masks.items():
                 np.save(destination / f"background-{cid}.npy", background, allow_pickle=False)
             field_tables[fid] = table.model_dump(mode="json")
@@ -264,19 +273,26 @@ def run_region_analysis(store, settings, job, output):
             else:
                 failures.append({"field_id": fid, "reason": error})
                 outcomes[fid] = "failed"
+    protocol = "2.0.0" if request.measurement is not None else "1.0.0"
+    policy = {"measurement": request.measurement.model_dump(mode="json")} if request.measurement is not None else {}
     report = {
-        "analysis_kind": "region-2d", "protocol_version": "1.0.0", "revision_id": revision["id"],
+        "analysis_kind": "region-2d", "protocol_version": protocol, "revision_id": revision["id"],
         "recipe": request.recipe.model_dump(mode="json"), "field_tables": field_tables,
         "field_masks": field_masks, "field_outcomes": outcomes, "field_failures": failures,
         "excluded_failed_fields": excluded_failures,
         "exclusions": [item.model_dump(mode="json") for item in request.exclusions],
+        **policy,
     }
+    # Refuse mixed or unknown table protocols before publishing a result. JSON
+    # validation preserves the strict tuple-bearing scientific models.
+    validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
     write_json(output / "measurements.json", report)
     write_json(output / "provenance.json", {
         "analysis_kind": "region-2d", "revision_id": revision["id"], "fields": provenance_fields,
         "software": software_identity(), "recipe": request.recipe.model_dump(mode="json"),
-        "measurement_protocol": "1.0.0", "detector_executed": detector_executed,
+        "measurement_protocol": protocol, "detector_executed": detector_executed,
         "detector_attempted": detector_attempted,
+        **policy,
     })
     return output
 
