@@ -116,6 +116,13 @@
       "limit": "Correct preview transforms do not establish acquisition comparability, detector accuracy or calibrated fluorescence across images."
     },
     {
+      "id": "recorded-methods",
+      "question": "Does readable Methods prose match the saved measurement mode, selection and actual inference while preserving historical documents and complete source records?",
+      "tests": ["tests/test_statistical_methods.py", "tests/test_statistical_methods_export.py"],
+      "references": ["waters-2009", "lazic-2018", "schmied-2024"],
+      "limit": "Correct reporting of saved facts cannot establish experimental independence, acquisition validity, journal acceptance or facts absent from the recorded study."
+    },
+    {
       "id": "explicit-nuclear-initialization",
       "question": "Does the nuclear-only adapter preserve source identity, bounded execution, corrections and the original manual recipe?",
       "tests": [

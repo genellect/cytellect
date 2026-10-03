@@ -1,10 +1,10 @@
 """Source-bound, non-inferential statistics inside the supervised worker."""
 
 from cytellect_analysis.descriptive import describe_legacy, describe_regions
-from cytellect_analysis.descriptive_contracts import PagedDescriptiveRequest, parse_descriptive_request
-from cytellect_analysis.descriptive_figures import descriptive_methods
+from cytellect_analysis.descriptive_contracts import parse_descriptive_request
 from cytellect_analysis.descriptive_output import render_descriptive_output
 from cytellect_analysis.review import unresolved_nucleolar_failures
+from cytellect_analysis.statistical_methods import CURRENT_METHODS_TEMPLATE
 from cytellect_api.db import revisions
 from cytellect_api.storage import read_json, write_json
 
@@ -27,8 +27,6 @@ def run_descriptive(store, job, output):
         raise ValueError("descriptive_field_snapshot_mismatch")
     result = (describe_regions if generic else describe_legacy)(report, snapshot, request)
     result["revision_id"] = rev["id"]
-    result["figure"] = render_descriptive_output(result, output)
-    if not isinstance(request, PagedDescriptiveRequest):
-        (output / "methods.md").write_text(descriptive_methods(result), encoding="utf-8")
+    result["figure"] = render_descriptive_output(result, output, methods_template=CURRENT_METHODS_TEMPLATE)
     write_json(output / "result.json", result)
     return output

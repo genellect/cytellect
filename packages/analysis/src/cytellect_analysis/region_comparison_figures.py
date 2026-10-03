@@ -7,6 +7,7 @@ from .descriptive_figures import _source_measurement_policy, _ylabel
 from .exports_csv import write_csv
 from .figures import render_figures
 from .region_comparison_contracts import RegionComparisonResult
+from .statistical_methods import methods_metadata, readable_comparison_methods
 
 FIGURE_VERSION = "1.0.0"
 
@@ -53,7 +54,9 @@ def _caption(result):
     return "\n".join(lines) + "\n"
 
 
-def region_comparison_methods(result):
+def region_comparison_methods(result, *, methods_template=None):
+    if methods_metadata(methods_template):
+        return readable_comparison_methods(result)
     policy = _source_measurement_policy(result)
     return "\n".join([
         "# Cytellect generic-region comparison Methods", "", "Generated from saved settings; review before publication.",
@@ -81,7 +84,8 @@ def region_comparison_methods(result):
     ])
 
 
-def render_region_comparison(result, output: Path):
+def render_region_comparison(result, output: Path, *, methods_template=None):
+    document_metadata = methods_metadata(methods_template)
     canonical = RegionComparisonResult.model_validate({key: value for key, value in result.items() if key != "figure"}).model_dump(mode="json")
     counts = canonical["counts"]
     if (sum(row["observations"] for row in counts) != len(canonical["plot_data"])
@@ -107,15 +111,17 @@ def render_region_comparison(result, output: Path):
         if rows:
             write_csv(output / f"{name}.csv", rows)
     (output / "figure-caption.md").write_text(_caption(canonical), encoding="utf-8")
-    (output / "methods.md").write_text(region_comparison_methods(canonical), encoding="utf-8")
+    (output / "methods.md").write_text(region_comparison_methods(canonical, methods_template=methods_template), encoding="utf-8")
     csv_files = [f"{name}.csv" for name, rows in tables.items() if rows]
     source = {**canonical, "region_comparison_figure_version": FIGURE_VERSION,
               "renderer_version": manifest["figure_version"], "style": manifest["style"],
               "font_metadata": manifest["font_metadata"], "unit_glyphs": rendered["unit_glyphs"],
               "jitter_seed": 0, "source_hashes": {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
                                                   for name in csv_files}}
+    source.update(document_metadata)
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     manifest.update(region_comparison_figure_version=FIGURE_VERSION,
                     source_files=["figure.svg", "figure.pdf", "figure.png", *csv_files,
                                   "figure-caption.md", "figure-data.json", "methods.md"])
+    manifest.update(document_metadata)
     return manifest

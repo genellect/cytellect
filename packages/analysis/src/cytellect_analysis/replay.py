@@ -120,6 +120,7 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         if recorded.get("analysis_kind") == "descriptive":
             from .descriptive import validate_legacy_description
             from .descriptive_figures import render_descriptive
+            from .statistical_methods import saved_methods_template
 
             fresh_description = validate_legacy_description(recorded, result, config)
             folder = output_dir / "statistics" / stats_path.parent.name
@@ -129,7 +130,8 @@ def replay(bundle_dir: Path, raw_dir: Path, output_dir: Path):
                 fresh_description["figure"] = replay_descriptive_output(recorded, fresh_description, stats_path.parent, folder)
                 descriptive_figures_ready &= fresh_description["figure"]["status"] == "ready"
             else:
-                fresh_description["figure"] = render_descriptive(fresh_description, folder)
+                fresh_description["figure"] = render_descriptive(
+                    fresh_description, folder, methods_template=saved_methods_template(recorded))
             _json(folder / "result.json", fresh_description)
             continue
         spec = StatisticsRequest.model_validate(recorded["spec"])

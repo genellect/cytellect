@@ -51,6 +51,24 @@ running checks are not recorded as passed. M4 private-image validation and M5
 human researcher evaluation remain open. Reducing background gestures for area
 is a usability hypothesis, not an observed reduction in researcher effort.
 
+### Subsequent source acceptance — PR18
+
+PR17's runtime corrections and PR18's area-only/readiness changes are now merged.
+PR18 head `5ef6d41092746ac4f519bfa580fa089cdaf3b393` passed all five required
+checks in [run 37159139324](https://github.com/genellect/cytellect/actions/runs/37159139324)
+and merged as `d385eb0722a9df9068683fbc89a474c60b6e88af`. Canonical public
+home/planning verification at 1440/390 px confirmed that exact source in Vercel
+deployment `dpl_GgrBy3dVy42tUdxMm9sxBdU8rMrL`; the unchanged local.11 links and
+planning2.0 remain intentional until a matching package is accepted. This
+supersedes the earlier unmerged-source checkpoint above, not its retained tests
+or failed attempts. The combined local.12 installation gate is still separate.
+
+The following source increments address recorded display ranges, paginated
+descriptive figures, readable versioned Methods and native recipe compatibility
+guidance. They do not retroactively update local.11 or the frozen local.12 source.
+Actual browser, installed-package, private-image and human acceptance retain
+their own evidence.
+
 | Stage | Implemented | Remaining acceptance |
 |---|---|---|
 | M0 | Public monorepo, bilingual docs, agent guidance, locked Python/Web/Fiji, actual Java21 CPU detection, Alembic, CI and container definitions | Linux Fiji/browser and actual isolated worker container passed in PR #1; complete hosted stack acceptance remains open |

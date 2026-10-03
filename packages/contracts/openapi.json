@@ -7036,6 +7036,27 @@
         "title": "DescriptiveRenderError",
         "type": "object"
       },
+      "StatisticalMethodsTemplate": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "const": "cytellect-statistical-methods",
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version"
+        ],
+        "title": "StatisticalMethodsTemplate",
+        "type": "object"
+      },
       "PagedDescriptiveOutput": {
         "additionalProperties": false,
         "properties": {
@@ -7139,6 +7160,10 @@
             },
             "title": "Files",
             "type": "object"
+          },
+          "methods_template": {
+            "$ref": "#/components/schemas/StatisticalMethodsTemplate",
+            "title": "Methods Template"
           }
         },
         "required": [

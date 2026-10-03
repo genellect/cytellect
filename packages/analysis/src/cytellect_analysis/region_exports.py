@@ -146,7 +146,9 @@ def _long_rows(report, config):
 def _recompute_statistics(report, config, result):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
+    from .statistical_methods import saved_methods_template
 
+    saved_methods_template(result)
     if result.get("analysis_kind") not in ("descriptive", "region-comparison") or result.get("source_kind") != "region-2d":
         raise ValueError("region_export_statistics_unsupported")
     if result.get("revision_id") != report["revision_id"]:
@@ -173,18 +175,14 @@ def _recompute_statistics(report, config, result):
     return calculated
 
 
-def _render_statistics(calculated, folder):
+def _render_statistics(calculated, folder, *, methods_template=None):
     if calculated["analysis_kind"] == "region-comparison":
-        from .region_comparison_figures import region_comparison_methods, render_region_comparison
+        from .region_comparison_figures import render_region_comparison
 
-        manifest = render_region_comparison(calculated, folder)
-        (folder / "methods.md").write_text(region_comparison_methods(calculated), encoding="utf-8")
-        return manifest
-    from .descriptive_figures import descriptive_methods, render_descriptive
+        return render_region_comparison(calculated, folder, methods_template=methods_template)
+    from .descriptive_figures import render_descriptive
 
-    manifest = render_descriptive(calculated, folder)
-    (folder / "methods.md").write_text(descriptive_methods(calculated), encoding="utf-8")
-    return manifest
+    return render_descriptive(calculated, folder, methods_template=methods_template)
 
 
 def build_region_bundle(destination: Path, *, report, config, provenance, mask_files,
@@ -259,7 +257,9 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
                 raise ValueError("descriptive_output_source_required")
             figure = copy_descriptive_output(statistics_results[index], Path(statistics_roots[index]), folder)
         else:
-            figure = _render_statistics(calculated, folder)
+            from .statistical_methods import saved_methods_template
+
+            figure = _render_statistics(calculated, folder, methods_template=saved_methods_template(statistics_results[index]))
         _json(folder / "result.json", {**calculated, "figure": figure})
     methods = region_methods(config, report, provenance)
     (content / "methods.md").write_text(methods, encoding="utf-8")
@@ -368,7 +368,9 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
             replayed["figure"] = replay_descriptive_output(result, replayed, path.parent, folder)
             paged_outputs.append({"statistics_index": path.parent.name, "status": replayed["figure"]["status"]})
         else:
-            replayed["figure"] = _render_statistics(replayed, folder)
+            from .statistical_methods import saved_methods_template
+
+            replayed["figure"] = _render_statistics(replayed, folder, methods_template=saved_methods_template(result))
         _json(folder / "result.json", replayed)
     comparison = {
         "matched_saved_measurements": tables == report["field_tables"],

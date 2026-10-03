@@ -209,6 +209,11 @@ accepted package before it is available in the Windows download.
 
 ## Verification and limits
 
+New worker outputs use the separately identified [statistical Methods document
+template](statistical-methods.md). It provides a concise saved-summary narrative
+while retaining the complete CSV/JSON audit records. Historical artifacts keep
+their original document dispatch; descriptive protocol 1.0.0 is unchanged.
+
 `tests/test_descriptive.py` uses hand-computed signed intensities, area,
 anisotropic calibration, quartiles, unbalanced field counts and adversarial
 identity/selection cases. Expected values are not produced by the descriptive

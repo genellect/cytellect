@@ -13,6 +13,7 @@ from .descriptive_figures import _caption, descriptive_methods, render_descripti
 from .descriptive_pages import VERSION, DescriptivePresentationError, page_layout, render_pages
 from .exports_csv import csv_sha256, write_csv
 from .images import sha256
+from .statistical_methods import methods_metadata
 
 TABLES = ("plot-data.csv", "field-summary.csv", "selection.csv", "missingness.csv")
 DOCUMENTS = ("figure-caption.md", "methods.md", "figure-data.json")
@@ -79,8 +80,8 @@ def read_descriptive_output_index(path: Path):
     return _parse_manifest(json.loads(content.decode("utf-8"))).model_dump(mode="json")
 
 
-def _source_document(result, layout, font_metadata, csv_hashes):
-    return {**_source(result), "descriptive_figure_version": VERSION, "style": layout["style"],
+def _source_document(result, layout, font_metadata, csv_hashes, methods_template=None):
+    return {**_source(result), **methods_metadata(methods_template), "descriptive_figure_version": VERSION, "style": layout["style"],
             "field_labels": layout["labels"], "page_plan": layout["page_plan"],
             "y_limits": layout["y_limits"], "y_ticks": layout["y_ticks"],
             "font_metadata": font_metadata, "jitter_seed": 0, "source_hashes": csv_hashes}
@@ -106,10 +107,18 @@ def _output_caption(result, layout, status):
     return text
 
 
-def render_descriptive_output(result, output: Path):
+def _methods_text(result, status, methods_template):
+    return descriptive_methods(result, methods_template=methods_template) + (
+        f"\nDescriptive figure policy: {VERSION} (field-pages); output status: {status}. "
+        "Pages preserve the complete field order, global field labels and common Y limits/ticks. "
+        "Pagination does not select observations or change any numerical summary.\n")
+
+
+def render_descriptive_output(result, output: Path, *, methods_template=None):
+    document_metadata = methods_metadata(methods_template)
     request = parse_descriptive_request(result["spec"])
     if not isinstance(request, PagedDescriptiveRequest):
-        return render_descriptive(result, output)
+        return render_descriptive(result, output, methods_template=methods_template)
     layout = page_layout(result)
     output.mkdir(parents=True, exist_ok=True)
     data_files = []
@@ -137,15 +146,13 @@ def render_descriptive_output(result, output: Path):
                 pages.append({"page_index": plan["page_index"], "files": page_files})
     status = "ready" if error is None else "tables_only"
     (output / "figure-caption.md").write_text(_output_caption(result, layout, status), encoding="utf-8")
-    methods = descriptive_methods(result) + (
-        f"\nDescriptive figure policy: {VERSION} (field-pages); output status: {status}. "
-        "Pages preserve the complete field order, global field labels and common Y limits/ticks. "
-        "Pagination does not select observations or change any numerical summary.\n")
+    methods = _methods_text(result, status, methods_template)
     (output / "methods.md").write_text(methods, encoding="utf-8")
     csv_hashes = {name: sha256(output / name) for name in data_files}
-    _json(output / "figure-data.json", _source_document(result, layout, font_metadata, csv_hashes))
+    _json(output / "figure-data.json", _source_document(result, layout, font_metadata, csv_hashes, methods_template))
     files = [*data_files, *DOCUMENTS, *(name for page in pages for name in page["files"].values())]
     manifest = PagedDescriptiveOutput.model_validate({
+        **document_metadata,
         "descriptive_figure_version": VERSION, "status": status, "error": error,
         "field_order": layout["order"], "page_plan": layout["page_plan"], "pages": pages,
         "y_limits": layout["y_limits"], "y_ticks": layout["y_ticks"], "style": layout["style"],
@@ -178,7 +185,10 @@ def validate_descriptive_output(result, source_root: Path, *, require_index=Fals
             raise ValueError("descriptive_output_artifact_mismatch")
     source = json.loads((source_root / "figure-data.json").read_text(encoding="utf-8"))
     csv_hashes = {name: manifest.files[name].sha256 for name in TABLES if name in manifest.files}
-    if source != _source_document(result, layout, manifest.font_metadata, csv_hashes):
+    if source != _source_document(result, layout, manifest.font_metadata, csv_hashes, manifest.methods_template):
+        raise ValueError("descriptive_output_source_mismatch")
+    if manifest.methods_template is not None and (source_root / "methods.md").read_text(encoding="utf-8") != _methods_text(
+            result, manifest.status, manifest.methods_template):
         raise ValueError("descriptive_output_source_mismatch")
     # Rehashed CSVs must still match the canonical rows. Stream through the same
     # serializer in memory, never through unmanaged OS temporary storage.
@@ -202,7 +212,7 @@ def copy_descriptive_output(result, source_root: Path, destination: Path):
 
 def replay_descriptive_output(recorded, fresh, source_root: Path, destination: Path):
     saved = validate_descriptive_output(recorded, source_root)
-    manifest = render_descriptive_output(fresh, destination)
+    manifest = render_descriptive_output(fresh, destination, methods_template=saved.methods_template)
     _json(destination / "descriptive-output-verification.json", {
         "descriptive_figure_version": VERSION,
         "matched_saved_description": _source(recorded) == _source(fresh),

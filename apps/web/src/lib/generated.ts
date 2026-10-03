@@ -2610,6 +2610,19 @@ export interface components {
             /** Page Index */
             page_index: number | null;
         };
+        /** StatisticalMethodsTemplate */
+        StatisticalMethodsTemplate: {
+            /**
+             * Id
+             * @constant
+             */
+            id: "cytellect-statistical-methods";
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+        };
         /** PagedDescriptiveOutput */
         PagedDescriptiveOutput: {
             /**
@@ -2649,6 +2662,8 @@ export interface components {
             files: {
                 [key: string]: components["schemas"]["DescriptiveOutputFile"];
             };
+            /** Methods Template */
+            methods_template?: components["schemas"]["StatisticalMethodsTemplate"];
         };
         /** PagedDescriptiveResult */
         PagedDescriptiveResult: {

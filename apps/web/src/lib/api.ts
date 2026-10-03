@@ -33,6 +33,8 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ statistical_methods_template_invalid:"保存されたMethodsの版を確認できません。解析版と出力条件を確認してください。",
+ statistical_methods_source_invalid:"Methodsに必要な保存情報が一致しません。元の測定値と解析版を確認してください。",
  region_upload_id_conflict:"同じ登録操作の内容が変わっています。登録済みの視野を確認し、変更した画像は新しい登録として追加してください。",
  planning_legacy_requires_review:"以前の計画メモです。現在の計画ガイドで内容を確認し直してください。",
  planning_snapshot_mismatch:"計画の保存内容が一致しません。計画を読み込み直して確認してください。",
