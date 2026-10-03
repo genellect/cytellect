@@ -54,6 +54,19 @@ Figure protocol **1.1.2** checks the rendered regular-font geometry before writi
 
 Distribution plots distinguish observations, field medians, independent units, and mean/95% CI. Exploratory adjusted means are labeled separately from unadjusted unit points. Exploratory scatter lines and pointwise 95% mean intervals use the exact fitted group/GFP/date model and field-clustered CRV1 covariance, evaluated at equal weights across acquisition dates. The x axis is within-date median-centered log2 GFP; observed y values remain unadjusted and the prediction is explicitly date-adjusted. Experimental-unit-mode scatter shows points without an inferential line or interval. Counts show observations, fields and independent units.
 
+Figure protocol 1.1.2 uses literal `log2` in built-in Japanese labels because the
+regular Noto Sans CJK JP face lacks the Unicode subscript-two glyph U+2082.
+This is a notation change only; base-two transformations and numerical outputs
+are unchanged. User-supplied text is not rewritten and must still pass exact
+glyph coverage before any figure is published. The regression was reproduced
+with the [official Noto CJK regular collection](https://github.com/notofonts/noto-cjk/blob/main/Sans/OTC/NotoSansCJK-Regular.ttc),
+SHA-256 `b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a`:
+the original label failed coverage, while native/legacy ratio labels and both
+GFP-transform labels rendered as SVG/PDF/PNG with the actual regular face.
+This font was acquired only for development verification; no runtime download
+or bundled font was added. CI exercises the distribution and scatter exports
+with its installed Japanese font.
+
 ## Bundles and Fiji exchange
 
 Private bundles include measurement CSV/JSON, TIFF/NPZ labels, configuration, environment versions, provenance, template Methods, supported Fiji ROI ZIPs, optional recorded statistics/figures and a SHA-256 manifest. They omit original images unless explicitly requested. Derived data remain confidential.

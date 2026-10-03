@@ -24,10 +24,10 @@ MARKERS = ["o", "s", "^", "v", "P", "X", "D", "<", ">"]
 LABELS = {
     "ncl_log2_nucleoplasm_over_nucleoli": (
         "NCL nucleoplasm / nucleoli\n(log₂ mean intensity ratio)",
-        "NCL 核質 / 核小体\n（平均輝度比の log₂）"),
+        "NCL 核質 / 核小体\n（平均輝度比の log2）"),
     "ncl_legacy_release": (
         "NCL nucleus / high-intensity region\n(legacy log₂ ratio)",
-        "NCL 核全体 / 高輝度領域\n（互換 log₂ 比）"),
+        "NCL 核全体 / 高輝度領域\n（互換 log2 比）"),
     "ncl_nucleus_mean_corrected": (
         "Nuclear NCL mean intensity\n(background corrected, a.u.)",
         "核内 NCL 平均輝度\n（背景補正、任意単位）"),
@@ -285,9 +285,9 @@ def render_figures(result, output: Path):
                         ax.fill_between(prediction.gfp_centered, prediction.ci_low, prediction.ci_high,
                                         color=COLORS[i % len(COLORS)], alpha=.15, linewidth=0)
                 ax.set_xlabel(plot["x_label"] or (
-                    (("log₂(max(GFP, 0) + 1)（撮影日内中心化）" if ja else "log₂(max(GFP, 0) + 1)\n(centered within acquisition date)")
+                    (("log2(max(GFP, 0) + 1)（撮影日内中心化）" if ja else "log₂(max(GFP, 0) + 1)\n(centered within acquisition date)")
                      if spec.get("gfp_transform") == "legacy-log2p1" else
-                     ("log₂ GFP（撮影日内中央値で中心化）" if ja else "log₂ GFP (centered within acquisition date)"))
+                     ("log2 GFP（撮影日内中央値で中心化）" if ja else "log₂ GFP (centered within acquisition date)"))
                     if exploratory else LABELS["gfp_mean_corrected"][int(ja)]))
                 ax.legend(frameon=False, markerscale=1.5, handletextpad=.5)
                 note = ("Points are observed outcomes. Lines average the fitted mean over acquisition dates; "

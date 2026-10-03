@@ -204,6 +204,35 @@ def test_missing_glyph_fails_before_any_figure_is_published(tmp_path):
     assert not list(tmp_path.glob("figure.*"))
 
 
+@pytest.mark.parametrize("label_case", ["native-ratio", "legacy-ratio", "positive-log2", "legacy-log2p1"])
+@pytest.mark.filterwarnings("error:Glyph .* missing from font")
+def test_japanese_builtin_log_labels_use_portable_base_two_notation(tmp_path, label_case):
+    # Noto Sans CJK regular lacks U+2082. Built-in labels use literal log2;
+    # user labels still require exact font coverage and are never rewritten.
+    data = result(kind="scatter" if "log2" in label_case else "distribution",
+                  mode="exploratory" if "log2" in label_case else "experimental-unit")
+    data["spec"]["plot"].update(language="ja", preset="nature-double")
+    if label_case in {"native-ratio", "legacy-ratio"}:
+        metric = "ncl_log2_nucleoplasm_over_nucleoli" if label_case == "native-ratio" else "ncl_legacy_release"
+        old = data["spec"]["metric"]
+        data["spec"]["metric"] = metric
+        for name in ("plot_data", "field_summary", "unit_summary"):
+            for row in data[name]:
+                row[metric] = row.pop(old)
+    else:
+        data["spec"]["gfp_transform"] = label_case
+    try:
+        select_font("ja", "測定値")
+    except ValueError as exc:
+        if str(exc) == "japanese_font_not_installed":
+            pytest.skip("No installed regular Japanese font; no runtime font download")
+        raise
+    render_figures(data, tmp_path)
+    text = (tmp_path / "figure.svg").read_text(encoding="utf-8")
+    assert "log2" in text and "log₂" not in text
+    assert (tmp_path / "figure.pdf").is_file()
+
+
 def crowded_result():
     names = [f"Condition {index:02d} measurement" for index in range(8)]
     rows = [{"condition": name, "experimental_unit": f"u{group}-{unit}",
