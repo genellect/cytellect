@@ -8,8 +8,9 @@ from copy import deepcopy
 from typing import Annotated
 
 import numpy as np
+from cytellect_analysis.display_contracts import PREVIEW_DISPLAY_HEADER, PREVIEW_PNG_RESPONSE
 from cytellect_analysis.engine import MAX_AUTOMATIC_DETECTION_PIXELS, MAX_AUTOMATIC_DETECTION_SIDE
-from cytellect_analysis.images import read_tiff, render_preview, sha256
+from cytellect_analysis.images import read_tiff, render_preview_with_display, sha256
 from cytellect_analysis.masks import contours, polygon_mask
 from cytellect_analysis.region_contracts import (
     RegionAnalysisRequest,
@@ -214,7 +215,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             for file in uploads.values():
                 await file.close()
 
-    @api.get("/v1/region-fields/{fid}/preview")
+    @api.get("/v1/region-fields/{fid}/preview", response_class=Response, responses=PREVIEW_PNG_RESPONSE)
     def preview(fid: str, channel_id: str, who: Owner, low: float = 0, high: float = 100, gain: float = 1):
         f = field_record(fid, who)
         if not is_region(f):
@@ -224,7 +225,12 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             raise HTTPException(422, "invalid_display_settings")
         path = store.safe_path("workspaces", f["workspace_id"], "fields", fid, f"channel-{channel_id}.npy")
         pixels = np.load(path, allow_pickle=False)
-        return Response(render_preview({channel_id: pixels}, channel_id, low, high, gain), media_type="image/png")
+        png, display = render_preview_with_display(
+            {channel_id: pixels}, channel_id, low, high, gain, field_id=fid, composite=False,
+        )
+        return Response(png, media_type="image/png", headers={
+            PREVIEW_DISPLAY_HEADER: json.dumps(display.model_dump(), ensure_ascii=True, separators=(",", ":")),
+        })
 
     @api.post("/v1/workspaces/{wid}/region-analyses", status_code=202)
     def start(wid: str, body: RegionAnalysisRequest, who: Owner):

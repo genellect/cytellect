@@ -26,3 +26,11 @@ specific overlaps and clipping they detect and do not replace visual review.
 Tests inspect SVG physical dimensions/text/vector content, PDF embedded-font/CID/ToUnicode objects, PNG dimensions/DPI, source hashes, exact counts, paired titles, and reuse of saved clustered predictions. Font regressions cover Thin-only families, stale weight-cache entries, regular fallback, complete glyph coverage, actual bound file/weight in English/Japanese, and metadata without OS paths. A Japanese render test is explicitly skipped if no regular Japanese font is installed; this is not recorded as a passed Japanese rendering check. Welch/paired tests and CRV1 covariance/predictions have separate independent closed-form and matrix-algebra references in tests/test_statistics_reference.py. Scientific suitability for the user's experiment remains a separate private-data gate.
 
 Sources checked 2026-10-02: [Nature figure guide](https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/) and [SuperPlots](https://pubmed.ncbi.nlm.nih.gov/32346721/).
+
+New descriptive requests may explicitly use figure policy 2.0.0, documented in
+[descriptive output](descriptive.md). It divides fields into pages while retaining
+one saved vertical scale and all source observations. Historical descriptive
+1.0.0/1.0.1 requests keep their original rendering path. The descriptive
+measurement calculation and the inferential renderer described above do not
+change. An explicitly reported table-only result is usable source data, not a
+successfully rendered publication figure.

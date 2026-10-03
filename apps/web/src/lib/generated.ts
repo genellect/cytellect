@@ -955,6 +955,19 @@ export interface components {
                 number
             ][];
         };
+        /** DescriptiveFigurePolicy */
+        DescriptiveFigurePolicy: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "2.0.0";
+            /**
+             * Layout
+             * @constant
+             */
+            layout: "field-pages";
+        };
         /** DescriptivePlot */
         DescriptivePlot: {
             /**
@@ -1259,6 +1272,24 @@ export interface components {
              * @constant
              */
             metric: "value";
+        };
+        /** PagedDescriptiveRequest */
+        PagedDescriptiveRequest: {
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "descriptive";
+            /** Selection */
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"];
+            /**
+             * Group By
+             * @default field
+             * @constant
+             */
+            group_by: "field";
+            plot?: components["schemas"]["DescriptivePlot"];
+            figure_policy: components["schemas"]["DescriptiveFigurePolicy"];
         };
         /** PlanAnswers */
         PlanAnswers: {
@@ -2296,8 +2327,11 @@ export interface components {
             source: "region";
             /** Region Set Id */
             region_set_id: string;
-            /** Channel Id */
-            channel_id?: string | null;
+            /**
+             * Channel Id
+             * @default null
+             */
+            channel_id: string | null;
             /**
              * Metric
              * @enum {string}
@@ -2471,6 +2505,218 @@ export interface components {
             /** Bytes */
             bytes: number;
             analysis_plan?: components["schemas"]["AdoptedPlan"] | null;
+        };
+        /** PreviewPlaneDisplay */
+        PreviewPlaneDisplay: {
+            /** Channel Id */
+            channel_id: string;
+            /** Dtype */
+            dtype: string;
+            /**
+             * Value Basis
+             * @enum {string}
+             */
+            value_basis: "native-grayscale" | "legacy-imported";
+            /** Source Min */
+            source_min: number;
+            /** Source Max */
+            source_max: number;
+            /** Percentile Low Value */
+            percentile_low_value: number;
+            /** Percentile High Value */
+            percentile_high_value: number;
+            /** Normalization Span */
+            normalization_span: number;
+            /** Display Black Value */
+            display_black_value: number;
+            /** Display White Value */
+            display_white_value: number;
+            /** Constant Plane */
+            constant_plane: boolean;
+        };
+        /** PreviewDisplayMetadata */
+        PreviewDisplayMetadata: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Field Id */
+            field_id: string;
+            /** Requested Channel */
+            requested_channel: string;
+            /** Composite */
+            composite: boolean;
+            /**
+             * Scope
+             * @default whole-plane
+             * @constant
+             */
+            scope: "whole-plane";
+            /**
+             * Mode
+             * @default per-plane-percentile
+             * @constant
+             */
+            mode: "per-plane-percentile";
+            /** Low Percentile */
+            low_percentile: number;
+            /** High Percentile */
+            high_percentile: number;
+            /** Gain */
+            gain: number;
+            /** Planes */
+            planes: components["schemas"]["PreviewPlaneDisplay"][];
+        };
+        /** DescriptiveOutputFile */
+        DescriptiveOutputFile: {
+            /** Sha256 */
+            sha256: string;
+            /** Bytes */
+            bytes: number;
+        };
+        /** DescriptivePage */
+        DescriptivePage: {
+            /** Page Index */
+            page_index: number;
+            files: components["schemas"]["DescriptivePageFiles"];
+        };
+        /** DescriptivePageFiles */
+        DescriptivePageFiles: {
+            /** Svg */
+            svg: string;
+            /** Pdf */
+            pdf: string;
+            /** Png */
+            png: string;
+        };
+        /** DescriptivePagePlan */
+        DescriptivePagePlan: {
+            /** Page Index */
+            page_index: number;
+            /** Field Ids */
+            field_ids: string[];
+            /** Field Numbers */
+            field_numbers: number[];
+        };
+        /** DescriptiveRenderError */
+        DescriptiveRenderError: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "figure_labels_overlap" | "figure_text_outside_canvas" | "japanese_font_not_installed" | "sans_serif_font_not_installed" | "figure_font_glyphs_unavailable";
+            /** Page Index */
+            page_index: number | null;
+        };
+        /** PagedDescriptiveOutput */
+        PagedDescriptiveOutput: {
+            /**
+             * Descriptive Figure Version
+             * @constant
+             */
+            descriptive_figure_version: "2.0.0";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "tables_only";
+            error: components["schemas"]["DescriptiveRenderError"] | null;
+            /** Field Order */
+            field_order: string[];
+            /** Page Plan */
+            page_plan: components["schemas"]["DescriptivePagePlan"][];
+            /** Pages */
+            pages: components["schemas"]["DescriptivePage"][];
+            /** Y Limits */
+            y_limits: number[];
+            /** Y Ticks */
+            y_ticks: number[];
+            /** Style */
+            style: {
+                [key: string]: unknown;
+            };
+            /** Font Metadata */
+            font_metadata: {
+                [key: string]: unknown;
+            } | null;
+            /** Source Result Sha256 */
+            source_result_sha256: string;
+            /** Source Files */
+            source_files: string[];
+            /** Files */
+            files: {
+                [key: string]: components["schemas"]["DescriptiveOutputFile"];
+            };
+        };
+        /** PagedDescriptiveResult */
+        PagedDescriptiveResult: {
+            /**
+             * Analysis Kind
+             * @default descriptive
+             * @constant
+             */
+            analysis_kind: "descriptive";
+            /**
+             * Descriptive Version
+             * @default 1.0.0
+             * @constant
+             */
+            descriptive_version: "1.0.0";
+            spec: components["schemas"]["PagedDescriptiveRequest"];
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "legacy-image-measurements" | "region-2d" | "measured-numerical-assay";
+            /**
+             * Observation Kind
+             * @enum {string}
+             */
+            observation_kind: "nuclei" | "regions" | "observations";
+            /** Metric */
+            metric: string;
+            /** Unit */
+            unit: string;
+            /** Metric Definition */
+            metric_definition: string;
+            /** Plot Data */
+            plot_data: {
+                [key: string]: unknown;
+            }[];
+            /** Field Summary */
+            field_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Counts */
+            counts: {
+                [key: string]: unknown;
+            };
+            /** Selection */
+            selection: {
+                [key: string]: unknown;
+            };
+            /** Missingness */
+            missingness: {
+                [key: string]: unknown;
+            }[];
+            /** Source Fields */
+            source_fields: {
+                [key: string]: unknown;
+            }[];
+            /** Excluded Failed Fields */
+            excluded_failed_fields?: {
+                [key: string]: unknown;
+            }[];
+            /** Warnings */
+            warnings: string[];
+            /**
+             * Independence Status
+             * @default not_assessed_in_descriptive_analysis
+             * @constant
+             */
+            independence_status: "not_assessed_in_descriptive_analysis";
         };
     };
     responses: never;
@@ -2836,10 +3082,14 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
+                    /** @description ASCII-escaped JSON for the exact rendered PNG; display only. */
+                    "X-Cytellect-Preview-Display"?: {
+                        "application/json": components["schemas"]["PreviewDisplayMetadata"];
+                    };
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "image/png": string;
                 };
             };
             /** @description Validation Error */
@@ -3629,10 +3879,14 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
+                    /** @description ASCII-escaped JSON for the exact rendered PNG; display only. */
+                    "X-Cytellect-Preview-Display"?: {
+                        "application/json": components["schemas"]["PreviewDisplayMetadata"];
+                    };
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "image/png": string;
                 };
             };
             /** @description Validation Error */
@@ -3861,7 +4115,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DescriptiveRequest"];
+                "application/json": components["schemas"]["DescriptiveRequest"] | components["schemas"]["PagedDescriptiveRequest"];
             };
         };
         responses: {

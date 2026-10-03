@@ -45,7 +45,8 @@
       "tests": [
         "tests/test_nature_figures.py",
         "tests/test_methods_channels.py",
-        "tests/test_region_area_exports.py"
+        "tests/test_region_area_exports.py",
+        "tests/test_descriptive_pages.py"
       ],
       "references": [
         "schmied-2024",
@@ -99,10 +100,20 @@
         "tests/test_descriptive.py",
         "tests/test_descriptive_figures.py",
         "tests/test_descriptive_export.py",
+        "tests/test_descriptive_pages.py",
+        "tests/test_descriptive_pages_api.py",
+        "tests/test_descriptive_pages_export.py",
         "tests/test_region_area_exports.py"
       ],
       "references": ["lazic-2018", "waters-2009", "schmied-2024", "nature-final-artwork"],
       "limit": "Per-field distributions do not establish acquisition comparability, biological independence or group effects."
+    },
+    {
+      "id": "display-pixel-identity",
+      "question": "Do recorded display ranges match rendered pixels while preserving the original measurements and review state?",
+      "tests": ["tests/test_preview_display.py"],
+      "references": ["waters-2009", "schmied-2024"],
+      "limit": "Correct preview transforms do not establish acquisition comparability, detector accuracy or calibrated fluorescence across images."
     },
     {
       "id": "explicit-nuclear-initialization",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { descriptiveFieldNumber, descriptiveFieldStatus, descriptiveJobs, sameDescriptiveSettings, savedDescriptiveLabel, selectedDescriptiveJob, type DescriptiveResult } from "./descriptive-view";
+import { descriptiveFieldNumber, descriptiveFieldStatus, descriptiveFigureView, descriptiveJobs, descriptiveRecovery, descriptiveRequest, sameDescriptiveSettings, savedDescriptiveLabel, selectedDescriptiveJob, type DescriptiveResult } from "./descriptive-view";
+import type {components} from "./generated";
 import type { Job } from "./types";
 
 const job = (id: string, state: string, created: number, revision_id = "r1"): Job => ({ id, state, created, revision_id, kind: "statistics", analysis_mode: "descriptive", error: null, attempts: 1 });
@@ -71,4 +72,58 @@ it("uses the saved figure order rather than list positions for field tracing", (
  expect(descriptiveFieldNumber(source,"f2")).toBe(1);
  expect(descriptiveFieldNumber(source,"absent")).toBeNull();
  expect(descriptiveFieldNumber({...source,spec:{...source.spec,plot:{...source.spec.plot,group_order:[]}}},"f1")).toBe(1);
+});
+
+function paged():DescriptiveResult & {figure:components["schemas"]["PagedDescriptiveOutput"]}{
+ const order=["f9","f8","f7","f6","f5","f4","f3","f2","f1"];
+ const pages=[1,2].map(page_index=>({page_index,files:{svg:`figure-00${page_index}.svg`,pdf:`figure-00${page_index}.pdf`,png:`figure-00${page_index}.png`}}));
+ const source_files=["plot-data.csv","field-summary.csv","selection.csv","methods.md","figure-data.json","figure-caption.md",...pages.flatMap(page=>Object.values(page.files))];
+ return {...saved,spec:{...saved.spec,figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...saved.spec.plot,group_order:order}},
+  counts:{...saved.counts,input_fields:10,selected_fields:8,observations:16},
+  field_summary:order.toReversed().map(field_id=>({field_id,selected_rows:field_id==="f9"?0:2,median:field_id==="f9"?null:11,q1:10,q3:12,status:field_id==="f9"?"no_regions":"selected"})),
+  figure:{descriptive_figure_version:"2.0.0",status:"ready",error:null,field_order:order,page_plan:[{page_index:1,field_ids:order.slice(0,8),field_numbers:[1,2,3,4,5,6,7,8]},{page_index:2,field_ids:["f1"],field_numbers:[9]}],pages,y_limits:[-3,25],y_ticks:[0,10,20],style:{},font_metadata:{family:"Test font"},source_result_sha256:"b".repeat(64),source_files,files:Object.fromEntries(source_files.map(name=>[name,{sha256:"a".repeat(64),bytes:1}]))}};
+}
+
+describe("saved descriptive figure pages",()=>{
+ it.each([undefined,"1.0.0","1.0.1"] as const)("keeps historical single figure %s without silently upgrading its output",version=>{
+  const result={...saved,figure:{...(version?{descriptive_figure_version:version}:{}),source_files:["figure.svg","figure.pdf","figure.png"]}};
+  expect(descriptiveFigureView(result)).toMatchObject({kind:"legacy",pages:[{files:{png:"figure.png"}}]});
+  expect(result.spec).not.toHaveProperty("figure_policy");
+ });
+ it("uses saved order and global numbers including empty fields, with unchanged full ledgers",()=>{
+  const result=paged(),before=structuredClone(result);const view=descriptiveFigureView(result);
+  expect(view).toMatchObject({kind:"ready",fieldCount:9,limits:[-3,25],pages:[{fieldIds:["f9","f8","f7","f6","f5","f4","f3","f2"]},{fieldIds:["f1"],fieldNumbers:[9],files:{png:"figure-002.png"}}]});
+  expect(result).toEqual(before);expect(result.counts.input_fields).toBe(10);expect(result.excluded_failed_fields).toEqual(saved.excluded_failed_fields);
+ });
+ it.each(["missing-page","wrong-file","duplicate-field","wrong-number","unknown-version","missing-policy","wrong-scale","extra-file"])("rejects %s without single-figure fallback",kind=>{
+  const result=paged();
+  if(kind==="missing-page")result.figure.pages.pop();
+  if(kind==="wrong-file")result.figure.pages[1].files.png="figure-001.png";
+  if(kind==="duplicate-field")result.figure.page_plan[1].field_ids=["f9"];
+  if(kind==="wrong-number")result.figure.page_plan[1].field_numbers=[1];
+  if(kind==="unknown-version")Object.assign(result.figure,{descriptive_figure_version:"3.0.0"});
+  if(kind==="missing-policy")delete result.spec.figure_policy;
+  if(kind==="wrong-scale")result.figure.y_limits=[25,-3];
+  if(kind==="extra-file"){result.figure.source_files.push("../figure.png");result.figure.files["../figure.png"]={sha256:"a".repeat(64),bytes:1};}
+  expect(descriptiveFigureView(result)).toEqual({kind:"invalid"});
+ });
+ it("exposes tables-only status while preserving failed-page identity and all source records",()=>{
+  const result=paged();result.figure.status="tables_only";result.figure.pages=[];result.figure.error={code:"figure_font_glyphs_unavailable",page_index:2};result.figure.font_metadata=null;
+  result.figure.source_files=result.figure.source_files.filter(name=>!name.startsWith("figure-00"));
+  result.figure.files=Object.fromEntries(result.figure.source_files.map(name=>[name,{sha256:"a".repeat(64),bytes:1}]));
+  expect(descriptiveFigureView(result)).toEqual({kind:"tables_only",code:"figure_font_glyphs_unavailable",failedPage:2,plannedPages:2,limits:[-3,25]});
+  const empty=structuredClone(result);empty.figure.source_files=[];empty.figure.files={};
+  expect(descriptiveFigureView(empty)).toEqual({kind:"invalid"});
+  result.figure.pages=[{page_index:1,files:{svg:"figure-001.svg",pdf:"figure-001.pdf",png:"figure-001.png"}}];
+  expect(descriptiveFigureView(result)).toEqual({kind:"invalid"});
+ });
+ it("creates a new paged request and retries only the saved revision, selector and order",()=>{
+  expect(descriptiveRequest(saved.spec.selection,"en","nature-single")).toMatchObject({figure_policy:{version:"2.0.0",layout:"field-pages"},selection:saved.spec.selection});
+  const result=paged();result.revision_id="historical";
+  const recovered=descriptiveRecovery(result,"ja","nature-single");
+  expect(recovered.path).toBe("/v1/revisions/historical/descriptive");
+  expect(recovered.body.selection).toEqual(result.spec.selection);
+  expect(recovered.body.plot).toMatchObject({language:"ja",preset:"nature-single",group_order:result.spec.plot.group_order});
+  expect(result.spec.plot.language).toBe("en");
+ });
 });

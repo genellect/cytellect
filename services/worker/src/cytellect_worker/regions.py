@@ -316,13 +316,14 @@ def run_region_export(store, job, output):
             for slot in snapshot["image_info"]["inputs"]:
                 raw.append((f"{fid}/{slot}.tif", store.safe_path("workspaces", revision["workspace_id"],
                                                                 "fields", fid, f"{slot}.tif")))
-    statistics = [read_json(store.safe_path(record["result_dir"], "result.json"))
-                  for record in store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")]
+    records = store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")
+    statistics = [read_json(store.safe_path(record["result_dir"], "result.json")) for record in records]
+    statistics_roots = [(index, store.safe_path(record["result_dir"])) for index, record in enumerate(records)]
     build_region_bundle(
         output, report=report, config={**config, "review_record": revision["review_record"] or {}},
         provenance=read_json(root / "provenance.json"),
         mask_files={fid: store.safe_path(root, fid, "labels.npy") for fid in report["field_masks"]},
-        raw_files=raw, statistics_results=statistics, include_raw=include_raw,
+        raw_files=raw, statistics_results=statistics, statistics_roots=statistics_roots, include_raw=include_raw,
     )
     write_json(output / "result.json", {"files": ["analysis.zip", "methods.md"],
                                         "raw_included": include_raw, "revision_id": revision["id"]})

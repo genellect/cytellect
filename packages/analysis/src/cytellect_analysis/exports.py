@@ -193,12 +193,15 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
     Files remain private: the caller must enforce ownership and expiration on this directory.
     """
     statistics_results = list(statistics_results)
+    saved_descriptive_outputs = {}
     validate_revision_plan(config)
     for index, result in enumerate(statistics_results):
         if result.get("analysis_kind") == "descriptive":
             from .descriptive import validate_legacy_description
 
             statistics_results[index] = validate_legacy_description(result, report, config)
+            if "figure_policy" in result["spec"]:
+                saved_descriptive_outputs[index] = result
     destination.mkdir(parents=True, exist_ok=True)
     content = destination / "bundle"
     content.mkdir(exist_ok=False)
@@ -251,7 +254,14 @@ def build_export_bundle(destination: Path, *, report, config, provenance, field_
         if result.get("analysis_kind") == "descriptive":
             from .descriptive_figures import render_descriptive
 
-            figure = render_descriptive(result, folder)
+            if index in saved_descriptive_outputs:
+                from .descriptive_output import copy_descriptive_output
+
+                if index not in statistics_roots:
+                    raise ValueError("descriptive_output_source_required")
+                figure = copy_descriptive_output(saved_descriptive_outputs[index], Path(statistics_roots[index]), folder)
+            else:
+                figure = render_descriptive(result, folder)
         else:
             figure = render_figures(result, folder)
         result = {**result, "figure": figure}

@@ -18,11 +18,14 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 }
 export const post = <T,>(path: string, body?: unknown) => request<T>(path, {method:"POST",body:body === undefined ? undefined : JSON.stringify(body)});
 export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+ return (await fetchPrivateResponse(path,signal)).blob();
+}
+export async function fetchPrivateResponse(path: string, signal?: AbortSignal): Promise<Response> {
  if(!API_CONFIGURED) throw new ApiError("server_not_configured",503);
  if(LOCAL_MODE && typeof window!=="undefined" && !["localhost","127.0.0.1","[::1]","::1"].includes(window.location.hostname)) throw new ApiError("local_host_required",403);
  const result = await fetch(API + path, {credentials:"include",cache:"no-store",signal});
  if (!result.ok) throw new ApiError("artifact_unavailable", result.status);
- return result.blob();
+ return result;
 }
 export async function download(path: string, name: string) {
  const blob = await fetchBlob(path); const url = URL.createObjectURL(blob);

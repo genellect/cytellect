@@ -7,11 +7,13 @@ from collections import Counter, defaultdict
 from typing import Any
 
 from .descriptive_contracts import (
-    DescriptiveRequest,
     DescriptiveResult,
     LegacySelection,
     NumericalSelection,
+    PagedDescriptiveRequest,
+    PagedDescriptiveResult,
     RegionSelection,
+    parse_descriptive_request,
 )
 from .region_measurement_v2 import RegionMeasurementPolicy, region_table_from_json, require_region_metric
 from .regions import Calibration2D, ChannelSpec
@@ -37,11 +39,15 @@ SAFE_ERROR_CODES = frozenset({
     "descriptive_review_required", "descriptive_saved_result_mismatch", "descriptive_revision_mismatch",
     "descriptive_failure_exclusion_mismatch",
     "region_measurement_protocol_mismatch", "region_metric_not_measured",
+    "descriptive_page_preset_unsupported", "descriptive_page_policy_required", "descriptive_page_limit_exceeded",
+    "descriptive_output_manifest_mismatch", "descriptive_output_source_mismatch",
+    "descriptive_output_artifact_mismatch", "descriptive_output_artifact_not_found",
+    "descriptive_output_source_required",
 })
 
 
 def _request(request, source):
-    parsed = DescriptiveRequest.model_validate(request)
+    parsed = parse_descriptive_request(request)
     if parsed.selection.source != source:
         raise ValueError("descriptive_source_mismatch")
     return parsed
@@ -149,7 +155,8 @@ def _finish(observations, fields, request, source_kind, observation_kind, unit, 
                         "q1": _quantile(values, .25) if values else None,
                         "q3": _quantile(values, .75) if values else None,
                         "minimum": min(values) if values else None, "maximum": max(values) if values else None})
-    return DescriptiveResult(
+    model = PagedDescriptiveResult if isinstance(request, PagedDescriptiveRequest) else DescriptiveResult
+    return model(
         spec=request, source_kind=source_kind, observation_kind=observation_kind,
         metric=request.selection.metric, unit=unit,
         metric_definition=f"{request.selection.metric}; per-field observed values; original measurement scale",
@@ -400,7 +407,7 @@ def validate_legacy_description(recorded, report, config):
     if any(excluded_fields.get(item["field_id"]) != item.get("reason")
            for item in report.get("excluded_failed_fields", [])):
         raise ValueError("descriptive_review_required")
-    fresh = describe_legacy(report, config["field_snapshot"], DescriptiveRequest.model_validate(recorded["spec"]))
+    fresh = describe_legacy(report, config["field_snapshot"], parse_descriptive_request(recorded["spec"]))
     fresh["revision_id"] = report["revision_id"]
     if set(recorded) - set(fresh) - {"figure"} or any(recorded.get(key) != value for key, value in fresh.items()):
         raise ValueError("descriptive_saved_result_mismatch")

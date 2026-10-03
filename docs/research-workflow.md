@@ -101,6 +101,27 @@ Only the coordinator commits/pushes/merges. Agents share explicit file ownership
 
 ## Completion evidence
 
+### Next source increment: inspectable display and recoverable figures
+
+Two independent reviews found practical failures of workflow continuity. Image
+previews scaled each plane independently without showing that transformation;
+very different original intensities could therefore look alike. Descriptive
+figures with many fields could exceed the layout constraints and leave the
+researcher without an accessible figure result. The next source increment
+records the exact display transformation beside the preview and adds explicit
+field-page output with shared axes, complete source tables and a recoverable
+presentation-failure state. Neither change establishes acquisition comparability
+or biological replication. The figure and display contracts are separately
+versioned; original measurements and inferential calculations are unchanged.
+
+This work is being reviewed in a separate branch from the combined `local.12`
+runtime/area release. Source tests, actual browser checks and a later installed
+package each require their own evidence. A renderable graph and a visible scale
+do not complete private-image validation or researcher task evaluation. The
+Methods prose review remains a separate follow-up: machine-readable provenance
+must remain complete without substituting a large JSON object for an intelligible
+description of the procedure actually used.
+
 The original MVP goal stays active. This revision broadens the scientific question and defines successive release gates; it does not mark M4/M5 complete. [Roadmap](roadmap.md) and [requirements](requirements.md) remain the status record. Code, CI, installed execution, production deployment, scientific applicability and human usability must be reported separately. Old release evidence remains immutable.
 
 For the new workflow, success means a researcher can identify a supported measurement, inspect/correct its region, explain the independent unit, regenerate the figure and trace each point back to an accepted measurement. Number of tests, number of agents, attractive plots and agreement with a historical p-value are not product acceptance criteria.

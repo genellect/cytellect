@@ -442,8 +442,23 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
-                "schema": {}
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Cytellect-Preview-Display": {
+                "description": "ASCII-escaped JSON for the exact rendered PNG; display only.",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/PreviewDisplayMetadata"
+                    }
+                  }
+                }
               }
             }
           },
@@ -1521,8 +1536,23 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
-                "schema": {}
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Cytellect-Preview-Display": {
+                "description": "ASCII-escaped JSON for the exact rendered PNG; display only.",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/PreviewDisplayMetadata"
+                    }
+                  }
+                }
               }
             }
           },
@@ -1847,7 +1877,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DescriptiveRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DescriptiveRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PagedDescriptiveRequest"
+                  }
+                ],
+                "title": "Body"
               }
             }
           }
@@ -2674,78 +2712,99 @@
         ],
         "title": "ContourView"
       },
+      "DescriptiveFigurePolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": "2.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "layout": {
+            "const": "field-pages",
+            "title": "Layout",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "layout"
+        ],
+        "title": "DescriptiveFigurePolicy",
+        "type": "object"
+      },
       "DescriptivePlot": {
+        "additionalProperties": false,
         "properties": {
           "preset": {
-            "type": "string",
+            "default": "nature-single",
             "enum": [
               "custom",
               "nature-single",
               "nature-double"
             ],
             "title": "Preset",
-            "default": "nature-single"
+            "type": "string"
           },
           "kind": {
-            "type": "string",
             "const": "distribution",
+            "default": "distribution",
             "title": "Kind",
-            "default": "distribution"
+            "type": "string"
           },
           "language": {
-            "type": "string",
+            "default": "en",
             "enum": [
               "en",
               "ja"
             ],
             "title": "Language",
-            "default": "en"
+            "type": "string"
           },
           "width_inches": {
-            "type": "number",
-            "maximum": 16.0,
-            "minimum": 3.0,
+            "default": 7,
+            "maximum": 16,
+            "minimum": 3,
             "title": "Width Inches",
-            "default": 7
+            "type": "number"
           },
           "height_inches": {
-            "type": "number",
-            "maximum": 16.0,
-            "minimum": 1.0,
+            "default": 3.0,
+            "maximum": 16,
+            "minimum": 1,
             "title": "Height Inches",
-            "default": 3.0
+            "type": "number"
           },
           "font_size": {
-            "type": "number",
-            "maximum": 24.0,
-            "minimum": 5.0,
+            "default": 7,
+            "maximum": 24,
+            "minimum": 5,
             "title": "Font Size",
-            "default": 7
+            "type": "number"
           },
           "x_label": {
-            "type": "string",
+            "default": "",
             "maxLength": 120,
             "title": "X Label",
-            "default": ""
+            "type": "string"
           },
           "y_label": {
-            "type": "string",
+            "default": "",
             "maxLength": 120,
             "title": "Y Label",
-            "default": ""
+            "type": "string"
           },
           "group_order": {
             "items": {
               "type": "string"
             },
-            "type": "array",
             "maxItems": 30,
-            "title": "Group Order"
+            "title": "Group Order",
+            "type": "array"
           }
         },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "DescriptivePlot"
+        "title": "DescriptivePlot",
+        "type": "object"
       },
       "DescriptiveRequest": {
         "properties": {
@@ -3175,14 +3234,14 @@
         "title": "LegacyParameters"
       },
       "LegacySelection": {
+        "additionalProperties": false,
         "properties": {
           "source": {
-            "type": "string",
             "const": "legacy-cell",
-            "title": "Source"
+            "title": "Source",
+            "type": "string"
           },
           "metric": {
-            "type": "string",
             "enum": [
               "ncl_nucleus_mean",
               "ncl_nucleus_median",
@@ -3220,16 +3279,16 @@
               "ncl_log2_nucleoplasm_over_nucleoli",
               "ncl_legacy_release"
             ],
-            "title": "Metric"
+            "title": "Metric",
+            "type": "string"
           }
         },
-        "additionalProperties": false,
-        "type": "object",
         "required": [
           "source",
           "metric"
         ],
-        "title": "LegacySelection"
+        "title": "LegacySelection",
+        "type": "object"
       },
       "MaskEdit": {
         "properties": {
@@ -3386,25 +3445,76 @@
         "description": "Allowlisted, offline nucleus model; never an arbitrary image classifier."
       },
       "NumericalSelection": {
+        "additionalProperties": false,
         "properties": {
           "source": {
-            "type": "string",
             "const": "numerical",
-            "title": "Source"
+            "title": "Source",
+            "type": "string"
           },
           "metric": {
-            "type": "string",
             "const": "value",
+            "default": "value",
             "title": "Metric",
-            "default": "value"
+            "type": "string"
           }
         },
-        "additionalProperties": false,
-        "type": "object",
         "required": [
           "source"
         ],
-        "title": "NumericalSelection"
+        "title": "NumericalSelection",
+        "type": "object"
+      },
+      "PagedDescriptiveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "const": "descriptive",
+            "title": "Mode",
+            "type": "string"
+          },
+          "selection": {
+            "discriminator": {
+              "mapping": {
+                "legacy-cell": "#/components/schemas/LegacySelection",
+                "numerical": "#/components/schemas/NumericalSelection",
+                "region": "#/components/schemas/RegionSelection"
+              },
+              "propertyName": "source"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LegacySelection"
+              },
+              {
+                "$ref": "#/components/schemas/RegionSelection"
+              },
+              {
+                "$ref": "#/components/schemas/NumericalSelection"
+              }
+            ],
+            "title": "Selection"
+          },
+          "group_by": {
+            "const": "field",
+            "default": "field",
+            "title": "Group By",
+            "type": "string"
+          },
+          "plot": {
+            "$ref": "#/components/schemas/DescriptivePlot"
+          },
+          "figure_policy": {
+            "$ref": "#/components/schemas/DescriptiveFigurePolicy"
+          }
+        },
+        "required": [
+          "mode",
+          "selection",
+          "figure_policy"
+        ],
+        "title": "PagedDescriptiveRequest",
+        "type": "object"
       },
       "PlanAnswers": {
         "properties": {
@@ -6059,35 +6169,36 @@
         "description": "Explicit area-only report; v1 persisted data retains its original model."
       },
       "RegionSelection": {
+        "additionalProperties": false,
         "properties": {
           "source": {
-            "type": "string",
             "const": "region",
-            "title": "Source"
+            "title": "Source",
+            "type": "string"
           },
           "region_set_id": {
-            "type": "string",
             "maxLength": 80,
             "minLength": 1,
             "pattern": "^[A-Za-z0-9_-]+$",
-            "title": "Region Set Id"
+            "title": "Region Set Id",
+            "type": "string"
           },
           "channel_id": {
             "anyOf": [
               {
-                "type": "string",
                 "maxLength": 80,
                 "minLength": 1,
-                "pattern": "^[A-Za-z0-9_-]+$"
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Channel Id"
           },
           "metric": {
-            "type": "string",
             "enum": [
               "area_px",
               "area_um2",
@@ -6098,17 +6209,17 @@
               "median_corrected",
               "integrated_corrected"
             ],
-            "title": "Metric"
+            "title": "Metric",
+            "type": "string"
           }
         },
-        "additionalProperties": false,
-        "type": "object",
         "required": [
           "source",
           "region_set_id",
           "metric"
         ],
-        "title": "RegionSelection"
+        "title": "RegionSelection",
+        "type": "object"
       },
       "RegionSetSpec": {
         "properties": {
@@ -6642,6 +6753,541 @@
           "bytes"
         ],
         "title": "WorkspaceView"
+      },
+      "PreviewPlaneDisplay": {
+        "additionalProperties": false,
+        "properties": {
+          "channel_id": {
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "dtype": {
+            "title": "Dtype",
+            "type": "string"
+          },
+          "value_basis": {
+            "enum": [
+              "native-grayscale",
+              "legacy-imported"
+            ],
+            "title": "Value Basis",
+            "type": "string"
+          },
+          "source_min": {
+            "title": "Source Min",
+            "type": "number"
+          },
+          "source_max": {
+            "title": "Source Max",
+            "type": "number"
+          },
+          "percentile_low_value": {
+            "title": "Percentile Low Value",
+            "type": "number"
+          },
+          "percentile_high_value": {
+            "title": "Percentile High Value",
+            "type": "number"
+          },
+          "normalization_span": {
+            "minimum": 1,
+            "title": "Normalization Span",
+            "type": "number"
+          },
+          "display_black_value": {
+            "title": "Display Black Value",
+            "type": "number"
+          },
+          "display_white_value": {
+            "title": "Display White Value",
+            "type": "number"
+          },
+          "constant_plane": {
+            "title": "Constant Plane",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channel_id",
+          "dtype",
+          "value_basis",
+          "source_min",
+          "source_max",
+          "percentile_low_value",
+          "percentile_high_value",
+          "normalization_span",
+          "display_black_value",
+          "display_white_value",
+          "constant_plane"
+        ],
+        "title": "PreviewPlaneDisplay",
+        "type": "object"
+      },
+      "PreviewDisplayMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "field_id": {
+            "title": "Field Id",
+            "type": "string"
+          },
+          "requested_channel": {
+            "title": "Requested Channel",
+            "type": "string"
+          },
+          "composite": {
+            "title": "Composite",
+            "type": "boolean"
+          },
+          "scope": {
+            "const": "whole-plane",
+            "default": "whole-plane",
+            "title": "Scope",
+            "type": "string"
+          },
+          "mode": {
+            "const": "per-plane-percentile",
+            "default": "per-plane-percentile",
+            "title": "Mode",
+            "type": "string"
+          },
+          "low_percentile": {
+            "exclusiveMaximum": 100,
+            "minimum": 0,
+            "title": "Low Percentile",
+            "type": "number"
+          },
+          "high_percentile": {
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "title": "High Percentile",
+            "type": "number"
+          },
+          "gain": {
+            "maximum": 10,
+            "minimum": 0.1,
+            "title": "Gain",
+            "type": "number"
+          },
+          "planes": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewPlaneDisplay"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Planes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "field_id",
+          "requested_channel",
+          "composite",
+          "low_percentile",
+          "high_percentile",
+          "gain",
+          "planes"
+        ],
+        "title": "PreviewDisplayMetadata",
+        "type": "object"
+      },
+      "DescriptiveOutputFile": {
+        "additionalProperties": false,
+        "properties": {
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "bytes": {
+            "minimum": 0,
+            "title": "Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sha256",
+          "bytes"
+        ],
+        "title": "DescriptiveOutputFile",
+        "type": "object"
+      },
+      "DescriptivePage": {
+        "additionalProperties": false,
+        "properties": {
+          "page_index": {
+            "maximum": 999,
+            "minimum": 1,
+            "title": "Page Index",
+            "type": "integer"
+          },
+          "files": {
+            "$ref": "#/components/schemas/DescriptivePageFiles"
+          }
+        },
+        "required": [
+          "page_index",
+          "files"
+        ],
+        "title": "DescriptivePage",
+        "type": "object"
+      },
+      "DescriptivePageFiles": {
+        "additionalProperties": false,
+        "properties": {
+          "svg": {
+            "title": "Svg",
+            "type": "string"
+          },
+          "pdf": {
+            "title": "Pdf",
+            "type": "string"
+          },
+          "png": {
+            "title": "Png",
+            "type": "string"
+          }
+        },
+        "required": [
+          "svg",
+          "pdf",
+          "png"
+        ],
+        "title": "DescriptivePageFiles",
+        "type": "object"
+      },
+      "DescriptivePagePlan": {
+        "additionalProperties": false,
+        "properties": {
+          "page_index": {
+            "maximum": 999,
+            "minimum": 1,
+            "title": "Page Index",
+            "type": "integer"
+          },
+          "field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Field Ids",
+            "type": "array"
+          },
+          "field_numbers": {
+            "items": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Field Numbers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "page_index",
+          "field_ids",
+          "field_numbers"
+        ],
+        "title": "DescriptivePagePlan",
+        "type": "object"
+      },
+      "DescriptiveRenderError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "figure_labels_overlap",
+              "figure_text_outside_canvas",
+              "japanese_font_not_installed",
+              "sans_serif_font_not_installed",
+              "figure_font_glyphs_unavailable"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "page_index": {
+            "anyOf": [
+              {
+                "maximum": 999,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Index"
+          }
+        },
+        "required": [
+          "code",
+          "page_index"
+        ],
+        "title": "DescriptiveRenderError",
+        "type": "object"
+      },
+      "PagedDescriptiveOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "descriptive_figure_version": {
+            "const": "2.0.0",
+            "title": "Descriptive Figure Version",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "tables_only"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DescriptiveRenderError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field_order": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Field Order",
+            "type": "array"
+          },
+          "page_plan": {
+            "items": {
+              "$ref": "#/components/schemas/DescriptivePagePlan"
+            },
+            "minItems": 1,
+            "title": "Page Plan",
+            "type": "array"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/DescriptivePage"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "y_limits": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Y Limits",
+            "type": "array"
+          },
+          "y_ticks": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Y Ticks",
+            "type": "array"
+          },
+          "style": {
+            "additionalProperties": true,
+            "title": "Style",
+            "type": "object"
+          },
+          "font_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Font Metadata"
+          },
+          "source_result_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Result Sha256",
+            "type": "string"
+          },
+          "source_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Files",
+            "type": "array"
+          },
+          "files": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DescriptiveOutputFile"
+            },
+            "title": "Files",
+            "type": "object"
+          }
+        },
+        "required": [
+          "descriptive_figure_version",
+          "status",
+          "error",
+          "field_order",
+          "page_plan",
+          "pages",
+          "y_limits",
+          "y_ticks",
+          "style",
+          "font_metadata",
+          "source_result_sha256",
+          "source_files",
+          "files"
+        ],
+        "title": "PagedDescriptiveOutput",
+        "type": "object"
+      },
+      "PagedDescriptiveResult": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis_kind": {
+            "const": "descriptive",
+            "default": "descriptive",
+            "title": "Analysis Kind",
+            "type": "string"
+          },
+          "descriptive_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Descriptive Version",
+            "type": "string"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/PagedDescriptiveRequest"
+          },
+          "source_kind": {
+            "enum": [
+              "legacy-image-measurements",
+              "region-2d",
+              "measured-numerical-assay"
+            ],
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "observation_kind": {
+            "enum": [
+              "nuclei",
+              "regions",
+              "observations"
+            ],
+            "title": "Observation Kind",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "metric_definition": {
+            "title": "Metric Definition",
+            "type": "string"
+          },
+          "plot_data": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Plot Data",
+            "type": "array"
+          },
+          "field_summary": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Field Summary",
+            "type": "array"
+          },
+          "counts": {
+            "additionalProperties": true,
+            "title": "Counts",
+            "type": "object"
+          },
+          "selection": {
+            "additionalProperties": true,
+            "title": "Selection",
+            "type": "object"
+          },
+          "missingness": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Missingness",
+            "type": "array"
+          },
+          "source_fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Source Fields",
+            "type": "array"
+          },
+          "excluded_failed_fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Excluded Failed Fields",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "independence_status": {
+            "const": "not_assessed_in_descriptive_analysis",
+            "default": "not_assessed_in_descriptive_analysis",
+            "title": "Independence Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spec",
+          "source_kind",
+          "observation_kind",
+          "metric",
+          "unit",
+          "metric_definition",
+          "plot_data",
+          "field_summary",
+          "counts",
+          "selection",
+          "missingness",
+          "source_fields",
+          "warnings"
+        ],
+        "title": "PagedDescriptiveResult",
+        "type": "object"
       }
     }
   }

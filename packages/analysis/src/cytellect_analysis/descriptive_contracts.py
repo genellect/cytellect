@@ -1,7 +1,7 @@
 """Explicit descriptive-only contracts; existing inferential requests are unchanged."""
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictInt, model_validator
 
 from .contracts import PlotSpec, StrictModel
 from .regions import Id
@@ -62,6 +62,31 @@ class DescriptiveRequest(StrictModel):
     plot: DescriptivePlot = Field(default_factory=DescriptivePlot)
 
 
+class DescriptiveFigurePolicy(StrictModel):
+    version: Literal["2.0.0"]
+    layout: Literal["field-pages"]
+
+
+class PagedDescriptiveRequest(DescriptiveRequest):
+    figure_policy: DescriptiveFigurePolicy
+
+    @model_validator(mode="after")
+    def supported_page_width(self):
+        if self.plot.preset not in ("nature-single", "nature-double"):
+            raise ValueError("descriptive_page_preset_unsupported")
+        return self
+
+
+DescriptiveRequestType = DescriptiveRequest | PagedDescriptiveRequest
+
+
+def parse_descriptive_request(value: Any) -> DescriptiveRequestType:
+    if isinstance(value, (DescriptiveRequest, PagedDescriptiveRequest)):
+        value = value.model_dump(mode="json")
+    model = PagedDescriptiveRequest if isinstance(value, dict) and "figure_policy" in value else DescriptiveRequest
+    return model.model_validate(value)
+
+
 class DescriptiveResult(StrictModel):
     analysis_kind: Literal["descriptive"] = "descriptive"
     descriptive_version: Literal["1.0.0"] = "1.0.0"
@@ -80,3 +105,87 @@ class DescriptiveResult(StrictModel):
     excluded_failed_fields: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str]
     independence_status: Literal["not_assessed_in_descriptive_analysis"] = "not_assessed_in_descriptive_analysis"
+
+
+class PagedDescriptiveResult(DescriptiveResult):
+    spec: PagedDescriptiveRequest
+
+
+class OutputModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class DescriptivePagePlan(OutputModel):
+    page_index: Annotated[StrictInt, Field(ge=1, le=999)]
+    field_ids: list[Id] = Field(min_length=1, max_length=8)
+    field_numbers: list[Annotated[StrictInt, Field(ge=1)]] = Field(min_length=1, max_length=8)
+
+
+class DescriptivePageFiles(OutputModel):
+    svg: str
+    pdf: str
+    png: str
+
+
+class DescriptivePage(OutputModel):
+    page_index: Annotated[StrictInt, Field(ge=1, le=999)]
+    files: DescriptivePageFiles
+
+
+class DescriptiveOutputFile(OutputModel):
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    bytes: Annotated[StrictInt, Field(ge=0)]
+
+
+PresentationErrorCode = Literal[
+    "figure_labels_overlap", "figure_text_outside_canvas", "japanese_font_not_installed",
+    "sans_serif_font_not_installed", "figure_font_glyphs_unavailable",
+]
+
+
+class DescriptiveRenderError(OutputModel):
+    code: PresentationErrorCode
+    page_index: Annotated[StrictInt, Field(ge=1, le=999)] | None
+
+
+class PagedDescriptiveOutput(OutputModel):
+    descriptive_figure_version: Literal["2.0.0"]
+    status: Literal["ready", "tables_only"]
+    error: DescriptiveRenderError | None
+    field_order: list[Id] = Field(min_length=1)
+    page_plan: list[DescriptivePagePlan] = Field(min_length=1)
+    pages: list[DescriptivePage]
+    y_limits: list[FiniteFloat] = Field(min_length=2, max_length=2)
+    y_ticks: list[FiniteFloat]
+    style: dict[str, Any]
+    font_metadata: dict[str, Any] | None
+    source_result_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    source_files: list[str]
+    files: dict[str, DescriptiveOutputFile]
+
+    @model_validator(mode="after")
+    def internally_consistent(self):
+        count = len(self.page_plan)
+        if ([page.page_index for page in self.page_plan] != list(range(1, count + 1))
+                or len(self.field_order) != len(set(self.field_order))
+                or [fid for page in self.page_plan for fid in page.field_ids] != self.field_order
+                or [number for page in self.page_plan for number in page.field_numbers]
+                != list(range(1, len(self.field_order) + 1))
+                or any(len(page.field_ids) != len(page.field_numbers) for page in self.page_plan)
+                or not self.y_limits[0] < self.y_limits[1]
+                or len(self.source_files) != len(set(self.source_files))
+                or set(self.source_files) != set(self.files)):
+            raise ValueError("descriptive_output_manifest_mismatch")
+        if self.status == "ready":
+            if (self.error is not None or self.font_metadata is None
+                    or [page.page_index for page in self.pages] != list(range(1, count + 1))):
+                raise ValueError("descriptive_output_manifest_mismatch")
+        elif self.error is None or self.pages or self.font_metadata is not None:
+            raise ValueError("descriptive_output_manifest_mismatch")
+        if self.error is not None and self.error.page_index is not None and self.error.page_index > count:
+            raise ValueError("descriptive_output_manifest_mismatch")
+        for page in self.pages:
+            if page.files.model_dump() != {suffix: f"figure-{page.page_index:03d}.{suffix}"
+                                           for suffix in ("svg", "pdf", "png")}:
+                raise ValueError("descriptive_output_manifest_mismatch")
+        return self

@@ -18,7 +18,13 @@ from cytellect_analysis.contracts import (
     StatisticsRequest,
     required_channel_roles,
 )
-from cytellect_analysis.images import read_tiff, render_preview, sha256
+from cytellect_analysis.descriptive_contracts import PagedDescriptiveOutput, PagedDescriptiveResult
+from cytellect_analysis.display_contracts import (
+    PREVIEW_DISPLAY_HEADER,
+    PREVIEW_PNG_RESPONSE,
+    PreviewDisplayMetadata,
+)
+from cytellect_analysis.images import read_tiff, render_preview_with_display, sha256
 from cytellect_analysis.masks import contours
 from cytellect_analysis.plan_adoption import adopt_plan
 from cytellect_analysis.planning import CandidateId, PlanInput
@@ -34,6 +40,7 @@ from sqlalchemy import func, select, update
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
+from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
 from .region_comparisons import register_region_comparison_routes
 from .regions import is_region, register_region_routes
@@ -75,6 +82,7 @@ def create_app(settings: Settings | None = None):
         allow_credentials=True,
         allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Content-Type", "X-Cytellect-Request"],
+        expose_headers=[PREVIEW_DISPLAY_HEADER],
     )
     api.add_middleware(UploadGuardMiddleware, store=store, settings=settings)
     attempts: dict[str, list[float]] = {}
@@ -495,7 +503,7 @@ def create_app(settings: Settings | None = None):
             "background_polygon": [[0, 0], [15, 0], [15, 15], [0, 15]],
         }
 
-    @api.get("/v1/fields/{fid}/preview")
+    @api.get("/v1/fields/{fid}/preview", response_class=Response, responses=PREVIEW_PNG_RESPONSE)
     def preview(
         fid: str, who: Owner, channel: str = "merge", low: float = 0, high: float = 100, gain: float = 1
     ):
@@ -513,7 +521,12 @@ def create_app(settings: Settings | None = None):
         if channel != "merge" and channel not in roles:
             raise HTTPException(422, "channel_not_acquired")
         channels = {c: np.load(folder / f"{c}.npy", allow_pickle=False) for c in roles}
-        return Response(render_preview(channels, channel, low, high, gain), media_type="image/png")
+        png, display = render_preview_with_display(
+            channels, channel, low, high, gain, field_id=fid, legacy=bool(f["image_info"].get("legacy", False)),
+        )
+        return Response(png, media_type="image/png", headers={
+            PREVIEW_DISPLAY_HEADER: json.dumps(display.model_dump(), ensure_ascii=True, separators=(",", ":")),
+        })
 
     @api.post("/v1/workspaces/{wid}/analyses", status_code=202)
     def start_analysis(wid: str, body: AnalysisRequest, who: Owner):
@@ -981,9 +994,29 @@ def create_app(settings: Settings | None = None):
             "analysis.zip": "application/zip",
             "methods.md": "text/markdown",
         }
-        if name not in allowed or j["state"] != "succeeded" or not j["result_dir"]:
+        if j["state"] != "succeeded" or not j["result_dir"]:
             raise HTTPException(404, "artifact_not_found")
-        path = store.safe_path(j["result_dir"]) / name
+        root = store.safe_path(j["result_dir"])
+        index = root / "descriptive-output.json"
+        if index.exists() or "figure_policy" in (j.get("payload") or {}):
+            from cytellect_analysis.descriptive_output import (
+                descriptive_output_file,
+                read_descriptive_output_index,
+            )
+
+            try:
+                artifact = descriptive_output_file(read_descriptive_output_index(index), name)
+            except (ValueError, KeyError, TypeError, OSError, RecursionError):
+                raise HTTPException(404, "artifact_not_found") from None
+            path = root / name
+            if (path.is_symlink() or not path.is_file() or path.stat().st_size != artifact.bytes
+                    or sha256(path) != artifact.sha256):
+                raise HTTPException(404, "artifact_not_found")
+            media = allowed.get(name) or {"svg": "image/svg+xml", "pdf": "application/pdf", "png": "image/png"}[name.rsplit(".", 1)[-1]]
+            return FileResponse(path, media_type=media, filename=name)
+        if name not in allowed:
+            raise HTTPException(404, "artifact_not_found")
+        path = root / name
         if not path.is_file():
             raise HTTPException(404, "artifact_not_found")
         return FileResponse(path, media_type=allowed[name], filename=name)
@@ -993,4 +1026,5 @@ def create_app(settings: Settings | None = None):
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
+    register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

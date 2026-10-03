@@ -119,8 +119,64 @@ no nonexistent `comparisons.csv` link is emitted. Derived data remain private.
 The caption and Methods explicitly state the descriptive scope, absent
 inference, unestablished acquisition comparability, selection and missingness.
 The journal-size preset controls layout; it does not establish biological
-validity or journal acceptance. Figure-generation failure still fails its job;
+validity or journal acceptance. In the original 1.0.1 output path, figure-generation failure still fails its job;
 it does not erase source measurements or a previous successful output.
+
+## Paged figures and retained tables — output policy 2.0.0
+
+The next development increment adds an explicit
+`figure_policy={"version":"2.0.0","layout":"field-pages"}` to new descriptive
+requests. It is not yet part of an accepted Windows package. Requests without
+this policy retain their original schema, single-figure rendering and replay;
+the application does not rewrite saved outputs. Measurement recipes and the
+mathematical descriptive protocol remain unchanged at their existing versions.
+Null or unknown policies are rejected rather than inferred.
+
+The new output divides the complete saved field order into four fields per
+89 mm page or eight fields per 183 mm page. All pages use the same Y limits and
+tick positions and retain global field numbers. Empty successful fields remain
+in the page plan; explicitly excluded failed fields retain their separate
+diagnostics and unknown observation counts. Pagination never pools values,
+selects observations or infers an independent replicate count. Jitter is
+generated once in global field order with seed zero.
+
+Each page provides editable SVG/PDF and a PNG preview. A single complete set of
+CSV tables, Methods and source JSON covers all pages. Policy 2.0.0 fixes CSV
+column order alphabetically so export/replay does not depend on JSON dictionary
+insertion order. Existing CSV serialization and column order are unchanged for
+older outputs. UTF-8 BOM and spreadsheet-formula escaping are preserved.
+
+A completed numerical result has a figure status of `ready` or `tables_only`.
+Only the existing layout and missing-font/glyph error codes allow `tables_only`:
+all source tables remain available, the failure is explicit, and no partial
+page set is published. Source inconsistencies, unreviewed data, invalid metrics,
+I/O or capacity failures, cancellation and expired worker ownership remain
+failures. This distinction uses the existing supervised job boundary; it does
+not expose files from failed or cancelled jobs.
+
+The figure manifest records the complete page plan, actual page files, common
+scale, source-result hash and per-file hashes. The private API uses a bounded
+internal manifest index plus the requested file's bytes/hash, with the same
+ownership, expiry and no-store rules as other artifacts. The index is not a
+digital signature and is not a public download. CSV verification streams the
+canonical serialization directly into a hash, without temporary research files.
+
+Export verifies the saved numerical result and artifact hashes, then copies
+the policy-2.0.0 output without silently redrawing it. Replay creates a separate
+output and records numerical agreement, page mapping, previous/current figure
+status and font identities in `descriptive-output-verification.json`. A missing
+figure during replay does not erase regenerated tables, but the CLI returns a
+nonzero result instead of claiming complete figure reproduction. The original
+bundle is unchanged. Font-dependent image byte equality across different
+environments is not assumed.
+
+The UI shows one page at a time, while its observation/source and exclusion
+tables retain the full result. A failed preview fetch never substitutes another
+page. A `tables_only` result can be retried from its saved revision, selector and
+plot settings, changing only explicitly selected width/language. This creates a
+new job; previous outputs and failure records remain intact. Public/synthetic
+software checks do not establish private-image validity or observed researcher
+usability; the M4 and M5 gates remain open.
 
 ## Inspecting a saved region measurement
 
