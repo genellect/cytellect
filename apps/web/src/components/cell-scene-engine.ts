@@ -68,6 +68,11 @@ export async function mountCellScene(host: HTMLDivElement, isPaused: () => boole
   const center = bounds.getCenter(new THREE.Vector3());
   const size = bounds.getSize(new THREE.Vector3());
   const normalization = 4.8 / Math.max(size.x, size.y, size.z);
+  const halfSize = size.clone().multiplyScalar(normalization / 2);
+  // Include the complete animation envelope in the camera fit.
+  const framedX = halfSize.x + halfSize.z * 0.16;
+  const framedY = halfSize.y + halfSize.z * 0.025;
+  const framedZ = halfSize.z + halfSize.x * 0.16 + halfSize.y * 0.025;
   const sculpture = new THREE.Group();
   asset.scene.position.sub(center);
   sculpture.add(asset.scene);
@@ -105,8 +110,13 @@ export async function mountCellScene(host: HTMLDivElement, isPaused: () => boole
     if (!width || !height) return;
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
+    const verticalAngle = THREE.MathUtils.degToRad(camera.fov / 2);
+    const horizontalAngle = Math.atan(Math.tan(verticalAngle) * camera.aspect);
+    // Fit the complete rotating form below the navigation, including narrow windows.
+    camera.position.z = Math.max(9, (Math.max(framedY / Math.tan(verticalAngle), framedX / Math.tan(horizontalAngle)) + framedZ) * 1.1);
     camera.updateProjectionMatrix();
-    sculpture.position.set(Math.min(2.4, camera.aspect * 1.2), -0.08, 0);
+    const halfWidth = Math.tan(horizontalAngle) * (camera.position.z - framedZ);
+    sculpture.position.set(Math.min(2.4, Math.max(0, halfWidth - framedX * 1.1)), -0.08, 0);
     render();
   };
   const resizeObserver = new ResizeObserver(resize);

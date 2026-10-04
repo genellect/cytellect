@@ -35,7 +35,7 @@ export default function PublicLanding() {
           <figure className={styles.researchPortrait}><img src="/marketing/photo-pipetting.webp" alt="手袋を着けてピペットで試料を扱う手元" width={1920} height={2658} loading="lazy" /></figure>
           <div><EditorialHeading id="comparison-title" title={<><span className={styles.headingPhrase}>コードを書かずに、</span><span className={styles.headingPhrase}>統計まで。</span></>} /><div className={styles.story}><p>画像解析や統計が専門でなくても、必要な設定を画面で確認しながら進められます。測定方法から、実験の組み方に合った比較まで。解析の根拠を理解しながら、自分の研究に取り組めます。</p><Link href="/plan" className={styles.textLink}>解析設定を見る <Arrow /></Link></div></div>
         </div>
-        <figure className={styles.planningFigure}><picture><source media="(max-width: 760px)" srcSet="/marketing/planning-public-mobile.png" width={326} height={470} /><img src="/marketing/planning-public.png" alt="測定の目的に対応する解析方法と必要な入力を確認する画面" width={1256} height={910} loading="lazy" /></picture></figure>
+        <figure className={styles.planningFigure}><a href="/marketing/planning-public.png" aria-label="解析設定の画面を拡大"><img src="/marketing/planning-public.png" alt="測定の目的に対応する解析方法と必要な入力を確認する画面" width={1440} height={1252} loading="lazy" /></a></figure>
       </div></section>
 
       <section className={styles.figures} aria-labelledby="figures-title"><div className={styles.sectionShell}><div className={styles.figureGrid}>
@@ -49,6 +49,6 @@ export default function PublicLanding() {
         <div id="scope" className={styles.conditions}><details><summary>対応する画像と解析</summary><p>汎用の領域解析は8／16-bitグレースケールのチャンネル別2D TIFFを扱います。核・核小体・GFPの専用レシピでは、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）も読み込めます。手動・整数ラベル・確認した核染色からの検出領域で、面積・輝度を測定できます。</p><p>3D、時系列、自動細胞境界検出、任意の構造の自動検出は対象外です。通常の核自動検出は1辺2,048 px・270万画素以内です。</p></details><details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。この公開サイトへ研究画像をアップロードする機能はありません。</p><a href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details><details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details></div>
       </div></section>
     </main>
-    <footer className={styles.footer}><div className={styles.sectionShell}><Link href="/" className={styles.footerBrand}>cytellect</Link><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav></div></footer>
+    <footer className={styles.footer}><div className={styles.sectionShell}><Link href="/" className={styles.footerBrand}>cytellect</Link><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={styles.copyright}>&copy; 2026 Yuto Matsui. All rights reserved.</p></div></footer>
   </div>;
 }
