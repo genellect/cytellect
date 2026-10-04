@@ -1,8 +1,12 @@
 import {expect,it} from "vitest";
-import {associationIssues,associationJobs,associationSourceLabel,commonComparisonRequest,commonResultPath,comparisonMethod} from "./common-statistics";
+import {associationIssues,associationJobs,associationSourceLabel,associationScopeLabel,associationAxisLabel,commonComparisonRequest,commonResultPath,comparisonMethod} from "./common-statistics";
 import type {RegionComparisonRequest,RegionField} from "./region-types";
 import type {Job} from "./types";
 it("labels each axis's source tables without changing download filenames",()=>{expect(associationSourceLabel("x-plot-data.csv")).toBe("横軸 · 図の元データ");expect(associationSourceLabel("y-sample-summary.csv")).toBe("縦軸 · 試料集計");expect(associationSourceLabel("future.csv")).toBe("future.csv");});
+it("keeps literal condition names and labels saved axes independently of editable plot text",()=>{
+ expect(associationScopeLabel("per-condition","pooled")).toBe("pooled");expect(associationScopeLabel("pooled","pooled")).toBe("全条件");
+ expect(associationAxisLabel({region:{label:"Imported nuclei"},channel:{label:"Signal"},unit:"a.u."},{source:"region",region_set_id:"regions",channel_id:"signal",metric:"mean_corrected"})).toBe("Imported nuclei · Signal · 平均（背景補正） · a.u.");
+});
 it("requires an explicit v2 choice and uses design-appropriate tests and independent omnibus",()=>{
  expect(comparisonMethod("legacy","independent",3)).toBeNull();
  expect(comparisonMethod("parametric","independent",2)).toEqual({version:"2.0.0",test:"welch-t",omnibus:null});

@@ -1,4 +1,5 @@
 import type {RegionComparisonRequest,RegionField} from "./region-types";
+import {regionMetricLabels,type RegionMetric} from "./region-types";
 import type {DescriptiveSelection} from "./descriptive-view";
 import type {components} from "./generated";
 import {defaultFigureEdits} from "./figure-controls";
@@ -25,6 +26,11 @@ export function commonResultPath(job:Job){return `/v1/jobs/${job.id}/${job.analy
 export function associationJobs(jobs:Job[]){return jobs.filter(job=>job.kind==="statistics"&&job.analysis_mode==="region-association").toSorted((a,b)=>b.created-a.created);}
 const sourceTableLabels:Record<string,string>={"plot-data.csv":"図の元データ","observations.csv":"観測値と採否","source-fields.csv":"視野の実験情報","field-summary.csv":"視野集計","sample-summary.csv":"試料集計","unit-summary.csv":"実験単位集計","pair-ledger.csv":"対応ペア","excluded-failed-fields.csv":"失敗視野の除外"};
 export function associationSourceLabel(file:string){const axis=file.startsWith("x-")?"横軸":file.startsWith("y-")?"縦軸":null;return axis&&sourceTableLabels[file.slice(2)]?`${axis} · ${sourceTableLabels[file.slice(2)]}`:file;}
+export function associationScopeLabel(scope:string,condition:unknown){return scope==="pooled"?"全条件":String(condition);}
+export function associationAxisLabel(source:Record<string,unknown>,selection:AssociationRequest["x_selection"]){
+ const label=(value:unknown)=>value&&typeof value==="object"&&"label" in value&&typeof value.label==="string"?value.label:null;
+ return [label(source.region)||selection.region_set_id,label(source.channel)||selection.channel_id,regionMetricLabels[selection.metric as RegionMetric]||selection.metric,typeof source.unit==="string"?source.unit:null].filter(Boolean).join(" · ");
+}
 export const commonWarnings:Record<string,string>={
  association_does_not_establish_causation_no_regression_or_batch_adjustment:"相関は因果関係を示しません。回帰分析・バッチ補正は行っていません。",
  pooled_association_may_reflect_condition_or_acquisition_batch_confounding:"統合した相関には、条件や撮影バッチ間の違いが影響している可能性があります。",
