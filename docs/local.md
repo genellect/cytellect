@@ -14,6 +14,53 @@ The accepted [0.1.0-local.11 release](https://github.com/genellect/cytellect/rel
 
 Windows x86-64 is the first installation target. Other operating systems retain the developer/Compose setup until their installation paths are tested. The runtime may consume several gigabytes of disk; the tested installer reports its completed footprint separately from the small setup archive. No code-signing certificate or automatic-update service is assumed to exist.
 
+### Application updates and storage
+
+Use the same installation destination for updates. The default is
+`%LOCALAPPDATA%/Cytellect`; a different destination creates a separate installation.
+Application versions have separate source/virtual-environment directories, but
+share the pinned Fiji runtime when its lock is unchanged and the Python runtime
+when its composition is unchanged. Updating the application alone does not
+download another Fiji. Initial setup and changed dependencies can require network
+access; analysis jobs never install dependencies.
+
+The update-storage source increment records successfully checked installations
+and retains the current and previous successful application. Only older,
+recorded, byte-identical trees are eligible for removal after the replacement's
+Python GUI and Fiji numerical launch checks succeed. A new setup failure before
+that point leaves previous generations intact. The setup window reports retained
+application count and reclaimed bytes. Research data under `data/` is never part
+of this collection.
+
+Running versions, modified files, unknown/incomplete directories and any reparse
+point are preserved. Setup is serialized; managed launches and collection share
+an OS-released installation lock. A native Windows process-SID inventory checks
+user processes and executable interpreter candidates; an unreadable relevant
+process disables collection. The retained applications keep their referenced
+Fiji/Python/bootstrap runtimes. Only newly installer-created runtime trees enter
+the ownership ledger; existing unregistered installations are never assumed to
+be disposable. Unknown installations prevent shared-runtime collection because
+their references cannot be established.
+
+New package installations disable persistent uv caching. Known downloaded
+Python/uv ZIPs are retained only while a retained app refers to them; their
+recorded hash must still match before removal. Old unregistered caches, modified
+archives and incomplete transfers are left in place and reported. This is a
+bounded policy for managed successful updates, not permission to delete arbitrary
+old files. The stable `Cytellect` shortcut is updated only if it belongs to this
+installation. Historical version-specific shortcuts are not silently adopted.
+New links are staged before replacement; a later setup failure restores the
+prior link if it still matches this setup's write. Initial app ownership requires
+the release manifest and installed wheel RECORD files; unrelated files are not
+adopted by taking a whole-folder snapshot. Collection journals removal intent
+before deleting and can recover a verified partially removed tree after interruption.
+
+The collector's scratch-directory tests include three different application
+versions, a failed third setup, one shared Fiji acquisition, active/modified and
+unknown trees, junction rejection, referenced runtimes and archive ownership.
+Those controlled-download tests do not replace actual installed-release checks.
+The immutable published versions retain their original storage behavior.
+
 ### Windows application control
 
 An observed local setup attempt was blocked by Windows Smart App Control
@@ -71,11 +118,11 @@ The builder rebuilds the Web export and packages tracked allowlisted source file
 
 Installation tests use an isolated directory under the task's scratch workspace. They must not overwrite a user's existing software, data or shortcuts. Acceptance includes an actual pinned-Fiji run, a browser upload/edit/export flow, hostile-origin denial, shutdown, restart and expiry. The release report records commit, archive checksum, platform, passed checks and known limitations. Publishing a ZIP is not evidence that installation succeeded.
 
-The **Prepare Windows release** workflow is dispatched against `main` with a unique `0.1.0-local.N` version. It requires successful Python, Web, Fiji/browser, Windows lifecycle and full Windows Python3.14 compatibility checks on that exact commit, builds an immutable bundle and performs fresh and repeat Windows installation. For a release including area-only measurements, display receipts, paginated figures and native recipe guidance, all twenty-three browser cases must pass against that installed copy: the published GFP path, imported/manual generic regions, one/two-channel nuclear detection with correction and batch reuse, declared independent/paired comparisons with ZIP replay, planning adoption into actual image/metric choices and a descriptive figure, strict saved-plan import, batch-registration recovery after a lost success response, historical source/mask review, shared registration metadata, saved unit/sample/field hierarchy, area-only revision/export/replay, calibrated-area comparisons, planning2.1 adoption, two exact preview/range workflows, paginated figure recovery and two native recipe/channel guidance workflows saved field-quality navigation and two protected-input/stable-field workflows. A skipped, failed or flaky case blocks the draft. The tests use the local session and the installed interpreter, with an explicit same-origin loopback API and separate private data directory. They do not create invitations or fall back to developer Python.
+The **Prepare Windows release** workflow is dispatched against `main` with a unique `0.1.0-local.N` version. It requires successful Python, Web, Fiji/browser, Windows lifecycle and full Windows Python3.14 compatibility checks on that exact commit, builds an immutable bundle and performs fresh and repeat Windows installation. For a release including area-only measurements, display receipts, paginated figures and native recipe guidance, all twenty-four browser cases must pass against that installed copy: the published GFP path, imported/manual generic regions, one/two-channel nuclear detection with correction and batch reuse, declared independent/paired comparisons with ZIP replay, planning adoption into actual image/metric choices and a descriptive figure, strict saved-plan import, batch-registration recovery after a lost success response, historical source/mask review, shared registration metadata, saved unit/sample/field hierarchy, area-only revision/export/replay, calibrated-area comparisons, planning2.1 adoption, two exact preview/range workflows, paginated figure recovery and two native recipe/channel guidance workflows saved field-quality navigation and two protected-input/stable-field workflows, plus common-statistics and association figures with edited SVG/PDF downloads. A skipped, failed or flaky case blocks the draft. The tests use the local session and the installed interpreter, with an explicit same-origin loopback API and separate private data directory. They do not create invitations or fall back to developer Python.
 
-The thirteen required specifications contain one local-package case, two generic-region cases, three nuclear/comparison cases, three planning/batch-registration cases and one case each for source review, shared metadata and comparison hierarchy, three area-only cases, two display cases, one paginated-output case two native recipe/channel cases one field-quality case and two draft-navigation cases. The planning/batch specification uses registered public BBBC013 DRAQ pixels; repeated images test filename mapping and idempotent retry only, without claiming another stain or biological replication. The workflow requires exactly twenty-three completed cases and retains failures instead of accepting an incomplete subset.
+The fourteen required specifications contain one local-package case, two generic-region cases, three nuclear/comparison cases, three planning/batch-registration cases and one case each for source review, shared metadata and comparison hierarchy, three area-only cases, two display cases, one paginated-output case two native recipe/channel cases one field-quality case and two draft-navigation cases, plus one complete common-statistics case covering multi-group parametric/rank tests, paired Wilcoxon, Pearson/Spearman, distribution variants, vector exports and source CSV downloads. The planning/batch specification uses registered public BBBC013 DRAQ pixels; repeated images test filename mapping and idempotent retry only, without claiming another stain or biological replication. The workflow requires exactly twenty-four completed cases and retains failures instead of accepting an incomplete subset.
 
-The additional `scripts/verify_installed_regions.py` gate runs with the installed Python, checks the complete source manifest and imported module locations, and compares the running server's exported source identity. Its module-hash receipt explicitly includes planning, plan adoption and the planning API alongside measurement, detection, comparison and replay code. Four generated regions yield signed background-corrected values A=[−3,−1], B=[2,0]. Welch and paired effect, standard error, degrees of freedom, p-value and confidence interval are checked with elementary closed-form references independently of SciPy's t-test functions. It then downloads every figure source file, verifies ZIP hashes and remeasures explicit raw originals through the saved-mask replay. The generated values verify calculation and packaging, while published microscopy verifies the image/browser paths; neither supplies biological replication or validates a private study.
+The additional `scripts/verify_installed_regions.py` gate runs with the installed Python, checks the complete source manifest and imported module locations, and compares the running server's exported source identity. Its module-hash receipt explicitly includes planning, plan adoption and the planning API alongside measurement, detection, comparison and replay code. Four generated regions yield signed background-corrected values A=[−3,−1], B=[2,0]. Welch and paired effect, standard error, degrees of freedom, p-value and confidence interval are checked with elementary closed-form references independently of SciPy's t-test functions. The same installed harness checks exact Mann–Whitney U (p = 1/3) and perfect four-unit Spearman association (p = 1/12) against independent combinatorial references. It verifies editable SVG text and embedded PDF fonts, then downloads every figure source file, verifies ZIP hashes and remeasures explicit raw originals through the saved-mask replay. The generated values verify calculation and packaging, while published microscopy verifies the image/browser paths; neither supplies biological replication or validates a private study.
 
 Only the ZIP/checksum and small, separate acceptance receipts become workflow artifacts. Receipts identify the exact source, archive and acceptance-script hashes, test counts, numerical checks, replay and clean stop. Raw browser reports, logs, session information, uploaded images, screenshots and generated workspaces are not CI artifacts. Any image of a figure that is reviewed separately must retain its own public/generated source and scope. A Japanese or mixed-script figure requires an installed font covering its literal labels; failure is retained and blocks acceptance, rather than replacing labels or silently dropping glyphs.
 

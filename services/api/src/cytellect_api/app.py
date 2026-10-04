@@ -37,6 +37,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from sqlalchemy import func, select, update
 
+from .common_statistics import register_common_statistics_routes
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
@@ -923,7 +924,8 @@ def create_app(settings: Settings | None = None):
         workspace(wid, who)
         return [
             {**{k: r[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")},
-             "analysis_mode": r["payload"].get("mode") if r["kind"] in ("statistics", "table-statistics") else None}
+             "analysis_mode": r["payload"].get("mode") if r["kind"] in ("statistics", "table-statistics") else None,
+             "analysis_version": r["payload"].get("version") if r["kind"] in ("statistics", "table-statistics") else None}
             for r in store.rows(jobs, workspace_id=wid)
         ]
 
@@ -938,7 +940,8 @@ def create_app(settings: Settings | None = None):
     def get_job(jid: str, who: Owner):
         j = job_record(jid, who)
         return {**{k: j[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")},
-                "analysis_mode": j["payload"].get("mode") if j["kind"] in ("statistics", "table-statistics") else None}
+                "analysis_mode": j["payload"].get("mode") if j["kind"] in ("statistics", "table-statistics") else None,
+                "analysis_version": j["payload"].get("version") if j["kind"] in ("statistics", "table-statistics") else None}
 
     @api.post("/v1/jobs/{jid}/cancel")
     def cancel(jid: str, who: Owner):
@@ -975,6 +978,15 @@ def create_app(settings: Settings | None = None):
             "figure.pdf": "application/pdf",
             "plot-data.csv": "text/csv",
             "comparisons.csv": "text/csv",
+            "associations.csv": "text/csv",
+            "omnibus.csv": "text/csv",
+            "counts.csv": "text/csv",
+            "graphical-summary.csv": "text/csv",
+            "unit-summary.csv": "text/csv",
+            **{f"{axis}-{table}.csv": "text/csv"
+               for axis in ("x", "y")
+               for table in ("plot-data", "observations", "source-fields", "field-summary",
+                             "sample-summary", "unit-summary", "pair-ledger", "excluded-failed-fields")},
             "experimental-units.csv": "text/csv",
             "field-summary.csv": "text/csv",
             "sample-summary.csv": "text/csv",
@@ -1025,6 +1037,7 @@ def create_app(settings: Settings | None = None):
                            field_record, result_root, queue, touch, child_revision)
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
+    register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

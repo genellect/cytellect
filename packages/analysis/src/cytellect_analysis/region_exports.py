@@ -143,13 +143,29 @@ def _long_rows(report, config):
     return rows
 
 
+def _uses_common_statistics(result):
+    return (result.get("analysis_kind") == "region-association"
+            or (result.get("analysis_kind") == "region-comparison"
+                and result.get("region_comparison_version") == "2.0.0"))
+
+
+def _statistics_methods_template(result):
+    if _uses_common_statistics(result):
+        from .common_statistics_figures import CommonStatisticsMethodsTemplate
+
+        return CommonStatisticsMethodsTemplate.model_validate(
+            result.get("figure", {}).get("common_statistics_methods")
+        ).model_dump(mode="json")
+    from .statistical_methods import saved_methods_template
+
+    return saved_methods_template(result)
+
+
 def _recompute_statistics(report, config, result):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
-    from .statistical_methods import saved_methods_template
-
-    saved_methods_template(result)
-    if result.get("analysis_kind") not in ("descriptive", "region-comparison") or result.get("source_kind") != "region-2d":
+    _statistics_methods_template(result)
+    if result.get("analysis_kind") not in ("descriptive", "region-comparison", "region-association") or result.get("source_kind") != "region-2d":
         raise ValueError("region_export_statistics_unsupported")
     if result.get("revision_id") != report["revision_id"]:
         raise ValueError("region_export_statistics_revision_mismatch")
@@ -162,7 +178,14 @@ def _recompute_statistics(report, config, result):
         raise ValueError("region_export_statistics_source_mismatch")
     # The shared adapter enforces coverage, explicit exclusions, channel identity,
     # units and source selection; exporting a figure cannot bypass those checks.
-    if result["analysis_kind"] == "region-comparison":
+    if _uses_common_statistics(result):
+        from .common_statistics import analyze_region_association, analyze_region_comparison
+        from .common_statistics_contracts import parse_common_statistics_request
+
+        request = parse_common_statistics_request(result["spec"])
+        calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
+        calculated = calculate(report, config, request)
+    elif result["analysis_kind"] == "region-comparison":
         from .region_comparison import compare_regions
         from .region_comparison_contracts import RegionComparisonRequest
 
@@ -176,6 +199,10 @@ def _recompute_statistics(report, config, result):
 
 
 def _render_statistics(calculated, folder, *, methods_template=None):
+    if _uses_common_statistics(calculated):
+        from .common_statistics_figures import render_common_statistics
+
+        return render_common_statistics(calculated, folder, methods_template=methods_template)
     if calculated["analysis_kind"] == "region-comparison":
         from .region_comparison_figures import render_region_comparison
 
@@ -257,9 +284,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
                 raise ValueError("descriptive_output_source_required")
             figure = copy_descriptive_output(statistics_results[index], Path(statistics_roots[index]), folder)
         else:
-            from .statistical_methods import saved_methods_template
-
-            figure = _render_statistics(calculated, folder, methods_template=saved_methods_template(statistics_results[index]))
+            figure = _render_statistics(calculated, folder, methods_template=_statistics_methods_template(statistics_results[index]))
         _json(folder / "result.json", {**calculated, "figure": figure})
     methods = region_methods(config, report, provenance)
     (content / "methods.md").write_text(methods, encoding="utf-8")
@@ -351,6 +376,8 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     descriptions_match = True
     comparisons_match = True
     has_comparisons = False
+    associations_match = True
+    has_associations = False
     paged_outputs = []
     for path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         result = json.loads(path.read_text(encoding="utf-8"))
@@ -359,6 +386,9 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         if result["analysis_kind"] == "region-comparison":
             has_comparisons = True
             comparisons_match &= matches
+        elif result["analysis_kind"] == "region-association":
+            has_associations = True
+            associations_match &= matches
         else:
             descriptions_match &= matches
         folder = output_dir / "statistics" / path.parent.name
@@ -368,9 +398,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
             replayed["figure"] = replay_descriptive_output(result, replayed, path.parent, folder)
             paged_outputs.append({"statistics_index": path.parent.name, "status": replayed["figure"]["status"]})
         else:
-            from .statistical_methods import saved_methods_template
-
-            replayed["figure"] = _render_statistics(replayed, folder, methods_template=saved_methods_template(result))
+            replayed["figure"] = _render_statistics(replayed, folder, methods_template=_statistics_methods_template(result))
         _json(folder / "result.json", replayed)
     comparison = {
         "matched_saved_measurements": tables == report["field_tables"],
@@ -380,6 +408,8 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     }
     if has_comparisons:
         comparison["matched_saved_comparisons"] = comparisons_match
+    if has_associations:
+        comparison["matched_saved_associations"] = associations_match
     if paged_outputs:
         comparison["descriptive_outputs"] = paged_outputs
         comparison["descriptive_figures_ready"] = all(item["status"] == "ready" for item in paged_outputs)
@@ -395,7 +425,8 @@ def main():
     args = parser.parse_args()
     result = replay_region_bundle(args.bundle_dir, args.raw_dir, args.output_dir)
     if (not result["matched_saved_measurements"] or not result["matched_saved_descriptions"]
-            or not result.get("matched_saved_comparisons", True)):
+            or not result.get("matched_saved_comparisons", True)
+            or not result.get("matched_saved_associations", True)):
         raise SystemExit("region_replay_measurement_mismatch")
     if not result.get("descriptive_figures_ready", True):
         raise SystemExit("descriptive_replay_figure_unavailable")

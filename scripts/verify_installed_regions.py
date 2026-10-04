@@ -26,9 +26,12 @@ MODULES = (
     "cytellect_analysis.regions", "cytellect_analysis.region_contracts", "cytellect_analysis.engine",
     "cytellect_analysis.region_comparison", "cytellect_analysis.unit_inference",
     "cytellect_analysis.region_comparison_figures", "cytellect_analysis.region_exports",
+    "cytellect_analysis.common_statistics", "cytellect_analysis.common_statistics_contracts",
+    "cytellect_analysis.common_statistics_figures", "cytellect_analysis.common_unit_inference",
     "cytellect_analysis.planning", "cytellect_analysis.plan_adoption",
     "cytellect_api.regions", "cytellect_api.region_comparisons", "cytellect_api.local",
     "cytellect_api.planning",
+    "cytellect_api.common_statistics", "cytellect_worker.common_statistics",
     "cytellect_worker.regions", "cytellect_worker.region_comparisons",
     "numpy", "scipy", "pandas", "statsmodels", "matplotlib", "tifffile", "pydantic",
 )
@@ -224,6 +227,44 @@ def verify_workflow(session, output: Path, expected_source: str):
         checks.append(verify_reference(result, paired=paired))
         for name in result["figure"]["source_files"]:
             session.request(f"/v1/jobs/{job}/files/{name}")
+    common_checks = []
+    base = {"design": {"kind": "independent", "confirmed": True,
+                       "unit_definition": "Four generated software units; no biological replication claim"},
+            "conditions": ["A", "B"], "missingness_confirmed": True,
+            "acquisition_review": {"confirmed": True, "basis": "same-settings", "spatial_sampling_confirmed": True}}
+    selection = {"source": "region", "region_set_id": "objects", "channel_id": "signal", "metric": "mean_corrected"}
+    requests = [
+        {**base, "mode": "region-experimental-unit", "version": "2.0.0", "test": "mann-whitney-u",
+         "selection": selection, "comparison_family": spec["comparison_family"],
+         "plot": {"kind": "box", "language": "en", "preset": "nature-single", "y_label": "Known signal"}},
+        {**base, "mode": "region-association", "version": "1.0.0", "method": "spearman",
+         "x_selection": selection, "y_selection": {**selection, "metric": "integrated_corrected"},
+         "scope": "pooled", "pooling_confirmed": True,
+         "plot": {"kind": "scatter", "language": "en", "preset": "nature-single",
+                  "x_label": "Known mean", "y_label": "Known total"}},
+    ]
+    for request in requests:
+        job = session.json(f"/v1/revisions/{rid}/common-statistics", request)["job_id"]
+        session.wait(job)
+        result = session.json(f"/v1/jobs/{job}/common-statistics")
+        association = request["mode"] == "region-association"
+        row = result["associations" if association else "comparisons"][0]
+        # Four ordered ranks: U=0 has two tails among six allocations;
+        # perfect Spearman has two extreme permutations among 4! pairings.
+        expected_p = 2 / math.factorial(4) if association else 2 / math.comb(4, 2)
+        require(math.isclose(row["p_value"], expected_p, rel_tol=1e-10, abs_tol=1e-11)
+                and math.isclose(row["p_holm"], expected_p, rel_tol=1e-10, abs_tol=1e-11),
+                "common_independent_reference_mismatch")
+        if association:
+            require(math.isclose(row["coefficient"], 1.0), "common_association_coefficient_mismatch")
+        for name in result["figure"]["source_files"]:
+            content = session.request(f"/v1/jobs/{job}/files/{name}")
+            if name == "figure.svg":
+                require(b"<text" in content and b"Known" in content, "editable_svg_required")
+            if name == "figure.pdf":
+                require(content.startswith(b"%PDF") and b"/FontFile2" in content, "embedded_vector_pdf_required")
+        common_checks.append({"mode": request["mode"], "method": row["method"], "expected_p": expected_p,
+                              "source_files_downloaded": len(result["figure"]["source_files"])})
     # Reconfirmation must not invalidate successful comparison fingerprints.
     session.json(f"/v1/revisions/{rid}/review", {})
     exported = session.json(f"/v1/revisions/{rid}/export?include_raw=true", {})["job_id"]
@@ -236,9 +277,11 @@ def verify_workflow(session, output: Path, expected_source: str):
     require(software["git_commit"] == expected_source
             and software["source_sha256"] == software_identity()["source_sha256"], "running_server_source_mismatch")
     replay = replay_region_bundle(bundle, bundle / "raw", output / "replayed")
-    require(replay["matched_saved_measurements"] and replay["matched_saved_comparisons"], "installed_replay_mismatch")
+    require(replay["matched_saved_measurements"] and replay["matched_saved_comparisons"]
+            and replay["matched_saved_associations"], "installed_replay_mismatch")
     session.request(f"/v1/workspaces/{wid}", method="DELETE")
-    return {"closed_form_checks": checks, "verified_bundle_files": verified, "replay": replay,
+    return {"closed_form_checks": checks, "common_statistical_checks": common_checks,
+            "verified_bundle_files": verified, "replay": replay,
             "generated_workspace_deleted": True, "repeat_review_export": True,
             "running_source_sha256": software["source_sha256"]}
 

@@ -343,7 +343,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.20,<1" },
     { name = "roifile", specifier = ">=2025.2" },
     { name = "scikit-image", specifier = ">=0.25,<1" },
-    { name = "scipy", specifier = ">=1.15,<2" },
+    { name = "scipy", specifier = ">=1.16,<2" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
     { name = "statsmodels", specifier = ">=0.14,<1" },
     { name = "tifffile", specifier = ">=2025.3" },

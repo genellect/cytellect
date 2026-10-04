@@ -1,4 +1,6 @@
 "use client";
+import FigureControls from "./FigureControls";
+import {defaultFigureEdits,figureOrder,validFigureEdits} from "@/lib/figure-controls";
 import { useEffect,useState } from "react";
 import type {PlanResolution} from "@/lib/analysis-plan";
 import {plannedSelection,selectionChangedFromPlan} from "@/lib/planned-selection";
@@ -75,18 +77,21 @@ function SavedDescriptiveFigure({data,jobId,language,preset,disabled,run,onCreat
 
 export default function DescriptivePanel({revisionId,reviewed,options,jobs,blocked,dirty,run,fieldLabels={},revisionLabels={},onInspectField,onInspectRegion,traceBlocked=false,planSelection,backgroundRequired=true}:Props){
  const [choice,setChoice]=useState("");
+ const [figure,setFigure]=useState(defaultFigureEdits);
  const [language,setLanguage]=useState("en");
  const [preset,setPreset]=useState("nature-double");
  const [selectedJob,setSelectedJob]=useState("");
  const [submitting,setSubmitting]=useState(false);
- useEffect(()=>setChoice(""),[revisionId]);
+ useEffect(()=>{setChoice("");setFigure(defaultFigureEdits());},[revisionId]);
  const option=plannedSelection(options,choice,planSelection);
  const available=descriptiveJobs(jobs);
  const job=selectedDescriptiveJob(jobs,selectedJob,revisionId);
  const succeeded=job?.state==="succeeded";
  const result=useQuery({queryKey:["descriptive",job?.id],queryFn:()=>request<DescriptiveResult>(`/v1/jobs/${job!.id}/result`),enabled:succeeded});
  const data=!submitting&&succeeded&&result.data?.revision_id===job?.revision_id?result.data:undefined;
- const settingsMatch=data&&sameDescriptiveSettings(data,option?.selection,language,preset);
+ const orderGroups=data&&data.revision_id===revisionId?data.field_summary.map(row=>({id:row.field_id,label:fieldLabels[row.field_id]||`図の視野 ${descriptiveFieldNumber(data,row.field_id)}`})):[];
+ const edits={...figure,group_order:figure.group_order.length?figureOrder(figure.group_order,orderGroups.map(group=>group.id)):[]};
+ const settingsMatch=data&&sameDescriptiveSettings(data,option?.selection,language,preset,edits);
 
  return <section className={styles.statistics} aria-label="測定値と分布">
   <div className={`${styles.statsControls} ${styles.descriptiveControls}`}>
@@ -98,14 +103,15 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
     <label>図の言語<select aria-label="記述図の言語" value={language} onChange={e=>setLanguage(e.target.value)}><option value="en">English</option><option value="ja">日本語</option></select></label>
     <label>図の幅<select aria-label="記述図の幅" value={preset} onChange={e=>setPreset(e.target.value)}><option value="nature-single">89 mm</option><option value="nature-double">183 mm</option></select></label>
    </div>
+   <FigureControls prefix="記述図" preset={preset} value={edits} onChange={setFigure} groups={orderGroups}/>
    <p className={styles.small}>SVG・PDFは編集可能な文字で出力します。撮影条件や領域定義の妥当性は、画像と解析記録で確認してください。</p>
     {!reviewed&&<p className={styles.notice}>{backgroundRequired?"領域・背景・失敗や除外の理由を確認してから、図を作成できます。":"領域・面積・失敗や除外の理由を確認してから、図を作成できます。"}</p>}
    {dirty&&<p className={styles.notice}>未反映の変更があります。再測定して品質確認を完了してください。</p>}
-   <button className={styles.primary} disabled={submitting||blocked||dirty||!reviewed||!revisionId||!option} onClick={()=>run(async()=>{
+   <button className={styles.primary} disabled={!validFigureEdits(edits,preset)||submitting||blocked||dirty||!reviewed||!revisionId||!option} onClick={()=>run(async()=>{
     if(!option)return;
     setSubmitting(true);
     try {
-     const created=await post<{job_id:string}>(`/v1/revisions/${revisionId}/descriptive`,descriptiveRequest(option.selection,language,preset));
+     const created=await post<{job_id:string}>(`/v1/revisions/${revisionId}/descriptive`,descriptiveRequest(option.selection,language,preset,edits));
      setSelectedJob(created.job_id);
     } finally { setSubmitting(false); }
    })}>分布図を作成</button>

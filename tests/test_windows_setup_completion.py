@@ -53,7 +53,7 @@ function Initialize-PrivateRoot {
 }
 function Get-PinnedUv([string]$Root) { return (Join-Path $Root 'never-executed-uv.exe') }
 function Invoke-SetupProcess([string]$Executable,[string[]]$Arguments,[string]$Directory,
-    [hashtable]$Environment=@{},[int]$TimeoutSeconds=1800,[switch]$UvProcess) {
+    [hashtable]$Environment=@{},[int]$TimeoutSeconds=1800,[switch]$UvProcess,[switch]$FinishStorageCommit) {
     $script:ProcessCalls++
     $python=Get-SafeChild $Directory '.venv/Scripts/python.exe'
     if ($Arguments[0] -ceq 'pip') {
@@ -99,6 +99,9 @@ function Invoke-SetupProcess([string]$Executable,[string[]]$Arguments,[string]$D
                 [IO.File]::WriteAllText((Join-Path $bin 'python.exe'),'not an executable')
                 [IO.File]::WriteAllText((Join-Path $bin 'pythonw.exe'),'not an executable')
                 $script:Pipeline += 'signed-runtime-venv'
+            } elseif ($Arguments[2] -ceq 'cytellect_api.local_storage') {
+                [IO.File]::WriteAllText((Join-Path $InstallRoot 'setup-storage-result.json'),
+                    '{"retained_apps":2,"reclaimed_bytes":0,"unknown_apps_retained":false,"unmanaged_cache_retained":false,"process_inventory_available":true}')
             } elseif ($Arguments[2] -ceq 'cytellect_analysis.install_check') {
                 if ($Executable -cne $python) { throw 'wrong_python_interpreter' }
                 $script:Pipeline += 'analysis-check'
@@ -115,10 +118,18 @@ function New-Object([string]$ComObject) {
     $shell=[pscustomobject]@{}
     $shell | Add-Member ScriptMethod CreateShortcut {
         param($Path)
-        $shortcut=[pscustomobject]@{TargetPath='';Arguments='';WorkingDirectory='';Description=''}
+        $shortcut=[pscustomobject]@{TargetPath='';Arguments='';WorkingDirectory='';Description='';StoredPath=$Path}
+        if ([IO.File]::Exists($Path)) {
+            $saved=Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+            foreach($field in @('TargetPath','Arguments','WorkingDirectory','Description')) { $shortcut.$field=$saved.$field }
+        }
         $shortcut | Add-Member ScriptMethod Save {
             $script:ShortcutSaves++
             if ($script:Fault -eq 'shortcut') { throw 'controlled_shortcut_failure' }
+            [IO.File]::WriteAllText($this.StoredPath, ([ordered]@{
+                TargetPath=$this.TargetPath; Arguments=$this.Arguments;
+                WorkingDirectory=$this.WorkingDirectory; Description=$this.Description
+            } | ConvertTo-Json))
         }
         return $shortcut
     }

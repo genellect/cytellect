@@ -41,6 +41,7 @@ def register_region_comparison_routes(api, store, owner, revision, result_root, 
     def result(jid: str, who: Owner):
         job = job_record(jid, who)
         if (job["kind"] != "statistics" or job["payload"].get("mode") != "region-experimental-unit"
+                or job["payload"].get("version", "1.0.0") != "1.0.0"
                 or job["state"] != "succeeded" or not job["result_dir"]):
             raise HTTPException(404, "artifact_not_found")
         value = RegionComparisonView.model_validate_json(

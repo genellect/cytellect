@@ -175,7 +175,8 @@ function Get-SetupFailureText([string]$Code, [string]$Phase) {
 }
 
 function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]$Directory,
-    [hashtable]$Environment = @{}, [int]$TimeoutSeconds = 1800, [switch]$UvProcess) {
+    [hashtable]$Environment = @{}, [int]$TimeoutSeconds = 1800, [switch]$UvProcess,
+    [switch]$FinishStorageCommit) {
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $Executable
     $start.Arguments = ($Arguments | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
@@ -199,7 +200,7 @@ function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]
     try {
         while (-not $script:RunningProcess.WaitForExit(100)) {
             if (-not $Console) { [Windows.Forms.Application]::DoEvents() }
-            if ($script:Cancelled) { throw 'setup_cancelled' }
+            if ($script:Cancelled -and -not $FinishStorageCommit) { throw 'setup_cancelled' }
             if ($watch.Elapsed.TotalSeconds -gt $TimeoutSeconds) { throw 'setup_stage_timeout' }
         }
         # Do not persist third-party output, which can include local paths.
@@ -275,6 +276,11 @@ function Install-Cytellect {
         throw 'windows_x64_required'
     }
     $root = Initialize-PrivateRoot
+    # Serialize explicit updates; the lock is never a research-data lock.
+    $setupLock = [IO.File]::Open((Get-SafeChild $root 'setup.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+    $setupSucceeded = $false
+    $shortcutChanges = @()
+    try {
     $releaseId = $manifest.version + '-' + $manifest.source_commit.Substring(0, 12)
     $app = Get-SafeChild $root ('apps/' + $releaseId)
     [IO.Directory]::CreateDirectory($app) | Out-Null
@@ -300,12 +306,17 @@ function Install-Cytellect {
             Copy-Item -LiteralPath (Get-SafeChild $SourceRoot $entry.path) -Destination $target
         }
     }
+    $uvRelative = 'tools/uv-' + $script:UvVersion
+    $uvWasPresent = Test-Path -LiteralPath (Get-SafeChild $root $uvRelative)
     $uv = Get-PinnedUv $root
     . (Get-SafeChild $app 'scripts/windows_runtime.ps1')
     Update-SetupStatus 'install_python' '専用のPython環境を準備しています…'
+    $pythonSpec = Get-Content -LiteralPath (Get-SafeChild $app 'engines/python/windows-runtime.lock.json') -Raw | ConvertFrom-Json
+    $pythonRelative = 'runtimes/python-' + $pythonSpec.composition_version
+    $pythonWasPresent = Test-Path -LiteralPath (Get-SafeChild $root $pythonRelative)
     $runtime = Initialize-PinnedPythonRuntime $root $app
     $environment = @{
-        UV_NO_CONFIG = 'true'; UV_CACHE_DIR = (Get-SafeChild $root 'setup-cache/uv')
+        UV_NO_CONFIG = 'true'; UV_NO_CACHE = 'true'
         UV_DEFAULT_INDEX = 'https://pypi.org/simple'; UV_PYTHON_DOWNLOADS = 'never'
         PYTHONDONTWRITEBYTECODE = '1'
     }
@@ -337,6 +348,7 @@ function Install-Cytellect {
     if (-not (Test-Path -LiteralPath $pythonw -PathType Leaf)) { throw 'python_gui_unavailable' }
     $lockHash = (Get-FileHash -LiteralPath (Join-Path $app 'engines/fiji/runtime.lock.json')).Hash.ToLowerInvariant()
     $fiji = Get-SafeChild $root ('runtimes/fiji-' + $lockHash.Substring(0, 16))
+    $fijiWasPresent = Test-Path -LiteralPath $fiji
     if (-not (Test-Path -LiteralPath $fiji)) {
         Update-SetupStatus 'install_fiji' 'Fijiを取得・検証しています。初回は数分かかる場合があります…'
         Invoke-SetupProcess $python @('-B', 'scripts/fiji_setup.py', $fiji, '--platform', 'windows-x64') $app @{}
@@ -357,25 +369,85 @@ function Install-Cytellect {
         Update-SetupStatus 'create_shortcut' 'Cytellectのショートカットを作成しています…'
         $shell = New-Object -ComObject WScript.Shell
         foreach ($shortcutDirectory in @([Environment]::GetFolderPath('DesktopDirectory'), [Environment]::GetFolderPath('Programs'))) {
-            $shortcutPath = Join-Path $shortcutDirectory ('Cytellect ' + $releaseId + '.lnk')
-            if (Test-Path -LiteralPath $shortcutPath) { continue }
+            $shortcutPath = Join-Path $shortcutDirectory 'Cytellect.lnk'
             $shortcut = $shell.CreateShortcut($shortcutPath)
+            if ((Test-Path -LiteralPath $shortcutPath) -and
+                ($shortcut.Description -ne 'Cytellect local analysis and control window' -or
+                 -not $shortcut.TargetPath.StartsWith((Get-SafeChild $root 'apps') + '\', [StringComparison]::OrdinalIgnoreCase))) {
+                throw 'shortcut_not_owned'
+            }
+            $stagedPath = Join-Path $shortcutDirectory ('Cytellect-' + [Guid]::NewGuid().ToString('N') + '.lnk')
+            $shortcut = $shell.CreateShortcut($stagedPath)
             $shortcut.TargetPath = $pythonw
             $shortcut.Arguments = ($launchArgs | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
             $shortcut.WorkingDirectory = $app
             $shortcut.Description = 'Cytellect local analysis and control window'
-            $shortcut.Save()
+            $before = if ([IO.File]::Exists($shortcutPath)) { [IO.File]::ReadAllBytes($shortcutPath) } else { $null }
+            $change = [pscustomobject]@{path=[IO.Path]::GetFullPath($shortcutPath); before=$before; after=$null}
+            $shortcutChanges += $change
+            try {
+                # COM may fail after writing part of a link. Publish only its
+                # completed temporary file, keeping the old target intact.
+                $shortcut.Save()
+                $change.after = [IO.File]::ReadAllBytes($stagedPath)
+                if ($null -ne $before) {
+                    if ([Convert]::ToBase64String([IO.File]::ReadAllBytes($shortcutPath)) -cne [Convert]::ToBase64String($before)) {
+                        throw 'shortcut_changed_during_setup'
+                    }
+                    [IO.File]::Replace($stagedPath, $shortcutPath, [NullString]::Value)
+                } else { [IO.File]::Move($stagedPath, $shortcutPath) }
+            } finally {
+                if ([IO.File]::Exists($stagedPath)) { [IO.File]::Delete($stagedPath) }
+            }
         }
     }
-    $state = @{ version = $manifest.version; source_commit = $manifest.source_commit; app = $app; fiji = $fiji
+    $state = [ordered]@{ version = $manifest.version; source_commit = $manifest.source_commit; app = $app; fiji = $fiji
         python = $script:PythonVersion; python_build = $runtime.specification.composition_version
         python_url = $runtime.specification.python.url; python_sha256 = $runtime.specification.python.sha256
         python_data_sha256 = $runtime.specification.data_asset.sha256; python_inventory = $runtime.receipt
         wheel_sha256 = $install.wheel.sha256; requirements_sha256 = $install.requirements.sha256
         uv = $script:UvVersion; uv_sha256 = $script:UvSha256 }
     [IO.File]::WriteAllText((Get-SafeChild $app 'setup-complete.json'), ($state | ConvertTo-Json))
-    Update-SetupStatus 'complete' '準備が完了しました。「開く」でCytellectを起動できます。'
+    # Checks above must succeed before registering or removing any prior version.
+    # Observe cancellation before entering the storage commit. Once collection
+    # starts, finish it before honoring close, so late cancellation cannot tear it.
+    Update-SetupStatus 'complete' '動作確認が完了しました。保存環境を整理します…'
+    Update-SetupStatus 'manage_storage' '旧版の使用状況と保存容量を確認しています…'
+    $storageArgs = @('-B', '-m', 'cytellect_api.local_storage', '--root', $root, '--app', $app)
+    if (-not $pythonWasPresent) { $storageArgs += @('--created-runtime', $pythonRelative) }
+    if (-not $fijiWasPresent) { $storageArgs += @('--created-runtime', ('runtimes/fiji-' + $lockHash.Substring(0, 16))) }
+    if (-not $uvWasPresent) { $storageArgs += @('--created-runtime', $uvRelative) }
+    $storageText = '準備完了。旧環境の整理は完了していません。保存先の状態を確認してください。'
+    try {
+        Invoke-SetupProcess $python $storageArgs $app @{} 600 -FinishStorageCommit
+        $storage = Get-Content -LiteralPath (Get-SafeChild $root 'setup-storage-result.json') -Raw | ConvertFrom-Json
+        $storageText = ('準備完了。アプリ{0}版を保持、{1:N0} MBを解放しました。' -f $storage.retained_apps, ($storage.reclaimed_bytes / 1MB))
+        if ($storage.unknown_apps_retained -or $storage.unmanaged_cache_retained -or -not $storage.process_inventory_available) {
+            $storageText += ' 使用中または確認できない旧環境は保持しています。'
+        }
+    } catch {
+        # Housekeeping must never invalidate the successfully checked app.
+        # The collector preserves unverified trees; do not print private paths.
+    }
+    $script:Phase = 'complete'
+    if ($null -ne $script:StatusLabel) { $script:StatusLabel.Text = $storageText }
+    if ($Console) { Write-Host $storageText }
     $script:LaunchInfo = @{ executable = $pythonw; arguments = $launchArgs; directory = $app }
+    $setupSucceeded = $true
+    } finally {
+        if (-not $setupSucceeded) {
+            foreach ($change in $shortcutChanges) {
+                if (-not [IO.File]::Exists($change.path)) { continue }
+                if ((Get-Item -LiteralPath $change.path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+                $actual = [Convert]::ToBase64String([IO.File]::ReadAllBytes($change.path))
+                if ($null -ne $change.after -and $actual -ceq [Convert]::ToBase64String($change.after)) {
+                    if ($null -ne $change.before) { [IO.File]::WriteAllBytes($change.path, $change.before) }
+                    else { [IO.File]::Delete($change.path) }
+                }
+            }
+        }
+        $setupLock.Dispose()
+    }
 }
 
 if ($Console -or $VerifyOnly) {
@@ -404,7 +476,7 @@ $title.SetBounds(24, 22, 560, 32)
 $title.Font = [Drawing.Font]::new('Yu Gothic UI', 14, [Drawing.FontStyle]::Bold)
 $form.Controls.Add($title)
 $description = [Windows.Forms.Label]::new()
-$description.Text = "解析用Python・Fijiを専用フォルダーに準備します。`r`n既存ソフトやシステムPATHは変更しません。`r`n初回のみ通信と数GBの空き容量が必要です。`r`n研究画像はPC内で保存。24時間期限、停止中の削除は次回起動時です。"
+$description.Text = "解析用Python・Fijiを専用フォルダーに準備します。`r`n既存ソフトやシステムPATHは変更しません。`r`n初回・依存環境の更新時は通信と空き容量が必要です。`r`n研究画像はPC内で保存。24時間期限、停止中の削除は次回起動時です。"
 $description.SetBounds(24, 66, 560, 94)
 $form.Controls.Add($description)
 $destinationLabel = [Windows.Forms.Label]::new()

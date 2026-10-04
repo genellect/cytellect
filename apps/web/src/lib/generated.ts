@@ -685,6 +685,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/common-statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Calculate */
+        post: operations["calculate_v1_revisions__rid__common_statistics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{jid}/common-statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Result */
+        get: operations["result_v1_jobs__jid__common_statistics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans/preview": {
         parameters: {
             query?: never;
@@ -783,6 +817,115 @@ export interface components {
              * @constant
              */
             reason: "not_required_for_area";
+        };
+        /** AssociationPlot */
+        AssociationPlot: {
+            /**
+             * Preset
+             * @default nature-single
+             * @enum {string}
+             */
+            preset: "custom" | "nature-single" | "nature-double";
+            /**
+             * Kind
+             * @default scatter
+             * @constant
+             */
+            kind: "scatter";
+            /**
+             * Language
+             * @default en
+             * @enum {string}
+             */
+            language: "en" | "ja";
+            /**
+             * Width Inches
+             * @default 7
+             */
+            width_inches: number;
+            /**
+             * Height Inches
+             * @default 3
+             */
+            height_inches: number;
+            /**
+             * Font Size
+             * @default 7
+             */
+            font_size: number;
+            /**
+             * X Label
+             * @default
+             */
+            x_label: string;
+            /**
+             * Y Label
+             * @default
+             */
+            y_label: string;
+            /** Group Order */
+            group_order?: string[];
+        };
+        /** AssociationView */
+        AssociationView: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            analysis_kind: "region-association";
+            /**
+             * Source Kind
+             * @default region-2d
+             * @constant
+             */
+            source_kind: "region-2d";
+            /**
+             * Region Association Version
+             * @default 1.0.0
+             * @constant
+             */
+            region_association_version: "1.0.0";
+            /** Inference Version */
+            inference_version: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Source Fingerprint */
+            source_fingerprint: string;
+            spec: components["schemas"]["RegionAssociationRequest"];
+            /** X Source */
+            x_source: {
+                [key: string]: unknown;
+            };
+            /** Y Source */
+            y_source: {
+                [key: string]: unknown;
+            };
+            /** Unit Summary */
+            unit_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Unit Ledger */
+            unit_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Associations */
+            associations: {
+                [key: string]: unknown;
+            }[];
+            /** Counts */
+            counts: {
+                [key: string]: unknown;
+            }[];
+            /** Missingness */
+            missingness: {
+                [key: string]: unknown;
+            }[];
+            /** Warnings */
+            warnings: string[];
+            /** Figure */
+            figure: {
+                [key: string]: unknown;
+            };
         };
         /** Background */
         Background: {
@@ -913,6 +1056,176 @@ export interface components {
              * @default false
              */
             acquisition_saturation_confirmed: boolean;
+        };
+        /** CommonComparisonPlot */
+        CommonComparisonPlot: {
+            /**
+             * Preset
+             * @default nature-single
+             * @enum {string}
+             */
+            preset: "custom" | "nature-single" | "nature-double";
+            /**
+             * Kind
+             * @default distribution
+             * @enum {string}
+             */
+            kind: "distribution" | "paired" | "histogram" | "box" | "violin";
+            /**
+             * Language
+             * @default en
+             * @enum {string}
+             */
+            language: "en" | "ja";
+            /**
+             * Width Inches
+             * @default 7
+             */
+            width_inches: number;
+            /**
+             * Height Inches
+             * @default 3
+             */
+            height_inches: number;
+            /**
+             * Font Size
+             * @default 7
+             */
+            font_size: number;
+            /**
+             * X Label
+             * @default
+             */
+            x_label: string;
+            /**
+             * Y Label
+             * @default
+             */
+            y_label: string;
+            /** Group Order */
+            group_order?: string[];
+            /**
+             * Histogram Bins
+             * @default 10
+             */
+            histogram_bins: number;
+        };
+        /** CommonComparisonView */
+        CommonComparisonView: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            analysis_kind: "region-comparison";
+            /**
+             * Source Kind
+             * @default region-2d
+             * @constant
+             */
+            source_kind: "region-2d";
+            /**
+             * Region Comparison Version
+             * @default 2.0.0
+             * @constant
+             */
+            region_comparison_version: "2.0.0";
+            /** Inference Version */
+            inference_version: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Source Fingerprint */
+            source_fingerprint: string;
+            spec: components["schemas"]["RegionComparisonRequestV2"];
+            /** Metric */
+            metric: string;
+            /** Unit */
+            unit: string;
+            /** Region */
+            region: {
+                [key: string]: unknown;
+            };
+            /** Channel */
+            channel: {
+                [key: string]: unknown;
+            } | null;
+            /** Source Fields */
+            source_fields: {
+                [key: string]: unknown;
+            }[];
+            /** Source Field Ledger */
+            source_field_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Observation Ledger */
+            observation_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Plot Data */
+            plot_data: {
+                [key: string]: unknown;
+            }[];
+            /** Field Summary */
+            field_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Sample Summary */
+            sample_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Unit Summary */
+            unit_summary: {
+                [key: string]: unknown;
+            }[];
+            /** Unit Ledger */
+            unit_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Pair Ledger */
+            pair_ledger: {
+                [key: string]: unknown;
+            }[];
+            /** Counts */
+            counts: {
+                [key: string]: unknown;
+            }[];
+            /** Selection */
+            selection: {
+                [key: string]: unknown;
+            };
+            /** Missingness */
+            missingness: {
+                [key: string]: unknown;
+            }[];
+            /** Excluded Failed Fields */
+            excluded_failed_fields: {
+                [key: string]: unknown;
+            }[];
+            /** Acquisition */
+            acquisition: {
+                [key: string]: unknown;
+            };
+            /** Comparisons */
+            comparisons: {
+                [key: string]: unknown;
+            }[];
+            /** Means */
+            means: {
+                [key: string]: unknown;
+            }[];
+            /** Warnings */
+            warnings: string[];
+            /** Omnibus */
+            omnibus: {
+                [key: string]: unknown;
+            } | null;
+            /** Method Settings */
+            method_settings: {
+                [key: string]: unknown;
+            };
+            /** Figure */
+            figure: {
+                [key: string]: unknown;
+            };
         };
         /** ComparisonDesign */
         ComparisonDesign: {
@@ -1128,7 +1441,9 @@ export interface components {
             /** Attempts */
             attempts: number;
             /** Analysis Mode */
-            analysis_mode?: ("experimental-unit" | "exploratory" | "descriptive" | "region-experimental-unit") | null;
+            analysis_mode?: ("experimental-unit" | "exploratory" | "descriptive" | "region-experimental-unit" | "region-association") | null;
+            /** Analysis Version */
+            analysis_version?: string | null;
         };
         /** LegacyParameters */
         LegacyParameters: {
@@ -1662,6 +1977,59 @@ export interface components {
             /** Exclusions */
             exclusions?: components["schemas"]["RegionExclusion"][];
         };
+        /** RegionAssociationRequest */
+        RegionAssociationRequest: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: "region-association";
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            x_selection: components["schemas"]["RegionSelection"];
+            y_selection: components["schemas"]["RegionSelection"];
+            design: components["schemas"]["ComparisonDesign"];
+            /** Conditions */
+            conditions: string[];
+            acquisition_review: components["schemas"]["AcquisitionReview"];
+            /**
+             * Missingness Confirmed
+             * @constant
+             */
+            missingness_confirmed: true;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "pearson" | "spearman";
+            /**
+             * Scope
+             * @default per-condition
+             * @enum {string}
+             */
+            scope: "per-condition" | "pooled";
+            /**
+             * Pooling Confirmed
+             * @default false
+             */
+            pooling_confirmed: boolean;
+            /**
+             * Aggregation
+             * @default field-median_sample-mean_unit-mean-v1
+             * @constant
+             */
+            aggregation: "field-median_sample-mean_unit-mean-v1";
+            /**
+             * Missingness Policy
+             * @default require-matched-unexcluded-units-v1
+             * @constant
+             */
+            missingness_policy: "require-matched-unexcluded-units-v1";
+            plot?: components["schemas"]["AssociationPlot"];
+        };
         /** RegionBackground */
         RegionBackground: {
             /** Polygon */
@@ -1757,6 +2125,50 @@ export interface components {
              */
             missingness_policy: "available-observations_require-unexcluded-units-v1";
             plot?: components["schemas"]["RegionComparisonPlot"];
+        };
+        /** RegionComparisonRequestV2 */
+        RegionComparisonRequestV2: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: "region-experimental-unit";
+            /**
+             * Version
+             * @constant
+             */
+            version: "2.0.0";
+            selection: components["schemas"]["RegionSelection"];
+            design: components["schemas"]["ComparisonDesign"];
+            /** Conditions */
+            conditions: string[];
+            comparison_family: components["schemas"]["ComparisonFamily"];
+            acquisition_review: components["schemas"]["AcquisitionReview"];
+            /**
+             * Missingness Confirmed
+             * @constant
+             */
+            missingness_confirmed: true;
+            /**
+             * Aggregation
+             * @default field-median_sample-mean_unit-mean-v1
+             * @constant
+             */
+            aggregation: "field-median_sample-mean_unit-mean-v1";
+            /**
+             * Missingness Policy
+             * @default available-observations_require-unexcluded-units-v1
+             * @constant
+             */
+            missingness_policy: "available-observations_require-unexcluded-units-v1";
+            plot?: components["schemas"]["CommonComparisonPlot"];
+            /**
+             * Test
+             * @enum {string}
+             */
+            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon";
+            /** Omnibus */
+            omnibus?: ("welch-anova" | "kruskal-wallis") | null;
         };
         /** RegionComparisonView */
         RegionComparisonView: {
@@ -4207,6 +4619,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegionComparisonView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calculate_v1_revisions__rid__common_statistics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionComparisonRequestV2"] | components["schemas"]["RegionAssociationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    result_v1_jobs__jid__common_statistics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonComparisonView"] | components["schemas"]["AssociationView"];
                 };
             };
             /** @description Validation Error */

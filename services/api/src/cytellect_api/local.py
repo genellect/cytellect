@@ -489,7 +489,9 @@ def main(argv=None):
     if revision:
         os.environ["CYTELLECT_CODE_REVISION"] = revision
     try:
-        run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui)
+        from .local_storage import installed_usage_lock
+        with installed_usage_lock():
+            run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui)
     except Exception as exc:
         message = (_gui_failure_message(exc) if args.gui else
                    "Cytellect could not start or stopped. Check the local port, installation and runtime directory.")

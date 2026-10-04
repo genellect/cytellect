@@ -1,5 +1,8 @@
 "use client";
+import {commonComparisonRequest,comparisonMethodLabel,commonResultPath,commonWarnings,type ComparisonMethod,type CommonPlotKind} from "@/lib/common-statistics";
 import {useEffect,useRef,useState} from "react";
+import FigureControls from "./FigureControls";
+import {defaultFigureEdits,figureOrder,validFigureEdits} from "@/lib/figure-controls";
 import {useQuery} from "@tanstack/react-query";
 import {download,errorCodeMessage,errorMessage,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
@@ -9,6 +12,7 @@ import {usePrivateImage} from "@/lib/usePrivateImage";
 import type {DescriptiveOption} from "./DescriptivePanel";
 import styles from "./workspace.module.css";
 import {plannedSelection,selectionChangedFromPlan} from "@/lib/planned-selection";
+import RegionAssociationPanel from "./RegionAssociationPanel";
 import RegionComparisonHierarchy from "./RegionComparisonHierarchy";
 import type {RegionFieldTraceTarget} from "@/lib/region-trace";
 import type {ComparisonDraft} from "@/lib/draft-navigation";
@@ -16,26 +20,29 @@ import {isAreaOnly} from "@/lib/region-measurement";
 import {comparisonReadiness,type ComparisonReadinessIssue} from "@/lib/region-comparison-readiness";
 
 type Props={onDraftChange?:(draft:ComparisonDraft)=>void;runMetadata?:(work:()=>Promise<void>)=>void;revision?:RegionRevision;fields:RegionField[];options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;traceBlocked?:boolean;fieldLabels?:Record<string,string>;run:(work:()=>Promise<void>)=>void;onReview:()=>void;onInspectField:(fieldId:string,revisionId:string)=>void;onInspectSourceField?:(target:RegionFieldTraceTarget)=>void;revisionLabels:Record<string,string>};
-const fileLabels:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","observations.csv":"観測・採否","source-fields.csv":"実験情報","field-summary.csv":"視野集計","sample-summary.csv":"試料集計","experimental-units.csv":"実験単位集計","unit-ledger.csv":"実験単位の採否","pair-ledger.csv":"対応ペア","comparisons.csv":"比較結果","missingness.csv":"欠測","excluded-failed-fields.csv":"失敗視野の除外","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
+const fileLabels:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","observations.csv":"観測・採否","source-fields.csv":"実験情報","field-summary.csv":"視野集計","sample-summary.csv":"試料集計","experimental-units.csv":"実験単位集計","unit-ledger.csv":"実験単位の採否","pair-ledger.csv":"対応ペア","comparisons.csv":"比較結果","missingness.csv":"欠測","excluded-failed-fields.csv":"失敗視野の除外","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods","omnibus.csv":"全体検定","counts.csv":"対象数"};
 const metadataLabels=[['condition','条件'],['sample','試料'],['experimental_unit','独立実験単位'],['acquisition_date','撮影日／バッチ'],['pair','対応ペア'],['repeat_length','リピート長']] as const;
 const asText=(value:unknown)=>value===null||value===undefined?"—":String(value);
 function Records({rows,columns}:{rows:Record<string,unknown>[];columns:[string,string][]}){return <div className={styles.tableWrap}><table><thead><tr>{columns.map(([key,label])=><th key={key}>{label}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{columns.map(([key])=><td key={key}>{formatValue(row[key])}</td>)}</tr>)}</tbody></table></div>;}
 
 export default function RegionComparisonPanel({revision,fields,options,jobs,blocked,dirty,traceBlocked=false,fieldLabels={},run,onReview,onInspectField,onInspectSourceField,revisionLabels,onDraftChange,runMetadata=run}:Props){
  const panel=useRef<HTMLElement>(null);
+ const [view,setView]=useState<"comparison"|"association">("comparison");const [associationMounted,setAssociationMounted]=useState(false);const [associationDirty,setAssociationDirty]=useState(false);
  const [metadata,setMetadata]=useState<Record<string,RegionMetadata>>(()=>Object.fromEntries(fields.map(field=>[field.id,{...field.metadata}])));
  const [metadataDirty,setMetadataDirty]=useState(false);
  const [choice,setChoice]=useState("");const option=plannedSelection(options,choice,revision?.config.plan_resolution);
  const [design,setDesign]=useState<""|"independent"|"paired">("");const [unitDefinition,setUnitDefinition]=useState("");const [pairingBasis,setPairingBasis]=useState("");const [designConfirmed,setDesignConfirmed]=useState(false);
  const [conditions,setConditions]=useState<string[]>([]);const [familyKind,setFamilyKind]=useState<"control"|"planned">("control");const [control,setControl]=useState("");const [planned,setPlanned]=useState<string[]>([]);
  const [acquisitionConfirmed,setAcquisitionConfirmed]=useState(false);const [samplingConfirmed,setSamplingConfirmed]=useState(false);const [missingnessConfirmed,setMissingnessConfirmed]=useState(false);
- const [language,setLanguage]=useState<"en"|"ja">("en");const [preset,setPreset]=useState<"nature-single"|"nature-double">("nature-double");
+ const [language,setLanguage]=useState<"en"|"ja">("en");const [preset,setPreset]=useState<"nature-single"|"nature-double"|"custom">("nature-double");
+ const [figure,setFigure]=useState(defaultFigureEdits);
+ const [method,setMethod]=useState<ComparisonMethod>("legacy");const [plotKind,setPlotKind]=useState<CommonPlotKind|"">("");const [bins,setBins]=useState(10);
  const [selectedJob,setSelectedJob]=useState("");const [submitting,setSubmitting]=useState(false);
- const formFingerprint=JSON.stringify([choice,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,planned,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed,language,preset]);
+ const formFingerprint=JSON.stringify([choice,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,planned,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed,language,preset,figure,method,plotKind,bins]);
  const [savedForm,setSavedForm]=useState(formFingerprint);const formDirty=formFingerprint!==savedForm;
- useEffect(()=>{onDraftChange?.({metadata:metadataDirty,form:formDirty});},[metadataDirty,formDirty,onDraftChange]);
+ useEffect(()=>{onDraftChange?.({metadata:metadataDirty,form:formDirty||associationDirty});},[metadataDirty,formDirty,associationDirty,onDraftChange]);
  const available=regionComparisonJobs(jobs);const job=selectedRegionComparisonJob(jobs,selectedJob,revision?.id);
- const result=useQuery({queryKey:["region-comparison",job?.id],queryFn:()=>request<RegionComparisonResult>(`/v1/jobs/${job!.id}/region-comparison`),enabled:job?.state==="succeeded"});
+ const result=useQuery({queryKey:["region-comparison",job?.id],queryFn:()=>request<RegionComparisonResult>(commonResultPath(job!)),enabled:job?.state==="succeeded"});
  const data=!submitting&&job?.state==="succeeded"&&result.data?.revision_id===job.revision_id?result.data:undefined;
  const image=usePrivateImage(data&&job?`/v1/jobs/${job.id}/files/figure.png`:null);
  const knownConditions=[...new Set(fields.map(field=>field.metadata.condition).filter((value):value is string=>!!value))];
@@ -44,7 +51,7 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
  const scopeMatches=conditions.length>=2&&contrasts.length>0&&new Set(contrasts.flat()).size===conditions.length&&contrasts.flat().every(value=>conditions.includes(value));
  const metric=option?.selection.metric||"";const area=metric.startsWith("area_");const needsSampling=metric==="area_px"||metric.includes("integrated");
  const missingMetadata=fields.some(field=>!field.metadata.condition||(conditions.includes(field.metadata.condition)&&(!field.metadata.sample||!field.metadata.experimental_unit||(design==="paired"&&!field.metadata.pair)||(!area&&!field.metadata.acquisition_date))));
- const disabled=blocked||dirty||metadataDirty||submitting||!revision?.reviewed||!option||!design||!designConfirmed||!unitDefinition.trim()||(design==="paired"&&!pairingBasis.trim())||!scopeMatches||missingMetadata||!acquisitionConfirmed||!missingnessConfirmed||(needsSampling&&!samplingConfirmed);
+ const disabled=(method!=="legacy"&&plotKind==="histogram"&&(!Number.isInteger(bins)||bins<3||bins>50))||!validFigureEdits(figure,preset)||blocked||dirty||metadataDirty||submitting||!revision?.reviewed||!option||!design||!designConfirmed||!unitDefinition.trim()||(design==="paired"&&!pairingBasis.trim())||!scopeMatches||missingMetadata||!acquisitionConfirmed||!missingnessConfirmed||(needsSampling&&!samplingConfirmed);
  const readiness=comparisonReadiness({blocked,submitting,dirty,metadataDirty,hasRevision:!!revision,reviewed:!!revision?.reviewed,hasMetric:!!option,metric,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,contrasts,fields,fieldLabels,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed});
  function visitIssue(issue:ComparisonReadinessIssue){
   if(issue.target==="review"){onReview();return;}
@@ -60,8 +67,8 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
  async function submit(){
   if(disabled||!revision||!option||option.selection.source!=="region"||!design)return;
   const selection={...option.selection,metric:option.selection.metric as RegionComparisonRequest["selection"]["metric"]};
-  const spec:RegionComparisonRequest={mode:"region-experimental-unit",version:"1.0.0",selection,design:{kind:design,confirmed:true,unit_definition:unitDefinition.trim(),pairing_basis:design==="paired"?pairingBasis.trim():null},conditions,comparison_family:{family_id:"primary",kind:familyKind,control:familyKind==="control"?control:null,contrasts},acquisition_review:{confirmed:true,basis:metric==="area_um2"?"calibrated-area":"same-settings",field_batches:{},spatial_sampling_confirmed:samplingConfirmed},missingness_confirmed:true,aggregation:"field-median_sample-mean_unit-mean-v1",missingness_policy:"available-observations_require-unexcluded-units-v1",plot:{kind:design==="paired"?"paired":"distribution",preset,language,width_inches:7,height_inches:3,font_size:7,x_label:"",y_label:"",group_order:conditions}};
-  setSubmitting(true);try{const created=await post<{job_id:string}>(`/v1/revisions/${revision.id}/region-comparisons`,spec);setSelectedJob(created.job_id);setSavedForm(formFingerprint);}finally{setSubmitting(false);}
+  const spec:RegionComparisonRequest={mode:"region-experimental-unit",version:"1.0.0",selection,design:{kind:design,confirmed:true,unit_definition:unitDefinition.trim(),pairing_basis:design==="paired"?pairingBasis.trim():null},conditions,comparison_family:{family_id:"primary",kind:familyKind,control:familyKind==="control"?control:null,contrasts},acquisition_review:{confirmed:true,basis:metric==="area_um2"?"calibrated-area":"same-settings",field_batches:{},spatial_sampling_confirmed:samplingConfirmed},missingness_confirmed:true,aggregation:"field-median_sample-mean_unit-mean-v1",missingness_policy:"available-observations_require-unexcluded-units-v1",plot:{kind:design==="paired"?"paired":"distribution",preset,language,...figure,group_order:figureOrder(figure.group_order,conditions)}};
+  setSubmitting(true);try{const payload=commonComparisonRequest(spec,method,plotKind||(design==="paired"?"paired":"distribution"),bins);const created=await post<{job_id:string}>(`/v1/revisions/${revision.id}/${method==="legacy"?"region-comparisons":"common-statistics"}`,payload);setSelectedJob(created.job_id);setSavedForm(formFingerprint);}finally{setSubmitting(false);}
  }
  return <section ref={panel} className={styles.regionComparison} aria-label="統計解析">
   <div className={styles.card}><h2>実験情報</h2><p>処置を独立に割り付けた単位を記録し、その単位から得た複数視野には同じIDを使います。領域数や視野数を独立反復数に置き換えません。</p>
@@ -71,10 +78,11 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
    </details>
     {!revision?.reviewed&&<div className={styles.notice}>{isAreaOnly(revision?.config.measurement)?"保存後は領域・面積と採否を確認してください。":"保存後は領域・背景と採否を確認してください。"}<button className={styles.secondary} onClick={onReview}>画像と品質確認へ</button></div>}
   </div>
-  <div className={styles.statistics}><div className={`${styles.statsControls} ${styles.comparisonControls}`}><h2>統計解析</h2>
+  <div className={styles.actionRow} role="group" aria-label="統計解析の種類"><button className={styles.secondary} aria-pressed={view==="comparison"} onClick={()=>setView("comparison")}>群間比較</button><button className={styles.secondary} aria-pressed={view==="association"} onClick={()=>{setAssociationMounted(true);setView("association");}}>相関解析</button></div>
+  <div hidden={view!=="comparison"}><div className={styles.statistics}><div className={`${styles.statsControls} ${styles.comparisonControls}`}><h2>統計解析</h2>
    <label>比較する測定値<select data-comparison-control="metric" aria-label="比較する測定値" value={option?.id||""} onChange={event=>{setChoice(event.target.value);clearConfirmations();setSamplingConfirmed(false);}}><option value="" disabled>選択してください</option>{options.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
    {revision?.config.plan_resolution&&!option&&<p className={styles.notice}>採用計画の指標・チャンネルをこの解析版で利用できません。測定値を確認して選択してください。</p>}{selectionChangedFromPlan(option,revision?.config.plan_resolution)&&<p className={styles.notice}>採用計画から指標またはチャンネルを変更しています。この選択を比較条件として保存します。</p>}
-   <label>実験デザイン<select data-comparison-control="design" aria-label="実験デザイン" value={design} onChange={event=>{setDesign(event.target.value as typeof design);setDesignConfirmed(false);}}><option value="">選択してください</option><option value="independent">独立した実験単位の比較</option><option value="paired">同じ実験単位・対応する試料の比較</option></select></label>
+   <label>実験デザイン<select data-comparison-control="design" aria-label="実験デザイン" value={design} onChange={event=>{setDesign(event.target.value as typeof design);setPlotKind("");setDesignConfirmed(false);}}><option value="">選択してください</option><option value="independent">独立した実験単位の比較</option><option value="paired">同じ実験単位・対応する試料の比較</option></select></label>
    <label>独立実験単位の定義<input data-comparison-control="unit-definition" aria-label="独立実験単位の定義" value={unitDefinition} maxLength={200} placeholder="例：別々に培養した培養皿" onChange={event=>{setUnitDefinition(event.target.value);setDesignConfirmed(false);}}/></label>
    {design==="paired"&&<label>対応の根拠<input data-comparison-control="pairing-basis" aria-label="対応の根拠" value={pairingBasis} maxLength={200} placeholder="どの試料同士が対応するか" onChange={event=>{setPairingBasis(event.target.value);setDesignConfirmed(false);}}/></label>}
    <label className={styles.checkbox}><input data-comparison-control="design-confirmed" type="checkbox" checked={designConfirmed} onChange={event=>setDesignConfirmed(event.target.checked)}/>独立性と、必要な対応関係を実験記録で確認しました。</label>
@@ -89,9 +97,13 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
     <label className={styles.checkbox}><input data-comparison-control="missingness" type="checkbox" checked={missingnessConfirmed} onChange={event=>setMissingnessConfirmed(event.target.checked)}/>除外・欠測と比較対象を確認しました。</label>
     <p>値のない未除外の実験単位や不完全な対応ペアは、黙って除かず比較を止めます。各条件2単位または2ペア以上が必要ですが、十分な検出力を保証する数ではありません。</p>
    </details>
-   <p className={styles.small}>検定には独立実験単位の要約値を使います。視野の中央値を試料内で平均し、さらに独立実験単位内で平均します。図の小点は領域、四角は視野中央値、色付き点は独立実験単位です。</p><details className={styles.metadataHelp}><summary>検定方法と図の設定</summary><p>{design==="paired"?"対応ありt検定":"Welchのt検定"}、両側検定。95%信頼区間は多重比較補正前の区間です。</p>
-    <div className={styles.formGrid}><label>図の言語<select aria-label="比較図の言語" value={language} onChange={event=>setLanguage(event.target.value as typeof language)}><option value="en">English</option><option value="ja">日本語</option></select></label><label>図の幅<select aria-label="比較図の幅" value={preset} onChange={event=>setPreset(event.target.value as typeof preset)}><option value="nature-single">89 mm</option><option value="nature-double">183 mm</option></select></label></div>
-    {design==="paired"&&<p>対応ありでは、宣言したペアを線で結びます。</p>}
+   <p className={styles.small}>検定には独立実験単位の要約値を使います。視野の中央値を試料内で平均し、さらに独立実験単位内で平均します。{method==="legacy"?"図の小点は領域、四角は視野中央値、色付き点は独立実験単位です。":"図は独立実験単位の集計値を表示します。"}</p><details className={styles.metadataHelp}><summary>検定方法と図の設定</summary><label>検定方式<select aria-label="検定方式" value={method} onChange={event=>{setMethod(event.target.value as ComparisonMethod);setPlotKind("");}}><option value="legacy">t検定（既存の解析方式）</option><option value="parametric">平均の比較：t検定・Welch ANOVA</option><option value="rank">順位の比較：Mann–Whitney・Wilcoxon・Kruskal–Wallis</option></select></label>
+    <p>{comparisonMethodLabel(method,design,conditions.length)}。{method==="rank"?(design==="paired"?"対応差の対称性を仮定します。ゼロ差は順位検定から除き、その数を結果に記録します。":"順位に基づいて分布を比較します。分布の形が異なる場合、中央値の差だけを検定するものではありません。"):"t検定は両側検定です。95%信頼区間は多重比較補正前の区間です。"}</p>
+    {method!=="legacy"&&conditions.length>=3&&design==="independent"&&<p className={styles.small}>全体検定と、指定した群間比較を両方実行します。全体検定のp値で群間比較の実施を切り替えません。</p>}
+    {method!=="legacy"&&<><label>図の種類<select aria-label="比較図の種類" value={plotKind||(design==="paired"?"paired":"distribution")} onChange={event=>setPlotKind(event.target.value as CommonPlotKind)}><option value="distribution">実験単位の点</option>{design==="paired"&&<option value="paired">対応ペア</option>}<option value="histogram">ヒストグラム</option><option value="box">箱ひげ図</option><option value="violin">バイオリン図</option></select></label>{plotKind==="histogram"&&<label>ビン数<input aria-label="比較図のビン数" type="number" min={3} max={50} step={1} value={bins} onChange={event=>setBins(Number(event.target.value))}/></label>}<p className={styles.small}>図は独立実験単位の集計値を表示します。分布の形は反復数に依存します。</p></>}
+    <div className={styles.formGrid}><label>図の言語<select aria-label="比較図の言語" value={language} onChange={event=>setLanguage(event.target.value as typeof language)}><option value="en">English</option><option value="ja">日本語</option></select></label><label>図の幅<select aria-label="比較図の幅" value={preset} onChange={event=>setPreset(event.target.value as typeof preset)}><option value="nature-single">89 mm</option><option value="nature-double">183 mm</option><option value="custom">カスタム</option></select></label></div>
+    <FigureControls prefix="比較図" preset={preset} value={figure} onChange={setFigure} groups={conditions.map(id=>({id,label:id}))}/>
+    {design==="paired"&&(method==="legacy"||!plotKind||plotKind==="paired")&&<p>対応ありでは、宣言したペアを線で結びます。</p>}
    </details>
    <section aria-label="比較の前に確認すること" className={styles.small} hidden={!readiness.length}><h3>比較の前に</h3><ul>{readiness.slice(0,3).map(readinessItem)}</ul>{readiness.length>3&&<details><summary>ほか {readiness.length-3} 件を確認</summary><ul>{readiness.slice(3).map(readinessItem)}</ul></details>}</section>
    <button className={styles.primary} disabled={disabled} onClick={()=>run(submit)}>比較と図を作成</button>
@@ -100,9 +112,9 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
     <div className={styles.card} aria-label="保存済みの群間比較"><div className={styles.sectionHeader}><h3>群間の比較</h3><span>{data.revision_id===revision?.id?"採用中の解析版":"旧版の結果"}</span></div><p aria-label="保存済みの比較指標"><b>{comparisonLabel(data)}</b></p><p>{revisionLabels[data.revision_id]||"保存済みの解析版"} · 単位 {data.unit} · {data.spec.design.kind==="paired"?"対応あり":"独立群"}</p><p className={styles.small}>以下は保存済みの解析条件に対応する結果です。設定を変更したら「比較と図を作成」で更新します。</p>{image&&<img src={image} alt="実験単位の集計値と群間比較の図" style={{maxWidth:"100%",height:"auto"}}/>}
      <div className={styles.actionRow}>{(Array.isArray(data.figure.source_files)?data.figure.source_files:[]).filter((name):name is string=>typeof name==="string"&&!!fileLabels[name]).map(name=><button className={styles.secondary} key={name} onClick={()=>run(()=>download(`/v1/jobs/${job!.id}/files/${name}`,name))}>{fileLabels[name]} ↓</button>)}</div>
     </div>
-    <div className={styles.card}><h3>群間差・95%信頼区間</h3><div className={styles.tableWrap}><table><thead><tr><th>比較A</th><th>比較B</th><th>差（A − B）</th><th>95%信頼区間</th><th>p（未補正）</th><th>p（Holm）</th></tr></thead><tbody>{data.comparisons.map((row,i)=><tr key={i}><td>{asText(row.group_a)}</td><td>{asText(row.group_b)}</td><td>{formatValue(row.estimate)}</td><td>{formatValue(row.ci_low)} ～ {formatValue(row.ci_high)}</td><td>{probabilityLabel(row.p_value)}</td><td>{probabilityLabel(row.p_holm)}</td></tr>)}</tbody></table></div><p className={styles.small}>Holm補正は指定した {data.spec.comparison_family.contrasts.length} 比較に適用。信頼区間は個別の95%区間です。</p>
+    <div className={styles.card}><h3>{"method_settings" in data&&data.spec.test!=="welch-t"&&data.spec.test!=="paired-t"?"順位検定・効果量":"群間差・95%信頼区間"}</h3>{"omnibus" in data&&data.omnibus&&<div aria-label="全体検定の結果"><p>{String(data.omnibus.method)} · 統計量 {formatValue(data.omnibus.statistic)} · p {probabilityLabel(data.omnibus.p_value)}</p></div>}<div className={styles.tableWrap}><table><thead><tr><th>比較A</th><th>比較B</th><th>平均差（A − B）</th><th>順位効果量</th><th>95%信頼区間</th><th>p（未補正）</th><th>p（Holm）</th></tr></thead><tbody>{data.comparisons.map((row,i)=><tr key={i}><td>{asText(row.group_a)}</td><td>{asText(row.group_b)}</td><td>{formatValue(row.estimate)}</td><td>{formatValue(row.effect)}{typeof row.effect_name==="string"&&<small> · {row.effect_name==="probability of superiority A over B (ties half)"?"AがBを上回る確率（同値は1/2）":row.effect_name==="matched rank-biserial correlation A minus B"?"対応順位双列相関（A − B）":row.effect_name}</small>}</td><td>{formatValue(row.ci_low)} ～ {formatValue(row.ci_high)}</td><td>{probabilityLabel(row.p_value)}</td><td>{probabilityLabel(row.p_holm)}</td></tr>)}</tbody></table></div><p className={styles.small}>Holm補正は指定した {data.spec.comparison_family.contrasts.length} 比較に適用。平均差の信頼区間は個別の95%区間です。順位検定では平均差とその信頼区間を算出しません。</p>
      <Records rows={data.counts} columns={[["condition","条件"],["observations","領域"],["selected_fields","視野"],["samples","試料"],["experimental_units","独立実験単位"],["complete_pairs","完全なペア"]]}/>
-     {!!data.warnings.length&&<ul className={styles.comparisonWarnings}>{data.warnings.map(warning=><li key={warning}>{comparisonWarnings[warning]||warning}</li>)}</ul>}
+     {!!data.warnings.length&&<ul className={styles.comparisonWarnings}>{data.warnings.map(warning=><li key={warning}>{comparisonWarnings[warning]||commonWarnings[warning]||warning}</li>)}</ul>}
     </div>
     <RegionComparisonHierarchy key={JSON.stringify([job!.id,data.revision_id,data.source_fingerprint])} result={data} fieldLabels={fieldLabels} revisionLabel={revisionLabels[data.revision_id]||"保存済みの解析版"} disabled={blocked||dirty||metadataDirty||submitting||traceBlocked} onInspectSourceField={onInspectSourceField}/>
     <div className={styles.card}><h3>採用・除外と元画像</h3><p>入力 {formatValue(data.selection.input_rows)} · 採用 {formatValue(data.selection.selected)} · 明示除外 {formatValue(data.selection.excluded??0)} · 欠測 {formatValue(data.selection.missing??0)} · 比較対象外 {formatValue(data.selection.out_of_scope??0)}</p><p className={styles.small}>失敗を確認して除外した視野 {data.excluded_failed_fields.length} 件の観測数は不明です。</p>
@@ -111,6 +123,7 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
     </div>
    </>}
    {!!available.length&&<details className={styles.card}><summary>比較の履歴</summary>{available.map(item=><button className={styles.linkButton} key={item.id} onClick={()=>setSelectedJob(item.id)}>{new Date(item.created*1000).toLocaleString("ja-JP")} · {revisionLabels[item.revision_id]||"解析版"} · {item.state==="succeeded"?"作成済み":item.state==="failed"?"失敗":item.state==="cancelled"?"中止":item.state==="running"?"実行中":"待機中"}</button>)}</details>}
-  </div></div>
+  </div></div></div>
+  {associationMounted&&<div hidden={view!=="association"}><RegionAssociationPanel revision={revision} fields={fields} options={options} jobs={jobs} blocked={blocked} dirty={dirty} metadataDirty={metadataDirty} run={run} onDraftChange={setAssociationDirty}/></div>}
  </section>;
 }

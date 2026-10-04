@@ -2,7 +2,7 @@ import type {components} from "./generated";
 import type {Job} from "./types";
 import {regionMetricLabels,type RegionMetric} from "./region-types";
 
-export type RegionComparisonResult=components["schemas"]["RegionComparisonView"];
+export type RegionComparisonResult=components["schemas"]["RegionComparisonView"]|components["schemas"]["CommonComparisonView"];
 // Keep the saved-result contract generated from OpenAPI; the trace adapter validates
 // its deliberately untyped nested ledger rows before exposing a UI hierarchy.
 export type RegionComparisonTraceInput=Pick<RegionComparisonResult,
