@@ -3,7 +3,8 @@ import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL } from "@/lib/release";
 import { EditorialHeading } from "./EditorialHeading";
 import { PublicationStage } from "./PublicationStage";
 import { ProductMenu } from "./ProductMenu";
-import { MicroscopyMotion, EvidenceExample, ProductWalkthrough } from "./MarketingMotion";
+import { CellHero } from "./CellHero";
+import { EvidenceExample, ProductWalkthrough } from "./MarketingMotion";
 import styles from "./product.module.css";
 
 const docs = "https://github.com/genellect/cytellect/blob/main/docs/";
@@ -16,7 +17,7 @@ export default function PublicLanding() {
     <header className={styles.header}><Link href="/" aria-label="Cytellect ホーム" className={styles.wordmark}>cytellect</Link><nav className={styles.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <main id="main">
       <section className={styles.hero} aria-labelledby="hero-title">
-        <MicroscopyMotion /><div className={styles.heroShade} />
+        <CellHero /><div className={styles.heroShade} />
         <div className={styles.heroCopy}><h1 id="hero-title" lang="en"><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-ready.</span></h1><div className={styles.heroActions}><a href="#download" className={styles.primary}>ダウンロード <Arrow /></a><Link href="/demo" className={styles.heroSecondary}>解析例を見る <Arrow /></Link></div></div>
       </section>
 

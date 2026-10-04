@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "authored-three-dimensional-artwork",
+  "title": "Microscopy-inspired membrane sculpture",
+  "author": "Cytellect",
+  "license": "Apache-2.0",
+  "description": "A single asymmetric cutaway membrane with folded internal morphology, authored from deterministic geometry in Blender. No measured biological structure, image segmentation, or scientific reconstruction is represented.",
+  "scientific_data": false,
+  "external_models_or_textures": [],
+  "source": {
+    "url": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
+    "path": "scripts/create_cell_sculpture.py",
+    "sha256": "85d344077932dd79a8c560950dd49ff0c437b3fc4f5ce02d20243bde28d524f4",
+    "commit": "59bc3882067dd13d7cba91553dc06fea26994786",
+    "seed": 1404
+  },
+  "tools": {
+    "blender": {
+      "version": "4.5.14 LTS",
+      "distribution_url": "https://download.blender.org/release/Blender4.5/blender-4.5.14-linux-x64.tar.xz",
+      "distribution_sha256": "9ba871ff2ecd36526b77432745980b7e6664ecd0c7ca11c48849073dcfe06da3",
+      "license": "GPL-3.0-or-later (separate from authored artwork)"
+    },
+    "poster_encoder": "Pillow 10.2.0"
+  },
+  "workflow": {
+    "url": "https://github.com/genellect/cytellect/actions/runs/37191961967",
+    "render_engine": "Cycles CPU",
+    "threads": 4,
+    "samples": 64
+  },
+  "geometry": {
+    "triangles": 46220,
+    "meshes": 6,
+    "max_axis_diameter": 4,
+    "units": "artwork units",
+    "up": "+Y",
+    "presentation_face": "+Z",
+    "bounds": {
+      "min": [
+        -2.0,
+        -1.7006356716156006,
+        -0.8708069324493408
+      ],
+      "max": [
+        2.0,
+        1.7006356716156006,
+        0.8708069324493408
+      ]
+    },
+    "embedded_normal_texture": [
+      512,
+      512
+    ],
+    "external_uris": 0,
+    "materials": "blue metallic-roughness PBR; seeded isotropic multi-scale normal texture"
+  },
+  "poster": {
+    "size": [
+      1600,
+      1000
+    ],
+    "composition": "subject on right; negative space on left",
+    "camera": "Blender perspective, 55 mm",
+    "lighting": "blue oblique key, cyan rim, low fill; dark midnight-blue world"
+  },
+  "files": {
+    "cell-sculpture.glb": {
+      "sha256": "81b33a2adb1f1a375143a720ce74c52fbf7134a1b43108631f69445a3828e407",
+      "bytes": 1603532
+    },
+    "cell-sculpture-poster.webp": {
+      "sha256": "acb52a9e37df399058883de114e211766cbcddbfc9bead3850ceaf26b6c52a6a",
+      "bytes": 83076
+    }
+  },
+  "review": {
+    "artifact_hashes_checked": true,
+    "glb_binary_geometry_checked": true,
+    "poster_visually_reviewed": true,
+    "review_scope": "Removed radial texture convergence and regular texture bands after two visual revisions; confirmed final composition and visible layered morphology. This is artwork review, not scientific validation."
+  }
+}

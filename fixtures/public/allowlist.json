@@ -155,7 +155,7 @@
     "license": "Apache-2.0"
   },
   "apps/web/public/marketing/provenance.json": {
-    "sha256": "3fdf4776916fc3313decaad8c7e67559ea0997a65d27c4d9a621e33ba9531eda",
+    "sha256": "c518a3af4c0365f9a97ef6cb99904281fb918d624e83d5a61991602e6d58bacd",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -190,12 +190,12 @@
     "license": "OFL-1.1"
   },
   "apps/web/public/fonts/NotoSansJPVariable.woff2": {
-    "sha256": "02cc474f2e0782737f707f33a30fc94db2ade485f01b7163a5162db13207215f",
+    "sha256": "ccb11e15efc77694744dd8510722e28bc92187ba8a8f344dbdb70602db55398a",
     "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
     "license": "OFL-1.1"
   },
   "apps/web/public/fonts/subset-manifest.json": {
-    "sha256": "b7d92d7d883e0329dfc04a7834c25b41a4ecc6824661694fc29e9bce337cbd3a",
+    "sha256": "6aef292859b04015ae26eb4e545c1d463d0bde037bc85f439f78f0b9453fe7f7",
     "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
     "license": "OFL-1.1"
   },
@@ -218,5 +218,20 @@
     "sha256": "0529eec3aafb31346d7beb27c74609b85cb15470fd87053eeea63bf517245e75",
     "source": "https://unsplash.com/license",
     "license": "Source metadata; image-specific licenses recorded in manifest"
+  },
+  "apps/web/public/marketing/cell-sculpture.glb": {
+    "sha256": "81b33a2adb1f1a375143a720ce74c52fbf7134a1b43108631f69445a3828e407",
+    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/cell-sculpture-poster.webp": {
+    "sha256": "acb52a9e37df399058883de114e211766cbcddbfc9bead3850ceaf26b6c52a6a",
+    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/cell-sculpture-provenance.json": {
+    "sha256": "58aec4dafe74413b58819298710ec71bf992e6daba697f671a482e8384f27154",
+    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
+    "license": "Apache-2.0"
   }
 }

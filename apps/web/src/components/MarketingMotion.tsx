@@ -1,44 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import dynamic from "next/dynamic";
 import styles from "./product.module.css";
-
-export function MicroscopyMotion() {
-  const video = useRef<HTMLVideoElement>(null);
-  const userPaused = useRef(false);
-  const [enabled, setEnabled] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const change = () => {
-      setEnabled(!preference.matches);
-      if (preference.matches) { video.current?.pause(); setPlaying(false); }
-    };
-    change(); preference.addEventListener("change", change);
-    return () => preference.removeEventListener("change", change);
-  }, []);
-  useEffect(() => {
-    if (!enabled || failed || !video.current) return;
-    const current = video.current;
-    const observer = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting && !document.hidden && !userPaused.current) void current.play().catch(() => setPlaying(false));
-      else current.pause();
-    });
-    observer.observe(current);
-    const visibility = () => { if (document.hidden) current.pause(); };
-    document.addEventListener("visibilitychange", visibility);
-    return () => { observer.disconnect(); document.removeEventListener("visibilitychange", visibility); current.pause(); };
-  }, [enabled, failed]);
-  return <div className={styles.microscopy}>
-    <img className={styles.heroPoster} src="/marketing/hero-microscopy-poster.webp" alt="公開蛍光顕微鏡画像" width={1920} height={1080} fetchPriority="high" />
-    {enabled && !failed && <video ref={video} className={styles.heroVideo} muted playsInline loop preload="none" poster="/marketing/hero-microscopy-poster.webp" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => { setFailed(true); setPlaying(false); }} aria-label="蛍光顕微鏡画像"><source src="/marketing/hero-microscopy.mp4" type="video/mp4" onError={() => { setFailed(true); setPlaying(false); }} /></video>}
-    {enabled && !failed && <button className={styles.motionToggle} type="button" aria-label={playing ? "背景映像を停止" : "背景映像を再生"} onClick={() => { if (playing) { userPaused.current = true; video.current?.pause(); } else { userPaused.current = false; void video.current?.play().catch(() => setPlaying(false)); } }}>{playing ? "Ⅱ" : "▷"}</button>}
-  </div>;
-}
-
 
 const LinkedImageFigure = dynamic(() => import("./LinkedImageFigure"), {loading: () => <p>公開画像を読み込んでいます…</p>});
 export function EvidenceExample() {

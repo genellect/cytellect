@@ -63,7 +63,8 @@
       "apps/web/src/components/WorkspaceEntry.tsx": "bc6be5fb9f22d9c4ffd373d814776ae39acede4a328f01f3c73428e8d7976fda",
       "apps/web/src/lib/planning-display.ts": "10103be950641072077957f06f8162f4467f5c5f37e2bc3e495f705066515e38"
     },
-    "ui_revision_scope": "Uncommitted current UI redesign, recorded by exact source hashes; underlying saved measurements retain the original analysis source identity."
+    "ui_revision_scope": "Uncommitted current UI redesign, recorded by exact source hashes; underlying saved measurements retain the original analysis source identity.",
+    "scope": "Application screenshots, operation recording, public microscopy and measured figure assets only; the authored 3D hero has its own current_hero provenance record."
   },
   "hero": {
     "source": "4dn",
@@ -249,5 +250,12 @@
       "input_hashes": "scripts/build_marketing_media.py",
       "subset_record": "/fonts/subset-manifest.json"
     }
+  },
+  "current_hero": {
+    "kind": "authored-three-dimensional-artwork",
+    "provenance": "/marketing/cell-sculpture-provenance.json",
+    "model": "/marketing/cell-sculpture.glb",
+    "poster": "/marketing/cell-sculpture-poster.webp",
+    "license": "Apache-2.0"
   }
 }
