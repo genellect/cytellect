@@ -1,5 +1,5 @@
 "use client";
-import {useRef,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
 import {download,errorCodeMessage,errorMessage,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
@@ -11,16 +11,17 @@ import styles from "./workspace.module.css";
 import {plannedSelection,selectionChangedFromPlan} from "@/lib/planned-selection";
 import RegionComparisonHierarchy from "./RegionComparisonHierarchy";
 import type {RegionFieldTraceTarget} from "@/lib/region-trace";
+import type {ComparisonDraft} from "@/lib/draft-navigation";
 import {isAreaOnly} from "@/lib/region-measurement";
 import {comparisonReadiness,type ComparisonReadinessIssue} from "@/lib/region-comparison-readiness";
 
-type Props={revision?:RegionRevision;fields:RegionField[];options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;traceBlocked?:boolean;fieldLabels?:Record<string,string>;run:(work:()=>Promise<void>)=>void;onReview:()=>void;onInspectField:(fieldId:string,revisionId:string)=>void;onInspectSourceField?:(target:RegionFieldTraceTarget)=>void;revisionLabels:Record<string,string>};
+type Props={onDraftChange?:(draft:ComparisonDraft)=>void;runMetadata?:(work:()=>Promise<void>)=>void;revision?:RegionRevision;fields:RegionField[];options:DescriptiveOption[];jobs:Job[];blocked:boolean;dirty:boolean;traceBlocked?:boolean;fieldLabels?:Record<string,string>;run:(work:()=>Promise<void>)=>void;onReview:()=>void;onInspectField:(fieldId:string,revisionId:string)=>void;onInspectSourceField?:(target:RegionFieldTraceTarget)=>void;revisionLabels:Record<string,string>};
 const fileLabels:Record<string,string>={"figure.svg":"SVG","figure.pdf":"PDF","figure.png":"PNG","plot-data.csv":"図の元データ","observations.csv":"観測・採否","source-fields.csv":"実験情報","field-summary.csv":"視野集計","sample-summary.csv":"試料集計","experimental-units.csv":"実験単位集計","unit-ledger.csv":"実験単位の採否","pair-ledger.csv":"対応ペア","comparisons.csv":"比較結果","missingness.csv":"欠測","excluded-failed-fields.csv":"失敗視野の除外","figure-caption.md":"図の説明","figure-data.json":"条件と出典","methods.md":"Methods"};
 const metadataLabels=[['condition','条件'],['sample','試料'],['experimental_unit','独立実験単位'],['acquisition_date','撮影日／バッチ'],['pair','対応ペア'],['repeat_length','リピート長']] as const;
 const asText=(value:unknown)=>value===null||value===undefined?"—":String(value);
 function Records({rows,columns}:{rows:Record<string,unknown>[];columns:[string,string][]}){return <div className={styles.tableWrap}><table><thead><tr>{columns.map(([key,label])=><th key={key}>{label}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{columns.map(([key])=><td key={key}>{formatValue(row[key])}</td>)}</tr>)}</tbody></table></div>;}
 
-export default function RegionComparisonPanel({revision,fields,options,jobs,blocked,dirty,traceBlocked=false,fieldLabels={},run,onReview,onInspectField,onInspectSourceField,revisionLabels}:Props){
+export default function RegionComparisonPanel({revision,fields,options,jobs,blocked,dirty,traceBlocked=false,fieldLabels={},run,onReview,onInspectField,onInspectSourceField,revisionLabels,onDraftChange,runMetadata=run}:Props){
  const panel=useRef<HTMLElement>(null);
  const [metadata,setMetadata]=useState<Record<string,RegionMetadata>>(()=>Object.fromEntries(fields.map(field=>[field.id,{...field.metadata}])));
  const [metadataDirty,setMetadataDirty]=useState(false);
@@ -30,6 +31,9 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
  const [acquisitionConfirmed,setAcquisitionConfirmed]=useState(false);const [samplingConfirmed,setSamplingConfirmed]=useState(false);const [missingnessConfirmed,setMissingnessConfirmed]=useState(false);
  const [language,setLanguage]=useState<"en"|"ja">("en");const [preset,setPreset]=useState<"nature-single"|"nature-double">("nature-double");
  const [selectedJob,setSelectedJob]=useState("");const [submitting,setSubmitting]=useState(false);
+ const formFingerprint=JSON.stringify([choice,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,planned,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed,language,preset]);
+ const [savedForm,setSavedForm]=useState(formFingerprint);const formDirty=formFingerprint!==savedForm;
+ useEffect(()=>{onDraftChange?.({metadata:metadataDirty,form:formDirty});},[metadataDirty,formDirty,onDraftChange]);
  const available=regionComparisonJobs(jobs);const job=selectedRegionComparisonJob(jobs,selectedJob,revision?.id);
  const result=useQuery({queryKey:["region-comparison",job?.id],queryFn:()=>request<RegionComparisonResult>(`/v1/jobs/${job!.id}/region-comparison`),enabled:job?.state==="succeeded"});
  const data=!submitting&&job?.state==="succeeded"&&result.data?.revision_id===job.revision_id?result.data:undefined;
@@ -41,7 +45,7 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
  const metric=option?.selection.metric||"";const area=metric.startsWith("area_");const needsSampling=metric==="area_px"||metric.includes("integrated");
  const missingMetadata=fields.some(field=>!field.metadata.condition||(conditions.includes(field.metadata.condition)&&(!field.metadata.sample||!field.metadata.experimental_unit||(design==="paired"&&!field.metadata.pair)||(!area&&!field.metadata.acquisition_date))));
  const disabled=blocked||dirty||metadataDirty||submitting||!revision?.reviewed||!option||!design||!designConfirmed||!unitDefinition.trim()||(design==="paired"&&!pairingBasis.trim())||!scopeMatches||missingMetadata||!acquisitionConfirmed||!missingnessConfirmed||(needsSampling&&!samplingConfirmed);
- const readiness=comparisonReadiness({blocked,submitting,dirty,metadataDirty,hasRevision:!!revision,reviewed:!!revision?.reviewed,hasMetric:!!option,metric,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,contrasts,fields,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed});
+ const readiness=comparisonReadiness({blocked,submitting,dirty,metadataDirty,hasRevision:!!revision,reviewed:!!revision?.reviewed,hasMetric:!!option,metric,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,contrasts,fields,fieldLabels,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed});
  function visitIssue(issue:ComparisonReadinessIssue){
   if(issue.target==="review"){onReview();return;}
   const element=issue.fieldId?[...panel.current!.querySelectorAll<HTMLInputElement>("[data-comparison-field]")].find(input=>input.dataset.comparisonField===issue.fieldId&&input.dataset.metadataKey===issue.metadataKey):panel.current?.querySelector<HTMLElement>(`[data-comparison-control="${issue.target}"]`);
@@ -57,13 +61,13 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
   if(disabled||!revision||!option||option.selection.source!=="region"||!design)return;
   const selection={...option.selection,metric:option.selection.metric as RegionComparisonRequest["selection"]["metric"]};
   const spec:RegionComparisonRequest={mode:"region-experimental-unit",version:"1.0.0",selection,design:{kind:design,confirmed:true,unit_definition:unitDefinition.trim(),pairing_basis:design==="paired"?pairingBasis.trim():null},conditions,comparison_family:{family_id:"primary",kind:familyKind,control:familyKind==="control"?control:null,contrasts},acquisition_review:{confirmed:true,basis:metric==="area_um2"?"calibrated-area":"same-settings",field_batches:{},spatial_sampling_confirmed:samplingConfirmed},missingness_confirmed:true,aggregation:"field-median_sample-mean_unit-mean-v1",missingness_policy:"available-observations_require-unexcluded-units-v1",plot:{kind:design==="paired"?"paired":"distribution",preset,language,width_inches:7,height_inches:3,font_size:7,x_label:"",y_label:"",group_order:conditions}};
-  setSubmitting(true);try{const created=await post<{job_id:string}>(`/v1/revisions/${revision.id}/region-comparisons`,spec);setSelectedJob(created.job_id);}finally{setSubmitting(false);}
+  setSubmitting(true);try{const created=await post<{job_id:string}>(`/v1/revisions/${revision.id}/region-comparisons`,spec);setSelectedJob(created.job_id);setSavedForm(formFingerprint);}finally{setSubmitting(false);}
  }
  return <section ref={panel} className={styles.regionComparison} aria-label="実験単位で比較">
   <div className={styles.card}><h2>実験情報を確認</h2><p>処置を独立に割り付けた単位を記録し、その単位から得た複数視野には同じIDを使います。領域数や視野数を独立反復数に置き換えません。</p>
-   <details open={missingMetadata||metadataDirty}><summary>視野と実験単位の対応</summary><p className={styles.small}>比較する視野の条件・試料・独立実験単位を入力します。対応がある場合は同じペア名を使います。未確認の情報を推測して埋めないでください。</p>
-    <div className={`${styles.tableWrap} ${styles.metadataTable}`}><table><thead><tr><th>視野</th>{metadataLabels.map(([key,label])=><th key={key}>{label}</th>)}</tr></thead><tbody>{fields.map((field,i)=><tr key={field.id}><th>視野 {i+1}</th>{metadataLabels.map(([key,label])=><td key={key}><input data-comparison-field={field.id} data-metadata-key={key} aria-label={`視野 ${i+1} の${label}`} value={metadata[field.id]?.[key]??""} type={key==="repeat_length"?"number":"text"} min={key==="repeat_length"?0:undefined} step={key==="repeat_length"?"any":undefined} maxLength={80} disabled={blocked} onChange={event=>metadataUpdate(field.id,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div>
-    <button data-comparison-control="metadata-save" className={styles.secondary} disabled={blocked||dirty||!metadataDirty||revision?.state!=="succeeded"} onClick={()=>run(async()=>{await post(`/v1/revisions/${revision!.id}/region-metadata`,{version:"1.0.0",fields:Object.fromEntries(Object.entries(metadata).map(([fid,values])=>[fid,Object.fromEntries(Object.entries(values).map(([key,value])=>[key,typeof value==="string"?value.trim()||null:value]))]))});})}>実験情報を新しい解析版に保存</button><p className={styles.small}>画像と修正領域を保持し、新しい解析版で再測定します。元の情報も旧版に残ります。</p>
+   <details open={missingMetadata||metadataDirty}><summary>視野と実験単位の対応</summary><p className={styles.small}>比較する視野の条件・試料・独立実験単位を入力します。対応がある場合は同じペア名を使います。未確認の情報を推測して埋めないでください。</p><p className={styles.small}>同じ試料の視野には同じ試料名を使い、試料ごとの視野平均を独立実験単位内で等しく平均します。<a href="https://github.com/genellect/cytellect/blob/main/docs/usability-practice.ja.md" target="_blank" rel="noreferrer">集計の練習例 ↗</a></p>
+    <div className={`${styles.tableWrap} ${styles.metadataTable}`}><table><thead><tr><th>視野</th>{metadataLabels.map(([key,label])=><th key={key}>{label}</th>)}</tr></thead><tbody>{fields.map(field=><tr key={field.id}><th>{fieldLabels[field.id]||"保存済みの視野"}</th>{metadataLabels.map(([key,label])=><td key={key}><input data-comparison-field={field.id} data-metadata-key={key} aria-label={`${fieldLabels[field.id]||"保存済みの視野"} の${label}`} value={metadata[field.id]?.[key]??""} type={key==="repeat_length"?"number":"text"} min={key==="repeat_length"?0:undefined} step={key==="repeat_length"?"any":undefined} maxLength={80} disabled={blocked} onChange={event=>metadataUpdate(field.id,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div>
+    <button data-comparison-control="metadata-save" className={styles.secondary} disabled={blocked||dirty||!metadataDirty||revision?.state!=="succeeded"} onClick={()=>runMetadata(async()=>{await post(`/v1/revisions/${revision!.id}/region-metadata`,{version:"1.0.0",fields:Object.fromEntries(Object.entries(metadata).map(([fid,values])=>[fid,Object.fromEntries(Object.entries(values).map(([key,value])=>[key,typeof value==="string"?value.trim()||null:value]))]))});})}>実験情報を新しい解析版に保存</button><p className={styles.small}>画像と修正領域を保持し、新しい解析版で再測定します。元の情報も旧版に残ります。</p>
    </details>
     {!revision?.reviewed&&<div className={styles.notice}>{isAreaOnly(revision?.config.measurement)?"保存後は領域・面積と採否を確認してください。":"保存後は領域・背景と採否を確認してください。"}<button className={styles.secondary} onClick={onReview}>画像と品質確認へ</button></div>}
   </div>
