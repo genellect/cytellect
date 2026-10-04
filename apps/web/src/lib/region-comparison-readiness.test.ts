@@ -22,15 +22,19 @@ describe("comparison readiness uses recorded choices, not inferred scientific va
   expect(comparisonReadiness(ready({conditions:["A"],familyKind:"planned",contrasts:[]})).map(issue=>issue.id)).toEqual(["conditions-required","contrasts-required"]);
  });
  it("names each missing recorded field and its first exact control",()=>{
-  const issues=comparisonReadiness(ready({design:"paired",pairingBasis:"Recorded matching",fields:[
+  const issues=comparisonReadiness(ready({design:"paired",pairingBasis:"Recorded matching",fieldLabels:{unknown:"視野 2",selected:"視野 3"},fields:[
    {id:"unknown",metadata:metadata({condition:null})},
    {id:"selected",metadata:metadata({sample:null,experimental_unit:null,pair:null,acquisition_date:null})},
    {id:"outside",metadata:metadata({condition:"C",sample:null,experimental_unit:null})},
   ]}));
   expect(issues).toEqual([
-   {id:"metadata-unknown",message:"視野 1：条件が未記録です。",fieldId:"unknown",metadataKey:"condition",action:"視野 1 の条件へ"},
-   {id:"metadata-selected",message:"視野 2：試料・独立実験単位・対応ペア・撮影日／バッチが未記録です。",fieldId:"selected",metadataKey:"sample",action:"視野 2 の試料へ"},
+   {id:"metadata-unknown",message:"視野 2：条件が未記録です。",fieldId:"unknown",metadataKey:"condition",action:"視野 2 の条件へ"},
+   {id:"metadata-selected",message:"視野 3：試料・独立実験単位・対応ペア・撮影日／バッチが未記録です。",fieldId:"selected",metadataKey:"sample",action:"視野 3 の試料へ"},
   ]);
+ });
+ it("does not invent an ordinal when the original field label is unavailable",()=>{
+  const issues=comparisonReadiness(ready({fields:[{id:"later-field",metadata:metadata({condition:null})}]}));
+  expect(issues[0]).toMatchObject({fieldId:"later-field",message:"保存済みの視野：条件が未記録です。",action:"保存済みの視野 の条件へ"});
  });
  it("keeps batch mandatory for intensity and does not invent it for area",()=>{
   const fields=[{id:"field",metadata:metadata({acquisition_date:null})}];
