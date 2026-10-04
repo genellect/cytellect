@@ -59,7 +59,7 @@ def test_unexpected_static_file_is_not_silently_distributed(tmp_path):
         bundle.collect_files(tmp_path, names, web)
 
 
-@pytest.mark.parametrize("suffix", [".mp4", ".csv"])
+@pytest.mark.parametrize("suffix", [".mp4", ".csv", ".glb"])
 @pytest.mark.parametrize("folder", ["marketing", "measurements"])
 def test_marketing_media_requires_registered_origin_and_exact_bytes(tmp_path, suffix, folder):
     import hashlib

@@ -11,9 +11,22 @@ landing-page copy and repeated feature-card layouts.
   hierarchy. Lead with the researcher's ambition, then reduced repetitive work,
   accessible analytical decisions and communication through a figure. Feature
   categories such as "images and measurements" are not benefit headlines.
-- Keep a continuous charcoal setting, generous scale and lighter headline
-  typography. Reserve large white surfaces for real application screens and
+- Dark and Blue are mandatory art direction: deep midnight-blue space,
+  saturated blue illumination, strong dark/light contrast and generous scale.
+  Charcoal alone, a blue button or a background gradient does not satisfy this
+  direction. Reserve large white surfaces for real application screens and
   exported figures, rather than alternating pale explanatory panels.
+- Use Blender for the hero's authored organic form, surface detail, materials
+  and static render; use Three.js for its browser scene, lighting and motion.
+  Compose one large, partially cropped subject beside the exact hero copy.
+  Avoid generic nested glass spheres, star fields and decorative particles.
+  Record authored artwork separately from measured microscopy in provenance.
+  A three-dimensional figure card made with CSS does not meet the 3D hero
+  requirement. Reuse COMPASS renderer lifecycle and cleanup where applicable.
+- Review the actual rendered silhouette, texture, lighting and composition
+  before calling the hero complete. Keep a matching static fallback, respect
+  reduced motion and pause rendering offscreen; performance work must preserve
+  the intended visual quality rather than remove the requested art direction.
 - Use the actual photography, composition, whitespace and typography to carry
   the visual identity. Do not explain the intended atmosphere in the copy.
 - Primary action: **ダウンロード**. Product examples and setup information have

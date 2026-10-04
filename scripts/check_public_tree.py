@@ -27,6 +27,8 @@ sensitive = {
     ".jpeg",
     ".webp",
     ".mp4",
+    ".glb",
+    ".blend",
     ".woff2",
     ".woff",
     ".ttf",

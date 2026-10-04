@@ -29,7 +29,7 @@ DOCS = {"docs/oss.md", "docs/local.md", "docs/security.md", "docs/hosting-costs.
 DATA_NOTICES = {"fixtures/public/allowlist.json"}
 WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".svg", ".woff2", ".woff", ".ttf",
                 ".ico", ".png", ".jpg", ".jpeg", ".webp"}
-REGISTERED_MARKETING_SUFFIXES = {".mp4", ".csv"}
+REGISTERED_MARKETING_SUFFIXES = {".mp4", ".csv", ".glb"}
 
 
 def source_allowed(name: str) -> bool:
