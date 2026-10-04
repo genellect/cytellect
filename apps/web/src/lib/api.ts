@@ -33,6 +33,24 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ common_statistics_finite_units_required:"実験単位の値に有限でない数値が含まれています。測定値と採否を確認してください。",
+ common_statistics_insufficient_units:"この検定に必要な独立実験単位数がありません。対象数と実験デザインを確認してください。",
+ common_statistics_constant_units:"値にばらつきがないため、この検定・相関を算出できません。測定値を確認してください。",
+ common_statistics_not_estimable:"指定した条件では統計量を推定できません。測定値と実験単位を確認してください。",
+ common_statistics_insufficient_nonzero_pairs:"ゼロ以外の対応差があるペアが2組未満のため、Wilcoxon検定を実行できません。",
+ common_statistics_unmatched_units:"両軸の実験単位または採否が一致しません。欠測と除外を確認してください。",
+ common_statistics_test_design_mismatch:"検定方式と独立・対応の指定が一致しません。実験デザインを確認してください。",
+ common_statistics_three_groups_required:"全体検定には3条件以上が必要です。",
+ common_statistics_omnibus_required:"3条件以上の独立群比較では、全体検定の方式を指定してください。",
+ common_statistics_omnibus_design_mismatch:"全体検定は3条件以上の独立群比較に使用できます。",
+ common_statistics_omnibus_contrast_mismatch:"全体検定と群間比較の方式が一致しません。検定方式を確認してください。",
+ common_statistics_independent_association_required:"相関には独立実験単位を指定し、両軸の採否を確認してください。",
+ common_statistics_distinct_metrics_required:"相関の横軸と縦軸には異なる測定値を指定してください。",
+ common_statistics_matched_region_set_required:"相関の横軸と縦軸には同じ領域からの測定値が必要です。",
+ common_statistics_pooling_confirmation_required:"全条件を統合する根拠と、群・撮影バッチの影響を確認してください。",
+ common_statistics_unknown_method:"指定された統計手法には対応していません。解析設定を確認してください。",
+ common_statistics_result_required:"保存された統計結果を確認できません。解析版と履歴を確認してください。",
+
  statistical_methods_template_invalid:"保存されたMethodsの版を確認できません。解析版と出力条件を確認してください。",
  statistical_methods_source_invalid:"Methodsに必要な保存情報が一致しません。元の測定値と解析版を確認してください。",
  region_upload_id_conflict:"同じ登録操作の内容が変わっています。登録済みの視野を確認し、変更した画像は新しい登録として追加してください。",
