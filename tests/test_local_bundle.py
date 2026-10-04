@@ -1,6 +1,7 @@
 """The installer bundle must not accidentally distribute runtime/research files."""
 import importlib.util
 import json
+import shutil
 import subprocess
 import zipfile
 from pathlib import Path
@@ -59,7 +60,7 @@ def test_unexpected_static_file_is_not_silently_distributed(tmp_path):
         bundle.collect_files(tmp_path, names, web)
 
 
-@pytest.mark.parametrize("suffix", [".mp4", ".csv", ".glb"])
+@pytest.mark.parametrize("suffix", [".mp4", ".csv", ".glb", ".md"])
 @pytest.mark.parametrize("folder", ["marketing", "measurements"])
 def test_marketing_media_requires_registered_origin_and_exact_bytes(tmp_path, suffix, folder):
     import hashlib
@@ -85,6 +86,26 @@ def test_marketing_media_requires_registered_origin_and_exact_bytes(tmp_path, su
     asset.write_bytes(b"changed content")
     with pytest.raises(ValueError, match="unregistered_marketing_asset"):
         bundle.collect_files(tmp_path, names, web)
+
+
+def test_current_public_assets_fit_the_local_release_boundary(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    names, web = fixture_tree(tmp_path)
+    public = subprocess.check_output(
+        ["git", "-c", f"safe.directory={root.as_posix()}", "ls-files", "-z", "apps/web/public"],
+        cwd=root,
+    ).decode().strip("\0").split("\0")
+    registry = tmp_path / "fixtures/public/allowlist.json"
+    registry.parent.mkdir(parents=True)
+    shutil.copyfile(root / "fixtures/public/allowlist.json", registry)
+    for name in public:
+        relative = Path(name).relative_to("apps/web/public")
+        target = web / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / name, target)
+    files = bundle.collect_files(tmp_path, names, web)
+    assert len(files) >= len(public)
+    assert "apps/web/out/marketing/figure-caption.md" in files
 
 
 def test_generated_license_is_hashed_but_arbitrary_generated_files_are_rejected(tmp_path):
