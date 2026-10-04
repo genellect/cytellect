@@ -16,15 +16,17 @@ from .regions import RegionModel
 
 
 class CommonComparisonPlot(PlotSpec):
-    kind: Literal["distribution", "paired", "histogram", "box", "violin"] = "distribution"
+    # Opt-in protocol expands this enum without changing the historical PlotSpec schema.
+    kind: Literal["distribution", "paired", "histogram", "box", "violin"] = "distribution"  # type: ignore[assignment]
     histogram_bins: Annotated[int, Field(strict=True, ge=3, le=50)] = 10
 
 
 class RegionComparisonRequestV2(RegionComparisonRequest):
-    version: Literal["2.0.0"]
+    # Pydantic overrides are intentional version discriminators, not substitutable v1 inputs.
+    version: Literal["2.0.0"]  # type: ignore[assignment]
     test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon"]
     omnibus: Literal["welch-anova", "kruskal-wallis"] | None = None
-    plot: CommonComparisonPlot = Field(default_factory=CommonComparisonPlot)
+    plot: CommonComparisonPlot = Field(default_factory=CommonComparisonPlot)  # type: ignore[assignment]
 
     @model_validator(mode="after")
     def method_matches_design(self):
@@ -42,7 +44,8 @@ class RegionComparisonRequestV2(RegionComparisonRequest):
 
 
 class RegionComparisonResultV2(RegionComparisonResult):
-    region_comparison_version: Literal["2.0.0"] = "2.0.0"
+    # Preserve the historical result schema; this explicit discriminator selects v2.
+    region_comparison_version: Literal["2.0.0"] = "2.0.0"  # type: ignore[assignment]
     spec: RegionComparisonRequestV2
     omnibus: dict[str, Any] | None
     method_settings: dict[str, Any]

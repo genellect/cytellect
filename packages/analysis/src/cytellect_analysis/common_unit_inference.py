@@ -4,6 +4,7 @@ Protocol 1.0.0. Deterministic resolution depends on sample size and ties, never 
 The caller owns independence, source matching, selection and Holm family scope.
 """
 import math
+from types import SimpleNamespace
 
 import numpy as np
 import scipy
@@ -24,8 +25,6 @@ def _array(value, minimum=2):
     data = raw.astype(float)
     if len(data) < minimum:
         raise ValueError("common_statistics_insufficient_units")
-    if np.ptp(data) == 0:
-        raise ValueError("common_statistics_constant_units")
     return data
 
 
@@ -79,15 +78,22 @@ def compare_common_units(a, b, method):
             "alternative": "two-sided"}
     if method == "mann-whitney-u":
         tied = len(np.unique(np.r_[a, b])) != len(a) + len(b)
-        if not tied and min(len(a), len(b)) <= 8:
+        if np.all(np.r_[a, b] == a[0]):
+            # Every allocation has U=n_a*n_b/2: the null is degenerate but
+            # defined, with both inclusive tails equal to one.
+            test = SimpleNamespace(statistic=len(a) * len(b) / 2, pvalue=1.0)
+            settings = _settings(p_value_method="exact degenerate U null", ties=True,
+                                 tie_policy="all pooled values tied; every allocation has identical U",
+                                 continuity_correction=False, minimum_attainable_p=1.0)
+        elif not tied and min(len(a), len(b)) <= 8:
             test = stats.mannwhitneyu(a, b, alternative="two-sided", method="exact", use_continuity=False)
             settings = _settings(p_value_method="exact U distribution", ties=False, continuity_correction=False,
                                  minimum_attainable_p=2 / math.comb(len(a) + len(b), len(a)))
         elif min(len(a), len(b)) < 20:
-            def statistic(x, y, axis):
+            def u_statistic(x, y, axis):
                 ranks = stats.rankdata(np.concatenate((x, y), axis=axis), axis=axis)
                 return ranks[..., :x.shape[axis]].sum(axis=axis) - x.shape[axis] * (x.shape[axis] + 1) / 2
-            test, settings = _permutation((a, b), statistic, math.comb(len(a) + len(b), len(a)))
+            test, settings = _permutation((a, b), u_statistic, math.comb(len(a) + len(b), len(a)))
             settings.update(ties=tied, tie_policy="average pooled ranks", continuity_correction=False)
         else:
             test = stats.mannwhitneyu(a, b, alternative="two-sided", method="asymptotic", use_continuity=True)
@@ -105,15 +111,24 @@ def compare_common_units(a, b, method):
             raise ValueError("common_statistics_not_estimable")
         zeros = int(np.count_nonzero(differences == 0))
         nonzero = differences[differences != 0]
-        if len(nonzero) < 2:
+        if not len(nonzero):
             raise ValueError("common_statistics_insufficient_nonzero_pairs")
         # Permute signed ranks themselves. This is the signed-rank randomization
         # distribution conditional on observed absolute differences, including ties.
         ranks = stats.rankdata(np.abs(nonzero))
         signed = ranks * np.sign(nonzero)
-        def statistic(x, axis):
+        def signed_rank_statistic(x, axis):
             return np.maximum(x, 0).sum(axis=axis)
-        test, settings = _permutation((signed,), statistic, 2 ** len(nonzero), kind="samples")
+        if len(nonzero) == 1:
+            # SciPy permutation_test requires sample length >=2, but the
+            # two-sign conditional distribution is defined without simulation.
+            test = SimpleNamespace(statistic=float(max(signed[0], 0)), pvalue=1.0)
+            settings = _settings(p_value_method="exact permutation", permutation_type="samples",
+                                 resamples=2, possible_arrangements=2, minimum_attainable_p=1.0,
+                                 p_resolution_floor=1.0, monte_carlo_plus_one=False,
+                                 p_convention="twice smaller inclusive tail, capped at one")
+        else:
+            test, settings = _permutation((signed,), signed_rank_statistic, 2 ** len(nonzero), kind="samples")
         w_plus = float(test.statistic)
         base.update(method="Wilcoxon signed-rank", statistic_name="minimum signed-rank sum",
                     effect_name="matched rank-biserial correlation A minus B",
@@ -136,10 +151,15 @@ def omnibus_common_units(groups, method):
     if len(arrays) < 3:
         raise ValueError("common_statistics_three_groups_required")
     if method == "welch-anova":
+        variance = np.array([np.var(a, ddof=1) for a in arrays])
+        if np.any(variance == 0):
+            raise ValueError("common_statistics_constant_units")
+        if not np.isfinite(variance).all() or np.any(variance < 0):
+            raise ValueError("common_statistics_not_estimable")
         test = stats.f_oneway(*arrays, equal_var=False, nan_policy="raise")
         # Welch (1951) denominator df; exposed alongside the SciPy F statistic.
         n = np.array([len(a) for a in arrays], dtype=float)
-        weight = n / np.array([np.var(a, ddof=1) for a in arrays])
+        weight = n / variance
         term = np.sum((1 - weight / weight.sum()) ** 2 / (n - 1))
         df_num, df_den = len(arrays) - 1, (len(arrays) ** 2 - 1) / (3 * term)
         settings = _settings(p_value_method="Welch F approximation", alternative="omnibus",
@@ -147,6 +167,10 @@ def omnibus_common_units(groups, method):
                              degrees_of_freedom_denominator=float(df_den))
         name = "Welch ANOVA"
     elif method == "kruskal-wallis":
+        pooled = np.concatenate(arrays)
+        if np.all(pooled == pooled[0]):
+            # Only pooled constants make the Kruskal tie-correction zero.
+            raise ValueError("common_statistics_constant_units")
         if min(map(len, arrays)) >= 5:
             test = stats.kruskal(*arrays, nan_policy="raise")
             settings = _settings(p_value_method="asymptotic chi-square", alternative="omnibus",
@@ -173,6 +197,8 @@ def correlate_common_units(x, y, method):
     x, y = _array(x, 3), _array(y, 3)
     if len(x) != len(y):
         raise ValueError("common_statistics_unmatched_units")
+    if np.all(x == x[0]) or np.all(y == y[0]):
+        raise ValueError("common_statistics_constant_units")
     if method == "pearson":
         test = stats.pearsonr(x, y, alternative="two-sided")
         settings = _settings(p_value_method="exact beta null distribution under independent normal samples",

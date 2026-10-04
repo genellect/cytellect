@@ -3,7 +3,7 @@ import hashlib
 import json
 import textwrap
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 import matplotlib
 import numpy as np
@@ -11,6 +11,7 @@ from pydantic import TypeAdapter
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.collections import PolyCollection
 from matplotlib.text import Text
 from matplotlib.ticker import MaxNLocator
 
@@ -138,7 +139,7 @@ def _tables(result):
 def render_common_statistics(result, output: Path, *, methods_template=None):
     template = CommonStatisticsMethodsTemplate.model_validate(
         CURRENT_COMMON_METHODS_TEMPLATE if methods_template is None else methods_template)
-    canonical = TypeAdapter(CommonStatisticsResult).validate_python(
+    canonical: dict[str, Any] = TypeAdapter(CommonStatisticsResult).validate_python(
         {k: v for k, v in result.items() if k != "figure"}).model_dump(mode="json")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -146,7 +147,8 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
     plot, association = spec["plot"], canonical["analysis_kind"] == "region-association"
     order = plot["group_order"] or spec["conditions"]
     style = figure_settings(plot)
-    glyphs, graphical_summary = [], []
+    glyphs: list[dict[str, Any]] = []
+    graphical_summary: list[dict[str, Any]] = []
     ja = plot["language"] == "ja"
     with plt.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42, "ps.fonttype": 42,
                          "font.size": style["font_size_pt"], "axes.linewidth": .6,
@@ -169,10 +171,10 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
                 bins = np.linspace(min(r["value"] for r in rows), max(r["value"] for r in rows), plot["histogram_bins"] + 1)
                 for i, group in enumerate(order):
                     points = [r for r in rows if r["condition"] == group]
-                    values = [r["value"] for r in points]
-                    counts, _ = np.histogram(values, bins=bins)
+                    histogram_values = [r["value"] for r in points]
+                    counts, _ = np.histogram(histogram_values, bins=bins)
                     ax.stairs(counts, bins, color=COLORS[i % len(COLORS)], label=f"{group} (n={len(points)})")
-                    ax.plot(values, np.full(len(values), -.1 - .12 * i), "|", color=COLORS[i % len(COLORS)], clip_on=False)
+                    ax.plot(histogram_values, np.full(len(histogram_values), -.1 - .12 * i), "|", color=COLORS[i % len(COLORS)], clip_on=False)
                     graphical_summary.extend({"condition": group, "bin_left": float(lo), "bin_right": float(hi),
                                               "count": int(n), "last_bin_includes_right": j == len(counts) - 1}
                                              for j, (lo, hi, n) in enumerate(zip(bins[:-1], bins[1:], counts, strict=True)))
@@ -203,7 +205,8 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
                             raise ValueError("common_statistics_constant_units")
                         parts = ax.violinplot(values, positions=[i], widths=.65, showextrema=False,
                                               showmedians=True, points=100, bw_method="scott")
-                        for body in parts["bodies"]:
+                        # Matplotlib's dictionary stub erases the list type for the bodies key.
+                        for body in cast(list[PolyCollection], parts["bodies"]):
                             body.set_facecolor(COLORS[i % len(COLORS)])
                             body.set_alpha(.2)
                         graphical_summary.append({"condition": group, "kde": "Gaussian", "bandwidth": "Scott",
@@ -242,12 +245,12 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
                 item.set_fontproperties(properties)
             _validate_text_layout(fig, ax)
             for suffix in ("svg", "pdf", "png"):
-                metadata = {"Creator": "Cytellect common statistics " + FIGURE_VERSION}
+                file_metadata: dict[str, str | None] = {"Creator": "Cytellect common statistics " + FIGURE_VERSION}
                 if suffix == "svg":
-                    metadata["Date"] = None
+                    file_metadata["Date"] = None
                 if suffix == "pdf":
-                    metadata.update(CreationDate=None, ModDate=None)
-                fig.savefig(output / f"figure.{suffix}", dpi=300, metadata=metadata)
+                    file_metadata.update(CreationDate=None, ModDate=None)
+                fig.savefig(output / f"figure.{suffix}", dpi=300, metadata=file_metadata)
         finally:
             plt.close(fig)
     tables = _tables(canonical)
@@ -261,7 +264,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
     methods = common_statistics_methods(canonical)
     (output / "methods.md").write_text(methods, encoding="utf-8")
     (output / "figure-caption.md").write_text("# Figure legend\n\n" + note + "\n\n" + methods, encoding="utf-8")
-    metadata = {"common_statistics_figure_version": FIGURE_VERSION,
+    metadata: dict[str, Any] = {"common_statistics_figure_version": FIGURE_VERSION,
                 "common_statistics_methods": template.model_dump(mode="json"), "style": style,
                 "font": selected_font.family, "font_metadata": selected_font.metadata()}
     source = {**canonical, **metadata, "unit_glyphs": glyphs, "graphical_summary": graphical_summary,

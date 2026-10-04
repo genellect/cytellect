@@ -18,7 +18,7 @@ def ranks(values):
 
 
 def test_mann_whitney_exact_and_tied_permutation_against_all_allocations():
-    for a, b in (([1, 2, 3], [4, 5, 6]), ([1, 2, 2], [2, 4, 5])):
+    for a, b in (([1, 2, 3], [4, 5, 6]), ([1, 2, 2], [2, 4, 5]), ([1, 1, 1], [2, 2, 2])):
         pooled = a + b
         rr = ranks(pooled)
         observed = sum(rr[:len(a)]) - len(a) * (len(a) + 1) / 2
@@ -114,7 +114,7 @@ def test_holm_declared_family_closed_form():
     assert [row["p_holm"] for row in results] == [.06, .03, .06]
 
 
-@pytest.mark.parametrize("bad", [[1], [2, 2], [1, np.nan], [1, np.inf], [True, False], [[1, 2]]])
+@pytest.mark.parametrize("bad", [[1], [1, np.nan], [1, np.inf], [True, False], [[1, 2]]])
 def test_invalid_units_never_silently_filtered(bad):
     with pytest.raises(ValueError):
         compare_common_units(bad, [1, 3], "mann-whitney-u")
@@ -127,3 +127,58 @@ def test_degenerate_pair_and_group_designs_rejected():
         omnibus_common_units([[1, 2], [3, 4], [5, 5]], "welch-anova")
     with pytest.raises(ValueError, match="three_groups"):
         omnibus_common_units([[1, 2], [3, 4]], "kruskal-wallis")
+
+
+@pytest.mark.parametrize("n", [3, 20])
+def test_all_tied_mann_whitney_has_defined_degenerate_null(n):
+    result = compare_common_units([2] * n, [2] * n, "mann-whitney-u")
+    # All allocations put average rank n+.5 on every observation, hence U=n*n/2.
+    assert result["statistic"] == n * n / 2
+    assert result["p_value"] == 1
+    assert result["effect"] == .5
+    assert result["method_settings"]["p_value_method"] == "exact degenerate U null"
+
+
+def test_wilcoxon_constant_axis_and_single_nonzero_difference_are_defined():
+    # Differences [1,-1,-2], ranks [1.5,1.5,3]: 3/8 in the smaller inclusive tail.
+    result = compare_common_units([2, 2, 2], [1, 3, 4], "wilcoxon")
+    assert result["statistic"] == 1.5
+    assert result["p_value"] == .75
+    # A single nonzero rank has exactly two possible signs; two-sided p=1.
+    single = compare_common_units([1, 1], [1, 2], "wilcoxon")
+    assert single["statistic"] == 0 and single["p_value"] == 1
+    assert single["method_settings"]["nonzero_pairs"] == 1
+    assert single["method_settings"]["zero_pairs"] == 1
+    assert single["method_settings"]["resamples"] == 2
+
+
+def test_constant_groups_kruskal_tie_corrected_reference():
+    # Ranks [1.5,1.5,3.5,3.5,5.5,5.5]. Tie correction=1-18/210;
+    # H=5, with 6 maximally segregated allocations of 90 possible allocations.
+    result = omnibus_common_units([[1, 1], [2, 2], [3, 3]], "kruskal-wallis")
+    assert result["statistic"] == pytest.approx(5)
+    assert result["p_value"] == pytest.approx(6 / 90)
+    # n=5 per group resolves to chi-square df2, whose survival is exp(-H/2).
+    large = omnibus_common_units([[1] * 5, [2] * 5, [3] * 5], "kruskal-wallis")
+    assert large["statistic"] == pytest.approx(14)
+    assert large["p_value"] == pytest.approx(math.exp(-7))
+    with pytest.raises(ValueError, match="constant"):
+        omnibus_common_units([[1, 1], [1, 1], [1, 1]], "kruskal-wallis")
+
+
+@pytest.mark.parametrize("method", ["pearson", "spearman"])
+def test_constant_correlation_axis_remains_undefined(method):
+    with pytest.raises(ValueError, match="constant"):
+        correlate_common_units([1, 1, 1], [1, 2, 3], method)
+    with pytest.raises(ValueError, match="constant"):
+        correlate_common_units([1, 2, 3], [1, 1, 1], method)
+
+
+@pytest.mark.parametrize("method", ["welch-t", "paired-t"])
+def test_one_constant_t_test_axis_has_positive_sampling_variance(method):
+    result = compare_common_units([1, 1, 1], [2, 3, 4], method)
+    assert result["estimate"] == -2
+    assert result["statistic"] == pytest.approx(-2 * math.sqrt(3))
+    assert result["degrees_of_freedom"] == pytest.approx(2)
+    with pytest.raises(ValueError, match="not_estimable"):
+        compare_common_units([1, 1, 1], [2, 2, 2], method)

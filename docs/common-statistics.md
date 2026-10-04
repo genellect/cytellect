@@ -16,20 +16,31 @@ performed. Every test uses field median → sample mean of fields → independen
 experimental-unit mean of samples. Region and field counts do not inflate n.
 Saved identity, acquisition review, source revision, missing/excluded observations,
 all input units and complete pairs use the existing generic comparison ledger.
-Nonfinite values, constant unit arrays, insufficient groups/units, ambiguous
+Nonfinite values, undefined test-specific variation, insufficient groups/units, ambiguous
 units and incomplete pairs fail explicitly. An unexcluded unit without values
 must be repaired or explicitly excluded at the source, never silently dropped.
 
 | Question | Explicit test | Minimum and interpretation |
 |---|---|---|
-| Two independent groups, mean difference | Welch t | At least two nonconstant units per group; heteroscedastic t reference |
+| Two independent groups, mean difference | Welch t | At least two units per group and positive total sampling variance; heteroscedastic t reference |
 | Two matched conditions, mean difference | Paired t | At least two complete pairs; nondegenerate differences |
-| Two independent distributions | Mann–Whitney U | At least two nonconstant units per group; equality of distributions, not a general median test |
-| Two matched distributions | Wilcoxon signed-rank | At least two nonzero paired differences; differences symmetric about zero under the null |
+| Two independent distributions | Mann–Whitney U | At least two units per group, allowing within-group constants; equality of distributions, not a general median test |
+| Two matched distributions | Wilcoxon signed-rank | At least two complete pairs and one nonzero difference; differences symmetric about zero under the null |
 | Three or more independent groups, means | Welch ANOVA | At least two units and positive finite variance per group |
-| Three or more independent distributions | Kruskal–Wallis | At least two nonconstant units per group; rank-distribution omnibus |
+| Three or more independent distributions | Kruskal–Wallis | At least two units per group and variation in the pooled values; rank-distribution omnibus |
 | Linear association between two outcomes | Pearson | At least three matched independent units; beta null under independent normal samples |
 | Monotonic association between two outcomes | Spearman | At least three matched independent units; pairing permutation null |
+
+Constant inputs are handled by the selected method, not a universal prefilter.
+Pearson/Spearman reject either constant axis; Welch ANOVA requires positive finite
+variance in every group. Welch/paired t retain their original estimability guards
+and allow a constant axis when the relevant standard error remains positive.
+Mann–Whitney permits constant groups, including the all-pooled-tied degenerate
+null (U = nA*nB/2, p = 1, superiority = 0.5). Kruskal–Wallis permits constant
+groups with different values but rejects all-pooled-tied values because its tie
+correction is zero. Wilcoxon rejects all-zero differences; one nonzero difference
+among at least two complete pairs has two possible signs and exact p = 1.
+These cases remain explicitly described in the saved resolved-method settings.
 
 For three or more independent groups an omnibus method is required. Welch ANOVA
 uses planned Welch t contrasts; Kruskal–Wallis uses planned Mann–Whitney contrasts.
