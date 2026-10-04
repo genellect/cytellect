@@ -31,17 +31,19 @@ def arguments():
 
 
 def microtexture():
-    """Periodic authored surface relief; it contains no image or biological data."""
+    """Seeded isotropic multi-scale relief; no image or biological data is used."""
     n = 512
     rng = np.random.default_rng(SEED)
-    y, x = np.mgrid[0:n, 0:n].astype(np.float64) / n
+    fy = np.fft.fftfreq(n)[:, None] * n
+    fx = np.fft.rfftfreq(n)[None, :] * n
+    frequency_squared = fx * fx + fy * fy
     h = np.zeros((n, n))
-    for frequency, amplitude in ((18, .42), (37, .22), (69, .13), (109, .07)):
-        phase = rng.uniform(0, TAU, 3)
-        h += amplitude * np.sin(TAU * frequency * x + phase[0]) * np.sin(
-            TAU * (frequency - 3) * y + phase[1]
-        )
-        h += .3 * amplitude * np.sin(TAU * (frequency * x + (frequency + 4) * y) + phase[2])
+    for bandwidth, amplitude in ((18, .32), (42, .24), (90, .15), (170, .055)):
+        spectrum = np.fft.rfft2(rng.standard_normal((n, n)))
+        spectrum *= np.exp(-.5 * frequency_squared / bandwidth**2)
+        spectrum[0, 0] = 0
+        octave = np.fft.irfft2(spectrum, s=(n, n))
+        h += amplitude * octave / octave.std()
     dx = (np.roll(h, -1, 1) - np.roll(h, 1, 1)) * .8
     dy = (np.roll(h, -1, 0) - np.roll(h, 1, 0)) * .8
     normal = np.stack((-dx, -dy, np.ones_like(h)), axis=-1)
@@ -148,7 +150,8 @@ def nucleus(mat):
             vertices.append((.12 + .72 * qx * wrinkle,
                              -.24 + .46 * qy * wrinkle,
                              .18 + .63 * qz * wrinkle))
-            uv.append((i / n, j / m))
+            # Planar front projection avoids a texture/tangent singularity at the pole.
+            uv.append((qx * .5 + .5, qz * .5 + .5))
     for j in range(m):
         for i in range(n):
             a = j * n + i
