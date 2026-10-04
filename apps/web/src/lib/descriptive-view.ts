@@ -1,3 +1,4 @@
+import {sameFigureEdits,type FigureEdits} from "./figure-controls";
 import { metricLabels, type Job } from "./types";
 import { regionMetricLabels } from "./region-types";
 import type {components} from "./generated";
@@ -12,7 +13,7 @@ export type DescriptiveSelection =
 export type DescriptiveResult = {
   analysis_kind: "descriptive";
   revision_id: string;
-  spec: { selection: DescriptiveSelection; figure_policy?:FigurePolicy; plot: { language: string; preset: string; group_order?:string[] } };
+  spec: { selection: DescriptiveSelection; figure_policy?:FigurePolicy; plot: Partial<FigureEdits> & { language: string; preset: string } };
   metric: string;
   unit: string;
   counts: { observations: number; input_fields: number; selected_fields: number; excluded_failed_fields: number; experimental_units: null };
@@ -86,7 +87,7 @@ export function descriptiveFigureView(result:DescriptiveResult):DescriptiveFigur
  return {kind:"ready",pages,limits:raw.y_limits as number[],fieldCount:expectedOrder.length};
 }
 
-export function descriptiveRequest(selection:DescriptiveSelection,language:string,preset:string,savedPlot?:DescriptiveResult["spec"]["plot"]){
+export function descriptiveRequest(selection:DescriptiveSelection,language:string,preset:string,savedPlot?:Partial<DescriptiveResult["spec"]["plot"]>){
  return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{kind:"distribution",width_inches:7,height_inches:3,font_size:7,x_label:"",y_label:"",group_order:[],...savedPlot,preset,language}};
 }
 
@@ -106,11 +107,11 @@ export function selectedDescriptiveJob(jobs: Job[], selectedId: string, revision
   return available.find(job => job.revision_id === revisionId) ?? available[0];
 }
 
-export function sameDescriptiveSettings(result: DescriptiveResult, selection: DescriptiveSelection | undefined, language: string, preset: string) {
+export function sameDescriptiveSettings(result: Pick<DescriptiveResult,"spec">, selection: DescriptiveSelection | undefined, language: string, preset: string, edits?:FigureEdits) {
   const saved = result.spec.selection;
   if (!selection || saved.source !== selection.source || saved.metric !== selection.metric) return false;
   if (saved.source === "region" && selection.source === "region" && (saved.region_set_id !== selection.region_set_id || saved.channel_id !== selection.channel_id)) return false;
-  return result.spec.plot.language === language && result.spec.plot.preset === preset;
+  return result.spec.plot.language === language && result.spec.plot.preset === preset && (!edits||sameFigureEdits(result.spec.plot,edits));
 }
 
 export function savedDescriptiveLabel(result: DescriptiveResult) {

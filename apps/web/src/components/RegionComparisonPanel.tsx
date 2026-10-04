@@ -1,5 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
+import FigureControls from "./FigureControls";
+import {defaultFigureEdits,figureOrder,validFigureEdits} from "@/lib/figure-controls";
 import {useQuery} from "@tanstack/react-query";
 import {download,errorCodeMessage,errorMessage,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
@@ -29,9 +31,10 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
  const [design,setDesign]=useState<""|"independent"|"paired">("");const [unitDefinition,setUnitDefinition]=useState("");const [pairingBasis,setPairingBasis]=useState("");const [designConfirmed,setDesignConfirmed]=useState(false);
  const [conditions,setConditions]=useState<string[]>([]);const [familyKind,setFamilyKind]=useState<"control"|"planned">("control");const [control,setControl]=useState("");const [planned,setPlanned]=useState<string[]>([]);
  const [acquisitionConfirmed,setAcquisitionConfirmed]=useState(false);const [samplingConfirmed,setSamplingConfirmed]=useState(false);const [missingnessConfirmed,setMissingnessConfirmed]=useState(false);
- const [language,setLanguage]=useState<"en"|"ja">("en");const [preset,setPreset]=useState<"nature-single"|"nature-double">("nature-double");
+ const [language,setLanguage]=useState<"en"|"ja">("en");const [preset,setPreset]=useState<"nature-single"|"nature-double"|"custom">("nature-double");
+ const [figure,setFigure]=useState(defaultFigureEdits);
  const [selectedJob,setSelectedJob]=useState("");const [submitting,setSubmitting]=useState(false);
- const formFingerprint=JSON.stringify([choice,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,planned,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed,language,preset]);
+ const formFingerprint=JSON.stringify([choice,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,planned,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed,language,preset,figure]);
  const [savedForm,setSavedForm]=useState(formFingerprint);const formDirty=formFingerprint!==savedForm;
  useEffect(()=>{onDraftChange?.({metadata:metadataDirty,form:formDirty});},[metadataDirty,formDirty,onDraftChange]);
  const available=regionComparisonJobs(jobs);const job=selectedRegionComparisonJob(jobs,selectedJob,revision?.id);
@@ -44,7 +47,7 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
  const scopeMatches=conditions.length>=2&&contrasts.length>0&&new Set(contrasts.flat()).size===conditions.length&&contrasts.flat().every(value=>conditions.includes(value));
  const metric=option?.selection.metric||"";const area=metric.startsWith("area_");const needsSampling=metric==="area_px"||metric.includes("integrated");
  const missingMetadata=fields.some(field=>!field.metadata.condition||(conditions.includes(field.metadata.condition)&&(!field.metadata.sample||!field.metadata.experimental_unit||(design==="paired"&&!field.metadata.pair)||(!area&&!field.metadata.acquisition_date))));
- const disabled=blocked||dirty||metadataDirty||submitting||!revision?.reviewed||!option||!design||!designConfirmed||!unitDefinition.trim()||(design==="paired"&&!pairingBasis.trim())||!scopeMatches||missingMetadata||!acquisitionConfirmed||!missingnessConfirmed||(needsSampling&&!samplingConfirmed);
+ const disabled=!validFigureEdits(figure,preset)||blocked||dirty||metadataDirty||submitting||!revision?.reviewed||!option||!design||!designConfirmed||!unitDefinition.trim()||(design==="paired"&&!pairingBasis.trim())||!scopeMatches||missingMetadata||!acquisitionConfirmed||!missingnessConfirmed||(needsSampling&&!samplingConfirmed);
  const readiness=comparisonReadiness({blocked,submitting,dirty,metadataDirty,hasRevision:!!revision,reviewed:!!revision?.reviewed,hasMetric:!!option,metric,design,unitDefinition,pairingBasis,designConfirmed,conditions,familyKind,control,contrasts,fields,fieldLabels,acquisitionConfirmed,samplingConfirmed,missingnessConfirmed});
  function visitIssue(issue:ComparisonReadinessIssue){
   if(issue.target==="review"){onReview();return;}
@@ -60,7 +63,7 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
  async function submit(){
   if(disabled||!revision||!option||option.selection.source!=="region"||!design)return;
   const selection={...option.selection,metric:option.selection.metric as RegionComparisonRequest["selection"]["metric"]};
-  const spec:RegionComparisonRequest={mode:"region-experimental-unit",version:"1.0.0",selection,design:{kind:design,confirmed:true,unit_definition:unitDefinition.trim(),pairing_basis:design==="paired"?pairingBasis.trim():null},conditions,comparison_family:{family_id:"primary",kind:familyKind,control:familyKind==="control"?control:null,contrasts},acquisition_review:{confirmed:true,basis:metric==="area_um2"?"calibrated-area":"same-settings",field_batches:{},spatial_sampling_confirmed:samplingConfirmed},missingness_confirmed:true,aggregation:"field-median_sample-mean_unit-mean-v1",missingness_policy:"available-observations_require-unexcluded-units-v1",plot:{kind:design==="paired"?"paired":"distribution",preset,language,width_inches:7,height_inches:3,font_size:7,x_label:"",y_label:"",group_order:conditions}};
+  const spec:RegionComparisonRequest={mode:"region-experimental-unit",version:"1.0.0",selection,design:{kind:design,confirmed:true,unit_definition:unitDefinition.trim(),pairing_basis:design==="paired"?pairingBasis.trim():null},conditions,comparison_family:{family_id:"primary",kind:familyKind,control:familyKind==="control"?control:null,contrasts},acquisition_review:{confirmed:true,basis:metric==="area_um2"?"calibrated-area":"same-settings",field_batches:{},spatial_sampling_confirmed:samplingConfirmed},missingness_confirmed:true,aggregation:"field-median_sample-mean_unit-mean-v1",missingness_policy:"available-observations_require-unexcluded-units-v1",plot:{kind:design==="paired"?"paired":"distribution",preset,language,...figure,group_order:figureOrder(figure.group_order,conditions)}};
   setSubmitting(true);try{const created=await post<{job_id:string}>(`/v1/revisions/${revision.id}/region-comparisons`,spec);setSelectedJob(created.job_id);setSavedForm(formFingerprint);}finally{setSubmitting(false);}
  }
  return <section ref={panel} className={styles.regionComparison} aria-label="統計解析">
@@ -90,7 +93,8 @@ export default function RegionComparisonPanel({revision,fields,options,jobs,bloc
     <p>値のない未除外の実験単位や不完全な対応ペアは、黙って除かず比較を止めます。各条件2単位または2ペア以上が必要ですが、十分な検出力を保証する数ではありません。</p>
    </details>
    <p className={styles.small}>検定には独立実験単位の要約値を使います。視野の中央値を試料内で平均し、さらに独立実験単位内で平均します。図の小点は領域、四角は視野中央値、色付き点は独立実験単位です。</p><details className={styles.metadataHelp}><summary>検定方法と図の設定</summary><p>{design==="paired"?"対応ありt検定":"Welchのt検定"}、両側検定。95%信頼区間は多重比較補正前の区間です。</p>
-    <div className={styles.formGrid}><label>図の言語<select aria-label="比較図の言語" value={language} onChange={event=>setLanguage(event.target.value as typeof language)}><option value="en">English</option><option value="ja">日本語</option></select></label><label>図の幅<select aria-label="比較図の幅" value={preset} onChange={event=>setPreset(event.target.value as typeof preset)}><option value="nature-single">89 mm</option><option value="nature-double">183 mm</option></select></label></div>
+    <div className={styles.formGrid}><label>図の言語<select aria-label="比較図の言語" value={language} onChange={event=>setLanguage(event.target.value as typeof language)}><option value="en">English</option><option value="ja">日本語</option></select></label><label>図の幅<select aria-label="比較図の幅" value={preset} onChange={event=>setPreset(event.target.value as typeof preset)}><option value="nature-single">89 mm</option><option value="nature-double">183 mm</option><option value="custom">カスタム</option></select></label></div>
+    <FigureControls prefix="比較図" preset={preset} value={figure} onChange={setFigure} groups={conditions.map(id=>({id,label:id}))}/>
     {design==="paired"&&<p>対応ありでは、宣言したペアを線で結びます。</p>}
    </details>
    <section aria-label="比較の前に確認すること" className={styles.small} hidden={!readiness.length}><h3>比較の前に</h3><ul>{readiness.slice(0,3).map(readinessItem)}</ul>{readiness.length>3&&<details><summary>ほか {readiness.length-3} 件を確認</summary><ul>{readiness.slice(3).map(readinessItem)}</ul></details>}</section>
