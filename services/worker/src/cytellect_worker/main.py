@@ -254,6 +254,12 @@ def run_statistics(store, job, output):
         from .descriptive import run_descriptive
 
         return run_descriptive(store, job, output)
+    if (job["payload"].get("mode") == "region-association"
+            or (job["payload"].get("mode") == "region-experimental-unit"
+                and job["payload"].get("version") == "2.0.0")):
+        from .common_statistics import run_common_statistics
+
+        return run_common_statistics(store, job, output)
     if job["payload"].get("mode") == "region-experimental-unit":
         from .region_comparisons import run_region_comparison
 

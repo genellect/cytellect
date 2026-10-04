@@ -1998,6 +1998,122 @@
         }
       }
     },
+    "/v1/revisions/{rid}/common-statistics": {
+      "post": {
+        "summary": "Calculate",
+        "operationId": "calculate_v1_revisions__rid__common_statistics_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RegionComparisonRequestV2"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RegionAssociationRequest"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "mode",
+                  "mapping": {
+                    "region-experimental-unit": "#/components/schemas/RegionComparisonRequestV2",
+                    "region-association": "#/components/schemas/RegionAssociationRequest"
+                  }
+                },
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/common-statistics": {
+      "get": {
+        "summary": "Result",
+        "operationId": "result_v1_jobs__jid__common_statistics_get",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommonComparisonView"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AssociationView"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "analysis_kind",
+                    "mapping": {
+                      "region-comparison": "#/components/schemas/CommonComparisonView",
+                      "region-association": "#/components/schemas/AssociationView"
+                    }
+                  },
+                  "title": "Response Result V1 Jobs  Jid  Common Statistics Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/plans/preview": {
       "post": {
         "summary": "Preview Plan",
@@ -2217,6 +2333,196 @@
         "additionalProperties": false,
         "type": "object",
         "title": "AreaBackgroundProvenance"
+      },
+      "AssociationPlot": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "nature-single",
+              "nature-double"
+            ],
+            "title": "Preset",
+            "default": "nature-single"
+          },
+          "kind": {
+            "type": "string",
+            "const": "scatter",
+            "title": "Kind",
+            "default": "scatter"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ja"
+            ],
+            "title": "Language",
+            "default": "en"
+          },
+          "width_inches": {
+            "type": "number",
+            "maximum": 16.0,
+            "minimum": 3.0,
+            "title": "Width Inches",
+            "default": 7
+          },
+          "height_inches": {
+            "type": "number",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Height Inches",
+            "default": 3.0
+          },
+          "font_size": {
+            "type": "number",
+            "maximum": 24.0,
+            "minimum": 5.0,
+            "title": "Font Size",
+            "default": 7
+          },
+          "x_label": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "X Label",
+            "default": ""
+          },
+          "y_label": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Y Label",
+            "default": ""
+          },
+          "group_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Group Order"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AssociationPlot"
+      },
+      "AssociationView": {
+        "properties": {
+          "analysis_kind": {
+            "type": "string",
+            "const": "region-association",
+            "title": "Analysis Kind",
+            "default": "region-association"
+          },
+          "source_kind": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Source Kind",
+            "default": "region-2d"
+          },
+          "region_association_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Region Association Version",
+            "default": "1.0.0"
+          },
+          "inference_version": {
+            "type": "string",
+            "title": "Inference Version"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "source_fingerprint": {
+            "type": "string",
+            "title": "Source Fingerprint"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/RegionAssociationRequest"
+          },
+          "x_source": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "X Source"
+          },
+          "y_source": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Y Source"
+          },
+          "unit_summary": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Unit Summary"
+          },
+          "unit_ledger": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Unit Ledger"
+          },
+          "associations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Associations"
+          },
+          "counts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Counts"
+          },
+          "missingness": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Missingness"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "figure": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Figure"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "inference_version",
+          "revision_id",
+          "source_fingerprint",
+          "spec",
+          "x_source",
+          "y_source",
+          "unit_summary",
+          "unit_ledger",
+          "associations",
+          "counts",
+          "missingness",
+          "warnings",
+          "figure"
+        ],
+        "title": "AssociationView"
       },
       "Background": {
         "properties": {
@@ -2580,6 +2886,338 @@
           "identity_confirmed"
         ],
         "title": "ChannelSpec"
+      },
+      "CommonComparisonPlot": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "nature-single",
+              "nature-double"
+            ],
+            "title": "Preset",
+            "default": "nature-single"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "distribution",
+              "paired",
+              "histogram",
+              "box",
+              "violin"
+            ],
+            "title": "Kind",
+            "default": "distribution"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ja"
+            ],
+            "title": "Language",
+            "default": "en"
+          },
+          "width_inches": {
+            "type": "number",
+            "maximum": 16.0,
+            "minimum": 3.0,
+            "title": "Width Inches",
+            "default": 7
+          },
+          "height_inches": {
+            "type": "number",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Height Inches",
+            "default": 3.0
+          },
+          "font_size": {
+            "type": "number",
+            "maximum": 24.0,
+            "minimum": 5.0,
+            "title": "Font Size",
+            "default": 7
+          },
+          "x_label": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "X Label",
+            "default": ""
+          },
+          "y_label": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Y Label",
+            "default": ""
+          },
+          "group_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Group Order"
+          },
+          "histogram_bins": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 3.0,
+            "title": "Histogram Bins",
+            "default": 10
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CommonComparisonPlot"
+      },
+      "CommonComparisonView": {
+        "properties": {
+          "analysis_kind": {
+            "type": "string",
+            "const": "region-comparison",
+            "title": "Analysis Kind",
+            "default": "region-comparison"
+          },
+          "source_kind": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Source Kind",
+            "default": "region-2d"
+          },
+          "region_comparison_version": {
+            "type": "string",
+            "const": "2.0.0",
+            "title": "Region Comparison Version",
+            "default": "2.0.0"
+          },
+          "inference_version": {
+            "type": "string",
+            "title": "Inference Version"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "source_fingerprint": {
+            "type": "string",
+            "title": "Source Fingerprint"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/RegionComparisonRequestV2"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "region": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Region"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "source_fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Source Fields"
+          },
+          "source_field_ledger": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Source Field Ledger"
+          },
+          "observation_ledger": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Observation Ledger"
+          },
+          "plot_data": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Plot Data"
+          },
+          "field_summary": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Field Summary"
+          },
+          "sample_summary": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sample Summary"
+          },
+          "unit_summary": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Unit Summary"
+          },
+          "unit_ledger": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Unit Ledger"
+          },
+          "pair_ledger": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Pair Ledger"
+          },
+          "counts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Counts"
+          },
+          "selection": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Selection"
+          },
+          "missingness": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Missingness"
+          },
+          "excluded_failed_fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Excluded Failed Fields"
+          },
+          "acquisition": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Acquisition"
+          },
+          "comparisons": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Comparisons"
+          },
+          "means": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Means"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Omnibus"
+          },
+          "method_settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Method Settings"
+          },
+          "figure": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Figure"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "inference_version",
+          "revision_id",
+          "source_fingerprint",
+          "spec",
+          "metric",
+          "unit",
+          "region",
+          "channel",
+          "source_fields",
+          "source_field_ledger",
+          "observation_ledger",
+          "plot_data",
+          "field_summary",
+          "sample_summary",
+          "unit_summary",
+          "unit_ledger",
+          "pair_ledger",
+          "counts",
+          "selection",
+          "missingness",
+          "excluded_failed_fields",
+          "acquisition",
+          "comparisons",
+          "means",
+          "warnings",
+          "omnibus",
+          "method_settings",
+          "figure"
+        ],
+        "title": "CommonComparisonView"
       },
       "ComparisonDesign": {
         "properties": {
@@ -3150,7 +3788,8 @@
                   "experimental-unit",
                   "exploratory",
                   "descriptive",
-                  "region-experimental-unit"
+                  "region-experimental-unit",
+                  "region-association"
                 ]
               },
               {
@@ -3158,6 +3797,17 @@
               }
             ],
             "title": "Analysis Mode"
+          },
+          "analysis_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Version"
           }
         },
         "type": "object",
@@ -4417,6 +5067,99 @@
         ],
         "title": "RegionAnalysisRequest"
       },
+      "RegionAssociationRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "region-association",
+            "title": "Mode"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version"
+          },
+          "x_selection": {
+            "$ref": "#/components/schemas/RegionSelection"
+          },
+          "y_selection": {
+            "$ref": "#/components/schemas/RegionSelection"
+          },
+          "design": {
+            "$ref": "#/components/schemas/ComparisonDesign"
+          },
+          "conditions": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Conditions"
+          },
+          "acquisition_review": {
+            "$ref": "#/components/schemas/AcquisitionReview"
+          },
+          "missingness_confirmed": {
+            "type": "boolean",
+            "const": true,
+            "title": "Missingness Confirmed"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "pearson",
+              "spearman"
+            ],
+            "title": "Method"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "per-condition",
+              "pooled"
+            ],
+            "title": "Scope",
+            "default": "per-condition"
+          },
+          "pooling_confirmed": {
+            "type": "boolean",
+            "title": "Pooling Confirmed",
+            "default": false
+          },
+          "aggregation": {
+            "type": "string",
+            "const": "field-median_sample-mean_unit-mean-v1",
+            "title": "Aggregation",
+            "default": "field-median_sample-mean_unit-mean-v1"
+          },
+          "missingness_policy": {
+            "type": "string",
+            "const": "require-matched-unexcluded-units-v1",
+            "title": "Missingness Policy",
+            "default": "require-matched-unexcluded-units-v1"
+          },
+          "plot": {
+            "$ref": "#/components/schemas/AssociationPlot"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "version",
+          "x_selection",
+          "y_selection",
+          "design",
+          "conditions",
+          "acquisition_review",
+          "missingness_confirmed",
+          "method"
+        ],
+        "title": "RegionAssociationRequest"
+      },
       "RegionBackground": {
         "properties": {
           "polygon": {
@@ -4592,6 +5335,102 @@
           "missingness_confirmed"
         ],
         "title": "RegionComparisonRequest"
+      },
+      "RegionComparisonRequestV2": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "region-experimental-unit",
+            "title": "Mode"
+          },
+          "version": {
+            "type": "string",
+            "const": "2.0.0",
+            "title": "Version"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/RegionSelection"
+          },
+          "design": {
+            "$ref": "#/components/schemas/ComparisonDesign"
+          },
+          "conditions": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "minItems": 2,
+            "title": "Conditions"
+          },
+          "comparison_family": {
+            "$ref": "#/components/schemas/ComparisonFamily"
+          },
+          "acquisition_review": {
+            "$ref": "#/components/schemas/AcquisitionReview"
+          },
+          "missingness_confirmed": {
+            "type": "boolean",
+            "const": true,
+            "title": "Missingness Confirmed"
+          },
+          "aggregation": {
+            "type": "string",
+            "const": "field-median_sample-mean_unit-mean-v1",
+            "title": "Aggregation",
+            "default": "field-median_sample-mean_unit-mean-v1"
+          },
+          "missingness_policy": {
+            "type": "string",
+            "const": "available-observations_require-unexcluded-units-v1",
+            "title": "Missingness Policy",
+            "default": "available-observations_require-unexcluded-units-v1"
+          },
+          "plot": {
+            "$ref": "#/components/schemas/CommonComparisonPlot"
+          },
+          "test": {
+            "type": "string",
+            "enum": [
+              "welch-t",
+              "paired-t",
+              "mann-whitney-u",
+              "wilcoxon"
+            ],
+            "title": "Test"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Omnibus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "version",
+          "selection",
+          "design",
+          "conditions",
+          "comparison_family",
+          "acquisition_review",
+          "missingness_confirmed",
+          "test"
+        ],
+        "title": "RegionComparisonRequestV2"
       },
       "RegionComparisonView": {
         "properties": {

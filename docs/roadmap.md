@@ -4,6 +4,13 @@ The active 2026-10-03 improvement sequence is recorded in [Researcher workflow](
 
 This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).
 
+The 2026-10-05 follow-up requires common image-analysis statistics and editable
+figures through the complete installed browser workflow (S15–S18). Scientific
+core/reference tests and API/replay integration are under development; a final
+Windows package containing these additions has not been accepted or published.
+The local.13 source436 candidate is a separate baseline and does not establish
+completion of the added statistics or update-storage requirements.
+
 PR #11 added manual/imported generic regions, source-linked descriptive figures and trial-mask reuse. Its four required CI checks passed, it merged as dd64f26db0e4ea15970828aaa6dbcae3f9365696, and Vercel automatically published that source. Canonical public-page desktop/mobile/browser checks passed separately from private API execution.
 
 PR #12 connects confirmed nuclear-stain initialization, immutable experimental-metadata edits and explicit generic-channel experimental-unit comparisons. All four required CI checks passed on 136eab8ff41af0fd0ee5d0b0936525013f6c5569. Main c9766f8da61defe5f4fa000e03b7706678140dde was automatically published as Vercel production dpl_Cx8VzAfHtPhgs3tWzaV9Uhff3Nw5; canonical desktop/mobile browser checks passed separately. Real-Fiji equivalence, corrected-mask batch reuse, comparisons, vector downloads and replay have bounded recorded evidence; this does not establish new biological accuracy.

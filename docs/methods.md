@@ -32,6 +32,12 @@ Native signal QC protocol 1.0.0 adds a warning-only diagnostic for nuclear, nucl
 
 Aggregation: field median → sample mean → independent-unit mean. Predeclared Welch/paired tests use Holm families. Exploratory group/GFP/date regression uses field-clustered SE; verify rank/confounding/controls and few clusters. Cell counts are not independent replicate counts.
 
+New opt-in generic comparison 2.0.0 and association 1.0.0 extend these methods
+without rewriting historical requests. [Common statistics](common-statistics.md)
+defines the rank tests, multi-group omnibus, matched-unit associations,
+permutation policy and separately versioned Methods/figures. Their applicability
+depends on the recorded experimental design and acquisition review.
+
 References:
 - [StarDist](https://imagej.net/plugins/stardist)
 - [Nucleolar fluorescence quantification](https://link.springer.com/article/10.1186/1471-2121-12-25)
