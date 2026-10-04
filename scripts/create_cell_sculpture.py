@@ -62,8 +62,8 @@ def material(name, color, roughness, relief, normal_image, metallic=.12):
     p.inputs["Base Color"].default_value = (*color, 1)
     p.inputs["Metallic"].default_value = metallic
     p.inputs["Roughness"].default_value = roughness
-    p.inputs["Coat Weight"].default_value = .2
-    p.inputs["Coat Roughness"].default_value = .28
+    p.inputs["Coat Weight"].default_value = .025
+    p.inputs["Coat Roughness"].default_value = .48
     tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
     tex.image = normal_image
     tex.label = "Deterministic generated microrelief, not microscopy"
@@ -104,7 +104,7 @@ def membrane_point(theta, phi, inset=0):
 def create_membrane(outside, inside, lip):
     n, m = 112, 38
     vertices, faces, uvs = [], [], []
-    for inset in (0, .085):
+    for inset in (0, .045):
         for j in range(m + 1):
             for i in range(n):
                 phi = TAU * i / n
@@ -138,11 +138,16 @@ def nucleus(mat):
         theta = .002 + (math.pi - .004) * j / m
         for i in range(n):
             phi = TAU * i / n
-            wrinkle = 1 + .11 * math.cos(3 * phi - .3) * math.sin(theta) ** 2
-            wrinkle += .042 * math.sin(15 * phi + 4 * math.sin(3 * theta)) * math.sin(theta)
-            vertices.append((.12 + .70 * math.sin(theta) * math.cos(phi) * wrinkle,
-                             -.24 - .50 * math.cos(theta) * wrinkle,
-                             .18 + .68 * math.sin(theta) * math.sin(phi) * wrinkle))
+            qx = math.sin(theta) * math.cos(phi)
+            qy = -math.cos(theta)
+            qz = math.sin(theta) * math.sin(phi)
+            # Cartesian relief has no polar convergence/starburst at the front.
+            wrinkle = 1 + .10 * math.sin(3 * qx + .4) * math.cos(2 * qz)
+            wrinkle += .065 * math.sin(12 * qx + 1.8 * math.sin(5 * qz)) * math.cos(9 * qz - 3 * qy)
+            wrinkle += .026 * math.sin(20 * qz + 4 * qx) * math.sin(13 * qy + qx)
+            vertices.append((.12 + .72 * qx * wrinkle,
+                             -.24 + .46 * qy * wrinkle,
+                             .18 + .63 * qz * wrinkle))
             uv.append((i / n, j / m))
     for j in range(m):
         for i in range(n):
@@ -158,9 +163,10 @@ def lamella(name, layer, mat):
     # Incomplete interlocking ribbons, not concentric spheres; the gaps disclose depth.
     for i in range(n + 1):
         t = i / n
-        angle = -.1 + 4.85 * t + .09 * layer
-        radius = 1.0 + layer * .135 + .075 * math.sin(3 * angle)
-        width = .09 + .025 * math.sin(math.pi * t)
+        angle = -.3 + (4.6 + .12 * layer) * t + .18 * layer
+        radius = 1.0 + layer * .135 + .105 * math.sin(3 * angle + .3 * layer)
+        radius += .026 * math.sin(11 * angle + layer)
+        width = .066 + .025 * math.sin(math.pi * t)
         for j in range(m + 1):
             s = 2 * j / m - 1
             r = radius + s * width
@@ -218,11 +224,11 @@ def main():
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
     normal = microtexture()
-    outer = material("Blue membrane | rough microrelief", (.009, .070, .25), .36, .30, normal, .18)
-    inner = material("Blue inner membrane", (.018, .20, .40), .38, .18, normal)
-    edge = material("Pale blue exposed membrane edge", (.10, .42, .65), .28, .15, normal)
-    core = material("Indigo convoluted core", (.014, .035, .18), .30, .22, normal, .18)
-    folds = material("Blue folded lamellae", (.016, .16, .44), .29, .22, normal)
+    outer = material("Blue membrane | rough microrelief", (.009, .070, .25), .55, .90, normal, .015)
+    inner = material("Blue inner membrane", (.018, .20, .40), .53, .65, normal, .015)
+    edge = material("Exposed thin membrane edge", (.024, .18, .48), .48, .50, normal, .015)
+    core = material("Indigo convoluted core", (.019, .050, .22), .51, .80, normal, .015)
+    folds = material("Blue folded lamellae", (.016, .16, .44), .50, .65, normal, .015)
     art = [create_membrane(outer, inner, edge), nucleus(core)]
     for i in range(3):
         art.append(lamella(f"Lamellar fold {i + 1}", i, folds if i != 1 else inner))
@@ -231,8 +237,8 @@ def main():
     for i in range(225):
         phi = TAU * i / 224
         theta = 1.10 + .13 * math.sin(phi + .5) + .05 * math.sin(3 * phi)
-        rim.append(membrane_point(theta, phi, .035))
-    art.append(tube("Continuous membrane rim", rim, edge, .018))
+        rim.append(membrane_point(theta, phi, .020))
+    art.append(tube("Continuous membrane rim", rim, edge, .012))
     # Apply geometry modifiers and export exactly the geometry used in the render.
     for obj in art:
         bpy.ops.object.select_all(action="DESELECT")
@@ -284,19 +290,19 @@ def main():
     scene.world.node_tree.nodes["Background"].inputs["Color"].default_value = (.002, .006, .024, 1)
     scene.world.node_tree.nodes["Background"].inputs["Strength"].default_value = .28
     for obj in art:
-        obj.location.x = 1.70
+        obj.location.x = 1.85
         obj.rotation_euler.y = -.18
         obj.rotation_euler.z = -.08
-    target = (1.70, 0, 0)
-    area("Blue key", (-1.4, -4.3, 4.7), 520, (.34, .62, 1.0), 4.2, target)
-    area("Cyan contour", (5.0, .8, 2.3), 780, (.11, .57, 1.0), 3.0, target)
+    target = (1.85, 0, 0)
+    area("Blue key", (-1.4, -3.0, 4.7), 400, (.34, .62, 1.0), 3.2, target)
+    area("Cyan contour", (5.0, .8, 2.3), 600, (.11, .57, 1.0), 3.0, target)
     area("Deep blue separation", (-.2, 1.8, -1.0), 520, (.09, .23, 1.0), 2.5, target)
-    area("Soft frontal fill", (1.4, -4.0, -2.8), 100, (.25, .45, 1.0), 3.2, target)
+    area("Soft frontal fill", (1.4, -4.0, -2.8), 25, (.25, .45, 1.0), 3.2, target)
     bpy.ops.object.camera_add(location=(0, -12.6, .35))
     camera = bpy.context.object
     aim(camera, (0, 0, 0))
     camera.data.type = "PERSP"
-    camera.data.lens = 48
+    camera.data.lens = 55
     scene.camera = camera
     scene.render.filepath = str(args.output / "cell-sculpture-poster.png")
     bpy.ops.wm.save_as_mainfile(filepath=str(args.output / "cell-sculpture-source.blend"))
