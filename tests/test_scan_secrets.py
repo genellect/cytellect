@@ -228,18 +228,20 @@ def test_real_gitleaks_detects_deleted_history_and_tracked_changes_only(tmp_path
     assert "Synthetic fixture" not in serialized
 
 
-def test_real_gitleaks_public_checksum_exceptions_are_exact_and_do_not_hide_adjacent_key(tmp_path):
+@pytest.mark.parametrize("entry", json.loads(scanner.LOCK.read_text())["reviewed_non_secrets"])
+def test_real_gitleaks_public_checksum_exceptions_are_exact_and_do_not_hide_adjacent_key(tmp_path, entry):
     cache_value = os.environ.get("CYTELLECT_GITLEAKS_TEST_CACHE")
     if not cache_value:
         pytest.skip("set CYTELLECT_GITLEAKS_TEST_CACHE to test the pinned external tool")
     repo = init_repository(tmp_path / "repo")
-    (repo / "docs").mkdir()
-    known = json.loads(scanner.LOCK.read_text())["reviewed_non_secrets"][0]["sha256"]
+    path = entry["path"]
+    (repo / path).parent.mkdir(parents=True)
+    known = entry["sha256"]
     # An approved checksum, a distinct plausible key beside it, and the same
     # checksum in another file exercise all three dimensions of the exception.
-    commit(repo, "docs/resource-benchmark.md", "DAPI:" + known + "\n")
+    commit(repo, path, "DAPI:" + known + "\n")
     commit(repo, "other.md", "DAPI:" + known + "\n")
-    with (repo / "docs/resource-benchmark.md").open("a") as stream:
+    with (repo / path).open("a") as stream:
         stream.write("token = " + synthetic_token("H"))
     receipt = scanner.scan(repo, Path(cache_value))
     assert receipt["history"]["rules"] == {"generic-api-key": 1}

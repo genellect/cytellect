@@ -203,7 +203,8 @@ def rules_configuration() -> str:
     for entry in entries:
         if (entry["rule_id"] != "generic-api-key" or not re.fullmatch(r"[a-f0-9]{64}", entry["sha256"])
                 or entry["path"] not in {"docs/resource-benchmark.md",
-                                         "apps/web/public/demo/bbbc013/manifest.json"}):
+                                         "apps/web/public/demo/bbbc013/manifest.json",
+                                         "apps/web/public/fonts/subset-manifest.json"}):
             raise ScanError("invalid_reviewed_exception")
         path_regex = "(?:^|[/\\\\])" + re.escape(entry["path"]).replace("/", "[/\\\\]") + "$"
         lines.extend(["", "[[rules.allowlists]]", 'condition = "AND"', 'regexTarget = "secret"',
