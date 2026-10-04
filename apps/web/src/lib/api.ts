@@ -37,7 +37,7 @@ const messages:Record<string,string> = {
  common_statistics_insufficient_units:"この検定に必要な独立実験単位数がありません。対象数と実験デザインを確認してください。",
  common_statistics_constant_units:"値にばらつきがないため、この検定・相関を算出できません。測定値を確認してください。",
  common_statistics_not_estimable:"指定した条件では統計量を推定できません。測定値と実験単位を確認してください。",
- common_statistics_insufficient_nonzero_pairs:"ゼロ以外の対応差があるペアが2組未満のため、Wilcoxon検定を実行できません。",
+ common_statistics_insufficient_nonzero_pairs:"すべてのペアで対応差がゼロのため、Wilcoxon検定を実行できません。",
  common_statistics_unmatched_units:"両軸の実験単位または採否が一致しません。欠測と除外を確認してください。",
  common_statistics_test_design_mismatch:"検定方式と独立・対応の指定が一致しません。実験デザインを確認してください。",
  common_statistics_three_groups_required:"全体検定には3条件以上が必要です。",
