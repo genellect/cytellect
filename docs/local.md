@@ -14,6 +14,53 @@ The accepted [0.1.0-local.11 release](https://github.com/genellect/cytellect/rel
 
 Windows x86-64 is the first installation target. Other operating systems retain the developer/Compose setup until their installation paths are tested. The runtime may consume several gigabytes of disk; the tested installer reports its completed footprint separately from the small setup archive. No code-signing certificate or automatic-update service is assumed to exist.
 
+### Application updates and storage
+
+Use the same installation destination for updates. The default is
+`%LOCALAPPDATA%/Cytellect`; a different destination creates a separate installation.
+Application versions have separate source/virtual-environment directories, but
+share the pinned Fiji runtime when its lock is unchanged and the Python runtime
+when its composition is unchanged. Updating the application alone does not
+download another Fiji. Initial setup and changed dependencies can require network
+access; analysis jobs never install dependencies.
+
+The update-storage source increment records successfully checked installations
+and retains the current and previous successful application. Only older,
+recorded, byte-identical trees are eligible for removal after the replacement's
+Python GUI and Fiji numerical launch checks succeed. A new setup failure before
+that point leaves previous generations intact. The setup window reports retained
+application count and reclaimed bytes. Research data under `data/` is never part
+of this collection.
+
+Running versions, modified files, unknown/incomplete directories and any reparse
+point are preserved. Setup is serialized; managed launches and collection share
+an OS-released installation lock. A native Windows process-SID inventory checks
+user processes and executable interpreter candidates; an unreadable relevant
+process disables collection. The retained applications keep their referenced
+Fiji/Python/bootstrap runtimes. Only newly installer-created runtime trees enter
+the ownership ledger; existing unregistered installations are never assumed to
+be disposable. Unknown installations prevent shared-runtime collection because
+their references cannot be established.
+
+New package installations disable persistent uv caching. Known downloaded
+Python/uv ZIPs are retained only while a retained app refers to them; their
+recorded hash must still match before removal. Old unregistered caches, modified
+archives and incomplete transfers are left in place and reported. This is a
+bounded policy for managed successful updates, not permission to delete arbitrary
+old files. The stable `Cytellect` shortcut is updated only if it belongs to this
+installation. Historical version-specific shortcuts are not silently adopted.
+New links are staged before replacement; a later setup failure restores the
+prior link if it still matches this setup's write. Initial app ownership requires
+the release manifest and installed wheel RECORD files; unrelated files are not
+adopted by taking a whole-folder snapshot. Collection journals removal intent
+before deleting and can recover a verified partially removed tree after interruption.
+
+The collector's scratch-directory tests include three different application
+versions, a failed third setup, one shared Fiji acquisition, active/modified and
+unknown trees, junction rejection, referenced runtimes and archive ownership.
+Those controlled-download tests do not replace actual installed-release checks.
+The immutable published versions retain their original storage behavior.
+
 ### Windows application control
 
 An observed local setup attempt was blocked by Windows Smart App Control
