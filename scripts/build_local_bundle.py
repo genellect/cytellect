@@ -29,6 +29,7 @@ DOCS = {"docs/oss.md", "docs/local.md", "docs/security.md", "docs/hosting-costs.
 DATA_NOTICES = {"fixtures/public/allowlist.json"}
 WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".svg", ".woff2", ".woff", ".ttf",
                 ".ico", ".png", ".jpg", ".jpeg", ".webp"}
+REGISTERED_MARKETING_SUFFIXES = {".mp4", ".csv", ".glb"}
 
 
 def source_allowed(name: str) -> bool:
@@ -60,13 +61,24 @@ def collect_files(root: Path, tracked: list[str], web_dir: Path) -> dict[str, Pa
         verify_file(root, path)
     if web_dir.is_symlink() or web_dir.is_junction() or not (web_dir / "index.html").is_file():
         raise ValueError("bundle_local_web_missing")
+    registry_path = root / "fixtures/public/allowlist.json"
+    public_registry = json.loads(registry_path.read_text(encoding="utf-8")) if registry_path.is_file() else {}
     for path in web_dir.rglob("*"):
         if path.is_dir():
             continue
         relative = path.relative_to(web_dir)
-        if any(part.startswith(".") for part in relative.parts) or path.suffix not in WEB_SUFFIXES:
+        registered_media = path.suffix in REGISTERED_MARKETING_SUFFIXES
+        if any(part.startswith(".") for part in relative.parts) or (
+            path.suffix not in WEB_SUFFIXES and not registered_media
+        ):
             raise ValueError("bundle_unexpected_web_asset")
         verify_file(web_dir, path)
+        if registered_media:
+            entry = public_registry.get(f"apps/web/public/{relative.as_posix()}", {})
+            if (relative.parts[0] != "marketing" or not entry.get("source")
+                    or not entry.get("license")
+                    or hashlib.sha256(path.read_bytes()).hexdigest() != entry.get("sha256")):
+                raise ValueError("bundle_unregistered_marketing_asset")
         files[f"apps/web/out/{relative.as_posix()}"] = path
     # The only top-level executable is a copy of a reviewed, tracked launcher.
     files["Cytellect Setup.cmd"] = files["scripts/windows/Cytellect Setup.cmd"]

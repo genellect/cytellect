@@ -108,5 +108,130 @@
     "sha256": "119fa3fa612973b25d22bb3343f17cbb53ba2a99e619104a19ce95301750d2d9",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "CC-BY-3.0"
+  },
+  "apps/web/public/marketing/figure-caption.md": {
+    "sha256": "fc37dcf663a9195ab89766444e2de15b324ed854a355eb6ab31f9176617642d2",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/figure-public-mobile.svg": {
+    "sha256": "59b159a89308309632f669c470a3a80358f13bdfbaad2d712b1c8a1dbd0ce32c",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/figure-public.csv": {
+    "sha256": "92ef1e2ab074ab744a76f0b394baa25fdef83315b5b8fcc0a933b7fe71936ced",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/figure-public.svg": {
+    "sha256": "2c5c7559f3ec377fce0ce98247842d0337aabf48409bc997e71284a23c99ae9e",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/figure-source.json": {
+    "sha256": "2ea9b1fd3c35b79497285349d0b514a199682892d56d0cc7fc54a75f49cf2e4b",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/hero-microscopy-poster.webp": {
+    "sha256": "bd867683ecb925bacdf88f7fd39010d977fd4d3c08455f9ebf563edd6bd58288",
+    "source": "https://data.4dnucleome.org/files-microscopy/4DNFI7FAWT6C/",
+    "license": "4DN open data usage policy: freely download, analyze and publish results"
+  },
+  "apps/web/public/marketing/hero-microscopy.mp4": {
+    "sha256": "0757d235736968f1dedff2276375764653eb2620fbe858fce841e50ff89ca083",
+    "source": "https://data.4dnucleome.org/files-microscopy/4DNFI7FAWT6C/",
+    "license": "4DN open data usage policy: freely download, analyze and publish results"
+  },
+  "apps/web/public/marketing/planning-public-mobile.png": {
+    "sha256": "b52a3c5f102591370b7ac20e6f46a36677f9778c33e16939fb9935514fdc0aef",
+    "source": "https://github.com/genellect/cytellect",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/planning-public.png": {
+    "sha256": "b888404654731b4810e4258c5641a038faa6d0f80f1a93815cc5ae3d0881a1de",
+    "source": "https://github.com/genellect/cytellect",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/provenance.json": {
+    "sha256": "c518a3af4c0365f9a97ef6cb99904281fb918d624e83d5a61991602e6d58bacd",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "Source metadata; image-specific licenses recorded in manifest"
+  },
+  "apps/web/public/marketing/workspace-public-mobile.png": {
+    "sha256": "63beadb68ce28bd493dfeb576c77a35e4d25bd56b4f6c34d4df500b2b6cf0807",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/workspace-public.mp4": {
+    "sha256": "44421bee420768e00df97872b92f4ed2bc1efc68b6305e2162361d357e0dd749",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/workspace-public.png": {
+    "sha256": "d666aa0cebcaea48c0f073b3f65df65c0325b61c225965b6393c24e84bfef587",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/fonts/Inter-LICENSE.txt": {
+    "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+    "source": "https://github.com/rsms/inter/releases/tag/v4.1",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/InterVariable.woff2": {
+    "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+    "source": "https://github.com/rsms/inter/releases/tag/v4.1",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/NotoSansJP-OFL.txt": {
+    "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/NotoSansJPVariable.woff2": {
+    "sha256": "ccb11e15efc77694744dd8510722e28bc92187ba8a8f344dbdb70602db55398a",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/subset-manifest.json": {
+    "sha256": "6aef292859b04015ae26eb4e545c1d463d0bde037bc85f439f78f0b9453fe7f7",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/marketing/photo-lab-automation.webp": {
+    "sha256": "9c637e664885ecae4b3e2ee580f26a2efcc8d976c707490f862708623aac9d13",
+    "source": "https://unsplash.com/photos/gray-laboratory-machine-to8o0bqOA6Q",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/photo-pipetting.webp": {
+    "sha256": "cfd204cdef893de7e17a9e5b57bba085e3f75601c273ea7d31fd35971b53cebd",
+    "source": "https://unsplash.com/photos/person-using-pipette-in-laboratory-wDxFn_dBEC0",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/photo-microscope.webp": {
+    "sha256": "6e74ec3546d2dc874c927447dc96ad9633f6627753a42ecd6deadda1b610f0cb",
+    "source": "https://unsplash.com/photos/white-and-black-microscope-on-white-surface-JdtUKqGdqw8",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/photo-provenance.json": {
+    "sha256": "0529eec3aafb31346d7beb27c74609b85cb15470fd87053eeea63bf517245e75",
+    "source": "https://unsplash.com/license",
+    "license": "Source metadata; image-specific licenses recorded in manifest"
+  },
+  "apps/web/public/marketing/cell-sculpture.glb": {
+    "sha256": "81b33a2adb1f1a375143a720ce74c52fbf7134a1b43108631f69445a3828e407",
+    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/cell-sculpture-poster.webp": {
+    "sha256": "acb52a9e37df399058883de114e211766cbcddbfc9bead3850ceaf26b6c52a6a",
+    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/cell-sculpture-provenance.json": {
+    "sha256": "58aec4dafe74413b58819298710ec71bf992e6daba697f671a482e8384f27154",
+    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
+    "license": "Apache-2.0"
   }
 }

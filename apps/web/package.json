@@ -19,7 +19,8 @@
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-konva": "19.3.0"
+    "react-konva": "19.3.0",
+    "three": "0.185.1"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
@@ -30,6 +31,7 @@
     "eslint-config-next": "16.3.8",
     "openapi-typescript": "7.13.0",
     "typescript": "6.0.3",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "@types/three": "0.185.4"
   }
 }

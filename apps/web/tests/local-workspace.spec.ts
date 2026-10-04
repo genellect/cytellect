@@ -37,7 +37,7 @@ test("local package starts without invitation, processes real GFP, and retains w
  if(screenshot)await page.screenshot({path:path.join(screenshot,"local-start-mobile.png"),fullPage:true});
  await page.setViewportSize({width:1440,height:1000});
  await page.getByRole("button",{name:"解析を開始",exact:false}).click();
- await expect(page.getByRole("heading",{name:"新しい作業",exact:true})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"作業の新規作成",exact:true})).toBeVisible();
  const cookies=await page.context().cookies(origin);
  expect(cookies.some(c=>c.httpOnly&&c.sameSite==="Strict")).toBe(true);
  const denied=await page.request.post(origin+"/v1/local/session",{headers:{Origin:"https://example.com","X-Cytellect-Request":"1"}});

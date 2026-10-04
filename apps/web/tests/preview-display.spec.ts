@@ -25,18 +25,47 @@ function numericalInputs(){
  execFileSync(python,["-c","import sys,numpy as np,tifffile;from pathlib import Path;p=Path(sys.argv[1]);a=np.full((128,128),100,np.uint16);a[32:96,32:96]=4100;a[50:70,50:70]=2100;lab=np.zeros_like(a,dtype=np.uint32);lab[40:80,40:80]=1;[(tifffile.imwrite(p/f'{i}-a.tif',a+i*1000),tifffile.imwrite(p/f'{i}-b.tif',np.full_like(a,4095 if i==0 else 0))) for i in range(2)];tifffile.imwrite(p/'labels.tif',lab)",folder]);
  return folder;
 }
+// Never retain URLs, query strings, identifiers, message text or response bodies.
+function diagnosticRoute(raw:string){
+ try{
+  const url=new URL(raw);
+  if(!["http:","https:"].includes(url.protocol))return "non_http";
+  if(!["localhost","127.0.0.1"].includes(url.hostname))return "external";
+  const pathname=url.pathname;
+  if(pathname==="/v1/session")return "session";
+  if(pathname.startsWith("/v1/local/"))return "local_setup_or_session";
+  if(/^\/v1\/(region-)?fields\/[^/]+\/preview$/.test(pathname))return "image_preview";
+  if(pathname.startsWith("/v1/workspaces"))return "workspace_api";
+  if(pathname.startsWith("/v1/revisions"))return "revision_api";
+  if(pathname.startsWith("/v1/jobs"))return "job_api";
+  if(pathname.startsWith("/v1/"))return "other_api";
+  if(pathname.startsWith("/_next/"))return "next_asset";
+  if(/^\/plan(?:\/|\.txt|$)/.test(pathname))return "planning_static";
+  if(/^\/favicon\.(?:ico|png|svg)$/.test(pathname))return "favicon";
+  return "other_local_static";
+ }catch{return "unknown";}
+}
+function diagnosticMessage(text:string){
+ const react=/Minified React error #(\d{1,4})\b/.exec(text);
+ const status=/\bstatus(?: code)?(?: of)?\s+([1-5]\d{2})\b/i.exec(text);
+ return {code:react?"react_minified":/Content Security Policy|violates the following.*directive/i.test(text)?"content_security_policy":/Failed to (?:load resource|fetch)/i.test(text)?"resource_or_fetch_failed":"other",react_code:react?Number(react[1]):null,status:status?Number(status[1]):null};
+}
 function observe(page:Page){
  let bootstrapSeen=false;let injectedPreview:string|null=null;let injectedSeen=false;
- const errors:string[]=[];page.on("pageerror",()=>errors.push("pageerror"));
+ const diagnostics:unknown[]=[];let diagnosticCount=0;
+ function record(value:unknown){diagnosticCount++;if(diagnostics.length<24)diagnostics.push(value);}
+ const errors:string[]=[];page.on("pageerror",error=>{errors.push("pageerror");record({event:"pageerror",route:"unknown",...diagnosticMessage(error.message)});});
  page.on("console",message=>{
   if(message.type()!=="error")return;
   const source=message.location().url;
   if(!bootstrapSeen&&source===`${api}/v1/session`&&message.text().includes("status of 401")){bootstrapSeen=true;return;}
   if(!injectedSeen&&injectedPreview!==null&&source===injectedPreview&&message.text().includes("status of 503")){injectedSeen=true;return;}
   errors.push("console_error");
+  record({event:"console_error",route:diagnosticRoute(source),...diagnosticMessage(message.text())});
  });
+ page.on("response",response=>{if(response.status()>=400)record({event:"http_error",route:diagnosticRoute(response.url()),status:response.status()});});
  page.on("request",request=>{const url=new URL(request.url());if(["http:","https:"].includes(url.protocol)&&!["localhost","127.0.0.1"].includes(url.hostname))errors.push("external_request");});
- return {errors,injectPreviewFailure:(url:string)=>{expect(injectedPreview).toBeNull();injectedPreview=url;},verify:()=>{expect(bootstrapSeen).toBe(true);expect(injectedSeen).toBe(injectedPreview!==null);expect(errors).toEqual([]);}};
+ return {errors,injectPreviewFailure:(url:string)=>{expect(injectedPreview).toBeNull();injectedPreview=url;},verify:()=>{const context=JSON.stringify({safe_preview_diagnostics:diagnostics,total:diagnosticCount});expect(bootstrapSeen,context).toBe(true);expect(injectedSeen,context).toBe(injectedPreview!==null);expect(errors,context).toEqual([]);}};
 }
 
 test("display ranges follow decoded planes and gain without changing reviewed measurements",async({page})=>{

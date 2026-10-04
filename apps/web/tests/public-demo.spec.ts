@@ -47,25 +47,25 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  await page.goto("/");
  const release=process.env.CYTELLECT_EXPECT_RELEASE_URL??published.url;
  if(release){
-  await expect(page.getByRole("link",{name:/Cytellectをダウンロード/})).toHaveAttribute("href",release);
+  await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
-  await expect(page.getByText("Windows · x64",{exact:false})).toBeVisible();
+  await expect(page.getByText(/Windows PCで動作します。/)).toBeVisible();
   await page.getByText("保存先と削除について",{exact:true}).click();
   await expect(page.getByText(/終了中に期限を迎えたデータは次回起動時に削除します。/)).toBeVisible();
  }else{
-  await expect(page.getByText("公開サンプルからお試しください",{exact:true})).toBeVisible();
+  await expect(page.getByRole("link",{name:/公開画像を見る/})).toBeVisible();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
-  await expect(page.getByRole("link",{name:/Cytellectをダウンロード/})).toHaveCount(0);
+  await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveCount(0);
  }
  for(const width of [1440,390]){
   await page.setViewportSize({width,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   if(process.env.CYTELLECT_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.CYTELLECT_SCREENSHOT_DIR,`public-download-${width}.png`),fullPage:true});
  }
- await expect(page.getByRole("link",{name:/サンプルを試す/})).toBeVisible();
- await page.getByRole("link",{name:/サンプルを試す/}).click();
+ await expect(page.getByRole("link",{name:"解析例を見る",exact:true})).toBeVisible();
+ await page.getByRole("link",{name:"解析例を見る",exact:true}).click();
  await expect(page.getByAltText(/4DN.*公開実画像/)).toBeVisible();
- if(release){await page.getByRole("link",{name:"ダウンロード",exact:true}).click();await expect(page.getByRole("link",{name:/Cytellectをダウンロード/})).toHaveAttribute("href",release);}
+ if(release){await page.getByRole("link",{name:"ダウンロード",exact:true}).click();await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);}
  expect(connections).toEqual([]);
 });
 
@@ -76,7 +76,8 @@ test("public landing links saved measurements to their exact image regions",asyn
  page.on("request",r=>{if(new URL(r.url()).pathname.startsWith("/v1/"))analysisRequests.push(r.url());});
  const source=JSON.parse(fs.readFileSync(path.resolve("public/demo/4dn-ncl/data.json"),"utf8")) as {measurements:{nucleus_id:number;area_px:number;ncl_nucleus_mean_raw:number}[]};
  await page.goto("/");
- await expect(page.getByRole("heading",{level:1})).toHaveText("蛍光画像から、論文の図まで。");
+ await expect(page.getByRole("heading",{level:1})).toHaveText("Get your microscopy publication-ready.");
+ await page.getByText("画像と測定値を見比べる",{exact:false}).click();
  const image=page.getByAltText("4DN公開蛍光画像の領域と測定値の対応例");
  await expect(image).toBeVisible();
  await expect.poll(()=>image.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth===1739)).toBe(true);
@@ -100,7 +101,7 @@ test("public landing links saved measurements to their exact image regions",asyn
  for(const width of [1440,390]){
   await page.setViewportSize({width,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
-  await expect(page.getByRole("link",{name:/解析計画を確認する/})).toHaveAttribute("href","/plan");
+  await expect(page.getByRole("link",{name:"解析設定を見る",exact:true}).first()).toHaveAttribute("href","/plan");
  }
  expect(errors).toEqual([]);expect(analysisRequests).toEqual([]);
 });
@@ -109,7 +110,7 @@ test("published Windows asset downloads with the recorded checksum",async({page}
  test.skip(process.env.CYTELLECT_TEST_RELEASE_DOWNLOAD!=="1","Explicit public release download verification only");
  await page.goto("/");
  const pending=page.waitForEvent("download");
- await page.getByRole("link",{name:/Cytellectをダウンロード/}).click();
+ await page.getByRole("link",{name:/Windows版をダウンロード/}).click();
  const download=await pending;
  expect(download.suggestedFilename()).toBe(`Cytellect-${published.version}-windows-x64.zip`);
  const destination=testInfo.outputPath("published-windows.zip");

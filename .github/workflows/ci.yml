@@ -88,6 +88,22 @@ jobs:
       - run: pnpm check
       - run: pnpm test
       - run: pnpm build
+      - name: Install browser for public-site regression
+        run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
+      - name: Verify public LP and published-image viewer without an analysis API
+        env:
+          CYTELLECT_EXPECT_UNCONFIGURED: "1"
+          CYTELLECT_WEB_URL: http://127.0.0.1:3000
+        run: |
+          pnpm --filter @cytellect/web start > /tmp/cytellect-public-web.log 2>&1 &
+          public_web_pid=$!
+          trap 'kill "$public_web_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3000 >/dev/null
+          pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts --grep-invert "published Windows asset downloads"
       - run: pnpm audit --prod --audit-level high
       - name: Verify installed license evidence and generate combined inventory
         run: uv run python scripts/sbom.py --output /tmp/cytellect-compliance/dependency-inventory.json --web-notices /tmp/cytellect-compliance/THIRD_PARTY_WEB_NOTICES.txt

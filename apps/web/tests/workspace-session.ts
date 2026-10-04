@@ -46,7 +46,7 @@ export async function createRegionWorkspace(page:Page,title:string){
  await page.getByLabel("作業名",{exact:true}).fill(title);
  await expect(page.getByRole("combobox",{name:"解析の種類",exact:true})).toHaveValue("regions");
  const pending=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="POST");
- await page.getByRole("button",{name:"作業を作成 ＋",exact:true}).click();
+ await page.getByRole("button",{name:"作業を作成",exact:true}).click();
  const response=await pending;
  expect(response.ok()).toBeTruthy();
  return response.json();

@@ -1,0 +1,87 @@
+name: Author hero artwork
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/create_cell_sculpture.py
+      - .github/workflows/hero-artwork.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hero-artwork-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  blender:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare the authored-artwork tool only
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libx11-6 libxxf86vm1 libxi6 libxfixes3 libxrender1 libxkbcommon0 libegl1 libsm6 libice6 libgl1 python3-pil
+          mkdir -p "$RUNNER_TEMP/blender" "$RUNNER_TEMP/artwork"
+          curl --fail --location --retry 3 --connect-timeout 20 --max-time 180 \
+            https://download.blender.org/release/Blender4.5/blender-4.5.14-linux-x64.tar.xz \
+            --output "$RUNNER_TEMP/blender/archive.tar.xz"
+          printf '%s  %s\n' '9ba871ff2ecd36526b77432745980b7e6664ecd0c7ca11c48849073dcfe06da3' "$RUNNER_TEMP/blender/archive.tar.xz" | sha256sum --check
+          tar -xf "$RUNNER_TEMP/blender/archive.tar.xz" -C "$RUNNER_TEMP/blender"
+      - name: Build geometry and render the poster
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/blender/blender-4.5.14-linux-x64/blender" \
+            --background --factory-startup --threads 4 \
+            --python-exit-code 1 --python scripts/create_cell_sculpture.py \
+            -- --output-dir "$RUNNER_TEMP/artwork" --samples 64 \
+            2>&1 | tee "$RUNNER_TEMP/artwork/render.log"
+      - name: Encode poster and bind the authored source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          import PIL
+          from PIL import Image
+          target = Path(os.environ['RUNNER_TEMP']) / 'artwork'
+          png = target / 'cell-sculpture-poster.png'
+          with Image.open(png) as image:
+              assert image.size == (1600, 1000)
+              image.save(target / 'cell-sculpture-poster.webp', format='WEBP', quality=94, method=6)
+          receipt = json.loads((target / 'render-receipt.json').read_text())
+          receipt.update({
+              'source_commit': os.environ['GITHUB_SHA'],
+              'workflow_run': os.environ['GITHUB_RUN_ID'],
+              'blender_distribution': 'https://download.blender.org/release/Blender4.5/blender-4.5.14-linux-x64.tar.xz',
+              'blender_distribution_sha256': '9ba871ff2ecd36526b77432745980b7e6664ecd0c7ca11c48849073dcfe06da3',
+              'blender_tool_license': 'GPL-3.0-or-later (separate from authored artwork)',
+              'poster_encoder': f'Pillow {PIL.__version__}',
+          })
+          receipt['files'] = {name: {'sha256': hashlib.sha256((target / name).read_bytes()).hexdigest(), 'bytes': (target / name).stat().st_size}
+                              for name in ('cell-sculpture.glb', 'cell-sculpture-poster.png', 'cell-sculpture-poster.webp')}
+          (target / 'render-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          (target / 'SHA256SUMS.txt').write_text(''.join(f'{item["sha256"]}  {name}\n' for name, item in receipt['files'].items()))
+          PY
+      - name: Retain only authored artwork and its build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cell-sculpture-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/artwork/cell-sculpture.glb
+            ${{ runner.temp }}/artwork/cell-sculpture-poster.png
+            ${{ runner.temp }}/artwork/cell-sculpture-poster.webp
+            ${{ runner.temp }}/artwork/render-receipt.json
+            ${{ runner.temp }}/artwork/SHA256SUMS.txt
+            ${{ runner.temp }}/artwork/render.log

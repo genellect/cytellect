@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { AnalysisPlanner } from "@/components/AnalysisPlanner";
 
 export const metadata: Metadata = {
-  title: "解析計画 | Cytellect",
-  description: "測定の目的、画像の条件、独立反復を整理する、出典付きの解析計画。",
+  title: "解析設定 | Cytellect",
+  description: "測定項目、画像形式、実験条件に対応する解析方法と必要な設定を確認できます。",
 };
 
 export default function PlanPage() {
