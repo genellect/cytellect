@@ -79,10 +79,13 @@ adoption. Canonical public planning remains 2.0.0; the new local/API-configured
 source uses 2.1.0. PR #17's runtime corrections and PR #18's area source are now
 merged as main `d385eb0722a9df9068683fbc89a474c60b6e88af`. PR #18 passed all five
 required checks; the exact main source reached the canonical site and passed
-desktop/mobile public-page checks. Build the combined `local.12` package only
-after its main checks pass, then verify all fifteen installed browser cases
-before publication. Earlier runtime-only candidates remain scoped evidence,
-not the combined release. Public local.11 downloads remain unchanged meanwhile.
+desktop/mobile public-page checks. The combined `local.12` draft was built from
+that exact source after its main checks passed. Its installed-copy CI passed all
+fifteen browser cases and independent numerical/replay checks. Keep it as a
+bounded draft checkpoint: the next public package must also include the display,
+Methods, quality-overview and unfinished-input corrections, and pass all
+twenty-three installed browser cases. Earlier runtime-only candidates remain
+separate evidence. Public local.11 downloads remain unchanged meanwhile.
 The [region protocol](generic-regions.md) records the focused 150-case core/contract
 run and separate 89-case integrated adapter/export run, including nine new area
 cases. Independent source review is recorded separately from test execution.
@@ -102,6 +105,23 @@ Each cycle records: question → primary source → testable expectation → ind
 Only the coordinator commits/pushes/merges. Agents share explicit file ownership and send findings before cross-boundary edits. Reassign roles when dependencies make parallel work wasteful. CI is the reproducible test executor; it is not an autonomous scientist or a substitute for researcher review. No background paid agents are introduced.
 
 ## Completion evidence
+
+### Current bounded usability corrections
+
+The display/figure source in PR19 passed its five checks, exact-main checks and
+canonical desktop/mobile verification. PR20's recorded Methods and native
+channel guidance passed its five PR checks and canonical verification after
+merging as `93298894049d170e754adc6d040663160278c3a9`; its five exact-main checks also passed. These changes do not update an existing Windows package.
+
+Independent source review after the QC overview found two concrete navigation
+defects: ordinary field/channel and comparison-tab changes could discard
+unfinished input, and a subset of analyzed fields was renumbered in comparison
+metadata controls. The next fix preserves compatible drafts and stable field
+names without changing numerical methods, IDs, exclusions or approval rules.
+The sample-ID explanation is a literature-informed comprehension hypothesis;
+use the existing unequal-replicate exercise to evaluate it with researchers.
+Do not infer successful human use from browser regression. New analysis models,
+mandatory per-field approvals and paid agent services are outside this fix.
 
 ### Next source increment: inspectable display and recoverable figures
 
@@ -132,3 +152,11 @@ belongs to the frozen local.12 package. Human interpretation remains untested.
 The original MVP goal stays active. This revision broadens the scientific question and defines successive release gates; it does not mark M4/M5 complete. [Roadmap](roadmap.md) and [requirements](requirements.md) remain the status record. Code, CI, installed execution, production deployment, scientific applicability and human usability must be reported separately. Old release evidence remains immutable.
 
 For the new workflow, success means a researcher can identify a supported measurement, inspect/correct its region, explain the independent unit, regenerate the figure and trace each point back to an accepted measurement. Number of tests, number of agents, attractive plots and agreement with a historical p-value are not product acceptance criteria.
+
+The next bounded usability increment is a [read-only all-field quality overview](region-quality-overview.md).
+Existing diagnostics on a nonselected field/channel were available only after
+switching the image. The overview brings those saved diagnostics together and
+links to the exact source while retaining the existing global review. It adds no
+individual approval clicks, new scientific threshold or automatic exclusion.
+Private/human acceptance remains open; source review and browser checks must not
+be presented as observed reductions in missed warnings or researcher time.

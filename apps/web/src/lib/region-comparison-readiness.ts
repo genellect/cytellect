@@ -6,7 +6,7 @@ export type ComparisonReadinessInput={
  blocked:boolean;submitting:boolean;dirty:boolean;metadataDirty:boolean;hasRevision:boolean;reviewed:boolean;hasMetric:boolean;metric:string;
  design:""|"independent"|"paired";unitDefinition:string;pairingBasis:string;designConfirmed:boolean;
  conditions:string[];familyKind:"control"|"planned";control:string;contrasts:string[][];
- fields:{id:string;metadata:RegionMetadata}[];acquisitionConfirmed:boolean;samplingConfirmed:boolean;missingnessConfirmed:boolean;
+ fieldLabels?:Record<string,string>;fields:{id:string;metadata:RegionMetadata}[];acquisitionConfirmed:boolean;samplingConfirmed:boolean;missingnessConfirmed:boolean;
 };
 
 /** Explain existing form gates only. Never infer effective n or recompute server results. */
@@ -36,7 +36,8 @@ export function comparisonReadiness(input:ComparisonReadinessInput):ComparisonRe
  if(design==="paired"&&!input.pairingBasis.trim())add("pairing-basis-required","どの試料同士が対応するか、その根拠を記録してください。","pairing-basis","対応の根拠へ");
  // Saved metadata remains authoritative until its new analysis revision exists.
  // When a draft is present the save instruction takes precedence over stale gaps.
- if(!input.metadataDirty)input.fields.forEach((field,index)=>{
+ if(!input.metadataDirty)input.fields.forEach(field=>{
+  const label=input.fieldLabels?.[field.id]||"保存済みの視野";
   const missing:[keyof RegionMetadata,string][]=[];const value=field.metadata;
   if(!value.condition)missing.push(["condition","条件"]);
   else if(conditions.includes(value.condition)){
@@ -45,7 +46,7 @@ export function comparisonReadiness(input:ComparisonReadinessInput):ComparisonRe
    if(design==="paired"&&!value.pair)missing.push(["pair","対応ペア"]);
    if(!metric.startsWith("area_")&&!value.acquisition_date)missing.push(["acquisition_date","撮影日／バッチ"]);
   }
-  if(missing.length)issues.push({id:`metadata-${field.id}`,message:`視野 ${index+1}：${missing.map(([,label])=>label).join("・")}が未記録です。`,fieldId:field.id,metadataKey:missing[0][0],action:`視野 ${index+1} の${missing[0][1]}へ`});
+  if(missing.length)issues.push({id:`metadata-${field.id}`,message:`${label}：${missing.map(([,label])=>label).join("・")}が未記録です。`,fieldId:field.id,metadataKey:missing[0][0],action:`${label} の${missing[0][1]}へ`});
  });
  if(!input.designConfirmed)add("design-confirmation","独立性と対応関係を実験記録で確認してください。","design-confirmed","独立性・対応を確認する");
  if(!input.acquisitionConfirmed)add("acquisition-confirmation",metric.startsWith("area_")?"領域定義・採取方法と面積の尺度を確認してください。":"撮影・標識・背景と信号の飽和を確認してください。","acquisition","撮影条件を確認する");
