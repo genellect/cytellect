@@ -64,6 +64,8 @@ def collect_files(root: Path, tracked: list[str], web_dir: Path) -> dict[str, Pa
     registry_path = root / "fixtures/public/allowlist.json"
     public_registry = json.loads(registry_path.read_text(encoding="utf-8")) if registry_path.is_file() else {}
     for path in web_dir.rglob("*"):
+        if path.is_dir() and path.name.startswith("__next."):
+            raise ValueError("bundle_malformed_flight_export")
         if path.is_dir():
             continue
         relative = path.relative_to(web_dir)

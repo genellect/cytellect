@@ -87,6 +87,7 @@ jobs:
       - run: git diff --exit-code -- packages/contracts apps/web/src/lib/generated.ts apps/web/src/lib/recipe-defaults.json
       - run: pnpm check
       - run: pnpm test
+      - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - run: pnpm build
       - name: Install browser for public-site regression
         run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
@@ -103,7 +104,7 @@ jobs:
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:3000 >/dev/null
-          pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts --grep-invert "published Windows asset downloads"
+          pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts tests/lp-viewport-review.spec.ts --grep-invert "published Windows asset downloads"
       - run: pnpm audit --prod --audit-level high
       - name: Verify installed license evidence and generate combined inventory
         run: uv run python scripts/sbom.py --output /tmp/cytellect-compliance/dependency-inventory.json --web-notices /tmp/cytellect-compliance/THIRD_PARTY_WEB_NOTICES.txt
@@ -199,6 +200,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2

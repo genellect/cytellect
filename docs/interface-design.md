@@ -18,7 +18,9 @@ landing-page copy and repeated feature-card layouts.
   exported figures, rather than alternating pale explanatory panels.
 - Use Blender for the hero's authored organic form, surface detail, materials
   and static render; use Three.js for its browser scene, lighting and motion.
-  Compose one large, partially cropped subject beside the exact hero copy.
+  Compose one complete subject beside the exact hero copy. Keep the copy,
+  actions and cell artwork together in the first viewport, including short
+  desktop windows and mobile screens; keep the artwork clear of the navigation.
   Avoid generic nested glass spheres, star fields and decorative particles.
   Record authored artwork separately from measured microscopy in provenance.
   A three-dimensional figure card made with CSS does not meet the 3D hero

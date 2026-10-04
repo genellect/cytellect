@@ -60,6 +60,22 @@ def test_unexpected_static_file_is_not_silently_distributed(tmp_path):
         bundle.collect_files(tmp_path, names, web)
 
 
+def test_bundle_rejects_malformed_windows_flight_export(tmp_path):
+    names, web = fixture_tree(tmp_path)
+    malformed = web / "plan/__next.plan/__PAGE__.txt"
+    malformed.parent.mkdir(parents=True)
+    malformed.write_bytes(b"flight response")
+    with pytest.raises(ValueError, match="bundle_malformed_flight_export"):
+        bundle.collect_files(tmp_path, names, web)
+    malformed.unlink()
+    malformed.parent.rmdir()
+    canonical = web / "plan/__next.plan.__PAGE__.txt"
+    canonical.write_bytes(b"flight response")
+    assert bundle.collect_files(tmp_path, names, web)[
+        "apps/web/out/plan/__next.plan.__PAGE__.txt"
+    ].read_bytes() == b"flight response"
+
+
 @pytest.mark.parametrize("suffix", [".mp4", ".csv", ".glb", ".md"])
 @pytest.mark.parametrize("folder", ["marketing", "measurements"])
 def test_marketing_media_requires_registered_origin_and_exact_bytes(tmp_path, suffix, folder):
