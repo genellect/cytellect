@@ -45,7 +45,17 @@ test("descriptive pages retain every source field and recover tables without sub
  expect(result.figure.page_plan.flatMap(plan=>plan.field_ids)).toEqual(result.field_summary.map(row=>row.field_id));expect(result.counts).toMatchObject({observations:16,input_fields:9,selected_fields:8,experimental_units:null});expect(result).not.toHaveProperty("comparisons");
  expect(result.field_summary.find(row=>row.field_id===fields[8].id)).toMatchObject({selected_rows:0,median:null,status:"no_regions"});
  await expect(page.getByText("16 観測 · 採用値のある視野 8 / 入力 9 視野",{exact:true})).toBeVisible();
- await verifyVectorDownloads(page,{width:183/25.4,height:3.6,labels:["Image fields","Region area"]});await page.getByLabel("記述図の横軸ラベル",{exact:true}).fill("Pending label");await expect(page.getByText("表示中は保存済みの条件による結果です。現在選択した指標・表示設定を反映するには「分布図を作成」を実行してください。",{exact:true})).toBeVisible();await page.getByLabel("記述図の横軸ラベル",{exact:true}).fill("Image fields");
+ // A download event precedes the workspace refresh. Input into an inert parent
+ // may make fill() return without changing the controlled value; wait for readiness.
+ let holdPdfRefresh=false,refreshHeld=false;let releaseRefresh!:()=>void;const refreshGate=new Promise<void>(resolve=>{releaseRefresh=resolve;});
+ const onRequest=(request:import("@playwright/test").Request)=>{if(request.url().endsWith(".pdf"))holdPdfRefresh=true;};page.on("request",onRequest);
+ await page.route(`**/v1/workspaces/${workspace.id}`,async route=>{if(holdPdfRefresh&&!refreshHeld&&route.request().method()==="GET"){refreshHeld=true;await refreshGate;}await route.continue();});
+ const figureButton=page.getByRole("button",{name:"分布図を作成",exact:true});const axisInput=page.getByLabel("記述図の横軸ラベル",{exact:true});
+ let downloadsReady=false;const vectors=verifyVectorDownloads(page,{width:183/25.4,height:3.6,labels:["Image fields","Region area"]}).then(()=>{downloadsReady=true;});
+ try{await expect.poll(()=>refreshHeld).toBe(true);await expect(figureButton).toBeDisabled();await expect(axisInput).toHaveValue("Image fields");expect(downloadsReady).toBe(false);}finally{releaseRefresh();}
+ await vectors;
+ await expect(figureButton).toBeEnabled();await page.unroute(`**/v1/workspaces/${workspace.id}`);page.off("request",onRequest);
+ await axisInput.fill("Pending label");await expect(axisInput).toHaveValue("Pending label");const staleNotice=page.getByText("表示中は保存済みの条件による結果です。現在選択した指標・表示設定を反映するには「分布図を作成」を実行してください。",{exact:true});await expect(staleNotice).toBeVisible();await axisInput.fill("Image fields");await expect(staleNotice).toHaveCount(0);
  const firstBlob=await page.getByAltText("領域の測定値と視野内中央値の分布図",{exact:true}).getAttribute("src");
  const missing=`**/v1/jobs/${created.job_id}/files/figure-002.png`;
  await page.route(missing,route=>route.fulfill({status:404,contentType:"application/json",body:JSON.stringify({detail:"artifact_unavailable"})}));
