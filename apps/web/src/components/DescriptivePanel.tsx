@@ -90,7 +90,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
 
  return <section className={styles.statistics} aria-label="測定値と分布">
   <div className={`${styles.statsControls} ${styles.descriptiveControls}`}>
-   <h2>測定値と分布を見る</h2>
+   <h2>図の出力</h2>
    <p className={styles.small}>領域ごとの値と、視野内の中央値を表示します。1視野から作成できます。群間の検定や独立反復数の推定は行いません。</p>
    <label>表示する測定値<select aria-label="表示する測定値" value={option?.id||""} onChange={e=>setChoice(e.target.value)}><option value="">測定値を選択してください</option>{options.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
    {planSelection&&!option&&<p className={styles.notice}>採用計画の指標・チャンネルをこの解析版で利用できません。表示する測定値を確認して選択してください。</p>}{selectionChangedFromPlan(option,planSelection)&&<p className={styles.notice}>採用計画から指標またはチャンネルを変更しています。この選択を図の条件として保存します。</p>}
@@ -119,7 +119,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
    :result.error?<div className={styles.card} role="alert"><p>{errorMessage(result.error)}</p><button className={styles.secondary} onClick={()=>void result.refetch()}>再読み込み</button></div>
    :succeeded&&result.isPending?<div className={styles.card} role="status">保存済みの図と条件を読み込んでいます。</div>
    :succeeded&&result.data&&!data?<div className={styles.card} role="alert">結果の解析版が一致しません。この図は表示できません。</div>
-   :!data?<div className={styles.card}><h3>図と元データをまとめて保存</h3><p>測定値を選ぶと、視野ごとの分布と採用・欠測の記録を出力できます。</p></div>
+   :!data?<div className={styles.card}><h3>図は未作成です</h3><p>測定値を選ぶと、視野ごとの分布と採用・欠測の記録を出力できます。</p></div>
    :<>
     <div className={styles.card} aria-label="保存済みの記述図">
      <div className={styles.sectionHeader}><h3>測定値の分布</h3><span>{data.revision_id===revisionId?"採用中の解析版":"旧版の結果"}</span></div>

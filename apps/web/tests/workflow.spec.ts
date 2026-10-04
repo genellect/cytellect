@@ -18,7 +18,7 @@ async function login(page:Page){
  await page.goto("/");
  await page.getByLabel("招待コード",{exact:true}).fill(invite());
  await page.getByRole("button",{name:"ワークスペースに接続"}).click();
- await expect(page.getByRole("heading",{name:"新しい作業"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"作業の新規作成"})).toBeVisible();
 }
 async function json(response:APIResponse){expect(response.ok()).toBeTruthy();return response.json();}
 async function waitJob(page:Page,id:string){
@@ -85,7 +85,7 @@ test("synthetic invite → detect → edit → remeasure → statistics → expo
  expect((await redoRequest).postDataJSON().revision_id).toBe(branch.revision_id);
  await page.getByLabel("領域、背景、対象選別、失敗・除外理由を確認しました。").check();
  await mutation(page,"/review",()=>page.getByRole("button",{name:"品質確認を完了",exact:true}).click());
- await page.getByRole("button",{name:/02 統計と図表/}).click();
+ await page.getByRole("button",{name:/02 統計解析/}).click();
  await page.getByRole("button",{name:"群間比較・関連解析",exact:true}).click();
  await expect(page.getByRole("button",{name:"統計と図を生成"})).toBeDisabled();
  await page.getByLabel("条件間の対応",{exact:true}).selectOption("paired");
@@ -141,7 +141,7 @@ test("synthetic invite → detect → edit → remeasure → statistics → expo
  expect(renewed.field_failures).toEqual([]);expect(renewed.invalidated_nucleoli).toEqual([]);
  expect(renewed.cells.some((c:{field_id:string;nucleus_id:number})=>c.field_id===fixture.field_ids[0]&&c.nucleus_id===1)).toBe(false);
  expect(renewed.cells.some((c:{excluded:boolean;exclusion_reason:string})=>c.excluded&&c.exclusion_reason==="Synthetic exclusion regression")).toBe(true);
- await page.getByRole("button",{name:/02 統計と図表/}).click();
+ await page.getByRole("button",{name:/02 統計解析/}).click();
  await page.getByRole("button",{name:"群間比較・関連解析",exact:true}).click();
  await expect(page.getByText("この図は採用中の画像解析版とは別の解析版、または数値表から作成されています。保存する前に参照元を確認してください。")).toBeVisible();
  await page.getByRole("button",{name:/01 画像と領域/}).click();
@@ -224,7 +224,7 @@ test("two-channel inputs preserve actual roles; GFP field trial and figure prese
  const shot=process.env.CYTELLECT_SCREENSHOT_DIR;
  await expectGfpPreview(page);
  if(shot){fs.mkdirSync(shot,{recursive:true});await page.screenshot({path:path.join(shot,"public-gfp-private-workbench.png"),fullPage:true});}
- await page.getByRole("button",{name:/02 統計と図表/}).click();
+ await page.getByRole("button",{name:/02 統計解析/}).click();
  await page.getByRole("button",{name:"群間比較・関連解析",exact:true}).click();
  await expect(page.getByLabel("指標",{exact:true})).toHaveValue("gfp_mean_corrected");
  const metricSelect=page.getByLabel("指標",{exact:true});
@@ -275,7 +275,7 @@ test("numeric CSV -> paired comparison -> Methods and replay package",async({pag
  await page.getByLabel("作業名",{exact:true}).fill("Synthetic numeric table workflow");
  await page.getByRole("combobox",{name:"解析の種類",exact:true}).selectOption("nuclear");
  await page.getByRole("button",{name:"作業を作成"}).click();
- await page.getByRole("button",{name:/02 統計と図表/}).click();
+ await page.getByRole("button",{name:/02 統計解析/}).click();
  await page.getByRole("button",{name:"群間比較・関連解析",exact:true}).click();
  await page.getByText("測定済み数値CSVを取り込む",{exact:true}).click();
  const csv="condition,experimental_unit,sample,field_id,acquisition_date,pair,value\n"+Array.from({length:3},(_,i)=>`Control,unit-${i},c-${i},cf-${i},day-${i},pair-${i},${10*(i+1)}\nTreatment,unit-${i},t-${i},tf-${i},day-${i},pair-${i},${10*(i+1)+[1,2,4][i]}\n`).join("");

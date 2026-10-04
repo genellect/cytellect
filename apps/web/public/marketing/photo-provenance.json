@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "illustrative-stock-photography",
+  "not_analysis_input": true,
+  "not_product_usage_evidence": true,
+  "license_summary": "The verified Unsplash license permits copying, modifying and distributing images, including commercial use. Attribution is appreciated, not required. Unmodified image resale and building a competing image library are excluded. These assets retain their Unsplash terms and are not relicensed as Apache-2.0.",
+  "presentation_rules": [
+    "Distinguish these stock photographs from registered microscopy inputs and actual Cytellect figures.",
+    "Do not imply that creators, CDC or NCI use or endorse Cytellect.",
+    "Do not describe these photographs as the developer laboratory, user research data or product-controlled instruments.",
+    "Retain each creator, verified source link and license in this public provenance manifest."
+  ],
+  "assets": [
+    {
+      "path": "apps/web/public/marketing/photo-lab-automation.webp",
+      "sha256": "9c637e664885ecae4b3e2ee580f26a2efcc8d976c707490f862708623aac9d13",
+      "bytes": 135698,
+      "width": 1920,
+      "height": 1280,
+      "creator": "National Cancer Institute",
+      "source_url": "https://unsplash.com/photos/gray-laboratory-machine-to8o0bqOA6Q",
+      "title": "Automated liquid-handling instrument",
+      "alt_ja": "自動分注装置のノズル",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "license_verified_on": "2026-10-04",
+      "source_context": "Public photograph of a DNA-processing laboratory instrument. Not Cytellect hardware or an instrument controlled by Cytellect.",
+      "composition": "landscape; 3:2 native aspect ratio; 16:9 centre crop suitable",
+      "local_derivative_origin": "COMPASS licensed public photography: public/images/founder-portfolio/fragments/dna-automation-1920.webp",
+      "processing": "Byte-for-byte copy of an existing local WebP derivative; no new pixel processing, crop or generative editing."
+    },
+    {
+      "path": "apps/web/public/marketing/photo-pipetting.webp",
+      "sha256": "cfd204cdef893de7e17a9e5b57bba085e3f75601c273ea7d31fd35971b53cebd",
+      "bytes": 600888,
+      "width": 1920,
+      "height": 2658,
+      "creator": "CDC",
+      "source_url": "https://unsplash.com/photos/person-using-pipette-in-laboratory-wDxFn_dBEC0",
+      "title": "Gloved hands using a pipette",
+      "alt_ja": "手袋を着けた手によるピペット操作",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "license_verified_on": "2026-10-04",
+      "source_context": "Published molecular-testing photograph. Hands only, no identifiable face; not Cytellect use or the developer laboratory.",
+      "composition": "portrait; 4:5 crop retaining the pipette tip and vial",
+      "local_derivative_origin": "COMPASS licensed public photography: public/images/founder-portfolio/fragments/pipette-1920.webp",
+      "processing": "Byte-for-byte copy of an existing local WebP derivative; no new pixel processing, crop or generative editing."
+    },
+    {
+      "path": "apps/web/public/marketing/photo-microscope.webp",
+      "sha256": "6e74ec3546d2dc874c927447dc96ad9633f6627753a42ecd6deadda1b610f0cb",
+      "bytes": 46850,
+      "width": 1108,
+      "height": 1477,
+      "creator": "Pawel Czerwinski",
+      "source_url": "https://unsplash.com/photos/white-and-black-microscope-on-white-surface-JdtUKqGdqw8",
+      "title": "Stereo microscope on a light background",
+      "alt_ja": "白い背景の実体顕微鏡",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "license_verified_on": "2026-10-04",
+      "source_context": "The photographer identifies an instrument for inspecting insects. This is illustrative laboratory photography, not a fluorescence acquisition demonstration.",
+      "composition": "portrait; white negative space; use a modest crop without implying fluorescence hardware",
+      "local_derivative_origin": "COMPASS licensed public photography: public/images/founder-portfolio/fragments/microscope-pawel-1108.webp",
+      "processing": "Byte-for-byte copy of an existing local WebP derivative; no new pixel processing, crop or generative editing."
+    }
+  ]
+}

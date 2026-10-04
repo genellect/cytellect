@@ -1,30 +1,53 @@
 import Link from "next/link";
-import { WINDOWS_RELEASE_URL } from "@/lib/release";
-import LinkedImageFigure from "./LinkedImageFigure";
-import WindowsDownload from "./WindowsDownload";
-import styles from "./landing.module.css";
+import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL } from "@/lib/release";
+import { EditorialHeading } from "./EditorialHeading";
+import { PublicationStage } from "./PublicationStage";
+import { ProductMenu } from "./ProductMenu";
+import { MicroscopyMotion, EvidenceExample, ProductWalkthrough } from "./MarketingMotion";
+import styles from "./product.module.css";
 
-const steps = [
-  { title: "何を測るか、決める。", body: "測る領域、背景、比較する群を設定。視野と独立した実験の反復を分けて登録します。", detail: "測定項目・背景・実験単位" },
-  { title: "領域を見て、確かめる。", body: "代表画像で検出を試し、輪郭を修正。条件を決めて一括解析し、除外の理由も残します。", detail: "試行・修正・一括解析" },
-  { title: "実験単位で、比較する。", body: "細胞数と実験の反復数を混同せずに集計。比較方法と対象を確認して、統計と図を作ります。", detail: "群間比較・対応あり・探索的回帰" },
-  { title: "図から、測定値へ戻れる。", body: "編集可能な図に、測定表と解析条件を添えて保存。領域の修正後は新しい解析版で更新します。", detail: "SVG・PDF・CSV・再実行パッケージ" },
-];
+const docs = "https://github.com/genellect/cytellect/blob/main/docs/";
+const Arrow = () => <span aria-hidden="true">↗</span>;
+function NavigationLinks(){return <><a href="#workflow">プロダクト</a><Link href="/demo">解析例</Link><a href="#guide">ガイド</a><a href="#download" className={styles.navDownload}>ダウンロード <Arrow /></a></>;}
 
 export default function PublicLanding() {
   return <div className={styles.page}>
     <a className={styles.skipLink} href="#main">本文へ</a>
-    <header className={styles.header}><Link href="/" aria-label="Cytellect ホーム" className={styles.wordmark}><span className={styles.mark} aria-hidden="true"><i /><i /><i /></span>cytellect</Link><nav aria-label="メインナビゲーション"><a href="#workflow">解析の流れ</a><a href="#scope">対応範囲</a><a className={styles.navStart} href="#download">はじめる <span aria-hidden="true">↗</span></a></nav></header>
+    <header className={styles.header}><Link href="/" aria-label="Cytellect ホーム" className={styles.wordmark}>cytellect</Link><nav className={styles.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <main id="main">
-      <section className={styles.hero}>
-        <div className={styles.heroCopy}><p className={styles.eyebrow}>実験する人のための、蛍光画像解析。</p><h1>蛍光画像から、<br />論文の図まで。</h1><p className={styles.lead}>領域を確かめ、定量し、実験ごとに比較する。<br className={styles.desktopBreak} />画像解析から統計・作図までを、<br className={styles.desktopBreak} />ひとつのワークスペースで。</p><div className={styles.heroActions}><Link href="/demo" className={styles.primary}>サンプルを試す <span aria-hidden="true">↗</span></Link><a href="#download" className={styles.textLink}>Windows版について <span aria-hidden="true">↓</span></a></div><p className={styles.availability}>2D蛍光画像に対応{WINDOWS_RELEASE_URL ? " · Windows版を無償公開中" : " · 公開サンプルを提供中"}<br />開発プレビュー／実験ごとの妥当性確認が必要です。</p></div>
-        <LinkedImageFigure />
+      <section className={styles.hero} aria-labelledby="hero-title">
+        <MicroscopyMotion /><div className={styles.heroShade} />
+        <div className={styles.heroCopy}><h1 id="hero-title" lang="en"><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-ready.</span></h1><div className={styles.heroActions}><a href="#download" className={styles.primary}>ダウンロード <Arrow /></a><Link href="/demo" className={styles.heroSecondary}>解析例を見る <Arrow /></Link></div></div>
       </section>
-      <section className={styles.workflow} id="workflow" aria-labelledby="workflow-title"><div className={styles.sectionIntro}><p className={styles.eyebrow}>解析の流れ</p><h2 id="workflow-title">測定の設計から、<br className={styles.mobileBreak} />図の出力まで。</h2><p>Fijiによる検出処理に、領域の確認、定量、統計、作図をつなぎます。<br className={styles.desktopBreak} />どの画像を、どの条件で解析したかを、結果と一緒に残します。</p></div><ol className={styles.steps}>{steps.map((step, index) => <li key={step.title}><span className={styles.stepNumber}>{String(index + 1).padStart(2, "0")}</span><h3>{step.title}</h3><p>{step.body}</p><span className={styles.stepDetail}>{step.detail}</span></li>)}</ol><div className={styles.planLink}><span><b>解析を始める前に。</b> 目的に合う測定項目と、確認する条件を整理します。</span><Link href="/plan">解析計画を確認する <span aria-hidden="true">→</span></Link></div></section>
-      <section className={styles.outputs} aria-labelledby="outputs-title"><div><p className={styles.eyebrow}>結果を、説明できる形に。</p><h2 id="outputs-title">図だけでなく、<br />その根拠も手元に。</h2><p>投稿用の図を整えるときも、解析を見直すときも。<br />測定値・領域・条件を、対応づけて書き出せます。</p><a href="https://github.com/genellect/cytellect/blob/main/docs/methods.md" target="_blank" rel="noreferrer" className={styles.textLink}>測定と統計の定義を読む ↗</a></div><dl className={styles.deliverables}><div><dt><span>01</span>編集できる図</dt><dd>SVG・PDF・PNG。軸、単位、比較対象を明示し、日本語・英語のラベルに対応。</dd></div><div><dt><span>02</span>たどれる測定値</dt><dd>領域ID付きの測定表、マスク、Fiji用ROI。細胞・視野・独立反復を分けて記録。</dd></div><div><dt><span>03</span>再実行に必要な条件</dt><dd>解析版、背景、除外、統計条件、Methods文、環境情報をまとめて保存。</dd></div></dl></section>
-      <section className={styles.scope} id="scope" aria-labelledby="scope-title"><div><p className={styles.eyebrow}>現在の対応範囲</p><h2 id="scope-title">まずは、2D蛍光画像の<br />領域定量から。</h2><p>解析の流れを確かめながら使える初期版です。<br />対象や撮影条件に合わせて、検出結果と測定条件を確認してください。</p></div><div className={styles.scopeDetails}><dl><div><dt>入力</dt><dd>8 / 16-bitのチャンネル別TIFF、対応範囲のOME-TIFF（単一シリーズ・Z=1・T=1）。</dd></div><div><dt>測定</dt><dd>核・核小体候補の検出と修正、領域の面積・平均・中央値・積算輝度、背景補正。</dd></div><div><dt>比較</dt><dd>独立実験単位での群間比較、対応あり比較、探索的な回帰。数値CSVの取り込み。</dd></div></dl><details><summary>解析対象と制約を確認</summary><p>手動で囲んだ領域、整数ラベル画像、核染色から検出した核を使い、指定した蛍光チャンネルを測定できます。NCLによる核小体候補とGFP陽性選別は専用の解析として用意しています。細胞全体など、核以外の任意の構造を自動検出する機能は提供していません。</p><p>3D・時系列・スポット解析・自動細胞境界検出は対象外です。通常の核自動検出は1辺2,048 px・270万画素以内が上限です。撮影装置に固有の定量処理には対応していません。</p><p>手法の自動選定やAIによる結果の解釈は行いません。実画像での実験ごとの妥当性検証と、研究者による利用評価を継続します。</p></details></div></section>
-      <section className={styles.download} id="download" aria-labelledby="download-title"><div className={styles.downloadIntro}><p className={styles.eyebrow}>はじめる</p><h2 id="download-title">自分の画像で、<br />解析を始める。</h2><p>現在はWindows版を提供しています。<br />解析はPC内で実行し、操作はブラウザで。<br />この公開サイトに研究画像を送る必要はありません。</p><div className={styles.privateNote}><span aria-hidden="true">↳</span><p><b>研究データは、PC内に。</b><br />保存期間は最後の操作から24時間。<br />必要な結果は書き出して保存してください。</p></div><a href="https://github.com/genellect/cytellect/blob/main/docs/local.md" target="_blank" rel="noreferrer" className={styles.textLink}>セットアップと動作環境 ↗</a></div><div className={styles.downloadBody}>{WINDOWS_RELEASE_URL ? <WindowsDownload url={WINDOWS_RELEASE_URL} /> : <><h3>公開サンプルからお試しください</h3><p>Windows版の配布は現在このページでは案内していません。研究画像のアップロードは受け付けていません。</p><Link href="/demo" className={styles.primary}>公開画像を見る ↗</Link></>}</div></section>
+
+      <section id="workflow" className={styles.overview} aria-labelledby="workflow-title">
+        <div className={styles.sectionShell}>
+          <p className={styles.introduction}>Cytellectは、顕微鏡画像の解析から統計、論文用グラフの作成までをつなぐ、研究者のためのソフトウェアです。</p>
+          <div className={styles.editorialGrid}><EditorialHeading id="workflow-title" title="研究に使える時間を、もっと。" /><div className={styles.story}><p>一枚ずつの測定や、ソフトを移るたびのデータ整理。Cytellectは、画像の定量から集計までを一つのワークスペースでつなぎます。代表画像で確認した条件をまとめて適用し、気になる値は元の画像に戻って確認できます。</p></div></div>
+        </div>
+        <figure className={styles.labPanorama}><img src="/marketing/photo-lab-automation.webp" alt="実験室の分注装置" width={1920} height={1280} loading="lazy" /></figure>
+        <div className={styles.sectionShell}><figure className={styles.productVisual}><ProductWalkthrough /></figure><EvidenceExample /></div>
+      </section>
+
+      <section className={styles.comparison} aria-labelledby="comparison-title"><div className={styles.sectionShell}>
+        <div className={styles.regionComposition}>
+          <figure className={styles.researchPortrait}><img src="/marketing/photo-pipetting.webp" alt="手袋を着けてピペットで試料を扱う手元" width={1920} height={2658} loading="lazy" /></figure>
+          <div><EditorialHeading id="comparison-title" title="コードを書かずに、統計まで。" /><div className={styles.story}><p>画像解析や統計が専門でなくても、必要な設定を画面で確認しながら進められます。測定方法から、実験の組み方に合った比較まで。解析の根拠を理解しながら、自分の研究に取り組めます。</p><Link href="/plan" className={styles.textLink}>解析設定を見る <Arrow /></Link></div></div>
+        </div>
+        <figure className={styles.planningFigure}><picture><source media="(max-width: 760px)" srcSet="/marketing/planning-public-mobile.png" width={326} height={470} /><img src="/marketing/planning-public.png" alt="測定の目的に対応する解析方法と必要な入力を確認する画面" width={1256} height={910} loading="lazy" /></picture></figure>
+      </div></section>
+
+      <section className={styles.figures} aria-labelledby="figures-title"><div className={styles.sectionShell}><div className={styles.figureGrid}>
+        <div><EditorialHeading id="figures-title" title="その研究を、伝わる一枚に。" /><div className={styles.story}><p>積み重ねた実験の成果を、論文で伝わるグラフへ。測定結果から図を作り、誌面に合わせたサイズで出力できます。編集可能なSVG・PDFと元データを書き出し、論文の仕上げへ進めます。</p><a href={docs+"figures.md"} className={styles.textLink}>出力できる図と形式 <Arrow /></a></div></div>
+        <PublicationStage><figure className={styles.paperFigure}><a className={styles.paper} href="/marketing/figure-public.svg" aria-label="グラフを拡大"><picture><source media="(max-width: 760px)" srcSet="/marketing/figure-public-mobile.svg" /><img src="/marketing/figure-public.svg" alt="公開画像の817領域の面積分布を示すCytellectの出力図" width={518.74} height={216} loading="lazy" /></picture></a><figcaption><span>公開画像の測定値から出力した図</span><a href="/marketing/figure-public.svg">図を拡大 <Arrow /></a></figcaption><div className={styles.figureSources}><a href="/marketing/figure-public.csv">測定値 CSV</a><a href="/marketing/figure-source.json">作図条件</a><a href="/marketing/provenance.json">出典</a></div></figure></PublicationStage>
+      </div></div></section>
+
+      <section id="guide" className={styles.guides} aria-labelledby="guide-title"><div className={styles.sectionShell}><EditorialHeading id="guide-title" title="使い方と解析方法" /><div className={styles.guideLinks}><a href={docs+"quickstart.ja.md"}><span><b>はじめての解析</b><small>公開画像を使って操作する</small></span><Arrow /></a><a href={docs+"methods.md"}><span><b>解析方法</b><small>測定値と統計の定義を読む</small></span><Arrow /></a><a href={docs+"local.md"}><span><b>セットアップ</b><small>動作環境と導入手順を確認する</small></span><Arrow /></a></div></div></section>
+
+      <figure className={styles.instrumentPhoto}><img src="/marketing/photo-microscope.webp" alt="白い実験台に置かれた顕微鏡" width={1108} height={1477} loading="lazy" /></figure><section id="download" className={styles.download} aria-labelledby="download-title"><div className={styles.sectionShell}><div className={styles.downloadIntro}><EditorialHeading id="download-title" title="次の論文に、Cytellectを。" /><div><p>Windows PCで動作します。初回セットアップ後は、ブラウザから画像を登録して解析できます。</p>{WINDOWS_RELEASE_URL?<><a className={styles.primary} href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL&&<a className={styles.release} href={`https://github.com/genellect/cytellect/releases/tag/v${PUBLISHED_RELEASE.version}`}>v{PUBLISHED_RELEASE.version} · リリース情報 <Arrow /></a>}</>:<Link href="/demo" className={styles.primary}>公開画像を見る <Arrow /></Link>}</div></div>
+        <div id="scope" className={styles.conditions}><details><summary>対応する画像と解析</summary><p>汎用の領域解析は8／16-bitグレースケールのチャンネル別2D TIFFを扱います。核・核小体・GFPの専用レシピでは、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）も読み込めます。手動・整数ラベル・確認した核染色からの検出領域で、面積・輝度を測定できます。</p><p>3D、時系列、自動細胞境界検出、任意の構造の自動検出は対象外です。通常の核自動検出は1辺2,048 px・270万画素以内です。</p></details><details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。この公開サイトへ研究画像をアップロードする機能はありません。</p><a href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details><details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details></div>
+      </div></section>
     </main>
-    <footer className={styles.footer}><div><span className={styles.footerBrand}>cytellect</span><p>蛍光画像の解析から、再現できる図へ。</p></div><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect" target="_blank" rel="noreferrer">ソースコード ↗</a><a href="https://github.com/genellect/cytellect/blob/main/docs/validation.md" target="_blank" rel="noreferrer">検証状況 ↗</a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md" target="_blank" rel="noreferrer">セキュリティ ↗</a></nav><span className={styles.footerStatus}>開発プレビュー</span></footer>
+    <footer className={styles.footer}><div className={styles.sectionShell}><Link href="/" className={styles.footerBrand}>cytellect</Link><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav></div></footer>
   </div>;
 }

@@ -59,6 +59,34 @@ def test_unexpected_static_file_is_not_silently_distributed(tmp_path):
         bundle.collect_files(tmp_path, names, web)
 
 
+@pytest.mark.parametrize("suffix", [".mp4", ".csv"])
+@pytest.mark.parametrize("folder", ["marketing", "measurements"])
+def test_marketing_media_requires_registered_origin_and_exact_bytes(tmp_path, suffix, folder):
+    import hashlib
+
+    names, web = fixture_tree(tmp_path)
+    relative = f"{folder}/public-example{suffix}"
+    asset = web / relative
+    asset.parent.mkdir()
+    asset.write_bytes(b"public fixture")
+    with pytest.raises(ValueError, match="unregistered_marketing_asset"):
+        bundle.collect_files(tmp_path, names, web)
+    registry = tmp_path / "fixtures/public/allowlist.json"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(json.dumps({f"apps/web/public/{relative}": {
+        "source": "https://example.org/public-fixture", "license": "CC0",
+        "sha256": hashlib.sha256(asset.read_bytes()).hexdigest(),
+    }}))
+    if folder != "marketing":
+        with pytest.raises(ValueError, match="unregistered_marketing_asset"):
+            bundle.collect_files(tmp_path, names, web)
+        return
+    assert f"apps/web/out/{relative}" in bundle.collect_files(tmp_path, names, web)
+    asset.write_bytes(b"changed content")
+    with pytest.raises(ValueError, match="unregistered_marketing_asset"):
+        bundle.collect_files(tmp_path, names, web)
+
+
 def test_generated_license_is_hashed_but_arbitrary_generated_files_are_rejected(tmp_path):
     names, web = fixture_tree(tmp_path)
     files = bundle.collect_files(tmp_path, names, web)

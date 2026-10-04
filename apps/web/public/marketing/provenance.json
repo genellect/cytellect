@@ -1,0 +1,253 @@
+{
+  "version": "1.0.0",
+  "created": "2026-10-04",
+  "sources": {
+    "4dn": {
+      "url": "https://data.4dnucleome.org/files-microscopy/4DNFI7FAWT6C/",
+      "usage_policy": "https://registry.opendata.aws/4dnucleome/",
+      "publication": "https://doi.org/10.1186/s13059-025-03679-3",
+      "license": "4DN open data usage policy: freely download, analyze and publish results",
+      "attribution": "Li G, Kim HJ, Pendyala S et al., Sceptic, Genome Biology 26,209 (2025); Doug Fowler lab, University of Washington; 4DN Network",
+      "display": "Registered DAPI-blue/NCL-red derived preview. OME and portal channel order disagree; the source manifest retains the adopted mapping and discrepancy. No GFP. No original TIFF redistributed."
+    },
+    "bbbc013": {
+      "url": "https://bbbc.broadinstitute.org/BBBC013",
+      "license": "CC-BY-3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "attribution": "Images by Ilya Ravkin, Broad Bioimage Benchmark Collection BBBC013v1. TIFF containers derived from official 8-bit BMP exports; pixel samples unchanged.",
+      "scope": "Fixed published wells A01/A06/A12, DRAQ staining, 8-bit BMP-export pixel samples in TIFF containers. Not a validation of native FRM intensities or segmentation accuracy. No claim these fields are independent experimental replicates."
+    }
+  },
+  "capture": {
+    "method": "Actual Cytellect browser interactions through CUA, public fixtures only. No generated cells, fabricated UI, artificial numerical fixtures or private research.",
+    "source_revision": "6a0fdf20c2b6a074bcde3d577e099e076eb5ec7f",
+    "source_tree": "877d02ef9c029d84802ea9e01e2d34e16e290c8a",
+    "planning": "Actual API-connected planning 2.1.0 form with hypothetical mean-intensity/nuclear-region/descriptive purpose. No image upload or experimentally confirmed plan; separate from area-only workspace example.",
+    "ui_source_files": {
+      "apps/web/src/components/AnalysisPlanner.tsx": "2e4805721b52c1b705820b7753aa7ccb2c59d68e18a3d96013aa83cea5c5e0ec",
+      "apps/web/src/components/comparison-hierarchy.module.css": "400e6e9a85425d00fd2a4d54df1042e0eb5cd2cc23b41c89baa3eb75d5ac2984",
+      "apps/web/src/components/DemoWorkspace.tsx": "9b3cad8c18488d3aafd42674a82519e1771fca50dcd45673fe9a937e97b7483c",
+      "apps/web/src/components/DescriptivePanel.tsx": "01d2be20a7a17c3e5099061f0f1e174d0cb3f0d9520104ea06d4a8e5138c801f",
+      "apps/web/src/components/display-scale.module.css": "53de4137d560380716b61c826509fdb14a9f61c140c9afb369e7b5d671faa897",
+      "apps/web/src/components/DisplayScaleInfo.tsx": "bf053982e312983d594f7ee9de28dc42a09060f13bf8d399efab99cf2a35dbe8",
+      "apps/web/src/components/draft-navigation.module.css": "b470fdc66e92386d17a3820224cefe7a289707b04e52967b05729b18b504f415",
+      "apps/web/src/components/DraftNavigationDialog.tsx": "d44e7d155d6fd01e106793182af2f4cc89a86659d4657d5c5d08821a33d5d1c1",
+      "apps/web/src/components/EditorialHeading.tsx": "e79e90647eafdd98aa656436b8cf7879493d001bd991d995b2cae90e352624bb",
+      "apps/web/src/components/FieldCanvas.tsx": "606390f2156ee9daab2d9a29710dd1fdc46ae8892fd4845a1e665e558e98e84e",
+      "apps/web/src/components/GenericWorkbench.tsx": "24adf8f210c77092c1c01f770001e093e1c24791772cd864449e34ec1648b030",
+      "apps/web/src/components/landing.module.css": "7d94bbfc6790918aa47558f328abea7701940d99e6e8743e8ea6b10fadf3eaab",
+      "apps/web/src/components/LinkedImageFigure.tsx": "e84ba3be5cb6f01114465cb6b8be2462e07cdac975aa9a13f55bb134ad62a4bf",
+      "apps/web/src/components/MarketingMotion.tsx": "884056c8be3f0cee824c17afe30fa82f2f7a58e0b0d27594e62fcb9791ce1186",
+      "apps/web/src/components/PlanAdoptionCard.tsx": "3340cd7618c506e83d345928fca0b02507826c0e69841f7b4ece3b030a222695",
+      "apps/web/src/components/PlanMemory.tsx": "8d69786aba7c87153a58dd327bb3090e1c4242acc33ed4f4f3667e59417a8406",
+      "apps/web/src/components/planner.module.css": "a0147c58d912904edc598001ed7ea05bbbd0397550eb152d50aedef71c521da4",
+      "apps/web/src/components/PlanResolutionPanel.tsx": "eb673d3ab2f264a697952d2e1fecb932381892e3bc3d326ebd251076ac07c2f1",
+      "apps/web/src/components/product.module.css": "c6b0c1efac5ca55fe1d03d52b4403e2ef62f6d27b43668e70ff216795f1feba5",
+      "apps/web/src/components/ProductMenu.tsx": "b2fc8ff940fa24896183c6e21b53350ff042c6682e068ab7cd4a9e77de615a31",
+      "apps/web/src/components/PublicationStage.tsx": "ae395d251a11650faa65f4f9abfd3d03e94f931f86fc4726e2e7150fa6525e18",
+      "apps/web/src/components/PublicLanding.tsx": "e9456acc631723bd56760409c96200da498b538d6ae56b4d5cd8e1b044e765ae",
+      "apps/web/src/components/region-quality.module.css": "0f09b0afb2e2c6efb1c37d4ba14b2336680289a359343d7f0ad21adc48ff05ba",
+      "apps/web/src/components/RegionBatchUploadPanel.tsx": "69a7ecdecbd2e5d4eb7ab8807a96a26a7579c491cd554fa871fa61362fb7f3f5",
+      "apps/web/src/components/RegionComparisonHierarchy.tsx": "0453b417ff0e8c8125eb192380683964b1d08bb2ee988d759e8ee4f373a76dcf",
+      "apps/web/src/components/RegionComparisonPanel.tsx": "6669310e3447cbf6da912e3f23dca83c2ccc5ae72bbbd24ecec8a3686419ae76",
+      "apps/web/src/components/RegionQualityOverview.tsx": "1d021ddac6659d8539ba59f50f5be34a1724a0d9aaa0994ad21e64b69c0cc6d3",
+      "apps/web/src/components/RegionTraceTable.tsx": "ad64bc921d9786e586afcd5dc4aad5400ce40d41fd33a1f69555e0178c83cf7d",
+      "apps/web/src/components/RegionUploadPanel.tsx": "087b87f3c3b65573fcd47a97c0c2502a210d95c91b9351f6fd7079fb5ef2e3c5",
+      "apps/web/src/components/StatisticalResults.tsx": "b03804928d042639b5d1c81ded7459aee5675ba3ad6a0538087213abb5678725",
+      "apps/web/src/components/StatisticsPanel.tsx": "4eba652e4987e59bf6b8655f094a29783df9a2aa38ac8cbad0d4d4c3fb3333e4",
+      "apps/web/src/components/UploadPanel.tsx": "1e605f2ebf8253e91116154d891eac4c943ebe9567db76a39c07296c2c477d7e",
+      "apps/web/src/components/WindowsDownload.tsx": "109f849995c37b18e7c8796f2e332c077fb027387be4067a8ec55924071ecac1",
+      "apps/web/src/components/Workbench.tsx": "6c99de62fc4af9710c55f30d185c8281b20c4564e804f49d6238f931c06cdb5b",
+      "apps/web/src/components/workspace.module.css": "92a7316cf1b1b7557ae91e4277dc3d602559a557639bcbcb5b277283e96ec204",
+      "apps/web/src/components/WorkspaceApp.tsx": "e37e505845a082242a7c5acfd17b68f2eb655df75eded096e1a57bd5f549271a",
+      "apps/web/src/components/WorkspaceEntry.tsx": "bc6be5fb9f22d9c4ffd373d814776ae39acede4a328f01f3c73428e8d7976fda",
+      "apps/web/src/lib/planning-display.ts": "10103be950641072077957f06f8162f4467f5c5f37e2bc3e495f705066515e38"
+    },
+    "ui_revision_scope": "Uncommitted current UI redesign, recorded by exact source hashes; underlying saved measurements retain the original analysis source identity."
+  },
+  "hero": {
+    "source": "4dn",
+    "registered_preview_sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
+    "transform": "Crop and gentle looping viewport zoom of one static real image; not time-lapse or cell motion. 1600x900, 24 fps, 12 seconds, no audio. Scientific inputs and values unchanged.",
+    "build_tool": "scripts/build_marketing_media.py"
+  },
+  "workspace_operation": {
+    "source": "bbbc013",
+    "method": "Edited sequence of actual browser operations through saved representative-field revision, saved three-field batch revision, saved descriptive figure and measurement table. This new UI capture navigates existing results; it does not show new computation or processing speed. Navigation waits are omitted. No generated cursor, synthetic UI, or invented values.",
+    "duration_seconds": 14,
+    "steps": [
+      {
+        "capture_sha256": "c3731b93ca41aedd85be01b49f6520446a8f734c6774330d906b6ff3a2dbe271",
+        "duration_seconds": 3
+      },
+      {
+        "capture_sha256": "cf7284b6a493ab4cd85fcf16fc5c7532b3aa8913d697ada2c9c07a08e00d6361",
+        "duration_seconds": 3
+      },
+      {
+        "capture_sha256": "3e4e16be601a93858f61cd692d74849f9dfd787df8aa4fc823b61f2c96af1d6c",
+        "duration_seconds": 4
+      },
+      {
+        "capture_sha256": "a40dfc1413bf2789cc2335adf254e98d8d6de2d84965e58fcdbf171dc3294838",
+        "duration_seconds": 4
+      }
+    ]
+  },
+  "figure": {
+    "source": "bbbc013",
+    "source_record": "figure-source.json",
+    "csv": "figure-public.csv",
+    "caption": "figure-caption.md",
+    "observations": 817,
+    "fields": 3,
+    "scope": "App-generated area-only descriptive figure; points are regions, squares are within-field medians. No independent n, p values or confidence intervals. Same exact observations in 183mm desktop and 89mm mobile outputs."
+  },
+  "screenshots": {
+    "workspace-public.png": {
+      "capture_sha256": "d2178225aa4e26b4541822e2f4673a997b0521dc1ccc28647f050b03188f38d0",
+      "crop": [
+        25,
+        345,
+        1520,
+        744
+      ],
+      "source": "bbbc013",
+      "capture_ui": "2026-10-04 revised operational UI, actual production build",
+      "shows": "Actual image, stored outlines, field list and analysis settings"
+    },
+    "workspace-public-mobile.png": {
+      "capture_sha256": "b914d2d8b9fc2606b6f05a9257cd90eb78bc26f27ddf73110c4b28b5b9d55863",
+      "crop": [
+        10,
+        212,
+        340,
+        600
+      ],
+      "source": "bbbc013",
+      "capture_ui": "2026-10-04 revised operational UI, actual production build",
+      "shows": "Actual image, stored outlines, field list and analysis settings"
+    },
+    "planning-public.png": {
+      "capture_sha256": "bc7711663f140db91fc4f5a57e2c2e2596d02de048d53b936b4625ec4d5af4d5",
+      "crop": [
+        158,
+        90,
+        1256,
+        910
+      ],
+      "source": "planning",
+      "capture_ui": "2026-10-04 revised operational UI, actual production build",
+      "shows": "Actual measurement inputs and candidate, or mobile candidate panel; hypothetical setup, no experimental confirmation"
+    },
+    "planning-public-mobile.png": {
+      "capture_sha256": "3eb102ca5c2ad5b1b3496504cf6dd3e082e1b687e4792c90532a467a93cea013",
+      "crop": [
+        17,
+        365,
+        326,
+        470
+      ],
+      "source": "planning",
+      "capture_ui": "2026-10-04 revised operational UI, actual production build",
+      "shows": "Actual measurement inputs and candidate, or mobile candidate panel; hypothetical setup, no experimental confirmation"
+    }
+  },
+  "fonts": {
+    "inter": {
+      "source": "https://github.com/rsms/inter/releases/tag/v4.1",
+      "license": "OFL-1.1",
+      "file": "../fonts/InterVariable.woff2",
+      "license_file": "../fonts/Inter-LICENSE.txt"
+    },
+    "noto_sans_jp": {
+      "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+      "source_sha256": "c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f",
+      "license": "OFL-1.1",
+      "file": "../fonts/NotoSansJPVariable.woff2",
+      "license_file": "../fonts/NotoSansJP-OFL.txt",
+      "subset": "LP source text + ASCII + general punctuation; exact source hashes and code points in ../fonts/subset-manifest.json. Weight axis retained."
+    }
+  },
+  "assets": {
+    "figure-caption.md": {
+      "sha256": "fc37dcf663a9195ab89766444e2de15b324ed854a355eb6ab31f9176617642d2",
+      "bytes": 1836
+    },
+    "figure-public-mobile.svg": {
+      "sha256": "59b159a89308309632f669c470a3a80358f13bdfbaad2d712b1c8a1dbd0ce32c",
+      "bytes": 98990
+    },
+    "figure-public.csv": {
+      "sha256": "92ef1e2ab074ab744a76f0b394baa25fdef83315b5b8fcc0a933b7fe71936ced",
+      "bytes": 170246
+    },
+    "figure-public.svg": {
+      "sha256": "2c5c7559f3ec377fce0ce98247842d0337aabf48409bc997e71284a23c99ae9e",
+      "bytes": 99214
+    },
+    "figure-source.json": {
+      "sha256": "2ea9b1fd3c35b79497285349d0b514a199682892d56d0cc7fc54a75f49cf2e4b",
+      "bytes": 341192
+    },
+    "hero-microscopy-poster.webp": {
+      "sha256": "bd867683ecb925bacdf88f7fd39010d977fd4d3c08455f9ebf563edd6bd58288",
+      "bytes": 33752
+    },
+    "hero-microscopy.mp4": {
+      "sha256": "0757d235736968f1dedff2276375764653eb2620fbe858fce841e50ff89ca083",
+      "bytes": 595517
+    },
+    "planning-public-mobile.png": {
+      "sha256": "b52a3c5f102591370b7ac20e6f46a36677f9778c33e16939fb9935514fdc0aef",
+      "bytes": 66441
+    },
+    "planning-public.png": {
+      "sha256": "b888404654731b4810e4258c5641a038faa6d0f80f1a93815cc5ae3d0881a1de",
+      "bytes": 329333
+    },
+    "workspace-public-mobile.png": {
+      "sha256": "63beadb68ce28bd493dfeb576c77a35e4d25bd56b4f6c34d4df500b2b6cf0807",
+      "bytes": 167234
+    },
+    "workspace-public.mp4": {
+      "sha256": "44421bee420768e00df97872b92f4ed2bc1efc68b6305e2162361d357e0dd749",
+      "bytes": 407582
+    },
+    "workspace-public.png": {
+      "sha256": "d666aa0cebcaea48c0f073b3f65df65c0325b61c225965b6393c24e84bfef587",
+      "bytes": 686530
+    }
+  },
+  "illustrative_photography": {
+    "manifest": "/marketing/photo-provenance.json",
+    "scope": "Illustrative stock photographs; not analysis inputs or product usage evidence."
+  },
+  "generation_environment": {
+    "runtime_dependency": false,
+    "python": "3.12 (existing development interpreter; no product dependency added)",
+    "fonttools": {
+      "version": "4.66.1",
+      "source": "https://pypi.org/project/fonttools/4.66.1/"
+    },
+    "brotli": {
+      "version": "1.1.0",
+      "source": "https://pypi.org/project/Brotli/1.1.0/"
+    },
+    "imageio_ffmpeg": {
+      "version": "0.6.0",
+      "source": "https://pypi.org/project/imageio-ffmpeg/0.6.0/"
+    },
+    "ffmpeg": {
+      "version": "7.1",
+      "source": "https://github.com/imageio/imageio-ffmpeg",
+      "distribution": "Pinned binary packaged by imageio-ffmpeg 0.6.0"
+    },
+    "fonts": {
+      "Inter": "https://github.com/rsms/inter/releases/tag/v4.1",
+      "NotoSansJP": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+      "input_hashes": "scripts/build_marketing_media.py",
+      "subset_record": "/fonts/subset-manifest.json"
+    }
+  }
+}

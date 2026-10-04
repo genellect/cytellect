@@ -95,3 +95,27 @@ commercial-redistribution audit is claimed for the Fiji bundle.
 Cite ImageJ/Fiji, StarDist, CSBDeep and MorphoLibJ in methods as appropriate.
 The model's nuclear training domain does not establish nucleolar detection
 accuracy or fitness on a particular experiment.
+
+## Website components and media
+
+The following COMPASS components were adapted with the copyright owner's
+express permission for Cytellect. Their source is commit
+`4805fb6df9e5a0bd267aef9cfa440174ccac5fb1` of `genellect/compass`.
+Original copyright and adaptation notices remain in the source files.
+This permission does not change the license of the upstream COMPASS repository
+or the terms of its third-party assets.
+
+| Cytellect file | COMPASS source | Adaptation |
+|---|---|---|
+| `EditorialHeading.tsx` | `OfficialCoreSections.tsx`, `SectionHeading` | Semantic heading structure; removed reveal effects and decorative labels |
+| `ProductMenu.tsx` | `founder/MobileExternalMenu.tsx` | Outside-click, Escape and focus restoration; product navigation |
+| `PublicationStage.tsx` | `founder/ProductSculpture.tsx` | Visibility-based loading, generation guard and disposal; exported figure instead of WebGL sculpture |
+| `product.module.css` | `founder/founder.module.css` | Header, navigation and editorial typography adapted to Cytellect compositions |
+
+Inter and Noto Sans JP are self-hosted under their included OFL notices.
+The font subset manifest records source hashes and included application text.
+Registered microscopy and generated figures retain their source manifests;
+the laboratory photographs retain their separate Unsplash terms and creator
+records in `apps/web/public/marketing/photo-provenance.json`.
+The public asset allowlist binds each distributed file to its SHA-256, source
+and license. No Lila or GraphPad photographs, fonts or source code are included.
