@@ -87,6 +87,7 @@ jobs:
       - run: git diff --exit-code -- packages/contracts apps/web/src/lib/generated.ts apps/web/src/lib/recipe-defaults.json
       - run: pnpm check
       - run: pnpm test
+      - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - run: pnpm build
       - name: Install browser for public-site regression
         run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
@@ -199,6 +200,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
