@@ -84,7 +84,7 @@ def main() -> None:
         "requested_codepoints": sorted(codepoints),
         "sources": {str(p.relative_to(root)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_paths},
         "output_sha256": hashlib.sha256((fonts / "NotoSansJPVariable.woff2").read_bytes()).hexdigest(),
-    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     registry = root / "fixtures/public/allowlist.json"
     allowed = json.loads(registry.read_text(encoding="utf-8"))
     for path in fonts.iterdir():
@@ -95,7 +95,7 @@ def main() -> None:
         allowed[path.relative_to(root).as_posix()] = {
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "source": source, "license": "OFL-1.1",
         }
-    registry.write_text(json.dumps(allowed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    registry.write_text(json.dumps(allowed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

@@ -45,7 +45,7 @@ for name in filter(None, files):
     if not path.is_file():
         continue
     data = path.read_bytes()
-    if path.suffix.lower() in sensitive:
+    if path.suffix.lower() in sensitive or name in allowed:
         entry = allowed.get(name)
         if (
             not entry
@@ -54,7 +54,7 @@ for name in filter(None, files):
             or hashlib.sha256(data).hexdigest() != entry.get("sha256")
         ):
             failures += 1
-    elif len(data) < 2_000_000:
+    if path.suffix.lower() not in sensitive and len(data) < 2_000_000:
         text = data.decode("utf-8", errors="ignore")
         if re.search(r"(?:ghp_|gho_|sk_live_)[A-Za-z0-9]{20,}", text):
             failures += 1

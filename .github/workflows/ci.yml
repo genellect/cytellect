@@ -185,6 +185,7 @@ jobs:
           CYTELLECT_WEB_URL: http://127.0.0.1:8765
         run: |
           pnpm --filter @cytellect/web build:local
+          uv run python scripts/check_local_web_bundle.py
           uv run cytellect local --data-dir /tmp/cytellect-local --web-dir apps/web/out --fiji /tmp/cytellect-fiji --no-browser > /tmp/cytellect-local.log 2>&1 &
           LOCAL_PID=$!
           trap 'kill "$LOCAL_PID" 2>/dev/null || true' EXIT
