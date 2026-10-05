@@ -233,4 +233,3 @@ Windows version/hash/installed receipts、Docker source/receiptを一つの記�
 M4の非公開画像による参照比較、M5の研究者による操作評価は引き続き別の未完了項目。
 非公開研究データ・資料をClaude/CI/Gitへ取り込まず、私的な検証はその境界内で行います。
 実装・CI・デプロイ・操作受入・科学的評価をそれぞれ報告してください。
-
