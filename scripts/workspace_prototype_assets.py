@@ -70,24 +70,35 @@ def build() -> dict[str, bytes]:
     return files
 
 
+def _same(path: Path, data: bytes) -> bool:
+    """PNG bytes depend on the zlib build; compare decoded pixels instead."""
+    if not path.exists():
+        return False
+    if path.suffix != ".png":
+        return path.read_bytes() == data
+    with Image.open(path) as current, Image.open(io.BytesIO(data)) as expected:
+        return current.mode == expected.mode and np.array_equal(np.asarray(current), np.asarray(expected))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="fail if written files differ")
+    parser.add_argument("--check", action="store_true", help="fail if committed files differ")
     args = parser.parse_args()
     files = build()
     allowlist = json.loads(ALLOWLIST.read_text(encoding="utf-8"))
     changed = []
     for name, data in files.items():
         path = OUTPUT / name
-        if not path.exists() or path.read_bytes() != data:
+        if not _same(path, data):
             changed.append(name)
             if not args.check:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
-        if name.endswith(".png"):
+        if name.endswith(".png") and path.exists():
+            # The registry records the committed bytes, whichever zlib produced them.
             key = path.relative_to(ROOT).as_posix()
-            entry = {"sha256": hashlib.sha256(data).hexdigest(), "source": "https://bbbc.broadinstitute.org/BBBC013",
-                     "license": "CC-BY-3.0"}
+            entry = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                     "source": "https://bbbc.broadinstitute.org/BBBC013", "license": "CC-BY-3.0"}
             if allowlist.get(key) != entry:
                 changed.append(key)
                 allowlist[key] = entry
