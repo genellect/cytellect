@@ -1,9 +1,11 @@
 # Developer handoff — 2026-10-05
 
-**Latest handoff:** [PR #32 through API evaluation and production publication](claude-production-handoff-2026-10-05.md).
-Start there for the current branch, committed fixes, passed baseline CI, remaining
-product connections, budget boundaries and exact deployment/installation gates.
-The checkpoints below are historical; they do not override the newer handoff.
+**Latest delivery record:** [2026-10-06 production delivery](production-delivery-2026-10-06.md).
+Read that record before acting on the earlier
+[production handoff](claude-production-handoff-2026-10-05.md). Claude's cloud work
+has stopped, the cloud ledger bundle is retired, and the PC ledger is the single
+active authority. Do not repeat paid evaluation or activate an older ledger copy.
+The checkpoints below are historical; they do not override the delivery record.
 
 ## Start here
 
