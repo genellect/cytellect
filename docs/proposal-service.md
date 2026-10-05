@@ -2,6 +2,9 @@
 
 Source for the optional LLM proposal described in [workspace redesign](workspace-redesign.md#analysis-proposal-service-llm). It is **disabled by default** and is not deployed by CI.
 
+Use the [disabled deployment runbook](proposal-deployment.md) for pinned tooling,
+remote D1 migrations, no-paid-call acceptance and rollback conditions.
+
 ```text
 Browser → local API POST /v1/workspaces/{id}/proposal-drafts   {"goal": "…"} (optional)
             local API derives ProposalContext from the workspace

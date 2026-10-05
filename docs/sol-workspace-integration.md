@@ -67,8 +67,18 @@ failures: two migration tests still expected schema0002, and a Compose secret
 target assertion assumed the CLI would retain relative short syntax. The
 migration tests now check schema0003 while retaining original-row preservation;
 the relay secret target is explicitly `/run/secrets/proposal_device_token`.
-The focused migration/upload suite passed28 tests locally. Compose is unavailable
-in this local shell, so the actual merged configuration still requires CI proof.
+The focused migration/upload suite passed28 tests locally. After locating the
+existing user-installed Docker Desktop CLI, the actual merged-Compose test passed
+locally with its required flag enabled. Python CI also passed on commit afa9af6.
+
+The committed afa9af6 worker image was built from a Git archive (no local secrets
+or in-progress edits) and tested in Docker Desktop29.6.1. The actual Fiji smoke
+passed as UID10001 with a read-only root and only the loopback network interface:
+9 nuclei,18 nucleolar candidates, unchanged original pixels, and private temporary
+files. Its dedicated test volume did not replace the existing human-E2E services.
+The fixed Fiji build stage now depends on its installer and runtime lock rather
+than application code, allowing Docker to reuse it for subsequent app updates.
+This does not establish a new full-stack release or human usability acceptance.
 
 The first approved live Sol evaluation stopped at its first provider error.
 After adding bounded allowlisted diagnostics, a second attempt identified

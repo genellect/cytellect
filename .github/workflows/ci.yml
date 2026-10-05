@@ -90,7 +90,7 @@ jobs:
       - run: pnpm check
       - run: pnpm test
       - name: Verify the proposal service source (not deployed by CI)
-        run: pnpm --filter @cytellect/proposal-worker check && pnpm --filter @cytellect/proposal-worker test
+        run: pnpm --filter @cytellect/proposal-worker check && pnpm --filter @cytellect/proposal-worker test && pnpm --filter @cytellect/proposal-worker test:deployment
       - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - run: pnpm build
       - name: Install browser for public-site regression

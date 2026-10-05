@@ -7,10 +7,15 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "eval:public": "vitest run src/public-evaluation.test.ts",
-    "eval:init-ledger": "node scripts/init-evaluation-ledger.mjs"
+    "eval:init-ledger": "node scripts/init-evaluation-ledger.mjs",
+    "cf": "node node_modules/wrangler/bin/wrangler.js",
+    "deploy:prepare-disabled": "node scripts/prepare-disabled.mjs",
+    "deploy:verify-disabled": "node scripts/verify-disabled.mjs",
+    "test:deployment": "node --test scripts/deployment.test.mjs"
   },
   "devDependencies": {
     "typescript": "6.0.3",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "wrangler": "4.135.0"
   }
 }

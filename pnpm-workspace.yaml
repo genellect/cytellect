@@ -2,4 +2,8 @@ packages:
   - apps/*
   - services/proposal-worker
 allowBuilds:
+  esbuild: false
   unrs-resolver: true
+  workerd: false
+overrides:
+  'miniflare>undici': 7.29.1
