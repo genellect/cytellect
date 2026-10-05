@@ -20,8 +20,8 @@ test("adds images, adopts one proposal and inspects fields while the run continu
   await page.goto("/workspace");
   // No workspace form or method choice precedes adding images.
   await expect(page.getByRole("heading", { name: "画像を追加" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "フォルダを選択" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "解析の流れ" }).getByRole("listitem")).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "フォルダを追加" })).toBeVisible();
+  await expect(page.getByText("画像と原値の測定は解析サーバーで処理します。")).toBeVisible();
   await expect(page.getByText(/公開画像|サンプル/)).toHaveCount(0);
   await adoptPublicSample(page);
   await expect(page.getByRole("status").filter({ hasText: "解析中" })).toBeVisible();
@@ -91,34 +91,34 @@ test("a figure point opens its source image and region, and exports are actual o
   await expect(page.getByText("プロトタイプでは未対応")).toBeVisible();
 });
 
-test("added files are grouped once and a prototype failure stays on that field", async ({ page }) => {
+test("added files are grouped once and rejected real uploads remain visible", async ({ page }) => {
+  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Upload transport is exercised in the configured API browser job");
+  await page.route("**/v1/workspaces", route => route.fulfill({contentType: "application/json", body: JSON.stringify({id: "grouping-test"})}));
+  await page.route("**/v1/workspaces/grouping-test/region-fields", route => route.fulfill({status: 422, contentType: "application/json", body: JSON.stringify({detail: "unsupported_or_invalid_region_image"})}));
   await page.goto("/workspace");
   await page.getByTestId("file-input").setInputFiles([
     { name: "A01_dapi.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
-    { name: "A01_gfp.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
-    { name: "A02_dapi.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
-    { name: "A02_gfp.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
+    { name: "A01_gfp.tif", mimeType: "image/tiff", buffer: Buffer.from("y") },
+    { name: "A02_dapi.tif", mimeType: "image/tiff", buffer: Buffer.from("z") },
+    { name: "A02_gfp.tif", mimeType: "image/tiff", buffer: Buffer.from("w") },
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("x") },
-    { name: "overview.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
+    { name: "overview.tif", mimeType: "image/tiff", buffer: Buffer.from("v") },
   ]);
-  await expect(page.getByText("TIFF以外の 1 件は追加していません")).toBeVisible();
+  await expect(page.getByText(/TIFF以外の 1 件は追加していません/)).toBeVisible();
   // Nothing is dropped silently: the unreadable name is listed with what to do.
   const summary = page.getByRole("region", { name: "読み込み結果" });
   await expect(summary).toContainText("5 ファイル → 2 視野 · 2 チャンネル");
   await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
   await expect(summary).toContainText("overview.tif");
-  await expect(page.getByText("2 視野", { exact: true })).toBeVisible();
   // A named nuclear stain needs no channel decision at all.
   await expect(page.getByText("核検出：DAPI（ファイル名）")).toBeVisible();
-  await expect(page.getByRole("button", { name: "解析を実行" })).toBeEnabled();
-  await page.getByRole("button", { name: "解析を実行" }).click();
-  await expect(page.getByText("完了 0/2 · 要確認 2")).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole("alert").filter({ hasText: "再実行" })).toContainText("この画像はプロトタイプでは解析できません");
-  await page.locator("summary", { hasText: "書き出し" }).click();
+  await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
+  await expect(page.locator("main").getByRole("alert")).toContainText("2D・8/16-bitグレースケールTIFF");
   await expect(page.getByRole("link", { name: /SVG|CSV/ })).toHaveCount(0);
 });
 
 test("files that form no field are shown and the run stays unavailable", async ({ page }) => {
+  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Image grouping requires the configured workspace");
   await page.goto("/workspace");
   await page.getByTestId("file-input").setInputFiles([
     { name: "field01.ome.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
@@ -128,8 +128,7 @@ test("files that form no field are shown and the run stays unavailable", async (
   await expect(summary).toContainText("2 ファイル → 0 視野");
   await expect(summary).toContainText("チャンネルを取り込み時に読み取るファイル（1）");
   await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
-  await expect(page.getByText("解析できる視野がありません")).toBeVisible();
-  await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "解析を実行" })).toHaveCount(0);
 });
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]) {

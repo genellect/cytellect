@@ -11,12 +11,22 @@ export interface D1Statement {
   run(): Promise<D1Result>;
 }
 export interface D1Database { prepare(query: string): D1Statement }
+export interface UsageRecord {
+  model: string;
+  promptVersion: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  calls: number;
+}
 
 export interface Store {
   createInvitation(hash: string, expiresAt: number): Promise<void>;
   /** Marks the invitation used and registers the device; false when invalid, used or expired. */
   redeemInvitation(hash: string, deviceHash: string, now: number): Promise<boolean>;
   deviceActive(deviceHash: string): Promise<boolean>;
+  /** Claim an opaque action UUID once; never stores request content or response. */
+  claimRequest(deviceHash: string, requestId: string, now: number): Promise<boolean>;
   /** Counts one request for the device in the month; false when its quota is used. */
   countDeviceRequest(deviceHash: string, month: string, limit: number): Promise<boolean>;
   /**
@@ -27,8 +37,8 @@ export interface Store {
   reserve(id: string, month: string, amountUsd: number, budgetUsd: number, now: number): Promise<boolean>;
   /** Worst-case cost still held by reservations that were never settled. */
   unsettled(month: string): Promise<number>;
-  /** Releases the reservation and records the actual cost. */
-  settle(id: string, month: string, spentUsd: number): Promise<void>;
+  /** Releases the reservation and records the conservative accounted cost. */
+  settle(id: string, month: string, spentUsd: number, usage?: UsageRecord): Promise<void>;
 }
 
 
@@ -50,6 +60,12 @@ export class D1Store implements Store {
 
   async deviceActive(deviceHash: string) {
     return (await this.db.prepare("SELECT 1 AS ok FROM devices WHERE hash = ? AND revoked_at IS NULL").bind(deviceHash).first()) !== null;
+  }
+
+  async claimRequest(deviceHash: string, requestId: string, now: number) {
+    const result = await this.db.prepare("INSERT OR IGNORE INTO proposal_requests (device, request_id, created_at) VALUES (?, ?, ?)")
+      .bind(deviceHash, requestId, now).run();
+    return result.meta.changes === 1;
   }
 
   async countDeviceRequest(deviceHash: string, month: string, limit: number) {
@@ -76,11 +92,14 @@ export class D1Store implements Store {
     return row?.held ?? 0;
   }
 
-  async settle(id: string, month: string, spentUsd: number) {
+  async settle(id: string, month: string, spentUsd: number, usage?: UsageRecord) {
+    // One insertion + migration trigger atomically adds usage and removes the hold.
+    // Repeated settlement or a failure after a successful commit cannot double count.
     await this.db.prepare(
-      "INSERT INTO usage_months (month, spent_usd) VALUES (?, ?) ON CONFLICT (month) DO UPDATE SET spent_usd = spent_usd + excluded.spent_usd",
-    ).bind(month, spentUsd).run();
-    await this.db.prepare("DELETE FROM reservations WHERE id = ?").bind(id).run();
+      "INSERT OR IGNORE INTO settlements (id, month, spent_usd, model, prompt_version, input_tokens, cached_input_tokens, output_tokens, calls) "
+      + "SELECT id, month, ?, ?, ?, ?, ?, ?, ? FROM reservations WHERE id = ? AND month = ?",
+    ).bind(spentUsd, usage?.model ?? null, usage?.promptVersion ?? null, usage?.inputTokens ?? null,
+      usage?.cachedInputTokens ?? null, usage?.outputTokens ?? null, usage?.calls ?? null, id, month).run();
   }
 }
 
@@ -91,6 +110,8 @@ export class MemoryStore implements Store {
   requests = new Map<string, number>();
   spent = new Map<string, number>();
   reservations = new Map<string, { month: string; amount: number; createdAt: number }>();
+  claimedRequests = new Set<string>();
+  usage = new Map<string, UsageRecord>();
 
   async createInvitation(hash: string, expiresAt: number) { this.invitations.set(hash, { expiresAt, redeemed: false }); }
 
@@ -104,6 +125,13 @@ export class MemoryStore implements Store {
 
   async deviceActive(deviceHash: string) { return this.devices.get(deviceHash)?.revoked === false; }
 
+  async claimRequest(deviceHash: string, requestId: string, _now: number) {
+    const key = `${deviceHash}:${requestId}`;
+    if (this.claimedRequests.has(key)) return false;
+    this.claimedRequests.add(key);
+    return true;
+  }
+
   async countDeviceRequest(deviceHash: string, month: string, limit: number) {
     const key = `${deviceHash}:${month}`;
     const used = this.requests.get(key) ?? 0;
@@ -113,7 +141,8 @@ export class MemoryStore implements Store {
   }
 
   async reserve(id: string, month: string, amountUsd: number, budgetUsd: number, now: number) {
-    if ((this.spent.get(month) ?? 0) + (await this.unsettled(month)) + amountUsd > budgetUsd) return false;
+    const held = [...this.reservations.values()].filter((item) => item.month === month).reduce((sum, item) => sum + item.amount, 0);
+    if (this.reservations.has(id) || (this.spent.get(month) ?? 0) + held + amountUsd > budgetUsd) return false;
     this.reservations.set(id, { month, amount: amountUsd, createdAt: now });
     return true;
   }
@@ -122,7 +151,9 @@ export class MemoryStore implements Store {
     return [...this.reservations.values()].filter((item) => item.month === month).reduce((sum, item) => sum + item.amount, 0);
   }
 
-  async settle(id: string, month: string, spentUsd: number) {
+  async settle(id: string, month: string, spentUsd: number, usage?: UsageRecord) {
+    if (this.reservations.get(id)?.month !== month) return;
+    if (usage) this.usage.set(id, usage);
     this.spent.set(month, (this.spent.get(month) ?? 0) + spentUsd);
     this.reservations.delete(id);
   }

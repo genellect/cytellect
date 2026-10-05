@@ -110,6 +110,12 @@ bins across conditions, with saved endpoints/counts and individual-unit rugs.
 The final bin includes its right endpoint. Distribution/box/violin points use
 display-only jitter seed 0; paired connectors use saved pair identities.
 
+Figure renderer 1.0.1 fixes categorical X limits at half a category outside each
+end group. This keeps edge groups and their labels away from the plot boundary,
+independently of jitter and group size. Numeric values, tests, summaries and
+Methods are unchanged. Export and replay retain the saved renderer version;
+1.0.0 figures keep their original autoscaling. Unknown versions are rejected.
+
 Association scatter shows one matched independent-unit X/Y point, with no
 fitted line. All figures export editable SVG, font-embedded PDF, 300 dpi PNG,
 complete saved-value CSV tables and figure-data JSON with file hashes and exact

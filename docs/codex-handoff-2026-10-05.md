@@ -1,5 +1,9 @@
 # Codex handoff — single workspace and LLM proposal (2026-10-05)
 
+**Historical checkpoint:** PR29/30/31 are now merged. The current continuation
+is PR32; use the [Claude production handoff](claude-production-handoff-2026-10-05.md)
+for source identity, validation, remaining work and current authorization.
+
 Claude Code built the redesign increment in three stacked PRs. The owner assigns Codex the next phase: review and minimal fixes, the API implementation of the analysis proposal with the GPT6.1Sol model, and production publication of everything, including the Worker.
 
 ## 1. Read first (in this order)

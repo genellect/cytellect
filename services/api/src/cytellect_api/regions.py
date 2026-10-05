@@ -22,6 +22,7 @@ from cytellect_analysis.region_contracts import (
     RegionReportType,
     region_report_from_json,
     region_request_config,
+    validate_nuclear_role_evidence,
     validate_region_report_policy,
 )
 from cytellect_analysis.region_metadata import region_metadata_child_config
@@ -67,6 +68,10 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         excluded = {e.field_id for e in body.exclusions if e.region_id is None}
         for f in selected:
             info = RegionImageInfo.model_validate(f["image_info"])
+            try:
+                validate_nuclear_role_evidence(body.recipe, info)
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from None
             channels = {c.channel_id for c in info.channels}
             if body.recipe.defining_channel_id is not None and body.recipe.defining_channel_id not in channels:
                 raise HTTPException(422, "unknown_defining_channel")

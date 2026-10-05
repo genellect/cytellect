@@ -64,6 +64,13 @@
         "title": "Channels",
         "type": "array"
       },
+      "complete_pair_count": {
+        "default": 0,
+        "maximum": 10000,
+        "minimum": 0,
+        "title": "Complete Pair Count",
+        "type": "integer"
+      },
       "condition_count": {
         "default": 0,
         "maximum": 100,
@@ -94,8 +101,8 @@
         "type": "boolean"
       },
       "protocol": {
-        "const": "1.0.0",
-        "default": "1.0.0",
+        "const": "1.1.0",
+        "default": "1.1.0",
         "title": "Protocol",
         "type": "string"
       },
@@ -108,6 +115,16 @@
         "default": false,
         "title": "Units Known",
         "type": "boolean"
+      },
+      "units_per_condition": {
+        "items": {
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxItems": 100,
+        "title": "Units Per Condition",
+        "type": "array"
       }
     },
     "required": [
@@ -120,6 +137,189 @@
   "draft_schema": {
     "additionalProperties": false,
     "properties": {
+      "additional_analyses": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "association": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pearson",
+                    "spearman"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "enum": [
+                "descriptive",
+                "comparison",
+                "association"
+              ],
+              "type": "string"
+            },
+            "omnibus": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "welch-anova",
+                    "kruskal-wallis"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "test": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "welch-t",
+                    "paired-t",
+                    "mann-whitney-u",
+                    "wilcoxon"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "x": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "channel": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "metric": {
+                      "enum": [
+                        "area",
+                        "mean_raw",
+                        "integral_raw",
+                        "mean_corrected",
+                        "integral_corrected",
+                        "ncl_log2_nucleoplasm_over_nucleoli",
+                        "nucleolar_area_fraction",
+                        "nucleolar_count"
+                      ],
+                      "type": "string"
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "nucleus",
+                            "nucleoli",
+                            "nucleoplasm",
+                            "supplied"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "channel",
+                    "region"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "y": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "channel": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "metric": {
+                      "enum": [
+                        "area",
+                        "mean_raw",
+                        "integral_raw",
+                        "mean_corrected",
+                        "integral_corrected",
+                        "ncl_log2_nucleoplasm_over_nucleoli",
+                        "nucleolar_area_fraction",
+                        "nucleolar_count"
+                      ],
+                      "type": "string"
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "nucleus",
+                            "nucleoli",
+                            "nucleoplasm",
+                            "supplied"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "channel",
+                    "region"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "test",
+            "omnibus",
+            "association",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "channels": {
         "items": {
           "additionalProperties": false,
@@ -163,6 +363,9 @@
         "items": {
           "additionalProperties": false,
           "properties": {
+            "analysis_index": {
+              "type": "integer"
+            },
             "channel": {
               "anyOf": [
                 {
@@ -194,12 +397,30 @@
                 "nucleolar_count"
               ],
               "type": "string"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "nucleus",
+                    "nucleoli",
+                    "nucleoplasm",
+                    "supplied"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
             "kind",
             "metric",
-            "channel"
+            "channel",
+            "region",
+            "analysis_index"
           ],
           "type": "object"
         },
@@ -231,11 +452,28 @@
                 "nucleolar_count"
               ],
               "type": "string"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "nucleus",
+                    "nucleoli",
+                    "nucleoplasm",
+                    "supplied"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
             "metric",
-            "channel"
+            "channel",
+            "region"
           ],
           "type": "object"
         },
@@ -328,13 +566,129 @@
                 "type": "null"
               }
             ]
+          },
+          "x": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "channel": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "enum": [
+                      "area",
+                      "mean_raw",
+                      "integral_raw",
+                      "mean_corrected",
+                      "integral_corrected",
+                      "ncl_log2_nucleoplasm_over_nucleoli",
+                      "nucleolar_area_fraction",
+                      "nucleolar_count"
+                    ],
+                    "type": "string"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "nucleus",
+                          "nucleoli",
+                          "nucleoplasm",
+                          "supplied"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "metric",
+                  "channel",
+                  "region"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "y": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "channel": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "enum": [
+                      "area",
+                      "mean_raw",
+                      "integral_raw",
+                      "mean_corrected",
+                      "integral_corrected",
+                      "ncl_log2_nucleoplasm_over_nucleoli",
+                      "nucleolar_area_fraction",
+                      "nucleolar_count"
+                    ],
+                    "type": "string"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "nucleus",
+                          "nucleoli",
+                          "nucleoplasm",
+                          "supplied"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "metric",
+                  "channel",
+                  "region"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "kind",
           "test",
           "omnibus",
-          "association"
+          "association",
+          "x",
+          "y"
         ],
         "type": "object"
       }
@@ -344,6 +698,7 @@
       "channels",
       "metrics",
       "statistics",
+      "additional_analyses",
       "figures",
       "missing_information",
       "reference_ids",

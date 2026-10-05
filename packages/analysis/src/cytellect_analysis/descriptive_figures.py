@@ -39,7 +39,7 @@ def _selected_channel(result):
 
 def _caption(result, labels):
     ja = result["spec"]["plot"]["language"] == "ja"
-    area_only = _source_measurement_policy(result) is not None
+    area_only = getattr(_source_measurement_policy(result), "mode", None) == "area_only"
     numeric = result["source_kind"] == "measured-numerical-assay"
     observation = {"regions": ("regions", "領域"), "nuclei": ("nuclei", "核"),
                    "observations": ("observations", "観測値")}[result["observation_kind"]][ja]
@@ -72,6 +72,8 @@ def _caption(result, labels):
                  "Horizontal jitter affects display only (seed 0); values and selection are unchanged."]
     if selected_identity:
         lines.insert(3, ("測定チャンネル: " if ja else "Measured channel: ") + selected_identity + ".")
+    if result.get("source_review") == "automatic_unreviewed":
+        lines.append("領域の目視確認前に生成した記述図。" if ja else "Descriptive output generated before visual review of regions.")
     lines += ["", "Field / source mapping:"]
     for field in result["source_fields"]:
         fid = field["field_id"]
@@ -98,6 +100,8 @@ def descriptive_methods(result, *, methods_template=None):
         return readable_descriptive_methods(result)
     spec = parse_descriptive_request(result["spec"])
     policy = _source_measurement_policy(result)
+    if getattr(policy, "mode", None) == "raw_intensity":
+        return readable_descriptive_methods(result)
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.", "",
              f"Descriptive protocol: {result['descriptive_version']}; source: {result['source_kind']}.",
              f"Selector: {json.dumps(spec.selection.model_dump(), ensure_ascii=False, sort_keys=True)}.",

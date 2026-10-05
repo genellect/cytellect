@@ -1,0 +1,24 @@
+# Explicit opt-in relay access. Base Compose remains offline for API/analysis.
+# Only the API receives an outbound interface and the installation device token.
+services:
+  api:
+    environment:
+      CYTELLECT_PROPOSAL_URL: ${CYTELLECT_PROPOSAL_URL:?Set the approved HTTPS proposal relay URL}
+      CYTELLECT_PROPOSAL_TOKEN: ""
+      CYTELLECT_PROPOSAL_TOKEN_FILE: /run/secrets/proposal_device_token
+      CYTELLECT_PROPOSAL_TIMEOUT_SECONDS: ${CYTELLECT_PROPOSAL_TIMEOUT_SECONDS:-300}
+      CYTELLECT_PROPOSAL_MODEL: gpt-6.1-sol
+      CYTELLECT_PROPOSAL_PROMPT_VERSION: "2026-10-05.2"
+    secrets:
+      - source: proposal_device_token
+        target: /run/secrets/proposal_device_token
+    networks:
+      - private
+      - proposal_outbound
+
+networks:
+  proposal_outbound: {}
+
+secrets:
+  proposal_device_token:
+    file: ${CYTELLECT_PROPOSAL_TOKEN_FILE:?Set an absolute device-token file path outside the repository}

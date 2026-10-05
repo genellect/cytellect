@@ -271,7 +271,7 @@ export default function GenericWorkbench({id,onBack,onError}:Props){
      </div>
     </section>
     <aside className={`${styles.controlPanel} ${styles.genericControls}`}><div className={styles.panelTitle}><h2>解析設定</h2></div>
-     <label>測定する量<select aria-label="測定する量" value={measurementMode(config.measurement)} disabled={blocked||draftRegion} onChange={event=>chooseMeasurement(event.target.value as RegionMeasurementMode)}><option value="area_and_intensity">面積と輝度（背景補正あり）</option><option value="area_only">面積のみ</option></select></label>
+     <label>測定する量<select aria-label="測定する量" value={measurementMode(config.measurement)} disabled={blocked||draftRegion} onChange={event=>chooseMeasurement(event.target.value as RegionMeasurementMode)}>{config.measurement?.mode==="raw_intensity"&&<option value="raw_intensity">面積と輝度（原値）</option>}<option value="area_and_intensity">面積と輝度（背景補正あり）</option><option value="area_only">面積のみ</option></select></label>
      {!areaOnly&&<p className={styles.small}>チャンネルごとに背景ROIを確認してください。</p>}
      {measurementChanged&&<p className={styles.notice}>測定する量の変更は、新しい解析版へ保存します。現在の領域を保持し、保存後に品質を確認し直します。</p>}
      <label>領域名<input aria-label="領域名" value={config.recipe.label} readOnly={!!active} maxLength={120} onChange={event=>change({recipe:{...config.recipe,label:event.target.value}})}/></label>

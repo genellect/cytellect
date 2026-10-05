@@ -309,13 +309,19 @@ def test_migration_preserves_rows_and_adds_scoped_unique_identity(tmp_path, lega
     # Reopening performs no destructive rewrite or double migration.
     reopened = Store(tmp_path)
     with reopened.engine.connect() as conn:
-        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0002"
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0003"
         schema = inspect(conn)
         columns = {column["name"]: column for column in schema.get_columns("fields")}
         assert columns["client_upload_id"]["nullable"] and columns["upload_fingerprint"]["nullable"]
         assert next(column for column in schema.get_columns("workspaces") if column["name"] == "analysis_plan")["nullable"]
         index = next(index for index in schema.get_indexes("fields") if index["name"] == "uq_fields_workspace_client_upload_id")
         assert index["unique"] and index["column_names"] == ["workspace_id", "client_upload_id"]
+        # Adding durable proposal storage must not rewrite the original upload
+        # rows or populate research drafts on either a fresh or upgraded store.
+        assert conn.exec_driver_sql("SELECT count(*) FROM proposal_drafts").scalar_one() == 0
+        proposal_index = next(index for index in schema.get_indexes("proposal_drafts")
+                              if index["name"] == "uq_proposal_workspace_key")
+        assert proposal_index["unique"] and proposal_index["column_names"] == ["workspace_id", "cache_key"]
         if legacy:
             after_workspaces = list(conn.exec_driver_sql("SELECT * FROM workspaces").mappings())
             after_fields = list(conn.exec_driver_sql("SELECT * FROM fields ORDER BY id").mappings())

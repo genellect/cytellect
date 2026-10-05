@@ -11,7 +11,7 @@ import math
 from typing import Annotated, Literal
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, TypeAdapter, field_validator, model_validator
 
 from .masks import validate_label_array
 from .measurement import region_values
@@ -31,6 +31,27 @@ class RegionModel(BaseModel):
         if type(value) is not bool or value is not True:
             raise ValueError("explicit_confirmation_required")
         return value
+
+
+class ChannelDefinition(RegionModel):
+    channel_id: Id
+    label: Label
+    stain: Label | None = None
+    acquisition_saturation_value: Annotated[int, Field(ge=1, le=65535)] | None = None
+    acquisition_saturation_confirmed: bool = False
+
+    @field_validator("label", "stain")
+    @classmethod
+    def descriptive_text(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or any(ord(char) < 32 for char in value)):
+            raise ValueError("channel_label_invalid")
+        return value
+
+    @model_validator(mode="after")
+    def known_acquisition_limit(self):
+        if (self.acquisition_saturation_value is not None) != self.acquisition_saturation_confirmed:
+            raise ValueError("acquisition_saturation_requires_confirmed_value")
+        return self
 
 
 class ChannelSpec(RegionModel):
@@ -53,6 +74,21 @@ class ChannelSpec(RegionModel):
         if (self.acquisition_saturation_value is not None) != self.acquisition_saturation_confirmed:
             raise ValueError("acquisition_saturation_requires_confirmed_value")
         return self
+
+
+class ObservedChannelSpec(ChannelDefinition):
+    """Recorded import evidence is not a human acquisition confirmation."""
+    identity_source: Literal["filename", "ome_metadata", "user_entered", "unresolved"]
+
+    @model_validator(mode="after")
+    def unresolved_stain(self):
+        if self.identity_source == "unresolved" and self.stain is not None:
+            raise ValueError("unresolved_channel_cannot_establish_stain")
+        return self
+
+
+ChannelSpecType = ChannelSpec | ObservedChannelSpec
+CHANNEL_SPEC: TypeAdapter[ChannelSpecType] = TypeAdapter(ChannelSpecType)
 
 
 class Calibration2D(RegionModel):

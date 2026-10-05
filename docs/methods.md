@@ -43,3 +43,27 @@ References:
 - [Nucleolar fluorescence quantification](https://link.springer.com/article/10.1186/1471-2121-12-25)
 - [SuperPlots](https://pubmed.ncbi.nlm.nih.gov/32346721/)
 - [CellProfiler examples](https://cellprofiler.org/examples)
+
+## Automatic workspace: raw measurement protocol 3.0.0
+
+The initial workspace can measure nuclear area and raw channel intensity before a
+background ROI or experimental design is available. This is a separate protocol,
+not a background value of zero: policy `1.1.0/raw_intensity`, report/table `3.0.0`,
+bundle `/3`, measurement Methods `1.3.0`. Corrected values are null with
+`background_not_established`. Existing corrected protocol 1 and area-only protocol
+2 retain their definitions.
+
+For each original-coordinate label and channel, mean and median use all original
+8/16-bit pixels; integrated intensity is their sum. Storage-limit and recorded
+acquisition-limit fractions remain distinct. Calibration is never inferred.
+Recipe `region-2d/1.2.0` records whether the nuclear role came from recorded stain
+information or a user's role selection. Filename evidence is not an acquisition
+confirmation, and role adoption is not a segmentation review. NCL is measured as
+an acquired channel; this generic recipe does not define nucleoli or NCL ratios.
+
+Automatic descriptive output carries `source_review=automatic_unreviewed`,
+preserves source revisions and failed-field checks, and does not mark masks as
+reviewed. It contains observed points and field summaries, with no inferred
+biological replicate count, p-value or inferential confidence interval. The
+existing reviewed, design-aware comparison routes remain separate. Revising a
+mask or exclusion creates a new measurement version; figure styling does not.

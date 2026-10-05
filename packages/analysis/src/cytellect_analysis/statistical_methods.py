@@ -51,14 +51,14 @@ def _measurement(result):
         return lines
     legacy = False
     if source == "region-2d":
-        from .region_policy import RegionMeasurementPolicy
+        from .region_policy import MEASUREMENT_POLICY
 
         modes: set[str] = set()
         for field in fields:
             protocol = field.get("measurement_protocol", "1.0.0")
             policy = field.get("measurement")
-            if protocol == "2.0.0":
-                policy = RegionMeasurementPolicy.model_validate(policy)
+            if protocol in ("2.0.0", "3.0.0"):
+                policy = MEASUREMENT_POLICY.validate_python(policy)
                 modes.add(policy.mode)
             elif protocol == "1.0.0" and policy is None:
                 modes.add("intensity-and-area")
@@ -69,7 +69,8 @@ def _measurement(result):
         labels = {field["region_set"]["label"] for field in fields}
         if len(labels) != 1:
             raise ValueError("statistical_methods_source_invalid")
-        lines.append(f"Region definition: {next(iter(labels))}. Saved reviewed integer-labelled pixel unions "
+        review_word = "saved" if result.get("source_review") == "automatic_unreviewed" else "saved reviewed"
+        lines.append(f"Region definition: {next(iter(labels))}. {review_word.capitalize()} integer-labelled pixel unions "
                      "in original image coordinates defined the measured regions; an object ID does not establish a biological cell.")
         channel_id = result["spec"]["selection"].get("channel_id")
         if channel_id is not None:
@@ -84,6 +85,8 @@ def _measurement(result):
                 raise ValueError("statistical_methods_source_invalid")
             label, stain = next(iter(identities))
             lines.append(f"Measured channel: {label}; stain: {stain or 'not recorded'}; recorded channel ID: {channel_id}.")
+        if "raw_intensity" in modes:
+            lines.append("Raw-intensity protocol 3.0.0 measured original pixels. Background was not established; corrected intensities are missing.")
         if "area_only" in modes:
             if metric not in ("area_px", "area_um2"):
                 raise ValueError("statistical_methods_source_invalid")
@@ -174,6 +177,8 @@ def readable_descriptive_methods(result):
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.",
              "Statistical Methods template: cytellect-statistical-methods 1.0.0.",
              f"Descriptive protocol: {result['descriptive_version']}; source: {result['source_kind']}.",
+             *(["Regions have not completed visual review. These automatic descriptive outputs do not certify segmentation quality."]
+               if result.get("source_review") == "automatic_unreviewed" else []),
              *_measurement(result),
              "Only per-field descriptions were calculated: median and linearly interpolated quartiles "
              "at index (n−1)p in the ordered observations. No hypothesis test, regression, standard error or confidence interval was calculated.",

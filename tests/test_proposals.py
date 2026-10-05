@@ -11,7 +11,7 @@ from test_api_worker import HEADERS, authenticated
 from test_region_api import make_field
 
 CONTEXT = ProposalContext(goal="核小体と核質のNCL輝度を比較したい", field_count=12, condition_count=2,
-                          units_known=True, channels=[{"token": "dapi", "stain": "DAPI", "role": "nuclear"},
+                          units_known=True, units_per_condition=[3, 3], background_available=True, channels=[{"token": "dapi", "stain": "DAPI", "role": "nuclear"},
                                                       {"token": "ncl", "stain": "NCL"}, {"token": "c3"}])
 
 
@@ -21,9 +21,9 @@ def draft(**changes):
         "channels": [{"token": "dapi", "stain": "DAPI", "role": "nuclear", "reason": "核染色"},
                      {"token": "ncl", "stain": "NCL", "role": "measure", "reason": "測定対象"},
                      {"token": "c3", "stain": None, "role": "measure", "reason": "名前から染色を確定できない"}],
-        "metrics": [{"metric": "area", "channel": None},
+        "metrics": [{"metric": "area", "channel": None, "region": "nucleus"},
                     {"metric": "ncl_log2_nucleoplasm_over_nucleoli", "channel": "ncl"},
-                    {"metric": "mean_raw", "channel": "c3"}],
+                    {"metric": "mean_raw", "channel": "c3", "region": "nucleus"}],
         "statistics": {"kind": "comparison", "test": "welch-t", "omnibus": None, "association": None},
         "figures": [{"kind": "unit-comparison", "metric": "ncl_log2_nucleoplasm_over_nucleoli", "channel": "ncl"}],
         "missing_information": ["c3 の染色名"],
@@ -43,7 +43,7 @@ def codes(raw, context=CONTEXT):
 def test_valid_draft_requires_adoption_and_flags_unestablished_stains():
     result = validate_draft(CONTEXT, draft(), model="test-model", prompt_version="2026-10-05.1")
     assert result.requires_adoption is True and result.origin == "llm-draft"
-    assert result.needs_confirmation == ["c3"]
+    assert result.needs_confirmation == []
     assert len(result.context_sha256) == 64
 
 
@@ -52,7 +52,6 @@ def test_valid_draft_requires_adoption_and_flags_unestablished_stains():
      "proposal_stain_not_established"),
     ({"channels": draft()["channels"][:2]}, "proposal_channels_mismatch"),
     ({"metrics": [{"metric": "mean_raw", "channel": "gfp"}]}, "proposal_metric_channel_invalid"),
-    ({"metrics": [{"metric": "mean_corrected", "channel": "ncl"}], "figures": []}, "proposal_background_not_available"),
     ({"recipe": "supplied-regions"}, "proposal_supplied_regions_absent"),
     ({"statistics": {"kind": "comparison", "test": "paired-t", "omnibus": None, "association": None}, "figures": []},
      "proposal_pairing_required"),
@@ -73,7 +72,7 @@ def test_absent_ncl_and_unknown_units_are_never_filled_in():
 
 
 def test_three_conditions_require_the_matching_omnibus():
-    three = CONTEXT.model_copy(update={"condition_count": 3})
+    three = CONTEXT.model_copy(update={"condition_count": 3, "units_per_condition": [3, 3, 3]})
     assert "proposal_omnibus_required" in codes(draft(), three)
     fixed = draft(statistics={"kind": "comparison", "test": "welch-t", "omnibus": "welch-anova", "association": None})
     assert validate_draft(three, fixed, model="m", prompt_version="p").draft.statistics.omnibus == "welch-anova"
@@ -104,10 +103,10 @@ class FakeResponse(io.BytesIO):
 
 ACTIN_DRAFT = {
     "recipe": "supplied-regions",
-    "channels": [{"token": "actin", "stain": None, "role": "measure", "reason": "既存の領域内を測定する"}],
-    "metrics": [{"metric": "area", "channel": None}, {"metric": "mean_raw", "channel": "actin"}],
+    "channels": [{"token": "ch1", "stain": None, "role": "measure", "reason": "既存の領域内を測定する"}],
+    "metrics": [{"metric": "area", "channel": None, "region": "supplied"}, {"metric": "mean_raw", "channel": "ch1", "region": "supplied"}],
     "statistics": {"kind": "descriptive", "test": None, "omnibus": None, "association": None},
-    "figures": [{"kind": "field-distribution", "metric": "mean_raw", "channel": "actin"}],
+    "figures": [{"kind": "field-distribution", "metric": "mean_raw", "channel": "ch1", "region": "supplied"}],
     "missing_information": ["独立した実験単位"], "reference_ids": ["senft-2023"], "rationale": "視野ごとの分布を示す。",
 }
 
@@ -130,19 +129,20 @@ def configured(tmp_path, monkeypatch, reply, *, upload=True):
 
 
 def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_path, monkeypatch):
-    body = json.dumps({"draft": ACTIN_DRAFT, "model": "test-model", "prompt_version": "2026-10-05.1"}).encode()
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-05.2"}).encode()
     client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
     first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     assert first.status_code == 200, first.text
     assert first.json() == second.json() and len(calls) == 1
-    assert first.json()["channels"] == [{"token": "actin", "channel_id": "actin", "stain": None}]
-    assert first.json()["proposal"]["needs_confirmation"] == ["actin"]
+    assert first.json()["channels"] == [{"token": "ch1", "channel_id": "actin", "stain": None}]
+    assert first.json()["proposal"]["needs_confirmation"] == []
     sent = calls[0]["context"]
     # Derived, not entered: counts and flags only; no labels, file names, metadata values or pixels.
-    assert sent == {"protocol": "1.0.0", "goal": "細胞ごとのアクチン輝度", "channels": [{"token": "actin", "stain": None, "role": None}],
+    assert sent == {"protocol": "1.1.0", "goal": "細胞ごとのアクチン輝度", "channels": [{"token": "ch1", "stain": None, "role": None}],
                     "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
-                    "supplied_regions": True, "measured_table": False, "background_available": False}
+                    "supplied_regions": True, "measured_table": False, "background_available": False,
+                    "units_per_condition": [0], "complete_pair_count": 0}
     assert "Actin" not in json.dumps(calls) and "untrusted-original-name" not in json.dumps(calls)
     assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x", "field_count": 9, "transmission_confirmed": True},
                        headers=HEADERS).status_code == 422
@@ -151,7 +151,7 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
 
 
 def test_route_rejects_invalid_drafts_and_maps_service_failures(tmp_path, monkeypatch):
-    bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "m", "prompt_version": "p"}).encode()
+    bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "gpt-6.1-sol", "prompt_version": "2026-10-05.2"}).encode()
     client, wid, _ = configured(tmp_path, monkeypatch, lambda request: FakeResponse(bad))
     response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert response.status_code == 502

@@ -15,9 +15,10 @@ ENTRYPOINT ["python", "/app/runtime-entrypoint.py"]
 FROM base AS api
 CMD ["cytellect", "serve", "--host", "0.0.0.0"]
 
-FROM base AS fiji-build
-USER root
-COPY engines/fiji /app/engines/fiji
+FROM python:3.12.14-slim-bookworm AS fiji-build
+# Keep the fixed runtime cache independent of application and macro updates.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY engines/fiji/runtime.lock.json /app/engines/fiji/runtime.lock.json
 COPY scripts/fiji_setup.py /app/scripts/fiji_setup.py
 RUN python /app/scripts/fiji_setup.py /opt/fiji --platform linux-x64
 FROM base AS worker

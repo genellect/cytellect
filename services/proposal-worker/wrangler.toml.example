@@ -13,12 +13,19 @@ migrations_dir = "migrations"
 
 [vars]
 # Billable calls stay disabled until every value below and OPENAI_API_KEY are set.
-OPENAI_MODEL = ""
+OPENAI_MODEL = "gpt-6.1-sol"
 MONTHLY_BUDGET_USD = ""
 DEVICE_MONTHLY_REQUESTS = ""
 PRICE_INPUT_USD_PER_MTOK = ""
 PRICE_OUTPUT_USD_PER_MTOK = ""
-MAX_OUTPUT_TOKENS = "1500"
+PRICE_CACHED_INPUT_USD_PER_MTOK = ""
+PRICE_CACHE_WRITE_USD_PER_MTOK = ""
+# Standard tariff minima as of 2026-10-05: input2, output10, cached0.10, cache-write2.50.
+# Explicit operator approval fills prices/budgets. Empty values keep the service disabled.
+REASONING_EFFORT = "medium"
+LOW_EFFORT_EVALUATED = "false"
+# Includes reasoning and visible JSON; validate this ceiling with public-only evaluation.
+MAX_OUTPUT_TOKENS = "8000"
 
 [observability]
 enabled = false
