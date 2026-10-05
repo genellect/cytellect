@@ -56,6 +56,23 @@ CI and installed-package acceptance remain separate from the focused checks.
    workspace. Keep M4 private-image and M5 researcher evaluation open.
 
 The `test_installed_region_acceptance` comparison-tampering check now selects a
-comparison result by its schema instead of filesystem iteration order. The full
-installed harness must still confirm this fix. Older results with the same count
-or p-value are not substituted for a rerun on the accepted source.
+comparison result by its schema instead of filesystem iteration order. All nine
+local installed-harness tests passed after that fix. This is not acceptance of a
+newly published Windows ZIP or Docker image.
+
+## Regression and evaluation follow-up
+
+PR32's first Linux Python CI completed with 1323 passed, 142 skipped and three
+failures: two migration tests still expected schema0002, and a Compose secret
+target assertion assumed the CLI would retain relative short syntax. The
+migration tests now check schema0003 while retaining original-row preservation;
+the relay secret target is explicitly `/run/secrets/proposal_device_token`.
+The focused migration/upload suite passed28 tests locally. Compose is unavailable
+in this local shell, so the actual merged configuration still requires CI proof.
+
+The first approved live Sol evaluation stopped at its first provider error;
+no successful proposal was received. Its external cumulative ledger retains the
+unknown-cost reservation (about0.217 USD), rather than treating it as a confirmed
+charge or releasing it for another run. Provider diagnostics must be classified
+before retrying. The approval remains5 USD total across all attempts; paid
+production use remains disabled.

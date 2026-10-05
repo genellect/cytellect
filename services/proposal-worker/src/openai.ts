@@ -49,8 +49,37 @@ export interface Preview { channel: string; png_base64: string }
 
 export interface ModelResult { draft: unknown; inputTokens: number; outputTokens: number; cachedInputTokens: number; usageComplete: boolean }
 
+const PROVIDER_ERROR_CODES = new Set([
+  "model_not_found", "invalid_api_key", "insufficient_quota", "rate_limit_exceeded",
+  "invalid_request_error", "invalid_value", "invalid_json_schema", "unsupported_parameter",
+  "unsupported_value", "missing_required_parameter", "context_length_exceeded",
+  "permission_denied", "authentication_error", "server_error", "overloaded_error",
+]);
+
 export class ModelError extends Error {
-  constructor(readonly code: "model_unavailable" | "model_refused" | "model_output_invalid" | "model_output_incomplete") { super(code); }
+  readonly providerHttpStatus?: number;
+  readonly providerErrorCode?: string;
+
+  constructor(readonly code: "model_unavailable" | "model_refused" | "model_output_invalid" | "model_output_incomplete",
+    diagnostics?: { status: unknown; code: unknown }) {
+    super(code);
+    if (typeof diagnostics?.status === "number" && Number.isInteger(diagnostics.status)
+      && diagnostics.status >= 100 && diagnostics.status <= 599) this.providerHttpStatus = diagnostics.status;
+    if (typeof diagnostics?.code === "string" && PROVIDER_ERROR_CODES.has(diagnostics.code)) {
+      this.providerErrorCode = diagnostics.code;
+    }
+  }
+}
+
+/** Never retain provider messages, parameter names, headers or arbitrary error codes. */
+async function providerFailure(response: Response): Promise<ModelError> {
+  let code: unknown;
+  try {
+    const body = await boundedJson(response.body, 16 * 1024) as { error?: { code?: unknown; type?: unknown } } | null;
+    const candidate = body?.error?.code;
+    code = typeof candidate === "string" && PROVIDER_ERROR_CODES.has(candidate) ? candidate : body?.error?.type;
+  } catch { /* HTTP status remains useful for malformed, oversized or interrupted errors. */ }
+  return new ModelError("model_unavailable", { status: response.status, code });
 }
 
 function userContent(context: unknown, previews: Preview[], repair?: string) {
@@ -123,7 +152,7 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
     } catch {
       throw new ModelError("model_unavailable");
     }
-    if (!response.ok) throw new ModelError("model_unavailable");
+    if (!response.ok) throw await providerFailure(response);
     let body: { status?: string; usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } } & Parameters<typeof outputText>[0];
     try {
       body = await boundedJson(response.body, 512 * 1024) as typeof body;

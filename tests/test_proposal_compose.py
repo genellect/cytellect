@@ -47,7 +47,8 @@ def test_opt_in_relay_keeps_analysis_offline_and_secret_out_of_configuration(tmp
     assert api["environment"]["CYTELLECT_PROPOSAL_TOKEN"] == ""
     assert api["environment"]["CYTELLECT_PROPOSAL_TOKEN_FILE"] == "/run/secrets/proposal_device_token"
     assert len(api["secrets"]) == 1
-    assert api["secrets"][0]["source"] == api["secrets"][0]["target"] == "proposal_device_token"
+    assert api["secrets"][0]["source"] == "proposal_device_token"
+    assert api["secrets"][0]["target"] == api["environment"]["CYTELLECT_PROPOSAL_TOKEN_FILE"]
     for config in (base, merged):
         worker = config["services"]["worker"]
         assert worker["network_mode"] == "none"

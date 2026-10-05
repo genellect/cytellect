@@ -1,6 +1,6 @@
 /** Paid evaluation is never run by ordinary CI: both explicit flags and a cap are required. */
 import { describe, expect, it } from "vitest";
-import { draftProposal, inputTokenCeiling, MODEL } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError } from "./openai";
 import { expectedBehavior, PUBLIC_CASES } from "./public-cases";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
@@ -74,9 +74,15 @@ describe("public proposal evaluation", () => {
           report.push({ id: item.id, repetition, valid: semantic.valid, codes: semantic.codes, useful: expectedBehavior(item, result.draft),
             latency_ms: Date.now() - started, calls: result.calls, input_tokens: result.inputTokens, output_tokens: result.outputTokens,
             accounted_upper_usd: cost });
-        } catch {
+        } catch (error) {
           // Do not settle or expire unknown billing; its durable hold still counts.
-          report.push({ id: item.id, repetition, outcome: "request_failed", latency_ms: Date.now() - started });
+          report.push({ id: item.id, repetition, outcome: "request_failed", latency_ms: Date.now() - started,
+            ...(error instanceof ModelError ? { error_code: error.code, provider_http_status: error.providerHttpStatus,
+              provider_error_code: error.providerErrorCode } : {}) });
+          if (error instanceof ModelError && error.code === "model_unavailable") {
+            console.info(JSON.stringify({ model: MODEL, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
+            throw new Error("public_evaluation_provider_unavailable");
+          }
         }
         }
       }
