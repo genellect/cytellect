@@ -195,3 +195,6 @@
   .panel{top:auto;height:70vh;width:100%;border-left:0;border-top:1px solid var(--line)}
   .figureStage{padding:14px}
 }
+
+.comparison{flex:1;min-height:0;overflow:auto;padding:24px;background:var(--paper)}.comparison h2,.comparison h3{margin:10px 0}.comparison fieldset{border:1px solid var(--line);padding:16px;min-width:0}.comparison label{display:block;margin:8px 0}.comparison input:not([type=checkbox]),.comparison select{max-width:100%;padding:7px}.comparison td input{min-width:105px;width:100%}.comparisonControls{display:flex;gap:16px;flex-wrap:wrap}.comparisonDecisions{display:grid;gap:6px;margin:14px 0}.comparison details{margin:16px 0}.comparison section{margin-top:24px}
+.comparisonMount{flex:1;min-height:0;display:flex}.comparisonMount[hidden]{display:none}
