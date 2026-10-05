@@ -40,6 +40,7 @@ jobs:
           retention-days: 14
       - run: uv run python scripts/check_public_tree.py
       - run: uv run python scripts/check_docs.py
+      - run: uv run python scripts/proposal_schema.py --check
       - name: Scan complete history and tracked files with pinned Gitleaks
         id: secrets
         run: uv run python scripts/scan_secrets.py --repo . --cache-dir /tmp/cytellect-security-tools --output /tmp/cytellect-compliance/secrets.json
@@ -87,6 +88,8 @@ jobs:
       - run: git diff --exit-code -- packages/contracts apps/web/src/lib/generated.ts apps/web/src/lib/recipe-defaults.json
       - run: pnpm check
       - run: pnpm test
+      - name: Verify the proposal service source (not deployed by CI)
+        run: pnpm --filter @cytellect/proposal-worker check && pnpm --filter @cytellect/proposal-worker test
       - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - run: pnpm build
       - name: Install browser for public-site regression

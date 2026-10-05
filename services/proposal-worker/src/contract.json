@@ -1,0 +1,354 @@
+{
+  "context_schema": {
+    "$defs": {
+      "ContextChannel": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nuclear",
+                  "measure"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stain"
+          },
+          "token": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "ContextChannel",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Normalized metadata sent to the proposal service; no paths, names or values.",
+    "properties": {
+      "background_available": {
+        "default": false,
+        "title": "Background Available",
+        "type": "boolean"
+      },
+      "channels": {
+        "items": {
+          "$ref": "#/$defs/ContextChannel"
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "title": "Channels",
+        "type": "array"
+      },
+      "condition_count": {
+        "default": 0,
+        "maximum": 100,
+        "minimum": 0,
+        "title": "Condition Count",
+        "type": "integer"
+      },
+      "field_count": {
+        "maximum": 10000,
+        "minimum": 1,
+        "title": "Field Count",
+        "type": "integer"
+      },
+      "goal": {
+        "default": "",
+        "maxLength": 2000,
+        "title": "Goal",
+        "type": "string"
+      },
+      "measured_table": {
+        "default": false,
+        "title": "Measured Table",
+        "type": "boolean"
+      },
+      "pairing_known": {
+        "default": false,
+        "title": "Pairing Known",
+        "type": "boolean"
+      },
+      "protocol": {
+        "const": "1.0.0",
+        "default": "1.0.0",
+        "title": "Protocol",
+        "type": "string"
+      },
+      "supplied_regions": {
+        "default": false,
+        "title": "Supplied Regions",
+        "type": "boolean"
+      },
+      "units_known": {
+        "default": false,
+        "title": "Units Known",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "channels",
+      "field_count"
+    ],
+    "title": "ProposalContext",
+    "type": "object"
+  },
+  "draft_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "channels": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "role": {
+              "enum": [
+                "nuclear",
+                "measure",
+                "unused"
+              ],
+              "type": "string"
+            },
+            "stain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "token": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "token",
+            "stain",
+            "role",
+            "reason"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "figures": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "enum": [
+                "field-distribution",
+                "unit-comparison",
+                "paired",
+                "association-scatter"
+              ],
+              "type": "string"
+            },
+            "metric": {
+              "enum": [
+                "area",
+                "mean_raw",
+                "integral_raw",
+                "mean_corrected",
+                "integral_corrected",
+                "ncl_log2_nucleoplasm_over_nucleoli",
+                "nucleolar_area_fraction",
+                "nucleolar_count"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "metric",
+            "channel"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "metrics": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metric": {
+              "enum": [
+                "area",
+                "mean_raw",
+                "integral_raw",
+                "mean_corrected",
+                "integral_corrected",
+                "ncl_log2_nucleoplasm_over_nucleoli",
+                "nucleolar_area_fraction",
+                "nucleolar_count"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "metric",
+            "channel"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "missing_information": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "rationale": {
+        "type": "string"
+      },
+      "recipe": {
+        "enum": [
+          "nuclear-intensity",
+          "nuclear-ncl",
+          "supplied-regions",
+          "measured-table",
+          "none"
+        ],
+        "type": "string"
+      },
+      "reference_ids": {
+        "items": {
+          "enum": [
+            "senft-2023",
+            "kodiha-2011",
+            "waters-2009",
+            "lazic-2018",
+            "lord-2020",
+            "schmied-2024"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "statistics": {
+        "additionalProperties": false,
+        "properties": {
+          "association": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pearson",
+                  "spearman"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "descriptive",
+              "comparison",
+              "association"
+            ],
+            "type": "string"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-t",
+                  "paired-t",
+                  "mann-whitney-u",
+                  "wilcoxon"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "test",
+          "omnibus",
+          "association"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "recipe",
+      "channels",
+      "metrics",
+      "statistics",
+      "figures",
+      "missing_information",
+      "reference_ids",
+      "rationale"
+    ],
+    "type": "object"
+  }
+}

@@ -227,4 +227,6 @@ Browser → local FastAPI (+ worker/Fiji/Python)
   abuse monitoring. The transmission scope is shown at first use and in
   settings, not repeated on every operation.
 
+Source, configuration and operator deployment steps: [proposal service](proposal-service.md).
+
 No new paid contract is approved by this document.

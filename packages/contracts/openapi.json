@@ -2151,6 +2151,55 @@
           }
         }
       }
+    },
+    "/v1/workspaces/{wid}/proposals": {
+      "post": {
+        "summary": "Draft Proposal",
+        "operationId": "draft_proposal_v1_workspaces__wid__proposals_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalContext"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidatedProposal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3319,6 +3368,49 @@
         ],
         "title": "ComparisonFamily"
       },
+      "ContextChannel": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Token"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "nuclear",
+                  "measure"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "ContextChannel"
+      },
       "ContourView": {
         "properties": {
           "id": {
@@ -3490,6 +3582,206 @@
           "selection"
         ],
         "title": "DescriptiveRequest"
+      },
+      "DraftChannel": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Token"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "nuclear",
+              "measure",
+              "unused"
+            ],
+            "title": "Role"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token",
+          "stain",
+          "role",
+          "reason"
+        ],
+        "title": "DraftChannel"
+      },
+      "DraftFigure": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "field-distribution",
+              "unit-comparison",
+              "paired",
+              "association-scatter"
+            ],
+            "title": "Kind"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "area",
+              "mean_raw",
+              "integral_raw",
+              "mean_corrected",
+              "integral_corrected",
+              "ncl_log2_nucleoplasm_over_nucleoli",
+              "nucleolar_area_fraction",
+              "nucleolar_count"
+            ],
+            "title": "Metric"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "metric",
+          "channel"
+        ],
+        "title": "DraftFigure"
+      },
+      "DraftMetric": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "enum": [
+              "area",
+              "mean_raw",
+              "integral_raw",
+              "mean_corrected",
+              "integral_corrected",
+              "ncl_log2_nucleoplasm_over_nucleoli",
+              "nucleolar_area_fraction",
+              "nucleolar_count"
+            ],
+            "title": "Metric"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "channel"
+        ],
+        "title": "DraftMetric"
+      },
+      "DraftStatistics": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "descriptive",
+              "comparison",
+              "association"
+            ],
+            "title": "Kind"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "welch-t",
+                  "paired-t",
+                  "mann-whitney-u",
+                  "wilcoxon"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Omnibus"
+          },
+          "association": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pearson",
+                  "spearman"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Association"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "test",
+          "omnibus",
+          "association"
+        ],
+        "title": "DraftStatistics"
       },
       "Exclusion": {
         "properties": {
@@ -4802,6 +5094,163 @@
         "additionalProperties": false,
         "type": "object",
         "title": "PlotSpec"
+      },
+      "ProposalContext": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Protocol",
+            "default": "1.0.0"
+          },
+          "goal": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Goal",
+            "default": ""
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/ContextChannel"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Channels"
+          },
+          "field_count": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Field Count"
+          },
+          "condition_count": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Condition Count",
+            "default": 0
+          },
+          "units_known": {
+            "type": "boolean",
+            "title": "Units Known",
+            "default": false
+          },
+          "pairing_known": {
+            "type": "boolean",
+            "title": "Pairing Known",
+            "default": false
+          },
+          "supplied_regions": {
+            "type": "boolean",
+            "title": "Supplied Regions",
+            "default": false
+          },
+          "measured_table": {
+            "type": "boolean",
+            "title": "Measured Table",
+            "default": false
+          },
+          "background_available": {
+            "type": "boolean",
+            "title": "Background Available",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channels",
+          "field_count"
+        ],
+        "title": "ProposalContext",
+        "description": "Normalized metadata sent to the proposal service; no paths, names or values."
+      },
+      "ProposalDraft": {
+        "properties": {
+          "recipe": {
+            "type": "string",
+            "enum": [
+              "nuclear-intensity",
+              "nuclear-ncl",
+              "supplied-regions",
+              "measured-table",
+              "none"
+            ],
+            "title": "Recipe"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/DraftChannel"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Channels"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/DraftMetric"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Metrics"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/DraftStatistics"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/DraftFigure"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Figures"
+          },
+          "missing_information": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Missing Information"
+          },
+          "reference_ids": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "senft-2023",
+                "kodiha-2011",
+                "waters-2009",
+                "lazic-2018",
+                "lord-2020",
+                "schmied-2024"
+              ]
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Reference Ids"
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 600,
+            "title": "Rationale"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recipe",
+          "channels",
+          "metrics",
+          "statistics",
+          "figures",
+          "missing_information",
+          "reference_ids",
+          "rationale"
+        ],
+        "title": "ProposalDraft"
       },
       "Recipe": {
         "properties": {
@@ -7445,6 +7894,64 @@
           "comparisons"
         ],
         "title": "StatisticsRequest"
+      },
+      "ValidatedProposal": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Protocol",
+            "default": "1.0.0"
+          },
+          "origin": {
+            "type": "string",
+            "const": "llm-draft",
+            "title": "Origin",
+            "default": "llm-draft"
+          },
+          "requires_adoption": {
+            "type": "boolean",
+            "const": true,
+            "title": "Requires Adoption",
+            "default": true
+          },
+          "draft": {
+            "$ref": "#/components/schemas/ProposalDraft"
+          },
+          "needs_confirmation": {
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$"
+            },
+            "type": "array",
+            "title": "Needs Confirmation"
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Model"
+          },
+          "prompt_version": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Prompt Version"
+          },
+          "context_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Context Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "draft",
+          "needs_confirmation",
+          "model",
+          "prompt_version",
+          "context_sha256"
+        ],
+        "title": "ValidatedProposal"
       },
       "ValidationError": {
         "properties": {
