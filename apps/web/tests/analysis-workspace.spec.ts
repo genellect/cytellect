@@ -45,8 +45,35 @@ test("a correction updates only that field's figure and can be undone", async ({
   // Styling never reruns analysis: counts and the correction are unchanged.
   await page.getByLabel("幅").selectOption("183");
   await expect(figure).toContainText("n = 349（除外 1）");
+  // The saved example figure is offered only when it matches what is displayed.
+  await page.locator("summary", { hasText: "書き出し" }).click();
+  await expect(page.getByText("修正後の書き出しはプロトタイプでは未対応").first()).toBeVisible();
+  await page.locator("summary", { hasText: "書き出し" }).click();
   await page.keyboard.press("Control+z");
   await expect(figure).toContainText("n = 350");
+  await page.locator("summary", { hasText: "書き出し" }).click();
+  await expect(page.getByText("表示中のグラフが異なります").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /CSV/ })).toBeVisible();
+});
+
+test("regions can be chosen from the keyboard through the measurement table", async ({ page }) => {
+  await adoptPublicSample(page);
+  await expect(page.getByText("完了 3/3")).toBeVisible({ timeout: 20000 });
+  await page.getByRole("button", { name: /測定値/ }).click();
+  await page.getByRole("button", { name: "領域 7 を選択" }).focus();
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("complementary", { name: "選択対象の操作" });
+  await expect(panel.getByText("領域 7", { exact: true })).toBeVisible();
+  await expect(page.locator('polygon[data-region="7"]')).toHaveClass(/outlineSelected/);
+  await expect(page.getByRole("button", { name: "領域 7 を選択" })).toHaveAttribute("aria-current", "true");
+});
+
+test("a stopped run keeps finished fields and resumes the rest", async ({ page }) => {
+  await adoptPublicSample(page);
+  await page.getByRole("button", { name: "中断" }).click();
+  await expect(page.getByText(/· 中断/)).toBeVisible();
+  await page.getByRole("button", { name: "再開" }).click();
+  await expect(page.getByText("完了 3/3")).toBeVisible({ timeout: 20000 });
 });
 
 test("a figure point opens its source image and region, and exports are actual outputs", async ({ page }) => {
@@ -57,7 +84,7 @@ test("a figure point opens its source image and region, and exports are actual o
   await expect(page.getByRole("img", { name: "ウェル A01の画像" })).toBeVisible();
   await expect(page.locator('polygon[data-region="5"]')).toHaveClass(/outlineSelected/);
   await page.getByRole("button", { name: /測定値/ }).click();
-  await expect(page.locator('tr[aria-selected="true"] th')).toHaveText("5");
+  await expect(page.getByRole("button", { name: "領域 5 を選択" })).toHaveAttribute("aria-current", "true");
   await page.locator("summary", { hasText: "書き出し" }).click();
   const svg = await page.getByRole("link", { name: "SVG" }).getAttribute("href");
   expect((await page.request.get(svg!)).headers()["content-type"]).toContain("svg");
@@ -72,8 +99,14 @@ test("added files are grouped once and a prototype failure stays on that field",
     { name: "A02_dapi.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
     { name: "A02_gfp.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("x") },
+    { name: "overview.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
   ]);
   await expect(page.getByText("TIFF以外の 1 件は追加していません")).toBeVisible();
+  // Nothing is dropped silently: the unreadable name is listed with what to do.
+  const summary = page.getByRole("region", { name: "読み込み結果" });
+  await expect(summary).toContainText("5 ファイル → 2 視野 · 2 チャンネル");
+  await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
+  await expect(summary).toContainText("overview.tif");
   await expect(page.getByText("2 視野", { exact: true })).toBeVisible();
   // A named nuclear stain needs no channel decision at all.
   await expect(page.getByText("核検出：DAPI（ファイル名）")).toBeVisible();
@@ -81,6 +114,22 @@ test("added files are grouped once and a prototype failure stays on that field",
   await page.getByRole("button", { name: "解析を実行" }).click();
   await expect(page.getByText("完了 0/2 · 要確認 2")).toBeVisible({ timeout: 20000 });
   await expect(page.getByRole("alert").filter({ hasText: "再実行" })).toContainText("この画像はプロトタイプでは解析できません");
+  await page.locator("summary", { hasText: "書き出し" }).click();
+  await expect(page.getByRole("link", { name: /SVG|CSV/ })).toHaveCount(0);
+});
+
+test("files that form no field are shown and the run stays unavailable", async ({ page }) => {
+  await page.goto("/workspace");
+  await page.getByTestId("file-input").setInputFiles([
+    { name: "field01.ome.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
+    { name: "image.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
+  ]);
+  const summary = page.getByRole("region", { name: "読み込み結果" });
+  await expect(summary).toContainText("2 ファイル → 0 視野");
+  await expect(summary).toContainText("チャンネルを取り込み時に読み取るファイル（1）");
+  await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
+  await expect(page.getByText("解析できる視野がありません")).toBeVisible();
+  await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
 });
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]) {

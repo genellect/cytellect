@@ -88,6 +88,15 @@
 
 .proposal{position:absolute;z-index:5;top:62px;left:18px;width:min(460px,calc(100% - 36px));max-height:calc(100% - 80px);overflow:auto;padding:22px 24px;background:#061024f2;border:1px solid var(--line-strong);border-radius:3px;box-shadow:0 30px 80px #0009;backdrop-filter:blur(16px)}
 .proposal h2{margin:0 0 14px;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.importSummary{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:3px;background:#ffffff05}
+.importSummary h3{margin:0 0 4px;font-size:13px;font-weight:600;color:var(--muted)}
+.importSummary>p{margin:0;font-size:14px;font-variant-numeric:tabular-nums}
+.issueCount{margin:2px 0 0;color:var(--amber);font-size:13px}
+.issue{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px}
+.issue summary{color:var(--amber);font-weight:600;cursor:pointer}
+.issue p{margin:6px 0;color:var(--muted);line-height:1.7}
+.issue ul{margin:0;padding-left:18px;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all}
+.panelSection .importSummary{margin:0}
 .target{margin:0 0 6px;color:var(--muted);font-size:13px}
 .flow{margin:6px 0 16px;padding:0;list-style:none;counter-reset:flow;border-top:1px solid var(--line)}
 .flow li{counter-increment:flow;display:grid;grid-template-columns:26px 1fr;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
@@ -143,7 +152,9 @@
 .table tbody th{color:var(--muted);font-weight:500}
 .table tr{cursor:pointer}
 .table tbody tr:hover{background:#ffffff08}
-.table tr[aria-selected="true"]{background:#236bf133}
+.rowSelected{background:#236bf133}
+.rowButton{min-width:44px;padding:2px 6px;border:0;border-radius:3px;background:none;color:inherit;font:inherit;text-align:right;cursor:pointer}
+.rowButton[aria-current="true"]{color:var(--ink);font-weight:650}
 
 /* Figures are shown as the exported paper, like the figure on the public site. */
 .figure{margin:0;width:100%}

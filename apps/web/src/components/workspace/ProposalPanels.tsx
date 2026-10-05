@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { channelName, type ChannelDefinition, type Grouping } from "@/lib/workspace/grouping";
+import { channelName, type ChannelDefinition, type Grouping, type GroupingIssue } from "@/lib/workspace/grouping";
 import { NUCLEAR_CHOICE, type Proposal } from "@/lib/workspace/proposal";
 import styles from "./analysis-workspace.module.css";
 
@@ -84,5 +84,61 @@ export function NuclearChoice({ grouping, preview, onChoose }: {
         })}
       </div>
     </fieldset>
+  );
+}
+
+const ISSUE_TEXT: Record<GroupingIssue["kind"], { title: string; detail: string }> = {
+  channel_unidentified: {
+    title: "チャンネルを判別できないファイル",
+    detail: "ファイル名に染色名（DAPI、GFP など）もチャンネル番号（c1、w2 など）もないため、追加していません。名前を変えて追加し直してください。",
+  },
+  channels_pending: {
+    title: "チャンネルを取り込み時に読み取るファイル",
+    detail: "複数のチャンネルを含む OME-TIFF です。チャンネル名はファイル内の情報から読み取ります（解析APIの接続後に対応）。",
+  },
+  duplicate_channel: {
+    title: "同じ視野・チャンネルに複数あるファイル",
+    detail: "どれを使うか判断できないため、いずれも使っていません。不要なファイルを外して追加し直してください。",
+  },
+  duplicate_content: { title: "内容が同じファイル", detail: "同じ画像が複数回追加されています。" },
+  missing_channel: { title: "チャンネルが不足している視野", detail: "不足したチャンネルの測定値は欠測として扱います。" },
+};
+
+function issueLine(issue: GroupingIssue): string {
+  switch (issue.kind) {
+    case "channel_unidentified":
+    case "channels_pending":
+      return issue.path;
+    case "duplicate_channel":
+      return `${issue.field} · ${issue.token}：${issue.paths.join("、")}`;
+    case "duplicate_content":
+      return issue.paths.join("、");
+    case "missing_channel":
+      return `${issue.field}（${issue.token} なし）`;
+  }
+}
+
+/** What was read from the added files, and every file or field that needs attention. */
+export function ImportSummary({ grouping, files }: { grouping: Grouping; files: number }) {
+  const kinds = (Object.keys(ISSUE_TEXT) as GroupingIssue["kind"][])
+    .map((kind) => ({ kind, items: grouping.issues.filter((issue) => issue.kind === kind) }))
+    .filter((group) => group.items.length);
+  const count = kinds.reduce((sum, group) => sum + group.items.length, 0);
+  return (
+    <section className={styles.importSummary} aria-labelledby="import-title">
+      <h3 id="import-title">読み込み結果</h3>
+      <p>{files} ファイル → {grouping.fields.length} 視野 · {grouping.channels.length} チャンネル</p>
+      {count > 0 && <p className={styles.issueCount}>確認が必要な項目 {count} 件</p>}
+      {kinds.map(({ kind, items }) => (
+        <details key={kind} className={styles.issue} open={kind !== "missing_channel"}>
+          <summary>{ISSUE_TEXT[kind].title}（{items.length}）</summary>
+          <p>{ISSUE_TEXT[kind].detail}</p>
+          <ul>
+            {items.slice(0, 6).map((issue, index) => <li key={index}>{issueLine(issue)}</li>)}
+            {items.length > 6 && <li>ほか {items.length - 6} 件</li>}
+          </ul>
+        </details>
+      ))}
+    </section>
   );
 }

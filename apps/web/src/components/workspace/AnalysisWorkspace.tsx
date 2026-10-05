@@ -6,7 +6,7 @@ import { groupFiles, isSupportedImage, type AddedFile } from "@/lib/workspace/gr
 import { initialState, phase, progress, reducer, regionState, type Selection } from "@/lib/workspace/model";
 import { FieldFigure } from "./FieldFigure";
 import { FieldImage } from "./FieldImage";
-import { NuclearChoice, ProposalSummary, channelText } from "./ProposalPanels";
+import { ImportSummary, NuclearChoice, ProposalSummary, channelText } from "./ProposalPanels";
 import styles from "./analysis-workspace.module.css";
 
 const STATUS_LABEL = { waiting: "待機", running: "解析中", done: "完了", failed: "要確認" } as const;
@@ -107,7 +107,13 @@ export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: 
   const metrics = proposal?.metrics ?? [];
   const metric = metrics.find((item) => item.key === state.figure.metric) ?? metrics[0];
   const labels = Object.fromEntries(fields.map((field) => [field, adapter.label(field)]));
-  const distribution = useMemo(() => metric ? fieldDistribution(state, metric.key) : { points: [], summaries: [] }, [state, metric]);
+  const { results, corrections } = state;
+  const order = state.figure.order;
+  // Recompute only when results, corrections or field order change; styling and selection do not.
+  const distribution = useMemo(
+    () => metric ? fieldDistribution({ results, corrections, figure: { order } }, metric.key) : { points: [], summaries: [] },
+    [results, corrections, order, metric],
+  );
   const displayChannel = channel ?? proposal?.nuclearChannel?.token ?? grouping?.channels[0]?.token ?? "";
   const result = selectedField ? state.results[selectedField] : undefined;
   const selectedRegion = selection?.region;
@@ -155,6 +161,9 @@ export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: 
         </p>
         <div className={styles.headerActions}>
           {current === "running" && <button type="button" className={styles.secondary} onClick={() => dispatch({ type: "stop" })}>中断</button>}
+          {state.stopped && Object.values(state.runs).some((run) => run.status === "waiting") && (
+            <button type="button" className={styles.secondary} onClick={() => dispatch({ type: "resume" })}>再開</button>
+          )}
           <button type="button" className={styles.secondary} disabled={Boolean(state.adopted)} title={state.adopted ? "プロトタイプでは解析開始後に追加できません" : undefined}
             onClick={() => fileInput.current?.click()}>画像を追加</button>
           <details className={styles.menu}>
@@ -211,8 +220,11 @@ export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: 
           {current === "proposal" && proposal && grouping && (
             <ProposalSummary proposal={proposal} grouping={grouping} onRun={() => dispatch({ type: "adopt" })}
               onName={(token, stain) => dispatch({ type: "name-channel", token, stain })}>
-              <NuclearChoice grouping={grouping} preview={(token) => adapter.preview(fields[0], token)}
-                onChoose={(token) => { dispatch({ type: "choose-nuclear", token }); setChannel(token); }} />
+              <ImportSummary grouping={grouping} files={added.length} />
+              {grouping.fields.length > 0 && (
+                <NuclearChoice grouping={grouping} preview={(token) => adapter.preview(fields[0], token)}
+                  onChoose={(token) => { dispatch({ type: "choose-nuclear", token }); setChannel(token); }} />
+              )}
             </ProposalSummary>
           )}
           {selection?.view === "figure" && metric ? (
@@ -276,10 +288,10 @@ export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: 
                   {metrics.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
                 </select></label>
                 <label>幅<select value={state.figure.widthMm} onChange={(event) => dispatch({ type: "figure", settings: { widthMm: Number(event.target.value) } })}>
-                  <option value={89}>89 mm（1段）</option><option value={183}>183 mm（2段）</option>
+                  <option value={89}>89 mm（1段）</option><option value={178}>178 mm</option><option value={183}>183 mm（2段）</option>
                 </select></label>
                 <label>高さ (mm)<input type="number" min={40} max={170} value={state.figure.heightMm}
-                  onChange={(event) => dispatch({ type: "figure", settings: { heightMm: Math.min(170, Math.max(40, Number(event.target.value) || 60)) } })} /></label>
+                  onChange={(event) => dispatch({ type: "figure", settings: { heightMm: Math.min(170, Math.max(40, Number(event.target.value) || 76)) } })} /></label>
                 <label>縦軸の名前<input value={state.figure.yLabel} placeholder={metric.label} onChange={(event) => dispatch({ type: "figure", settings: { yLabel: event.target.value } })} /></label>
                 <p className={styles.hint}>点をクリックすると、その領域の画像に移動します。</p>
                 <h3>比較</h3>
@@ -290,6 +302,7 @@ export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: 
             {current !== "proposal" && grouping && (
               <details className={styles.panelSection}>
                 <summary>解析条件・履歴</summary>
+                <ImportSummary grouping={grouping} files={added.length} />
                 <ul className={styles.history}>
                   {grouping.channels.map((item) => <li key={item.token}>{item.token} → {channelText(item)}</li>)}
                   <li>解析案を採用（{state.adopted?.inputFields.length ?? 0} 視野）</li>
@@ -313,8 +326,15 @@ export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: 
                     const status = regionState(state, selectedField, row.region_id);
                     if (status === "deleted") return null;
                     return (
-                      <tr key={row.region_id} aria-selected={row.region_id === selectedRegion} onClick={() => select({ view: "image", field: selectedField, region: row.region_id })}>
-                        <th scope="row">{row.region_id}</th>
+                      <tr key={row.region_id} className={row.region_id === selectedRegion ? styles.rowSelected : undefined}
+                        onClick={() => select({ view: "image", field: selectedField, region: row.region_id })}>
+                        <th scope="row">
+                          {/* Keyboard path to every region; the image outlines and figure points mirror it. */}
+                          <button type="button" className={styles.rowButton} aria-current={row.region_id === selectedRegion ? "true" : undefined}
+                            aria-label={`領域 ${row.region_id} を選択`} onClick={(event) => { event.stopPropagation(); select({ view: "image", field: selectedField, region: row.region_id }); }}>
+                            {row.region_id}
+                          </button>
+                        </th>
                         {metrics.map((item) => <td key={item.key}>{typeof row[item.key] === "number" ? Number(row[item.key].toPrecision(6)) : "—"}</td>)}
                         <td>{status === "excluded" ? "除外" : ""}</td>
                       </tr>

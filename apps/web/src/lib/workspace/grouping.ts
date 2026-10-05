@@ -19,8 +19,10 @@ export interface AddedFile {
   size: number;
   /** Content hash when already known; used only for duplicate detection. */
   sha256?: string;
-  /** OME channel name when the header provides one. */
+  /** OME channel name when the header provides one (one channel per file). */
   omeChannel?: string;
+  /** Channel names of a multi-channel OME-TIFF, read by the import API. */
+  omeChannels?: string[];
 }
 
 export interface ChannelDefinition {
@@ -41,7 +43,9 @@ export type GroupingIssue =
   | { kind: "duplicate_channel"; field: string; token: string; paths: string[] }
   | { kind: "duplicate_content"; paths: string[] }
   | { kind: "missing_channel"; field: string; token: string }
-  | { kind: "channel_unidentified"; path: string };
+  | { kind: "channel_unidentified"; path: string }
+  /** Multi-channel OME-TIFF whose channel names are read on import; kept, never dropped. */
+  | { kind: "channels_pending"; path: string };
 
 export interface Grouping {
   fields: GroupedField[];
@@ -68,9 +72,14 @@ const STAINS: Record<string, KnownStain> = {
 };
 /** Index-only channel tokens: they identify a channel, never a stain. */
 const INDEX_TOKEN = /^(?:c|ch|channel|w)\d{1,2}$/i;
+/** An index glued to the end of a name, e.g. xy01c1 → xy01 + c1. */
+const GLUED_INDEX = /^(.*\d)(c|ch|w)(\d{1,2})$/i;
+/** A known stain, optionally followed by a dye or wavelength number (Hoechst33342, DAPI405). */
+const STAIN_TOKEN = new RegExp(`^(${Object.keys(STAINS).sort((a, b) => b.length - a.length).join("|")})(\\d{0,5})$`, "i");
 const WELL_TOKEN = /^[A-P]\d{1,2}$/;
 const DATE_TOKEN = /^(20\d{2})-?(\d{2})-?(\d{2})$/;
 const IMAGE_EXTENSION = /\.(?:ome\.tiff?|tiff?)$/i;
+const OME_EXTENSION = /\.ome\.tiff?$/i;
 
 export function isSupportedImage(path: string): boolean {
   return IMAGE_EXTENSION.test(path);
@@ -82,17 +91,46 @@ function splitPath(path: string): { folders: string[]; stem: string } {
   return { folders: parts, stem: name.replace(/\.(?:ome\.tiff?|tiff?|bmp|png)$/i, "") };
 }
 
-function channelToken(token: string): string | null {
-  const lower = token.toLowerCase();
-  if (STAINS[lower] || INDEX_TOKEN.test(token)) return lower;
-  return null;
+/** Known stain for a token, keeping a dye/wavelength number in the name. */
+export function stainOf(token: string): KnownStain | null {
+  const match = STAIN_TOKEN.exec(token.trim());
+  if (!match) return null;
+  const known = STAINS[match[1].toLowerCase()];
+  return { stain: `${known.stain}${match[2]}`, role: known.role };
 }
 
-function describe(token: string, evidence: Evidence, omeName?: string): ChannelDefinition {
-  const known = STAINS[token] ?? (omeName ? STAINS[omeName.toLowerCase()] : undefined);
+function describe(token: string, evidence: Evidence, name?: string): ChannelDefinition {
+  const known = stainOf(token) ?? (name ? stainOf(name) : null);
   return known
     ? { token, stain: known.stain, role: known.role, evidence }
     : { token, stain: null, role: null, evidence };
+}
+
+interface ChannelMatch { token: string; keyTokens: string[]; evidence: Evidence; folderUsed: boolean }
+
+/**
+ * One channel per file. A named stain wins over an index token; index tokens
+ * are channel numbers and are removed from the field key. Several stains, or
+ * several indices without a stain, are ambiguous and never guessed.
+ */
+function matchChannel(tokens: string[], folders: string[]): ChannelMatch | null {
+  const stains = tokens.filter((token) => stainOf(token));
+  const indices = tokens.filter((token) => INDEX_TOKEN.test(token));
+  const rest = tokens.filter((token) => !stainOf(token) && !INDEX_TOKEN.test(token));
+  if (stains.length === 1) return { token: stains[0].toLowerCase(), keyTokens: rest, evidence: "filename", folderUsed: false };
+  if (stains.length > 1) return null;
+  if (indices.length === 1) return { token: indices[0].toLowerCase(), keyTokens: rest, evidence: "filename", folderUsed: false };
+  if (indices.length > 1) return null;
+  const last = tokens.at(-1);
+  const glued = last ? GLUED_INDEX.exec(last) : null;
+  if (glued) {
+    return { token: `${glued[2]}${glued[3]}`.toLowerCase(), keyTokens: [...tokens.slice(0, -1), glued[1]], evidence: "filename", folderUsed: false };
+  }
+  const folder = folders.at(-1);
+  if (folder && (stainOf(folder) || INDEX_TOKEN.test(folder))) {
+    return { token: folder.toLowerCase(), keyTokens: tokens, evidence: "folder", folderUsed: true };
+  }
+  return null;
 }
 
 /** Group added files into fields and channels without inferring stains from indices. */
@@ -101,30 +139,8 @@ export function groupFiles(files: AddedFile[]): Grouping {
   const fields = new Map<string, GroupedField>();
   const channels = new Map<string, ChannelDefinition>();
   const occupied = new Map<string, string[]>();
-  for (const file of files) {
-    const { folders, stem } = splitPath(file.path);
-    const tokens = stem.split(/[-_ .]+/).filter(Boolean);
-    let token: string | null = null;
-    let evidence: Evidence = "filename";
-    let keyTokens = tokens;
-    const matches = tokens.map(channelToken).filter((value): value is string => value !== null);
-    if (file.omeChannel) {
-      token = file.omeChannel.toLowerCase();
-      evidence = "ome";
-    } else if (matches.length === 1) {
-      token = matches[0];
-      keyTokens = tokens.filter((value) => channelToken(value) !== token);
-    } else if (matches.length === 0 && folders.length && channelToken(folders[folders.length - 1])) {
-      token = channelToken(folders[folders.length - 1]);
-      evidence = "folder";
-      folders.pop();
-    }
-    if (!token) {
-      // Zero or several channel-like tokens: never guess which one is the channel.
-      issues.push({ kind: "channel_unidentified", path: file.path });
-      continue;
-    }
-    if (!channels.has(token)) channels.set(token, describe(token, evidence, file.omeChannel));
+  const place = (file: AddedFile, folders: string[], keyTokens: string[], token: string, definition: ChannelDefinition) => {
+    if (!channels.has(token)) channels.set(token, definition);
     const folder = folders.join("/");
     const key = [folder, keyTokens.join("-")].filter(Boolean).join("/");
     const field = fields.get(key) ?? { key, files: {}, candidates: candidates(keyTokens, folder) };
@@ -132,6 +148,31 @@ export function groupFiles(files: AddedFile[]): Grouping {
     occupied.set(slot, [...(occupied.get(slot) ?? []), file.path]);
     field.files[token] ??= file;
     fields.set(key, field);
+  };
+  for (const file of files) {
+    const { folders, stem } = splitPath(file.path);
+    const tokens = stem.split(/[-_ .]+/).filter(Boolean);
+    if (file.omeChannels?.length) {
+      // A multi-channel container is one field; its channels come from the OME header.
+      file.omeChannels.forEach((name, index) => {
+        const token = name.trim() ? name.trim().toLowerCase() : `c${index + 1}`;
+        place(file, folders, tokens, token, describe(token, "ome", name));
+      });
+      continue;
+    }
+    if (file.omeChannel) {
+      const token = file.omeChannel.trim().toLowerCase();
+      place(file, folders, tokens, token, describe(token, "ome", file.omeChannel));
+      continue;
+    }
+    const match = matchChannel(tokens, folders);
+    if (!match) {
+      // A name-less OME-TIFF usually holds every channel; its header is read on import.
+      issues.push(OME_EXTENSION.test(file.path) ? { kind: "channels_pending", path: file.path } : { kind: "channel_unidentified", path: file.path });
+      continue;
+    }
+    const keyFolders = match.folderUsed ? folders.slice(0, -1) : folders;
+    place(file, keyFolders, match.keyTokens, match.token, describe(match.token, match.evidence));
   }
   for (const [slot, paths] of occupied) {
     if (paths.length > 1) {
@@ -189,7 +230,8 @@ export function chooseNuclearChannel(grouping: Grouping, token: string): Groupin
 
 /** Optional display/stain name; an empty name returns the channel to unknown stain. */
 export function nameChannel(grouping: Grouping, token: string, stain: string): Grouping {
-  const value = stain.trim();
+  // Known stains are written one way (ncl → NCL), so recipes recognise them.
+  const value = stainOf(stain)?.stain ?? stain.trim();
   return {
     ...grouping,
     channels: grouping.channels.map((channel) => channel.token === token

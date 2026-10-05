@@ -30,6 +30,8 @@ interface SampleField {
 interface Sample { dataset: string; attribution: string; source: string; license: string; fields: SampleField[] }
 
 const SAMPLE_URL = "/prototype/bbbc013/fields.json";
+/** The saved API figure for the registered example (marketing/figure-source.json: 7.0 × 3.0 in). */
+const SAVED_FIGURE = { metric: "area_px", widthMm: 178, heightMm: 76 };
 const FOLDER = "BBBC013";
 
 function channelToken(channel: SampleChannel): string {
@@ -95,12 +97,22 @@ export function createPrototypeAdapter(options: { delayMs?: number; fetcher?: ty
       return { measurements, outlines: sampleField.outlines };
     },
     exports(state) {
-      const corrected = state.corrections.length > 0;
-      const reason = corrected ? "修正後の書き出しはプロトタイプでは未対応" : undefined;
+      // Only the saved API outputs for the registered example exist in the prototype.
+      // Offer them only when they are exactly what the workspace shows.
+      const fields = state.adopted?.inputFields ?? [];
+      const complete = fields.length > 0 && fields.every((field) => byKey.has(field) && state.results[field]);
+      const own = fields.some((field) => !byKey.has(field));
+      const figure = state.figure;
+      const sameFigure = figure.metric === SAVED_FIGURE.metric && figure.widthMm === SAVED_FIGURE.widthMm
+        && figure.heightMm === SAVED_FIGURE.heightMm && !figure.yLabel;
+      const blocked = own ? "この画像の書き出しはプロトタイプでは未対応"
+        : !complete ? "すべての画像の解析が終わると書き出せます"
+          : state.corrections.length ? "修正後の書き出しはプロトタイプでは未対応" : undefined;
+      const figureReason = blocked ?? (sameFigure ? undefined : "保存済みの出力（核面積・178 × 76 mm）と表示中のグラフが異なります");
       return [
-        { label: "SVG", detail: "編集可能なグラフ", href: corrected ? undefined : "/marketing/figure-public.svg", reason },
-        { label: "CSV", detail: "全領域の測定値", href: corrected ? undefined : "/marketing/figure-public.csv", reason },
-        { label: "図の説明", detail: "凡例・解析条件", href: corrected ? undefined : "/marketing/figure-caption.md", reason },
+        { label: "SVG", detail: "核面積のグラフ（編集可能）", href: figureReason ? undefined : "/marketing/figure-public.svg", reason: figureReason },
+        { label: "CSV", detail: "全視野・全領域の核面積", href: blocked ? undefined : "/marketing/figure-public.csv", reason: blocked },
+        { label: "図の説明", detail: "凡例・解析条件", href: figureReason ? undefined : "/marketing/figure-caption.md", reason: figureReason },
         { label: "PDF", reason: "プロトタイプでは未対応" },
       ];
     },
@@ -118,7 +130,10 @@ function quantile(sorted: number[], p: number): number {
 }
 
 /** Prototype stand-in for the API's saved descriptive summary of existing values. */
-export function fieldDistribution(state: WorkspaceState, metric: string): { points: DistributionPoint[]; summaries: FieldSummary[] } {
+export function fieldDistribution(
+  state: Pick<WorkspaceState, "results" | "corrections"> & { figure: Pick<WorkspaceState["figure"], "order"> },
+  metric: string,
+): { points: DistributionPoint[]; summaries: FieldSummary[] } {
   const points: DistributionPoint[] = [];
   const summaries: FieldSummary[] = [];
   const order = state.figure.order.length ? state.figure.order : Object.keys(state.results);

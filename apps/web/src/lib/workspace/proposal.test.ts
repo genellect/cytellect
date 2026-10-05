@@ -22,6 +22,10 @@ describe("buildProposal", () => {
     expect(proposal.metrics.map((metric) => metric.label)).toEqual(["核面積", "channel1 平均輝度（補正前）"]);
   });
 
+  it("refuses to run when no field could be formed, instead of an empty run", () => {
+    expect(buildProposal(files(["notes.tif"]))).toMatchObject({ recipe: null, unresolved: ["解析できる視野がありません"] });
+  });
+
   it("needs no channel decision when a file name already names the nuclear stain", () => {
     expect(buildProposal(files(["A01_dapi.tif", "A01_c2.tif"]))).toMatchObject({ recipe: "nuclear-intensity", unresolved: [] });
   });

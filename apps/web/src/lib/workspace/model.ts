@@ -68,6 +68,7 @@ export type Action =
   | { type: "field-failed"; field: string; error: string }
   | { type: "retry"; field: string }
   | { type: "stop" }
+  | { type: "resume" }
   | { type: "correct"; correction: Omit<Correction, "origin"> }
   | { type: "undo" }
   | { type: "redo" }
@@ -78,7 +79,7 @@ export function initialState(): WorkspaceState {
   return {
     name: "", goal: "", grouping: null, channelHistory: [], design: { conditions: {}, units: {} },
     proposal: null, adopted: null, runs: {}, results: {}, corrections: [], redo: [],
-    figure: { metric: "area_px", widthMm: 89, heightMm: 60, yLabel: "", order: [] },
+    figure: { metric: "area_px", widthMm: 178, heightMm: 76, yLabel: "", order: [] },
     selection: null, stopped: false,
   };
 }
@@ -134,6 +135,9 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
         ? { ...state, stopped: false, runs: { ...state.runs, [action.field]: { status: "waiting" } } } : state;
     case "stop":
       return { ...state, stopped: true };
+    case "resume":
+      // Continues with the fields that were still waiting; completed fields are kept.
+      return { ...state, stopped: false };
     case "correct": {
       const correction: Correction = { ...action.correction, origin: "user" };
       if (!state.results[correction.field]?.measurements.some((row) => row.region_id === correction.region)) return state;
@@ -157,7 +161,7 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
 }
 
 /** Region state after corrections; deleted regions disappear, excluded ones stay visible. */
-export function regionState(state: WorkspaceState, field: string, region: number): "included" | "excluded" | "deleted" {
+export function regionState(state: Pick<WorkspaceState, "corrections">, field: string, region: number): "included" | "excluded" | "deleted" {
   const records = state.corrections.filter((item) => item.field === field && item.region === region);
   if (records.some((item) => item.kind === "delete")) return "deleted";
   if (records.some((item) => item.kind === "exclude")) return "excluded";

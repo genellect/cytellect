@@ -43,6 +43,7 @@ export interface DesignInfo {
 }
 
 export const NUCLEAR_CHOICE = "核検出に使うチャンネル";
+export const NO_FIELDS = "解析できる視野がありません";
 
 const AREA: Metric = { key: "area_px", label: "核面積", unit: "px²" };
 
@@ -52,7 +53,8 @@ export function buildProposal(grouping: Grouping, design: DesignInfo = { conditi
   const nuclear = grouping.channels.filter((channel) => channel.role === "nuclear");
   // Once one nuclear channel is known, every other channel is measured; nothing else is asked.
   const measured = nuclear.length === 1 ? grouping.channels.filter((channel) => channel.role !== "nuclear") : [];
-  if (nuclear.length !== 1) unresolved.push(NUCLEAR_CHOICE);
+  if (!grouping.fields.length) unresolved.push(NO_FIELDS);
+  else if (nuclear.length !== 1) unresolved.push(NUCLEAR_CHOICE);
   const nuclearChannel = nuclear.length === 1 ? nuclear[0] : null;
   const hasNcl = measured.some((channel) => channel.stain === "NCL");
   let recipe: RecipeId | null = null;
