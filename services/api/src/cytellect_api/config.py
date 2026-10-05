@@ -4,6 +4,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION
+
 
 def _proposal_token_from_env() -> str:
     """An optional Docker-mounted device credential; never a provider API key."""
@@ -44,7 +46,7 @@ class Settings:
     proposal_token: str = ""
     proposal_timeout_seconds: int = 300
     proposal_model: str = "gpt-6.1-sol"
-    proposal_prompt_version: str = "2026-10-05.2"
+    proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
 
     @property
     def cookie_name(self):
@@ -74,7 +76,7 @@ class Settings:
             proposal_token=_proposal_token_from_env(),
             proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "300")),
             proposal_model=os.environ.get("CYTELLECT_PROPOSAL_MODEL", "gpt-6.1-sol"),
-            proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", "2026-10-05.2"),
+            proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", PROPOSAL_PROMPT_VERSION),
         )
 
 

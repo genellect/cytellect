@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 from .planning import ReferenceId
 
 PROPOSAL_PROTOCOL = "1.1.0"
-PROPOSAL_PROMPT_VERSION = "2026-10-05.2"
+PROPOSAL_PROMPT_VERSION = "2026-10-06.1"
 PROPOSAL_MODEL = "gpt-6.1-sol"
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]

@@ -28,7 +28,7 @@ The researcher is never asked to fill in this context. The local API builds the 
 ## Protocol 1.1 and durable local reuse
 
 The Sol integration uses protocol `1.1.0`, model `gpt-6.1-sol` and prompt
-`2026-10-05.2`. Area and intensity selections identify their measurement region;
+`2026-10-06.1`. Area and intensity selections identify their measurement region;
 association proposals identify both axes, and figures reference the corresponding
 analysis index. A proposal can include one primary and up to three additional
 analyses. These remain drafts, not executable statistical confirmations. Native
@@ -71,7 +71,7 @@ Requires the operator's Cloudflare and OpenAI accounts. No paid contract is impl
 7. On the PC, set `CYTELLECT_PROPOSAL_URL=https://…` and `CYTELLECT_PROPOSAL_TOKEN=<device token>` for the local API. HTTPS is required except for `127.0.0.1`/`localhost` testing.
 
 Local `CYTELLECT_PROPOSAL_MODEL` and `CYTELLECT_PROPOSAL_PROMPT_VERSION` default
-to the selected Sol model and `2026-10-05.2` and must match the deployed Worker.
+to the selected Sol model and `2026-10-06.1` and must match the deployed Worker.
 `CYTELLECT_PROPOSAL_TIMEOUT_SECONDS` defaults to 300: this is an upper deadline,
 not a predicted wait, and covers at most two 120-second provider requests. An
 incomplete model answer is classified separately and never automatically repeated
