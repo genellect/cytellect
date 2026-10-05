@@ -4,9 +4,13 @@ This early prototype has local automated tests for invitation replay/revocation,
 
 ## Data boundaries
 
-Unpublished research images, papers, filenames, conditions, masks, tables and plots stay outside Git, Cloud development, CI, external AI and public demos. Public published images can be used for appropriate internal tests with recorded source and conditions. Only assets with a verified public redistribution basis belong in the public UI/repository; register hashes and attribution separately. Synthetic images remain numerical unit-test fixtures.
+Unpublished research images, papers, filenames, conditions, masks, tables and plots stay outside Git, Cloud development, CI, external AI and public demos. The single exception is the product's analysis proposal request (below). Public published images can be used for appropriate internal tests with recorded source and conditions. Only assets with a verified public redistribution basis belong in the public UI/repository; register hashes and attribution separately. Synthetic images remain numerical unit-test fixtures.
 
 Browser uploads go directly to the analysis API. Disable Vercel image optimization, analytics/session recording, Service Workers and CDN caching for research content. API responses carry no-store. Every read checks the owning live session and workspace; IDs alone confer no permission. Do not log request bodies, filenames or token values.
+
+## Analysis proposal service
+
+The optional proposal service is off by default ([design](workspace-redesign.md#analysis-proposal-service-llm)). When the user enables it, the local API sends the stated goal and normalized metadata (channel names, dtype, dimensions, field/group counts, known pairing) to the Cytellect proposal service, which calls the OpenAI API with `store: false`. Representative previews (≤6, downscaled) are sent only after the user separately enables image transmission. Absolute paths, unneeded filenames, documents, masks and measurement tables are never sent. `store: false` does not mean zero retention: the provider may retain requests for abuse monitoring under its API data policy. The service stores invitation/device rights and usage counters only; it does not log prompt bodies or images. The operator key exists only as a service secret. Developer tools, CI and public repositories still never receive private research content.
 
 ## Installation and invitations
 

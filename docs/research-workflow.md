@@ -29,7 +29,7 @@ A cross-community survey found demand for intuitive tools, written tutorials and
 4. **Independent re-review:** rerun relevant numerical references, real Fiji and published-image checks; review actual SVG/PDF and browser workflows at desktop/mobile sizes. Fix failures and repeat affected checks. Compare source, installed package and hosted UI identities separately.
 5. **Researcher acceptance:** novice/expert task walkthroughs, correction burden, completion time, interpretation of n, missingness and re-use intent. Private image performance and researcher usability remain open until actually measured; they do not block unrelated public-data development.
 
-Method support starts with explicit, cited decision rules. Product LLM proposals remain optional, with separate authorization for cost and research-data transmission. No new paid API or autonomous parameter search is part of this phase. Hosting remains local API/worker plus browser UI until an affordable host passes its own privacy and operational acceptance.
+Method support starts with explicit, cited decision rules. Product LLM proposals are optional and follow [workspace redesign](workspace-redesign.md): user-enabled transmission, operator budget, structured output and local validation. No autonomous parameter search is part of this phase. Hosting remains local API/worker plus browser UI until an affordable host passes its own privacy and operational acceptance.
 
 ### Current checkpoint and next decisions
 

@@ -56,9 +56,9 @@ not substituted for Cytellect's own assets or capabilities.
 
 ## Analysis workspace
 
-The owner accepted the revised application presentation on October 4. Preserve
-that design while the public landing page is revised; functional regression
-fixes remain separate from further visual changes.
+The October 4 acceptance is superseded by the owner's October 5 review: the
+workspace is redesigned as one image-centred workspace described in
+[workspace redesign](workspace-redesign.md). The principles below still apply.
 
 - Use operation names, field labels and concise instructions. Do not put
   advertising headlines or emotive copy in forms, panels or error messages.

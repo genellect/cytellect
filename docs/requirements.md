@@ -5,7 +5,7 @@ This contract summarizes the user-approved plan. Implementation status and remai
 ## Product
 
 P01: Public genellect/cytellect; own code Apache-2.0; Japanese UI and bilingual README. Clearly separate planned, implemented, tested and scientifically validated.
-P02: Free invite-only PoC; no registration, LLM, Supabase, billing or paid contracts as initial requirements.
+P02: Free invite-only PoC; no registration, Supabase, billing or paid contracts as initial requirements. An optional LLM analysis proposal follows L01–L06.
 P03: DAPI nuclei + NCL nucleolar candidates, manual correction, GFP selection, NCL quantification, group comparisons, GFP association, figures. Group labels are configuration, never private study constants.
 P04: Manual ROIs for extranuclear/whole-cell GFP. DAPI does not define cell boundaries. Numeric CSV import supports previously measured RNA/DNA assays.
 P05: UBF, RNA FISH, FRAP, 3D/time series, generic spots, automatic cell boundaries and instrument-specific quantification are later recipes.
@@ -79,7 +79,7 @@ T04: Six replacement boundaries: identity, DB, storage, jobs, image engine, meth
 T05: Initial concurrency1, field-by-field memory. Atomic claims, leases/heartbeat, recovery/retry, fencing, idempotency, partial-failure reporting, child time/memory limits and tree cancellation.
 T06: CLI one-use expiring invite, hashed tokens, Secure HttpOnly cookie; no URL/localStorage secrets. Exact CORS, Origin/CSRF mutation checks.
 T07: Ownership on image/preview/mask/table/figure/ZIP; immediate revocation/expiry/deletion applies to every path.
-T08: Research content and names/conditions never in Git/CI/logs/issues/PR/analytics/external AI. no-store, no CDN/service-worker caches. Worker egress denied, allowlisted recipes, no arbitrary macros/code/URLs.
+T08: Research content and names/conditions never in Git/CI/logs/issues/PR/analytics/external AI, except the user-enabled proposal request scoped by L03. no-store, no CDN/service-worker caches. Worker egress denied, allowlisted recipes, no arbitrary macros/code/URLs.
 T09: 24h from explicit activity, polling excluded. On expiry/delete block access, stop execution, remove raw/derived/temp files. Protect active execution and exclude research files from general PoC backups.
 T10: Lock actual Python/pnpm/Fiji/Java/plugins/weights versions/URLs/SHA256/licenses. No runtime downloads/updates. Verify CPU/headless support or include Xvfb.
 
@@ -93,6 +93,23 @@ D05: Corrected-mask measurement agreement with reference pixels essential; expla
 D06: M5 preferably >=3 researchers across labs evaluate completion/time/edit burden/understanding/reuse. Record operational metrics without research content.
 D07: Future Supabase identity/Postgres/private Storage adapters preserve owner IDs with verified guest transfer and RLS. Optional structured LLM method proposals require adoption before recipe execution; no arbitrary code/significance search. Mixed models/R/other segmentation/spots/3D later recipes. Teams/retention/billing depend on PoC evidence.
 D08: Independent scientific reviews record the source, scientific question, reference calculation, applicable data, failures, change/version, reviewer and rerun evidence. CI must distinguish passed numerical checks from missing/skipped checks and from unmeasured biological applicability. Private-data or human-evaluation gates do not stop independent public-data or UX improvement.
+
+## Single workspace and analysis proposals (2026-10-05)
+
+See [workspace redesign](workspace-redesign.md). These supersede the October 4 acceptance of the multi-panel workspace presentation; scientific requirements above are unchanged.
+
+U01: Routine use is add images → review one proposal → run → review/correct/export in one workspace. Adding images creates the workspace; no method choice or workspace form precedes it.
+U02: Field/channel grouping is automatic from OME metadata, filenames and folders, with one set-wide correction. Ambiguity stays unresolved; file order, `c1`/`c2`, colour or morphology never establish a stain; folders never become independent units.
+U03: Adopting a proposal starts detection, measurement, statistics and figures without user job chaining. Per-field state is committed independently; failures stay local to the affected field and successful results are kept.
+U04: Images, regions, table rows and figure points are cross-linked. Corrections invalidate only dependent results; styling changes never rerun analysis or tests.
+U05: Automatic, adopted and human-corrected states are distinct records. Adoption is not region-by-region review, and existing `confirmed` fields are never auto-filled.
+U06: Automatic proposals exclude the exploratory field-clustered regression until its inference is corrected under a new statistics version.
+L01: The LLM drafts proposals only. Output is strict structured JSON of registered recipe IDs, channel-role suggestions, metrics, statistics/figure suggestions, missing information and registered reference IDs.
+L02: Local semantic validation rejects unknown or unacquired channels/metrics/recipes/references, inference without units/pairing, out-of-range parameters and any code, URL or macro. A valid proposal still requires adoption.
+L03: Requests carry the goal and normalized metadata; ≤6 downscaled previews only after the user enables image transmission. No absolute paths, unnecessary filenames or documents. `store: false`, which is not described as zero retention.
+L04: The operator key stays in the proposal service secret; no user API keys; the browser never receives a shared key. D1 stores rights and usage only, never images or prompt bodies.
+L05: Per-request limits, budget reservation before each call, at most one repair retry, reuse for identical adopted input, mandatory monthly and per-user limits; without them billable calls are disabled.
+L06: Service failure or exhausted quota never blocks registered-recipe analysis or existing results.
 
 ## Published-image and figure extensions
 
