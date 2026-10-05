@@ -15,13 +15,17 @@ from .region_measurement_v2 import (
     RegionMeasurementPolicy,
     RegionMeasurementSpecType,
     RegionMeasurementSpecV2,
+    RegionMeasurementSpecV3,
     RegionMeasurementTableV2,
+    RegionMeasurementTableV3,
     validate_area_backgrounds,
 )
+from .region_policy import MEASUREMENT_POLICY, MeasurementPolicy, RawIntensityPolicy
 from .regions import (
     BackgroundSpec,
     Calibration2D,
     ChannelSpec,
+    ChannelSpecType,
     Id,
     Label,
     RegionMeasurementSpec,
@@ -61,16 +65,18 @@ class RegionMetadataChange(RegionMetadataEdit):
 
 
 class RegionFieldInput(RegionModel):
-    version: Literal["1.0.0"] = "1.0.0"
+    version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     client_upload_id: Annotated[str, Field(
         pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     )] | None = None
-    channels: Annotated[list[ChannelSpec], Field(min_length=1, max_length=3)]
+    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=3)]
     metadata: RegionFieldMetadata = Field(default_factory=RegionFieldMetadata)
     calibration: Calibration2D | None = None
 
     @model_validator(mode="after")
     def unique_channels(self):
+        if self.version == "1.0.0" and any(not isinstance(c, ChannelSpec) for c in self.channels):
+            raise ValueError("observed_channels_require_input_version_1_1")
         ids = [channel.channel_id for channel in self.channels]
         if len(ids) != len({cid.casefold() for cid in ids}):
             raise ValueError("duplicate_region_channel_ids")
@@ -86,7 +92,7 @@ class RegionImageInfo(RegionModel):
     kind: Literal["region-2d"] = "region-2d"
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     axes: Literal["YX"] = "YX"
-    channels: Annotated[list[ChannelSpec], Field(min_length=1, max_length=3)]
+    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=3)]
     inputs: dict[Id, RegionStoredFile]
     channel_arrays: dict[Id, RegionStoredFile]
     labels_array: RegionStoredFile | None = None
@@ -162,7 +168,38 @@ class RegionNuclearRecipe(RegionModel):
         return value
 
 
-RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe, Field(discriminator="version")]
+class AdoptedNuclearRecipe(RegionModel):
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.2.0"] = "1.2.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["stardist_nuclear"] = "stardist_nuclear"
+    defining_channel_id: Id
+    nuclear_role_source: Literal["recorded_stain", "user_selected_role"]
+    detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
+
+
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe, Field(discriminator="version")]
+
+
+RECORDED_NUCLEAR_STAINS = frozenset({"dapi", "hoechst", "hoechst33258", "hoechst33342", "draq", "draq5", "draq7"})
+
+
+def validate_nuclear_role_evidence(recipe: RegionRecipeType, image_info: RegionImageInfo) -> None:
+    """Bind recorded evidence to the acquired channel; never infer it from labels.
+
+    A user-selected role remains an explicit choice, distinct from recorded stain
+    evidence. This guard is shared by admission, worker and saved-mask replay.
+    """
+    if not isinstance(recipe, AdoptedNuclearRecipe):
+        return
+    channel = next((item for item in image_info.channels if item.channel_id == recipe.defining_channel_id), None)
+    if channel is None:
+        raise ValueError("unknown_defining_channel")
+    if recipe.nuclear_role_source == "recorded_stain":
+        normalized = "".join(character for character in (channel.stain or "").casefold() if character.isalnum())
+        if normalized not in RECORDED_NUCLEAR_STAINS:
+            raise ValueError("nuclear_recorded_stain_required")
 
 
 class RegionBackground(RegionModel):
@@ -187,7 +224,7 @@ class RegionAnalysisRequest(RegionModel):
     field_ids: Annotated[list[Id], Field(min_length=1, max_length=100)] | None = None
     reuse_revision: Id | None = None
     plan_resolution: PlanResolution | None = None
-    measurement: RegionMeasurementPolicy | None = None
+    measurement: MeasurementPolicy | None = None
     recipe: RegionRecipeType
     backgrounds: dict[Id, dict[Id, RegionBackground]] = Field(default_factory=dict)
     exclusions: Annotated[list[RegionExclusion], Field(max_length=10000)] = Field(default_factory=list)
@@ -249,22 +286,26 @@ class RegionMaskEdit(RegionModel):
 
 def scientific_specification(*, field_id: str, revision_id: str, mask_revision_id: str,
                              recipe: RegionRecipeType, image_info: RegionImageInfo,
-                             measurement: RegionMeasurementPolicy | None = None) -> RegionMeasurementSpecType:
+                             measurement: MeasurementPolicy | None = None) -> RegionMeasurementSpecType:
     """Explicit JSON-list → immutable science-tuple boundary, shared with replay."""
+    validate_nuclear_role_evidence(recipe, image_info)
     region_set = RegionSetSpec(
         region_set_id=recipe.region_set_id, label=recipe.label,
         mask_revision_id=mask_revision_id, source=recipe.source,
         defining_channel_id=recipe.defining_channel_id,
     )
     if measurement is not None:
-        return RegionMeasurementSpecV2(
-            measurement=measurement, field_id=field_id, analysis_revision_id=revision_id,
+        specification_type = RegionMeasurementSpecV3 if measurement.mode == "raw_intensity" else RegionMeasurementSpecV2
+        return specification_type(
+            measurement=measurement, field_id=field_id, analysis_revision_id=revision_id,  # type: ignore[arg-type]
             region_set=region_set, channels=tuple(image_info.channels), calibration=image_info.calibration,
         )
+    if any(not isinstance(c, ChannelSpec) for c in image_info.channels):
+        raise ValueError("confirmed_channels_required_for_corrected_protocol")
     return RegionMeasurementSpec(
         field_id=field_id, analysis_revision_id=revision_id,
         region_set=region_set,
-        channels=tuple(image_info.channels), calibration=image_info.calibration,
+        channels=tuple(c for c in image_info.channels if isinstance(c, ChannelSpec)), calibration=image_info.calibration,
         backgrounds=tuple(BackgroundSpec(channel_id=channel.channel_id, roi_revision_id=revision_id, confirmed=True)
                           for channel in image_info.channels),
     )
@@ -330,13 +371,21 @@ class RegionReportV2(RegionModel):
     @model_validator(mode="after")
     def complete_outcomes(self):
         _validate_report_outcomes(self)
+        if self.measurement.mode != ("raw_intensity" if self.protocol_version == "3.0.0" else "area_only"):
+            raise ValueError("region_measurement_protocol_mismatch")
         if any(table.measurement != self.measurement for table in self.field_tables.values()):
             raise ValueError("region_measurement_protocol_mismatch")
         return self
 
 
-RegionReportType = Annotated[RegionReport | RegionReportV2, Field(discriminator="protocol_version")]
-_REPORT: TypeAdapter[RegionReport | RegionReportV2] = TypeAdapter(RegionReportType)
+class RegionReportV3(RegionReportV2):
+    measurement: RawIntensityPolicy  # type: ignore[assignment]
+    protocol_version: Literal["3.0.0"] = "3.0.0"  # type: ignore[assignment]
+    field_tables: dict[Id, RegionMeasurementTableV3]  # type: ignore[assignment]
+
+
+RegionReportType = Annotated[RegionReport | RegionReportV2 | RegionReportV3, Field(discriminator="protocol_version")]
+_REPORT: TypeAdapter[RegionReport | RegionReportV2 | RegionReportV3] = TypeAdapter(RegionReportType)
 
 
 def region_report_from_json(value: str) -> RegionReportType:
@@ -347,7 +396,7 @@ def validate_region_report_policy(report: RegionReportType, config: Mapping) -> 
     """Bind a strictly parsed report to its saved measurement policy."""
     raw_policy = config.get("measurement")
     try:
-        policy = None if raw_policy is None else RegionMeasurementPolicy.model_validate(raw_policy, strict=True)
+        policy = None if raw_policy is None else MEASUREMENT_POLICY.validate_python(raw_policy, strict=True)
     except ValueError as exc:
         raise ValueError("region_measurement_protocol_mismatch") from exc
     if isinstance(report, RegionReportV2):

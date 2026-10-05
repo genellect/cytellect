@@ -18,6 +18,7 @@ from .images import read_tiff, sha256
 from .masks import polygon_mask, validate_label_array
 from .plan_adoption import planning_methods, validate_revision_plan
 from .region_contracts import (
+    AdoptedNuclearRecipe,
     RegionAnalysisRequest,
     RegionImageInfo,
     RegionNuclearRecipe,
@@ -33,6 +34,11 @@ FORMAT = "cytellect-region-reproducibility/1"
 METHODS_VERSION = "1.1.0"
 AREA_FORMAT = "cytellect-region-reproducibility/2"
 AREA_METHODS_VERSION = "1.2.0"
+RAW_FORMAT = "cytellect-region-reproducibility/3"
+
+
+def bundle_format(policy):
+    return FORMAT if policy is None else (AREA_FORMAT if policy.mode == "area_only" else RAW_FORMAT)
 
 
 def _json(path: Path, value):
@@ -67,8 +73,9 @@ def _request(config):
 def region_methods(config, report, provenance):
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
-    area_only = request.measurement is not None
-    nuclear = isinstance(request.recipe, RegionNuclearRecipe)
+    area_only = request.measurement is not None and request.measurement.mode == "area_only"
+    raw_only = request.measurement is not None and request.measurement.mode == "raw_intensity"
+    nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe))
     initial = ("Initial masks: a confirmed nuclear-stain channel was submitted to the fixed offline Fiji/StarDist 2D "
                "Versatile (fluorescent nuclei) model. This model defines nuclei, not whole cells or nucleoli."
                if nuclear else f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.")
@@ -90,10 +97,19 @@ def region_methods(config, report, provenance):
              ("Physical area requires confirmed X and Y pixel sizes; otherwise only pixel area is available." if area_only else
               "Physical area requires confirmed X and Y pixel sizes; otherwise only pixel area is available. "
               "Storage-limit and confirmed acquisition-saturation fractions are distinct; unknown limits remain missing."), ""]
-    if isinstance(request.recipe, RegionNuclearRecipe):
+    if raw_only:
+        lines[4] = "Methods template 1.3.0; region measurement protocol 3.0.0."
+        lines = [line for line in lines if not line.startswith("For each channel, a user-confirmed ROI")]
+        lines.append("Raw mean, midpoint median and pixel sum use unchanged source pixels. No background has been established; corrected values remain null (background_not_established).")
+    if isinstance(request.recipe, AdoptedNuclearRecipe):
+        lines = [line.replace("a confirmed nuclear-stain channel", "the adopted nuclear-role channel") for line in lines]
+        lines.append(f"Nuclear role evidence: {request.recipe.nuclear_role_source}; adoption does not certify segmentation quality.")
+    if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
         detector = request.recipe.detector
         lines.extend([
-            f"Nuclear recipe {request.recipe.version}; confirmed defining channel {request.recipe.defining_channel_id}.",
+            (f"Nuclear recipe {request.recipe.version}; defining channel {request.recipe.defining_channel_id}."
+             if isinstance(request.recipe, AdoptedNuclearRecipe) else
+             f"Nuclear recipe {request.recipe.version}; confirmed defining channel {request.recipe.defining_channel_id}."),
             f"Detection normalization percentiles {detector.percentile_low:g}–{detector.percentile_high:g}; "
             f"probability threshold {detector.probability:g}; NMS threshold {detector.nms:g}.",
             "Detection and saved labels use original image coordinates. Detection preprocessing does not alter "
@@ -193,6 +209,10 @@ def _recompute_statistics(report, config, result):
     else:
         calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
     calculated["revision_id"] = report["revision_id"]
+    if result.get("source_review") == "automatic_unreviewed":
+        if config.get("recipe", {}).get("version") != "1.2.0" or result["spec"].get("mode") != "descriptive":
+            raise ValueError("region_export_statistics_unrecognized_fields")
+        calculated["source_review"] = "automatic_unreviewed"
     if set(result) - (set(calculated) | {"figure"}):
         raise ValueError("region_export_statistics_unrecognized_fields")
     return calculated
@@ -305,7 +325,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
         "It does not confirm biological annotation correctness. Keep input and output directories private.\n", encoding="utf-8")
     members = sorted(path for path in content.rglob("*") if path.is_file())
     _json(content / "manifest.json", {
-        "format": AREA_FORMAT if request.measurement is not None else FORMAT,
+        "format": bundle_format(request.measurement),
         "revision_id": report["revision_id"], "raw_included": include_raw, "raw_files": raw_manifest,
         "replay_scope": "saved masks of measured fields -> measurements -> recorded statistics and figures; failures preserved",
         "files": {path.relative_to(content).as_posix(): sha256(path) for path in members},
@@ -324,7 +344,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
 def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     """Recompute successful fields with saved masks; retain failure diagnostics."""
     manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("format") not in (FORMAT, AREA_FORMAT):
+    if manifest.get("format") not in (FORMAT, AREA_FORMAT, RAW_FORMAT):
         raise ValueError("region_bundle_format_unsupported")
     for relative, expected_hash in manifest["files"].items():
         path = _safe_path(bundle_dir, relative)
@@ -335,7 +355,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     request = _request(config)
     report = json.loads((bundle_dir / "measurements.json").read_text(encoding="utf-8"))
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
-    expected_format = AREA_FORMAT if request.measurement is not None else FORMAT
+    expected_format = bundle_format(request.measurement)
     if manifest["format"] != expected_format:
         raise ValueError("region_measurement_protocol_mismatch")
     if request.measurement is not None and (

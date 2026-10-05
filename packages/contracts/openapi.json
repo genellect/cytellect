@@ -1643,13 +1643,17 @@
                     },
                     {
                       "$ref": "#/components/schemas/RegionReportV2"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RegionReportV3"
                     }
                   ],
                   "discriminator": {
                     "propertyName": "protocol_version",
                     "mapping": {
                       "1.0.0": "#/components/schemas/RegionReport",
-                      "2.0.0": "#/components/schemas/RegionReportV2"
+                      "2.0.0": "#/components/schemas/RegionReportV2",
+                      "3.0.0": "#/components/schemas/RegionReportV3"
                     }
                   },
                   "title": "Response Measurements V1 Revisions  Rid  Region Measurements Get"
@@ -1831,6 +1835,61 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RegionMetadataEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/descriptive-preview": {
+      "post": {
+        "summary": "Descriptive Preview",
+        "operationId": "descriptive_preview_v1_revisions__rid__descriptive_preview_post",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DescriptiveRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PagedDescriptiveRequest"
+                  }
+                ],
+                "title": "Body"
               }
             }
           }
@@ -2247,6 +2306,68 @@
           "basis"
         ],
         "title": "AcquisitionReview"
+      },
+      "AdoptedNuclearRecipe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Id",
+            "default": "region-2d"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.2.0",
+            "title": "Version",
+            "default": "1.2.0"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "const": "stardist_nuclear",
+            "title": "Source",
+            "default": "stardist_nuclear"
+          },
+          "defining_channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Defining Channel Id"
+          },
+          "nuclear_role_source": {
+            "type": "string",
+            "enum": [
+              "recorded_stain",
+              "user_selected_role"
+            ],
+            "title": "Nuclear Role Source"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/NuclearDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "region_set_id",
+          "label",
+          "defining_channel_id",
+          "nuclear_role_source"
+        ],
+        "title": "AdoptedNuclearRecipe"
       },
       "AdoptedPlan": {
         "properties": {
@@ -2837,7 +2958,15 @@
       "ChannelProvenanceV2": {
         "properties": {
           "channel": {
-            "$ref": "#/components/schemas/ChannelSpec"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelSpec"
+              },
+              {
+                "$ref": "#/components/schemas/ObservedChannelSpec"
+              }
+            ],
+            "title": "Channel"
           },
           "dtype": {
             "type": "string",
@@ -2874,6 +3003,55 @@
           "background"
         ],
         "title": "ChannelProvenanceV2"
+      },
+      "ChannelProvenanceV3": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelSpec"
+              },
+              {
+                "$ref": "#/components/schemas/ObservedChannelSpec"
+              }
+            ],
+            "title": "Channel"
+          },
+          "dtype": {
+            "type": "string",
+            "enum": [
+              "uint8",
+              "uint16"
+            ],
+            "title": "Dtype"
+          },
+          "pixel_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Pixel Sha256"
+          },
+          "storage_maximum": {
+            "type": "integer",
+            "enum": [
+              255,
+              65535
+            ],
+            "title": "Storage Maximum"
+          },
+          "background": {
+            "$ref": "#/components/schemas/RawBackgroundProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "dtype",
+          "pixel_sha256",
+          "storage_maximum",
+          "background"
+        ],
+        "title": "ChannelProvenanceV3"
       },
       "ChannelSpec": {
         "properties": {
@@ -3623,6 +3801,30 @@
               }
             ],
             "title": "Channel"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus",
+                  "nucleoli",
+                  "nucleoplasm",
+                  "supplied"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "analysis_index": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Analysis Index",
+            "default": 0
           }
         },
         "additionalProperties": false,
@@ -3661,6 +3863,23 @@
               }
             ],
             "title": "Channel"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus",
+                  "nucleoli",
+                  "nucleoplasm",
+                  "supplied"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           }
         },
         "additionalProperties": false,
@@ -3728,6 +3947,26 @@
               }
             ],
             "title": "Association"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "y": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4363,6 +4602,73 @@
         ],
         "title": "NumericalSelection",
         "type": "object"
+      },
+      "ObservedChannelSpec": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
+          },
+          "acquisition_saturation_value": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 65535.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Saturation Value"
+          },
+          "acquisition_saturation_confirmed": {
+            "type": "boolean",
+            "title": "Acquisition Saturation Confirmed",
+            "default": false
+          },
+          "identity_source": {
+            "type": "string",
+            "enum": [
+              "filename",
+              "ome_metadata",
+              "user_entered",
+              "unresolved"
+            ],
+            "title": "Identity Source"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "label",
+          "identity_source"
+        ],
+        "title": "ObservedChannelSpec",
+        "description": "Recorded import evidence is not a human acquisition confirmation."
       },
       "PagedDescriptiveRequest": {
         "additionalProperties": false,
@@ -5114,6 +5420,14 @@
           "statistics": {
             "$ref": "#/components/schemas/DraftStatistics"
           },
+          "additional_analyses": {
+            "items": {
+              "$ref": "#/components/schemas/DraftStatistics"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Additional Analyses"
+          },
           "figures": {
             "items": {
               "$ref": "#/components/schemas/DraftFigure"
@@ -5180,6 +5494,11 @@
             "type": "boolean",
             "title": "Transmission Confirmed",
             "default": false
+          },
+          "retry_failed": {
+            "type": "boolean",
+            "title": "Retry Failed",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -5206,6 +5525,46 @@
           "channels"
         ],
         "title": "ProposalDraftResponse"
+      },
+      "RawBackgroundProvenance": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "not_established",
+            "title": "Status",
+            "default": "not_established"
+          },
+          "reason": {
+            "type": "string",
+            "const": "raw_measurement_only",
+            "title": "Reason",
+            "default": "raw_measurement_only"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RawBackgroundProvenance"
+      },
+      "RawIntensityPolicy": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Version"
+          },
+          "mode": {
+            "type": "string",
+            "const": "raw_intensity",
+            "title": "Mode"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "mode"
+        ],
+        "title": "RawIntensityPolicy"
       },
       "Recipe": {
         "properties": {
@@ -5411,9 +5770,13 @@
                 "$ref": "#/components/schemas/RegionMeasurementPolicy"
               },
               {
+                "$ref": "#/components/schemas/RawIntensityPolicy"
+              },
+              {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Measurement"
           },
           "recipe": {
             "oneOf": [
@@ -5422,6 +5785,9 @@
               },
               {
                 "$ref": "#/components/schemas/RegionNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/AdoptedNuclearRecipe"
               }
             ],
             "title": "Recipe",
@@ -5429,7 +5795,8 @@
               "propertyName": "version",
               "mapping": {
                 "1.0.0": "#/components/schemas/RegionRecipe",
-                "1.1.0": "#/components/schemas/RegionNuclearRecipe"
+                "1.1.0": "#/components/schemas/RegionNuclearRecipe",
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
               }
             }
           },
@@ -6352,7 +6719,14 @@
           },
           "channels": {
             "items": {
-              "$ref": "#/components/schemas/ChannelSpec"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ChannelSpec"
+                },
+                {
+                  "$ref": "#/components/schemas/ObservedChannelSpec"
+                }
+              ]
             },
             "type": "array",
             "maxItems": 3,
@@ -6811,6 +7185,182 @@
         ],
         "title": "RegionMeasurementRowV2"
       },
+      "RegionMeasurementRowV3": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "analysis_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Analysis Revision Id"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Mask Revision Id"
+          },
+          "region_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Region Id"
+          },
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "area_px": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Area Px"
+          },
+          "area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Um2"
+          },
+          "area_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "calibration_unknown"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Missing Reason"
+          },
+          "mean": {
+            "type": "number",
+            "maximum": 65535.0,
+            "minimum": 0.0,
+            "title": "Mean"
+          },
+          "median": {
+            "type": "number",
+            "maximum": 65535.0,
+            "minimum": 0.0,
+            "title": "Median"
+          },
+          "integrated": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Integrated"
+          },
+          "mean_corrected": {
+            "type": "null",
+            "title": "Mean Corrected"
+          },
+          "median_corrected": {
+            "type": "null",
+            "title": "Median Corrected"
+          },
+          "integrated_corrected": {
+            "type": "null",
+            "title": "Integrated Corrected"
+          },
+          "intensity_missing_reason": {
+            "type": "null",
+            "title": "Intensity Missing Reason"
+          },
+          "storage_limit_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Storage Limit Fraction"
+          },
+          "storage_limit_missing_reason": {
+            "type": "null",
+            "title": "Storage Limit Missing Reason"
+          },
+          "acquisition_saturation_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Saturation Fraction"
+          },
+          "acquisition_saturation_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "acquisition_limit_unknown"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Saturation Missing Reason"
+          },
+          "touches_border": {
+            "type": "boolean",
+            "title": "Touches Border"
+          },
+          "correction_missing_reason": {
+            "type": "string",
+            "const": "background_not_established",
+            "title": "Correction Missing Reason",
+            "default": "background_not_established"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "analysis_revision_id",
+          "region_set_id",
+          "mask_revision_id",
+          "region_id",
+          "channel_id",
+          "area_px",
+          "area_um2",
+          "area_missing_reason",
+          "mean",
+          "median",
+          "integrated",
+          "mean_corrected",
+          "median_corrected",
+          "integrated_corrected",
+          "storage_limit_fraction",
+          "acquisition_saturation_fraction",
+          "acquisition_saturation_missing_reason",
+          "touches_border"
+        ],
+        "title": "RegionMeasurementRowV3"
+      },
       "RegionMeasurementTable": {
         "properties": {
           "protocol_version": {
@@ -7016,6 +7566,114 @@
         ],
         "title": "RegionMeasurementTableV2"
       },
+      "RegionMeasurementTableV3": {
+        "properties": {
+          "protocol_version": {
+            "type": "string",
+            "const": "3.0.0",
+            "title": "Protocol Version",
+            "default": "3.0.0"
+          },
+          "measurement": {
+            "$ref": "#/components/schemas/RawIntensityPolicy"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "no_regions"
+            ],
+            "title": "Status"
+          },
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "analysis_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Analysis Revision Id"
+          },
+          "region_set": {
+            "$ref": "#/components/schemas/RegionSetSpec"
+          },
+          "shape_yx": {
+            "prefixItems": [
+              {
+                "type": "integer",
+                "maximum": 4096.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "integer",
+                "maximum": 4096.0,
+                "minimum": 1.0
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Shape Yx"
+          },
+          "mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Mask Sha256"
+          },
+          "hash_format": {
+            "type": "string",
+            "const": "cytellect-array-v1",
+            "title": "Hash Format",
+            "default": "cytellect-array-v1"
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Calibration2D"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channel_provenance": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelProvenanceV3"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Channel Provenance"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RegionMeasurementRowV3"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "measurement",
+          "status",
+          "field_id",
+          "analysis_revision_id",
+          "region_set",
+          "shape_yx",
+          "mask_sha256",
+          "calibration",
+          "channel_provenance",
+          "rows"
+        ],
+        "title": "RegionMeasurementTableV3"
+      },
       "RegionMetadataEdit": {
         "properties": {
           "version": {
@@ -7193,6 +7851,9 @@
               },
               {
                 "$ref": "#/components/schemas/RegionNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/AdoptedNuclearRecipe"
               }
             ],
             "title": "Recipe",
@@ -7200,7 +7861,8 @@
               "propertyName": "version",
               "mapping": {
                 "1.0.0": "#/components/schemas/RegionRecipe",
-                "1.1.0": "#/components/schemas/RegionNuclearRecipe"
+                "1.1.0": "#/components/schemas/RegionNuclearRecipe",
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
               }
             }
           },
@@ -7317,6 +7979,9 @@
               },
               {
                 "$ref": "#/components/schemas/RegionNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/AdoptedNuclearRecipe"
               }
             ],
             "title": "Recipe",
@@ -7324,7 +7989,8 @@
               "propertyName": "version",
               "mapping": {
                 "1.0.0": "#/components/schemas/RegionRecipe",
-                "1.1.0": "#/components/schemas/RegionNuclearRecipe"
+                "1.1.0": "#/components/schemas/RegionNuclearRecipe",
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
               }
             }
           },
@@ -7410,6 +8076,134 @@
         ],
         "title": "RegionReportV2",
         "description": "Explicit area-only report; v1 persisted data retains its original model."
+      },
+      "RegionReportV3": {
+        "properties": {
+          "analysis_kind": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Analysis Kind",
+            "default": "region-2d"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "3.0.0",
+            "title": "Protocol Version",
+            "default": "3.0.0"
+          },
+          "measurement": {
+            "$ref": "#/components/schemas/RawIntensityPolicy"
+          },
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          },
+          "recipe": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RegionRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/AdoptedNuclearRecipe"
+              }
+            ],
+            "title": "Recipe",
+            "discriminator": {
+              "propertyName": "version",
+              "mapping": {
+                "1.0.0": "#/components/schemas/RegionRecipe",
+                "1.1.0": "#/components/schemas/RegionNuclearRecipe",
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
+              }
+            }
+          },
+          "field_tables": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/RegionMeasurementTableV3"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Tables"
+          },
+          "field_masks": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/RegionFieldMask"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Masks"
+          },
+          "field_outcomes": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "type": "string",
+                "enum": [
+                  "measured",
+                  "no_regions",
+                  "failed",
+                  "excluded_failed"
+                ]
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Outcomes"
+          },
+          "field_failures": {
+            "items": {
+              "$ref": "#/components/schemas/RegionFieldFailure"
+            },
+            "type": "array",
+            "title": "Field Failures"
+          },
+          "excluded_failed_fields": {
+            "items": {
+              "$ref": "#/components/schemas/RegionExcludedFailure"
+            },
+            "type": "array",
+            "title": "Excluded Failed Fields"
+          },
+          "exclusions": {
+            "items": {
+              "$ref": "#/components/schemas/RegionExclusion"
+            },
+            "type": "array",
+            "title": "Exclusions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "measurement",
+          "revision_id",
+          "recipe",
+          "field_tables",
+          "field_masks",
+          "field_outcomes",
+          "field_failures",
+          "excluded_failed_fields",
+          "exclusions"
+        ],
+        "title": "RegionReportV3"
       },
       "RegionSelection": {
         "additionalProperties": false,
@@ -7854,9 +8648,9 @@
         "properties": {
           "protocol": {
             "type": "string",
-            "const": "1.0.0",
+            "const": "1.1.0",
             "title": "Protocol",
-            "default": "1.0.0"
+            "default": "1.1.0"
           },
           "origin": {
             "type": "string",
@@ -8595,6 +9389,19 @@
             "default": "not_assessed_in_descriptive_analysis",
             "title": "Independence Status",
             "type": "string"
+          },
+          "source_review": {
+            "anyOf": [
+              {
+                "const": "automatic_unreviewed",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Review"
           }
         },
         "required": [

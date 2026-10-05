@@ -11,6 +11,7 @@ async function database(): Promise<D1Database> {
   const { readFileSync } = await import(fsModule);
   const db = new DatabaseSync(":memory:");
   db.exec(readFileSync(new URL("../migrations/0001_init.sql", import.meta.url), "utf8"));
+  db.exec(readFileSync(new URL("../migrations/0002_usage_integrity.sql", import.meta.url), "utf8"));
   const statement = (query: string, values: unknown[] = []) => ({
     bind: (...next: unknown[]) => statement(query, next),
     first: async () => db.prepare(query).get(...values) ?? null,
@@ -20,6 +21,42 @@ async function database(): Promise<D1Database> {
 }
 
 describe("D1Store SQL", () => {
+  it("stores only accounting usage and provenance alongside conservative cost", async () => {
+    const db = await database();
+    const store = new D1Store(db);
+    await store.reserve("metered", "2026-10", 0.8, 1, 0);
+    await store.settle("metered", "2026-10", 0.2, { model: "gpt-6.1-sol", promptVersion: "2026-10-05.2", inputTokens: 1000, cachedInputTokens: 700, outputTokens: 200, calls: 1 });
+    expect(await db.prepare("SELECT model, prompt_version, input_tokens, cached_input_tokens, output_tokens, calls FROM settlements WHERE id = ?").bind("metered").first())
+      .toMatchObject({ model: "gpt-6.1-sol", prompt_version: "2026-10-05.2", input_tokens: 1000, cached_input_tokens: 700, output_tokens: 200, calls: 1 });
+  });
+  it("rolls back settlement accounting if removing the reservation fails", async () => {
+    const db = await database();
+    const store = new D1Store(db);
+    await store.reserve("crash", "2026-10", 0.8, 1, 0);
+    await db.prepare("CREATE TRIGGER test_failure BEFORE DELETE ON reservations BEGIN SELECT RAISE(ABORT, 'test'); END").run();
+    await expect(store.settle("crash", "2026-10", 0.2)).rejects.toThrow();
+    expect(await store.unsettled("2026-10")).toBe(0.8);
+    await db.prepare("DROP TRIGGER test_failure").run();
+    await store.settle("crash", "2026-10", 0.2);
+    expect(await store.reserve("next", "2026-10", 0.8, 1, 1)).toBe(true);
+  });
+  it("claims action UUIDs once per device without storing research content", async () => {
+    const store = new D1Store(await database());
+    expect(await store.claimRequest("dev", "opaque-uuid", 0)).toBe(true);
+    expect(await store.claimRequest("dev", "opaque-uuid", 1)).toBe(false);
+    expect(await store.claimRequest("dev2", "opaque-uuid", 1)).toBe(true);
+  });
+
+  it("settlement retries and wrong-month settlement cannot double charge or lose a hold", async () => {
+    const store = new D1Store(await database());
+    await store.reserve("retry", "2026-10", 0.8, 1, 0);
+    await store.settle("retry", "2026-11", 0.5);
+    expect(await store.unsettled("2026-10")).toBe(0.8);
+    await store.settle("retry", "2026-10", 0.2);
+    await store.settle("retry", "2026-10", 0.2);
+    expect(await store.unsettled("2026-10")).toBe(0);
+    expect(await store.reserve("next", "2026-10", 0.8, 1, 0)).toBe(true);
+  });
   it("redeems an invitation once and only before it expires", async () => {
     const store = new D1Store(await database());
     await store.createInvitation("inv", 1_000);

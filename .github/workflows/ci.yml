@@ -152,6 +152,7 @@ jobs:
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --download
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --evaluate /tmp/cytellect-bbbc007-run --fiji /tmp/cytellect-fiji
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --check-report /tmp/cytellect-bbbc007-run/benchmark.json
+          uv run python scripts/prepare_workspace_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --output /tmp/cytellect-workspace-inputs
       - name: Retain public-image execution summary only
         if: always()
         uses: actions/upload-artifact@v4
@@ -162,7 +163,14 @@ jobs:
           retention-days: 14
       - run: pnpm build
       - name: Browser workflow against real API and Fiji
+        env:
+          CYTELLECT_WEB_URL: http://localhost:3000
+          CYTELLECT_TEST_API_ORIGIN: http://localhost:8000
+          CYTELLECT_REAL_INPUTS: /tmp/cytellect-workspace-inputs
+          CYTELLECT_REAL_OUTPUT: /tmp/cytellect-workspace-evidence
+          CYTELLECT_REQUIRE_REAL_FIJI: "1"
         run: |
+          export CYTELLECT_TEST_PYTHON="$(uv run python -c 'import sys; print(sys.executable)')"
           uv run cytellect serve > /tmp/cytellect-api.log 2>&1 &
           uv run cytellect-worker > /tmp/cytellect-worker.log 2>&1 &
           pnpm --filter @cytellect/web start > /tmp/cytellect-web.log 2>&1 &
@@ -171,10 +179,28 @@ jobs:
             sleep 1
           done
           pnpm test:e2e
+      - name: Retain only registered public workspace evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-workspace-fiji
+          path: |
+            /tmp/cytellect-workspace-evidence/receipt.json
+            /tmp/cytellect-workspace-evidence/bbbc007-before.png
+            /tmp/cytellect-workspace-evidence/bbbc007-after.png
+            /tmp/cytellect-workspace-evidence/figure.svg
+            /tmp/cytellect-workspace-evidence/figure.pdf
+            /tmp/cytellect-workspace-evidence/plot-data.csv
+            /tmp/cytellect-workspace-evidence/methods.md
+          if-no-files-found: error
+          retention-days: 14
       - name: Compose configuration
         env:
           CYTELLECT_RUNTIME_DIR: /tmp/cytellect-compose
-        run: docker compose config --quiet
+          CYTELLECT_REQUIRE_COMPOSE_TEST: "1"
+        run: |
+          docker compose config --quiet
+          uv run pytest tests/test_proposal_compose.py -q
       - name: Build production worker container
         run: docker build --target worker -f infra/Dockerfile.python -t cytellect-worker-ci .
       - name: Actual Fiji in non-root offline read-only container

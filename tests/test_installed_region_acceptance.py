@@ -104,7 +104,8 @@ def test_four_known_units_cross_real_api_and_closed_form_inference_then_replay(t
     assert [row["expected_p"] for row in result["common_statistical_checks"]] == pytest.approx([1 / 3, 1 / 12])
     assert [row["design"] for row in result["closed_form_checks"]] == ["independent", "paired"]
     assert result["closed_form_checks"][0]["expected"]["p_value"] != result["closed_form_checks"][1]["expected"]["p_value"]
-    result_path = next((output / "bundle" / "statistics").glob("*/result.json"))
+    result_path = next(path for path in (output / "bundle" / "statistics").glob("*/result.json")
+                       if "comparisons" in json.loads(path.read_text(encoding="utf-8")))
     altered = json.loads(result_path.read_text(encoding="utf-8"))
     altered["comparisons"][0]["estimate"] = 0
     with pytest.raises(ValueError, match="independent_reference_mismatch"):

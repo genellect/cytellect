@@ -15,8 +15,9 @@ from .descriptive_contracts import (
     RegionSelection,
     parse_descriptive_request,
 )
-from .region_measurement_v2 import RegionMeasurementPolicy, region_table_from_json, require_region_metric
-from .regions import Calibration2D, ChannelSpec
+from .region_measurement_v2 import region_table_from_json, require_region_metric
+from .region_policy import MEASUREMENT_POLICY, measurement_protocol
+from .regions import CHANNEL_SPEC, Calibration2D
 from .review import unresolved_nucleolar_failures
 
 VERSION = "1.0.0"
@@ -248,9 +249,9 @@ def region_report_measurement_policy(report):
     protocol = report.get("protocol_version", "1.0.0")
     if protocol == "1.0.0" and report.get("measurement") is None:
         return None
-    if protocol == "2.0.0":
+    if protocol in ("2.0.0", "3.0.0"):
         try:
-            return RegionMeasurementPolicy.model_validate(report.get("measurement"))
+            return MEASUREMENT_POLICY.validate_python(report.get("measurement"))
         except ValueError:
             pass
     raise ValueError("region_measurement_protocol_mismatch")
@@ -264,7 +265,7 @@ def prepare_region_observations(report, field_snapshot, selector):
     tables = {fid: region_table_from_json(json.dumps(value))
               for fid, value in report.get("field_tables", {}).items()}
     for table in tables.values():
-        if (table.protocol_version != ("2.0.0" if measurement else "1.0.0")
+        if (table.protocol_version != measurement_protocol(measurement)
                 or getattr(table, "measurement", None) != measurement):
             raise ValueError("region_measurement_protocol_mismatch")
     excluded = _coverage(report, field_snapshot, tables)
@@ -283,7 +284,7 @@ def prepare_region_observations(report, field_snapshot, selector):
         if expected_calibration != table.calibration:
             raise ValueError("descriptive_calibration_mismatch")
         definitions.add((table.region_set.label, table.region_set.defining_channel_id))
-        declared = [ChannelSpec.model_validate(item) for item in field_snapshot[fid].get("image_info", {}).get("channels", [])]
+        declared = [CHANNEL_SPEC.validate_python(item) for item in field_snapshot[fid].get("image_info", {}).get("channels", [])]
         channel_map = {item.channel_id: item for item in declared}
         provenance_map = {item.channel.channel_id: item for item in table.channel_provenance}
         if (not channel_map or len(channel_map) != len(declared)
@@ -332,7 +333,7 @@ def prepare_region_observations(report, field_snapshot, selector):
                        "calibration": table.calibration.model_dump(mode="json") if table.calibration else None,
                        "channel_provenance": [item.model_dump(mode="json") for item in table.channel_provenance]})
         if measurement is not None:
-            fields[-1].update(measurement_protocol="2.0.0", measurement=measurement.model_dump(mode="json"))
+            fields[-1].update(measurement_protocol=measurement_protocol(measurement), measurement=measurement.model_dump(mode="json"))
     if len(definitions) > 1:
         raise ValueError("descriptive_region_definition_mismatch")
     if len(identities) > 1:

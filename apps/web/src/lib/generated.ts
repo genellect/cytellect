@@ -634,6 +634,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/descriptive-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Descriptive Preview */
+        post: operations["descriptive_preview_v1_revisions__rid__descriptive_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/descriptive": {
         parameters: {
             query?: never;
@@ -778,6 +795,38 @@ export interface components {
              * @default false
              */
             spatial_sampling_confirmed: boolean;
+        };
+        /** AdoptedNuclearRecipe */
+        AdoptedNuclearRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.2.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default stardist_nuclear
+             * @constant
+             */
+            source: "stardist_nuclear";
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            /**
+             * Nuclear Role Source
+             * @enum {string}
+             */
+            nuclear_role_source: "recorded_stain" | "user_selected_role";
+            detector?: components["schemas"]["NuclearDetectorSpec"];
         };
         /** AdoptedPlan */
         AdoptedPlan: {
@@ -1038,7 +1087,8 @@ export interface components {
         };
         /** ChannelProvenanceV2 */
         ChannelProvenanceV2: {
-            channel: components["schemas"]["ChannelSpec"];
+            /** Channel */
+            channel: components["schemas"]["ChannelSpec"] | components["schemas"]["ObservedChannelSpec"];
             /**
              * Dtype
              * @enum {string}
@@ -1052,6 +1102,24 @@ export interface components {
              */
             storage_maximum: 255 | 65535;
             background: components["schemas"]["AreaBackgroundProvenance"];
+        };
+        /** ChannelProvenanceV3 */
+        ChannelProvenanceV3: {
+            /** Channel */
+            channel: components["schemas"]["ChannelSpec"] | components["schemas"]["ObservedChannelSpec"];
+            /**
+             * Dtype
+             * @enum {string}
+             */
+            dtype: "uint8" | "uint16";
+            /** Pixel Sha256 */
+            pixel_sha256: string;
+            /**
+             * Storage Maximum
+             * @enum {integer}
+             */
+            storage_maximum: 255 | 65535;
+            background: components["schemas"]["RawBackgroundProvenance"];
         };
         /** ChannelSpec */
         ChannelSpec: {
@@ -1391,6 +1459,13 @@ export interface components {
             metric: "area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count";
             /** Channel */
             channel: string | null;
+            /** Region */
+            region?: ("nucleus" | "nucleoli" | "nucleoplasm" | "supplied") | null;
+            /**
+             * Analysis Index
+             * @default 0
+             */
+            analysis_index: number;
         };
         /** DraftMetric */
         DraftMetric: {
@@ -1401,6 +1476,8 @@ export interface components {
             metric: "area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count";
             /** Channel */
             channel: string | null;
+            /** Region */
+            region?: ("nucleus" | "nucleoli" | "nucleoplasm" | "supplied") | null;
         };
         /** DraftStatistics */
         DraftStatistics: {
@@ -1415,6 +1492,8 @@ export interface components {
             omnibus: ("welch-anova" | "kruskal-wallis") | null;
             /** Association */
             association: ("pearson" | "spearman") | null;
+            x?: components["schemas"]["DraftMetric"] | null;
+            y?: components["schemas"]["DraftMetric"] | null;
         };
         /** Exclusion */
         Exclusion: {
@@ -1657,6 +1736,30 @@ export interface components {
              * @constant
              */
             metric: "value";
+        };
+        /**
+         * ObservedChannelSpec
+         * @description Recorded import evidence is not a human acquisition confirmation.
+         */
+        ObservedChannelSpec: {
+            /** Channel Id */
+            channel_id: string;
+            /** Label */
+            label: string;
+            /** Stain */
+            stain?: string | null;
+            /** Acquisition Saturation Value */
+            acquisition_saturation_value?: number | null;
+            /**
+             * Acquisition Saturation Confirmed
+             * @default false
+             */
+            acquisition_saturation_confirmed: boolean;
+            /**
+             * Identity Source
+             * @enum {string}
+             */
+            identity_source: "filename" | "ome_metadata" | "user_entered" | "unresolved";
         };
         /** PagedDescriptiveRequest */
         PagedDescriptiveRequest: {
@@ -1963,6 +2066,8 @@ export interface components {
             /** Metrics */
             metrics: components["schemas"]["DraftMetric"][];
             statistics: components["schemas"]["DraftStatistics"];
+            /** Additional Analyses */
+            additional_analyses?: components["schemas"]["DraftStatistics"][];
             /** Figures */
             figures: components["schemas"]["DraftFigure"][];
             /** Missing Information */
@@ -1991,12 +2096,45 @@ export interface components {
              * @default false
              */
             transmission_confirmed: boolean;
+            /**
+             * Retry Failed
+             * @default false
+             */
+            retry_failed: boolean;
         };
         /** ProposalDraftResponse */
         ProposalDraftResponse: {
             proposal: components["schemas"]["ValidatedProposal"];
             /** Channels */
             channels: components["schemas"]["ProposalChannelLink"][];
+        };
+        /** RawBackgroundProvenance */
+        RawBackgroundProvenance: {
+            /**
+             * Status
+             * @default not_established
+             * @constant
+             */
+            status: "not_established";
+            /**
+             * Reason
+             * @default raw_measurement_only
+             * @constant
+             */
+            reason: "raw_measurement_only";
+        };
+        /** RawIntensityPolicy */
+        RawIntensityPolicy: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.1.0";
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "raw_intensity";
         };
         /** Recipe */
         Recipe: {
@@ -2091,9 +2229,10 @@ export interface components {
             /** Reuse Revision */
             reuse_revision?: string | null;
             plan_resolution?: components["schemas"]["PlanResolution"] | null;
-            measurement?: components["schemas"]["RegionMeasurementPolicy"] | null;
+            /** Measurement */
+            measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | null;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
             /** Backgrounds */
             backgrounds?: {
                 [key: string]: {
@@ -2491,7 +2630,7 @@ export interface components {
              */
             axes: "YX";
             /** Channels */
-            channels: components["schemas"]["ChannelSpec"][];
+            channels: (components["schemas"]["ChannelSpec"] | components["schemas"]["ObservedChannelSpec"])[];
             /** Inputs */
             inputs: {
                 [key: string]: components["schemas"]["RegionStoredFile"];
@@ -2629,6 +2768,57 @@ export interface components {
             /** Touches Border */
             touches_border: boolean;
         };
+        /** RegionMeasurementRowV3 */
+        RegionMeasurementRowV3: {
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Region Id */
+            region_id: number;
+            /** Channel Id */
+            channel_id: string;
+            /** Area Px */
+            area_px: number;
+            /** Area Um2 */
+            area_um2: number | null;
+            /** Area Missing Reason */
+            area_missing_reason: "calibration_unknown" | null;
+            /** Mean */
+            mean: number;
+            /** Median */
+            median: number;
+            /** Integrated */
+            integrated: number;
+            /** Mean Corrected */
+            mean_corrected: null;
+            /** Median Corrected */
+            median_corrected: null;
+            /** Integrated Corrected */
+            integrated_corrected: null;
+            /** Intensity Missing Reason */
+            intensity_missing_reason?: null;
+            /** Storage Limit Fraction */
+            storage_limit_fraction: number;
+            /** Storage Limit Missing Reason */
+            storage_limit_missing_reason?: null;
+            /** Acquisition Saturation Fraction */
+            acquisition_saturation_fraction: number | null;
+            /** Acquisition Saturation Missing Reason */
+            acquisition_saturation_missing_reason: "acquisition_limit_unknown" | null;
+            /** Touches Border */
+            touches_border: boolean;
+            /**
+             * Correction Missing Reason
+             * @default background_not_established
+             * @constant
+             */
+            correction_missing_reason: "background_not_established";
+        };
         /** RegionMeasurementTable */
         RegionMeasurementTable: {
             /**
@@ -2703,6 +2893,44 @@ export interface components {
             channel_provenance: components["schemas"]["ChannelProvenanceV2"][];
             /** Rows */
             rows: components["schemas"]["RegionMeasurementRowV2"][];
+        };
+        /** RegionMeasurementTableV3 */
+        RegionMeasurementTableV3: {
+            /**
+             * Protocol Version
+             * @default 3.0.0
+             * @constant
+             */
+            protocol_version: "3.0.0";
+            measurement: components["schemas"]["RawIntensityPolicy"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "no_regions";
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            region_set: components["schemas"]["RegionSetSpec"];
+            /** Shape Yx */
+            shape_yx: [
+                number,
+                number
+            ];
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /**
+             * Hash Format
+             * @default cytellect-array-v1
+             * @constant
+             */
+            hash_format: "cytellect-array-v1";
+            calibration: components["schemas"]["Calibration2D"] | null;
+            /** Channel Provenance */
+            channel_provenance: components["schemas"]["ChannelProvenanceV3"][];
+            /** Rows */
+            rows: components["schemas"]["RegionMeasurementRowV3"][];
         };
         /** RegionMetadataEdit */
         RegionMetadataEdit: {
@@ -2796,7 +3024,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
@@ -2836,10 +3064,47 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV2"];
+            };
+            /** Field Masks */
+            field_masks: {
+                [key: string]: components["schemas"]["RegionFieldMask"];
+            };
+            /** Field Outcomes */
+            field_outcomes: {
+                [key: string]: "measured" | "no_regions" | "failed" | "excluded_failed";
+            };
+            /** Field Failures */
+            field_failures: components["schemas"]["RegionFieldFailure"][];
+            /** Excluded Failed Fields */
+            excluded_failed_fields: components["schemas"]["RegionExcludedFailure"][];
+            /** Exclusions */
+            exclusions: components["schemas"]["RegionExclusion"][];
+        };
+        /** RegionReportV3 */
+        RegionReportV3: {
+            /**
+             * Analysis Kind
+             * @default region-2d
+             * @constant
+             */
+            analysis_kind: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "3.0.0";
+            measurement: components["schemas"]["RawIntensityPolicy"];
+            /** Revision Id */
+            revision_id: string;
+            /** Recipe */
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            /** Field Tables */
+            field_tables: {
+                [key: string]: components["schemas"]["RegionMeasurementTableV3"];
             };
             /** Field Masks */
             field_masks: {
@@ -3004,10 +3269,10 @@ export interface components {
         ValidatedProposal: {
             /**
              * Protocol
-             * @default 1.0.0
+             * @default 1.1.0
              * @constant
              */
-            protocol: "1.0.0";
+            protocol: "1.1.0";
             /**
              * Origin
              * @default llm-draft
@@ -3300,6 +3565,11 @@ export interface components {
              * @constant
              */
             independence_status: "not_assessed_in_descriptive_analysis";
+            /**
+             * Source Review
+             * @default null
+             */
+            source_review: "automatic_unreviewed" | null;
         };
     };
     responses: never;
@@ -4535,7 +4805,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegionReport"] | components["schemas"]["RegionReportV2"];
+                    "application/json": components["schemas"]["RegionReport"] | components["schemas"]["RegionReportV2"] | components["schemas"]["RegionReportV3"];
                 };
             };
             /** @description Validation Error */
@@ -4664,6 +4934,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RegionMetadataEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    descriptive_preview_v1_revisions__rid__descriptive_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DescriptiveRequest"] | components["schemas"]["PagedDescriptiveRequest"];
             };
         };
         responses: {

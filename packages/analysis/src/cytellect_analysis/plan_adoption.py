@@ -7,7 +7,7 @@ from typing import Annotated, Literal, get_args
 from pydantic import Field, FiniteFloat, StrictBool, TypeAdapter, model_serializer, model_validator
 
 from .planning import CandidateId, PlanInput, PlanModel, PlanSnapshot, snapshot_plan, validate_plan_snapshot
-from .region_policy import RegionMeasurementPolicy
+from .region_policy import MEASUREMENT_POLICY, RegionMeasurementPolicy, measurement_protocol
 
 Id = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")]
 
@@ -71,7 +71,7 @@ def validate_adopted_plan(value) -> AdoptedPlan:
 
 def resolve_plan(value, resolution, recipe, fields, workflow, measurement=None):
     try:
-        actual_policy = RegionMeasurementPolicy.model_validate(measurement) if measurement is not None else None
+        actual_policy = MEASUREMENT_POLICY.validate_python(measurement) if measurement is not None else None
     except ValueError:
         raise ValueError("planning_measurement_policy_invalid") from None
     if actual_policy is not None and workflow != "regions":
@@ -99,7 +99,7 @@ def resolve_plan(value, resolution, recipe, fields, workflow, measurement=None):
     from .contracts import Recipe, required_channel_roles
     from .descriptive_contracts import LegacyMetric, RegionMetric
     from .region_contracts import RegionRecipeType
-    from .regions import Calibration2D, ChannelSpec
+    from .regions import CHANNEL_SPEC, Calibration2D
 
     generic = workflow == "regions"
     try:
@@ -121,7 +121,7 @@ def resolve_plan(value, resolution, recipe, fields, workflow, measurement=None):
             raise ValueError("planning_channel_unavailable")
         for field in fields:
             try:
-                channels = [ChannelSpec.model_validate(item) for item in field["image_info"]["channels"]]
+                channels = [CHANNEL_SPEC.validate_python(item) for item in field["image_info"]["channels"]]
             except ValueError:
                 raise ValueError("planning_channel_unavailable") from None
             ids = [item.channel_id for item in channels]
@@ -190,7 +190,7 @@ def resolve_plan(value, resolution, recipe, fields, workflow, measurement=None):
     if chosen.version == "1.1.0":
         resolved["measurement"] = actual_policy.model_dump(mode="json") if actual_policy is not None else None
         if generic:
-            resolved["measurement_protocol"] = "2.0.0" if actual_policy is not None else "1.0.0"
+            resolved["measurement_protocol"] = measurement_protocol(actual_policy)
     record = {**saved.model_dump(mode="json"), "resolution": chosen.model_dump(mode="json"),
               "resolved": resolved, "changes": changes}
     record["resolution_sha256"] = hashlib.sha256(json.dumps(record, ensure_ascii=False, sort_keys=True,

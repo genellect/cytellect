@@ -13,7 +13,7 @@ from scipy import stats
 from .descriptive import SAFE_ERROR_CODES as DESCRIPTIVE_ERRORS
 from .descriptive import _finite, prepare_region_observations, region_report_measurement_policy
 from .region_comparison_contracts import RegionComparisonRequest, RegionComparisonResult
-from .region_measurement_v2 import RegionMeasurementPolicy
+from .region_policy import MEASUREMENT_POLICY
 from .statistics import finite_records
 from .unit_inference import VERSION, aggregate_unit_observations, apply_holm, compare_unit_arrays
 
@@ -48,7 +48,7 @@ def _measurement_policy(report, config):
     measurement = region_report_measurement_policy(report)
     recorded = config.get("measurement")
     try:
-        actual = RegionMeasurementPolicy.model_validate(recorded) if recorded is not None else None
+        actual = MEASUREMENT_POLICY.validate_python(recorded) if recorded is not None else None
     except ValueError:
         raise ValueError("region_measurement_protocol_mismatch") from None
     if actual != measurement:

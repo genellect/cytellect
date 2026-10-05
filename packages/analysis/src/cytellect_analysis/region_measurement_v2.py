@@ -9,10 +9,11 @@ import numpy as np
 from pydantic import Field, FiniteFloat, TypeAdapter, model_validator
 
 from .masks import validate_label_array
+from .region_policy import MEASUREMENT_POLICY, MeasurementPolicy, RawIntensityPolicy
 from .region_policy import RegionMeasurementPolicy as RegionMeasurementPolicy
 from .regions import (
     Calibration2D,
-    ChannelSpec,
+    ChannelSpecType,
     Id,
     RegionMeasurementSpec,
     RegionMeasurementTable,
@@ -41,11 +42,14 @@ class RegionMeasurementSpecV2(RegionModel):
     field_id: Id
     analysis_revision_id: Id
     region_set: RegionSetSpec
-    channels: Annotated[tuple[ChannelSpec, ...], Field(min_length=1, max_length=3)]
+    channels: Annotated[tuple[ChannelSpecType, ...], Field(min_length=1, max_length=3)]
     calibration: Calibration2D | None = None
 
     @model_validator(mode="after")
     def consistent_channel_ids(self):
+        expected_mode = "area_only" if self.protocol_version == "2.0.0" else "raw_intensity"
+        if self.measurement.mode != expected_mode:
+            raise ValueError("region_measurement_protocol_mismatch")
         ids = [channel.channel_id for channel in self.channels]
         if len(ids) != len({cid.casefold() for cid in ids}):
             raise ValueError("duplicate_region_channel_ids")
@@ -55,7 +59,7 @@ class RegionMeasurementSpecV2(RegionModel):
 
 
 class ChannelProvenanceV2(RegionModel):
-    channel: ChannelSpec
+    channel: ChannelSpecType
     dtype: Literal["uint8", "uint16"]
     pixel_sha256: Digest64
     storage_maximum: Literal[255, 65535]
@@ -112,6 +116,9 @@ class RegionMeasurementTableV2(RegionModel):
 
     @model_validator(mode="after")
     def complete_measurement_table(self):
+        expected_mode = "area_only" if self.protocol_version == "2.0.0" else "raw_intensity"
+        if self.measurement.mode != expected_mode:
+            raise ValueError("region_measurement_protocol_mismatch")
         channels = [item.channel.channel_id for item in self.channel_provenance]
         if len(channels) != len({cid.casefold() for cid in channels}):
             raise ValueError("duplicate_region_channel_ids")
@@ -153,29 +160,72 @@ class RegionMeasurementTableV2(RegionModel):
         return self
 
 
+class RegionMeasurementSpecV3(RegionMeasurementSpecV2):
+    measurement: RawIntensityPolicy  # type: ignore[assignment]
+    protocol_version: Literal["3.0.0"] = "3.0.0"  # type: ignore[assignment]
+
+
+class RawBackgroundProvenance(RegionModel):
+    status: Literal["not_established"] = "not_established"  # type: ignore[assignment]
+    reason: Literal["raw_measurement_only"] = "raw_measurement_only"  # type: ignore[assignment]
+
+
+class ChannelProvenanceV3(ChannelProvenanceV2):
+    background: RawBackgroundProvenance  # type: ignore[assignment]
+
+
+class RegionMeasurementRowV3(RegionMeasurementRowV2):
+    mean: Annotated[FiniteFloat, Field(ge=0, le=65535)]  # type: ignore[assignment]
+    median: Annotated[FiniteFloat, Field(ge=0, le=65535)]  # type: ignore[assignment]
+    integrated: Annotated[FiniteFloat, Field(ge=0)]  # type: ignore[assignment]
+    intensity_missing_reason: None = None  # type: ignore[assignment]
+    correction_missing_reason: Literal["background_not_established"] = "background_not_established"  # type: ignore[assignment]
+    storage_limit_fraction: Annotated[FiniteFloat, Field(ge=0, le=1)]  # type: ignore[assignment]
+    storage_limit_missing_reason: None = None  # type: ignore[assignment]
+    acquisition_saturation_fraction: Annotated[FiniteFloat, Field(ge=0, le=1)] | None  # type: ignore[assignment]
+    acquisition_saturation_missing_reason: Literal["acquisition_limit_unknown"] | None  # type: ignore[assignment]
+
+    @model_validator(mode="after")
+    def consistent_raw_values(self):
+        if not math.isclose(self.integrated, self.mean * self.area_px, rel_tol=1e-12, abs_tol=1e-9):
+            raise ValueError("region_raw_intensity_inconsistent")
+        if (self.acquisition_saturation_fraction is None) != (self.acquisition_saturation_missing_reason is not None):
+            raise ValueError("region_raw_intensity_inconsistent")
+        return self
+
+
+class RegionMeasurementTableV3(RegionMeasurementTableV2):
+    measurement: RawIntensityPolicy  # type: ignore[assignment]
+    protocol_version: Literal["3.0.0"] = "3.0.0"  # type: ignore[assignment]
+    channel_provenance: Annotated[tuple[ChannelProvenanceV3, ...], Field(min_length=1, max_length=3)]  # type: ignore[assignment]
+    rows: tuple[RegionMeasurementRowV3, ...]  # type: ignore[assignment]
+
+
+
 RegionMeasurementSpecType = Annotated[
-    RegionMeasurementSpec | RegionMeasurementSpecV2, Field(discriminator="protocol_version"),
+    RegionMeasurementSpec | RegionMeasurementSpecV2 | RegionMeasurementSpecV3, Field(discriminator="protocol_version"),
 ]
 RegionMeasurementTableType = Annotated[
-    RegionMeasurementTable | RegionMeasurementTableV2, Field(discriminator="protocol_version"),
+    RegionMeasurementTable | RegionMeasurementTableV2 | RegionMeasurementTableV3, Field(discriminator="protocol_version"),
 ]
-_SPEC: TypeAdapter[RegionMeasurementSpec | RegionMeasurementSpecV2] = TypeAdapter(RegionMeasurementSpecType)
-_TABLE: TypeAdapter[RegionMeasurementTable | RegionMeasurementTableV2] = TypeAdapter(RegionMeasurementTableType)
+_SPEC: TypeAdapter[RegionMeasurementSpec | RegionMeasurementSpecV2 | RegionMeasurementSpecV3] = TypeAdapter(RegionMeasurementSpecType)
+_TABLE: TypeAdapter[RegionMeasurementTable | RegionMeasurementTableV2 | RegionMeasurementTableV3] = TypeAdapter(RegionMeasurementTableType)
 
 
-def validate_area_backgrounds(measurement: RegionMeasurementPolicy | None, backgrounds: Mapping) -> None:
+def validate_area_backgrounds(measurement: MeasurementPolicy | None, backgrounds: Mapping) -> None:
     if measurement is None:
         return
-    RegionMeasurementPolicy.model_validate(measurement)
+    MEASUREMENT_POLICY.validate_python(measurement)
     if not isinstance(backgrounds, Mapping) or backgrounds:
         raise ValueError("region_area_only_backgrounds_forbidden")
 
 
-def require_region_metric(measurement: RegionMeasurementPolicy | None, metric: str) -> None:
+def require_region_metric(measurement: MeasurementPolicy | None, metric: str) -> None:
     if measurement is None:
         return
-    RegionMeasurementPolicy.model_validate(measurement)
-    if metric not in ("area_px", "area_um2"):
+    MEASUREMENT_POLICY.validate_python(measurement)
+    allowed = ("area_px", "area_um2", "mean", "median", "integrated") if measurement.mode == "raw_intensity" else ("area_px", "area_um2")
+    if metric not in allowed:
         raise ValueError("region_metric_not_measured")
 
 
@@ -244,6 +294,28 @@ def measure_regions_versioned(channels: dict[str, np.ndarray], labels: np.ndarra
                               background_masks: dict[str, np.ndarray],
                               specification: RegionMeasurementSpecType) -> RegionMeasurementTableType:
     specification = _SPEC.validate_python(specification, strict=True)
+    if isinstance(specification, RegionMeasurementSpecV3):
+        validate_area_backgrounds(specification.measurement, background_masks)
+        area_spec = RegionMeasurementSpecV2(
+            **{**specification.model_dump(), "protocol_version": "2.0.0",
+               "measurement": RegionMeasurementPolicy(version="1.0.0", mode="area_only")})
+        area = measure_regions_area(channels, labels, area_spec)
+        rows = []
+        for row in area.rows:
+            values = channels[row.channel_id][labels == row.region_id].astype(np.float64)
+            channel = next(c for c in specification.channels if c.channel_id == row.channel_id)
+            limit = channel.acquisition_saturation_value
+            rows.append(RegionMeasurementRowV3(**{**row.model_dump(),
+                "mean": float(values.mean()), "median": float(np.median(values)),
+                "integrated": float(values.sum()), "intensity_missing_reason": None,
+                "storage_limit_fraction": float(np.mean(values == np.iinfo(channels[row.channel_id].dtype).max)),
+                "storage_limit_missing_reason": None,
+                "acquisition_saturation_fraction": None if limit is None else float(np.mean(values >= limit)),
+                "acquisition_saturation_missing_reason": "acquisition_limit_unknown" if limit is None else None}))
+        provenance = tuple(ChannelProvenanceV3(**{**p.model_dump(), "background": RawBackgroundProvenance()})
+                           for p in area.channel_provenance)
+        return RegionMeasurementTableV3(**{**area.model_dump(), "protocol_version": "3.0.0",
+            "measurement": specification.measurement, "rows": tuple(rows), "channel_provenance": provenance})
     if isinstance(specification, RegionMeasurementSpecV2):
         validate_area_backgrounds(specification.measurement, background_masks)
         return measure_regions_area(channels, labels, specification)

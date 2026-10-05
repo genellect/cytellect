@@ -6,8 +6,10 @@
  * returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
-import { draftProposal, ModelError, PROMPT_VERSION, type Preview } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
+import contract from "./contract.json";
+import { boundedJson, matchesSchema } from "./schema";
 
 export interface Env {
   DB: D1Database;
@@ -19,6 +21,10 @@ export interface Env {
   PRICE_INPUT_USD_PER_MTOK?: string;
   PRICE_OUTPUT_USD_PER_MTOK?: string;
   MAX_OUTPUT_TOKENS?: string;
+  REASONING_EFFORT?: string;
+  LOW_EFFORT_EVALUATED?: string;
+  PRICE_CACHED_INPUT_USD_PER_MTOK?: string;
+  PRICE_CACHE_WRITE_USD_PER_MTOK?: string;
 }
 
 export const LIMITS = {
@@ -27,8 +33,6 @@ export const LIMITS = {
   channels: 6,
   previews: 6,
   previewBase64Chars: 700_000,
-  /** Conservative token allowance per preview image at low detail. */
-  previewTokens: 1_000,
 };
 
 interface Config {
@@ -39,6 +43,9 @@ interface Config {
   priceIn: number;
   priceOut: number;
   maxOutputTokens: number;
+  reasoningEffort: ReasoningEffort;
+  priceCachedIn: number;
+  priceCacheWrite: number;
 }
 
 function json(status: number, body: unknown): Response {
@@ -60,10 +67,21 @@ export function readConfig(env: Env): Config | null {
   const deviceRequests = positive(env.DEVICE_MONTHLY_REQUESTS);
   const priceIn = positive(env.PRICE_INPUT_USD_PER_MTOK);
   const priceOut = positive(env.PRICE_OUTPUT_USD_PER_MTOK);
-  if (!env.OPENAI_API_KEY || !env.OPENAI_MODEL || !budget || !deviceRequests || !priceIn || !priceOut) return null;
+  const priceCachedIn = positive(env.PRICE_CACHED_INPUT_USD_PER_MTOK);
+  const priceCacheWrite = positive(env.PRICE_CACHE_WRITE_USD_PER_MTOK);
+  const reasoningEffort = env.REASONING_EFFORT ?? "medium";
+  const maxOutputTokens = env.MAX_OUTPUT_TOKENS === undefined || env.MAX_OUTPUT_TOKENS === "" ? 8000 : Number(env.MAX_OUTPUT_TOKENS);
+  // Pricing floors match this exact model/standard tier; changing provider or tier
+  // requires a separate reviewed adapter, not just an arbitrary model environment value.
+  if (!env.OPENAI_API_KEY || env.OPENAI_MODEL !== MODEL || !budget || !deviceRequests || !Number.isInteger(deviceRequests)
+    || !priceIn || priceIn < 2 || !priceOut || priceOut < 10 || !priceCachedIn || priceCachedIn < 0.1
+    || !priceCacheWrite || priceCacheWrite < 2.5 || priceCacheWrite < priceIn
+    || !Number.isInteger(maxOutputTokens) || maxOutputTokens < 1024 || maxOutputTokens > 16000
+    || !["low", "medium"].includes(reasoningEffort)
+    || (reasoningEffort === "low" && env.LOW_EFFORT_EVALUATED !== "true")) return null;
   return {
     apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL, budget, deviceRequests: Math.floor(deviceRequests),
-    priceIn, priceOut, maxOutputTokens: Math.min(4000, Math.floor(positive(env.MAX_OUTPUT_TOKENS) ?? 1500)),
+    priceIn, priceOut, priceCachedIn, priceCacheWrite, maxOutputTokens, reasoningEffort: reasoningEffort as ReasoningEffort,
   };
 }
 
@@ -92,11 +110,9 @@ function equal(a: string, b: string): boolean {
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
   const length = Number(request.headers.get("content-length") ?? "0");
   if (length > LIMITS.bodyBytes) return null;
-  const text = await request.text();
-  if (text.length > LIMITS.bodyBytes) return null;
   try {
-    const value = JSON.parse(text);
-    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+    const value = await boundedJson(request.body, LIMITS.bodyBytes);
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
   } catch {
     return null;
   }
@@ -105,24 +121,33 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
 /** Shape limits before any billable call; semantic validation stays in the local API. */
 export function checkRequest(body: Record<string, unknown>): { context: Record<string, unknown>; previews: Preview[] } | null {
   const context = body.context as Record<string, unknown> | undefined;
-  if (!context || typeof context !== "object" || Array.isArray(context)) return null;
-  if (typeof context.goal === "string" && context.goal.length > LIMITS.goalChars) return null;
-  if (!Array.isArray(context.channels) || context.channels.length < 1 || context.channels.length > LIMITS.channels) return null;
+  if (!matchesSchema(context, contract.context_schema)) return null;
+  const channels = (context!.channels as { token: string }[]).map((channel) => channel.token);
+  if (new Set(channels).size !== channels.length) return null;
   const previews = body.previews ?? [];
   if (!Array.isArray(previews) || previews.length > LIMITS.previews) return null;
   for (const preview of previews) {
-    if (!preview || typeof preview.channel !== "string" || !/^[a-z0-9][a-z0-9_.-]{0,31}$/.test(preview.channel)) return null;
+    if (!preview || typeof preview !== "object" || Array.isArray(preview)
+      || Object.keys(preview).some((key) => !["channel", "png_base64"].includes(key))
+      || !channels.includes(preview.channel)) return null;
     if (typeof preview.png_base64 !== "string" || preview.png_base64.length > LIMITS.previewBase64Chars
       || !/^[A-Za-z0-9+/]+={0,2}$/.test(preview.png_base64) || !preview.png_base64.startsWith("iVBORw0KGgo")) return null;
+    // Validate PNG header dimensions without decoding researcher pixels in the relay.
+    try {
+      const bytes = Uint8Array.from(atob(preview.png_base64), (c) => c.charCodeAt(0));
+      const view = new DataView(bytes.buffer);
+      if (bytes.length < 33 || view.getUint32(8) !== 13 || view.getUint32(12) !== 0x49484452) return null;
+      const width = view.getUint32(16), height = view.getUint32(20);
+      if (width < 1 || height < 1 || width > 512 || height > 512) return null;
+    } catch { return null; }
   }
   const extra = Object.keys(body).filter((key) => key !== "context" && key !== "previews");
-  return extra.length ? null : { context, previews: previews as Preview[] };
+  return extra.length ? null : { context: context!, previews: previews as Preview[] };
 }
 
-export function worstCaseUsd(config: Config, context: unknown, previews: Preview[], promptChars: number): number {
-  // Counting each character as a token over-estimates input; two calls cover one repair.
-  const input = promptChars + JSON.stringify(context).length + previews.length * LIMITS.previewTokens;
-  const perCall = (input * config.priceIn + config.maxOutputTokens * config.priceOut) / 1_000_000;
+export function worstCaseUsd(config: Config, context: unknown, previews: Preview[]): number {
+  const input = inputTokenCeiling(config, context, previews);
+  const perCall = (input * Math.max(config.priceCacheWrite, config.priceCachedIn) + config.maxOutputTokens * config.priceOut) / 1_000_000;
   return perCall * 2;
 }
 
@@ -160,16 +185,25 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const body = await readJson(request);
     const checked = body && checkRequest(body);
     if (!checked) return failure(400, "request_invalid");
+    const requestId = request.headers.get("idempotency-key");
+    if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return failure(400, "request_id_required");
+    if (!(await store.claimRequest(deviceHash, requestId.toLowerCase(), now))) return failure(409, "duplicate_request");
     const period = month(now);
     if (!(await store.countDeviceRequest(deviceHash, period, config.deviceRequests))) return failure(429, "device_quota_exhausted");
     const reservation = crypto.randomUUID();
-    const amount = worstCaseUsd(config, checked.context, checked.previews, 4000);
+    const amount = worstCaseUsd(config, checked.context, checked.previews);
     if (!(await store.reserve(reservation, period, amount, config.budget, now))) return failure(429, "monthly_budget_exhausted");
     try {
-      const result = await draftProposal({ apiKey: config.apiKey, model: config.model, maxOutputTokens: config.maxOutputTokens, fetcher: options.fetcher },
+      const result = await draftProposal({ ...config, fetcher: options.fetcher },
         checked.context, checked.previews);
-      const spent = (result.inputTokens * config.priceIn + result.outputTokens * config.priceOut) / 1_000_000;
-      await store.settle(reservation, period, spent);
+      // Non-cached input may include cache writes. Until the API's write breakdown is
+      // confirmed, retain its higher tariff; this is a conservative ledger, not an invoice.
+      const spent = result.usageComplete ? ((result.inputTokens - result.cachedInputTokens) * config.priceCacheWrite
+        + result.cachedInputTokens * config.priceCachedIn + result.outputTokens * config.priceOut) / 1_000_000 : amount;
+      await store.settle(reservation, period, spent, result.usageComplete ? {
+        model: config.model, promptVersion: PROMPT_VERSION, inputTokens: result.inputTokens,
+        cachedInputTokens: result.cachedInputTokens, outputTokens: result.outputTokens, calls: result.calls,
+      } : undefined);
       return json(200, { draft: result.draft, model: config.model, prompt_version: PROMPT_VERSION });
     } catch (error) {
       // Usage of a failed call is unknown here: settle conservatively at the reserved amount.

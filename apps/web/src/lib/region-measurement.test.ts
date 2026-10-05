@@ -1,10 +1,18 @@
 import {describe,expect,it} from "vitest";
 import {regionRecipe,type RegionConfig} from "./region-types";
-import {changeRegionMeasurement,isAreaOnly,loadedRegionConfig} from "./region-measurement";
+import {changeRegionMeasurement,isAreaOnly,loadedRegionConfig,measurementMode} from "./region-measurement";
 
 const original:RegionConfig={recipe:{...regionRecipe},backgrounds:{first:{signal:{polygon:[[0,0],[3,0],[3,3],[0,3]],confirmed:true}}},exclusions:[],plan_resolution:{version:"1.0.0",plan_sha256:"a".repeat(64),candidate_id:"regions-manual",metric:"area_px",channel_id:null,changes_acknowledged:true}};
 
 describe("measurement mode transitions preserve saved provenance",()=>{
+ it("keeps raw history distinct from corrected intensity and clears background drafts",()=>{
+  const raw:RegionConfig={...original,measurement:{version:"1.1.0",mode:"raw_intensity"},backgrounds:{}};
+  expect(measurementMode(raw.measurement)).toBe("raw_intensity");
+  expect(loadedRegionConfig(raw,original).backgrounds).toEqual({});
+  const corrected=changeRegionMeasurement(raw,"area_and_intensity");
+  expect(corrected).not.toHaveProperty("measurement");
+  expect(corrected.backgrounds).toEqual({});
+ });
  it("enters area-only without inherited background evidence or method-change approval",()=>{
   const next=changeRegionMeasurement(original,"area_only");
   expect(next.measurement).toEqual({version:"1.0.0",mode:"area_only"});

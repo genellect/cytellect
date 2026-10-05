@@ -15,6 +15,7 @@ from cytellect_analysis.images import sha256
 from cytellect_analysis.masks import apply_label_edit, polygon_mask, validate_label_array
 from cytellect_analysis.plan_adoption import validate_revision_plan
 from cytellect_analysis.region_contracts import (
+    AdoptedNuclearRecipe,
     RegionAnalysisRequest,
     RegionFieldMetadata,
     RegionImageInfo,
@@ -23,10 +24,12 @@ from cytellect_analysis.region_contracts import (
     RegionStoredFile,
     region_report_from_json,
     scientific_specification,
+    validate_nuclear_role_evidence,
     validate_region_report_policy,
 )
 from cytellect_analysis.region_measurement_v2 import measure_regions_versioned
 from cytellect_analysis.region_metadata import validate_region_reuse
+from cytellect_analysis.region_policy import measurement_protocol
 from cytellect_analysis.regions import _array_hash
 from cytellect_api.db import fields, jobs, revisions
 from cytellect_api.storage import read_json, write_json
@@ -56,6 +59,7 @@ REGION_FIELD_ERRORS = {
     "fiji_temporary_path_invalid", "fiji_temporary_path_too_long",
     "region_area_only_backgrounds_forbidden", "region_measurement_protocol_mismatch",
     "region_metric_not_measured",
+    "nuclear_recorded_stain_required", "unknown_defining_channel",
 }
 
 
@@ -148,6 +152,7 @@ def run_region_analysis(store, settings, job, output):
             if snapshot.get("id") != fid or snapshot.get("workspace_id") != revision["workspace_id"]:
                 raise ValueError("region_source_snapshot_mismatch")
             image_info = RegionImageInfo.model_validate(snapshot["image_info"])
+            validate_nuclear_role_evidence(request.recipe, image_info)
             RegionFieldMetadata.model_validate(snapshot["metadata"])
             folder = store.safe_path("workspaces", revision["workspace_id"], "fields", fid)
             for slot, record in image_info.inputs.items():
@@ -160,7 +165,7 @@ def run_region_analysis(store, settings, job, output):
                 raise ValueError("region_source_shape_or_dtype_invalid")
             if request.recipe.defining_channel_id is not None and request.recipe.defining_channel_id not in channels:
                 raise ValueError("region_unknown_defining_channel")
-            nuclear = isinstance(request.recipe, RegionNuclearRecipe)
+            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe))
             if nuclear and image_info.labels_array is not None:
                 raise ValueError("region_automatic_source_has_imported_labels")
             previously_selected = parent is not None and fid in parent["config"]["field_snapshot"]
@@ -185,7 +190,7 @@ def run_region_analysis(store, settings, job, output):
                         or _array_hash(labels, "<u4") != old_mask["mask_sha256"]):
                     raise ValueError("region_parent_mask_mismatch")
                 mask_revision_id = old_mask["mask_revision_id"]
-                if isinstance(request.recipe, RegionNuclearRecipe):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
                     detector = deepcopy(previous_provenance.get("fields", {}).get(fid, {}).get("detector"))
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
@@ -201,7 +206,7 @@ def run_region_analysis(store, settings, job, output):
             else:
                 if (edit and edit.field_id == fid) or (previously_selected and fid in previous_report.get("field_tables", {})):
                     raise ValueError("region_parent_mask_missing")
-                if isinstance(request.recipe, RegionNuclearRecipe):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
                     detection_started = True
@@ -273,7 +278,7 @@ def run_region_analysis(store, settings, job, output):
             else:
                 failures.append({"field_id": fid, "reason": error})
                 outcomes[fid] = "failed"
-    protocol = "2.0.0" if request.measurement is not None else "1.0.0"
+    protocol = measurement_protocol(request.measurement)
     policy = {"measurement": request.measurement.model_dump(mode="json")} if request.measurement is not None else {}
     report = {
         "analysis_kind": "region-2d", "protocol_version": protocol, "revision_id": revision["id"],

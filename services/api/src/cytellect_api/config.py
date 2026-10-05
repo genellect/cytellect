@@ -1,7 +1,31 @@
 import os
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+
+
+def _proposal_token_from_env() -> str:
+    """An optional Docker-mounted device credential; never a provider API key."""
+    direct = os.environ.get("CYTELLECT_PROPOSAL_TOKEN", "")
+    secret_file = os.environ.get("CYTELLECT_PROPOSAL_TOKEN_FILE", "")
+    if not secret_file:
+        return direct
+    if direct:
+        raise ValueError("proposal_token_sources_conflict")
+    try:
+        path = Path(secret_file).expanduser().resolve()
+        checkout = Path(__file__).resolve().parents[4]
+        if path == checkout or checkout in path.parents or not path.is_file():
+            raise ValueError("invalid_source")
+        with path.open("rb") as source:
+            raw = source.read(257)
+        token = raw.decode("ascii").strip()
+        if len(raw) > 256 or re.fullmatch(r"[A-Za-z0-9_-]{20,200}", token) is None:
+            raise ValueError("invalid_token")
+        return token
+    except (OSError, UnicodeError, ValueError):
+        raise ValueError("proposal_token_file_invalid") from None
 
 
 @dataclass(frozen=True)
@@ -18,7 +42,9 @@ class Settings:
     worker_memory_mb: int = 4096
     proposal_url: str = ""
     proposal_token: str = ""
-    proposal_timeout_seconds: int = 60
+    proposal_timeout_seconds: int = 300
+    proposal_model: str = "gpt-6.1-sol"
+    proposal_prompt_version: str = "2026-10-05.2"
 
     @property
     def cookie_name(self):
@@ -45,8 +71,10 @@ class Settings:
             max_fields=int(os.environ.get("CYTELLECT_MAX_FIELDS", "100")),
             worker_memory_mb=int(os.environ.get("CYTELLECT_WORKER_MEMORY_MB", "4096")),
             proposal_url=os.environ.get("CYTELLECT_PROPOSAL_URL", ""),
-            proposal_token=os.environ.get("CYTELLECT_PROPOSAL_TOKEN", ""),
-            proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "60")),
+            proposal_token=_proposal_token_from_env(),
+            proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "300")),
+            proposal_model=os.environ.get("CYTELLECT_PROPOSAL_MODEL", "gpt-6.1-sol"),
+            proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", "2026-10-05.2"),
         )
 
 

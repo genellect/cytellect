@@ -110,6 +110,18 @@ tables = Table(
     Column("row_count", Integer, nullable=False),
     Column("created", Float, nullable=False),
 )
+proposal_drafts = Table(
+    "proposal_drafts", meta,
+    Column("id", String, primary_key=True),
+    Column("workspace_id", String, nullable=False, index=True),
+    Column("cache_key", String, nullable=False),
+    Column("request_id", String, nullable=False),
+    Column("state", String, nullable=False),
+    Column("created", Float, nullable=False),
+    Column("lease_until", Float, nullable=False),
+    Column("proposal", JSON),
+    Index("uq_proposal_workspace_key", "workspace_id", "cache_key", unique=True),
+)
 events = Table(
     "events",
     meta,

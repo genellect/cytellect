@@ -15,7 +15,17 @@ from cytellect_analysis.numerical_csv import analyze_numeric
 from cytellect_analysis.plan_adoption import validate_revision_plan
 from cytellect_analysis.statistics import analyze_sensitivity
 from cytellect_api.config import Settings
-from cytellect_api.db import Store, attempts, fields, jobs, revisions, sessions, tables, workspaces
+from cytellect_api.db import (
+    Store,
+    attempts,
+    fields,
+    jobs,
+    proposal_drafts,
+    revisions,
+    sessions,
+    tables,
+    workspaces,
+)
 from cytellect_api.storage import read_json, write_json
 from sqlalchemy import delete, select, update
 
@@ -426,7 +436,7 @@ def cleanup(store):
                 run = store.safe_path("runs", record["id"])
                 if run.exists():
                     shutil.rmtree(run)
-            for table in (attempts, tables, fields, revisions, jobs):
+            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts):
                 conn.execute(delete(table).where(table.c.workspace_id == wid))
             conn.execute(
                 update(workspaces)

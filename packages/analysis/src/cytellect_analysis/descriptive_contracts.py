@@ -107,6 +107,14 @@ class DescriptiveResult(StrictModel):
     excluded_failed_fields: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str]
     independence_status: Literal["not_assessed_in_descriptive_analysis"] = "not_assessed_in_descriptive_analysis"
+    source_review: Literal["automatic_unreviewed"] | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_absent_review_marker(self, handler):
+        result = handler(self)
+        if self.source_review is None:
+            result.pop("source_review", None)
+        return result
 
 
 class PagedDescriptiveResult(DescriptiveResult):
