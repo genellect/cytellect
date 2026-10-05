@@ -48,7 +48,7 @@ ClaudeにOpenAI dashboardへの再ログインや別キーの作成を要求す�
 
 | 責務 | 主な実装 |
 |---|---|
-| 実データの新ワークスペース | `apps/web/src/components/workspace/ApiWorkspace.tsx`、`apps/web/src/lib/workspace/core-api.ts` |
+| 実データの新ワークスペース | `apps/web/src/components/workspace/ApiWorkspace.tsx`、`apps/web/src/lib/workspace/api-adapter.ts` |
 | 比較の操作と接続 | `WorkspaceComparison.tsx`、`apps/web/src/lib/workspace/comparison-adapter.ts` |
 | 不変の比較対象作成 | `services/api/src/cytellect_api/region_cohorts.py`、[cohort契約](region-cohorts.md) |
 | ローカル提案・同意・保存 | `services/api/src/cytellect_api/proposals.py`、schema0003 |
@@ -104,9 +104,12 @@ COMPASS Interactiveのキー・設定は変更しません。Personal側の評�
 組織全体の支払不足や実際のOwner権限不足が証明されたわけではありません。
 
 安全なOpenAI widgetで、ユーザーは`Cytellect-public-evaluation`、COMPASS →
-Cytellect、`expires_in_seconds=604800`を選択済みです。キー発行・保存は未実施。
-Codex専用のwidget選択はClaudeのcredentialへ自動変換されません。
-対応する安全なsecret入力・権限設定を用いて完成させます。キーをGit・チャット・
+Cytellect、`expires_in_seconds=604800`を選択しました。Codexが専用キーを発行し、
+承認済みのignored env-fileへ保存済みです。無料のモデル情報取得がHTTP200で
+`gpt-6.1-sol`への認証を確認しました。これはResponsesの実生成・課金枠・提案品質の
+受入ではありません。それらはClaudeの承認済み評価で確認します。
+このPCのClaude Codeへ引き継ぐため、再ログインや追加キー発行は不要です。
+別の環境へ移すときは、安全なsecret入力・権限設定を使います。キーをGit・チャット・
 PR・ログへ置かず、公開文書へ非公開resource IDも転記しません。
 
 認証の引継ぎには、Gitではなく実行環境のsecretとして`OPENAI_API_KEY`を設定します。
@@ -230,3 +233,4 @@ Windows version/hash/installed receipts、Docker source/receiptを一つの記�
 M4の非公開画像による参照比較、M5の研究者による操作評価は引き続き別の未完了項目。
 非公開研究データ・資料をClaude/CI/Gitへ取り込まず、私的な検証はその境界内で行います。
 実装・CI・デプロイ・操作受入・科学的評価をそれぞれ報告してください。
+

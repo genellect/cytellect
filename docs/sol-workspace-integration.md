@@ -100,6 +100,7 @@ Windows3.14. Subsequent category-padding renderer1.0.1 changes passed23 focused
 figure/API/export-replay tests, Ruff and mypy; old/new vector replays retain their
 saved renderer version and numeric tables/Methods are unchanged. Latest-head CI
 must pass separately. No PR32 main merge or new package/relay production is
-claimed by this handoff. The correct COMPASS/Cytellect key target has been selected
-through the secure widget, but key issuance/save and a successful paid evaluation
-remain open. The approved budget remains5 USD cumulative evaluation only.
+claimed by this handoff. The correct COMPASS/Cytellect key has been issued and
+saved to the approved ignored env-file through the secure connector. A free model
+metadata request returned HTTP200; successful Responses generation and paid public
+evaluation remain open. The approved budget remains5 USD cumulative evaluation only.
