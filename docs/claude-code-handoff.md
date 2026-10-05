@@ -1,5 +1,10 @@
 # Developer handoff — 2026-10-05
 
+**Latest handoff:** [PR #32 through API evaluation and production publication](claude-production-handoff-2026-10-05.md).
+Start there for the current branch, committed fixes, passed baseline CI, remaining
+product connections, budget boundaries and exact deployment/installation gates.
+The checkpoints below are historical; they do not override the newer handoff.
+
 ## Start here
 
 1. Read [AGENTS.md](../AGENTS.md), [requirements](requirements.md), [methods](methods.md), [security](security.md), [local delivery](local.md) and the relevant feature document. Read narrowly; do not import every document into every session.

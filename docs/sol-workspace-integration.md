@@ -48,10 +48,11 @@ CI and installed-package acceptance remain separate from the focused checks.
 3. Verify remote Worker/D1 migrations and rights independently; do not enable paid
    production service merely because source tests pass.
 4. Complete the new workspace's multichannel OME intake, full mask corrections,
-   background/compartment workflow, explicit proposal adoption, condition/unit
-   confirmation, independent-unit statistics and combined figures. The current new
-   screen exposes per-field nuclear raw measurements; existing NCL compartment and
-   common-statistics implementations are not yet fully connected to this screen.
+   background/compartment workflow, explicit proposal adoption and association UI.
+   Condition/unit confirmation and independent-unit comparisons are now connected
+   through immutable cohorts, with saved-mask reuse, historical-result marking
+   and exact-source metadata recovery. Existing NCL compartment and association
+   implementations are not yet fully connected to this screen.
 5. Obtain the owner's operational review before replacing the previous root
    workspace. Keep M4 private-image and M5 researcher evaluation open.
 
@@ -89,3 +90,16 @@ USD), rather than treating them as confirmed charges or resetting the cap.
 The approval remains5 USD total across all attempts; paid production use remains
 disabled. All43 provider/ledger/contract unit tests passed; the live evaluation
 did not pass.
+
+## Git handoff and comparison follow-up
+
+The [Claude production handoff](claude-production-handoff-2026-10-05.md) identifies
+the committed source and remaining publication gates. PR32 head ccf01f6 passed
+all five required checks in run37299191396, including real Fiji/browser and
+Windows3.14. Subsequent category-padding renderer1.0.1 changes passed23 focused
+figure/API/export-replay tests, Ruff and mypy; old/new vector replays retain their
+saved renderer version and numeric tables/Methods are unchanged. Latest-head CI
+must pass separately. No PR32 main merge or new package/relay production is
+claimed by this handoff. The correct COMPASS/Cytellect key target has been selected
+through the secure widget, but key issuance/save and a successful paid evaluation
+remain open. The approved budget remains5 USD cumulative evaluation only.
