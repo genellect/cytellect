@@ -104,3 +104,20 @@ claimed by this handoff. The correct COMPASS/Cytellect key has been issued and
 saved to the approved ignored env-file through the secure connector. A free model
 metadata request returned HTTP200; successful Responses generation and paid public
 evaluation remain open. The approved budget remains5 USD cumulative evaluation only.
+
+## Review follow-up before enabling proposals (2026-10-05)
+
+A Claude review of PR #32 found no merge blocker. The relay change that leaves a
+request pending after a context change is fixed with a test. Open items, all on
+paths that are off in the default production build or that fail safe:
+
+1. The workspace has no explicit retry for a failed proposal request
+   (`retry_failed`); after one failure the same goal returns
+   `proposal_explicit_retry_required`. Add a retry action that states it may be billed.
+2. The restored revision of a field after Undo is remembered per browser tab only;
+   a new tab restores the newest revision. Store the selected revision on the server.
+3. A rejected upload or failed field blocks the comparison without a way to exclude
+   that field. Offer explicit field exclusion.
+4. When reported input tokens exceed the reserved preview allowance, settlement keeps
+   the reservation instead of the larger observed cost. Settle at the larger value and
+   confirm the image-token allowance in the public evaluation.

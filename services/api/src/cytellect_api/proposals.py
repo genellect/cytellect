@@ -289,9 +289,18 @@ def register_proposal_routes(api, store, settings, owner, workspace):
                         proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
                         proposal_drafts.c.state == "pending").values(state="failed"))
         workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
-        refreshed, refreshed_links = build_context(store, wid, body.goal)
-        if (context_sha256(refreshed) != context_sha256(context) or refreshed_links != links
-                or _source_stamp(store, wid) != source_stamp):
+        try:
+            refreshed, refreshed_links = build_context(store, wid, body.goal)
+            changed = (context_sha256(refreshed) != context_sha256(context) or refreshed_links != links
+                       or _source_stamp(store, wid) != source_stamp)
+        except ValueError:
+            changed = True
+        if changed:
+            # Release the request instead of leaving it pending until the lease ends.
+            with store.transaction() as conn:
+                conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
+                    proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
+                    proposal_drafts.c.state == "pending").values(state="failed"))
             raise HTTPException(409, "proposal_context_changed")
         with store.transaction() as conn:
             result = conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,

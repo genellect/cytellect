@@ -160,3 +160,18 @@ def test_cleanup_removes_private_drafts_and_cache_rejects_changed_local_design(t
     assert client.post(path, json=BODY, headers=HEADERS).status_code == 404
     cleanup(store)
     assert store.rows(proposal_drafts, workspace_id=wid) == []
+
+
+def test_context_change_during_call_releases_the_request(tmp_path, monkeypatch):
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(REPLY))
+    stamps = iter(["before", "after"])
+    monkeypatch.setattr(proposals, "_source_stamp", lambda store, workspace_id: next(stamps, "after"))
+    path = f"/v1/workspaces/{wid}/proposal-drafts"
+    changed = client.post(path, json=BODY, headers=HEADERS)
+    assert changed.status_code == 409 and changed.json()["detail"] == "proposal_context_changed"
+    store = client.app.state.store
+    with store.transaction() as conn:
+        assert [row.state for row in conn.execute(proposal_drafts.select())] == ["failed"]
+    # The changed workspace is a new request; the stale one is not left pending.
+    assert client.post(path, json=BODY, headers=HEADERS).status_code == 200
+    assert len(calls) == 2
