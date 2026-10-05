@@ -1,6 +1,6 @@
 /** Paid evaluation is never run by ordinary CI: both explicit flags and a cap are required. */
 import { describe, expect, it } from "vitest";
-import { draftProposal, inputTokenCeiling, MODEL, ModelError } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost, type Preview } from "./openai";
 import { expectedBehavior, PUBLIC_CASES } from "./public-cases";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
@@ -44,15 +44,36 @@ describe("public proposal evaluation", () => {
       .filter((name) => typeof env[name] === "string").map((name) => [name, env[name]]));
     const oracleOptions = { cwd: root, encoding: "utf8", env: oracleEnv, timeout: 15_000, maxBuffer: 512 * 1024 };
     // Probe the local oracle before any paid request; never print its raw stderr.
-    const probe = spawnSync(python, ["-c", "import cytellect_analysis.proposal_validation"], oracleOptions);
+    const probe = spawnSync(python, [helper], { ...oracleOptions,
+      input: JSON.stringify({ context: PUBLIC_CASES[0].context, draft: {} }) });
     expect(probe.status, "local semantic validator must be installed first").toBe(0);
+    expect(JSON.parse(probe.stdout).codes).toContain("proposal_shape_invalid");
     const settings = { ...authentication, model: MODEL, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
+    const cases = PUBLIC_CASES.map(item => ({ ...item, previews: [] as Preview[] }));
+    if (env.CYTELLECT_PUBLIC_EVAL_PREVIEWS_FILE) {
+      const fsModule = "node:fs", cryptoModule = "node:crypto";
+      const { readFileSync } = await import(fsModule);
+      const { createHash } = await import(cryptoModule);
+      const fixture = JSON.parse(readFileSync(env.CYTELLECT_PUBLIC_EVAL_PREVIEWS_FILE, "utf8"));
+      expect(fixture.dataset).toBe("BBBC013v1");
+      const manifest = readFileSync(resolve(root, "fixtures/public/bbbc013/manifest.json"));
+      expect(fixture.source_manifest_sha256).toBe(createHash("sha256").update(manifest).digest("hex"));
+      expect(fixture.previews.map((p: Preview) => p.channel)).toEqual(["ch1", "ch2"]);
+      for (const p of fixture.previews) expect(p.png_base64.startsWith("iVBORw0KGgo") && p.png_base64.length < 180_000).toBe(true);
+      for (const known of [true, false]) cases.push({
+        id: known ? "bbbc013-gfp-preview" : "bbbc013-unknown-preview", recipes: ["nuclear-intensity"], metric: "mean_raw", kind: "descriptive",
+        context: { ...PUBLIC_CASES[2].context, field_count: 1,
+          goal: "核内のch2の補正前平均輝度を示す。染色の同定や独立反復の推測はしない。",
+          channels: [{ token: "ch1", stain: "DRAQ", role: "nuclear" }, { token: "ch2", stain: known ? "GFP" : null, role: "measure" }] },
+        previews: fixture.previews,
+      });
+    }
     const ledger = await EvaluationLedger.open(env.CYTELLECT_PUBLIC_EVAL_LEDGER, root, budget);
     const report: Record<string, unknown>[] = [];
     try {
       for (let repetition = 0; repetition < repeats; repetition += 1) {
-        for (const item of PUBLIC_CASES) {
-        const reserved = 2 * (inputTokenCeiling(settings, item.context, []) * 2.5 + settings.maxOutputTokens * 10) / 1e6;
+        for (const item of cases) {
+        const reserved = 2 * (inputTokenCeiling(settings, item.context, item.previews) * 2.5 + settings.maxOutputTokens * 10) / 1e6;
         // The committed file-backed hold precedes the first provider call. A crash
         // leaves it in place; another process or later run cannot reset the cap.
         const reservation = ledger.reserve(item.id, reserved);
@@ -63,7 +84,7 @@ describe("public proposal evaluation", () => {
         }
         const started = Date.now();
         try {
-          const result = await draftProposal(settings, item.context, []);
+          const result = await draftProposal(settings, item.context, item.previews);
           const cost = result.usageComplete
             ? ((result.inputTokens - result.cachedInputTokens) * 2.5 + result.cachedInputTokens * 0.1 + result.outputTokens * 10) / 1e6 : reserved;
           if (result.usageComplete) ledger.settle(reservation, cost, {
@@ -76,6 +97,15 @@ describe("public proposal evaluation", () => {
             latency_ms: Date.now() - started, calls: result.calls, input_tokens: result.inputTokens, output_tokens: result.outputTokens,
             accounted_upper_usd: cost });
         } catch (error) {
+          if (error instanceof ModelError && error.observedUsage) {
+            ledger.settle(reservation, Math.max(reserved, observedCost(error.observedUsage, 2.5, 0.1, 10)), error.observedUsage);
+            throw new Error("public_evaluation_usage_reconciliation_required");
+          }
+          if (error instanceof Error && error.message === "semantic_oracle_failed") {
+            report.push({ id: item.id, repetition, outcome: "semantic_oracle_failed" });
+            console.info(JSON.stringify({ model: MODEL, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
+            throw error;
+          }
           // Do not settle or expire unknown billing; its durable hold still counts.
           report.push({ id: item.id, repetition, outcome: "request_failed", latency_ms: Date.now() - started,
             ...(error instanceof ModelError ? { error_code: error.code, provider_http_status: error.providerHttpStatus,

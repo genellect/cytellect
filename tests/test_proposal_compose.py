@@ -16,7 +16,12 @@ def test_opt_in_relay_keeps_analysis_offline_and_secret_out_of_configuration(tmp
         if os.environ.get("CYTELLECT_REQUIRE_COMPOSE_TEST") == "1":
             pytest.fail("Docker Compose CLI is required for deployment verification")
         pytest.skip("Docker Compose CLI unavailable; merged deployment not verified")
-    availability = subprocess.run([docker, "compose", "version"], capture_output=True, timeout=30)
+    try:
+        availability = subprocess.run([docker, "compose", "version"], capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        if os.environ.get("CYTELLECT_REQUIRE_COMPOSE_TEST") == "1":
+            pytest.fail("Docker Compose CLI did not respond; deployment verification is required", pytrace=False)
+        pytest.skip("Docker Compose CLI did not respond; merged deployment not verified")
     if availability.returncode:
         if os.environ.get("CYTELLECT_REQUIRE_COMPOSE_TEST") == "1":
             pytest.fail("Docker Compose plugin is required for deployment verification")

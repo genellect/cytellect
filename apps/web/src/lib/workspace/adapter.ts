@@ -6,7 +6,7 @@
  * It performs no detection or measurement; its summaries stand in for API
  * responses and are display values for the prototype only.
  */
-import type { AddedFile } from "./grouping";
+import type { AddedFile, ChannelDefinition } from "./grouping";
 import type { FieldResult, Region, WorkspaceState } from "./model";
 import { regionState } from "./model";
 
@@ -14,7 +14,7 @@ export interface ExportLink { label: string; href?: string; detail?: string; rea
 
 export interface WorkspaceAdapter {
   kind: "prototype" | "api";
-  loadSample(): Promise<{ name: string; files: AddedFile[]; attribution: string }>;
+  loadSample(): Promise<{ name: string; files: AddedFile[]; attribution: string; channels?: ChannelDefinition[] }>;
   preview(field: string, token: string): string | null;
   size(field: string): { width: number; height: number } | null;
   run(field: string): Promise<FieldResult>;
@@ -65,7 +65,12 @@ export function createPrototypeAdapter(options: { delayMs?: number; fetcher?: ty
       const files = data.fields.flatMap((field) => field.channels.map((channel) => ({
         path: `${FOLDER}/${channel.source_name}`, size: 0,
       })));
-      return { name: "解析例（BBBC013）", files, attribution: `${data.attribution} ${data.license}` };
+      const channels: ChannelDefinition[] = data.fields[0].channels.map((channel) => ({
+        token: channelToken(channel), stain: channel.stain,
+        role: channel.recorded_role === "dapi" ? "nuclear" : "measure",
+        evidence: "registered_source",
+      }));
+      return { name: "解析例（BBBC013）", files, channels, attribution: `${data.attribution} ${data.license}` };
     },
     preview(field, token) {
       return byKey.get(field)?.channels.find((item) => channelToken(item) === token)?.preview ?? null;

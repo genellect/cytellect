@@ -55,7 +55,11 @@ export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: 
     try {
       const sample = await adapter.loadSample();
       setAdded(sample.files);
-      dispatch({ type: "imported", name: sample.name, grouping: groupFiles(sample.files) });
+      const grouping = groupFiles(sample.files);
+      // Recorded public outputs retain the source's stain/role correspondence.
+      // Filename inference cannot redefine the masks that were already measured.
+      if (sample.channels) grouping.channels = sample.channels;
+      dispatch({ type: "imported", name: sample.name, grouping });
       setNotice("");
       setSource(sample.attribution);
     } catch (error) {

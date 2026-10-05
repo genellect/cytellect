@@ -11,11 +11,13 @@ from cytellect_analysis.proposal_validation import ProposalRejected, validate_dr
 
 
 def main() -> None:
-    request = json.load(sys.stdin)
+    # JSON over a pipe is UTF-8. Windows locale defaults can otherwise corrupt
+    # Japanese goals before Pydantic sees them; never rely on console encoding.
+    request = json.loads(sys.stdin.buffer.read())
     try:
         validated = validate_draft(
             ProposalContext.model_validate(request["context"]), request["draft"],
-            model="gpt-6.1-sol", prompt_version="2026-10-05.2",
+            model="gpt-6.1-sol", prompt_version="2026-10-06.1",
         )
         print(json.dumps({"valid": True, "codes": [], "needs_confirmation": validated.needs_confirmation}))
     except ProposalRejected as error:

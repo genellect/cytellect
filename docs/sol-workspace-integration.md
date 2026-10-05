@@ -121,3 +121,18 @@ paths that are off in the default production build or that fail safe:
 4. When reported input tokens exceed the reserved preview allowance, settlement keeps
    the reservation instead of the larger observed cost. Settle at the larger value and
    confirm the image-token allowance in the public evaluation.
+
+## Local publication follow-up (2026-10-06)
+
+The usage accounting issue above is corrected: bounded integer usage exceeding a
+reservation is recorded at the larger conservative amount, including the long-context
+tariff, and rejected without another model call. The local evaluation ledger records
+observed overspending and blocks subsequent reservations until reconciliation.
+Malformed or unavailable usage still retains the reservation. Production remains OFF.
+Rates follow the [official Sol model page](https://developers.openai.com/api/docs/models/gpt-6.1-sol).
+
+The first evaluation on the returned PC received provider outputs but its Windows
+semantic oracle corrupted Japanese pipe input. The CLI now decodes JSON bytes as UTF-8,
+and the evaluator exercises the full oracle with Japanese input before any paid request.
+An oracle failure stops immediately. The failed run is not a successful model evaluation;
+its recorded usage and unknown reservations remain in the same cumulative USD5 ledger.

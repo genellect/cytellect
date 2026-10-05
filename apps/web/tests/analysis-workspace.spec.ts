@@ -6,15 +6,23 @@ async function adoptPublicSample(page: Page) {
   // The registered example opens only from a link (site or review), never from the workspace UI.
   await page.goto("/workspace?demo=bbbc013");
   await expect(page.getByRole("heading", { name: "解析案" })).toBeVisible();
-  // Index-only names never establish stains; the only decision is one click on the nuclear channel.
-  await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
-  await expect(page.getByText("核検出に使うチャンネルを選択")).toBeVisible();
+  // The registered source establishes DNA/GFP identity; index-only user files do not.
+  await expect(page.getByText("核検出：DRAQ (DNA)（公開データの記録）")).toBeVisible();
   await expect(page.locator("main input:visible, main select:visible")).toHaveCount(0);
-  await page.getByRole("radio", { name: "channel2 を核検出に使う" }).click();
   await expect(page.getByRole("button", { name: "解析を実行" })).toBeEnabled();
-  await expect(page.getByText("channel1 平均輝度（補正前）")).toBeVisible();
+  await expect(page.getByText("FKHR-EGFP 平均輝度（補正前）")).toBeVisible();
   await page.getByRole("button", { name: "解析を実行" }).click();
 }
+
+test("registered GFP figure uses the recorded measurement channel", async ({page}) => {
+  await adoptPublicSample(page);
+  await expect(page.getByText("完了 3/3")).toBeVisible({timeout:20000});
+  await page.getByRole("button", {name:"FKHR-EGFP 平均輝度（補正前） 視野別の分布", exact:true}).click();
+  const figure = page.getByRole("img", {name:/FKHR-EGFP.*視野ごとの分布/});
+  await expect(figure).toContainText("n = 350");
+  await expect(figure).toContainText("n = 242");
+  await expect(figure).not.toContainText("n = 0");
+});
 
 test("adds images, adopts one proposal and inspects fields while the run continues", async ({ page }) => {
   await page.goto("/workspace");

@@ -6,6 +6,7 @@ import styles from "./analysis-workspace.module.css";
 
 const EVIDENCE_LABEL: Record<ChannelDefinition["evidence"], string> = {
   ome: "画像情報", filename: "ファイル名", folder: "フォルダ名", user: "選択",
+  registered_source: "公開データの記録",
 };
 
 export function channelText(channel: ChannelDefinition): string {

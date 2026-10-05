@@ -11,7 +11,7 @@
  */
 
 export type ChannelRole = "nuclear" | "measure";
-export type Evidence = "ome" | "filename" | "folder" | "user";
+export type Evidence = "ome" | "filename" | "folder" | "user" | "registered_source";
 
 export interface AddedFile {
   /** Relative path inside the dropped folder, or the bare file name. */
