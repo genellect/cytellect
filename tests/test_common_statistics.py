@@ -3,6 +3,7 @@ import hashlib
 import json
 
 import pytest
+from cytellect_analysis import common_statistics_figures
 from cytellect_analysis.common_statistics import analyze_region_association, analyze_region_comparison
 from cytellect_analysis.common_statistics_contracts import RegionAssociationRequest, RegionComparisonRequestV2
 from cytellect_analysis.common_statistics_figures import render_common_statistics
@@ -131,3 +132,44 @@ def test_editable_figures_retain_exact_unit_values_tables_and_methods(tmp_path, 
         assert "actin" in methods and "dna" in methods
     with pytest.raises(ValidationError):
         render_common_statistics(result, tmp_path / "invalid", methods_template={"id": "cytellect-statistical-methods", "version": "1.0.0"})
+
+
+@pytest.mark.parametrize("kind", ["distribution", "box", "violin", "paired"])
+def test_categorical_figure_margins_do_not_depend_on_jitter(tmp_path, monkeypatch, kind):
+    report, config = comparison_fixture((("A", [1, 3]), ("B", [2, 5])))
+    result = analyze_region_comparison(report, config, request_v2(
+        test="wilcoxon" if kind == "paired" else "mann-whitney-u", paired=kind == "paired",
+        plot={"kind": kind, "preset": "nature-double"}))
+    original = common_statistics_figures.plt.subplots
+    axes = []
+
+    def capture(*args, **kwargs):
+        figure, axis = original(*args, **kwargs)
+        axes.append(axis)
+        return figure, axis
+
+    monkeypatch.setattr(common_statistics_figures.plt, "subplots", capture)
+    manifest = render_common_statistics(result, tmp_path)
+    assert manifest["common_statistics_figure_version"] == "1.0.1"
+    assert axes[0].get_xlim() == (-.5, 1.5)
+    source = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    assert source["unit_summary"] == result["unit_summary"]
+    assert all(-.5 < row["display_x"] < 1.5 for row in source["unit_glyphs"])
+
+
+def test_export_renderer_preserves_saved_figure_version(tmp_path):
+    from cytellect_analysis.region_exports import _render_statistics
+
+    report, config = comparison_fixture((("A", [1, 3]), ("B", [2, 5])))
+    result = analyze_region_comparison(report, config, request_v2())
+    for version in ("1.0.0", "1.0.1"):
+        saved = render_common_statistics(result, tmp_path / version, figure_version=version)
+        replayed = _render_statistics(result, tmp_path / (version + "-replay"),
+                                      methods_template=saved["common_statistics_methods"], saved_figure=saved)
+        assert replayed == saved
+        for filename in saved["source_files"]:
+            assert (tmp_path / version / filename).read_bytes() == (tmp_path / (version + "-replay") / filename).read_bytes()
+    for filename in ("comparisons.csv", "unit-summary.csv", "methods.md"):
+        assert (tmp_path / "1.0.0" / filename).read_bytes() == (tmp_path / "1.0.1" / filename).read_bytes()
+    with pytest.raises(ValueError, match="figure_version_unsupported"):
+        _render_statistics(result, tmp_path / "unsupported", saved_figure={"common_statistics_figure_version": "9.0.0"})

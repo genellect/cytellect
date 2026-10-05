@@ -20,7 +20,7 @@ from .exports_csv import write_csv
 from .figures import COLORS, MARKERS, _validate_text_layout, figure_settings, select_font
 from .regions import RegionModel
 
-FIGURE_VERSION = "1.0.0"
+FIGURE_VERSION = "1.0.1"
 
 
 class CommonStatisticsMethodsTemplate(RegionModel):
@@ -136,7 +136,9 @@ def _tables(result):
     return tables
 
 
-def render_common_statistics(result, output: Path, *, methods_template=None):
+def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION):
+    if figure_version not in ("1.0.0", "1.0.1"):
+        raise ValueError("common_statistics_figure_version_unsupported")
     template = CommonStatisticsMethodsTemplate.model_validate(
         CURRENT_COMMON_METHODS_TEMPLATE if methods_template is None else methods_template)
     canonical: dict[str, Any] = TypeAdapter(CommonStatisticsResult).validate_python(
@@ -223,6 +225,10 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
                         points = [next(r for r in rows if r["condition"] == c and r["experimental_unit"] == pair["units"][c]) for c in order]
                         ax.plot(range(len(order)), [r["value"] for r in points], color="#888888", linewidth=.5, zorder=0)
                 ax.set_xticks(range(len(order)), [textwrap.fill(c, 16) + f"\nn={sum(r['condition'] == c for r in rows)}" for c in order])
+                if figure_version == "1.0.1":
+                    # Equal category margins must not depend on the random jitter,
+                    # unit count, or whether a box/violin contributes to autoscaling.
+                    ax.set_xlim(-.5, len(order) - .5)
                 ax.set_xlabel(plot["x_label"] or ("条件（n：独立実験単位）" if ja else "Condition (n: independent units)"))
                 ax.set_ylabel(plot["y_label"] or _label(canonical, ja))
                 note = "Points are independent-unit summaries; jitter affects display only (seed 0). "
@@ -245,7 +251,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
                 item.set_fontproperties(properties)
             _validate_text_layout(fig, ax)
             for suffix in ("svg", "pdf", "png"):
-                file_metadata: dict[str, str | None] = {"Creator": "Cytellect common statistics " + FIGURE_VERSION}
+                file_metadata: dict[str, str | None] = {"Creator": "Cytellect common statistics " + figure_version}
                 if suffix == "svg":
                     file_metadata["Date"] = None
                 if suffix == "pdf":
@@ -264,11 +270,11 @@ def render_common_statistics(result, output: Path, *, methods_template=None):
     methods = common_statistics_methods(canonical)
     (output / "methods.md").write_text(methods, encoding="utf-8")
     (output / "figure-caption.md").write_text("# Figure legend\n\n" + note + "\n\n" + methods, encoding="utf-8")
-    metadata: dict[str, Any] = {"common_statistics_figure_version": FIGURE_VERSION,
+    metadata: dict[str, Any] = {"common_statistics_figure_version": figure_version,
                 "common_statistics_methods": template.model_dump(mode="json"), "style": style,
                 "font": selected_font.family, "font_metadata": selected_font.metadata()}
     source = {**canonical, **metadata, "unit_glyphs": glyphs, "graphical_summary": graphical_summary,
               "jitter_seed": 0, "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest() for n in csv_files}}
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
-    return {**metadata, "figure_version": FIGURE_VERSION, "formats": ["svg", "pdf", "png"], "svg_text": "editable",
+    return {**metadata, "figure_version": figure_version, "formats": ["svg", "pdf", "png"], "svg_text": "editable",
             "source_files": ["figure.svg", "figure.pdf", "figure.png", *csv_files, "figure-data.json", "figure-caption.md", "methods.md"]}

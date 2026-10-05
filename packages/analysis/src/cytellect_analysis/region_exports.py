@@ -218,11 +218,13 @@ def _recompute_statistics(report, config, result):
     return calculated
 
 
-def _render_statistics(calculated, folder, *, methods_template=None):
+def _render_statistics(calculated, folder, *, methods_template=None, saved_figure=None):
     if _uses_common_statistics(calculated):
         from .common_statistics_figures import render_common_statistics
 
-        return render_common_statistics(calculated, folder, methods_template=methods_template)
+        version = (saved_figure or {}).get("common_statistics_figure_version", "1.0.0")
+        return render_common_statistics(calculated, folder, methods_template=methods_template,
+                                        figure_version=version)
     if calculated["analysis_kind"] == "region-comparison":
         from .region_comparison_figures import render_region_comparison
 
@@ -304,7 +306,8 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
                 raise ValueError("descriptive_output_source_required")
             figure = copy_descriptive_output(statistics_results[index], Path(statistics_roots[index]), folder)
         else:
-            figure = _render_statistics(calculated, folder, methods_template=_statistics_methods_template(statistics_results[index]))
+            figure = _render_statistics(calculated, folder, methods_template=_statistics_methods_template(statistics_results[index]),
+                                        saved_figure=statistics_results[index].get("figure"))
         _json(folder / "result.json", {**calculated, "figure": figure})
     methods = region_methods(config, report, provenance)
     (content / "methods.md").write_text(methods, encoding="utf-8")
@@ -418,7 +421,8 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
             replayed["figure"] = replay_descriptive_output(result, replayed, path.parent, folder)
             paged_outputs.append({"statistics_index": path.parent.name, "status": replayed["figure"]["status"]})
         else:
-            replayed["figure"] = _render_statistics(replayed, folder, methods_template=_statistics_methods_template(result))
+            replayed["figure"] = _render_statistics(replayed, folder, methods_template=_statistics_methods_template(result),
+                                                    saved_figure=result.get("figure"))
         _json(folder / "result.json", replayed)
     comparison = {
         "matched_saved_measurements": tables == report["field_tables"],
