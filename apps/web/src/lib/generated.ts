@@ -1975,6 +1975,10 @@ export interface components {
         /**
          * ProposalDraftRequest
          * @description The only researcher input: an optional goal in their own words.
+         *
+         *     `transmission_confirmed` records that the researcher has seen what is sent
+         *     and enabled it (L03). The UI asks once and remembers; without it nothing
+         *     leaves the PC.
          */
         ProposalDraftRequest: {
             /**
@@ -1982,6 +1986,11 @@ export interface components {
              * @default
              */
             goal: string;
+            /**
+             * Transmission Confirmed
+             * @default false
+             */
+            transmission_confirmed: boolean;
         };
         /** ProposalDraftResponse */
         ProposalDraftResponse: {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { handle, readConfig, type Env } from "./index";
 import { hasDraftShape } from "./openai";
-import { MemoryStore, RESERVATION_TTL_MS } from "./store";
+import { MemoryStore } from "./store";
 
 const DRAFT = {
   recipe: "nuclear-intensity",
@@ -87,11 +87,13 @@ describe("proposal service", () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
-  it("concurrent reservations cannot together exceed the budget, and stale ones expire", async () => {
+  it("concurrent reservations cannot together exceed the budget, and unsettled ones keep counting", async () => {
     const store = new MemoryStore();
     expect(await store.reserve("a", "2026-10", 0.6, 1, 0)).toBe(true);
     expect(await store.reserve("b", "2026-10", 0.6, 1, 1)).toBe(false);
-    expect(await store.reserve("c", "2026-10", 0.6, 1, RESERVATION_TTL_MS + 1)).toBe(true);
+    // A crashed request never settles; its possible cost still holds budget hours later.
+    expect(await store.reserve("c", "2026-10", 0.6, 1, 86_400_000)).toBe(false);
+    expect(await store.unsettled("2026-10")).toBeCloseTo(0.6);
   });
 
   it("repairs unusable output at most once and settles the reservation on failure", async () => {

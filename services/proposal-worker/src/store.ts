@@ -19,14 +19,18 @@ export interface Store {
   deviceActive(deviceHash: string): Promise<boolean>;
   /** Counts one request for the device in the month; false when its quota is used. */
   countDeviceRequest(deviceHash: string, month: string, limit: number): Promise<boolean>;
-  /** Atomically reserves the worst-case cost; false when it would exceed the monthly budget. */
+  /**
+   * Atomically reserves the worst-case cost; false when it would exceed the monthly budget.
+   * A reservation that is never settled (a crashed request whose call may have been billed)
+   * keeps counting at its worst case, so the budget is never exceeded by lost settlements.
+   */
   reserve(id: string, month: string, amountUsd: number, budgetUsd: number, now: number): Promise<boolean>;
+  /** Worst-case cost still held by reservations that were never settled. */
+  unsettled(month: string): Promise<number>;
   /** Releases the reservation and records the actual cost. */
   settle(id: string, month: string, spentUsd: number): Promise<void>;
 }
 
-/** Reservations older than this no longer hold budget (a crashed request). */
-export const RESERVATION_TTL_MS = 10 * 60 * 1000;
 
 export class D1Store implements Store {
   constructor(private readonly db: D1Database) {}
@@ -61,9 +65,15 @@ export class D1Store implements Store {
     const result = await this.db.prepare(
       "INSERT INTO reservations (id, month, amount_usd, created_at) SELECT ?, ?, ?, ? WHERE "
       + "COALESCE((SELECT spent_usd FROM usage_months WHERE month = ?), 0) + "
-      + "COALESCE((SELECT SUM(amount_usd) FROM reservations WHERE month = ? AND created_at > ?), 0) + ? <= ?",
-    ).bind(id, month, amountUsd, now, month, month, now - RESERVATION_TTL_MS, amountUsd, budgetUsd).run();
+      + "COALESCE((SELECT SUM(amount_usd) FROM reservations WHERE month = ?), 0) + ? <= ?",
+    ).bind(id, month, amountUsd, now, month, month, amountUsd, budgetUsd).run();
     return result.meta.changes === 1;
+  }
+
+  async unsettled(month: string) {
+    const row = await this.db.prepare("SELECT COALESCE(SUM(amount_usd), 0) AS held FROM reservations WHERE month = ?")
+      .bind(month).first<{ held: number }>();
+    return row?.held ?? 0;
   }
 
   async settle(id: string, month: string, spentUsd: number) {
@@ -103,12 +113,13 @@ export class MemoryStore implements Store {
   }
 
   async reserve(id: string, month: string, amountUsd: number, budgetUsd: number, now: number) {
-    const held = [...this.reservations.values()]
-      .filter((item) => item.month === month && item.createdAt > now - RESERVATION_TTL_MS)
-      .reduce((sum, item) => sum + item.amount, 0);
-    if ((this.spent.get(month) ?? 0) + held + amountUsd > budgetUsd) return false;
+    if ((this.spent.get(month) ?? 0) + (await this.unsettled(month)) + amountUsd > budgetUsd) return false;
     this.reservations.set(id, { month, amount: amountUsd, createdAt: now });
     return true;
+  }
+
+  async unsettled(month: string) {
+    return [...this.reservations.values()].filter((item) => item.month === month).reduce((sum, item) => sum + item.amount, 0);
   }
 
   async settle(id: string, month: string, spentUsd: number) {

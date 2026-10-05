@@ -17,13 +17,23 @@ from urllib.parse import urlsplit
 from cytellect_analysis.proposal_contracts import ProposalContext, ValidatedProposal
 from cytellect_analysis.proposal_validation import ProposalRejected, context_sha256, validate_draft
 from fastapi import Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from .db import fields, revisions, tables
 from .regions import is_region
 
 MAX_RESPONSE_BYTES = 64 * 1024
 CACHE_SIZE = 64
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect would resend the device credential to another URL; refuse it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 class ProposalServiceError(Exception):
@@ -53,7 +63,7 @@ def request_draft(settings, context: ProposalContext) -> dict:
     request = urllib.request.Request(f"{url}/v1/proposals", data=body, method="POST", headers={
         "authorization": f"Bearer {settings.proposal_token}", "content-type": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=settings.proposal_timeout_seconds) as response:
+        with _OPENER.open(request, timeout=settings.proposal_timeout_seconds) as response:
             data = response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
         code = {401: "proposal_service_unauthorized", 403: "proposal_service_unauthorized",
@@ -73,9 +83,15 @@ def request_draft(settings, context: ProposalContext) -> dict:
 
 
 class ProposalDraftRequest(BaseModel):
-    """The only researcher input: an optional goal in their own words."""
+    """The only researcher input: an optional goal in their own words.
+
+    `transmission_confirmed` records that the researcher has seen what is sent
+    and enabled it (L03). The UI asks once and remembers; without it nothing
+    leaves the PC.
+    """
     model_config = ConfigDict(extra="forbid")
     goal: Annotated[str, Field(max_length=2000)] = ""
+    transmission_confirmed: StrictBool = False
 
 
 class ProposalChannelLink(BaseModel):
@@ -143,6 +159,8 @@ def register_proposal_routes(api, store, settings, owner, workspace):
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
     def draft_proposal(wid: str, body: ProposalDraftRequest, who: Owner):
         workspace(wid, who)
+        if body.transmission_confirmed is not True:
+            raise HTTPException(428, "proposal_transmission_not_confirmed")
         context, links = build_context(store, wid, body.goal)
         key = (who, wid, context_sha256(context))
         if key in cache:

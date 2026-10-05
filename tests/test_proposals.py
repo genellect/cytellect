@@ -122,7 +122,7 @@ def configured(tmp_path, monkeypatch, reply, *, upload=True):
         calls.append(json.loads(request.data))
         assert request.headers["Authorization"] == "Bearer device-secret"
         return reply(request)
-    monkeypatch.setattr(proposals.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(proposals._OPENER, "open", urlopen)
     wid = client.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
     if upload:
         assert make_field(client, wid).status_code == 201
@@ -132,8 +132,8 @@ def configured(tmp_path, monkeypatch, reply, *, upload=True):
 def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_path, monkeypatch):
     body = json.dumps({"draft": ACTIN_DRAFT, "model": "test-model", "prompt_version": "2026-10-05.1"}).encode()
     client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
-    first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度"}, headers=HEADERS)
-    second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度"}, headers=HEADERS)
+    first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
+    second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     assert first.status_code == 200, first.text
     assert first.json() == second.json() and len(calls) == 1
     assert first.json()["channels"] == [{"token": "actin", "channel_id": "actin", "stain": None}]
@@ -144,33 +144,74 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
                     "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
                     "supplied_regions": True, "measured_table": False, "background_available": False}
     assert "Actin" not in json.dumps(calls) and "untrusted-original-name" not in json.dumps(calls)
-    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x", "field_count": 9},
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x", "field_count": 9, "transmission_confirmed": True},
                        headers=HEADERS).status_code == 422
     # An empty goal is valid: the proposal is built from the images alone.
-    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS).status_code == 200
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS).status_code == 200
 
 
 def test_route_rejects_invalid_drafts_and_maps_service_failures(tmp_path, monkeypatch):
     bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "m", "prompt_version": "p"}).encode()
     client, wid, _ = configured(tmp_path, monkeypatch, lambda request: FakeResponse(bad))
-    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert response.status_code == 502
     assert response.json()["detail"] == {"code": "proposal_rejected", "reasons": ["proposal_text_not_allowed"]}
 
     def quota(request):
         raise urllib.error.HTTPError(request.full_url, 429, "quota", {}, None)
     client, wid, _ = configured(tmp_path / "q", monkeypatch, quota)
-    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert (response.status_code, response.json()["detail"]) == (429, "proposal_quota_exhausted")
 
 
 def test_route_needs_images_is_disabled_without_configuration_and_checks_ownership(tmp_path, monkeypatch):
     client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(b"{}"), upload=False)
-    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS).status_code == 409
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS).status_code == 409
     assert calls == []
     other, _, _ = authenticated(tmp_path / "plain")
     wid = other.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
     assert make_field(other, wid).status_code == 201
-    response = other.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS)
+    response = other.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert (response.status_code, response.json()["detail"]) == (503, "proposal_service_disabled")
-    assert other.post("/v1/workspaces/missing/proposal-drafts", json={}, headers=HEADERS).status_code == 404
+    assert other.post("/v1/workspaces/missing/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS).status_code == 404
+
+
+def test_nothing_is_sent_without_the_researchers_transmission_confirmation(tmp_path, monkeypatch):
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(b"{}"))
+    for body in ({}, {"transmission_confirmed": False}, {"goal": "x"}):
+        response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json=body, headers=HEADERS)
+        assert (response.status_code, response.json()["detail"]) == (428, "proposal_transmission_not_confirmed")
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": "yes"},
+                       headers=HEADERS).status_code == 422
+    assert calls == []
+
+
+def test_redirects_are_refused_so_the_device_credential_never_follows_them():
+    import http.server
+    import threading
+    hits = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            hits.append(("POST", self.headers.get("Authorization")))
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/elsewhere")
+            self.end_headers()
+
+        def do_GET(self):
+            hits.append(("GET", self.headers.get("Authorization")))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.handle_request, daemon=True)
+    thread.start()
+    settings = type("S", (), {"proposal_url": f"http://127.0.0.1:{server.server_port}", "proposal_token": "device-secret",
+                              "proposal_timeout_seconds": 5})()
+    with pytest.raises(proposals.ProposalServiceError):
+        proposals.request_draft(settings, CONTEXT)
+    thread.join(5)
+    server.server_close()
+    assert hits == [("POST", "Bearer device-secret")]

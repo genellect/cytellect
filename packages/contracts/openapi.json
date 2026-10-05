@@ -5175,12 +5175,17 @@
             "maxLength": 2000,
             "title": "Goal",
             "default": ""
+          },
+          "transmission_confirmed": {
+            "type": "boolean",
+            "title": "Transmission Confirmed",
+            "default": false
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "ProposalDraftRequest",
-        "description": "The only researcher input: an optional goal in their own words."
+        "description": "The only researcher input: an optional goal in their own words.\n\n`transmission_confirmed` records that the researcher has seen what is sent\nand enabled it (L03). The UI asks once and remembers; without it nothing\nleaves the PC."
       },
       "ProposalDraftResponse": {
         "properties": {
