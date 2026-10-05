@@ -23,6 +23,18 @@ device tokens, account IDs, ledger database or private research inputs are track
 - Deployed smoke checks returned unauthenticated **401**, authenticated **503**,
   both `Cache-Control: no-store`. Before/after reservation, settlement and request
   counts were all zero. Provisioning tokens remain private.
+- Initial Docker full-stack acceptance passed both real browser cases in 5.1
+  minutes: 115 BBBC007 nuclei, 230 channel rows, maximum absolute pixel-reference
+  error zero, one region excluded, and SVG/PDF/CSV/Methods exports; plus four
+  generated fields with two explicit software units per group and editable
+  independent-unit comparisons. This run used clean source `0378b0e`; final-source
+  rebuild, replay and shutdown are tracked separately below.
+- The registered BBBC013 example now retains the source's DRAQ/FKHR-EGFP channel
+  correspondence. A live-browser check exposed an empty intensity plot after a
+  filename-only nuclear choice; recorded masks can no longer be reinterpreted by
+  that choice. Ten public-example browser checks passed, including GFP counts,
+  correction/undo, source navigation and four viewport sizes. Two unrelated real
+  upload cases were explicitly skipped in the unconfigured-site test environment.
 
 ## Delivery checks still in progress
 
@@ -35,7 +47,11 @@ device tokens, account IDs, ledger database or private research inputs are track
   The Dockerfile now includes that public fixture directory; CI also builds the
   web container to prevent a host-only build from hiding this failure.
 - A Windows CI attempt passed 1472 Python tests but timed out on `docker compose
-  version`. Its failed job was retried without weakening assertions.
+  version`. Its failed job was retried. Optional CLI availability now records an
+  explicit skip for an unresponsive CLI; the required Linux deployment check
+  still fails in that situation. The actual required Compose check passed here.
+- Python API defaults and its contract now match evaluated prompt `2026-10-06.1`.
+  Twenty-nine affected API/persistence/oracle tests passed.
 
 ## Owner decisions held
 

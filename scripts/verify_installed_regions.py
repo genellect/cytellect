@@ -91,12 +91,13 @@ def verify_reference(result, *, paired):
 
 
 class LocalSession:
-    def __init__(self, origin):
+    def __init__(self, origin, *, app_origin=None):
         url = urllib.parse.urlsplit(origin)
         require(url.scheme == "http" and url.hostname == "127.0.0.1" and url.port is not None
                 and not url.username and not url.password and not url.query and not url.fragment
                 and url.path in ("", "/"), "literal_loopback_origin_required")
         self.origin = origin.rstrip("/")
+        self.app_origin = app_origin or self.origin
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, req, fp, code, msg, headers, newurl):
                 raise ValueError("local_acceptance_redirect_forbidden")
@@ -106,7 +107,7 @@ class LocalSession:
 
     def request(self, path, *, body=None, content_type="application/json", method=None):
         require(path.startswith("/v1/") and ".." not in path and not path.startswith("//"), "api_path_invalid")
-        headers = {"Origin": self.origin, "X-Cytellect-Request": "1"}
+        headers = {"Origin": self.app_origin, "X-Cytellect-Request": "1"}
         if body is not None:
             headers["Content-Type"] = content_type
         request = urllib.request.Request(self.origin + path, data=body, headers=headers, method=method)
@@ -167,15 +168,16 @@ def extract_verified_bundle(content: bytes, destination: Path):
     return len(manifest["files"])
 
 
-def verify_workflow(session, output: Path, expected_source: str):
+def verify_workflow(session, output: Path, expected_source: str, *, initialize_local=True):
     import numpy as np
     import tifffile
     from cytellect_analysis.region_exports import replay_region_bundle
     from cytellect_worker.provenance import software_identity
 
-    setup = session.json("/v1/local/setup")
-    require(setup.get("mode") == "local" and setup.get("ready") is True, "local_service_required")
-    session.json("/v1/local/session", {})
+    if initialize_local:
+        setup = session.json("/v1/local/setup")
+        require(setup.get("mode") == "local" and setup.get("ready") is True, "local_service_required")
+        session.json("/v1/local/session", {})
     wid = session.json("/v1/workspaces", {"title": "Generated numerical acceptance"})["id"]
     fids = []
     labels = np.zeros((12, 12), np.uint32)

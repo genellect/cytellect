@@ -34,3 +34,15 @@ Web3087/API8001は127.0.0.1にだけ公開します。APIはDocker Desktopのポ
 - WindowsでDockerの`dockerInference`ソケットにエラー1920が発生する場合があります。実際の原因を確認せずFactory ResetやWSL削除を実行しないでください。
 
 この手順での動作確認はDocker版の確認です。Windowsネイティブ配布物のインストール成否や、人による使いやすさの評価とは別に記録します。
+
+## 開発者の数値・再実行検査
+
+クリーンなソースから構築するときは、APIとWorkerに同じ
+`CYTELLECT_CODE_REVISION`（40桁のGitコミット）を渡します。`compose.yaml`が
+この値を解析出力の環境記録へ引き継ぎます。変更したファイルがある状態を
+そのコミットの実物として扱わないでください。
+
+`scripts/verify_docker_regions.py`は、専用の受入環境で生成画素を登録し、
+独立・対応あり比較、順位検定、相関、出力ZIPのハッシュと再計算一致を確認します。
+Windows配布物の検査と同じ参照式を再利用しますが、Dockerの招待認証を使い、
+Windowsのインストール成功には数えません。出力先はrepo外に設定します。
