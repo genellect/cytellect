@@ -18,6 +18,7 @@ export PATH="$node_dir/bin:$HOME/.local/bin:$PATH"
 node -e 'if(process.versions.node!=="24.18.0")process.exit(1)'
 if ! command -v pnpm >/dev/null 2>&1 || [ "$(pnpm --version)" != "11.19.0" ]; then npm install --global pnpm@11.19.0; fi
 printf 'export PATH=%q:%q:$PATH\n' "$node_dir/bin" "$HOME/.local/bin" > "$runtime/env.sh"
+if [ -x /opt/pw-browsers/chromium ]; then printf 'export CYTELLECT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium\n' >> "$runtime/env.sh"; fi
 bash .codex/setup.sh
 pnpm --filter @cytellect/proposal-worker check
 pnpm --filter @cytellect/proposal-worker test

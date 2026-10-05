@@ -22,7 +22,8 @@ git status --short
 まだ追加PRを統合していない環境では、setup前にそのブランチを取得してください。
 クラウド設定のSetup scriptは`bash .claude/cloud-setup.sh`。
 Node 24.18.0を公式配布とSHA-256で照合してrepo外へ導入し、固定依存と無課金テストを
-用意します。Linuxクラウドでの実行は設定後に確認し、Windows上のテストと混同しません。
+用意します。Hosted環境ではPlaywrightのbrowser downloadを行わず、
+提供済みChromiumを`CYTELLECT_CHROMIUM_EXECUTABLE`で使います。Linuxクラウドでの実行は設定後に確認し、Windows上のテストと混同しません。
 次の作業コマンドの前に実行します。
 
 ```sh
@@ -108,6 +109,9 @@ restoreはdigest、SQLite header、サイズ、repo外パスを確認し、既�
 セッションが消失した場合、最初のsnapshotをもう一度復元してはいけません。
 最新台帳を非公開で回収し、同じtransfer手順で次の環境へ移します。
 回収できなければ課金評価を停止し、請求記録との照合まで再開しません。
+クラウドのVMは非アクティブ時に回収されます。各評価の後、Claudeは最新台帳を
+`transfer-evaluation-ledger.mjs export`で非公開snapshotとして書き出し、Git以外の
+非公開ファイル（ユーザーへの直接送付）で返却します。
 
 ```sh
 CYTELLECT_ALLOW_PAID_PUBLIC_EVAL=true pnpm --filter @cytellect/proposal-worker eval:public
@@ -130,7 +134,8 @@ PCのWrangler OAuthをクラウドへコピーせず、専用の限定トーク�
 Workers Scripts:Edit、D1:Edit、Account Settings:Readを指定し、アカウントを限定します。
 CloudflareのAPI credentialsは`api.cloudflare.com`へのBearer設定で使えますが、
 Wranglerがトークン無しで起動する保証はありません。認証前検査を実証し、非対応なら
-RESTで同じ手順を行うか、明示したsecret管理方式に切り替えます。dummy tokenを設定して
+RESTで同じ手順を行うか、明示したsecret管理方式に切り替えます。
+D1の作成・migration・確認は接続済みのCloudflareコネクタでも実行できます。dummy tokenを設定して
 動いたことにしません。トークンの値をClaudeの出力へ渡す操作は禁止です。
 
 `ADMIN_TOKEN`はWorkerの招待管理用secretです。OpenAI/Cloudflareの認証とは別であり、
