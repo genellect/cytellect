@@ -20,7 +20,7 @@ const config: NextConfig = {
       ] }, {
         source: "/lp-metrics.html", headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Content-Security-Policy", value: "default-src 'none'; script-src 'self' https://www.googletagmanager.com; connect-src https://*.google-analytics.com https://www.googletagmanager.com; img-src https://*.google-analytics.com; frame-ancestors 'self'; base-uri 'none'; form-action 'none'" },
+          { key: "Content-Security-Policy", value: "default-src 'none'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://*.google-analytics.com https://www.googletagmanager.com; img-src https://*.google-analytics.com; frame-ancestors 'self'; base-uri 'none'; form-action 'none'" },
         ],
       }];
     },

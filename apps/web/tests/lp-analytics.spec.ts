@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const origin = "https://cytellect.vercel.app";
 test.beforeEach(() => test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED !== "1", "Public build only"));
-test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: "wait" }); });
+test.afterEach(async ({ page }) => { await page.waitForLoadState("networkidle"); await page.unrouteAll({ behavior: "wait" }); });
 
 async function isolatedSite(page: Page, baseURL: string, blocked = false) {
   const tags: string[] = [];
@@ -72,9 +72,11 @@ test("non-LP routes, standalone frame, localhost and privacy opt-out never load 
   const tags = await isolatedSite(page, baseURL!);
   for (const path of ["/plan", "/demo", "/lp-metrics.html"]) {
     await page.goto(origin + path);
+    await page.waitForLoadState("networkidle");
     await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
   }
   await page.goto(baseURL!);
+  await page.waitForLoadState("networkidle");
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
   await page.addInitScript(() => Object.defineProperty(navigator, "globalPrivacyControl", { value:true }));
   await page.goto(origin);
@@ -90,3 +92,17 @@ test("blocking Google leaves navigation usable", async ({page, baseURL}) => {
   await expect(page).toHaveURL(`${origin}/plan`);
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
 });
+
+
+test("installed-user guidance is visible without contacting a local service", async ({page, baseURL}) => {
+  await isolatedSite(page, baseURL!);
+  const localRequests: string[] = [];
+  page.on("request", request => { if (/^http:\/\/(127\.0\.0\.1|localhost):8765/.test(request.url())) localRequests.push(request.url()); });
+  await page.goto(origin);
+  await page.getByRole("navigation", { name:"メインナビゲーション" }).getByRole("link", {name:"インストール済みの方"}).click();
+  await expect(page.locator("#launch")).toBeInViewport();
+  await expect(page.locator("#launch")).toContainText("ブラウザで開く");
+  await expect(page.locator("#launch")).toContainText("再ダウンロード・再インストールは不要です。");
+  expect(localRequests).toEqual([]);
+});
+

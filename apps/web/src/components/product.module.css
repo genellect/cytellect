@@ -44,3 +44,5 @@
 @media(max-height:500px){.hero{padding-top:90px;padding-bottom:24px}.hero h1{font-size:min(6.4vw,9svh);margin-bottom:18px}.heroActions{margin-top:0}.hero .primary{min-height:44px;padding-block:10px}}
 
 @media(min-width:761px) and (max-width:1000px) and (max-aspect-ratio:1/1){.hero{align-items:flex-start;padding-top:115px}.cellCanvas{top:44%;height:56%}.cellPoster{top:44%;height:56%;object-position:right bottom}}
+
+.installed{scroll-margin-top:100px;margin-top:48px;padding:28px 0;border-top:1px solid #9abaff40;max-width:760px}.installed h3{font-size:20px;font-weight:550;margin:0 0 12px}.installed p{font-size:16px;line-height:1.85;margin:8px 0;color:#e3eaf5}
