@@ -201,6 +201,8 @@ jobs:
         run: |
           docker compose config --quiet
           uv run pytest tests/test_proposal_compose.py -q
+      - name: Build production web container with planning fixtures
+        run: docker build -f infra/Dockerfile.web -t cytellect-web-ci .
       - name: Build production worker container
         run: docker build --target worker -f infra/Dockerfile.python -t cytellect-worker-ci .
       - name: Actual Fiji in non-root offline read-only container
