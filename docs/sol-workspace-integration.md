@@ -70,9 +70,12 @@ the relay secret target is explicitly `/run/secrets/proposal_device_token`.
 The focused migration/upload suite passed28 tests locally. Compose is unavailable
 in this local shell, so the actual merged configuration still requires CI proof.
 
-The first approved live Sol evaluation stopped at its first provider error;
-no successful proposal was received. Its external cumulative ledger retains the
-unknown-cost reservation (about0.217 USD), rather than treating it as a confirmed
-charge or releasing it for another run. Provider diagnostics must be classified
-before retrying. The approval remains5 USD total across all attempts; paid
-production use remains disabled.
+The first approved live Sol evaluation stopped at its first provider error.
+After adding bounded allowlisted diagnostics, a second attempt identified
+HTTP429 `insufficient_quota`. No successful proposal was received; further
+requests are stopped pending the operator's billing/quota resolution. The
+external cumulative ledger conservatively retains both reservations (about0.434
+USD), rather than treating them as confirmed charges or resetting the cap.
+The approval remains5 USD total across all attempts; paid production use remains
+disabled. All43 provider/ledger/contract unit tests passed; the live evaluation
+did not pass.
