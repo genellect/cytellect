@@ -64,3 +64,13 @@ and bounded memory/process count. It verifies loopback-only interfaces and a
 denied outbound socket, then runs the actual pinned Fiji detector on known
 synthetic pixels. This is infrastructure evidence, not scientific performance
 on user images or acceptance of an Internet-facing production host.
+
+## Public landing-page analytics
+
+Only the production landing page at `https://cytellect.vercel.app/` uses the COMPASS official GA4 destination `G-EHKJ8B8N0Y`. Its separate `/lp-metrics.html` document owns the Google tag and is destroyed on leaving the LP. The application shell, `/plan`, `/demo`, API-enabled builds, local installations, previews and development hosts do not load the tag. The main document CSP continues to exclude Google; only the metrics document permits the required Google script and collection hosts.
+
+The LP sends a fixed canonical page URL/title, the referring HTTPS origin (without its path/query), and allowlisted interaction names. No URL query/hash, link URL, user-entered text, filenames, study metadata, images, measurements or application state is included. The same-origin iframe separates lifecycle, not access permissions: it is not a sandbox against a compromised third-party script. Google may use analytics cookies for visitor/session measurement; advertising consent is denied and Google signals/personalization are disabled. Browser Do Not Track and Global Privacy Control suppress the tag. Blocking it never blocks the product links. There is no session recording.
+
+Events: `page_view`, `download_click` (public Windows package link, not installation success), `download_section_click`, `example_click`, `planning_click`, `launch_help_click`, and `guide_click` (fixed `content_id`: guide/quickstart/methods/setup/figures). GA4's ordinary session/engagement events may also be produced within that isolated public document. Use Hostname = `cytellect.vercel.app` to separate these results from COMPASS. No cross-domain user stitching or shared-stream administration change is required for this addition.
+
+Automated browser checks intercept the Google script and do not populate production reports. Production verification separately checks real tag/collection requests and absence of the tag after navigating away. A browser request is not proof that GA4 reports have processed the event; Realtime/DebugView confirmation requires access to that GA4 property.
