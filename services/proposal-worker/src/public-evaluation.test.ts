@@ -1,6 +1,6 @@
 /** Paid evaluation is never run by ordinary CI: both explicit flags and a cap are required. */
 import { describe, expect, it } from "vitest";
-import { draftProposal, inputTokenCeiling, MODEL, ModelError } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost } from "./openai";
 import { expectedBehavior, PUBLIC_CASES } from "./public-cases";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
@@ -44,8 +44,10 @@ describe("public proposal evaluation", () => {
       .filter((name) => typeof env[name] === "string").map((name) => [name, env[name]]));
     const oracleOptions = { cwd: root, encoding: "utf8", env: oracleEnv, timeout: 15_000, maxBuffer: 512 * 1024 };
     // Probe the local oracle before any paid request; never print its raw stderr.
-    const probe = spawnSync(python, ["-c", "import cytellect_analysis.proposal_validation"], oracleOptions);
+    const probe = spawnSync(python, [helper], { ...oracleOptions,
+      input: JSON.stringify({ context: PUBLIC_CASES[0].context, draft: {} }) });
     expect(probe.status, "local semantic validator must be installed first").toBe(0);
+    expect(JSON.parse(probe.stdout).codes).toContain("proposal_shape_invalid");
     const settings = { ...authentication, model: MODEL, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
     const ledger = await EvaluationLedger.open(env.CYTELLECT_PUBLIC_EVAL_LEDGER, root, budget);
     const report: Record<string, unknown>[] = [];
@@ -76,6 +78,15 @@ describe("public proposal evaluation", () => {
             latency_ms: Date.now() - started, calls: result.calls, input_tokens: result.inputTokens, output_tokens: result.outputTokens,
             accounted_upper_usd: cost });
         } catch (error) {
+          if (error instanceof ModelError && error.observedUsage) {
+            ledger.settle(reservation, Math.max(reserved, observedCost(error.observedUsage, 2.5, 0.1, 10)), error.observedUsage);
+            throw new Error("public_evaluation_usage_reconciliation_required");
+          }
+          if (error instanceof Error && error.message === "semantic_oracle_failed") {
+            report.push({ id: item.id, repetition, outcome: "semantic_oracle_failed" });
+            console.info(JSON.stringify({ model: MODEL, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
+            throw error;
+          }
           // Do not settle or expire unknown billing; its durable hold still counts.
           report.push({ id: item.id, repetition, outcome: "request_failed", latency_ms: Date.now() - started,
             ...(error instanceof ModelError ? { error_code: error.code, provider_http_status: error.providerHttpStatus,

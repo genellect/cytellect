@@ -11,7 +11,9 @@ from cytellect_analysis.proposal_validation import ProposalRejected, validate_dr
 
 
 def main() -> None:
-    request = json.load(sys.stdin)
+    # JSON over a pipe is UTF-8. Windows locale defaults can otherwise corrupt
+    # Japanese goals before Pydantic sees them; never rely on console encoding.
+    request = json.loads(sys.stdin.buffer.read())
     try:
         validated = validate_draft(
             ProposalContext.model_validate(request["context"]), request["draft"],

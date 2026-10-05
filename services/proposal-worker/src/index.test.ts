@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { checkRequest, handle, readConfig, worstCaseUsd, type Env } from "./index";
-import { hasDraftShape } from "./openai";
+import { hasDraftShape, observedCost } from "./openai";
 import { MemoryStore } from "./store";
 
 const DRAFT = {
@@ -221,8 +221,6 @@ describe("proposal service", () => {
 
   it.each([
     { input_tokens: 0, output_tokens: 0 },
-    { input_tokens: 1000, output_tokens: 100_000 },
-    { input_tokens: 1_000_000, output_tokens: 200 },
   ])("does not release a reservation based on contradictory usage %j", async (usage) => {
     const store = new MemoryStore();
     const token = await device(store);
@@ -231,6 +229,19 @@ describe("proposal service", () => {
     expect([...store.spent.values()][0]).toBe(worstCaseUsd(readConfig(ENV)!, CONTEXT, []));
     expect(store.usage.size).toBe(0);
   });
+
+  it.each([{ input_tokens: 1000, output_tokens: 100_000 }, { input_tokens: 1_000_000, output_tokens: 200 }])(
+    "accounts larger reported usage and rejects the result without a repair call %j", async (usage) => {
+      const store = new MemoryStore(), token = await device(store);
+      const fetcher = vi.fn(async () => modelReply(JSON.stringify(DRAFT), usage));
+      const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
+      expect(response.status).toBe(502);
+      expect(await response.json()).toEqual({ code: "model_usage_exceeded" });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect([...store.spent.values()][0]).toBe(Math.max(worstCaseUsd(readConfig(ENV)!, CONTEXT, []),
+        observedCost({ inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, cachedInputTokens: 0, calls: 1 }, 2.5, 0.1, 10)));
+      expect([...store.usage.values()][0].inputTokens).toBe(usage.input_tokens);
+    });
 
   it("does not accept a text result accompanied by a refusal", async () => {
     const store = new MemoryStore();

@@ -48,6 +48,13 @@ export interface ModelSettings {
 export interface Preview { channel: string; png_base64: string }
 
 export interface ModelResult { draft: unknown; inputTokens: number; outputTokens: number; cachedInputTokens: number; usageComplete: boolean }
+export interface ObservedUsage { inputTokens: number; outputTokens: number; cachedInputTokens: number; calls: number }
+export function observedCost(usage: ObservedUsage, inputRate: number, cachedRate: number, outputRate: number): number {
+  const long = usage.inputTokens > 272_000;
+  return ((usage.inputTokens - usage.cachedInputTokens) * inputRate * (long ? 2 : 1)
+    + usage.cachedInputTokens * cachedRate * (long ? 2 : 1)
+    + usage.outputTokens * outputRate * (long ? 1.5 : 1)) / 1e6;
+}
 
 const PROVIDER_ERROR_CODES = new Set([
   "model_not_found", "invalid_api_key", "insufficient_quota", "rate_limit_exceeded",
@@ -60,8 +67,8 @@ export class ModelError extends Error {
   readonly providerHttpStatus?: number;
   readonly providerErrorCode?: string;
 
-  constructor(readonly code: "model_unavailable" | "model_refused" | "model_output_invalid" | "model_output_incomplete",
-    diagnostics?: { status: unknown; code: unknown }) {
+  constructor(readonly code: "model_unavailable" | "model_refused" | "model_output_invalid" | "model_output_incomplete" | "model_usage_exceeded",
+    diagnostics?: { status: unknown; code: unknown }, readonly observedUsage?: ObservedUsage) {
     super(code);
     if (typeof diagnostics?.status === "number" && Number.isInteger(diagnostics.status)
       && diagnostics.status >= 100 && diagnostics.status <= 599) this.providerHttpStatus = diagnostics.status;
@@ -165,14 +172,16 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
     const output = body.usage?.output_tokens;
     const cached = body.usage?.input_tokens_details?.cached_tokens ?? 0;
     if (typeof input !== "number" || !Number.isSafeInteger(input) || input <= 0
-      || input > inputTokenCeiling(settings, context, previews)
-      || typeof output !== "number" || !Number.isSafeInteger(output) || output <= 0 || output > settings.maxOutputTokens
+      || typeof output !== "number" || !Number.isSafeInteger(output) || output <= 0
       || !Number.isSafeInteger(cached) || cached < 0 || cached > input) {
       usageComplete = false;
     } else {
       inputTokens += input;
       outputTokens += output;
       cachedInputTokens += cached;
+      if (input > inputTokenCeiling(settings, context, previews) || output > settings.maxOutputTokens) {
+        throw new ModelError("model_usage_exceeded", undefined, { inputTokens, outputTokens, cachedInputTokens, calls: call });
+      }
     }
     // An incomplete answer can consume its entire reasoning budget without JSON.
     // Repeating the same budget cannot fix it: return a classified error, no hidden retry.

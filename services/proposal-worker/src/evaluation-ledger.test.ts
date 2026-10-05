@@ -71,7 +71,7 @@ describe("durable public evaluation budget", () => {
     ledger.close();
     const resumed = await EvaluationLedger.open(p.ledger, p.checkout, 5);
     expect(() => resumed.reserve("next-case", 1)).toThrow("reconciliation_required");
-    expect(resumed.accountedUsd()).toBe(1);
+    expect(resumed.accountedUsd()).toBe(1.1);
     resumed.close();
   });
 

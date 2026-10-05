@@ -118,6 +118,8 @@ export class EvaluationLedger {
       if (!hold) throw new Error("evaluation_reservation_missing");
       if (hold.state === "settled") { this.db.exec("COMMIT;"); return; }
       if (spent > hold.reserved_nano) {
+        this.db.prepare("UPDATE charges SET state='settled',spent_nano=?,input_tokens=?,cached_input_tokens=?,output_tokens=?,calls=? WHERE id=?")
+          .run(spent, usage?.inputTokens ?? null, usage?.cachedInputTokens ?? null, usage?.outputTokens ?? null, usage?.calls ?? null, id);
         this.db.exec("UPDATE approval SET blocked=1 WHERE id=1; COMMIT;");
         throw new Error("evaluation_ledger_reconciliation_required");
       }

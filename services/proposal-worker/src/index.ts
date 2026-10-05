@@ -6,7 +6,7 @@
  * returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, type Preview, type ReasoningEffort } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
@@ -207,7 +207,10 @@ export async function handle(request: Request, env: Env, store: Store, options: 
       return json(200, { draft: result.draft, model: config.model, prompt_version: PROMPT_VERSION });
     } catch (error) {
       // Usage of a failed call is unknown here: settle conservatively at the reserved amount.
-      await store.settle(reservation, period, amount);
+      const usage = error instanceof ModelError ? error.observedUsage : undefined;
+      await store.settle(reservation, period, usage
+        ? Math.max(amount, observedCost(usage, config.priceCacheWrite, config.priceCachedIn, config.priceOut)) : amount,
+      usage ? { ...usage, model: config.model, promptVersion: PROMPT_VERSION } : undefined);
       const code = error instanceof ModelError ? error.code : "model_unavailable";
       return failure(code === "model_unavailable" ? 503 : 502, code);
     }
