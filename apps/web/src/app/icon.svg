@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cytellect">
+  <defs>
+    <radialGradient id="nucleus" cx="40%" cy="36%" r="75%">
+      <stop offset="0" stop-color="#8dbbff"/>
+      <stop offset="1" stop-color="#236bf1"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#030916"/>
+  <path d="M33.5 9.5c9.6.4 18.3 6.9 20.4 16.6 2 9.4-1.6 19.6-9.7 24.6-7.6 4.7-18.3 5-25.6-.5C11.1 44.5 8.6 34 11.7 25.3 14.6 16.8 23.3 9.1 33.5 9.5Z" fill="#236bf1" fill-opacity=".14" stroke="#5d91ff" stroke-opacity=".7" stroke-width="2.4"/>
+  <ellipse cx="34.5" cy="33" rx="12.5" ry="10.5" transform="rotate(-24 34.5 33)" fill="url(#nucleus)"/>
+  <circle cx="37.6" cy="30.2" r="3.1" fill="#f3f3ef"/>
+  <circle cx="30.6" cy="36.4" r="1.8" fill="#f3f3ef" fill-opacity=".75"/>
+</svg>
