@@ -49,7 +49,7 @@ describe("proposal service", () => {
     const log = vi.spyOn(console, "log");
     const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ draft: DRAFT, model: "gpt-6.1-sol", prompt_version: "2026-10-05.2" });
+    expect(await response.json()).toEqual({ draft: DRAFT, model: "gpt-6.1-sol", prompt_version: "2026-10-06.1" });
     const sent = JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(sent.store).toBe(false);
     expect(sent.reasoning).toEqual({ effort: "medium" });

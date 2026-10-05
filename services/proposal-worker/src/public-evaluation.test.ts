@@ -1,6 +1,6 @@
 /** Paid evaluation is never run by ordinary CI: both explicit flags and a cap are required. */
 import { describe, expect, it } from "vitest";
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost, type Preview } from "./openai";
 import { expectedBehavior, PUBLIC_CASES } from "./public-cases";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
@@ -49,12 +49,31 @@ describe("public proposal evaluation", () => {
     expect(probe.status, "local semantic validator must be installed first").toBe(0);
     expect(JSON.parse(probe.stdout).codes).toContain("proposal_shape_invalid");
     const settings = { ...authentication, model: MODEL, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
+    const cases = PUBLIC_CASES.map(item => ({ ...item, previews: [] as Preview[] }));
+    if (env.CYTELLECT_PUBLIC_EVAL_PREVIEWS_FILE) {
+      const fsModule = "node:fs", cryptoModule = "node:crypto";
+      const { readFileSync } = await import(fsModule);
+      const { createHash } = await import(cryptoModule);
+      const fixture = JSON.parse(readFileSync(env.CYTELLECT_PUBLIC_EVAL_PREVIEWS_FILE, "utf8"));
+      expect(fixture.dataset).toBe("BBBC013v1");
+      const manifest = readFileSync(resolve(root, "fixtures/public/bbbc013/manifest.json"));
+      expect(fixture.source_manifest_sha256).toBe(createHash("sha256").update(manifest).digest("hex"));
+      expect(fixture.previews.map((p: Preview) => p.channel)).toEqual(["ch1", "ch2"]);
+      for (const p of fixture.previews) expect(p.png_base64.startsWith("iVBORw0KGgo") && p.png_base64.length < 180_000).toBe(true);
+      for (const known of [true, false]) cases.push({
+        id: known ? "bbbc013-gfp-preview" : "bbbc013-unknown-preview", recipes: ["nuclear-intensity"], metric: "mean_raw", kind: "descriptive",
+        context: { ...PUBLIC_CASES[2].context, field_count: 1,
+          goal: "核内のch2の補正前平均輝度を示す。染色の同定や独立反復の推測はしない。",
+          channels: [{ token: "ch1", stain: "DRAQ", role: "nuclear" }, { token: "ch2", stain: known ? "GFP" : null, role: "measure" }] },
+        previews: fixture.previews,
+      });
+    }
     const ledger = await EvaluationLedger.open(env.CYTELLECT_PUBLIC_EVAL_LEDGER, root, budget);
     const report: Record<string, unknown>[] = [];
     try {
       for (let repetition = 0; repetition < repeats; repetition += 1) {
-        for (const item of PUBLIC_CASES) {
-        const reserved = 2 * (inputTokenCeiling(settings, item.context, []) * 2.5 + settings.maxOutputTokens * 10) / 1e6;
+        for (const item of cases) {
+        const reserved = 2 * (inputTokenCeiling(settings, item.context, item.previews) * 2.5 + settings.maxOutputTokens * 10) / 1e6;
         // The committed file-backed hold precedes the first provider call. A crash
         // leaves it in place; another process or later run cannot reset the cap.
         const reservation = ledger.reserve(item.id, reserved);
@@ -65,7 +84,7 @@ describe("public proposal evaluation", () => {
         }
         const started = Date.now();
         try {
-          const result = await draftProposal(settings, item.context, []);
+          const result = await draftProposal(settings, item.context, item.previews);
           const cost = result.usageComplete
             ? ((result.inputTokens - result.cachedInputTokens) * 2.5 + result.cachedInputTokens * 0.1 + result.outputTokens * 10) / 1e6 : reserved;
           if (result.usageComplete) ledger.settle(reservation, cost, {
