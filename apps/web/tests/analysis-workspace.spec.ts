@@ -3,8 +3,8 @@ import { expect, test, type Page } from "@playwright/test";
 /** Single-workspace prototype with recorded public BBBC013 outputs (no analysis API). */
 
 async function adoptPublicSample(page: Page) {
-  await page.goto("/workspace");
-  await page.getByRole("button", { name: "公開画像で試す" }).click();
+  // The registered example opens only from a link (site or review), never from the workspace UI.
+  await page.goto("/workspace?demo=bbbc013");
   await expect(page.getByRole("heading", { name: "解析案" })).toBeVisible();
   // Index-only names never establish stains; the only decision is one click on the nuclear channel.
   await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
@@ -20,7 +20,9 @@ test("adds images, adopts one proposal and inspects fields while the run continu
   await page.goto("/workspace");
   // No workspace form or method choice precedes adding images.
   await expect(page.getByRole("heading", { name: "画像を追加" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "フォルダを追加" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "フォルダを選択" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "解析の流れ" }).getByRole("listitem")).toHaveCount(3);
+  await expect(page.getByText(/公開画像|サンプル/)).toHaveCount(0);
   await adoptPublicSample(page);
   await expect(page.getByRole("status").filter({ hasText: "解析中" })).toBeVisible();
   await expect(page.locator("polygon[data-region]").first()).toBeVisible();
@@ -56,10 +58,10 @@ test("a figure point opens its source image and region, and exports are actual o
   await expect(page.locator('polygon[data-region="5"]')).toHaveClass(/outlineSelected/);
   await page.getByRole("button", { name: /測定値/ }).click();
   await expect(page.locator('tr[aria-selected="true"] th')).toHaveText("5");
-  await page.getByText("書き出し", { exact: true }).click();
+  await page.locator("summary", { hasText: "書き出し" }).click();
   const svg = await page.getByRole("link", { name: "SVG" }).getAttribute("href");
   expect((await page.request.get(svg!)).headers()["content-type"]).toContain("svg");
-  await expect(page.getByText("PDFは解析APIの接続後に作成します")).toBeVisible();
+  await expect(page.getByText("プロトタイプでは未対応")).toBeVisible();
 });
 
 test("added files are grouped once and a prototype failure stays on that field", async ({ page }) => {
@@ -71,14 +73,14 @@ test("added files are grouped once and a prototype failure stays on that field",
     { name: "A02_gfp.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("x") },
   ]);
-  await expect(page.getByText("1 件はTIFF以外のため追加しませんでした。")).toBeVisible();
-  await expect(page.getByText("2 視野 · 解析案を確認")).toBeVisible();
+  await expect(page.getByText("TIFF以外の 1 件は追加していません")).toBeVisible();
+  await expect(page.getByText("2 視野", { exact: true })).toBeVisible();
   // A named nuclear stain needs no channel decision at all.
-  await expect(page.getByText("核検出: DAPI（ファイル名から）")).toBeVisible();
+  await expect(page.getByText("核検出：DAPI（ファイル名）")).toBeVisible();
   await expect(page.getByRole("button", { name: "解析を実行" })).toBeEnabled();
   await page.getByRole("button", { name: "解析を実行" }).click();
   await expect(page.getByText("完了 0/2 · 要確認 2")).toBeVisible({ timeout: 20000 });
-  await expect(page.getByRole("alert").filter({ hasText: "再実行" })).toContainText("追加した画像の解析は実行しません");
+  await expect(page.getByRole("alert").filter({ hasText: "再実行" })).toContainText("この画像はプロトタイプでは解析できません");
 });
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]) {
@@ -86,7 +88,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
     await page.setViewportSize(viewport);
     await adoptPublicSample(page);
     await expect(page.getByText("完了 3/3")).toBeVisible({ timeout: 20000 });
-    await expect(page.getByText("書き出し", { exact: true })).toBeInViewport();
+    await expect(page.locator("summary", { hasText: "書き出し" })).toBeInViewport();
     await expect(page.getByRole("img", { name: /の画像$/ })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);

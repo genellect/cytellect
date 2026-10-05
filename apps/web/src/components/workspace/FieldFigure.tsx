@@ -82,7 +82,7 @@ export function FieldFigure({ points, summaries, labels, metricLabel, widthMm, h
           );
         })}
       </svg>
-      <figcaption>1点は1領域です。帯は四分位範囲、横線は視野内の中央値です。視野数・領域数は独立した実験反復数ではありません。</figcaption>
+      <figcaption>点：領域　帯：四分位範囲　線：中央値　n：領域数（独立した反復数ではない）</figcaption>
     </figure>
   );
 }

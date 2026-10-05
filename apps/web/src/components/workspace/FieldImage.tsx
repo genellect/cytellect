@@ -15,7 +15,7 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
   label: string;
 }) {
   if (!src || !size) {
-    return <div className={styles.imageEmpty}><p>この画像のプレビューはありません。</p></div>;
+    return <div className={styles.imageEmpty}><p>プレビューなし</p></div>;
   }
   return (
     <div className={styles.imageFrame}>
@@ -34,7 +34,7 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
           );
         })}
       </svg>
-      {analyzed && !outlines.length && <p className={styles.imageNote}>この視野の領域の輪郭は、このプロトタイプに収録されていません。測定値は下の表とグラフで確認できます。</p>}
+      {analyzed && !outlines.length && <p className={styles.imageNote}>輪郭データなし（測定値は表・グラフで確認）</p>}
     </div>
   );
 }

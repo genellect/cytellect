@@ -10,7 +10,7 @@ import type { AddedFile } from "./grouping";
 import type { FieldResult, Region, WorkspaceState } from "./model";
 import { regionState } from "./model";
 
-export interface ExportLink { label: string; href?: string; reason?: string }
+export interface ExportLink { label: string; href?: string; detail?: string; reason?: string }
 
 export interface WorkspaceAdapter {
   kind: "prototype" | "api";
@@ -50,7 +50,7 @@ export function createPrototypeAdapter(options: { delayMs?: number; fetcher?: ty
   const ensure = async () => {
     if (!sample) {
       const response = await fetcher(SAMPLE_URL);
-      if (!response.ok) throw new Error("公開画像を読み込めませんでした。");
+      if (!response.ok) throw new Error("公開画像を読み込めません");
       sample = await response.json() as Sample;
       for (const field of sample.fields) byKey.set(fieldKey(field.channels[0].source_name), field);
     }
@@ -63,7 +63,7 @@ export function createPrototypeAdapter(options: { delayMs?: number; fetcher?: ty
       const files = data.fields.flatMap((field) => field.channels.map((channel) => ({
         path: `${FOLDER}/${channel.source_name}`, size: 0,
       })));
-      return { name: `${data.dataset} 公開画像`, files, attribution: `${data.attribution} ${data.license}` };
+      return { name: "解析例（BBBC013）", files, attribution: `${data.attribution} ${data.license}` };
     },
     preview(field, token) {
       return byKey.get(field)?.channels.find((item) => channelToken(item) === token)?.preview ?? null;
@@ -80,7 +80,7 @@ export function createPrototypeAdapter(options: { delayMs?: number; fetcher?: ty
       await ensure();
       await new Promise((resolve) => setTimeout(resolve, delay));
       const sampleField = byKey.get(field);
-      if (!sampleField) throw new Error("この公開プロトタイプでは、追加した画像の解析は実行しません。");
+      if (!sampleField) throw new Error("この画像はプロトタイプでは解析できません");
       // Recorded values are keyed by the channel token the grouping produced.
       const measured = sampleField.channels.find((item) => item.recorded_role === "gfp");
       const token = measured ? channelToken(measured) : null;
@@ -96,12 +96,12 @@ export function createPrototypeAdapter(options: { delayMs?: number; fetcher?: ty
     },
     exports(state) {
       const corrected = state.corrections.length > 0;
-      const reason = corrected ? "修正後の書き出しは解析APIの接続後に作成します" : undefined;
+      const reason = corrected ? "修正後の書き出しはプロトタイプでは未対応" : undefined;
       return [
-        { label: "SVG", href: corrected ? undefined : "/marketing/figure-public.svg", reason },
-        { label: "CSV", href: corrected ? undefined : "/marketing/figure-public.csv", reason },
-        { label: "図の説明", href: corrected ? undefined : "/marketing/figure-caption.md", reason },
-        { label: "PDF", reason: "PDFは解析APIの接続後に作成します" },
+        { label: "SVG", detail: "編集可能なグラフ", href: corrected ? undefined : "/marketing/figure-public.svg", reason },
+        { label: "CSV", detail: "全領域の測定値", href: corrected ? undefined : "/marketing/figure-public.csv", reason },
+        { label: "図の説明", detail: "凡例・解析条件", href: corrected ? undefined : "/marketing/figure-caption.md", reason },
+        { label: "PDF", reason: "プロトタイプでは未対応" },
       ];
     },
   };

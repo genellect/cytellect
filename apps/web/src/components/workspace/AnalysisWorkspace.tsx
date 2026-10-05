@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type DragEvent, type RefObject } from "react";
+import Link from "next/link";
 import { fieldDistribution, type WorkspaceAdapter } from "@/lib/workspace/adapter";
 import { groupFiles, isSupportedImage, type AddedFile } from "@/lib/workspace/grouping";
 import { initialState, phase, progress, reducer, regionState, type Selection } from "@/lib/workspace/model";
@@ -20,7 +21,7 @@ function toAdded(list: FileList | File[]): { files: AddedFile[]; skipped: number
   return { files, skipped };
 }
 
-export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapter }) {
+export default function AnalysisWorkspace({ adapter, demo = false }: { adapter: WorkspaceAdapter; demo?: boolean }) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
   const [added, setAdded] = useState<AddedFile[]>([]);
   const [notice, setNotice] = useState("");
@@ -47,7 +48,7 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
     const all = [...added, ...files];
     setAdded(all);
     dispatch({ type: "imported", name: state.name || name, grouping: groupFiles(all) });
-    setNotice(skipped ? `${skipped} 件はTIFF以外のため追加しませんでした。` : "");
+    setNotice(skipped ? `TIFF以外の ${skipped} 件は追加していません` : "");
   }, [added, state.adopted, state.name]);
 
   const loadSample = async () => {
@@ -58,9 +59,17 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
       setNotice("");
       setSource(sample.attribution);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "公開画像を読み込めませんでした。");
+      setNotice(error instanceof Error ? error.message : "公開画像を読み込めません");
     }
   };
+
+  // Review and test entry only (?demo=bbbc013); the public demo itself belongs to the site.
+  const demoLoaded = useRef(false);
+  useEffect(() => {
+    if (!demo || demoLoaded.current) return;
+    demoLoaded.current = true;
+    void loadSample();
+  });
 
   // Concurrency 1: run the next waiting field; every field commits independently.
   useEffect(() => {
@@ -71,7 +80,7 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
     dispatch({ type: "field-started", field: next });
     adapter.run(next)
       .then((result) => dispatch({ type: "field-done", field: next, result }))
-      .catch((error: unknown) => dispatch({ type: "field-failed", field: next, error: error instanceof Error ? error.message : "解析できませんでした。" }))
+      .catch((error: unknown) => dispatch({ type: "field-failed", field: next, error: error instanceof Error ? error.message : "解析できません" }))
       .finally(() => { running.current = false; });
   }, [adapter, state.runs, state.stopped]);
 
@@ -88,7 +97,7 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
     event.preventDefault();
     const { files, skipped } = toAdded(event.dataTransfer.files);
     if (files.length) addFiles(files, "新しいワークスペース", skipped);
-    else setNotice("TIFF画像が見つかりませんでした。");
+    else setNotice("TIFF画像がありません");
   };
 
   const select = (selection: Selection | null) => dispatch({ type: "select", selection });
@@ -107,22 +116,28 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
   if (current === "empty") {
     return (
       <main className={styles.shell}>
-        <header className={styles.header}><span className={styles.brand}>cytellect</span></header>
-        <section className={styles.empty} onDragOver={(event) => event.preventDefault()} onDrop={onDrop} aria-labelledby="empty-title">
-          <h1 id="empty-title">画像を追加</h1>
-          <p>TIFF・OME-TIFFのファイル、またはフォルダをここにドロップします。視野とチャンネルは自動で整理します。</p>
-          <div className={styles.actions}>
-            <button type="button" className={styles.primary} onClick={() => fileInput.current?.click()}>画像を追加</button>
-            <button type="button" className={styles.secondary} onClick={() => folderInput.current?.click()}>フォルダを追加</button>
-            <button type="button" className={styles.link} onClick={loadSample}>公開画像で試す</button>
-          </div>
-          <label className={styles.goal}>解析の目的（任意）
-            <textarea value={state.goal} rows={2} placeholder="例: GFP陽性の細胞で、核小体と核質のNCL輝度を比較したい"
-              onChange={(event) => dispatch({ type: "goal", goal: event.target.value })} />
-          </label>
-          {notice && <p className={styles.notice} role="status">{notice}</p>}
-        </section>
-        <FileInputs fileInput={fileInput} folderInput={folderInput} onFiles={(list) => { const { files, skipped } = toAdded(list); if (files.length) addFiles(files, "新しいワークスペース", skipped); else setNotice("TIFF画像が見つかりませんでした。"); }} />
+        <header className={styles.header}><Link href="/" className={styles.brand}>cytellect</Link></header>
+        <div className={styles.start}>
+          <section className={styles.empty} onDragOver={(event) => event.preventDefault()} onDrop={onDrop} aria-labelledby="empty-title">
+            <h1 id="empty-title">画像を追加</h1>
+            <p>TIFF / OME-TIFF のファイル、またはフォルダをここにドロップ</p>
+            <div className={styles.actions}>
+              <button type="button" className={styles.primary} onClick={() => fileInput.current?.click()}>ファイルを選択</button>
+              <button type="button" className={styles.secondary} onClick={() => folderInput.current?.click()}>フォルダを選択</button>
+            </div>
+            <label className={styles.goal}>解析の目的（任意）
+              <textarea value={state.goal} rows={2} placeholder="例：GFP陽性細胞で、核小体と核質のNCL輝度を比較"
+                onChange={(event) => dispatch({ type: "goal", goal: event.target.value })} />
+            </label>
+            {notice && <p className={styles.notice} role="status">{notice}</p>}
+          </section>
+          <ol className={styles.steps} aria-label="解析の流れ">
+            <li><b>画像を追加</b><span>同じ視野のチャンネル（例：A01_DAPI.tif と A01_GFP.tif）は、ファイル名から1つの視野にまとめます。</span></li>
+            <li><b>解析案を確認して実行</b><span>検出する領域・測定項目・グラフが表示されます。「解析を実行」で、核の検出から測定、グラフ作成まで進みます。</span></li>
+            <li><b>確認・修正・書き出し</b><span>画像の核を選んで除外・削除すると、測定値とグラフに反映されます。グラフと測定値は SVG / CSV で保存できます。</span></li>
+          </ol>
+        </div>
+        <FileInputs fileInput={fileInput} folderInput={folderInput} onFiles={(list) => { const { files, skipped } = toAdded(list); if (files.length) addFiles(files, "新しいワークスペース", skipped); else setNotice("TIFF画像がありません"); }} />
       </main>
     );
   }
@@ -131,29 +146,34 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
   return (
     <main className={styles.shell} onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
       <header className={styles.header}>
-        <span className={styles.brand}>cytellect</span>
+        <Link href="/" className={styles.brand}>cytellect</Link>
         <h1 className={styles.title}>{state.name}</h1>
         <p className={styles.status} role="status" aria-live="polite">
-          {current === "proposal" && `${fields.length} 視野 · 解析案を確認`}
+          {current === "proposal" && `${fields.length} 視野`}
           {current === "running" && `解析中 ${counts.done}/${counts.total}`}
           {current === "results" && `完了 ${counts.done}/${counts.total}${counts.failed ? ` · 要確認 ${counts.failed}` : ""}${state.stopped ? " · 中断" : ""}`}
         </p>
         <div className={styles.headerActions}>
           {current === "running" && <button type="button" className={styles.secondary} onClick={() => dispatch({ type: "stop" })}>中断</button>}
-          <button type="button" className={styles.secondary} disabled={Boolean(state.adopted)} title={state.adopted ? "解析開始後の追加は解析APIの接続後に対応します" : undefined}
+          <button type="button" className={styles.secondary} disabled={Boolean(state.adopted)} title={state.adopted ? "プロトタイプでは解析開始後に追加できません" : undefined}
             onClick={() => fileInput.current?.click()}>画像を追加</button>
           <details className={styles.menu}>
             <summary className={styles.secondary}>書き出し</summary>
             <ul>
               {exports.map((item) => (
-                <li key={item.label}>{item.href ? <a href={item.href} download>{item.label}</a> : <span aria-disabled="true" title={item.reason}>{item.label}<small>{item.reason}</small></span>}</li>
+                <li key={item.label}>{item.href
+                  ? <a href={item.href} download>{item.label}<small>{item.detail}</small></a>
+                  : <span aria-disabled="true">{item.label}<small>{item.reason}</small></span>}</li>
               ))}
             </ul>
           </details>
-          <button type="button" className={styles.iconButton} aria-pressed={panel} aria-label="操作パネル" onClick={() => setPanel(!panel)}>☰</button>
+          <button type="button" className={styles.iconButton} aria-pressed={panel} aria-label="操作パネル" onClick={() => setPanel(!panel)}>
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="1" fill="none" stroke="currentColor" /><path d="M12.5 3.5v13" stroke="currentColor" /></svg>
+          </button>
         </div>
       </header>
       {notice && <p className={styles.banner} role="status">{notice}</p>}
+      {current === "running" && <p className={styles.banner}>完了した画像から順に結果を確認できます。</p>}
 
       <div className={[styles.layout, panel ? "" : styles.layoutNoPanel].join(" ")}>
         <nav className={styles.sidebar} aria-label="画像とグラフ">
@@ -180,11 +200,11 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
                 const active = selection?.view === "figure" && state.figure.metric === item.key;
                 return <li key={item.key}><button type="button" aria-current={active ? "true" : undefined}
                   onClick={() => { dispatch({ type: "figure", settings: { metric: item.key } }); select({ view: "figure", figure: item.key }); }}>
-                  <span>{item.label}</span><span className={styles.muted}>視野ごとの分布</span></button></li>;
+                  <span>{item.label}</span><span className={styles.muted}>視野別の分布</span></button></li>;
               })}
             </ul>
           </>}
-          {source && <p className={styles.source}>出典: {source}</p>}
+          {source && <p className={styles.source}>出典　{source}</p>}
         </nav>
 
         <section className={styles.center} aria-label="表示">
@@ -236,6 +256,16 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
                 <textarea className={styles.textarea} rows={3} value={state.goal} onChange={(event) => dispatch({ type: "goal", goal: event.target.value })} />
               </section>
             )}
+            {current === "results" && !selectedRegion && selection?.view !== "figure" && (
+              <section className={styles.panelSection} aria-labelledby="next-title">
+                <h3 id="next-title">次の操作</h3>
+                <ol className={styles.nextSteps}>
+                  <li><b>領域を確認</b>画像上の核をクリックすると、測定値の確認と除外・削除ができます。</li>
+                  <li><b>グラフを見る</b>左の「グラフ」から、視野別の分布を開きます。</li>
+                  <li><b>書き出し</b>右上の「書き出し」から、グラフ（SVG）と測定値（CSV）を保存します。</li>
+                </ol>
+              </section>
+            )}
             {current !== "proposal" && selection?.view !== "figure" && selectedField && (
               <RegionPanel field={selectedField} region={selectedRegion} state={state} dispatch={dispatch} metrics={metrics} />
             )}
@@ -251,18 +281,19 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
                 <label>高さ (mm)<input type="number" min={40} max={170} value={state.figure.heightMm}
                   onChange={(event) => dispatch({ type: "figure", settings: { heightMm: Math.min(170, Math.max(40, Number(event.target.value) || 60)) } })} /></label>
                 <label>縦軸の名前<input value={state.figure.yLabel} placeholder={metric.label} onChange={(event) => dispatch({ type: "figure", settings: { yLabel: event.target.value } })} /></label>
-                <p className={styles.hint}>体裁の変更では解析を再実行しません。</p>
-                <h3>比較条件</h3>
-                <p className={styles.hint}>群と独立した実験単位が未設定のため、比較の検定は行いません。各視野の群と実験単位を設定すると、実験単位での比較を作成できます（解析API接続後）。</p>
+                <p className={styles.hint}>点をクリックすると、その領域の画像に移動します。</p>
+                <h3>比較</h3>
+                <p className={styles.hint}>群・実験単位：未設定</p>
+                <button type="button" className={styles.secondary} disabled title="プロトタイプでは未対応">比較を作成</button>
               </section>
             )}
             {current !== "proposal" && grouping && (
               <details className={styles.panelSection}>
-                <summary>解析条件と履歴</summary>
+                <summary>解析条件・履歴</summary>
                 <ul className={styles.history}>
                   {grouping.channels.map((item) => <li key={item.token}>{item.token} → {channelText(item)}</li>)}
-                  <li>解析案を採用: {state.adopted?.inputFields.length ?? 0} 視野</li>
-                  <li>修正: {state.corrections.length} 件</li>
+                  <li>解析案を採用（{state.adopted?.inputFields.length ?? 0} 視野）</li>
+                  <li>修正 {state.corrections.length} 件</li>
                 </ul>
               </details>
             )}
@@ -271,7 +302,7 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
 
         <section className={[styles.drawer, drawer ? styles.drawerOpen : ""].join(" ")} aria-label="測定値">
           <button type="button" className={styles.drawerToggle} aria-expanded={drawer} onClick={() => setDrawer(!drawer)}>
-            測定値{result ? `（${labels[selectedField!]} · ${result.measurements.length} 領域）` : ""}
+            測定値{result ? `　${labels[selectedField!]} · ${result.measurements.length} 領域` : ""}
           </button>
           {drawer && result && selectedField && (
             <div className={styles.tableWrap}>
@@ -312,8 +343,8 @@ function RegionPanel({ field, region, state, dispatch, metrics }: {
   return (
     <section className={styles.panelSection} aria-labelledby="region-title">
       <h3 id="region-title">領域を修正</h3>
-      {!state.results[field] && <p className={styles.hint}>この画像の解析が完了すると領域を選択できます。</p>}
-      {state.results[field] && !row && <p className={styles.hint}>画像の領域、表の行、またはグラフの点を選択します。</p>}
+      {!state.results[field] && <p className={styles.hint}>解析後に選択できます</p>}
+      {state.results[field] && !row && <p className={styles.hint}>領域が選択されていません</p>}
       {row && status !== "deleted" && (
         <>
           <p className={styles.regionTitle}>領域 {row.region_id}{status === "excluded" ? "（除外）" : ""}</p>
@@ -330,7 +361,6 @@ function RegionPanel({ field, region, state, dispatch, metrics }: {
         <button type="button" className={styles.secondary} disabled={!state.corrections.length} onClick={() => dispatch({ type: "undo" })}>元に戻す</button>
         <button type="button" className={styles.secondary} disabled={!state.redo.length} onClick={() => dispatch({ type: "redo" })}>やり直す</button>
       </div>
-      <p className={styles.hint}>修正は、この画像の測定値とグラフだけに反映します。領域の形の修正は解析APIの接続後に対応します。</p>
     </section>
   );
 }

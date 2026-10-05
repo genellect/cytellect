@@ -29,7 +29,7 @@ describe("buildProposal", () => {
   it("flags NCL-defined regions and requires one nuclear channel", () => {
     const proposal = buildProposal(files(["A01_dapi.tif", "A01_ncl.tif"]));
     expect(proposal.recipe).toBe("nuclear-ncl");
-    expect(proposal.notes.join("")).toContain("NCL自身から定義");
+    expect(proposal.notes.join("")).toContain("NCL像から定義");
     expect(buildProposal(files(["A01_hoechst.tif", "A01_dapi.tif"])).recipe).toBeNull();
   });
 

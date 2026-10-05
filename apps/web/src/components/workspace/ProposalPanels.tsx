@@ -5,7 +5,7 @@ import { NUCLEAR_CHOICE, type Proposal } from "@/lib/workspace/proposal";
 import styles from "./analysis-workspace.module.css";
 
 const EVIDENCE_LABEL: Record<ChannelDefinition["evidence"], string> = {
-  ome: "画像情報から", filename: "ファイル名から", folder: "フォルダ名から", user: "選択済み",
+  ome: "画像情報", filename: "ファイル名", folder: "フォルダ名", user: "選択",
 };
 
 export function channelText(channel: ChannelDefinition): string {
@@ -26,24 +26,24 @@ export function ProposalSummary({ proposal, grouping, onRun, onName, children }:
     <section className={styles.proposal} aria-labelledby="proposal-title">
       <h2 id="proposal-title">解析案</h2>
       {children}
-      <dl className={styles.summaryList}>
-        <div><dt>対象</dt><dd>{proposal.fieldCount} 視野 · {grouping.channels.map(channelText).join("、")}</dd></div>
-        <div><dt>検出する領域</dt><dd>{proposal.regions.length ? proposal.regions.join("、") : "—"}</dd></div>
-        <div><dt>測定</dt><dd>{proposal.metrics.length ? proposal.metrics.map((metric) => metric.label).join("、") : "—"}</dd></div>
-        <div><dt>グラフ</dt><dd>{proposal.statistics.kind === "descriptive" ? "視野ごとの分布" : "実験単位での群間比較と分布"}</dd></div>
-      </dl>
+      <ol className={styles.flow} aria-label="実行すると行う処理">
+        <li>{proposal.regions.length ? `${proposal.regions.join("・")}を検出` : "領域を検出"}</li>
+        <li>{proposal.metrics.length ? `${proposal.metrics.map((metric) => metric.label).join("、")}を測定` : "面積と輝度を測定"}</li>
+        <li>{proposal.statistics.kind === "descriptive" ? "視野別の分布グラフを作成" : "実験単位で群間比較"}</li>
+      </ol>
+      <p className={styles.target}>{proposal.fieldCount} 視野 · {grouping.channels.map(channelText).join("、")}</p>
       {others.length > 0 && <ul className={styles.unresolved} role="status">{others.map((item) => <li key={item}>{item}</li>)}</ul>}
       {proposal.notes.map((note) => <p key={note} className={styles.note}>{note}</p>)}
       <button type="button" className={styles.primary} disabled={!ready} onClick={onRun}>解析を実行</button>
       <details className={styles.conditions}>
         <summary>解析条件</summary>
         <dl>
-          <div><dt>核検出</dt><dd>Fiji / StarDist 2D · Versatile (fluorescent nuclei) · 正規化 1–99.8 percentile · 確率 0.5 · NMS 0.3</dd></div>
-          <div><dt>背景補正</dt><dd>行わない（補正前の値を出力）</dd></div>
-          <div><dt>集計</dt><dd>領域 → 視野内中央値 → 試料内平均 → 独立実験単位内平均</dd></div>
+          <div><dt>核検出</dt><dd>Fiji / StarDist 2D Versatile　正規化 1–99.8%　確率 0.5　NMS 0.3</dd></div>
+          <div><dt>背景補正</dt><dd>なし（補正前の値）</dd></div>
+          <div><dt>集計</dt><dd>視野内中央値 → 試料平均 → 実験単位平均</dd></div>
         </dl>
         <fieldset className={styles.names}>
-          <legend>チャンネルの染色名（任意）</legend>
+          <legend>染色名（任意）</legend>
           {grouping.channels.map((channel) => (
             <label key={channel.token}>{channel.token}
               <input defaultValue={channel.stain ?? ""} placeholder="未指定"
@@ -65,11 +65,12 @@ export function NuclearChoice({ grouping, preview, onChoose }: {
   const chosen = grouping.channels.find((channel) => channel.role === "nuclear");
   const decided = chosen && chosen.evidence !== "user" && grouping.channels.filter((channel) => channel.role === "nuclear").length === 1;
   if (decided) {
-    return <p className={styles.note}>核検出: {channelName(chosen)}（{EVIDENCE_LABEL[chosen.evidence]}）</p>;
+    return <p className={styles.note}>核検出：{channelName(chosen)}（{EVIDENCE_LABEL[chosen.evidence]}）</p>;
   }
   return (
     <fieldset className={styles.nuclearChoice}>
       <legend>{chosen ? "核検出に使うチャンネル" : "核検出に使うチャンネルを選択"}</legend>
+      <p className={styles.hint}>ファイル名から染色を判別できませんでした。核を染めた画像（DAPI・Hoechst・DRAQ など）を選んでください。</p>
       <div role="radiogroup" aria-label="核検出に使うチャンネル">
         {grouping.channels.map((channel) => {
           const src = preview(channel.token);
