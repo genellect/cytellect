@@ -736,6 +736,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/proposal-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Draft Proposal */
+        post: operations["draft_proposal_v1_workspaces__wid__proposal_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1346,6 +1363,59 @@ export interface components {
             group_by: "field";
             plot?: components["schemas"]["DescriptivePlot"];
         };
+        /** DraftChannel */
+        DraftChannel: {
+            /** Token */
+            token: string;
+            /** Stain */
+            stain: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "nuclear" | "measure" | "unused";
+            /** Reason */
+            reason: string;
+        };
+        /** DraftFigure */
+        DraftFigure: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "field-distribution" | "unit-comparison" | "paired" | "association-scatter";
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count";
+            /** Channel */
+            channel: string | null;
+        };
+        /** DraftMetric */
+        DraftMetric: {
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count";
+            /** Channel */
+            channel: string | null;
+        };
+        /** DraftStatistics */
+        DraftStatistics: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "descriptive" | "comparison" | "association";
+            /** Test */
+            test: ("welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon") | null;
+            /** Omnibus */
+            omnibus: ("welch-anova" | "kruskal-wallis") | null;
+            /** Association */
+            association: ("pearson" | "spearman") | null;
+        };
         /** Exclusion */
         Exclusion: {
             /** Field Id */
@@ -1871,6 +1941,62 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+        };
+        /** ProposalChannelLink */
+        ProposalChannelLink: {
+            /** Token */
+            token: string;
+            /** Channel Id */
+            channel_id: string;
+            /** Stain */
+            stain: string | null;
+        };
+        /** ProposalDraft */
+        ProposalDraft: {
+            /**
+             * Recipe
+             * @enum {string}
+             */
+            recipe: "nuclear-intensity" | "nuclear-ncl" | "supplied-regions" | "measured-table" | "none";
+            /** Channels */
+            channels: components["schemas"]["DraftChannel"][];
+            /** Metrics */
+            metrics: components["schemas"]["DraftMetric"][];
+            statistics: components["schemas"]["DraftStatistics"];
+            /** Figures */
+            figures: components["schemas"]["DraftFigure"][];
+            /** Missing Information */
+            missing_information: string[];
+            /** Reference Ids */
+            reference_ids: ("senft-2023" | "kodiha-2011" | "waters-2009" | "lazic-2018" | "lord-2020" | "schmied-2024")[];
+            /** Rationale */
+            rationale: string;
+        };
+        /**
+         * ProposalDraftRequest
+         * @description The only researcher input: an optional goal in their own words.
+         *
+         *     `transmission_confirmed` records that the researcher has seen what is sent
+         *     and enabled it (L03). The UI asks once and remembers; without it nothing
+         *     leaves the PC.
+         */
+        ProposalDraftRequest: {
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+            /**
+             * Transmission Confirmed
+             * @default false
+             */
+            transmission_confirmed: boolean;
+        };
+        /** ProposalDraftResponse */
+        ProposalDraftResponse: {
+            proposal: components["schemas"]["ValidatedProposal"];
+            /** Channels */
+            channels: components["schemas"]["ProposalChannelLink"][];
         };
         /** Recipe */
         Recipe: {
@@ -2873,6 +2999,36 @@ export interface components {
             sensitivity_legacy_high_regions?: (5 | 10 | 20)[];
             /** Sensitivity Region Revision Ids */
             sensitivity_region_revision_ids?: string[];
+        };
+        /** ValidatedProposal */
+        ValidatedProposal: {
+            /**
+             * Protocol
+             * @default 1.0.0
+             * @constant
+             */
+            protocol: "1.0.0";
+            /**
+             * Origin
+             * @default llm-draft
+             * @constant
+             */
+            origin: "llm-draft";
+            /**
+             * Requires Adoption
+             * @default true
+             * @constant
+             */
+            requires_adoption: true;
+            draft: components["schemas"]["ProposalDraft"];
+            /** Needs Confirmation */
+            needs_confirmation: string[];
+            /** Model */
+            model: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Context Sha256 */
+            context_sha256: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -4718,6 +4874,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_proposal_v1_workspaces__wid__proposal_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalDraftResponse"];
                 };
             };
             /** @description Validation Error */

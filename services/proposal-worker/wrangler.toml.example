@@ -1,0 +1,24 @@
+# Copy to wrangler.toml, then fill in the D1 database ID created by the operator.
+# Secrets (never commit): wrangler secret put OPENAI_API_KEY / ADMIN_TOKEN
+name = "cytellect-proposal"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cytellect-proposal"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[vars]
+# Billable calls stay disabled until every value below and OPENAI_API_KEY are set.
+OPENAI_MODEL = ""
+MONTHLY_BUDGET_USD = ""
+DEVICE_MONTHLY_REQUESTS = ""
+PRICE_INPUT_USD_PER_MTOK = ""
+PRICE_OUTPUT_USD_PER_MTOK = ""
+MAX_OUTPUT_TOKENS = "1500"
+
+[observability]
+enabled = false

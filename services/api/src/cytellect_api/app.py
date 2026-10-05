@@ -43,6 +43,7 @@ from .db import Store, digest, fields, invitations, jobs, revisions, sessions, t
 from .descriptive import register_descriptive_routes
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
+from .proposals import register_proposal_routes
 from .region_comparisons import register_region_comparison_routes
 from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
@@ -1039,5 +1040,6 @@ def create_app(settings: Settings | None = None):
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
+    register_proposal_routes(api, store, settings, owner, workspace)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

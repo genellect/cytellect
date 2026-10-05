@@ -177,9 +177,13 @@ Adopting a proposal is not a record that every region was inspected. Existing
 `confirmed: true` fields are never filled automatically; new contracts carry
 the new states and stored analyses keep their original meaning.
 
+Inputs follow one rule: ask only what cannot be derived, only when it is
+needed, once for the whole set, with a default filled in. Endpoints take
+identifiers and decisions, not descriptions of data the server already holds.
+
 New `/v1` endpoints (Pydantic/OpenAPI source, generated TypeScript):
 `POST /workspaces/{id}/imports`, `GET/PATCH /workspaces/{id}/imports/{import_id}`,
-`POST /workspaces/{id}/proposals`,
+`POST /workspaces/{id}/proposals`, `POST /workspaces/{id}/proposal-drafts` (optional goal only; implemented),
 `POST /workspaces/{id}/proposals/{proposal_id}/accept`,
 `POST /workspaces/{id}/runs`, `GET /workspaces/{id}/runs/{run_id}`,
 `POST /workspaces/{id}/runs/{run_id}/issues/{issue_id}/resolve`. Updates carry
@@ -230,5 +234,7 @@ Browser → local FastAPI (+ worker/Fiji/Python)
 - `store: false` is not zero data retention: the provider may retain data for
   abuse monitoring. The transmission scope is shown at first use and in
   settings, not repeated on every operation.
+
+Source, configuration and operator deployment steps: [proposal service](proposal-service.md).
 
 No new paid contract is approved by this document.

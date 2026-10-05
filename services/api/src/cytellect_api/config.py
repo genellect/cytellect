@@ -16,6 +16,9 @@ class Settings:
     max_upload_bytes: int = 2 * 1024**3
     max_fields: int = 100
     worker_memory_mb: int = 4096
+    proposal_url: str = ""
+    proposal_token: str = ""
+    proposal_timeout_seconds: int = 60
 
     @property
     def cookie_name(self):
@@ -41,6 +44,9 @@ class Settings:
             max_upload_bytes=int(os.environ.get("CYTELLECT_MAX_UPLOAD_BYTES", str(2 * 1024**3))),
             max_fields=int(os.environ.get("CYTELLECT_MAX_FIELDS", "100")),
             worker_memory_mb=int(os.environ.get("CYTELLECT_WORKER_MEMORY_MB", "4096")),
+            proposal_url=os.environ.get("CYTELLECT_PROPOSAL_URL", ""),
+            proposal_token=os.environ.get("CYTELLECT_PROPOSAL_TOKEN", ""),
+            proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "60")),
         )
 
 
