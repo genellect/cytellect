@@ -75,3 +75,28 @@ Verify the canonical site's local.11 version, download button and downloaded arc
 - Private originals and results stay outside source/CI/public assets. Retention is 24 hours after explicit activity; physical deletion while the PC or launcher is off resumes at next launch. Windows local mode trusts the local OS user/process boundary and does not install an OS-enforced worker egress firewall. Future hosted private analysis still requires separate TLS/domain, isolation, retention and recovery acceptance.
 
 See [validation](validation.md), [statistics](statistics.md), [figure conventions](figures.md), [local operation](local.md) and [data protection](security.md). Do not attach private images or research details to public issues or release evidence.
+
+## local.15 — installed archive accepted in Windows CI
+
+The [local.15 prerelease](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15)
+uses exact source `9c35a730cfcc7b0e811a81bfe36c51398a99358f`. All five checks on
+that main commit passed before [release run 37349387343](https://github.com/genellect/cytellect/actions/runs/37349387343).
+The actual archive passed fresh/repeat setup, 26 installed browser cases (zero
+failed, skipped or flaky), independent numerical/replay checks and launcher
+shutdown. Two added cases cover `/workspace` with registered BBBC007 originals
+and an explicit independent-unit comparison. The reviewed acceptance receipts
+match the archive hash, source commit and acceptance-harness hash.
+
+The ZIP is 13,775,657 bytes; SHA-256
+`2484d2eaf067ecbc986cdf7251e413c184ea7f50db709d429d5498894df72b44`.
+All 217 payload files and manifest identities passed independent inspection.
+An unauthenticated download from the public release URL matched the same bytes.
+The LP metadata now identifies this accepted archive rather than local.11.
+
+The intended PC's Smart App Control refusal of an unsigned SciPy extension is
+still open. This CI-accepted prerelease does not establish native acceptance on
+that PC; the separately verified Docker path remains available. OS protection
+was not disabled. Private-study and researcher usability acceptance remain open.
+Paid production model calls and replacement of `/` remain held for the owner.
+See the [complete delivery record](production-delivery-2026-10-06.md) for Worker,
+Vercel, Docker and live Sol evaluation evidence.

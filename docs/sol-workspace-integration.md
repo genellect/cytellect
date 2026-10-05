@@ -1,5 +1,9 @@
 # Sol and real-workspace integration — 2026-10-05
 
+The [2026-10-06 delivery record](production-delivery-2026-10-06.md) supersedes
+the evaluation/publication status below. Earlier failed attempts remain historical
+evidence and remain included in the cumulative evaluation budget.
+
 This increment connects `/workspace` to the existing private API. It does not
 replace `/`, redesign the LP, update an installed release, or establish biological
 validity. The explicit BBBC013 demonstration retains its separate adapter.
