@@ -146,10 +146,12 @@ Methods and input/mask identities.
 ### Deliberate changes to the submitted plan
 
 - **No automatic exploratory regression p-values.** The submitted plan listed
-  regression lines with 95 % CI among automatic figures. An independent null
-  simulation of the existing field-clustered exploratory model (3 units per
-  group, 3 fields per unit, unit-level variation) gave a type I error of about
-  0.32 at α = 0.05, versus about 0.03 for the experimental-unit tests. Automatic
+  regression lines with 95 % CI among automatic figures. A null simulation of
+  the existing field-clustered exploratory model (3 units per group, 3 fields
+  per unit, 30 cells per field, unit/field/cell SD 1.0/0.3/1.0, 400 runs, seed 1;
+  `uv run python scripts/exploratory_model_null_simulation.py`) gave a type I
+  error of 0.3225 (95 % CI 0.279–0.370) at α = 0.05, versus 0.0275
+  (0.015–0.049) for the experimental-unit tests. Automatic
   proposals therefore never include that model; it stays an explicit
   specialist recipe until its clustering is corrected under a new statistics
   version.
