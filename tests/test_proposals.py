@@ -8,6 +8,7 @@ from cytellect_analysis.proposal_contracts import ProposalContext, ProposalDraft
 from cytellect_analysis.proposal_validation import ProposalRejected, validate_draft
 from cytellect_api import proposals
 from test_api_worker import HEADERS, authenticated
+from test_region_api import make_field
 
 CONTEXT = ProposalContext(goal="核小体と核質のNCL輝度を比較したい", field_count=12, condition_count=2,
                           units_known=True, channels=[{"token": "dapi", "stain": "DAPI", "role": "nuclear"},
@@ -101,7 +102,17 @@ class FakeResponse(io.BytesIO):
         return False
 
 
-def configured(tmp_path, monkeypatch, reply):
+ACTIN_DRAFT = {
+    "recipe": "supplied-regions",
+    "channels": [{"token": "actin", "stain": None, "role": "measure", "reason": "既存の領域内を測定する"}],
+    "metrics": [{"metric": "area", "channel": None}, {"metric": "mean_raw", "channel": "actin"}],
+    "statistics": {"kind": "descriptive", "test": None, "omnibus": None, "association": None},
+    "figures": [{"kind": "field-distribution", "metric": "mean_raw", "channel": "actin"}],
+    "missing_information": ["独立した実験単位"], "reference_ids": ["senft-2023"], "rationale": "視野ごとの分布を示す。",
+}
+
+
+def configured(tmp_path, monkeypatch, reply, *, upload=True):
     client, app, settings = authenticated(tmp_path)
     object.__setattr__(settings, "proposal_url", "https://proposal.example")
     object.__setattr__(settings, "proposal_token", "device-secret")
@@ -113,39 +124,53 @@ def configured(tmp_path, monkeypatch, reply):
         return reply(request)
     monkeypatch.setattr(proposals.urllib.request, "urlopen", urlopen)
     wid = client.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
+    if upload:
+        assert make_field(client, wid).status_code == 201
     return client, wid, calls
 
 
-def test_route_validates_reuses_identical_input_and_sends_metadata_only(tmp_path, monkeypatch):
-    body = json.dumps({"draft": draft(), "model": "test-model", "prompt_version": "2026-10-05.1"}).encode()
+def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_path, monkeypatch):
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "test-model", "prompt_version": "2026-10-05.1"}).encode()
     client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
-    payload = CONTEXT.model_dump(mode="json")
-    first = client.post(f"/v1/workspaces/{wid}/proposals", json=payload, headers=HEADERS)
-    second = client.post(f"/v1/workspaces/{wid}/proposals", json=payload, headers=HEADERS)
+    first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度"}, headers=HEADERS)
+    second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度"}, headers=HEADERS)
     assert first.status_code == 200, first.text
     assert first.json() == second.json() and len(calls) == 1
-    assert set(calls[0]) == {"context"} and set(calls[0]["context"]) == set(ProposalContext.model_fields)
-    assert client.post(f"/v1/workspaces/{wid}/proposals", json={**payload, "path": "C:/x"}, headers=HEADERS).status_code == 422
+    assert first.json()["channels"] == [{"token": "actin", "channel_id": "actin", "stain": None}]
+    assert first.json()["proposal"]["needs_confirmation"] == ["actin"]
+    sent = calls[0]["context"]
+    # Derived, not entered: counts and flags only; no labels, file names, metadata values or pixels.
+    assert sent == {"protocol": "1.0.0", "goal": "細胞ごとのアクチン輝度", "channels": [{"token": "actin", "stain": None, "role": None}],
+                    "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
+                    "supplied_regions": True, "measured_table": False, "background_available": False}
+    assert "Actin" not in json.dumps(calls) and "untrusted-original-name" not in json.dumps(calls)
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x", "field_count": 9},
+                       headers=HEADERS).status_code == 422
+    # An empty goal is valid: the proposal is built from the images alone.
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS).status_code == 200
 
 
 def test_route_rejects_invalid_drafts_and_maps_service_failures(tmp_path, monkeypatch):
-    bad = json.dumps({"draft": draft(rationale="https://x"), "model": "m", "prompt_version": "p"}).encode()
+    bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "m", "prompt_version": "p"}).encode()
     client, wid, _ = configured(tmp_path, monkeypatch, lambda request: FakeResponse(bad))
-    response = client.post(f"/v1/workspaces/{wid}/proposals", json=CONTEXT.model_dump(mode="json"), headers=HEADERS)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS)
     assert response.status_code == 502
     assert response.json()["detail"] == {"code": "proposal_rejected", "reasons": ["proposal_text_not_allowed"]}
 
     def quota(request):
         raise urllib.error.HTTPError(request.full_url, 429, "quota", {}, None)
     client, wid, _ = configured(tmp_path / "q", monkeypatch, quota)
-    response = client.post(f"/v1/workspaces/{wid}/proposals", json=CONTEXT.model_dump(mode="json"), headers=HEADERS)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS)
     assert (response.status_code, response.json()["detail"]) == (429, "proposal_quota_exhausted")
 
 
-def test_route_is_disabled_without_configuration_and_checks_ownership(tmp_path):
-    client, _, _ = authenticated(tmp_path)
-    wid = client.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
-    response = client.post(f"/v1/workspaces/{wid}/proposals", json=CONTEXT.model_dump(mode="json"), headers=HEADERS)
+def test_route_needs_images_is_disabled_without_configuration_and_checks_ownership(tmp_path, monkeypatch):
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(b"{}"), upload=False)
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS).status_code == 409
+    assert calls == []
+    other, _, _ = authenticated(tmp_path / "plain")
+    wid = other.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
+    assert make_field(other, wid).status_code == 201
+    response = other.post(f"/v1/workspaces/{wid}/proposal-drafts", json={}, headers=HEADERS)
     assert (response.status_code, response.json()["detail"]) == (503, "proposal_service_disabled")
-    assert client.post("/v1/workspaces/missing/proposals", json=CONTEXT.model_dump(mode="json"),
-                       headers=HEADERS).status_code == 404
+    assert other.post("/v1/workspaces/missing/proposal-drafts", json={}, headers=HEADERS).status_code == 404

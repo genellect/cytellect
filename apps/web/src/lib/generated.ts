@@ -736,7 +736,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/workspaces/{wid}/proposals": {
+    "/v1/workspaces/{wid}/proposal-drafts": {
         parameters: {
             query?: never;
             header?: never;
@@ -746,7 +746,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Draft Proposal */
-        post: operations["draft_proposal_v1_workspaces__wid__proposals_post"];
+        post: operations["draft_proposal_v1_workspaces__wid__proposal_drafts_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1274,15 +1274,6 @@ export interface components {
             control?: string | null;
             /** Contrasts */
             contrasts: string[][];
-        };
-        /** ContextChannel */
-        ContextChannel: {
-            /** Token */
-            token: string;
-            /** Stain */
-            stain?: string | null;
-            /** Role */
-            role?: ("nuclear" | "measure") | null;
         };
         /** ContourView */
         ContourView: {
@@ -1951,56 +1942,14 @@ export interface components {
             /** Group Order */
             group_order?: string[];
         };
-        /**
-         * ProposalContext
-         * @description Normalized metadata sent to the proposal service; no paths, names or values.
-         */
-        ProposalContext: {
-            /**
-             * Protocol
-             * @default 1.0.0
-             * @constant
-             */
-            protocol: "1.0.0";
-            /**
-             * Goal
-             * @default
-             */
-            goal: string;
-            /** Channels */
-            channels: components["schemas"]["ContextChannel"][];
-            /** Field Count */
-            field_count: number;
-            /**
-             * Condition Count
-             * @default 0
-             */
-            condition_count: number;
-            /**
-             * Units Known
-             * @default false
-             */
-            units_known: boolean;
-            /**
-             * Pairing Known
-             * @default false
-             */
-            pairing_known: boolean;
-            /**
-             * Supplied Regions
-             * @default false
-             */
-            supplied_regions: boolean;
-            /**
-             * Measured Table
-             * @default false
-             */
-            measured_table: boolean;
-            /**
-             * Background Available
-             * @default false
-             */
-            background_available: boolean;
+        /** ProposalChannelLink */
+        ProposalChannelLink: {
+            /** Token */
+            token: string;
+            /** Channel Id */
+            channel_id: string;
+            /** Stain */
+            stain: string | null;
         };
         /** ProposalDraft */
         ProposalDraft: {
@@ -2022,6 +1971,23 @@ export interface components {
             reference_ids: ("senft-2023" | "kodiha-2011" | "waters-2009" | "lazic-2018" | "lord-2020" | "schmied-2024")[];
             /** Rationale */
             rationale: string;
+        };
+        /**
+         * ProposalDraftRequest
+         * @description The only researcher input: an optional goal in their own words.
+         */
+        ProposalDraftRequest: {
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+        };
+        /** ProposalDraftResponse */
+        ProposalDraftResponse: {
+            proposal: components["schemas"]["ValidatedProposal"];
+            /** Channels */
+            channels: components["schemas"]["ProposalChannelLink"][];
         };
         /** Recipe */
         Recipe: {
@@ -4912,7 +4878,7 @@ export interface operations {
             };
         };
     };
-    draft_proposal_v1_workspaces__wid__proposals_post: {
+    draft_proposal_v1_workspaces__wid__proposal_drafts_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4923,7 +4889,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProposalContext"];
+                "application/json": components["schemas"]["ProposalDraftRequest"];
             };
         };
         responses: {
@@ -4933,7 +4899,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ValidatedProposal"];
+                    "application/json": components["schemas"]["ProposalDraftResponse"];
                 };
             };
             /** @description Validation Error */

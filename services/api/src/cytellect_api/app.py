@@ -1040,6 +1040,6 @@ def create_app(settings: Settings | None = None):
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
-    register_proposal_routes(api, settings, owner, workspace)
+    register_proposal_routes(api, store, settings, owner, workspace)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

@@ -2152,10 +2152,10 @@
         }
       }
     },
-    "/v1/workspaces/{wid}/proposals": {
+    "/v1/workspaces/{wid}/proposal-drafts": {
       "post": {
         "summary": "Draft Proposal",
-        "operationId": "draft_proposal_v1_workspaces__wid__proposals_post",
+        "operationId": "draft_proposal_v1_workspaces__wid__proposal_drafts_post",
         "parameters": [
           {
             "name": "wid",
@@ -2172,7 +2172,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProposalContext"
+                "$ref": "#/components/schemas/ProposalDraftRequest"
               }
             }
           }
@@ -2183,7 +2183,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidatedProposal"
+                  "$ref": "#/components/schemas/ProposalDraftResponse"
                 }
               }
             }
@@ -3367,49 +3367,6 @@
           "contrasts"
         ],
         "title": "ComparisonFamily"
-      },
-      "ContextChannel": {
-        "properties": {
-          "token": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
-            "title": "Token"
-          },
-          "stain": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 40,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stain"
-          },
-          "role": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "nuclear",
-                  "measure"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Role"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "token"
-        ],
-        "title": "ContextChannel"
       },
       "ContourView": {
         "properties": {
@@ -5095,76 +5052,35 @@
         "type": "object",
         "title": "PlotSpec"
       },
-      "ProposalContext": {
+      "ProposalChannelLink": {
         "properties": {
-          "protocol": {
+          "token": {
             "type": "string",
-            "const": "1.0.0",
-            "title": "Protocol",
-            "default": "1.0.0"
+            "title": "Token"
           },
-          "goal": {
+          "channel_id": {
             "type": "string",
-            "maxLength": 2000,
-            "title": "Goal",
-            "default": ""
+            "title": "Channel Id"
           },
-          "channels": {
-            "items": {
-              "$ref": "#/components/schemas/ContextChannel"
-            },
-            "type": "array",
-            "maxItems": 6,
-            "minItems": 1,
-            "title": "Channels"
-          },
-          "field_count": {
-            "type": "integer",
-            "maximum": 10000.0,
-            "minimum": 1.0,
-            "title": "Field Count"
-          },
-          "condition_count": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Condition Count",
-            "default": 0
-          },
-          "units_known": {
-            "type": "boolean",
-            "title": "Units Known",
-            "default": false
-          },
-          "pairing_known": {
-            "type": "boolean",
-            "title": "Pairing Known",
-            "default": false
-          },
-          "supplied_regions": {
-            "type": "boolean",
-            "title": "Supplied Regions",
-            "default": false
-          },
-          "measured_table": {
-            "type": "boolean",
-            "title": "Measured Table",
-            "default": false
-          },
-          "background_available": {
-            "type": "boolean",
-            "title": "Background Available",
-            "default": false
+          "stain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
-          "channels",
-          "field_count"
+          "token",
+          "channel_id",
+          "stain"
         ],
-        "title": "ProposalContext",
-        "description": "Normalized metadata sent to the proposal service; no paths, names or values."
+        "title": "ProposalChannelLink"
       },
       "ProposalDraft": {
         "properties": {
@@ -5251,6 +5167,40 @@
           "rationale"
         ],
         "title": "ProposalDraft"
+      },
+      "ProposalDraftRequest": {
+        "properties": {
+          "goal": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Goal",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProposalDraftRequest",
+        "description": "The only researcher input: an optional goal in their own words."
+      },
+      "ProposalDraftResponse": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/ValidatedProposal"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalChannelLink"
+            },
+            "type": "array",
+            "title": "Channels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposal",
+          "channels"
+        ],
+        "title": "ProposalDraftResponse"
       },
       "Recipe": {
         "properties": {
