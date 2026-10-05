@@ -1,6 +1,9 @@
 /**
  * Field/channel grouping for added files (workspace redesign U02).
  *
+ * An unknown stain is not a problem to resolve: the channel keeps its token as
+ * its name. The only decision a run can need is which channel detects nuclei.
+ *
  * Evidence comes only from OME channel names, file names and folder names.
  * File order never pairs files, `c1`/`c2`-style tokens never establish a stain,
  * and folders never become independent experimental units. Ambiguity is
@@ -38,8 +41,7 @@ export type GroupingIssue =
   | { kind: "duplicate_channel"; field: string; token: string; paths: string[] }
   | { kind: "duplicate_content"; paths: string[] }
   | { kind: "missing_channel"; field: string; token: string }
-  | { kind: "channel_unidentified"; path: string }
-  | { kind: "stain_unknown"; token: string };
+  | { kind: "channel_unidentified"; path: string };
 
 export interface Grouping {
   fields: GroupedField[];
@@ -152,7 +154,6 @@ export function groupFiles(files: AddedFile[]): Grouping {
       }
     }
   }
-  for (const channel of channels.values()) if (!channel.stain) issues.push({ kind: "stain_unknown", token: channel.token });
   return {
     fields: [...fields.values()].sort((a, b) => a.key.localeCompare(b.key, "en", { numeric: true })),
     channels: tokens.map((token) => channels.get(token)!),
@@ -173,29 +174,29 @@ function candidates(tokens: string[], folder: string): GroupedField["candidates"
 }
 
 /**
- * Apply one set-wide channel mapping. User statements win and are recorded as
- * such; the original evidence is kept by the caller's correction history.
+ * The one channel decision a run may need: which channel detects nuclei.
+ * Recorded as the user's statement; stains are not inferred from it.
  */
-export function applyChannelMapping(
-  grouping: Grouping,
-  mapping: Record<string, { stain: string; role: ChannelRole }>,
-): Grouping {
-  const channels = grouping.channels.map((channel) => {
-    const assigned = mapping[channel.token];
-    if (!assigned) return channel;
-    const stain = assigned.stain.trim();
-    if (!stain) throw new Error("stain_required");
-    return { ...channel, stain, role: assigned.role, evidence: "user" as const };
-  });
-  const known = new Set(channels.filter((channel) => channel.stain).map((channel) => channel.token));
+export function chooseNuclearChannel(grouping: Grouping, token: string): Grouping {
+  if (!grouping.channels.some((channel) => channel.token === token)) throw new Error("channel_unknown");
   return {
     ...grouping,
-    channels,
-    issues: grouping.issues.filter((issue) => issue.kind !== "stain_unknown" || !known.has(issue.token)),
+    channels: grouping.channels.map((channel) => channel.token === token
+      ? { ...channel, role: "nuclear" as const, evidence: "user" as const }
+      : channel.role === "nuclear" ? { ...channel, role: "measure" as const, evidence: "user" as const } : channel),
   };
 }
 
-/** Channels still blocking a proposal: unknown stain or role. */
-export function unresolvedChannels(grouping: Grouping): ChannelDefinition[] {
-  return grouping.channels.filter((channel) => !channel.stain || !channel.role);
+/** Optional display/stain name; an empty name returns the channel to unknown stain. */
+export function nameChannel(grouping: Grouping, token: string, stain: string): Grouping {
+  const value = stain.trim();
+  return {
+    ...grouping,
+    channels: grouping.channels.map((channel) => channel.token === token
+      ? { ...channel, stain: value || null, evidence: "user" as const } : channel),
+  };
+}
+
+export function channelName(channel: ChannelDefinition): string {
+  return channel.stain ?? channel.token;
 }

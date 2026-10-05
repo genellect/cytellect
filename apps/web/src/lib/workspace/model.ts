@@ -5,7 +5,7 @@
  * records. Adoption is not a record that every region was inspected. Field runs
  * are committed independently so a failure never discards other results.
  */
-import { applyChannelMapping, type ChannelRole, type Grouping } from "./grouping";
+import { chooseNuclearChannel, nameChannel, type Grouping } from "./grouping";
 import { buildProposal, type DesignInfo, type Proposal } from "./proposal";
 
 export type FieldStatus = "waiting" | "running" | "done" | "failed";
@@ -42,7 +42,8 @@ export interface WorkspaceState {
   name: string;
   goal: string;
   grouping: Grouping | null;
-  mappingHistory: { token: string; stain: string; role: ChannelRole }[];
+  /** User statements about channels, kept with the automatic evidence they override. */
+  channelHistory: { token: string; change: "nuclear" | "name"; value: string }[];
   design: DesignInfo;
   proposal: Proposal | null;
   adopted: { proposal: Proposal; inputFields: string[] } | null;
@@ -58,7 +59,8 @@ export interface WorkspaceState {
 export type Action =
   | { type: "imported"; name: string; grouping: Grouping }
   | { type: "goal"; goal: string }
-  | { type: "map-channels"; mapping: Record<string, { stain: string; role: ChannelRole }> }
+  | { type: "choose-nuclear"; token: string }
+  | { type: "name-channel"; token: string; stain: string }
   | { type: "design"; design: DesignInfo }
   | { type: "adopt" }
   | { type: "field-started"; field: string }
@@ -74,7 +76,7 @@ export type Action =
 
 export function initialState(): WorkspaceState {
   return {
-    name: "", goal: "", grouping: null, mappingHistory: [], design: { conditions: {}, units: {} },
+    name: "", goal: "", grouping: null, channelHistory: [], design: { conditions: {}, units: {} },
     proposal: null, adopted: null, runs: {}, results: {}, corrections: [], redo: [],
     figure: { metric: "area_px", widthMm: 89, heightMm: 60, yLabel: "", order: [] },
     selection: null, stopped: false,
@@ -99,11 +101,17 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
     }
     case "goal":
       return { ...state, goal: action.goal };
-    case "map-channels": {
+    case "choose-nuclear": {
       if (!state.grouping || state.adopted) return state;
-      const grouping = applyChannelMapping(state.grouping, action.mapping);
-      const history = Object.entries(action.mapping).map(([token, value]) => ({ token, ...value }));
-      return { ...state, grouping, mappingHistory: [...state.mappingHistory, ...history], proposal: buildProposal(grouping, state.design) };
+      const grouping = chooseNuclearChannel(state.grouping, action.token);
+      return { ...state, grouping, proposal: buildProposal(grouping, state.design),
+        channelHistory: [...state.channelHistory, { token: action.token, change: "nuclear", value: action.token }] };
+    }
+    case "name-channel": {
+      if (!state.grouping || state.adopted) return state;
+      const grouping = nameChannel(state.grouping, action.token, action.stain);
+      return { ...state, grouping, proposal: buildProposal(grouping, state.design),
+        channelHistory: [...state.channelHistory, { token: action.token, change: "name", value: action.stain.trim() }] };
     }
     case "design":
       return { ...state, design: action.design, proposal: state.grouping ? buildProposal(state.grouping, action.design) : null };

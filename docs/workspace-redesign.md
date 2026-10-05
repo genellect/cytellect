@@ -56,7 +56,7 @@ workspace; successful fields keep their results.
 The proposal summary shows only: field count and channel mapping, detected
 regions, main measurements, comparisons and figures, and the run button.
 Thresholds, smoothing, area limits and background detail are under 解析条件.
-An unknown channel mapping is corrected once for the whole image set. Unknown
+When names do not decide which channel detects nuclei, the researcher clicks one channel thumbnail once for the whole image set; every other channel is measured, and stain names are optional. Unknown
 experimental units do not block image analysis or descriptive figures; the
 information needed for inference is requested where the comparison is shown.
 

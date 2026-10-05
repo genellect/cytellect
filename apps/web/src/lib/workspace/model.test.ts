@@ -26,10 +26,14 @@ describe("workspace reducer", () => {
     expect(state.results.A01.measurements).toHaveLength(2);
   });
 
-  it("refuses adoption while the proposal has unresolved items", () => {
-    const unknown = groupFiles(["c1-A01.tif"].map((path) => ({ path, size: 1 })));
-    const state = reducer(reducer(initialState(), { type: "imported", name: "w", grouping: unknown }), { type: "adopt" });
+  it("refuses adoption until the single nuclear choice is made, and records that choice", () => {
+    const unknown = groupFiles(["c1-A01.tif", "c2-A01.tif"].map((path) => ({ path, size: 1 })));
+    let state = reducer(reducer(initialState(), { type: "imported", name: "w", grouping: unknown }), { type: "adopt" });
     expect(state.adopted).toBeNull();
+    state = reducer(state, { type: "choose-nuclear", token: "c2" });
+    expect(state.channelHistory).toEqual([{ token: "c2", change: "nuclear", value: "c2" }]);
+    state = reducer(state, { type: "adopt" });
+    expect(state.adopted?.proposal.recipe).toBe("nuclear-intensity");
   });
 
   it("keeps successful fields when one fails and retries only the failed field", () => {

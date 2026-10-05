@@ -6,15 +6,13 @@ async function adoptPublicSample(page: Page) {
   await page.goto("/workspace");
   await page.getByRole("button", { name: "公開画像で試す" }).click();
   await expect(page.getByRole("heading", { name: "解析案" })).toBeVisible();
-  // Index-only names never establish stains: the run stays blocked until one set-wide mapping.
+  // Index-only names never establish stains; the only decision is one click on the nuclear channel.
   await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
-  await expect(page.getByText("チャンネル「channel1」の染色と役割")).toBeVisible();
-  await page.getByLabel("channel1 の染色名").fill("FKHR-EGFP");
-  await page.getByLabel("channel1 の役割").selectOption("measure");
-  await page.getByLabel("channel2 の染色名").fill("DRAQ");
-  await page.getByLabel("channel2 の役割").selectOption("nuclear");
-  await page.getByRole("button", { name: "対応を全視野に適用" }).click();
+  await expect(page.getByText("核検出に使うチャンネルを選択")).toBeVisible();
+  await expect(page.locator("main input:visible, main select:visible")).toHaveCount(0);
+  await page.getByRole("radio", { name: "channel2 を核検出に使う" }).click();
   await expect(page.getByRole("button", { name: "解析を実行" })).toBeEnabled();
+  await expect(page.getByText("channel1 平均輝度（補正前）")).toBeVisible();
   await page.getByRole("button", { name: "解析を実行" }).click();
 }
 
@@ -75,6 +73,8 @@ test("added files are grouped once and a prototype failure stays on that field",
   ]);
   await expect(page.getByText("1 件はTIFF以外のため追加しませんでした。")).toBeVisible();
   await expect(page.getByText("2 視野 · 解析案を確認")).toBeVisible();
+  // A named nuclear stain needs no channel decision at all.
+  await expect(page.getByText("核検出: DAPI（ファイル名から）")).toBeVisible();
   await expect(page.getByRole("button", { name: "解析を実行" })).toBeEnabled();
   await page.getByRole("button", { name: "解析を実行" }).click();
   await expect(page.getByText("完了 0/2 · 要確認 2")).toBeVisible({ timeout: 20000 });

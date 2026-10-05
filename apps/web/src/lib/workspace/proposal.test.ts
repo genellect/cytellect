@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyChannelMapping, groupFiles } from "./grouping";
+import { chooseNuclearChannel, groupFiles } from "./grouping";
 import { buildProposal } from "./proposal";
 
 const files = (names: string[]) => groupFiles(names.map((path) => ({ path, size: 1 })));
@@ -14,11 +14,16 @@ describe("buildProposal", () => {
     expect(proposal.background).toBe("raw-only");
   });
 
-  it("does not propose a recipe while a stain is unknown", () => {
+  it("asks only which channel detects nuclei when names do not say, then measures the rest", () => {
     const grouping = files(["Channel1-A01.tif", "Channel2-A01.tif"]);
-    expect(buildProposal(grouping)).toMatchObject({ recipe: null, unresolved: ["チャンネル「channel1」の染色と役割", "チャンネル「channel2」の染色と役割"] });
-    const mapped = applyChannelMapping(grouping, { channel1: { stain: "GFP", role: "measure" }, channel2: { stain: "DRAQ", role: "nuclear" } });
-    expect(buildProposal(mapped).recipe).toBe("nuclear-intensity");
+    expect(buildProposal(grouping)).toMatchObject({ recipe: null, unresolved: ["核検出に使うチャンネル"] });
+    const proposal = buildProposal(chooseNuclearChannel(grouping, "channel2"));
+    expect(proposal).toMatchObject({ recipe: "nuclear-intensity", unresolved: [] });
+    expect(proposal.metrics.map((metric) => metric.label)).toEqual(["核面積", "channel1 平均輝度（補正前）"]);
+  });
+
+  it("needs no channel decision when a file name already names the nuclear stain", () => {
+    expect(buildProposal(files(["A01_dapi.tif", "A01_c2.tif"]))).toMatchObject({ recipe: "nuclear-intensity", unresolved: [] });
   });
 
   it("flags NCL-defined regions and requires one nuclear channel", () => {

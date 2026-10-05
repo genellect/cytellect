@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyChannelMapping, groupFiles, unresolvedChannels } from "./grouping";
+import { chooseNuclearChannel, groupFiles, nameChannel } from "./grouping";
 
 const file = (path: string, extra = {}) => ({ path, size: 1, ...extra });
 
@@ -15,14 +15,17 @@ describe("groupFiles", () => {
     expect(grouping.issues).toEqual([]);
   });
 
-  it("never treats index tokens as stains and requires one set-wide mapping", () => {
+  it("never treats index tokens as stains; one nuclear choice is the only channel decision", () => {
     const grouping = groupFiles([file("Channel1-01-A-01.BMP"), file("Channel2-01-A-01.BMP"), file("Channel1-01-A-06.BMP"), file("Channel2-01-A-06.BMP")]);
     expect(grouping.fields).toHaveLength(2);
-    expect(unresolvedChannels(grouping).map((channel) => channel.token)).toEqual(["channel1", "channel2"]);
-    const mapped = applyChannelMapping(grouping, { channel1: { stain: "FKHR-EGFP", role: "measure" }, channel2: { stain: "DRAQ", role: "nuclear" } });
-    expect(unresolvedChannels(mapped)).toEqual([]);
-    expect(mapped.channels.every((channel) => channel.evidence === "user")).toBe(true);
-    expect(mapped.issues).toEqual([]);
+    expect(grouping.channels.map((channel) => [channel.token, channel.stain, channel.role])).toEqual([["channel1", null, null], ["channel2", null, null]]);
+    expect(grouping.issues).toEqual([]);
+    const chosen = chooseNuclearChannel(grouping, "channel2");
+    expect(chosen.channels.map((channel) => [channel.token, channel.stain, channel.role, channel.evidence]))
+      .toEqual([["channel1", null, null, "filename"], ["channel2", null, "nuclear", "user"]]);
+    // Choosing again moves the role; it never leaves two nuclear channels.
+    expect(chooseNuclearChannel(chosen, "channel1").channels.map((channel) => channel.role)).toEqual(["nuclear", "measure"]);
+    expect(() => chooseNuclearChannel(grouping, "c9")).toThrow("channel_unknown");
   });
 
   it("leaves two candidates for one field and channel unresolved instead of using file order", () => {
@@ -50,8 +53,9 @@ describe("groupFiles", () => {
     expect(grouping.channels.map((channel) => channel.evidence)).toEqual(["folder", "folder"]);
   });
 
-  it("rejects a blank stain in a mapping", () => {
+  it("names a channel only when the user wants to, and an empty name keeps the stain unknown", () => {
     const grouping = groupFiles([file("A01_c1.tif")]);
-    expect(() => applyChannelMapping(grouping, { c1: { stain: " ", role: "nuclear" } })).toThrow("stain_required");
+    expect(nameChannel(grouping, "c1", " FKHR-EGFP ").channels[0]).toMatchObject({ stain: "FKHR-EGFP", evidence: "user" });
+    expect(nameChannel(grouping, "c1", " ").channels[0].stain).toBeNull();
   });
 });

@@ -5,7 +5,7 @@ import { groupFiles, isSupportedImage, type AddedFile } from "@/lib/workspace/gr
 import { initialState, phase, progress, reducer, regionState, type Selection } from "@/lib/workspace/model";
 import { FieldFigure } from "./FieldFigure";
 import { FieldImage } from "./FieldImage";
-import { ChannelMapping, ProposalSummary, channelText } from "./ProposalPanels";
+import { NuclearChoice, ProposalSummary, channelText } from "./ProposalPanels";
 import styles from "./analysis-workspace.module.css";
 
 const STATUS_LABEL = { waiting: "待機", running: "解析中", done: "完了", failed: "要確認" } as const;
@@ -189,9 +189,10 @@ export default function AnalysisWorkspace({ adapter }: { adapter: WorkspaceAdapt
 
         <section className={styles.center} aria-label="表示">
           {current === "proposal" && proposal && grouping && (
-            <ProposalSummary proposal={proposal} grouping={grouping} onRun={() => dispatch({ type: "adopt" })}>
-              <ChannelMapping key={grouping.channels.map((item) => `${item.token}:${item.stain}:${item.role}`).join("|")} grouping={grouping} disabled={false}
-                onApply={(mapping) => dispatch({ type: "map-channels", mapping })} />
+            <ProposalSummary proposal={proposal} grouping={grouping} onRun={() => dispatch({ type: "adopt" })}
+              onName={(token, stain) => dispatch({ type: "name-channel", token, stain })}>
+              <NuclearChoice grouping={grouping} preview={(token) => adapter.preview(fields[0], token)}
+                onChoose={(token) => { dispatch({ type: "choose-nuclear", token }); setChannel(token); }} />
             </ProposalSummary>
           )}
           {selection?.view === "figure" && metric ? (

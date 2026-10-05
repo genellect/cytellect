@@ -7,7 +7,7 @@
  * the API remains the owner of validation and execution.
  */
 import type { ChannelDefinition, Grouping } from "./grouping";
-import { unresolvedChannels } from "./grouping";
+import { channelName } from "./grouping";
 
 export type RecipeId = "nuclear-intensity" | "nuclear-ncl" | "supplied-regions" | "measured-table";
 
@@ -42,15 +42,17 @@ export interface DesignInfo {
   units: Record<string, string | undefined>;
 }
 
+export const NUCLEAR_CHOICE = "核検出に使うチャンネル";
+
 const AREA: Metric = { key: "area_px", label: "核面積", unit: "px²" };
 
 export function buildProposal(grouping: Grouping, design: DesignInfo = { conditions: {}, units: {} }): Proposal {
   const unresolved: string[] = [];
   const notes: string[] = [];
-  for (const channel of unresolvedChannels(grouping)) unresolved.push(`チャンネル「${channel.token}」の染色と役割`);
   const nuclear = grouping.channels.filter((channel) => channel.role === "nuclear");
-  const measured = grouping.channels.filter((channel) => channel.role === "measure" && channel.stain);
-  if (nuclear.length > 1) unresolved.push("核検出に使うチャンネルを1つに指定");
+  // Once one nuclear channel is known, every other channel is measured; nothing else is asked.
+  const measured = nuclear.length === 1 ? grouping.channels.filter((channel) => channel.role !== "nuclear") : [];
+  if (nuclear.length !== 1) unresolved.push(NUCLEAR_CHOICE);
   const nuclearChannel = nuclear.length === 1 ? nuclear[0] : null;
   const hasNcl = measured.some((channel) => channel.stain === "NCL");
   let recipe: RecipeId | null = null;
@@ -68,10 +70,8 @@ export function buildProposal(grouping: Grouping, design: DesignInfo = { conditi
     }
     for (const channel of measured) {
       if (channel.stain === "NCL") continue;
-      metrics.push({ key: `${channel.token}:mean_raw`, label: `${channel.stain} 平均輝度（補正前）`, unit: "", channel: channel.token });
+      metrics.push({ key: `${channel.token}:mean_raw`, label: `${channelName(channel)} 平均輝度（補正前）`, unit: "", channel: channel.token });
     }
-  } else if (!nuclearChannel && !unresolved.length) {
-    unresolved.push("核染色チャンネル、または既存の領域マスク");
   }
   const known = grouping.fields.every((field) => design.conditions[field.key] && design.units[field.key]);
   const conditions = new Set(grouping.fields.map((field) => design.conditions[field.key]).filter(Boolean));
