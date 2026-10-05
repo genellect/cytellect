@@ -45,3 +45,11 @@ Only production LP measurement uses COMPASS official `G-EHKJ8B8N0Y`. See [securi
 One implementation owner per branch. Codex and Claude Code may review each other's PRs but must not concurrently edit the same checkout. GitHub checks remain the shared quality gate. Maintain a short current handoff after each meaningful checkpoint: exact commit/PR, changed behavior, checks and their scope, unresolved issues, next command or decision. Reuse unchanged passing evidence and avoid recursive rereading of old transcripts or the whole workspace.
 
 No automatic transfer of Codex goals, quota monitors, approvals, credentials, unpublished local artifacts or chat memory occurs. The prior long-running delivery goal is blocked, not complete; its quota monitor is paused. Review permissions and the current instruction with the user before assuming unattended operation in another tool.
+
+## 2026-10-05 redesign checkpoint
+
+The next phase (review and minimal fixes, the GPT6.1Sol proposal API and production publication of all parts including the Worker) is assigned to Codex: start from [Codex handoff](codex-handoff-2026-10-05.md).
+
+The owner's human end-to-end review rejected the multi-panel workspace UX. The active increment is the [single workspace and analysis proposal service](workspace-redesign.md), delivered as small PRs from `claude/cool-feynman-spwegw` (policy), `claude/cool-feynman-spwegw-ux` (operable prototype with a simulated adapter) and `claude/cool-feynman-spwegw-llm` (proposal contract, validator, relay client and Cloudflare Worker source, disabled by default). Deploying the Worker, creating its D1 database and setting its secret and budget require the operator's accounts and are not done by these PRs.
+
+PR [#28](https://github.com/genellect/cytellect/pull/28) (Docker Desktop browser setup) is handled independently. Its recorded real-Fiji browser run had one failure: after changing conditions, the confirmation button for re-detection did not appear. The cause is not established; do not delete the test or only lengthen waits.

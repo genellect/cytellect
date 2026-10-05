@@ -87,7 +87,7 @@ their own evidence.
 
 Public Vercel UI publication is authorized. It may expose only cleared published image samples until the private analysis API is configured and host checks pass. It must not point to localhost in production or accept research uploads without a backend.
 
-Supabase/accounts, LLM method proposals, teams, long-term storage and payments remain later work. No paid service purchase or automatic private-data transfer is included.
+Supabase/accounts, teams, long-term storage and payments remain later work. The [single workspace and optional LLM proposal service](workspace-redesign.md) is the active 2026-10-05 increment: UX prototype, review, connection to existing processing, proposal service, then combined acceptance. No paid service purchase is included; the proposal service stays disabled until an operator configures its budget.
 
 Normal publication follows [PR → required CI → main → Vercel](deployment.md). [Figure formatting and statistical meaning](figures.md) are versioned separately.
 

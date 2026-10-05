@@ -5,7 +5,7 @@ Inspect Git status. Preserve user work and original research outputs.
 
 ## Research data boundary
 - Synthetic data is for deterministic numerical tests. Published real microscopy is required for image integration and public demos; public assets need recorded source, accurate stain metadata, redistribution terms and hashes. Never substitute another stain for NCL/GFP.
-- Never copy unpublished/private research images, research PDFs, source paths, study-specific results, participant identifiers, credentials, or invitation/session tokens into code, logs, issues, PRs, screenshots, or external AI services. Registered public fixtures follow the source and redistribution requirements above.
+- Never copy unpublished/private research images, research PDFs, source paths, study-specific results, participant identifiers, credentials, or invitation/session tokens into code, logs, issues, PRs, screenshots, or external AI services. The only exception is the product's own analysis proposal request defined in docs/workspace-redesign.md, sent by the running application under the user's explicit settings; development agents and CI never receive private research content. Registered public fixtures follow the source and redistribution requirements above.
 - Keep runtime data outside the checkout. Never use production credentials for development.
 - Run private validation separately; publish only an explicitly approved sanitized report.
 
@@ -20,7 +20,7 @@ Inspect Git status. Preserve user work and original research outputs.
 ## Development
 - Conserve tokens without weakening quality: use focused reads and concise tool output, give agents non-overlapping ownership, and reuse recorded passing checks unless changed code or new evidence justifies rerunning them. Preserve required CI, exact-package numerical acceptance and canonical-browser verification.
 - Keep marketing and application writing distinct. The landing page relies on photography, typography, composition and actual product output; do not add stock-photo disclaimers, development badges or defensive copy. Keep provenance and release evidence in the relevant records. Application text uses clear operation names and concise instructions, without advertising slogans. Do not invent product capabilities, endorsements or usage claims.
-- Follow docs/interface-design.md for the accepted visual direction: Lila-inspired Dark and Blue, Blender-authored hero artwork rendered with Three.js, and GraphPad-style researcher-benefit hierarchy. Do not substitute charcoal-only styling or CSS perspective for those requirements. Preserve the accepted analysis UI while changing the LP.
+- Follow docs/interface-design.md for the accepted visual direction: Lila-inspired Dark and Blue, Blender-authored hero artwork rendered with Three.js, and GraphPad-style researcher-benefit hierarchy. Do not substitute charcoal-only styling or CSS perspective for those requirements. The analysis workspace follows docs/workspace-redesign.md: one workspace from image addition to figures, without per-field confirmation chains.
 - Follow docs/research-workflow.md for the active product goal, agent ownership and review loop. Start from a researcher decision, not a parameter or fashionable technology. Do not claim Fiji lacks a capability without checking its actual tools.
 - Distinguish literature-informed need hypotheses from observed Cytellect user needs. Independent review must report evidence scope, failures and missingness; a green build or matching p-value never establishes biological validity.
 - Codex Cloud is the default code environment. Use synthetic numerical fixtures and registered public datasets only. Local execution is permitted for setup and verification, especially the private validation boundary.
@@ -29,6 +29,6 @@ Inspect Git status. Preserve user work and original research outputs.
 - Run `uv run pytest`, `uv run ruff check .`, `pnpm check`, `pnpm test`, and relevant integration tests. Do not mark skipped Fiji/private-data checks as passed.
 - Record purpose, scientific impact, validation evidence and limitations in PRs.
 - Distinguish source implementation, CI, deployment, hosted behavior and scientific validation.
-- Follow the user's current authorization for publishing, external transmission, settings changes and deployment. Do not install paid services or add LLM/Supabase dependencies to the MVP.
+- Follow the user's current authorization for publishing, external transmission, settings changes and deployment. Do not install paid services or Supabase dependencies to the MVP. The LLM analysis proposal service follows docs/workspace-redesign.md: off by default, structured and locally validated, never the source of measurements or statistics, and billable calls only with an operator-configured budget.
 - Keep README status truthful. An unfinished requirement remains open in docs/roadmap.md.
 - Local browser delivery is an execution adapter. Keep one shared measurement/statistics implementation and preserve the future hosted API boundary. Read docs/local.md before changing local bootstrap, installer, session or retention behavior.

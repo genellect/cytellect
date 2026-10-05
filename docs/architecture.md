@@ -33,4 +33,4 @@ The generated [OpenAPI document](../packages/contracts/openapi.json) is the cont
 - Revision `/descriptive`: reviewed per-field distributions for either image workflow. Explicit source/region/channel/metric selection; no inferred experimental units. A statistics job carries `analysis_mode` so clients distinguish these results from inferential models.
 - Workspace DELETE blocks access immediately; worker cleanup removes original/derived/temporary data after execution stops.
 
-No registration, LLM, analytics or billing endpoint is installed.
+No registration, analytics or billing endpoint is installed. The optional analysis proposal relay is specified in [workspace redesign](workspace-redesign.md) and is disabled unless configured.
