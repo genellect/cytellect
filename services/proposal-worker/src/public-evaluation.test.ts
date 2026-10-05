@@ -5,6 +5,7 @@ import { expectedBehavior, PUBLIC_CASES } from "./public-cases";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { APPROVED_TOTAL_USD, EvaluationLedger } from "./evaluation-ledger";
+import { evaluationAuth } from "./evaluation-auth";
 
 const processModule = "node:process";
 const childModule = "node:child_process";
@@ -31,7 +32,7 @@ describe("public proposal evaluation", () => {
       "an external durable ledger path is required; reuse it for every run").toBe(true);
     expect(Number.isInteger(repeats) && repeats >= 1 && repeats <= 3).toBe(true);
     expect(["low", "medium"]).toContain(effort);
-    expect(Boolean(env.OPENAI_API_KEY), "operator must provide the key privately").toBe(true);
+    const authentication = evaluationAuth(env);
     const { spawnSync } = await import(childModule);
     const { resolve } = await import(pathModule);
     const { fileURLToPath } = await import(urlModule);
@@ -45,7 +46,7 @@ describe("public proposal evaluation", () => {
     // Probe the local oracle before any paid request; never print its raw stderr.
     const probe = spawnSync(python, ["-c", "import cytellect_analysis.proposal_validation"], oracleOptions);
     expect(probe.status, "local semantic validator must be installed first").toBe(0);
-    const settings = { apiKey: env.OPENAI_API_KEY, model: MODEL, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
+    const settings = { ...authentication, model: MODEL, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
     const ledger = await EvaluationLedger.open(env.CYTELLECT_PUBLIC_EVAL_LEDGER, root, budget);
     const report: Record<string, unknown>[] = [];
     try {
