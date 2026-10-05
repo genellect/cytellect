@@ -173,6 +173,12 @@ jobs:
         run: docker compose config --quiet
       - name: Build production worker container
         run: docker build --target worker -f infra/Dockerfile.python -t cytellect-worker-ci .
+      - name: Build Docker browser UI and check Desktop overlay
+        env:
+          CYTELLECT_RUNTIME_DIR: /tmp/cytellect-compose
+        run: |
+          docker compose -f compose.yaml -f infra/compose.desktop.yaml config --quiet
+          docker build -f infra/Dockerfile.web -t cytellect-web-ci .
       - name: Actual Fiji in non-root offline read-only container
         run: |
           sudo install -d -m 0700 -o 10001 -g 10001 /tmp/cytellect-container-smoke
