@@ -1,0 +1,13 @@
+# Saved-field cohorts
+
+`POST /v1/workspaces/{wid}/region-cohorts` assembles separately saved field analyses into one immutable source revision for the existing statistics API. It is restricted to generic 2D region recipes with raw-intensity policy 1.1.0; it does not change measurement equations.
+
+The request contains `sources: [{field_id, revision_id}]`, an explicit `metadata` map keyed by every field ID, and `expected_active_revision_id`. Metadata uses `RegionFieldMetadata`; unknown independent units, pairs, dates, and samples remain null. Every registered workspace field must be represented. Failed or unmeasured sources cannot disappear from the comparison by omission.
+
+Each source must be owned by the caller in the same live workspace, succeeded, and contain the specified field's measured table and canonical labels. All sources must have identical recipes and measurement policy. Source input records must still match the registered images. The endpoint pins source revision IDs, mask revision IDs, mask hashes, and the measurement-report/provenance file hashes in `config.cohort_sources`. `config.field_snapshot` contains the supplied metadata, with original image records unchanged; source exclusions are retained per field.
+
+Enqueue checks the active-revision compare-and-swap and source database identities in one transaction. The worker rechecks pinned files, recipe, policy, image snapshot, masks, and exclusions before remeasurement. It copies each canonical label array and measures original pixels without rerunning detection. A changed source produces an explicit field failure that blocks review/statistics. Metadata-only child revisions retain these masks and the source history.
+
+The response is `{job_id, revision_id}` (HTTP 202). Exact retries recover an existing queued, running, or succeeded cohort job; failed/cancelled attempts may be retried as new revisions. A cohort starts unreviewed, including when all sources were reviewed previously. The user must separately confirm the assembled source through the existing review endpoint before inferential statistics.
+
+The ordinary region reproducibility bundle contains the assembled canonical masks, original input hashes, explicit metadata, exclusions, and cohort provenance. Standalone replay uses those saved masks and optional supplied original images, without the source database or Fiji. Tests cover imported and adopted-nuclear recipes, original pixel results, mask identity, exclusions, explicit review, ownership, complete coverage, stale requests, source mutation, metadata child revisions, and raw bundle replay.

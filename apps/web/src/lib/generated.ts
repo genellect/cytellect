@@ -770,6 +770,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/region-cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assemble */
+        post: operations["assemble_v1_workspaces__wid__region_cohorts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1141,6 +1158,13 @@ export interface components {
              * @default false
              */
             acquisition_saturation_confirmed: boolean;
+        };
+        /** CohortSource */
+        CohortSource: {
+            /** Field Id */
+            field_id: string;
+            /** Revision Id */
+            revision_id: string;
         };
         /** CommonComparisonPlot */
         CommonComparisonPlot: {
@@ -2304,6 +2328,17 @@ export interface components {
              * @constant
              */
             confirmed: true;
+        };
+        /** RegionCohortRequest */
+        RegionCohortRequest: {
+            /** Sources */
+            sources: components["schemas"]["CohortSource"][];
+            /** Metadata */
+            metadata: {
+                [key: string]: components["schemas"]["RegionFieldMetadata"];
+            };
+            /** Expected Active Revision Id */
+            expected_active_revision_id: string | null;
         };
         /** RegionComparisonPlot */
         RegionComparisonPlot: {
@@ -5214,6 +5249,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProposalDraftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assemble_v1_workspaces__wid__region_cohorts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionCohortRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -60,6 +60,7 @@ REGION_FIELD_ERRORS = {
     "region_area_only_backgrounds_forbidden", "region_measurement_protocol_mismatch",
     "region_metric_not_measured",
     "nuclear_recorded_stain_required", "unknown_defining_channel",
+    "cohort_source_invalid", "cohort_source_changed", "cohort_source_field_not_measured",
 }
 
 
@@ -134,6 +135,10 @@ def run_region_analysis(store, settings, job, output):
         previous_provenance = read_json(store.safe_path(parent["result_dir"], "provenance.json"))
     elif edit:
         raise ValueError("region_edit_requires_parent")
+    cohort = config.get("cohort_sources") if not config.get("reuse_revision") else None
+    if cohort is not None and (config.get("cohort_version") != "1.0.0" or set(cohort) != set(selected)
+                               or config.get("measurement") != {"version": "1.1.0", "mode": "raw_intensity"}):
+        raise ValueError("cohort_source_invalid")
     output.mkdir(parents=True, exist_ok=False)
     field_tables, field_masks, provenance_fields = {}, {}, {}
     outcomes: dict[str, str] = {}
@@ -145,6 +150,31 @@ def run_region_analysis(store, settings, job, output):
                                 if item.field_id == fid and item.region_id is None), None)
         detection_started = False
         try:
+            if cohort is not None:
+                pin = cohort[fid]
+                parent = store.one(revisions, id=pin["revision_id"])
+                if (not parent or parent["workspace_id"] != revision["workspace_id"] or parent["state"] != "succeeded"
+                        or not parent["result_dir"] or parent["config"].get("recipe") != config["recipe"]
+                        or parent["config"].get("measurement") != config["measurement"]):
+                    raise ValueError("cohort_source_invalid")
+                root = store.safe_path(parent["result_dir"])
+                if (sha256(root / "measurements.json") != pin["report_sha256"]
+                        or sha256(root / "provenance.json") != pin["provenance_sha256"]):
+                    raise ValueError("cohort_source_changed")
+                previous_report = read_json(root / "measurements.json")
+                previous_provenance = read_json(root / "provenance.json")
+                validate_region_report_policy(region_report_from_json(json.dumps(previous_report)), parent["config"])
+                original = parent["config"].get("field_snapshot", {}).get(fid)
+                supplied = config["field_snapshot"][fid]
+                if (original is None or {**original, "metadata": supplied["metadata"]} != supplied):
+                    raise ValueError("cohort_source_changed")
+                mask = previous_report.get("field_masks", {}).get(fid)
+                if (fid not in previous_report["field_tables"] or not mask
+                        or mask["mask_revision_id"] != pin["mask_revision_id"] or mask["mask_sha256"] != pin["mask_sha256"]):
+                    raise ValueError("cohort_source_field_not_measured")
+                source_exclusions = [item for item in parent["config"].get("exclusions", []) if item["field_id"] == fid]
+                if source_exclusions != [item for item in config.get("exclusions", []) if item["field_id"] == fid]:
+                    raise ValueError("cohort_source_changed")
             field = store.one(fields, id=fid)
             snapshot = config["field_snapshot"][fid]
             if field is None or field["workspace_id"] != revision["workspace_id"]:
@@ -172,6 +202,9 @@ def run_region_analysis(store, settings, job, output):
             old_mask = previous_report.get("field_masks", {}).get(fid) if previously_selected else None
             mask_revision_id = revision["id"]
             history = list(previous_provenance.get("fields", {}).get(fid, {}).get("history", []))
+            if cohort is not None:
+                history.append({"revision_id": revision["id"], "operation": "cohort_assembly",
+                                "source_revision_id": cohort[fid]["revision_id"], "metadata_supplied": True})
             if fid in config.get("region_metadata_edit", {}).get("fields", {}):
                 history.append({"revision_id": revision["id"], "operation": "metadata",
                                 "metadata_edit_version": "1.0.0"})
@@ -297,6 +330,7 @@ def run_region_analysis(store, settings, job, output):
         "software": software_identity(), "recipe": request.recipe.model_dump(mode="json"),
         "measurement_protocol": protocol, "detector_executed": detector_executed,
         "detector_attempted": detector_attempted,
+        **({"cohort_sources": cohort, "cohort_version": "1.0.0"} if cohort is not None else {}),
         **policy,
     })
     return output
