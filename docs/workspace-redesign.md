@@ -60,6 +60,8 @@ An unknown channel mapping is corrected once for the whole image set. Unknown
 experimental units do not block image analysis or descriptive figures; the
 information needed for inference is requested where the comparison is shown.
 
+The operable step-1 prototype is described in [workspace prototype](workspace-prototype.md).
+
 Corrections: selecting a figure point opens its source image and region (or
 the samples/fields of an experimental-unit point); selecting a region
 highlights its table row; editing a nucleus invalidates only dependent nucleoli,
