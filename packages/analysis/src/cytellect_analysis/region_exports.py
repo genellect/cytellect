@@ -68,6 +68,9 @@ def _request(config):
     request = RegionAnalysisRequest.model_validate({
         key: config[key] for key in ("field_ids", "recipe", "backgrounds", "exclusions", "measurement") if key in config
     })
+    if request.measurement is not None and request.measurement.mode == "automatic_background":
+        # No bundle format or Methods template describes protocol 4.0.0 yet.
+        raise ValueError("region_export_protocol_unsupported")
     if not request.field_ids or set(config.get("field_snapshot", {})) != set(request.field_ids):
         raise ValueError("region_bundle_snapshot_invalid")
     return request

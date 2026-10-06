@@ -68,6 +68,47 @@ biological replicate count, p-value or inferential confidence interval. The
 existing reviewed, design-aware comparison routes remain separate. Revising a
 mask or exclusion creates a new measurement version; figure styling does not.
 
+## Automatic background candidate: measurement protocol 4.0.0
+
+Policy `1.2.0/automatic_background` measures the raw protocol 3.0.0 values and
+adds corrections from an automatic background candidate (algorithm
+`cytellect-automatic-background` 1.0.0). It is recorded as
+`background_source=automatic_candidate`, `confirmed=false`; it is never a
+human-confirmed ROI. A request cannot combine it with ROI backgrounds
+(`region_automatic_background_roi_conflict`); confirmed ROIs keep protocol 1.0.0.
+
+Per field and channel, on original pixels only:
+
+1. Exclusion: every labelled pixel of the measured region set (for compartment
+   recipes also every source nucleus, including excluded nuclei), dilated by a
+   Euclidean 8 px perinuclear margin; plus bright pixels strictly above
+   `median + 3 × 1.4826 × max(MAD, 1)` of the remaining pixels of that channel.
+   The one-unit MAD floor keeps quantized low-signal backgrounds usable. Otsu is
+   not used because it also splits unimodal noise.
+2. Tiles: 32 × 32 px from the origin; partial edge tiles are dropped. A tile is
+   eligible with ≥ 90 % unexcluded pixels.
+3. One rejection pass on eligible tiles, using unexcluded pixels: reject a tile
+   whose median m satisfies `|m − median(m)| > 3 × 1.4826 × MAD(m)` or whose MAD d
+   satisfies `d > median(d) + 3 × 1.4826 × MAD(d)`.
+4. At least 4 retained tiles whose centres lie in at least 3 image quadrants
+   (centre at or after half the extent belongs to the lower/right quadrant).
+5. B = unexcluded pixels of retained tiles; `b = median(I[B])`. Corrected mean
+   `mean(I[R]) − b`, corrected median `median(I[R]) − b`, corrected integral
+   `ΣI[R] − |R|b`; signed, unclipped.
+
+Failure (`automatic_background_insufficient_tiles` or
+`automatic_background_insufficient_coverage`) leaves that channel's corrected
+values null with the reason; raw values and other channels are still reported
+and the field does not fail. Provenance records the constants, bright threshold,
+exclusion and background mask hashes, eligible/rejected/retained tile counts,
+quadrants and the retained tile-median range. Synthetic counterexamples are
+tested: a confluent field and one-sided background fail; a linear illumination
+gradient is not removed (b is one global median, the tile-median range shows the
+spread); a local diffuse blob is excluded; field-wide diffuse signal is reported
+as background, which is why the candidate is never treated as confirmed. Exports
+and statistical summaries refuse protocol 4.0.0 until their own Methods text is
+versioned.
+
 
 ## Generic display-RGB input transform 1.0.0
 
