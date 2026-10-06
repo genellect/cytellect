@@ -42,6 +42,21 @@ async function device(store: MemoryStore, env = ENV) {
 }
 
 describe("proposal service", () => {
+  it.each(["invalid_json_schema", "insufficient_quota", "private-unknown-code"])("returns only sanitized authenticated provider diagnostics: %s", async providerCode => {
+    const store = new MemoryStore(), token = await device(store);
+    const fetcher = vi.fn(async () => Response.json({ error: { code: providerCode, message: "private-key private-research-context", param: "private-field" } },
+      { status: 400, headers: { "x-request-id": "private-request-id" } }));
+    const denied = await handle(post("/v1/proposals", { context: CONTEXT }), ENV, store, { fetcher });
+    expect(await denied.json()).toEqual({ code: "unauthorized" });
+    expect(fetcher).not.toHaveBeenCalled();
+    const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body).toEqual({ code: "model_unavailable", provider_http_status: 400,
+      ...(providerCode === "private-unknown-code" ? {} : { provider_error_code: providerCode }) });
+    expect(JSON.stringify(body)).not.toContain("private");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it("returns a draft with store:false, the strict schema and no stored content", async () => {
     const store = new MemoryStore();
     const token = await device(store);

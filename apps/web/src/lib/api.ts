@@ -33,6 +33,25 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ proposal_service_disabled:"解析案の補助は現在無効です。管理者がサービス設定を確認してください。",
+ proposal_service_unavailable:"提案サービスに接続できません。接続状態を確認してください。",
+ proposal_model_unavailable:"OpenAIの応答を取得できませんでした。サービスの通信状態を確認してください。",
+ proposal_budget_reconciliation_required:"API使用量の上限に不一致があったため停止しています。管理者による費用確認が必要です。",
+ proposal_provider_model_not_found:"設定したOpenAIモデルを利用できません。モデル名とプロジェクトの利用権限を確認してください。",
+ proposal_provider_invalid_api_key:"OpenAIのAPIキーを認証できません。管理者がキーの設定を確認してください。",
+ proposal_provider_authentication_error:"OpenAIの認証に失敗しました。管理者がキーとプロジェクトを確認してください。",
+ proposal_provider_insufficient_quota:"OpenAIが利用枠不足を返しました。管理者が課金・残高・プロジェクト上限を確認してください。",
+ proposal_provider_rate_limit_exceeded:"OpenAIの呼び出し上限に達しました。時間を置いてから再送してください。",
+ proposal_provider_permission_denied:"OpenAIがアクセスを拒否しました。管理者がプロジェクトとモデルの権限を確認してください。",
+ proposal_provider_invalid_request_error:"OpenAIがリクエスト形式を受け付けませんでした。管理者がAPI設定を確認してください。",
+ proposal_provider_invalid_value:"OpenAIが設定値を受け付けませんでした。管理者がAPI設定を確認してください。",
+ proposal_provider_invalid_json_schema:"OpenAIが解析案の出力形式を受け付けませんでした。管理者が形式の定義を確認してください。",
+ proposal_provider_unsupported_parameter:"OpenAIが未対応の設定項目を返しました。管理者がAPI設定を確認してください。",
+ proposal_provider_unsupported_value:"OpenAIが未対応の設定値を返しました。管理者がAPI設定を確認してください。",
+ proposal_provider_missing_required_parameter:"OpenAIへの必須設定が不足しています。管理者がAPI設定を確認してください。",
+ proposal_provider_context_length_exceeded:"OpenAIへの入力がモデルの上限を超えています。管理者が送信内容の制限を確認してください。",
+ proposal_provider_server_error:"OpenAI側で処理に失敗しました。時間を置いてから再送してください。",
+ proposal_provider_overloaded_error:"OpenAI側が混雑しています。時間を置いてから再送してください。",
  common_statistics_finite_units_required:"実験単位の値に有限でない数値が含まれています。測定値と採否を確認してください。",
  common_statistics_insufficient_units:"この検定に必要な独立実験単位数がありません。対象数と実験デザインを確認してください。",
  common_statistics_constant_units:"値にばらつきがないため、この検定・相関を算出できません。測定値を確認してください。",
@@ -174,5 +193,6 @@ const messages:Record<string,string> = {
  workspace_not_found:"作業の保存期限が切れたか、アクセス権がありません。",
  fiji_not_configured:"Fiji解析環境が見つかりません。解析環境のセットアップを確認してください。",
 };
-export const errorCodeMessage = (code:string):string => messages[code] || code;
-export function errorMessage(error:unknown) { return error instanceof ApiError ? (messages[error.code] || `処理できませんでした（${error.code}）。入力条件を確認してください。`) : "APIに接続できません。解析サーバーの起動と接続先を確認してください。"; }
+const providerHttpMessage = (code:string) => /^proposal_provider_http_[45]\d{2}$/.test(code) ? `OpenAIがHTTP ${code.slice(-3)}を返しました。管理者がサービス設定と接続状態を確認してください。` : undefined;
+export const errorCodeMessage = (code:string):string => messages[code] || providerHttpMessage(code) || code;
+export function errorMessage(error:unknown) { return error instanceof ApiError ? (messages[error.code] || providerHttpMessage(error.code) || `処理できませんでした（${error.code}）。入力条件を確認してください。`) : "APIに接続できません。解析サーバーの起動と接続先を確認してください。"; }

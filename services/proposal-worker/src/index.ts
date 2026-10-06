@@ -219,6 +219,13 @@ export async function handle(request: Request, env: Env, store: Store, options: 
         return json(200, { draft: error.validatedDraft, model: config.model, prompt_version: PROMPT_VERSION });
       }
       const code = error instanceof ModelError ? error.code : "model_unavailable";
+      if (error instanceof ModelError && code === "model_unavailable") {
+        // Only ModelError's allowlisted diagnostics; never provider messages or headers.
+        return json(503, { code,
+          ...(error.providerHttpStatus === undefined ? {} : { provider_http_status: error.providerHttpStatus }),
+          ...(error.providerErrorCode === undefined ? {} : { provider_error_code: error.providerErrorCode }),
+        });
+      }
       return failure(code === "model_unavailable" || code === "budget_reconciliation_required" ? 503 : 502, code);
     }
   }
