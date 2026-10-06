@@ -54,6 +54,16 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   await page.getByRole("button", {name: "解析を実行", exact: true}).click();
   await expect(page.getByRole("status").first()).toContainText("1 / 1");
   expect(analysisCount).toBe(1);
+  await page.getByText("解析案の補助（任意）", {exact:true}).click();
+  await page.getByLabel("解析の目的", {exact:true}).fill("核面積を確認");
+  await page.getByLabel("この作業で上記の情報送信を許可する").check();
+  await page.getByRole("button", {name:"解析案を相談",exact:true}).click();
+  await expect(page.getByText(/再送すると追加のAPI利用料/)).toBeVisible();
+  expect(proposalCount).toBe(1);
+  await page.getByRole("button", {name:"費用を確認して再送",exact:true}).click();
+  await expect(page.getByText("公開テストの解析案", {exact:true})).toBeVisible();
+  expect(proposalCount).toBe(2);
+  await page.getByText("解析案の補助（任意）", {exact:true}).click();
   const run = writes.find(value => value.path.endsWith("/region-analyses"))!;
   expect(run.body).toMatchObject({recipe: {version: "1.2.0", nuclear_role_source: "user_selected_role"}, measurement: {mode: "raw_intensity"}});
   expect(JSON.stringify(writes)).not.toContain('"confirmed":true');
@@ -149,5 +159,6 @@ test("failed uploads and analyses remain visible and allow comparison only after
   // Another tab changes server adoption after this figure completed.
   selection = {...selection, version: selection.version + 1, entries: selection.entries.map((entry, index) => index === 0 ? {...entry, exclusion_reason: "別タブで変更"} : entry)};
   await expect(page.getByRole("heading", {name: "保存された比較結果 · 設定変更前の結果", exact: true})).toBeVisible();
+  await page.getByText("比較条件", {exact:true}).click();
   await expect(page.getByRole("button", {name: "比較と図を再実行", exact: true})).toBeDisabled();
 });
