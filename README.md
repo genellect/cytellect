@@ -1,72 +1,29 @@
 # Cytellect
 
 [![Verify](https://github.com/genellect/cytellect/actions/workflows/ci.yml/badge.svg)](https://github.com/genellect/cytellect/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/genellect/cytellect?include_prereleases)](https://github.com/genellect/cytellect/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-![Python](https://img.shields.io/badge/python-3.12-3776AB)
-![Next.js](https://img.shields.io/badge/Next.js-16-000000)
-![Status](https://img.shields.io/badge/status-prototype-orange)
 
-蛍光顕微鏡画像から核を検出・測定し、実験単位の統計と論文用の図までを1つのワークスペースで行う解析アプリケーション。
+**Cytellect は、蛍光顕微鏡画像の定量解析ソフトウェアです。** 核の検出から統計解析、論文用の図の作成までを、一つの画面で行えます。
 
-[公開サイト](https://cytellect.vercel.app/) · [解析例](https://cytellect.vercel.app/workspace?demo=bbbc013) · [Windows 版](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15) · [研究者向けの説明](docs/implementation-overview.ja.md) · [English](README.en.md)
+主な機能：
 
-![核の検出結果を重ねた解析画面](apps/web/public/marketing/workspace-public.png)
+- 2D 蛍光画像（TIFF / OME-TIFF）からの細胞核・核小体の検出と、検出結果の修正
+- 核ごとの面積、輝度、核小体の数と面積割合の測定
+- 独立した実験回を単位とした群間比較と相関解析
+- 細胞・視野・実験回の値を重ねた図と、編集可能な SVG / PDF、CSV、Methods の文案の出力
+- 書き出したデータからの再計算による、結果の再現
 
-## 特徴
+Windows 版は[最新のリリース](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15)からダウンロードできます。インストールせずに試す場合は、[公開サイト](https://cytellect.vercel.app/workspace?demo=bbbc013)で公開画像の解析例を操作できます。
 
-- Fiji / StarDist による核検出を、版と SHA-256 を固定した別プロセスで実行する。解析ワーカーはネットワークから切り離して動く
-- 測定値は公開画像で ImageJ の独立計算と一致する（4DN の 482 領域で面積・平均・中央値が完全一致）
-- 細胞ではなく独立した実験単位を n とする階層集計。小標本ではすべての並べ方を数え上げる正確検定を使う
-- 修正や除外はすべて不変の revision として残り、図や統計は依存関係に沿って無効化・再計算される
-- 書き出しは決定的なバイト列で、SHA-256 manifest と replay スクリプトにより第三者が再計算・照合できる
-- LLM は閉じたスキーマで解析計画を提案するだけで、出力はローカルで検証され、数値の計算には関与しない
-- 同じ解析コードを Web、Windows ローカル版、Docker の3形態で配布している
+使い方と解析法は[研究者向けの説明](docs/implementation-overview.ja.md)と[解析法](docs/methods.md)に、ソースからのビルドと開発の手順は [CONTRIBUTING.md](CONTRIBUTING.md) にあります。
 
-## 構成
+画像処理には Fiji と StarDist、解析サーバーには FastAPI と NumPy・SciPy・statsmodels・Matplotlib、画面には Next.js を使っています。Web、Windows 版、Docker のいずれでも同じ解析コードが動き、研究画像は利用者の PC や研究室のサーバーの外に送られません。設計の詳細は [architecture.md](docs/architecture.md) と [security.md](docs/security.md) を参照してください。
 
-```mermaid
-flowchart LR
-    Web["Web<br/>Next.js"] --> API["API<br/>FastAPI · SQLite"]
-    API --> Worker["Worker"]
-    Worker --> Analysis["解析パッケージ<br/>NumPy · SciPy · Matplotlib"]
-    Worker --> Fiji["Fiji / StarDist"]
-    API -. 任意 .-> Relay["提案中継<br/>Cloudflare Workers · D1"] --> LLM["OpenAI"]
-```
+*Cytellect は研究用に開発中のソフトウェアです。ソースコードは [Apache License 2.0](LICENSE) で公開しています。Fiji、モデルの重み、公開データセットには、それぞれのライセンスが適用されます。*
 
-ブラウザは表示と操作だけを担い、測定・統計・作図はワーカーが行う。API とワーカーは同じ Python パッケージを使い、型は OpenAPI から TypeScript へ自動生成している。
+![核の検出結果を重ねた Cytellect の解析画面](apps/web/public/marketing/workspace-public.png)
 
-| 層 | 技術 |
-|---|---|
-| Web | Next.js 16 · React 19 · TypeScript |
-| API | FastAPI · Pydantic · SQLAlchemy · Alembic · SQLite |
-| 解析 | Fiji · StarDist 2D · MorphoLibJ · NumPy · SciPy · statsmodels · scikit-image · Matplotlib |
-| 提案中継 | Cloudflare Workers · D1 · OpenAI Responses API |
-| 配布・検証 | Vercel · GitHub Actions · Docker Compose · Pytest · Vitest · Playwright |
+## 開発
 
-## はじめる
-
-試すだけなら[公開サイトの解析例](https://cytellect.vercel.app/workspace?demo=bbbc013)を開くか、[Windows 版](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15)を展開して `Cytellect Setup.cmd` を実行する。
-
-開発環境（Python 3.12、Node.js 24、pnpm 11.19.0、uv）：
-
-```sh
-uv sync --locked --dev && pnpm install --frozen-lockfile
-uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
-
-export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
-uv run cytellect invite --hours 24      # 招待トークンを発行
-uv run cytellect serve & uv run cytellect-worker & pnpm dev
-```
-
-http://localhost:3000 で招待トークンを入力する。Docker での起動は [docker-desktop.md](docs/docker-desktop.md) を参照。
-
-## ドキュメント
-
-| | |
-|---|---|
-| 研究者 | [解析機能の説明](docs/implementation-overview.ja.md) · [解析法](docs/methods.md) · [統計](docs/common-statistics.md) · [検証結果](docs/validation.md) |
-| 開発者 | [アーキテクチャ](docs/architecture.md) · [セキュリティ](docs/security.md) · [要件](docs/requirements.md) · [ロードマップ](docs/roadmap.md) |
-
-## ライセンス
-
-Apache License 2.0。Fiji、モデルの重み、公開データセットはそれぞれのライセンスに従う（[oss.md](docs/oss.md)）。
+Cytellect は [genellect](https://github.com/genellect) が開発しています。不具合の報告や提案は [Issue](https://github.com/genellect/cytellect/issues) で受け付けます。研究用の非公開画像や解析結果は Issue に含めないでください。脆弱性は [SECURITY.md](SECURITY.md) の窓口から報告してください。
