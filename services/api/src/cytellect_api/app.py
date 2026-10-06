@@ -50,6 +50,7 @@ from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
 from .views import FieldView, JobView, MasksView, RevisionView, WorkspaceView
+from .workspace_selection import register_workspace_selection_routes
 
 
 class InviteInput(BaseModel):
@@ -1042,6 +1043,7 @@ def create_app(settings: Settings | None = None):
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace)
+    register_workspace_selection_routes(api, store, owner, workspace, touch)
     register_region_cohort_routes(api, store, owner, workspace, revision, result_root, queue)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

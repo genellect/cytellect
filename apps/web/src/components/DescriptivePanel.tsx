@@ -85,9 +85,18 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
  useEffect(()=>{setChoice("");setFigure(defaultFigureEdits());},[revisionId]);
  const option=plannedSelection(options,choice,planSelection);
  const available=descriptiveJobs(jobs);
- const job=selectedDescriptiveJob(jobs,selectedJob,revisionId);
+ // Track the accepted job itself. The workspace list may still contain only
+ // older terminal jobs after a missed refresh, which disables its polling.
+ const selectedStatus=useQuery({
+  queryKey:["descriptive-job",selectedJob],
+  queryFn:({signal})=>request<Job>(`/v1/jobs/${selectedJob}`,{signal}),
+  enabled:!!selectedJob,
+  refetchInterval:query=>query.state.status!=="error"&&query.state.data&&["queued","running"].includes(query.state.data.state)?1500:false,
+ });
+ const job=selectedJob?selectedStatus.data:selectedDescriptiveJob(jobs,"",revisionId);
  const succeeded=job?.state==="succeeded";
- const result=useQuery({queryKey:["descriptive",job?.id],queryFn:()=>request<DescriptiveResult>(`/v1/jobs/${job!.id}/result`),enabled:succeeded});
+ const selectedProcessing=!!selectedJob&&(selectedStatus.isPending||!!job&&["queued","running"].includes(job.state));
+ const result=useQuery({queryKey:["descriptive",job?.id],queryFn:({signal})=>request<DescriptiveResult>(`/v1/jobs/${job!.id}/result`,{signal}),enabled:succeeded});
  const data=!submitting&&succeeded&&result.data?.revision_id===job?.revision_id?result.data:undefined;
  const orderGroups=data&&data.revision_id===revisionId?data.field_summary.map(row=>({id:row.field_id,label:fieldLabels[row.field_id]||`図の視野 ${descriptiveFieldNumber(data,row.field_id)}`})):[];
  const edits={...figure,group_order:figure.group_order.length?figureOrder(figure.group_order,orderGroups.map(group=>group.id)):[]};
@@ -107,7 +116,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
    <p className={styles.small}>SVG・PDFは編集可能な文字で出力します。撮影条件や領域定義の妥当性は、画像と解析記録で確認してください。</p>
     {!reviewed&&<p className={styles.notice}>{backgroundRequired?"領域・背景・失敗や除外の理由を確認してから、図を作成できます。":"領域・面積・失敗や除外の理由を確認してから、図を作成できます。"}</p>}
    {dirty&&<p className={styles.notice}>未反映の変更があります。再測定して品質確認を完了してください。</p>}
-   <button className={styles.primary} disabled={!validFigureEdits(edits,preset)||submitting||blocked||dirty||!reviewed||!revisionId||!option} onClick={()=>run(async()=>{
+   <button className={styles.primary} disabled={!validFigureEdits(edits,preset)||submitting||selectedProcessing||blocked||dirty||!reviewed||!revisionId||!option} onClick={()=>run(async()=>{
     if(!option)return;
     setSubmitting(true);
     try {
@@ -117,7 +126,7 @@ export default function DescriptivePanel({revisionId,reviewed,options,jobs,block
    })}>分布図を作成</button>
   </div>
   <div className={styles.statsResults}>
-   {submitting?<div className={styles.card} role="status">図の生成を受け付けています。</div>:job&&!succeeded?<div className={styles.card} role={job.state==="failed"?"alert":"status"}>
+   {submitting?<div className={styles.card} role="status">図の生成を受け付けています。</div>:selectedJob&&selectedStatus.error?<div className={styles.card} role="alert"><p>図の処理状態を取得できませんでした。</p><button className={styles.secondary} onClick={()=>void selectedStatus.refetch()}>処理状態を再読み込み</button></div>:job&&!succeeded?<div className={styles.card} role={job.state==="failed"?"alert":"status"}>
     <h3>{jobStatuses[job.state]??"処理状態を確認しています。"}</h3>
     {job.error&&<p>{errorCodeMessage(job.error)}</p>}
     {["failed","cancelled"].includes(job.state)&&<p>条件を確認して「分布図を作成」から再実行できます。以前の図は履歴から選べます。</p>}

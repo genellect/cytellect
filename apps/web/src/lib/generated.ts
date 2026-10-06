@@ -770,6 +770,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Selection */
+        get: operations["get_selection_v1_workspaces__wid__selection_get"];
+        put?: never;
+        /** Save Selection */
+        post: operations["save_selection_v1_workspaces__wid__selection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/workspace-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved Selection */
+        get: operations["saved_selection_v1_revisions__rid__workspace_selection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/region-cohorts": {
         parameters: {
             query?: never;
@@ -2339,6 +2374,7 @@ export interface components {
             };
             /** Expected Active Revision Id */
             expected_active_revision_id: string | null;
+            workspace_selection?: components["schemas"]["WorkspaceSelection"] | null;
         };
         /** RegionComparisonPlot */
         RegionComparisonPlot: {
@@ -3353,6 +3389,24 @@ export interface components {
             plan?: components["schemas"]["PlanInput"] | null;
             /** Plan Candidate Id */
             plan_candidate_id?: ("regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl") | null;
+        };
+        /** WorkspaceSelection */
+        WorkspaceSelection: {
+            /** Version */
+            version: number;
+            /** Entries */
+            entries: components["schemas"]["WorkspaceSelectionEntry"][];
+        };
+        /** WorkspaceSelectionEntry */
+        WorkspaceSelectionEntry: {
+            /** Id */
+            id: string;
+            /** Field Id */
+            field_id?: string | null;
+            /** Revision Id */
+            revision_id?: string | null;
+            /** Exclusion Reason */
+            exclusion_reason?: string | null;
         };
         /** WorkspaceView */
         WorkspaceView: {
@@ -5249,6 +5303,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProposalDraftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_v1_workspaces__wid__selection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSelection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_selection_v1_workspaces__wid__selection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceSelection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSelection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    saved_selection_v1_revisions__rid__workspace_selection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSelection"];
                 };
             };
             /** @description Validation Error */

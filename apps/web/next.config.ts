@@ -3,6 +3,7 @@ const development = process.env.NODE_ENV === "development";
 const local = process.env.CYTELLECT_WEB_MODE === "local";
 const api = local ? "" : process.env.NEXT_PUBLIC_API_ORIGIN || (development ? "http://localhost:8000" : "");
 const config: NextConfig = {
+  ...(process.env.CYTELLECT_NEXT_DIST_DIR ? {distDir: process.env.CYTELLECT_NEXT_DIST_DIR} : {}),
   output: local ? "export" : "standalone",
   trailingSlash: local,
   env: { NEXT_PUBLIC_CYTELLECT_WEB_MODE: local ? "local" : "web" },

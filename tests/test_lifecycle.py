@@ -245,7 +245,8 @@ def test_versioned_migration_upgrades_existing_bootstrap_and_is_idempotent(tmp_p
     first = Store(tmp_path)
     second = Store(tmp_path)
     with second.engine.connect() as connection:
-        assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0003"
+        assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0004"
+        assert {"workspace_id", "version", "entries"}.issubset({r[1] for r in connection.exec_driver_sql("PRAGMA table_info(workspace_selections)")})
         assert "review_record" in {r[1] for r in connection.exec_driver_sql("PRAGMA table_info(revisions)")}
         assert {"workspace_id", "cache_key", "request_id", "state", "proposal"}.issubset(
             {r[1] for r in connection.exec_driver_sql("PRAGMA table_info(proposal_drafts)")})

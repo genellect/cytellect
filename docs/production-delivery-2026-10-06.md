@@ -1,5 +1,9 @@
 # Production delivery — 2026-10-06
 
+For the later root-workspace switch, production API enablement and review fixes,
+see the [workspace activation record](workspace-activation-2026-10-06.md).
+The disabled-service and held-root states below describe the earlier delivery.
+
 Claude's cloud work has stopped. The existing local evaluation ledger is the
 single active authority again; the cloud environment bundle is retired. No keys,
 device tokens, account IDs, ledger database or private research inputs are tracked.

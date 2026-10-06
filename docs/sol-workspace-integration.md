@@ -140,3 +140,56 @@ semantic oracle corrupted Japanese pipe input. The CLI now decodes JSON bytes as
 and the evaluator exercises the full oracle with Japanese input before any paid request.
 An oracle failure stops immediately. The failed run is not a successful model evaluation;
 its recorded usage and unknown reservations remain in the same cumulative USD5 ledger.
+
+## Workspace adoption and failed-field selection (2026-10-06)
+
+The follow-up items 2 and 3 are now implemented. `/selection` stores the per-field
+adopted revision and input ledger in SQLite (migration 0004), scoped to the same
+owner and retention as the workspace. Every mutation uses the previous ledger
+version; competing tabs receive a conflict rather than overwriting adoption.
+Undo/Redo selects immutable saved measurements and persists that selection.
+A new tab never uses sessionStorage as an authority. Old workspaces with multiple
+possible field revisions and no unambiguous active field require explicit adoption;
+the newest revision is not silently treated as the user's choice.
+
+Import attempts receive opaque IDs before uploading. A request that accepted the
+image but lost its response can reconnect that attempt using the existing upload
+idempotency key. Failed uploads and failed analyses remain visible after reopening.
+The user may exclude an unfinished field only with a nonblank reason and may undo
+that exclusion. Its ledger entry cannot be deleted. No failed image is converted
+into a zero measurement or a fabricated independent unit.
+
+Cohort assembly must match all included adopted field revisions and account for
+every other registered field or unfinished upload with an explicit exclusion.
+The exact adoption ledger is checked again under the enqueue transaction and when
+submitting statistics. Changing adoption invalidates a previously prepared cohort.
+Existing measurements, masks, comparison formulas and numerical result JSON are
+unchanged. The saved cohort exposes its immutable adoption ledger as an authorized
+JSON download; the comparison UI displays its exclusions. Reproducibility bundles
+include it in `revision.json` and measurement Methods. Unregistered failed inputs
+have no known experimental-unit metadata; their explicit input-level exclusions
+must be considered when assessing missingness rather than interpreting them as
+measured biological observations.
+
+Validation: API regression covers shared Undo, stale-write/compare rejection,
+reasoned failed-input exclusions, ownership and immutable ledger retrieval. Two
+browser regressions cover reopen/new-tab state, stale concurrent correction, failed
+upload/analysis exclusion and comparison preparation. Existing cohort measurement
+and numerical replay tests retain their original assertions. These checks do not
+replace private-image or researcher usability assessment.
+
+### Cross-tab changes while statistics are queued or running
+
+The worker verifies the adopted input ledger before calculating a comparison.
+Successful publication checks it again inside the same SQLite write transaction
+as the job lease/state update. A changed ledger converts that running attempt to
+`failed / workspace_selection_changed` with no published result path. Completed
+historical files remain available and are never rewritten or deleted by this check.
+The workspace reads adoption every two seconds while visible and on focus return;
+changed or unreachable adoption marks displayed output as historical and blocks
+further comparison until the user reloads the current selection. These GETs do
+not extend retention and never invoke the model.
+
+Regression coverage includes a selection change after enqueue, a change during
+actual numerical calculation before publication, retained access to a previously
+completed SVG, and UI transition of a completed comparison to its historical label.

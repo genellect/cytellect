@@ -37,8 +37,10 @@ export interface Store {
   reserve(id: string, month: string, amountUsd: number, budgetUsd: number, now: number): Promise<boolean>;
   /** Worst-case cost still held by reservations that were never settled. */
   unsettled(month: string): Promise<number>;
+  /** Global hold persists across months until operator reconciliation. */
+  budgetBlocked(): Promise<boolean>;
   /** Releases the reservation and records the conservative accounted cost. */
-  settle(id: string, month: string, spentUsd: number, usage?: UsageRecord): Promise<void>;
+  settle(id: string, month: string, spentUsd: number, usage?: UsageRecord, ceilingExceeded?: boolean): Promise<void>;
 }
 
 
@@ -80,6 +82,7 @@ export class D1Store implements Store {
     // One statement: SQLite serializes writes, so concurrent requests cannot both pass the check.
     const result = await this.db.prepare(
       "INSERT INTO reservations (id, month, amount_usd, created_at) SELECT ?, ?, ?, ? WHERE "
+      + "NOT EXISTS (SELECT 1 FROM budget_incidents WHERE resolved_at IS NULL) AND "
       + "COALESCE((SELECT spent_usd FROM usage_months WHERE month = ?), 0) + "
       + "COALESCE((SELECT SUM(amount_usd) FROM reservations WHERE month = ?), 0) + ? <= ?",
     ).bind(id, month, amountUsd, now, month, month, amountUsd, budgetUsd).run();
@@ -92,14 +95,18 @@ export class D1Store implements Store {
     return row?.held ?? 0;
   }
 
-  async settle(id: string, month: string, spentUsd: number, usage?: UsageRecord) {
+  async budgetBlocked() {
+    return (await this.db.prepare("SELECT 1 FROM budget_incidents WHERE resolved_at IS NULL LIMIT 1").first()) !== null;
+  }
+
+  async settle(id: string, month: string, spentUsd: number, usage?: UsageRecord, ceilingExceeded = false) {
     // One insertion + migration trigger atomically adds usage and removes the hold.
     // Repeated settlement or a failure after a successful commit cannot double count.
     await this.db.prepare(
-      "INSERT OR IGNORE INTO settlements (id, month, spent_usd, model, prompt_version, input_tokens, cached_input_tokens, output_tokens, calls) "
-      + "SELECT id, month, ?, ?, ?, ?, ?, ?, ? FROM reservations WHERE id = ? AND month = ?",
+      "INSERT OR IGNORE INTO settlements (id, month, spent_usd, model, prompt_version, input_tokens, cached_input_tokens, output_tokens, calls, ceiling_exceeded) "
+      + "SELECT id, month, ?, ?, ?, ?, ?, ?, ?, ? FROM reservations WHERE id = ? AND month = ?",
     ).bind(spentUsd, usage?.model ?? null, usage?.promptVersion ?? null, usage?.inputTokens ?? null,
-      usage?.cachedInputTokens ?? null, usage?.outputTokens ?? null, usage?.calls ?? null, id, month).run();
+      usage?.cachedInputTokens ?? null, usage?.outputTokens ?? null, usage?.calls ?? null, Number(ceilingExceeded), id, month).run();
   }
 }
 
@@ -112,6 +119,7 @@ export class MemoryStore implements Store {
   reservations = new Map<string, { month: string; amount: number; createdAt: number }>();
   claimedRequests = new Set<string>();
   usage = new Map<string, UsageRecord>();
+  blocked = false;
 
   async createInvitation(hash: string, expiresAt: number) { this.invitations.set(hash, { expiresAt, redeemed: false }); }
 
@@ -142,7 +150,7 @@ export class MemoryStore implements Store {
 
   async reserve(id: string, month: string, amountUsd: number, budgetUsd: number, now: number) {
     const held = [...this.reservations.values()].filter((item) => item.month === month).reduce((sum, item) => sum + item.amount, 0);
-    if (this.reservations.has(id) || (this.spent.get(month) ?? 0) + held + amountUsd > budgetUsd) return false;
+    if (this.blocked || this.reservations.has(id) || (this.spent.get(month) ?? 0) + held + amountUsd > budgetUsd) return false;
     this.reservations.set(id, { month, amount: amountUsd, createdAt: now });
     return true;
   }
@@ -151,8 +159,12 @@ export class MemoryStore implements Store {
     return [...this.reservations.values()].filter((item) => item.month === month).reduce((sum, item) => sum + item.amount, 0);
   }
 
-  async settle(id: string, month: string, spentUsd: number, usage?: UsageRecord) {
-    if (this.reservations.get(id)?.month !== month) return;
+  async budgetBlocked() { return this.blocked; }
+
+  async settle(id: string, month: string, spentUsd: number, usage?: UsageRecord, ceilingExceeded = false) {
+    const reservation = this.reservations.get(id);
+    if (reservation?.month !== month) return;
+    if (ceilingExceeded || spentUsd > reservation.amount) this.blocked = true;
     if (usage) this.usage.set(id, usage);
     this.spent.set(month, (this.spent.get(month) ?? 0) + spentUsd);
     this.reservations.delete(id);

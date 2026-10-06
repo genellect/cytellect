@@ -18,9 +18,10 @@ from fastapi import Depends, HTTPException
 from pydantic import Field, model_validator
 from sqlalchemy import select, update
 
-from .db import fields, jobs, revisions, uid, workspaces
+from .db import fields, jobs, revisions, uid, workspace_selections, workspaces
 from .regions import is_region
 from .storage import read_json
+from .workspace_selection import WorkspaceSelection, assert_selection
 
 
 class CohortSource(RegionModel):
@@ -32,6 +33,7 @@ class RegionCohortRequest(RegionModel):
     sources: Annotated[list[CohortSource], Field(min_length=1, max_length=100)]
     metadata: Annotated[dict[Id, RegionFieldMetadata], Field(min_length=1, max_length=100)]
     expected_active_revision_id: Id | None
+    workspace_selection: WorkspaceSelection | None = None
 
     @model_validator(mode="after")
     def complete_metadata(self):
@@ -44,12 +46,26 @@ class RegionCohortRequest(RegionModel):
 def register_region_cohort_routes(api, store, owner, workspace, revision, result_root, queue):
     Owner = Annotated[str, Depends(owner)]
 
+    @api.get("/v1/revisions/{rid}/workspace-selection", response_model=WorkspaceSelection)
+    def saved_selection(rid: str, who: Owner):
+        saved = revision(rid, who)
+        adoption = saved["config"].get("workspace_selection")
+        if not adoption:
+            raise HTTPException(404, "workspace_selection_not_found")
+        return adoption
+
     @api.post("/v1/workspaces/{wid}/region-cohorts", status_code=202)
     def assemble(wid: str, body: RegionCohortRequest, who: Owner):
         workspace(wid, who)
         registered = {row["id"]: row for row in store.rows(fields, workspace_id=wid)}
         ids = {source.field_id for source in body.sources}
-        if ids != set(registered) or any(not is_region(row) for row in registered.values()):
+        adoption = body.workspace_selection.model_dump(mode="json") if body.workspace_selection else None
+        excluded_ids = {entry["field_id"] for entry in adoption["entries"] if entry["exclusion_reason"] and entry["field_id"]} if adoption else set()
+        if adoption:
+            included = {entry["field_id"]: entry["revision_id"] for entry in adoption["entries"] if not entry["exclusion_reason"]}
+            if included != {source.field_id: source.revision_id for source in body.sources} or None in included:
+                raise HTTPException(409, "workspace_selection_incomplete")
+        if ids | excluded_ids != set(registered) or ids & excluded_ids or any(not is_region(row) for row in registered.values()):
             raise HTTPException(409, "cohort_all_workspace_fields_required")
         snapshot, pins, source_records = {}, {}, {}
         exclusions: list[dict] = []
@@ -89,12 +105,18 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                                                        "backgrounds": {}, "exclusions": exclusions})
         config = {**region_request_config(request), "analysis_kind": "region-2d",
                   "field_snapshot": snapshot, "cohort_sources": pins, "cohort_version": "1.0.0"}
+        if adoption:
+            config["workspace_selection"] = adoption
         fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         config["cohort_request_sha256"] = fingerprint
         with store.transaction() as conn:
             live = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
             if live["deleted"] or live["expires"] <= time.time() or live["owner"] != who:
                 raise HTTPException(404, "workspace_not_found")
+            if adoption:
+                assert_selection(conn, wid, adoption)
+            elif conn.execute(select(workspace_selections.c.workspace_id).where(workspace_selections.c.workspace_id == wid)).first():
+                raise HTTPException(409, "workspace_selection_required")
             # Same request after response loss can recover its queued/completed job.
             existing = conn.execute(select(revisions).where(revisions.c.workspace_id == wid,
                 revisions.c.state.in_(["queued", "running", "succeeded"]))).mappings().all()
@@ -106,7 +128,7 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                         return {"revision_id": item["id"], "job_id": job["id"]}
             if live["active_revision"] != body.expected_active_revision_id:
                 raise HTTPException(409, "stale_revision")
-            if set(conn.execute(select(fields.c.id).where(fields.c.workspace_id == wid)).scalars()) != ids:
+            if set(conn.execute(select(fields.c.id).where(fields.c.workspace_id == wid)).scalars()) != ids | excluded_ids:
                 raise HTTPException(409, "cohort_all_workspace_fields_required")
             # Recheck immutable source identity under the same write lock as enqueue.
             for sid, expected in source_records.items():

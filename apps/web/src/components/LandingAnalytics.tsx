@@ -9,7 +9,7 @@ const events = new Set(["download", "download_section", "example", "planning", "
 /** The Google tag lives in a disposable document, never the application shell. */
 export function LandingAnalytics() {
   useEffect(() => {
-    if (LOCAL_MODE || API_CONFIGURED || location.origin !== origin || location.pathname !== "/"
+    if (LOCAL_MODE || API_CONFIGURED || location.origin !== origin || location.pathname !== "/product"
       || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) return;
 
     const frame = document.createElement("iframe");

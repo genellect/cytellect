@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPrototypeAdapter } from "@/lib/workspace/adapter";
 import AnalysisWorkspace from "./AnalysisWorkspace";
 import ApiWorkspace from "./ApiWorkspace";
+import WorkspaceAccess from "./WorkspaceAccess";
 
 /** Operable prototype: recorded public outputs through a simulated adapter (redesign step 1). */
 export default function WorkspacePrototype() {
@@ -11,5 +12,5 @@ export default function WorkspacePrototype() {
   // The registered public example opens only through ?demo=bbbc013 (owner review, tests and the site).
   useEffect(() => { setDemo(new URLSearchParams(window.location.search).get("demo") === "bbbc013"); }, []);
   if (demo === null) return null;
-  return demo ? <AnalysisWorkspace adapter={adapter} demo /> : <ApiWorkspace />;
+  return demo ? <AnalysisWorkspace adapter={adapter} demo /> : <WorkspaceAccess><ApiWorkspace /></WorkspaceAccess>;
 }

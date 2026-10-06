@@ -11,6 +11,13 @@ async function failed(response: Response) {
 }
 
 describe("sanitized provider diagnostics", () => {
+  it("does not serialize a recoverable billed draft into error diagnostics", () => {
+    const draft = { rationale: "private research context" };
+    const error = new ModelError("model_usage_exceeded", undefined,
+      { inputTokens: 1000, outputTokens: 9000, cachedInputTokens: 0, calls: 1 }, draft);
+    expect(error.validatedDraft).toEqual(draft);
+    expect(JSON.stringify(error)).not.toContain("private research context");
+  });
   it("retains HTTP status and allowlisted code without private messages or headers", async () => {
     const error = await failed(Response.json({ error: { code: "model_not_found", message: "private-key secret context", param: "private-field" } },
       { status: 404, headers: { "x-request-id": "private-id" } }));

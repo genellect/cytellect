@@ -68,7 +68,7 @@ export function AnalysisPlanner() {
         <h2>解析方法</h2>
         <p className={styles.resultLead}>{result.candidates.length?"入力条件に対応する解析方法です。使用する方法を指定してください。":"測定項目と画像の条件を入力すると、利用できる解析方法が表示されます。"}</p>
         {!!result.candidates.length&&<fieldset className={styles.candidates}><legend>使用する方法</legend>{result.candidates.map(candidate=><label key={candidate.id}><input type="radio" name="plan-candidate" value={candidate.id} checked={selected===candidate.id} onChange={()=>setSelected(candidate.id)}/>{candidate.label}</label>)}</fieldset>}
-        {(API_CONFIGURED||LOCAL_MODE)&&<button className={styles.save} disabled={!selected} onClick={()=>{if(selected){memory.setPending({input:planReceipt(answers,version),candidateId:selected});router.push("/");}}}>この設定で作成</button>}
+        {(API_CONFIGURED||LOCAL_MODE)&&<button className={styles.save} disabled={!selected} onClick={()=>{if(selected){memory.setPending({input:planReceipt(answers,version),candidateId:selected});router.push("/legacy");}}}>この設定で作成</button>}
         <button className={styles.export} onClick={save}>設定を書き出す</button>
         <p className={styles.note}>設定をJSONファイルに保存します。{API_CONFIGURED||LOCAL_MODE?"画像登録後の確認は別途必要です。":"Windows版で読み込むと、設定を引き継げます。"}ページを再読み込みすると入力内容は消去されます。</p>
         {started && <>
