@@ -163,14 +163,9 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 if existing["upload_fingerprint"] != fingerprint:
                     raise HTTPException(409, "region_upload_id_conflict")
                 return dict(existing)
-            # Browser reloads regenerate client keys. Identical source bytes and
-            # scientific metadata still represent the same field in this workspace.
-            equivalent = conn.execute(select(fields).where(
-                fields.c.workspace_id == wid,
-                fields.c.upload_fingerprint == fingerprint,
-            ).order_by(fields.c.id)).mappings().first()
-            if equivalent is not None:
-                return dict(equivalent)
+            # Identical bytes under a new client key are a separate field: two
+            # fields may genuinely share content. The browser shows a duplicate
+            # warning; the researcher decides whether to exclude one.
             # Selecting a detector role can change only the evidence-source tag.
             # It must not duplicate unchanged images or rewrite saved provenance.
             requested_channels = [{key: value for key, value in channel.model_dump(mode="json").items()
@@ -183,8 +178,11 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                         or candidate["metadata"] != spec.metadata.model_dump(mode="json")):
                     continue
                 channels = [{key: value for key, value in channel.items() if key != "identity_source"}
-                            for channel in info["channels"]]
-                if channels == requested_channels:
+                             for channel in info["channels"]]
+                sources = [channel.get("identity_source") for channel in info["channels"]]
+                requested_sources = [getattr(channel, "identity_source", None) for channel in spec.channels]
+                # Only a changed role-evidence tag identifies a resend of the same field.
+                if channels == requested_channels and sources != requested_sources:
                     return dict(candidate)
             return None
 

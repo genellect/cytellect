@@ -241,7 +241,8 @@ def test_redirects_are_refused_so_the_device_credential_never_follows_them():
     thread = threading.Thread(target=server.handle_request, daemon=True)
     thread.start()
     settings = type("S", (), {"proposal_url": f"http://127.0.0.1:{server.server_port}", "proposal_token": "device-secret",
-                              "proposal_timeout_seconds": 5})()
+                              "proposal_timeout_seconds": 5,
+                              "proposal_prompt_version": "test"})()
     with pytest.raises(proposals.ProposalServiceError):
         proposals.request_draft(settings, CONTEXT)
     thread.join(5)

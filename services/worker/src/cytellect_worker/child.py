@@ -17,6 +17,8 @@ from .supervision import terminate_tree
 
 # Unknown exception messages may contain filenames/conditions: never persist them.
 ERROR_CODES = {
+    # Generic child failure: reported as such rather than as a supervision failure.
+    "analysis_failed",
     "fiji_not_configured",
     "fiji_adapter_not_installed",
     "raw_export_not_implemented",

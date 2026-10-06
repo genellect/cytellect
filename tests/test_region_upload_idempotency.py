@@ -97,9 +97,11 @@ def test_retry_after_response_loss_ignores_filename_and_normalizes_defaults(tmp_
     expected = hashlib.sha256(json.dumps(descriptor, sort_keys=True, separators=(",", ":"),
                                         ensure_ascii=False, allow_nan=False).encode()).hexdigest()
     assert saved["upload_fingerprint"] == expected
+    # A new key is a new field even for identical bytes (never silently merged);
+    # here it exceeds the one-field limit instead of reusing the first field.
     new_spec = {**spec, "client_upload_id": str(uuid4())}
-    recovered = upload(client, wid, new_spec, images)
-    assert recovered.status_code == 201 and recovered.json() == first.json()
+    separate = upload(client, wid, new_spec, images)
+    assert separate.status_code == 413 and separate.json()["detail"] == "workspace_limit"
     assert_single_upload(store, wid, first.json(), images)
 
 
@@ -360,25 +362,22 @@ def test_new_key_same_images_but_changed_metadata_is_a_distinct_field(tmp_path):
     assert store.one(workspaces, id=wid)["bytes"] == 2 * sum(map(len, images.values()))
 
 
-def test_different_client_keys_racing_identical_uploads_commit_once(tmp_path, monkeypatch):
-    client, store, wid = setup_upload(tmp_path, max_fields=1)
+def test_different_client_keys_with_identical_uploads_are_separate_fields(tmp_path, monkeypatch):
+    # Owner policy 2026-10-06: identical bytes under different client keys are
+    # kept as two fields; the browser warns and the researcher decides.
+    client, store, wid = setup_upload(tmp_path, max_fields=2)
     spec, images = upload_input()
     second_spec = {**spec, "client_upload_id": str(uuid4())}
-    barrier = Barrier(2)
-    original = region_api.read_tiff
-    def synchronized_decode(path, **kwargs):
-        barrier.wait(timeout=15)
-        return original(path, **kwargs)
-    monkeypatch.setattr(region_api, "read_tiff", synchronized_decode)
-    with client, TestClient(client.app) as other:
-        other.cookies.update(client.cookies)
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            a = pool.submit(upload, client, wid, spec, images)
-            b = pool.submit(upload, other, wid, second_spec, images)
-            responses = [a.result(timeout=30), b.result(timeout=30)]
-    assert all(response.status_code == 201 for response in responses)
-    assert responses[0].json() == responses[1].json()
-    assert_single_upload(store, wid, responses[0].json(), images)
+    first = upload(client, wid, spec, images)
+    second = upload(client, wid, second_spec, images)
+    assert first.status_code == second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]
+    assert first.json()["image_info"]["inputs"] == second.json()["image_info"]["inputs"]
+    assert len(store.rows(fields, workspace_id=wid)) == 2
+    # The same key still resolves idempotently.
+    again = upload(client, wid, spec, images)
+    assert again.json()["id"] == first.json()["id"]
+    assert len(store.rows(fields, workspace_id=wid)) == 2
 
 
 def test_detector_role_evidence_change_does_not_duplicate_field_or_rewrite_provenance(tmp_path):
