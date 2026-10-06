@@ -1,89 +1,72 @@
 # Cytellect
 
-蛍光顕微鏡画像の核検出・測定・統計・作図を行う Web アプリケーションのソースコードです。
-開発中のプロトタイプで、Web、Windows ローカル版、Docker で配布しています。
+[![Verify](https://github.com/genellect/cytellect/actions/workflows/ci.yml/badge.svg)](https://github.com/genellect/cytellect/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.12-3776AB)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000)
+![Status](https://img.shields.io/badge/status-prototype-orange)
 
-- 公開サイト：https://cytellect.vercel.app/
-- 最新の Windows 版：[0.1.0-local.15](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15)
-- 利用者向けの説明：[解析機能の説明](docs/implementation-overview.ja.md) · [公開画像ではじめる](docs/quickstart.ja.md)
-- English: [README.en.md](README.en.md)
+蛍光顕微鏡画像から核を検出・測定し、実験単位の統計と論文用の図までを1つのワークスペースで行う解析アプリケーション。
 
-## リポジトリの構成
+[公開サイト](https://cytellect.vercel.app/) · [解析例](https://cytellect.vercel.app/workspace?demo=bbbc013) · [Windows 版](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15) · [研究者向けの説明](docs/implementation-overview.ja.md) · [English](README.en.md)
 
-| ディレクトリ | 内容 |
+![核の検出結果を重ねた解析画面](apps/web/public/marketing/workspace-public.png)
+
+## 特徴
+
+- Fiji / StarDist による核検出を、版と SHA-256 を固定した別プロセスで実行する。解析ワーカーはネットワークから切り離して動く
+- 測定値は公開画像で ImageJ の独立計算と一致する（4DN の 482 領域で面積・平均・中央値が完全一致）
+- 細胞ではなく独立した実験単位を n とする階層集計。小標本ではすべての並べ方を数え上げる正確検定を使う
+- 修正や除外はすべて不変の revision として残り、図や統計は依存関係に沿って無効化・再計算される
+- 書き出しは決定的なバイト列で、SHA-256 manifest と replay スクリプトにより第三者が再計算・照合できる
+- LLM は閉じたスキーマで解析計画を提案するだけで、出力はローカルで検証され、数値の計算には関与しない
+- 同じ解析コードを Web、Windows ローカル版、Docker の3形態で配布している
+
+## 構成
+
+```mermaid
+flowchart LR
+    Web["Web<br/>Next.js"] --> API["API<br/>FastAPI · SQLite"]
+    API --> Worker["Worker"]
+    Worker --> Analysis["解析パッケージ<br/>NumPy · SciPy · Matplotlib"]
+    Worker --> Fiji["Fiji / StarDist"]
+    API -. 任意 .-> Relay["提案中継<br/>Cloudflare Workers · D1"] --> LLM["OpenAI"]
+```
+
+ブラウザは表示と操作だけを担い、測定・統計・作図はワーカーが行う。API とワーカーは同じ Python パッケージを使い、型は OpenAPI から TypeScript へ自動生成している。
+
+| 層 | 技術 |
 |---|---|
-| `apps/web` | Web 画面（Next.js） |
-| `services/api` | API サーバー（FastAPI） |
-| `services/worker` | 解析ジョブを実行するワーカー |
-| `packages/analysis` | 測定・統計・作図の Python パッケージ（API とワーカーが共有） |
-| `packages/contracts` | OpenAPI 定義と生成済みの TypeScript 型 |
-| `services/proposal-worker` | 解析計画の提案を中継する Cloudflare Worker |
-| `engines` | Fiji・モデル・Windows 実行環境の固定版とハッシュ |
-| `infra`、`compose.yaml` | Docker 構成 |
-| `fixtures/public` | 試験とデモに使う公開画像 |
-| `tests`、`scripts` | 試験、セットアップ、配布物の作成 |
-| `docs` | 設計・解析法・運用の文書 |
+| Web | Next.js 16 · React 19 · TypeScript |
+| API | FastAPI · Pydantic · SQLAlchemy · Alembic · SQLite |
+| 解析 | Fiji · StarDist 2D · MorphoLibJ · NumPy · SciPy · statsmodels · scikit-image · Matplotlib |
+| 提案中継 | Cloudflare Workers · D1 · OpenAI Responses API |
+| 配布・検証 | Vercel · GitHub Actions · Docker Compose · Pytest · Vitest · Playwright |
 
-## 必要な環境
+## はじめる
 
-- Python 3.12、[uv](https://docs.astral.sh/uv/) 0.12.2
-- Node.js 24、pnpm 11.19.0
-- 核の自動検出に Fiji（`scripts/fiji_setup.py` が固定版を導入）
+試すだけなら[公開サイトの解析例](https://cytellect.vercel.app/workspace?demo=bbbc013)を開くか、[Windows 版](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15)を展開して `Cytellect Setup.cmd` を実行する。
 
-## ローカルで起動する
+開発環境（Python 3.12、Node.js 24、pnpm 11.19.0、uv）：
 
 ```sh
-uv sync --locked --dev
-pnpm install --frozen-lockfile
+uv sync --locked --dev && pnpm install --frozen-lockfile
+uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
 
-export CYTELLECT_DATA_DIR=/absolute/private/cytellect   # リポジトリの外のディレクトリ
-export CYTELLECT_APP_ORIGIN=http://localhost:3000
-export CYTELLECT_SECURE_COOKIES=false
-uv run python scripts/fiji_setup.py /absolute/private/fiji --platform linux-x64
-export CYTELLECT_FIJI_EXECUTABLE=/absolute/private/fiji
+export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
+uv run cytellect invite --hours 24      # 招待トークンを発行
+uv run cytellect serve & uv run cytellect-worker & pnpm dev
 ```
 
-API、ワーカー、Web をそれぞれ別のターミナルで起動します。
-
-```sh
-uv run cytellect serve
-uv run cytellect-worker
-pnpm dev
-```
-
-`uv run cytellect invite --hours 24` で招待トークンを発行し、http://localhost:3000 で使います。Windows では `--platform windows-x64` を指定してください。
-
-Docker の場合は、`CYTELLECT_RUNTIME_DIR` に UID 10001 が所有する非公開ディレクトリを指定して `docker compose up --build -d` を実行します。詳細は [docker-desktop.md](docs/docker-desktop.md) にあります。
-
-## テスト
-
-```sh
-uv run ruff check .
-uv run pytest
-pnpm check
-pnpm test
-```
-
-Fiji を使う試験は `uv run pytest -m fiji`、ブラウザ試験は `pnpm --filter @cytellect/web test:e2e` で実行します。Pull Request には CI の5つの必須チェック（`python`、`web`、`fiji-browser`、`local-windows`、`python-windows-314`）の通過が必要です。
-
-## 配布
-
-| 配布先 | 方法 |
-|---|---|
-| Web | `main` への統合で Vercel が自動デプロイ（[deployment.md](docs/deployment.md)） |
-| Windows 版 | `local-release.yml` で ZIP を作成し、インストール後の受入試験を通った版を GitHub Releases に公開（[local.md](docs/local.md)） |
-| 解析計画の提案 | Cloudflare Workers と D1（[proposal-deployment.md](docs/proposal-deployment.md)） |
+http://localhost:3000 で招待トークンを入力する。Docker での起動は [docker-desktop.md](docs/docker-desktop.md) を参照。
 
 ## ドキュメント
 
-- 設計：[architecture.md](docs/architecture.md) · [requirements.md](docs/requirements.md) · [roadmap.md](docs/roadmap.md)
-- 解析法：[methods.md](docs/methods.md) · [common-statistics.md](docs/common-statistics.md) · [figures.md](docs/figures.md) · [validation.md](docs/validation.md)
-- 運用：[security.md](docs/security.md) · [local.md](docs/local.md) · [fiji.md](docs/fiji.md) · [oss.md](docs/oss.md)
-
-## 貢献とセキュリティ
-
-開発の進め方は [CONTRIBUTING.md](CONTRIBUTING.md)、作業上の規則は [AGENTS.md](AGENTS.md) にあります。研究用の非公開画像や解析結果は、Issue・Pull Request・ログに含めないでください。脆弱性は [SECURITY.md](SECURITY.md) の窓口に報告してください。
+| | |
+|---|---|
+| 研究者 | [解析機能の説明](docs/implementation-overview.ja.md) · [解析法](docs/methods.md) · [統計](docs/common-statistics.md) · [検証結果](docs/validation.md) |
+| 開発者 | [アーキテクチャ](docs/architecture.md) · [セキュリティ](docs/security.md) · [要件](docs/requirements.md) · [ロードマップ](docs/roadmap.md) |
 
 ## ライセンス
 
-Apache License 2.0（[LICENSE](LICENSE)）。Fiji、モデルの重み、公開データセットは、それぞれのライセンスに従います。
+Apache License 2.0。Fiji、モデルの重み、公開データセットはそれぞれのライセンスに従う（[oss.md](docs/oss.md)）。
