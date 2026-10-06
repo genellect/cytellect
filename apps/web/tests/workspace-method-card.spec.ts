@@ -45,4 +45,20 @@ test("nuclei are detected automatically and the method card reports each step", 
   await expect(sheet.getByRole("link", {name: /Kodiha M et al/})).toHaveAttribute("href", "https://doi.org/10.1186/1471-2121-12-25");
   await expect(sheet.getByRole("link", {name: /Schmidt U et al/})).toBeVisible();
   await page.screenshot({path: path.join(output!, "method-sheet-desktop.png")});
+  await sheet.getByRole("button", {name: "閉じる"}).click();
+  // One explicit action applies the DNA-poor definition, then derives nucleoplasm from the adopted nucleoli.
+  const runs: Array<{recipe: {compartment?: string; nucleolar_revision_id?: string; defining_channel_id: string; detector: {source?: string}}}> = [];
+  page.on("request", request => {if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/region-analyses")) runs.push(request.postDataJSON());});
+  await method.getByRole("button", {name: "全視野に適用"}).click();
+  await expect(method.getByRole("listitem").filter({hasText: "核質"}).first()).toContainText("1/1 視野", {timeout: 300000});
+  await expect(page.getByRole("region", {name: "核ごとの核質/核小体"})).toContainText("log2(核質/核小体)", {timeout: 20000});
+  const [nucleoli, plasm] = [runs.find(value => value.recipe.compartment === "nucleoli")!, runs.find(value => value.recipe.compartment === "nucleoplasm")!];
+  expect(nucleoli.recipe).toMatchObject({defining_channel_id: "c2", detector: {source: "dapi_poor"}});
+  expect(plasm.recipe.nucleolar_revision_id).toBeTruthy();
+  // The comparison then offers the per-nucleus ratio of the measured (non-nuclear) channel.
+  await method.getByRole("listitem").filter({hasText: "比較"}).getByRole("button", {name: "開く"}).click();
+  const metric = page.getByRole("region", {name: "独立実験単位の比較"}).getByLabel("測定値");
+  await expect(metric.locator("option", {hasText: "c1 核質/核小体 比（log2、核ごと）"})).toHaveCount(1);
+  await expect(metric.locator("option", {hasText: "c2 核質/核小体 比"})).toHaveCount(0);
+  await page.screenshot({path: path.join(output!, "method-card-compartments.png")});
 });
