@@ -47,6 +47,7 @@ class Settings:
     proposal_timeout_seconds: int = 300
     proposal_model: str = "gpt-6.1-sol"
     proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
+    desktop_owner: bool = False
 
     @property
     def cookie_name(self):
@@ -77,6 +78,7 @@ class Settings:
             proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "300")),
             proposal_model=os.environ.get("CYTELLECT_PROPOSAL_MODEL", "gpt-6.1-sol"),
             proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", PROPOSAL_PROMPT_VERSION),
+            desktop_owner=os.environ.get("CYTELLECT_DESKTOP_OWNER", "false").lower() == "true",
         )
 
 

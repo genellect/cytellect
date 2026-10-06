@@ -45,6 +45,17 @@ Repeating the same browser request returned the cached proposal; the settlement
 count and aggregate cost did not increase. All 70 offline Worker checks passed,
 with the separately billable public evaluation explicitly skipped.
 
+The operator subsequently authorized autonomous production-key provisioning.
+A dedicated non-expiring production key replaced the seven-day evaluation key;
+the evaluation key and ledger were not overwritten. Worker version
+`f10bc078-d796-4a25-91e2-d476b5bc8bc1` uses the new secret with the same USD 5
+monthly limit. A new, uncached BBBC007 metadata request succeeded through the
+Docker browser/API/Worker path and the local proposal validator. It retained
+descriptive analysis for a single field and required acquisition/stain checks.
+The call settled USD 0.0145575; the conservative aggregate became USD 0.4697475,
+with no open reservations or reconciliation incidents. This is an operational
+acceptance request, not an additional biological validation dataset.
+
 ## Docker and release gates
 
 Docker with the updated workspace passed a registered BBBC007 workflow: 115
@@ -61,3 +72,24 @@ The [storage-test investigation](windows-storage-investigation-2026-10-06.md)
 retains an unexplained earlier failure and its strengthened diagnostics. Neither
 a passing retry nor Linux acceptance establishes native acceptance on this PC.
 Private-image scientific suitability and researcher usability remain open.
+
+## Published workspace
+
+PR #37 passed all five required checks and merged as
+`dc278d5e0bfefcb058a30167ffc715ad21a299e8`. Its Git tree is identical to
+`4cddca0ae00521a96d8f7f513f418d460616d1c0`, the final Docker acceptance source.
+Vercel deployment `dpl_FuUfgsXmUADtsyvH11bSXcgiLtXn` is ready on the canonical
+production domain and identifies that main commit.
+
+Canonical-browser checks confirmed the root workspace, the `/product` LP and
+the public `/legacy` 404. Desktop and 390-pixel mobile workspace checks found no
+horizontal overflow. The unconfigured public workspace disables private image
+uploads and links to local setup; the Docker installation provides the actual
+image-processing API. The LP loads the GA4 tag in its separate metrics iframe;
+the workspace has no metrics iframe. GA4 property-side receipt was not checked.
+
+The final Docker run again passed BBBC007 image correction and SVG/PDF/CSV/Methods
+export with 115 labels, 230 rows and zero same-mask reference error. A separate
+generated-image run passed the explicit independent-unit comparison and editable
+exports. The runtime image source and these receipts precede the merge only in
+commit identity, not source content. Human task evaluation remains separate.

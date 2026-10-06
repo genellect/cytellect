@@ -45,6 +45,7 @@ export default function ApiWorkspace() {
   const [transmission, setTransmission] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [draft, setDraft] = useState("");
+  const [draftQuestions, setDraftQuestions] = useState<string[]>([]);
   const [draftRetry, setDraftRetry] = useState(false);
   const [fileCount, setFileCount] = useState(0);
   const files = useRef(new Map<string, File>());
@@ -238,8 +239,8 @@ export default function ApiWorkspace() {
 
   async function requestDraft(retryFailed = false) {
     if (!workspace || !transmission || draftBusy) return;
-    setDraftBusy(true); setDraft(""); setDraftRetry(false);
-    try {const response = await adapter.draft(workspace, goal, retryFailed); setDraft([response.proposal.draft.rationale, ...response.proposal.draft.missing_information].join("\n"));}
+    setDraftBusy(true); setDraft(""); setDraftQuestions([]); setDraftRetry(false);
+    try {const response = await adapter.draft(workspace, goal, retryFailed); setDraft(response.proposal.draft.rationale); setDraftQuestions(response.proposal.draft.missing_information);}
     catch (error) {if (error instanceof ApiError && error.code === "proposal_explicit_retry_required") {setDraftRetry(true); setDraft("前回のリクエストが完了していません。再送すると追加のAPI利用料が発生する場合があります。");} else setDraft(`${message(error)} 登録済みの解析条件でそのまま実行できます。`);}
     finally {setDraftBusy(false);}
   }
@@ -268,7 +269,18 @@ export default function ApiWorkspace() {
         {items.some(value => value.field && !value.result) && items.some(value => value.result) && <button className={styles.primary} disabled={busy || nuclear.length !== 1} onClick={() => void run()}>未完了の視野を解析</button>}
         {item?.result && <><section className={styles.panelSection}><h3>領域を修正</h3><p>{region ? `領域 ${region}${excluded.has(region) ? "（除外）" : ""}` : "画像または測定表で領域を選択"}</p><div className={styles.actions}><button className={styles.secondary} disabled={busy || !region || excluded.has(region)} onClick={() => void correct("exclude")}>対象から除外</button><button className={styles.secondary} disabled={busy || !region} onClick={() => void correct("delete")}>領域を削除</button><button className={styles.secondary} disabled={busy || !item?.history.length} onClick={() => void correct("undo")}>元に戻す</button><button className={styles.secondary} disabled={busy || !item?.redo.length} onClick={() => void correct("redo")}>やり直す</button></div>{busy && item?.result && <p>更新中。直前の保存結果を表示しています。</p>}</section>
         <section className={styles.panelSection}><h3>グラフ設定</h3><label>測定項目<select value={metric} onChange={event => setMetric(event.target.value)}>{metricOptions.map(value => <option key={value.key} value={value.key}>{value.label}</option>)}</select></label><label>幅 (mm)<select value={width} onChange={event => setWidth(Number(event.target.value))}><option value={89}>89</option><option value={178}>178</option><option value={183}>183</option></select></label><label>高さ (mm)<input type="number" min={40} max={170} value={height} onChange={event => setHeight(Math.min(170, Math.max(40, Number(event.target.value) || 76)))}/></label><label>縦軸の名前<input value={axisLabel} maxLength={120} onChange={event => setAxisLabel(event.target.value)}/></label><p className={styles.hint}>設定変更は図だけを作り直します。原画像の測定値は変わりません。</p></section></>}
-        <details className={styles.panelSection}><summary>解析案の補助（任意）</summary><label>解析の目的<textarea value={goal} maxLength={1000} onChange={event => {setGoal(event.target.value); setDraftRetry(false);}}/></label><p>目的とサーバーに保存されたチャンネル・画像の情報を Cytellect 提案サービスと OpenAI に送ります。画像・測定表は送りません。OpenAI は不正利用監視のため情報を保持する場合があります。</p><label><input type="checkbox" checked={transmission} onChange={event => setTransmission(event.target.checked)}/>この作業で上記の情報送信を許可する</label><button className={styles.secondary} disabled={!transmission || !workspace || draftBusy || busy || draftRetry} onClick={() => void requestDraft()}>解析案を相談</button>{draft && <p style={{whiteSpace: "pre-wrap"}}>{draft}</p>}{draftRetry && <button className={styles.secondary} disabled={!transmission || draftBusy || busy} onClick={() => void requestDraft(true)}>費用を確認して再送</button>}<p>提案は測定条件へ自動適用しません。サービスが使えなくても解析を実行できます。</p></details>
+        <details className={styles.panelSection}>
+          <summary>解析方法の提案</summary>
+          <p>解析の目的に合わせて、測定項目と統計手法を提案します。</p>
+          <label>解析の目的<textarea value={goal} maxLength={1000} placeholder="例：処理群と対照群で、核内の蛍光強度を比較したい" onChange={event => {setGoal(event.target.value); setDraftRetry(false);}}/></label>
+          <p>入力した目的、チャンネル情報、視野数や反復数などを Cytellect 経由で OpenAI に送信します。画像・測定値・ファイル名は送りません。OpenAI は不正利用監視のため送信内容を保持する場合があります。</p>
+          <label><input type="checkbox" checked={transmission} onChange={event => setTransmission(event.target.checked)}/>上記の情報を送信することに同意する</label>
+          <button className={styles.secondary} disabled={!transmission || !workspace || draftBusy || busy || draftRetry} onClick={() => void requestDraft()}>{draftBusy ? "提案を作成中…" : "提案を作成"}</button>
+          {draft && <p style={{whiteSpace: "pre-wrap"}}>{draft}</p>}
+          {draftQuestions.length > 0 && <div><h4>確認が必要な情報</h4><ul>{draftQuestions.map((question, index) => <li key={index}>{question}</li>)}</ul></div>}
+          {draftRetry && <button className={styles.secondary} disabled={!transmission || draftBusy || busy} onClick={() => void requestDraft(true)}>費用を確認して再送</button>}
+          <p>提案の作成だけでは、現在の解析設定は変わりません。</p>
+        </details>
         {item?.result && <details className={styles.panelSection}><summary>保存結果の出典</summary><p>解析版：{item.result.revision}</p><p>マスク版：{item.result.masks.metadata.mask_revision_id}</p><p>原値測定。検出結果の品質確認前。</p></details>}
       </aside>}
       <section className={[styles.drawer, drawer ? styles.drawerOpen : ""].join(" ")} aria-label="測定値"><button className={styles.drawerToggle} onClick={() => setDrawer(!drawer)} aria-expanded={drawer}>測定値 · {item?.label} · {rows.length} 領域</button>{drawer && <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>領域</th><th>面積 / px²</th><th>平均（原値）</th><th>中央値（原値）</th><th>積算（原値）</th><th>採否</th></tr></thead><tbody>{rows.map(row => <tr key={row.region_id}><th><button className={styles.rowButton} aria-label={`領域 ${row.region_id} を選択`} onClick={() => {setRegion(row.region_id); setView("image");}}>{row.region_id}</button></th>{[row.area_px, row.mean, row.median, row.integrated].map((value, index) => <td key={index}>{value === null ? "—" : Number(value.toPrecision(6))}</td>)}<td>{excluded.has(row.region_id) ? "除外" : "採用"}</td></tr>)}</tbody></table></div>}</section>
