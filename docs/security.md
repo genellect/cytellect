@@ -78,3 +78,20 @@ The LP sends a fixed canonical page URL/title, the referring HTTPS origin (witho
 Events: `page_view`, `download_click` (public Windows package link, not installation success), `download_section_click`, `example_click`, `planning_click`, `launch_help_click`, and `guide_click` (fixed `content_id`: guide/quickstart/methods/setup/figures). GA4's ordinary session/engagement events may also be produced within that isolated public document. Use Hostname = `cytellect.vercel.app` to separate these results from COMPASS. No cross-domain user stitching or shared-stream administration change is required for this addition.
 
 Automated browser checks intercept the Google script and do not populate production reports. Production verification separately checks real tag/collection requests and absence of the tag after navigating away. A browser request is not proof that GA4 reports have processed the event; Realtime/DebugView confirmation requires access to that GA4 property.
+
+## Docker Desktop owner access
+
+The Desktop overlay enables `CYTELLECT_DESKTOP_OWNER` for the loopback-published
+API (127.0.0.1:8001) and UI (127.0.0.1:3087). The private volume stores a stable
+`local-owner` identifier across service restarts and browser session expiry.
+The UI obtains a seven-day HttpOnly, SameSite=Strict session without an invitation;
+opening the UI after expiry restores access as the same owner.
+
+The bootstrap rejects foreign/missing Origin, Host, CSRF header, Fetch Metadata,
+and forwarded headers. Docker's loopback port binding is part of this boundary:
+never enable this adapter behind a public proxy or change its published bindings
+to 0.0.0.0. Local OS users/processes are trusted, as in the Windows launcher.
+Hosted invitation authentication is unchanged; this endpoint is absent by default.
+Earlier invitation-owned workspaces are not silently reassigned. Research-data
+expiry remains 24 hours after explicit use. Deleting the private runtime volume
+also removes the persistent local owner.
