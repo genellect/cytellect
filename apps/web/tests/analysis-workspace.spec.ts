@@ -116,18 +116,18 @@ test("added files are grouped once and rejected real uploads remain visible", as
     { name: "overview.tif", mimeType: "image/tiff", buffer: Buffer.from("v") },
   ]);
   await expect(page.getByText(/TIFF以外の 1 件は追加していません/)).toBeVisible();
-  // Nothing is dropped silently: the unreadable name is listed with what to do.
+  // Nothing is dropped silently: a file without a channel name stays its own field, and missing channels are listed.
   const summary = page.getByRole("region", { name: "読み込み結果" });
-  await expect(summary).toContainText("5 ファイル → 2 視野 · 2 チャンネル");
-  await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
-  await expect(summary).toContainText("overview.tif");
+  await expect(summary).toContainText("5 ファイル → 3 視野 · 3 チャンネル");
+  await expect(summary).toContainText("チャンネルが不足している視野");
+  await expect(summary).toContainText("overview");
   // A named nuclear stain needs no channel decision at all.
   await expect(page.getByRole("region", { name: "解析方法" }).getByText("DAPI から核を自動検出（StarDist 2D）")).toBeVisible();
   await expect(page.locator("main").getByRole("alert")).toContainText("2D・8/16-bitグレースケールTIFF");
   await expect(page.getByRole("link", { name: /SVG|CSV/ })).toHaveCount(0);
 });
 
-test("files that form no field are shown and the run stays unavailable", async ({ page }) => {
+test("unnamed files stay separate fields and identical bytes are flagged, not merged", async ({ page }) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Image grouping requires the configured workspace");
   await stubInputWorkflow(page);
   await page.goto("/workspace");
@@ -136,10 +136,9 @@ test("files that form no field are shown and the run stays unavailable", async (
     { name: "image.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
   ]);
   const summary = page.getByRole("region", { name: "読み込み結果" });
-  await expect(summary).toContainText("2 ファイル → 0 視野");
-  await expect(summary).toContainText("チャンネルを取り込み時に読み取るファイル（1）");
-  await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
-  await expect(page.getByRole("button", { name: "解析を実行" })).toHaveCount(0);
+  await expect(summary).toContainText("2 ファイル → 2 視野 · 1 チャンネル");
+  await expect(summary).toContainText("内容が同じファイル（1）");
+  await expect(summary).toContainText("field01.ome.tif、image.tif");
 });
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]) {

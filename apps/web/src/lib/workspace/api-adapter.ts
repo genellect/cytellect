@@ -24,6 +24,8 @@ export interface SavedResult {
   protocol?: string;
 }
 /** Raw values (3.0.0) or raw values plus an automatic, unconfirmed background candidate (4.0.0). */
+/** Mask corrections the workspace offers; delete goes through the exclusion/delete path. */
+export type MaskOperation = "add" | "replace" | "split" | "merge";
 export type MeasurementPolicy = {version: "1.1.0"; mode: "raw_intensity"} | {version: "1.2.0"; mode: "automatic_background"};
 export const rawMeasurement: MeasurementPolicy = {version: "1.1.0", mode: "raw_intensity"};
 export const automaticBackground: MeasurementPolicy = {version: "1.2.0", mode: "automatic_background"};
@@ -121,6 +123,8 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     if (JSON.stringify(current) !== JSON.stringify(selection)) throw new Error("別のタブで採用状態が更新されました。再読み込みしてください。");
   }
   async function adopt(workspace: string, result: SavedResult) {
+    // Re-adopting the already adopted revision is not a change and writes nothing.
+    if (selection!.entries.every(entry => entry.field_id !== result.field || entry.revision_id === result.revision)) return result;
     await saveSelection(workspace, selection!.entries.map(entry => entry.field_id === result.field ? {...entry, revision_id: result.revision} : entry));
     return result;
   }
@@ -245,13 +249,13 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await assertSelection(workspace);
       return adopt(workspace, await readResult(revision, field));
     },
-    async editMask(workspace: string, result: SavedResult, recipe: Recipe, operation: "add" | "replace", polygon: Point[], region?: number) {
-      if (polygon.length < 3 || (operation === "replace" && !region)) throw new Error("修正する領域と輪郭を指定してください");
+    async editMask(workspace: string, result: SavedResult, recipe: Recipe, operation: MaskOperation, polygon: Point[], region?: number, merged: number[] = []) {
+      if (operation === "merge" ? merged.length < 2 : polygon.length < 3 || (operation !== "add" && !region)) throw new Error("修正する領域と輪郭を指定してください");
       await assertSelection(workspace);
       await client.post(`/v1/workspaces/${workspace}/current`, {revision_id: result.revision});
       const created = await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-edits`, {
         field_id: result.field, region_set_id: recipe.region_set_id, operation,
-        ids: operation === "add" ? [] : [region], polygon,
+        ids: operation === "add" ? [] : operation === "merge" ? merged : [region], polygon: operation === "merge" ? [] : polygon,
         expected_mask_revision_id: result.masks.metadata.mask_revision_id,
       });
       await waitJob(workspace, created.job_id);

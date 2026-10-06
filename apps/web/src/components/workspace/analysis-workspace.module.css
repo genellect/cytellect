@@ -408,8 +408,7 @@
 .methodPanel{display:grid;gap:14px;padding:14px 16px}
 .goalForm{display:grid;gap:8px}
 .goalForm label{font-weight:600;font-size:14px;color:var(--ink)}
-.goalForm textarea{width:100%;min-height:64px;max-height:240px;padding:8px 10px;font:inherit;font-size:14px;line-height:1.5;border:1px solid var(--line-strong);border-radius:6px;resize:vertical;box-sizing:border-box}
-.goalForm textarea:focus{min-height:140px}
+.goalForm textarea{width:100%;min-height:88px;max-height:240px;padding:8px 10px;font:inherit;font-size:14px;line-height:1.5;border:1px solid var(--line-strong);border-radius:6px;resize:vertical;box-sizing:border-box}
 .goalActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .methodCard{border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .methodCardHeader{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#f6f7f9;border-bottom:1px solid var(--line);font-size:14px}

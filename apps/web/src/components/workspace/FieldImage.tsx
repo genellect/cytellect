@@ -2,6 +2,7 @@
 import {useEffect, useRef, useState} from "react";
 import type { Outline } from "@/lib/workspace/model";
 import type {Point} from "@/lib/types";
+import type {MaskOperation} from "@/lib/workspace/api-adapter";
 import {compoundOutlines} from "../../lib/workspace/compound-outlines";
 import styles from "./analysis-workspace.module.css";
 
@@ -23,7 +24,7 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
   label: string;
   controlledZoom?: number | null;
   onZoomChange?: (value: number | null) => void;
-  onDrawSave?: (operation: "add" | "replace", polygon: Point[], region?: number) => Promise<void>;
+  onDrawSave?: (operation: MaskOperation, polygon: Point[], region?: number, merged?: number[]) => Promise<void>;
   onDrawingChange?: (drawing: boolean) => void;
   editDisabled?: boolean;
 }) {
@@ -55,17 +56,19 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
     return () => observer.disconnect();
   }, [imageWidth, imageHeight, src]);
   const [showOutlines, setShowOutlines] = useState(true);
-  const [drawMode, setDrawMode] = useState<"add" | "replace" | null>(null);
+  const [drawMode, setDrawMode] = useState<MaskOperation | null>(null);
+  const [merged, setMerged] = useState<number[]>([]);
   const [drawRegion, setDrawRegion] = useState<number>();
   const [polygon, setPolygon] = useState<Point[]>([]);
   const [saving, setSaving] = useState(false);
   const [drawError, setDrawError] = useState("");
-  const endDrawing = () => {setDrawMode(null); setPolygon([]); setDrawError(""); onDrawingChange?.(false);};
-  const startDrawing = (mode: "add" | "replace") => {setDrawMode(mode); setDrawRegion(selected); setPolygon([]); setShowOutlines(true); setDrawError(""); onDrawingChange?.(true);};
+  const endDrawing = () => {setDrawMode(null); setPolygon([]); setMerged([]); setDrawError(""); onDrawingChange?.(false);};
+  const startDrawing = (mode: MaskOperation) => {setDrawMode(mode); setDrawRegion(selected); setPolygon([]); setMerged(mode === "merge" && selected ? [selected] : []); setShowOutlines(true); setDrawError(""); onDrawingChange?.(true);};
+  const ready = drawMode === "merge" ? merged.length >= 2 : polygon.length >= 3;
   const saveDrawing = async () => {
-    if (!onDrawSave || !drawMode || polygon.length < 3 || saving || editDisabled) return;
+    if (!onDrawSave || !drawMode || !ready || saving || editDisabled) return;
     setSaving(true); setDrawError("");
-    try {await onDrawSave(drawMode, polygon, drawRegion); endDrawing();}
+    try {await onDrawSave(drawMode, polygon, drawRegion, merged); endDrawing();}
     catch {setDrawError("輪郭を保存できませんでした。描画は保持しています。");}
     finally {setSaving(false);}
   };
@@ -98,8 +101,10 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
         <button type="button" onClick={() => setZoom(value => Math.min(8, (value ?? fitZoom) * 1.5))} aria-label="拡大">＋</button>
         <button type="button" onClick={() => {setZoom(null);}}>全体を表示</button>
         {analyzed && <button type="button" aria-pressed={showOutlines} onClick={() => setShowOutlines(value => !value)}>検出領域 {uniqueRegionCount(outlines.filter(value => value.state !== "deleted").map(value => value.outline))}</button>}
-        {onDrawSave && !drawMode && <><button type="button" disabled={editDisabled} onClick={() => startDrawing("add")}>領域を描く</button><button type="button" disabled={editDisabled || !selected} onClick={() => startDrawing("replace")}>輪郭を描き直す</button></>}
-        {drawMode && <><span>輪郭に沿ってクリック</span><button type="button" disabled={saving || !polygon.length} onClick={() => setPolygon(points => points.slice(0,-1))}>1点戻す</button><button type="button" disabled={saving || editDisabled || polygon.length < 3} onClick={() => void saveDrawing()}>{saving ? "保存中…" : "輪郭を保存"}</button><button type="button" disabled={saving} onClick={endDrawing}>描画を取り消す</button></>}
+        {onDrawSave && !drawMode && <><button type="button" disabled={editDisabled} onClick={() => startDrawing("add")}>領域を描く</button><button type="button" disabled={editDisabled || !selected} onClick={() => startDrawing("replace")}>輪郭を描き直す</button><button type="button" disabled={editDisabled || !selected} onClick={() => startDrawing("split")}>分ける</button><button type="button" disabled={editDisabled} onClick={() => startDrawing("merge")}>つなげる</button></>}
+        {drawMode === "merge" && <><span>つなげる領域をクリック（{merged.length} 個選択）</span><button type="button" disabled={saving || editDisabled || !ready} onClick={() => void saveDrawing()}>{saving ? "保存中…" : "つなげて保存"}</button></>}
+        {drawMode && drawMode !== "merge" && <><span>{drawMode === "split" ? `領域 ${drawRegion} から切り離す部分を囲む` : "輪郭に沿ってクリック"}</span><button type="button" disabled={saving || !polygon.length} onClick={() => setPolygon(points => points.slice(0,-1))}>1点戻す</button><button type="button" disabled={saving || editDisabled || !ready} onClick={() => void saveDrawing()}>{saving ? "保存中…" : drawMode === "split" ? "分けて保存" : "輪郭を保存"}</button></>}
+        {drawMode && <><button type="button" disabled={saving} onClick={endDrawing}>描画を取り消す</button></>}
       </div>
       <div ref={surface} className={styles.imageSurface}>
       <div ref={viewport} className={styles.imageViewport} style={surfaceSize.width && surfaceSize.height ? {width:Math.min(surfaceSize.width,surfaceSize.height*size.width/size.height),height:Math.min(surfaceSize.height,surfaceSize.width*size.height/size.width)} : undefined}
@@ -109,14 +114,15 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
         onPointerCancel={() => {drag.current=null;}}
         onClickCapture={event => {if(suppressClick.current){event.preventDefault();event.stopPropagation();suppressClick.current=false;}}}>
       <svg className={styles.imageSvg} style={{width: size.width * zoom, height: size.height * zoom, minWidth: size.width * zoom, cursor:drawMode ? "crosshair" : undefined}} viewBox={`0 0 ${size.width} ${size.height}`} role="img" aria-label={label}
-        onClickCapture={event => {if(!drawMode || saving || editDisabled) return; event.stopPropagation(); event.preventDefault(); const bounds=event.currentTarget.getBoundingClientRect(); const x=(event.clientX-bounds.left)*size.width/bounds.width, y=(event.clientY-bounds.top)*size.height/bounds.height; if(x>=0&&y>=0&&x<size.width&&y<size.height) setPolygon(points => [...points,[x,y]]);}}>
+        onClickCapture={event => {if(!drawMode || drawMode === "merge" || saving || editDisabled) return; event.stopPropagation(); event.preventDefault(); const bounds=event.currentTarget.getBoundingClientRect(); const x=(event.clientX-bounds.left)*size.width/bounds.width, y=(event.clientY-bounds.top)*size.height/bounds.height; if(x>=0&&y>=0&&x<size.width&&y<size.height) setPolygon(points => [...points,[x,y]]);}}>
         <image href={src} width={size.width} height={size.height} preserveAspectRatio="xMidYMid meet" />
         {showOutlines && compoundOutlines(outlines).map(({id: regionId, path, state}) => {
           const id = Number(regionId);
-          const className = [styles.outline, state === "excluded" ? styles.outlineExcluded : "", id === selected ? styles.outlineSelected : ""].join(" ");
+          const className = [styles.outline, state === "excluded" ? styles.outlineExcluded : "", (drawMode === "merge" ? merged.includes(id) : id === selected) ? styles.outlineSelected : ""].join(" ");
+          const choose = () => drawMode === "merge" ? setMerged(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]) : onSelect(id);
           return (
             <path key={regionId} d={path} fillRule="evenodd" clipRule="evenodd" className={className} data-region={regionId}
-              role="button" tabIndex={0} aria-label={`領域 ${id}`} onKeyDown={event => {if (event.key === "Enter" || event.key === " ") {event.preventDefault(); onSelect(id);}}} onClick={() => onSelect(id)}>
+              role="button" tabIndex={0} aria-label={`領域 ${id}`} onKeyDown={event => {if (event.key === "Enter" || event.key === " ") {event.preventDefault(); choose();}}} onClick={choose}>
               <title>{`領域 ${regionId}${state === "excluded" ? "（除外）" : ""}`}</title>
             </path>
           );

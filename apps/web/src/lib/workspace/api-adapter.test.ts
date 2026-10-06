@@ -55,6 +55,18 @@ describe("real workspace transport boundaries", () => {
     await expect(adapter.run("w1", "f1", nuclearRecipe(channel), undefined, automaticBackground)).rejects.toThrow("解析版");
     expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/region-analyses", expect.objectContaining({measurement: {version: "1.2.0", mode: "automatic_background"}, backgrounds: {}}));
   });
+  it("sends split with one region and its polygon, and merge with the chosen regions and no polygon", async () => {
+    const square: Array<[number, number]> = [[0, 0], [2, 0], [2, 2]];
+    const recipe = nuclearRecipe(channel);
+    for (const [operation, region, merged] of [["split", 4, []], ["merge", undefined, [3, 5]]] as const) {
+      const {adapter, post} = fake(async () => ({revision_id: "other", field_failures: [], field_tables: {}, exclusions: []}));
+      await expect(adapter.editMask("w1", result, recipe, operation, [...square], region, [...merged])).rejects.toThrow();
+      expect(post).toHaveBeenCalledWith("/v1/revisions/r1/region-edits", expect.objectContaining(operation === "split" ? {operation, ids: [4], polygon: square} : {operation, ids: [3, 5], polygon: []}));
+    }
+    const {adapter, post} = fake(async () => ({}));
+    await expect(adapter.editMask("w1", result, recipe, "merge", [], undefined, [3])).rejects.toThrow("修正する領域");
+    expect(post).not.toHaveBeenCalledWith("/v1/revisions/r1/region-edits", expect.anything());
+  });
   it("never resubmits after an uncertain POST or a polling connection failure", async () => {
     const uncertain = fake(async () => [], async () => {throw new TypeError("network");});
     await expect(uncertain.adapter.run("w1", "f1", nuclearRecipe(channel))).rejects.toThrow();

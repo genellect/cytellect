@@ -30,11 +30,11 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer, index) => ({name: `a9_c${index + 1}.tif`, mimeType: "image/tiff", buffer})));
   const upload = await uploaded; expect(upload.status()).toBe(201); const field = await upload.json();
   expect(field.image_info.channels.map((value: {stain: string | null}) => value.stain)).toEqual([null, null]);
-  await page.getByRole("radio", {name: "c2 を核検出に使う"}).click();
+  const method = page.getByRole("region", {name: "解析方法"});
   const accepted = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/region-analyses") && response.request().method() === "POST");
-  await page.getByRole("button", {name: "解析を実行", exact: true}).click();
+  await method.getByRole("button", {name: "c2 で核を検出", exact: true}).click();
   const acceptedResponse = await accepted; expect(acceptedResponse.status()).toBe(202); const initial = await acceptedResponse.json();
-  await expect(page.getByRole("status").first()).toContainText("1 / 1", {timeout: 240000});
+  await expect(method).toContainText("1/1 視野", {timeout: 240000});
   const measurementResponse = await page.request.get(`${api}/v1/revisions/${initial.revision_id}/region-measurements`);
   expect(measurementResponse.ok()).toBeTruthy(); const report = await measurementResponse.json();
   expect(report.protocol_version).toBe("3.0.0");
@@ -57,17 +57,21 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
     "print(json.dumps({'rows':len(report['field_tables'][fid]['rows']),'max_absolute_error':max(errors),'label_count':int(len(np.unique(mask))-1)}))",
   ].join("\n"), data!, initial.revision_id, field.id, inputs!], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "pipe"]}));
   await page.getByRole("button", {name: "グラフ", exact: true}).click();
-  await expect(page.getByRole("img", {name: /area_px.*視野ごとの分布/})).toBeVisible({timeout: 120000});
+  await page.getByRole("button", {name: "図を作成", exact: true}).click();
+  await expect(page.getByRole("img", {name: "保存するグラフ"})).toBeVisible({timeout: 120000});
   await page.screenshot({path: path.join(output!, "bbbc007-before.png"), fullPage: true});
   const initialLabels = reference.label_count;
   const firstRegion = report.field_tables[field.id].rows[0].region_id;
-  await page.locator(`circle[data-region="${firstRegion}"]`).click();
+  await page.getByRole("button", {name: "方法", exact: true}).click();
+  await page.locator(`[data-region="${firstRegion}"]`).first().click();
   const edited = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/region-reconfigure") && response.request().method() === "POST");
   await page.getByRole("button", {name: "対象から除外", exact: true}).click();
   const editedResponse = await edited; expect(editedResponse.status()).toBe(202); const corrected = await editedResponse.json();
-  await expect(page.getByRole("complementary").getByText(`領域 ${firstRegion}（除外）`, {exact: true})).toBeVisible({timeout: 120000});
+  // The figure from the uncorrected revision is not reused; it is rebuilt from the corrected one.
   await page.getByRole("button", {name: "グラフ", exact: true}).click();
-  await expect(page.getByRole("img", {name: /area_px.*視野ごとの分布/})).toContainText(`n = ${initialLabels - 1}`, {timeout: 120000});
+  await expect(page.getByText("設定を変更しました。「図を作成」で反映します。")).toBeVisible({timeout: 120000});
+  await page.getByRole("button", {name: "図を作成", exact: true}).click();
+  await expect(page.getByRole("img", {name: "保存するグラフ"})).toBeVisible({timeout: 120000});
   const allJobs = await (await page.request.get(`${api}/v1/workspaces/${field.workspace_id}/jobs`)).json();
   const figureJob = allJobs.filter((job: {revision_id: string; kind: string; state: string}) => job.revision_id === corrected.revision_id && job.kind === "statistics" && job.state === "succeeded").at(-1);
   expect(figureJob).toBeTruthy();
