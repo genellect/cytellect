@@ -16,7 +16,8 @@ export function WorkspaceFigureEditor({adapter, workspace, result, options, disa
   const [label, setLabel] = useState("");
   const [xLabel, setXLabel] = useState("");
   const [fontSize, setFontSize] = useState(7);
-  const [language, setLanguage] = useState<"ja" | "en">("en");
+  // Figures, axis text and legends are English (owner decision 2026-10-06).
+  const language = "en" as const;
   const [yMin, setYMin] = useState("");
   const [yMax, setYMax] = useState("");
   const [yTickStep, setYTickStep] = useState("");
@@ -56,13 +57,13 @@ export function WorkspaceFigureEditor({adapter, workspace, result, options, disa
   return <section className={styles.panelSection} aria-label="グラフ編集">
     <h3>グラフ</h3>
     <label>測定項目<select value={metric} disabled={busy} onChange={event => setMetric(event.target.value)}>{options.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
-    <label>横軸ラベル<input value={xLabel} maxLength={120} onChange={event => setXLabel(event.target.value)} placeholder="空欄で自動"/></label>
-    <label>縦軸ラベル<input value={label} maxLength={120} onChange={event => setLabel(event.target.value)} placeholder="空欄で測定項目と単位を表示"/></label>
+    <label>横軸ラベル（英語）<input value={xLabel} maxLength={120} onChange={event => setXLabel(event.target.value)} placeholder="Field"/></label>
+    <label>縦軸ラベル（英語）<input value={label} maxLength={120} onChange={event => setLabel(event.target.value)} placeholder="空欄で測定項目と単位（英語）"/></label>
+    {/[^\x00-\x7F]/.test(label + xLabel) && <p role="alert">図の文字は英語にしてください。日本語は論文図で文字化けや差し替えの原因になります。</p>}
     <div style={{display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12}}>
       <label>幅 (mm)<input type="number" min={76.2} max={406.4} step={1} value={width} onChange={event => setWidth(Number(event.target.value))}/></label>
       <label>高さ (mm)<input type="number" min={25.4} max={406.4} step={1} value={height} onChange={event => setHeight(Number(event.target.value))}/></label>
       <label>文字サイズ (pt)<input type="number" min={5} max={24} step={0.5} value={fontSize} onChange={event => setFontSize(Number(event.target.value))}/></label>
-      <label>図中の言語<select value={language} onChange={event => setLanguage(event.target.value as "ja" | "en")}><option value="en">English</option><option value="ja">日本語</option></select></label>
     </div>
     <details><summary>縦軸・点の表示</summary>
       <p>空欄の項目は自動で設定します。</p>
@@ -76,9 +77,22 @@ export function WorkspaceFigureEditor({adapter, workspace, result, options, disa
     {error && <p role="alert">{error}</p>}
     {saved && !current && <p>設定を変更しました。「図を作成」で反映します。</p>}
     {pages.map(page => <SavedVectorPreview key={`${current!.job}:${page.files.svg}`} path={`/v1/jobs/${current!.job}/files/${page.files.svg}`}/>)}
-    {pages.length > 0 && <p>表示中の図と同じSVG・PDF、測定値、作図条件をZIPで保存します。</p>}
+    {pages.length > 0 && current && <FigureLegend path={`/v1/jobs/${current.job}/files/figure-caption.md`}/>}
+    {pages.length > 0 && <p>表示中の図と同じSVG・PDF、英語の説明文（figure legend）、測定値、作図条件をZIPで保存します。</p>}
     {view?.kind === "tables_only" && <p role="alert">この設定では図を作成できません。寸法や文字サイズを調整してください。</p>}
   </section>;
+}
+
+function FigureLegend({path}: {path: string}) {
+  const [text, setText] = useState<{path: string; value: string} | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchBlob(path, controller.signal).then(blob => blob.text()).then(value => {if (!controller.signal.aborted) setText({path, value});}).catch(() => {});
+    return () => controller.abort();
+  }, [path]);
+  if (text?.path !== path) return null;
+  const body = text.value.replace(/^# Figure legend\s*/, "").trim();
+  return <figure style={{margin: 0}}><figcaption style={{fontSize: 12.5, lineHeight: 1.6, whiteSpace: "pre-line"}}><strong>Figure legend</strong>{"\n" + body}</figcaption></figure>;
 }
 
 function SavedVectorPreview({path}: {path: string}) {

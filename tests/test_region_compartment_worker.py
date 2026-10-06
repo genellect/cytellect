@@ -56,3 +56,26 @@ def test_modified_nuclear_mask_fails_hash_check(tmp_path, monkeypatch):
     np.save(store.safe_path("results", "nuclear", "f1", "labels.npy"), np.zeros((8,8), dtype=np.uint32))
     report = execute(store, settings, compartment_config(config), "child")
     assert report["field_tables"] == {} and report["field_failures"]
+
+
+def test_nucleoplasm_from_adopted_nucleoli_skips_the_detector_and_saves_the_ratio_summary(tmp_path, monkeypatch):
+    store, settings, config = nuclear_fields(tmp_path)
+    install_detector(monkeypatch)
+    execute(store, settings, config, "nuclear")
+    calls = []
+    def detect(*, channels, nuclei, parameters, output_dir, executable, scratch_root=None):
+        calls.append(1)
+        children = np.zeros_like(nuclei)
+        children[2, 2] = 1
+        return {"nucleoli": children, "nucleoplasm": np.where(children, 0, nuclei)}, {"nucleolar_states": {"7": "candidate", "19": "candidate"}}
+    monkeypatch.setattr(regions, "detect_compartments", detect)
+    execute(store, settings, compartment_config(config), "nucleoli")
+    plasm = {**config, "recipe": RegionCompartmentRecipe(region_set_id="nucleoplasm", label="Nucleoplasm", compartment="nucleoplasm", nuclear_revision_id="nuclear", nuclear_channel_id="dna", defining_channel_id="actin", nucleolar_revision_id="nucleoli").model_dump(mode="json")}
+    report = execute(store, settings, plasm, "plasm")
+    assert report["field_failures"] == [] and len(calls) == 1
+    summary = read_json(store.safe_path("results", "plasm", "f1", "compartment-summary.json"))
+    assert summary["nucleolar_revision"]["revision_id"] == "nucleoli"
+    rows = {row["nucleus_id"]: row for row in summary["channels"]["actin"]["rows"]}
+    assert rows[7]["nucleolar_area_px"] == 1 and rows[19]["missing_reason"] == "no_nucleolus"
+    record = read_json(store.safe_path("results", "plasm", "provenance.json"))["fields"]["f1"]
+    assert record["nucleolar_source"]["revision_id"] == "nucleoli"

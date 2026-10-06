@@ -124,3 +124,18 @@ this biases nucleoplasm/nucleolus ratios toward 1, i.e. toward smaller group
 differences. Detection uses copies only; measurement uses original pixels.
 Detector 1.0.0/1.1.0 (NCL per-nucleus Otsu/manual) remain for reproducing
 existing analyses and carry the NCL circularity limitation.
+
+## Per-nucleus nucleolar/nucleoplasmic summary (compartment-summary/1.0.0)
+
+When nucleoplasm is derived from adopted nucleoli, the worker also saves
+`compartment-summary.json` per field (served by
+`GET /v1/revisions/{rid}/compartment-summary?field_id=`). For every measured
+channel and parent nucleus it records the nucleolar count, union area and area
+fraction, the mean and integrated intensity over the nucleolar union (pixel
+weighted, not a mean of object means) and over the nucleoplasm, the primary
+metric log2(mean nucleoplasm / mean nucleolar union) (White et al., Mol Cell
+2019), and the integrated nucleolus/nucleoplasm ratio (Potapova et al., eLife
+2023). No pseudocount is added; a nucleus without a nucleolus or nucleoplasm, or
+with a non-positive mean, has a missing value and a reason. Values are raw until
+a background policy is applied; the summary states which. The browser only
+displays these values.

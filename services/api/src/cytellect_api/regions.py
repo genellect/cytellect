@@ -379,6 +379,17 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                       "missing_parent_count", "missing_parent_reasons", "nucleoplasm_missing_reasons", "compartment_missing_parent_count")}}
             for fid, value in provenance.get("fields", {}).items()}}
 
+    @api.get("/v1/revisions/{rid}/compartment-summary")
+    def compartment_summary(rid: str, field_id: str, who: Owner):
+        """Per-nucleus nucleolar/nucleoplasmic summary computed by the worker (never in the browser)."""
+        rev = region_revision(rid, who)
+        if field_id not in rev["config"]["field_ids"]:
+            raise HTTPException(404, "field_not_found")
+        path = result_root(rev) / field_id / "compartment-summary.json"
+        if not path.is_file():
+            raise HTTPException(409, "compartment_summary_unavailable")
+        return read_json(path)
+
     @api.get("/v1/revisions/{rid}/region-measurements", response_model=RegionReportType)
     def measurements(rid: str, who: Owner):
         rev = region_revision(rid, who)

@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 from cytellect_analysis.compartment_engine import detect_compartments, nucleoplasm_from_adopted_nucleoli
 from cytellect_analysis.compartment_review import comparable_region_recipe
+from cytellect_analysis.compartment_summary import compartment_summary
 from cytellect_analysis.engine import detect_nuclei
 from cytellect_analysis.images import sha256
 from cytellect_analysis.masks import (
@@ -344,6 +345,11 @@ def run_region_analysis(store, settings, job, output):
                             store, request.recipe, revision["workspace_id"], fid, image_info)
                         labels, engine_info = nucleoplasm_from_adopted_nucleoli(source_nuclei, adopted, states)
                         engine_info["nucleolar_revision"] = nucleolar_identity
+                        # Per-nucleus ratios from original pixels for every measured channel (raw values).
+                        write_json(destination / "compartment-summary.json", {
+                            "nucleolar_revision": nucleolar_identity,
+                            "channels": {channel_id: compartment_summary(source_nuclei, adopted, labels, plane)
+                                         for channel_id, plane in channels.items()}})
                         provenance_fields[fid]["nucleolar_source"] = nucleolar_identity
                     elif isinstance(request.recipe, RegionCompartmentRecipe):
                         assert source_nuclei is not None

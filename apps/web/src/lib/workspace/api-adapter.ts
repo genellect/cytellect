@@ -38,6 +38,8 @@ export interface Recipe {
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
   detection_max_side_px?: number;
 }
+export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
+export interface CompartmentSummaryFile {channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>}
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
 export interface Transport {
   request: typeof request; post: typeof post; blob: typeof fetchBlob; wait: () => Promise<void>;
@@ -234,10 +236,13 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await waitJob(workspace, created.job_id);
       return adopt(workspace, await readResult(created.revision_id, result.field, recipe));
     },
+    async compartmentSummary(revision: string, field: string) {
+      return client.request<CompartmentSummaryFile>(`/v1/revisions/${revision}/compartment-summary?field_id=${encodeURIComponent(field)}`);
+    },
     async figure(workspace: string, result: SavedResult, choice: FigureChoice): Promise<SavedFigure> {
       const created = await client.post<{job_id: string}>(`/v1/revisions/${result.revision}/descriptive-preview`, {
         mode: "descriptive", selection: {source: "region", region_set_id: result.regionSet || "nuclei", metric: choice.metric, channel_id: choice.channel},
-        group_by: "field", plot: {kind: "distribution", preset: "custom", width_inches: choice.width / 25.4, height_inches: choice.height / 25.4, language: choice.language ?? "ja", y_label: choice.label, x_label: choice.xLabel ?? "", font_size: choice.fontSize ?? 7, y_min: choice.yMin ?? null, y_max: choice.yMax ?? null, y_tick_step: choice.yTickStep ?? null, point_size: choice.pointSize ?? null},
+        group_by: "field", plot: {kind: "distribution", preset: "custom", width_inches: choice.width / 25.4, height_inches: choice.height / 25.4, language: choice.language ?? "en", y_label: choice.label, x_label: choice.xLabel ?? "", font_size: choice.fontSize ?? 7, y_min: choice.yMin ?? null, y_max: choice.yMax ?? null, y_tick_step: choice.yTickStep ?? null, point_size: choice.pointSize ?? null},
       });
       await waitJob(workspace, created.job_id);
       const saved = await client.request<DescriptiveResult>(`/v1/jobs/${created.job_id}/result`);
