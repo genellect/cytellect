@@ -24,17 +24,19 @@ test("registered GFP figure uses the recorded measurement channel", async ({page
   await expect(figure).not.toContainText("n = 0");
 });
 
-test("adds images, adopts one proposal and inspects fields while the run continues", async ({ page }) => {
+test("workspace entry has real file controls; explicit public example progresses", async ({ page }) => {
   await page.route("**/v1/session", route => route.fulfill({contentType:"application/json", body:JSON.stringify({authenticated:true,retention_hours:24,demo:false})}));
   await page.goto("/workspace");
   // No workspace form or method choice precedes adding images.
-  await expect(page.getByRole("heading", { name: "画像を追加" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "フォルダを追加" })).toBeVisible();
-  await expect(page.getByText("画像と原値の測定は解析サーバーで処理します。")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "画像解析", exact: true })).toBeVisible();
+  await expect(page.getByTestId("file-input")).toHaveAttribute("multiple", "");
+  await expect(page.getByTestId("folder-input")).toHaveAttribute("webkitdirectory", "");
+  await expect(page.locator("svg image, img")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "フォルダを追加", exact: true }).first()).toBeVisible();
   await expect(page.getByText(/公開画像|サンプル/)).toHaveCount(0);
   await adoptPublicSample(page);
   await expect(page.getByRole("status").filter({ hasText: "解析中" })).toBeVisible();
-  await expect(page.locator("polygon[data-region]").first()).toBeVisible();
+  await expect(page.locator("[data-region]").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /ウェル A12/ })).toContainText(/待機|解析中/);
   await expect(page.getByText("完了 3/3")).toBeVisible({ timeout: 20000 });
 });
@@ -42,7 +44,7 @@ test("adds images, adopts one proposal and inspects fields while the run continu
 test("a correction updates only that field's figure and can be undone", async ({ page }) => {
   await adoptPublicSample(page);
   await expect(page.getByText("完了 3/3")).toBeVisible({ timeout: 20000 });
-  await page.locator('polygon[data-region="12"]').click();
+  await page.locator('[data-region="12"]').click();
   const panel = page.getByRole("complementary", { name: "選択対象の操作" });
   await expect(panel.getByText("領域 12", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "対象から除外" }).click();
@@ -73,7 +75,7 @@ test("regions can be chosen from the keyboard through the measurement table", as
   await page.keyboard.press("Enter");
   const panel = page.getByRole("complementary", { name: "選択対象の操作" });
   await expect(panel.getByText("領域 7", { exact: true })).toBeVisible();
-  await expect(page.locator('polygon[data-region="7"]')).toHaveClass(/outlineSelected/);
+  await expect(page.locator('[data-region="7"]')).toHaveClass(/outlineSelected/);
   await expect(page.getByRole("button", { name: "領域 7 を選択" })).toHaveAttribute("aria-current", "true");
 });
 
@@ -91,7 +93,7 @@ test("a figure point opens its source image and region, and exports are actual o
   await page.getByRole("button", { name: /^核面積/ }).click();
   await page.locator('circle[data-field="BBBC013/01-A-01"][data-region="5"]').click();
   await expect(page.getByRole("img", { name: "ウェル A01の画像" })).toBeVisible();
-  await expect(page.locator('polygon[data-region="5"]')).toHaveClass(/outlineSelected/);
+  await expect(page.locator('[data-region="5"]')).toHaveClass(/outlineSelected/);
   await page.getByRole("button", { name: /測定値/ }).click();
   await expect(page.getByRole("button", { name: "領域 5 を選択" })).toHaveAttribute("aria-current", "true");
   await page.locator("summary", { hasText: "書き出し" }).click();
@@ -114,19 +116,18 @@ test("added files are grouped once and rejected real uploads remain visible", as
     { name: "overview.tif", mimeType: "image/tiff", buffer: Buffer.from("v") },
   ]);
   await expect(page.getByText(/TIFF以外の 1 件は追加していません/)).toBeVisible();
-  // Nothing is dropped silently: the unreadable name is listed with what to do.
+  // Nothing is dropped silently: a file without a channel name stays its own field, and missing channels are listed.
   const summary = page.getByRole("region", { name: "読み込み結果" });
-  await expect(summary).toContainText("5 ファイル → 2 視野 · 2 チャンネル");
-  await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
-  await expect(summary).toContainText("overview.tif");
+  await expect(summary).toContainText("5 ファイル → 3 視野 · 3 チャンネル");
+  await expect(summary).toContainText("チャンネルが不足している視野");
+  await expect(summary).toContainText("overview");
   // A named nuclear stain needs no channel decision at all.
-  await expect(page.getByText("核検出：DAPI（ファイル名）")).toBeVisible();
-  await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
+  await expect(page.getByRole("region", { name: "解析方法" }).getByText("DAPI から核を自動検出（StarDist 2D）")).toBeVisible();
   await expect(page.locator("main").getByRole("alert")).toContainText("2D・8/16-bitグレースケールTIFF");
   await expect(page.getByRole("link", { name: /SVG|CSV/ })).toHaveCount(0);
 });
 
-test("files that form no field are shown and the run stays unavailable", async ({ page }) => {
+test("unnamed files stay separate fields and identical bytes are flagged, not merged", async ({ page }) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Image grouping requires the configured workspace");
   await stubInputWorkflow(page);
   await page.goto("/workspace");
@@ -135,10 +136,9 @@ test("files that form no field are shown and the run stays unavailable", async (
     { name: "image.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
   ]);
   const summary = page.getByRole("region", { name: "読み込み結果" });
-  await expect(summary).toContainText("2 ファイル → 0 視野");
-  await expect(summary).toContainText("チャンネルを取り込み時に読み取るファイル（1）");
-  await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
-  await expect(page.getByRole("button", { name: "解析を実行" })).toHaveCount(0);
+  await expect(summary).toContainText("2 ファイル → 2 視野 · 1 チャンネル");
+  await expect(summary).toContainText("内容が同じファイル（1）");
+  await expect(summary).toContainText("field01.ome.tif、image.tif");
 });
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]) {

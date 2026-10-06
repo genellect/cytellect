@@ -10,18 +10,29 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
+from cytellect_analysis.compartment_engine import detect_compartments, nucleoplasm_from_adopted_nucleoli
+from cytellect_analysis.compartment_review import comparable_region_recipe
+from cytellect_analysis.compartment_summary import compartment_summary
 from cytellect_analysis.engine import detect_nuclei
 from cytellect_analysis.images import sha256
-from cytellect_analysis.masks import apply_label_edit, polygon_mask, validate_label_array
+from cytellect_analysis.masks import (
+    apply_compartment_edit,
+    apply_label_edit,
+    polygon_mask,
+    validate_label_array,
+)
 from cytellect_analysis.plan_adoption import validate_revision_plan
 from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
     RegionAnalysisRequest,
+    RegionCompartmentRecipe,
     RegionFieldMetadata,
     RegionImageInfo,
     RegionMaskEdit,
     RegionNuclearRecipe,
+    RegionSignalRecipe,
     RegionStoredFile,
+    ScaledNuclearRecipe,
     region_report_from_json,
     scientific_specification,
     validate_nuclear_role_evidence,
@@ -31,6 +42,7 @@ from cytellect_analysis.region_measurement_v2 import measure_regions_versioned
 from cytellect_analysis.region_metadata import validate_region_reuse
 from cytellect_analysis.region_policy import measurement_protocol
 from cytellect_analysis.regions import _array_hash
+from cytellect_analysis.signal_engine import detect_positive_regions
 from cytellect_api.db import fields, jobs, revisions
 from cytellect_api.storage import read_json, write_json
 
@@ -51,6 +63,8 @@ REGION_FIELD_ERRORS = {
     "select_labels", "merge_requires_multiple_labels", "split_requires_one_label",
     "split_requires_partial_region", "invalid_polygon", "polygon_outside_image",
     "degenerate_polygon", "empty_polygon", "unsupported_label_operation",
+    "nucleolus_outside_parent", "nucleoli_span_parents", "nucleoplasm_is_derived",
+    "compartment_nucleolar_source_invalid", "compartment_nucleolar_mask_mismatch",
     "region_automatic_source_has_imported_labels", "region_parent_detector_provenance_invalid",
     "fiji_not_configured", "fiji_assets_unavailable", "fiji_artifact_hash_mismatch", "fiji_model_hash_mismatch",
     "fiji_bundled_jdk_unavailable", "fiji_detection_capacity_exceeded", "fiji_timeout",
@@ -58,7 +72,10 @@ REGION_FIELD_ERRORS = {
     "fiji_invalid_output_labels", "fiji_invalid_output_provenance",
     "fiji_temporary_path_invalid", "fiji_temporary_path_too_long",
     "region_area_only_backgrounds_forbidden", "region_measurement_protocol_mismatch",
-    "region_metric_not_measured",
+    "region_automatic_background_roi_conflict", "region_background_exclusion_invalid",
+    "region_metric_not_measured", "signal_threshold_indeterminate",
+    "compartment_nuclear_source_invalid", "compartment_source_image_mismatch",
+    "compartment_nuclear_mask_mismatch", "compartment_nuclear_source_excluded",
     "nuclear_recorded_stain_required", "unknown_defining_channel",
     "cohort_source_invalid", "cohort_source_changed", "cohort_source_field_not_measured",
 }
@@ -97,6 +114,95 @@ def _initial_labels(folder: Path, image_info: RegionImageInfo, source: str) -> n
     if list(labels.shape) != image_info.shape:
         raise ValueError("region_source_shape_or_dtype_invalid")
     return labels
+
+
+def _compartment_nuclei(store, recipe, workspace_id, fid, image_info):
+    source = store.one(revisions, id=recipe.nuclear_revision_id)
+    if (not source or source["workspace_id"] != workspace_id or source["state"] != "succeeded"
+            or not source["result_dir"] or source["config"].get("analysis_kind") != "region-2d"
+            or source["config"].get("recipe", {}).get("source") != "stardist_nuclear"
+            or source["config"]["recipe"].get("defining_channel_id") != recipe.nuclear_channel_id):
+        raise ValueError("compartment_nuclear_source_invalid")
+    original = source["config"].get("field_snapshot", {}).get(fid)
+    if (original is None or RegionImageInfo.model_validate(original["image_info"]) != image_info):
+        raise ValueError("compartment_source_image_mismatch")
+    report = read_json(store.safe_path(source["result_dir"], "measurements.json"))
+    validate_region_report_policy(region_report_from_json(json.dumps(report)), source["config"])
+    mask = report.get("field_masks", {}).get(fid)
+    if (not mask or fid not in report.get("field_tables", {}) or mask["source"] != "stardist_nuclear"
+            or mask["shape"] != image_info.shape):
+        raise ValueError("compartment_nuclear_source_invalid")
+    labels = _load_array(store.safe_path(source["result_dir"], fid, "labels.npy"),
+                         RegionStoredFile.model_validate(mask["file"]))
+    validate_label_array(labels)
+    if list(labels.shape) != image_info.shape or _array_hash(labels, "<u4") != mask["mask_sha256"]:
+        raise ValueError("compartment_nuclear_mask_mismatch")
+    exclusions = [item for item in report["exclusions"] if item["field_id"] == fid]
+    if any(item["region_id"] is None for item in exclusions):
+        raise ValueError("compartment_nuclear_source_excluded")
+    source_labels = np.asarray(labels)
+    labels = labels.copy()
+    excluded_ids = [item["region_id"] for item in exclusions]
+    labels[np.isin(labels, excluded_ids)] = 0
+    return labels, source_labels, {"revision_id": source["id"], "mask_revision_id": mask["mask_revision_id"],
+                    "mask_sha256": mask["mask_sha256"], "exclusions": exclusions,
+                    "effective_mask_sha256": _array_hash(labels, "<u4"),
+                    "nuclear_channel_id": recipe.nuclear_channel_id}
+
+
+def _compartment_summary_report(inputs, nucleoplasm, channels, table) -> dict:
+    """Per-nucleus ratios from original pixels: raw values always, corrected values
+    only from an established automatic background (protocol 4.0.0); a channel
+    without one keeps its corrected summary missing with the reason."""
+    nuclei, nucleoli, identity = inputs
+    report = {"nucleolar_revision": identity,
+              "channels": {cid: compartment_summary(nuclei, nucleoli, nucleoplasm, plane)
+                           for cid, plane in channels.items()}}
+    if table.protocol_version == "4.0.0":
+        corrected = {}
+        for item in table.channel_provenance:
+            cid, background = item.channel.channel_id, item.background
+            corrected[cid] = (compartment_summary(nuclei, nucleoli, nucleoplasm, channels[cid],
+                                                  background.background_median)
+                              if background.status == "established"
+                              else {"protocol": "compartment-summary/1.0.0", "rows": [],
+                                    "missing_reason": background.reason})
+        report["corrected_channels"] = corrected
+        report["background"] = "automatic_candidate"
+    return report
+
+
+def _adopted_nucleoli(store, recipe, workspace_id, fid, image_info):
+    """Load the adopted nucleoli labels (with exclusions) that define nucleoplasm."""
+    source = store.one(revisions, id=recipe.nucleolar_revision_id)
+    source_recipe = (source or {}).get("config", {}).get("recipe", {})
+    if (not source or source["workspace_id"] != workspace_id or source["state"] != "succeeded"
+            or not source["result_dir"] or source["config"].get("analysis_kind") != "region-2d"
+            or source_recipe.get("source") != "fiji_nuclear_compartment"
+            or source_recipe.get("compartment") != "nucleoli"
+            or source_recipe.get("nuclear_revision_id") != recipe.nuclear_revision_id
+            or source_recipe.get("nuclear_channel_id") != recipe.nuclear_channel_id
+            or source_recipe.get("defining_channel_id") != recipe.defining_channel_id):
+        raise ValueError("compartment_nucleolar_source_invalid")
+    report = read_json(store.safe_path(source["result_dir"], "measurements.json"))
+    validate_region_report_policy(region_report_from_json(json.dumps(report)), source["config"])
+    mask = report.get("field_masks", {}).get(fid)
+    if not mask or mask["shape"] != image_info.shape:
+        raise ValueError("compartment_nucleolar_source_invalid")
+    labels = _load_array(store.safe_path(source["result_dir"], fid, "labels.npy"),
+                         RegionStoredFile.model_validate(mask["file"]))
+    validate_label_array(labels)
+    if _array_hash(labels, "<u4") != mask["mask_sha256"]:
+        raise ValueError("compartment_nucleolar_mask_mismatch")
+    exclusions = [item for item in report["exclusions"] if item["field_id"] == fid]
+    labels = labels.copy()
+    labels[np.isin(labels, [item["region_id"] for item in exclusions if item["region_id"] is not None])] = 0
+    provenance = read_json(store.safe_path(source["result_dir"], "provenance.json"))
+    engine = provenance.get("fields", {}).get(fid, {}).get("detector", {}).get("engine", {})
+    return labels, engine.get("nucleolar_states", {}), {
+        "revision_id": source["id"], "mask_revision_id": mask["mask_revision_id"],
+        "mask_sha256": mask["mask_sha256"], "exclusions": exclusions,
+        "effective_mask_sha256": _array_hash(labels, "<u4")}
 
 
 def run_region_analysis(store, settings, job, output):
@@ -154,7 +260,7 @@ def run_region_analysis(store, settings, job, output):
                 pin = cohort[fid]
                 parent = store.one(revisions, id=pin["revision_id"])
                 if (not parent or parent["workspace_id"] != revision["workspace_id"] or parent["state"] != "succeeded"
-                        or not parent["result_dir"] or parent["config"].get("recipe") != config["recipe"]
+                        or not parent["result_dir"] or comparable_region_recipe(parent["config"].get("recipe", {})) != comparable_region_recipe(config["recipe"])
                         or parent["config"].get("measurement") != config["measurement"]):
                     raise ValueError("cohort_source_invalid")
                 root = store.safe_path(parent["result_dir"])
@@ -195,7 +301,7 @@ def run_region_analysis(store, settings, job, output):
                 raise ValueError("region_source_shape_or_dtype_invalid")
             if request.recipe.defining_channel_id is not None and request.recipe.defining_channel_id not in channels:
                 raise ValueError("region_unknown_defining_channel")
-            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe))
+            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe))
             if nuclear and image_info.labels_array is not None:
                 raise ValueError("region_automatic_source_has_imported_labels")
             previously_selected = parent is not None and fid in parent["config"]["field_snapshot"]
@@ -210,6 +316,19 @@ def run_region_analysis(store, settings, job, output):
                                 "metadata_edit_version": "1.0.0"})
             provenance_fields[fid] = {"history": history, "inputs": image_info.model_dump(mode="json")["inputs"],
                                       "source_channels": [c.model_dump(mode="json") for c in image_info.channels]}
+            source_nuclei = None
+            summary_inputs = None
+            # Every source nucleus, including excluded ones, is kept out of an
+            # automatic background candidate; it is never used for measurement.
+            background_exclusion = None
+            if isinstance(request.recipe, RegionCompartmentRecipe):
+                source_recipe = (RegionCompartmentRecipe.model_validate(parent["config"]["recipe"])
+                                 if cohort is not None and parent is not None else request.recipe)
+                source_nuclei, background_exclusion, source_identity = _compartment_nuclei(
+                    store, source_recipe, revision["workspace_id"], fid, image_info)
+                provenance_fields[fid]["nuclear_source"] = source_identity
+                if old_mask is not None and previous_provenance.get("fields", {}).get(fid, {}).get("nuclear_source") != source_identity:
+                    raise ValueError("compartment_nuclear_mask_mismatch")
             destination = output / fid
             destination.mkdir()
             if old_mask is not None:
@@ -223,7 +342,7 @@ def run_region_analysis(store, settings, job, output):
                         or _array_hash(labels, "<u4") != old_mask["mask_sha256"]):
                     raise ValueError("region_parent_mask_mismatch")
                 mask_revision_id = old_mask["mask_revision_id"]
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
                     detector = deepcopy(previous_provenance.get("fields", {}).get(fid, {}).get("detector"))
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
@@ -234,20 +353,53 @@ def run_region_analysis(store, settings, job, output):
                             or detector.get("input_sha256") != pixel_hash
                             or detector.get("parameters") != request.recipe.detector.model_dump(mode="json")):
                         raise ValueError("region_parent_detector_provenance_invalid")
+                    if (isinstance(request.recipe, ScaledNuclearRecipe)
+                            and detector.get("detection_max_side_px") != request.recipe.detection_max_side_px):
+                        raise ValueError("region_parent_detector_provenance_invalid")
                     detector["executed_this_attempt"] = False
                     provenance_fields[fid]["detector"] = detector
             else:
                 if (edit and edit.field_id == fid) or (previously_selected and fid in previous_report.get("field_tables", {})):
                     raise ValueError("region_parent_mask_missing")
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
                     detection_started = True
                     detector_attempted = True
-                    labels, engine_info = detect_nuclei(
-                        image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
-                        scratch_root=output.parent,
-                    )
+                    if (isinstance(request.recipe, RegionCompartmentRecipe)
+                            and request.recipe.nucleolar_revision_id is not None):
+                        assert source_nuclei is not None
+                        adopted, states, nucleolar_identity = _adopted_nucleoli(
+                            store, request.recipe, revision["workspace_id"], fid, image_info)
+                        labels, engine_info = nucleoplasm_from_adopted_nucleoli(source_nuclei, adopted, states)
+                        engine_info["nucleolar_revision"] = nucleolar_identity
+                        # Written after measurement so an automatic background can be applied.
+                        summary_inputs = (source_nuclei, adopted, nucleolar_identity)
+                        provenance_fields[fid]["nucleolar_source"] = nucleolar_identity
+                    elif isinstance(request.recipe, RegionCompartmentRecipe):
+                        assert source_nuclei is not None
+                        masks, engine_info = detect_compartments(
+                            channels={"dapi": channels[request.recipe.nuclear_channel_id], "ncl": image},
+                            nuclei=source_nuclei, parameters=request.recipe.detector,
+                            output_dir=destination / "engine", executable=settings.fiji_executable or "",
+                            scratch_root=output.parent,
+                        )
+                        labels = masks[request.recipe.compartment]
+                    elif isinstance(request.recipe, RegionSignalRecipe):
+                        labels, engine_info = detect_positive_regions(
+                            image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
+                            scratch_root=output.parent,
+                        )
+                    elif isinstance(request.recipe, ScaledNuclearRecipe):
+                        labels, engine_info = detect_nuclei(
+                            image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
+                            scratch_root=output.parent, detection_max_side=request.recipe.detection_max_side_px,
+                        )
+                    else:
+                        labels, engine_info = detect_nuclei(
+                            image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
+                            scratch_root=output.parent,
+                        )
                     validate_label_array(labels)
                     if list(labels.shape) != image_info.shape:
                         raise ValueError("fiji_invalid_output_labels")
@@ -259,7 +411,11 @@ def run_region_analysis(store, settings, job, output):
                         "parameters": request.recipe.detector.model_dump(mode="json"),
                         "engine": engine_info, "executed_this_attempt": True,
                     }
+                    if isinstance(request.recipe, ScaledNuclearRecipe):
+                        provenance_fields[fid]["detector"]["detection_max_side_px"] = request.recipe.detection_max_side_px
                     detection_started = False
+                    if isinstance(request.recipe, RegionSignalRecipe) and engine_info.get("status") == "indeterminate":
+                        raise ValueError("signal_threshold_indeterminate")
                 else:
                     labels = _initial_labels(folder, image_info, request.recipe.source)
                 history.append({"revision_id": revision["id"], "operation": "initialize",
@@ -268,7 +424,12 @@ def run_region_analysis(store, settings, job, output):
                 if (edit.expected_mask_revision_id is not None
                         and edit.expected_mask_revision_id != mask_revision_id):
                     raise ValueError("region_stale_mask_revision")
-                labels = apply_label_edit(labels, edit.operation, edit.ids, edit.polygon)
+                if isinstance(request.recipe, RegionCompartmentRecipe):
+                    assert source_nuclei is not None
+                    labels = apply_compartment_edit(labels, source_nuclei, request.recipe.compartment,
+                                                    edit.operation, edit.ids, edit.polygon)
+                else:
+                    labels = apply_label_edit(labels, edit.operation, edit.ids, edit.polygon)
                 mask_revision_id = revision["id"]
                 history.append({"revision_id": revision["id"], "operation": "edit",
                                 "edit": edit.model_dump(mode="json")})
@@ -294,9 +455,14 @@ def run_region_analysis(store, settings, job, output):
                 recipe=request.recipe, image_info=image_info,
                 measurement=request.measurement,
             )
-            table = measure_regions_versioned(channels, labels, background_masks, specification)
+            automatic = request.measurement is not None and request.measurement.mode == "automatic_background"
+            table = measure_regions_versioned(channels, labels, background_masks, specification,
+                                              background_exclusion=background_exclusion if automatic else None)
             for cid, background in background_masks.items():
                 np.save(destination / f"background-{cid}.npy", background, allow_pickle=False)
+            if summary_inputs is not None:
+                write_json(destination / "compartment-summary.json",
+                           _compartment_summary_report(summary_inputs, labels, channels, table))
             field_tables[fid] = table.model_dump(mode="json")
             outcomes[fid] = table.status
         except Exception as exc:
@@ -355,7 +521,12 @@ def run_region_export(store, job, output):
             for slot in snapshot["image_info"]["inputs"]:
                 raw.append((f"{fid}/{slot}.tif", store.safe_path("workspaces", revision["workspace_id"],
                                                                 "fields", fid, f"{slot}.tif")))
+    from cytellect_analysis.region_exports import uses_compartment_summary
+
     records = store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")
+    omitted = [{"job_id": record["id"], "reason": "region_export_compartment_summary_unsupported"}
+               for record in records if uses_compartment_summary(record["payload"])]
+    records = [record for record in records if not uses_compartment_summary(record["payload"])]
     statistics = [read_json(store.safe_path(record["result_dir"], "result.json")) for record in records]
     statistics_roots = [(index, store.safe_path(record["result_dir"])) for index, record in enumerate(records)]
     build_region_bundle(
@@ -363,7 +534,10 @@ def run_region_export(store, job, output):
         provenance=read_json(root / "provenance.json"),
         mask_files={fid: store.safe_path(root, fid, "labels.npy") for fid in report["field_masks"]},
         raw_files=raw, statistics_results=statistics, statistics_roots=statistics_roots, include_raw=include_raw,
+        omitted_statistics=omitted,
     )
-    write_json(output / "result.json", {"files": ["analysis.zip", "methods.md"],
-                                        "raw_included": include_raw, "revision_id": revision["id"]})
+    summary = {"files": ["analysis.zip", "methods.md"], "raw_included": include_raw, "revision_id": revision["id"]}
+    if omitted:
+        summary["statistics_omitted"] = omitted
+    write_json(output / "result.json", summary)
     return output

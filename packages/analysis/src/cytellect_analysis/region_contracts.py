@@ -8,19 +8,28 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat, TypeAdapter, field_validator, model_validator
+from pydantic import Field, FiniteFloat, StrictInt, TypeAdapter, field_validator, model_validator
 
+from .compartment_engine import NucleolarDetector, NucleolarDetectorSpec
 from .plan_adoption import PlanResolution
 from .region_measurement_v2 import (
     RegionMeasurementPolicy,
     RegionMeasurementSpecType,
     RegionMeasurementSpecV2,
     RegionMeasurementSpecV3,
+    RegionMeasurementSpecV4,
     RegionMeasurementTableV2,
     RegionMeasurementTableV3,
+    RegionMeasurementTableV4,
     validate_area_backgrounds,
 )
-from .region_policy import MEASUREMENT_POLICY, MeasurementPolicy, RawIntensityPolicy
+from .region_policy import (
+    MEASUREMENT_POLICY,
+    MODE_BY_PROTOCOL,
+    AutomaticBackgroundPolicy,
+    MeasurementPolicy,
+    RawIntensityPolicy,
+)
 from .regions import (
     BackgroundSpec,
     Calibration2D,
@@ -33,6 +42,7 @@ from .regions import (
     RegionModel,
     RegionSetSpec,
 )
+from .signal_engine import SignalDetectorSpec
 
 Point = Annotated[list[FiniteFloat], Field(min_length=2, max_length=2)]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
@@ -65,11 +75,12 @@ class RegionMetadataChange(RegionMetadataEdit):
 
 
 class RegionFieldInput(RegionModel):
+    input_mode: Literal["native", "display-rgb"] = "native"
     version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     client_upload_id: Annotated[str, Field(
         pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     )] | None = None
-    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=3)]
+    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=4)]
     metadata: RegionFieldMetadata = Field(default_factory=RegionFieldMetadata)
     calibration: Calibration2D | None = None
 
@@ -89,10 +100,11 @@ class RegionStoredFile(RegionModel):
 
 
 class RegionImageInfo(RegionModel):
+    input_mode: Literal["native", "display-rgb"] = "native"
     kind: Literal["region-2d"] = "region-2d"
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     axes: Literal["YX"] = "YX"
-    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=3)]
+    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=4)]
     inputs: dict[Id, RegionStoredFile]
     channel_arrays: dict[Id, RegionStoredFile]
     labels_array: RegionStoredFile | None = None
@@ -179,7 +191,73 @@ class AdoptedNuclearRecipe(RegionModel):
     detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
 
 
-RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe, Field(discriminator="version")]
+class ScaledNuclearRecipe(RegionModel):
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.5.0"] = "1.5.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["stardist_nuclear"] = "stardist_nuclear"
+    defining_channel_id: Id
+    nuclear_role_source: Literal["recorded_stain", "user_selected_role"]
+    detection_max_side_px: Annotated[StrictInt, Field(ge=64, le=2048)]
+    detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
+
+
+class RegionSignalRecipe(RegionModel):
+    """Exploratory signal-positive areas; never implicitly nuclei or nucleoli."""
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.3.0"] = "1.3.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["fiji_positive_regions"] = "fiji_positive_regions"
+    defining_channel_id: Id
+    detector: SignalDetectorSpec = Field(default_factory=lambda: SignalDetectorSpec(threshold_method="otsu"))
+
+    @field_validator("label")
+    @classmethod
+    def nonblank_label(cls, value):
+        if not value.strip() or any(ord(char) < 32 for char in value):
+            raise ValueError("region_label_invalid")
+        return value
+
+
+class RegionCompartmentRecipe(RegionModel):
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.4.0"] = "1.4.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["fiji_nuclear_compartment"] = "fiji_nuclear_compartment"
+    compartment: Literal["nucleoli", "nucleoplasm"]
+    nuclear_revision_id: Id
+    nuclear_channel_id: Id
+    defining_channel_id: Id
+    detector: NucleolarDetector = Field(default_factory=NucleolarDetectorSpec)
+    # Nucleoplasm from the adopted (possibly edited) nucleoli revision instead of
+    # re-running the detector. Absent in historical revisions, which keep their meaning.
+    nucleolar_revision_id: Id | None = None
+
+    @field_validator("detector", mode="before")
+    @classmethod
+    def historical_detector_default(cls, value):
+        if isinstance(value, dict) and "protocol_version" not in value:
+            return {"protocol_version": "1.0.0", **value}
+        return value
+
+    @model_validator(mode="after")
+    def distinct_channels(self):
+        dapi_poor = getattr(self.detector, "source", None) == "dapi_poor"
+        # DNA-poor nucleoli are defined by the nuclear stain itself; other sources need another channel.
+        if dapi_poor != (self.nuclear_channel_id == self.defining_channel_id):
+            raise ValueError("compartment_requires_distinct_channels" if not dapi_poor
+                             else "dapi_poor_nucleoli_use_the_nuclear_channel")
+        if self.nucleolar_revision_id is not None and self.compartment != "nucleoplasm":
+            raise ValueError("nucleolar_revision_only_for_nucleoplasm")
+        if not self.label.strip() or any(ord(c) < 32 for c in self.label):
+            raise ValueError("region_label_invalid")
+        return self
+
+
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | ScaledNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe, Field(discriminator="version")]
 
 
 RECORDED_NUCLEAR_STAINS = frozenset({"dapi", "hoechst", "hoechst33258", "hoechst33342", "draq", "draq5", "draq7"})
@@ -191,7 +269,7 @@ def validate_nuclear_role_evidence(recipe: RegionRecipeType, image_info: RegionI
     A user-selected role remains an explicit choice, distinct from recorded stain
     evidence. This guard is shared by admission, worker and saved-mask replay.
     """
-    if not isinstance(recipe, AdoptedNuclearRecipe):
+    if not isinstance(recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe)):
         return
     channel = next((item for item in image_info.channels if item.channel_id == recipe.defining_channel_id), None)
     if channel is None:
@@ -295,7 +373,8 @@ def scientific_specification(*, field_id: str, revision_id: str, mask_revision_i
         defining_channel_id=recipe.defining_channel_id,
     )
     if measurement is not None:
-        specification_type = RegionMeasurementSpecV3 if measurement.mode == "raw_intensity" else RegionMeasurementSpecV2
+        specification_type = {"area_only": RegionMeasurementSpecV2, "raw_intensity": RegionMeasurementSpecV3,
+                              "automatic_background": RegionMeasurementSpecV4}[measurement.mode]
         return specification_type(
             measurement=measurement, field_id=field_id, analysis_revision_id=revision_id,  # type: ignore[arg-type]
             region_set=region_set, channels=tuple(image_info.channels), calibration=image_info.calibration,
@@ -315,7 +394,7 @@ class RegionFieldMask(RegionModel):
     mask_revision_id: Id
     mask_sha256: Digest
     region_set_id: Id
-    source: Literal["manual", "imported", "stardist_nuclear"]
+    source: Literal["manual", "imported", "stardist_nuclear", "fiji_positive_regions", "fiji_nuclear_compartment"]
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     file: RegionStoredFile
 
@@ -371,7 +450,7 @@ class RegionReportV2(RegionModel):
     @model_validator(mode="after")
     def complete_outcomes(self):
         _validate_report_outcomes(self)
-        if self.measurement.mode != ("raw_intensity" if self.protocol_version == "3.0.0" else "area_only"):
+        if self.measurement.mode != MODE_BY_PROTOCOL[self.protocol_version]:
             raise ValueError("region_measurement_protocol_mismatch")
         if any(table.measurement != self.measurement for table in self.field_tables.values()):
             raise ValueError("region_measurement_protocol_mismatch")
@@ -384,8 +463,16 @@ class RegionReportV3(RegionReportV2):
     field_tables: dict[Id, RegionMeasurementTableV3]  # type: ignore[assignment]
 
 
-RegionReportType = Annotated[RegionReport | RegionReportV2 | RegionReportV3, Field(discriminator="protocol_version")]
-_REPORT: TypeAdapter[RegionReport | RegionReportV2 | RegionReportV3] = TypeAdapter(RegionReportType)
+class RegionReportV4(RegionReportV2):
+    """Raw values plus corrections from automatic, unconfirmed background candidates."""
+    measurement: AutomaticBackgroundPolicy  # type: ignore[assignment]
+    protocol_version: Literal["4.0.0"] = "4.0.0"  # type: ignore[assignment]
+    field_tables: dict[Id, RegionMeasurementTableV4]  # type: ignore[assignment]
+
+
+_ReportUnion = RegionReport | RegionReportV2 | RegionReportV3 | RegionReportV4
+RegionReportType = Annotated[_ReportUnion, Field(discriminator="protocol_version")]
+_REPORT: TypeAdapter[_ReportUnion] = TypeAdapter(RegionReportType)
 
 
 def region_report_from_json(value: str) -> RegionReportType:

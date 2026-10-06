@@ -1,11 +1,11 @@
 /* Same visual language as the public site (product.module.css): midnight paper, blue actions, hairlines, 3px corners. */
-.shell{--paper:#030916;--panel:#061024;--raised:#0a1833;--stage:#01040b;--ink:#f3f3ef;--muted:#b7c5de;--faint:#8494b2;--line:#8caeff2b;--line-strong:#9abaff66;--blue:#236bf1;--blue-edge:#5d91ff;--blue-hover:#397dfb;--focus:#72a0ff;--amber:#ffb86b;--danger:#ff8f80;height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--paper);color:var(--ink);font-family:Inter,"Noto Sans JP","Helvetica Neue",sans-serif;font-size:15px;line-height:1.6;letter-spacing:.01em}
+.shell{--paper:#ffffff;--panel:#f7f8fa;--raised:#eef0f3;--stage:#141518;--ink:#20242a;--muted:#4f5965;--faint:#626d79;--line:#dce1e6;--line-strong:#b7c0ca;--blue:#236bf1;--blue-edge:#2363c3;--blue-hover:#397dfb;--focus:#72a0ff;--amber:#885200;--danger:#b52d22;color-scheme:light;height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--paper);color:var(--ink);font-family:Inter,"Noto Sans JP","Helvetica Neue",sans-serif;font-size:15px;line-height:1.6;letter-spacing:.01em}
 .shell *{box-sizing:border-box}
 .shell button:focus-visible,.shell a:focus-visible,.shell input:focus-visible,.shell select:focus-visible,.shell textarea:focus-visible,.shell summary:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
 .shell input,.shell select,.shell textarea{color:var(--ink);background:var(--paper);border:1px solid var(--line-strong);border-radius:3px;font-size:14px}
 .shell input::placeholder,.shell textarea::placeholder{color:var(--faint)}
 
-.header{display:flex;align-items:center;gap:22px;min-height:64px;padding:8px 22px;border-bottom:1px solid #ffffff20;background:#030916e6;backdrop-filter:blur(20px) saturate(110%)}
+.header{display:flex;align-items:center;gap:22px;min-height:64px;padding:8px 22px;border-bottom:1px solid var(--line);background:#ffffff;backdrop-filter:blur(20px) saturate(110%)}
 .brand{font-size:24px;font-weight:650;letter-spacing:-1.2px;line-height:1;color:var(--ink);text-decoration:none}
 .title{margin:0;padding-left:22px;border-left:1px solid var(--line);font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .status{margin:0;color:var(--muted);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -53,7 +53,7 @@
 .sidebar h2{display:flex;justify-content:space-between;margin:6px 20px 8px;color:var(--faint);font-size:12px;font-weight:600;letter-spacing:.06em}
 .fieldList{list-style:none;margin:0 0 22px;padding:0}
 .fieldList button{position:relative;width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 20px;border:0;background:none;color:var(--muted);font-size:14px;text-align:left}
-.fieldList button:hover{color:var(--ink);background:#ffffff08}
+.fieldList button:hover{color:var(--ink);background:var(--raised)}
 .fieldList button[aria-current="true"]{color:var(--ink);font-weight:600;background:#236bf11a}
 .fieldList button[aria-current="true"]::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--blue-edge)}
 .figureList button{flex-direction:column;gap:0}
@@ -65,7 +65,7 @@
 .status_failed{color:var(--danger)}
 .source{margin:24px 20px 0;padding-top:14px;border-top:1px solid var(--line);color:var(--faint);font-size:11px;line-height:1.7}
 
-.center{grid-area:center;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--stage)}
+.center{grid-area:center;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--paper)}
 .imageStage,.figureStage{flex:1;display:flex;flex-direction:column;min-height:0}
 .figureStage{overflow:auto;align-items:center;padding:32px;background:var(--paper)}
 .imageToolbar{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px}
@@ -75,9 +75,9 @@
 .segmented button+button{border-left:1px solid var(--line)}
 .segmented button[aria-checked="true"]{background:var(--blue);color:#fff}
 .updating{margin-left:auto;color:var(--blue-edge)}
-.imageFrame{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px}
+.imageFrame{background:var(--stage);color:#eef0f3;flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px}
 .imageSvg{width:100%;height:100%;min-height:0}
-.imageEmpty{flex:1;display:grid;place-items:center;color:var(--faint)}
+.imageEmpty{background:var(--stage);color:#c8cdd4;flex:1;display:grid;place-items:center}
 .imageNote{margin:10px 0 0;color:var(--faint);font-size:12px;text-align:center}
 .outline{fill:transparent;stroke:#7fb2ff;stroke-width:1.1;cursor:pointer;vector-effect:non-scaling-stroke}
 .outline:hover{stroke:#fff;stroke-width:2}
@@ -86,9 +86,9 @@
 .fieldError{display:flex;align-items:center;gap:14px;margin:0 16px 16px;padding:10px 14px;border:1px solid #ff8f8055;border-radius:3px;background:#ff8f8012;color:var(--danger);font-size:13px}
 .fieldError p{margin:0}
 
-.proposal{position:absolute;z-index:5;top:62px;left:18px;width:min(460px,calc(100% - 36px));max-height:calc(100% - 80px);overflow:auto;padding:22px 24px;background:#061024f2;border:1px solid var(--line-strong);border-radius:3px;box-shadow:0 30px 80px #0009;backdrop-filter:blur(16px)}
+.proposal{position:absolute;z-index:5;top:62px;left:18px;width:min(460px,calc(100% - 36px));max-height:calc(100% - 80px);overflow:auto;padding:22px 24px;background:#ffffff;border:1px solid var(--line-strong);border-radius:3px;box-shadow:0 8px 24px #18202b1a;backdrop-filter:blur(16px)}
 .proposal h2{margin:0 0 14px;font-size:20px;font-weight:600;letter-spacing:-.01em}
-.importSummary{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:3px;background:#ffffff05}
+.importSummary{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:3px;background:var(--paper)}
 .importSummary h3{margin:0 0 4px;font-size:13px;font-weight:600;color:var(--muted)}
 .importSummary>p{margin:0;font-size:14px;font-variant-numeric:tabular-nums}
 .issueCount{margin:2px 0 0;color:var(--amber);font-size:13px}
@@ -151,7 +151,7 @@
 .table thead th{position:sticky;top:0;background:var(--raised);color:var(--faint);font-weight:600}
 .table tbody th{color:var(--muted);font-weight:500}
 .table tr{cursor:pointer}
-.table tbody tr:hover{background:#ffffff08}
+.table tbody tr:hover{background:var(--raised)}
 .rowSelected{background:#236bf133}
 .rowButton{min-width:44px;padding:2px 6px;border:0;border-radius:3px;background:none;color:inherit;font:inherit;text-align:right;cursor:pointer}
 .rowButton[aria-current="true"]{color:var(--ink);font-weight:650}
@@ -198,3 +198,241 @@
 
 .comparison{flex:1;min-height:0;overflow:auto;padding:24px;background:var(--paper)}.comparison h2,.comparison h3{margin:10px 0}.comparison fieldset{border:1px solid var(--line);padding:16px;min-width:0}.comparison label{display:block;margin:8px 0}.comparison input:not([type=checkbox]),.comparison select{max-width:100%;padding:7px}.comparison td input{min-width:105px;width:100%}.comparisonControls{display:flex;gap:16px;flex-wrap:wrap}.comparisonDecisions{display:grid;gap:6px;margin:14px 0}.comparison details{margin:16px 0}.comparison section{margin-top:24px}
 .comparisonMount{flex:1;min-height:0;display:flex}.comparisonMount[hidden]{display:none}
+
+/* Keep common settings in the document flow on small screens. */
+@media(max-width:1100px){.layout{grid-template-columns:190px minmax(0,1fr);grid-template-areas:"side center" "side panel" "side drawer";grid-template-rows:minmax(300px,1fr) auto auto;overflow:auto}.panel{position:static;width:auto;height:auto;max-height:none;border-left:0;border-top:1px solid var(--line);box-shadow:none}.layoutNoPanel{grid-template-columns:190px minmax(0,1fr)}}
+@media(max-width:720px){.layout,.layoutNoPanel{display:flex;flex-direction:column}.panel{position:static;height:auto;width:100%;max-height:none}.center{min-height:340px}}
+.composer{flex:none;padding:16px 22px;background:#fff;border-top:1px solid var(--line);max-height:48%;overflow:auto}
+.composer form{max-width:840px;margin:0 auto;border:1px solid #b6beca;border-radius:14px;padding:12px 14px;background:#fff;box-shadow:0 2px 8px #18202b08}
+.composer label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#222b38}
+.composer textarea{display:block;width:100%;min-height:62px;max-height:160px;resize:vertical;border:0;background:transparent;color:#17202d;font:inherit;font-size:15px;line-height:1.6;padding:2px;outline-offset:3px}
+.composerActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.composerActions span{font-size:12px;color:#576171;flex:1}
+.composer small{display:block;max-width:840px;margin:8px auto 0;font-size:11px;line-height:1.5;color:#667080}
+.response{max-width:840px;margin:0 auto 16px;line-height:1.7;color:#263140;font-size:14px}
+.response p{white-space:pre-wrap}
+@media(max-width:760px){.composer{padding:12px;max-height:none}.composerActions span{flex-basis:100%;order:3}}
+.emptyWorkspace .layout{display:block;width:100%;max-width:900px;margin:0 auto;flex:1;padding:clamp(24px,8vh,88px) 20px 24px}
+.emptyWorkspace .sidebar,.emptyWorkspace .panel,.emptyWorkspace .drawer,.emptyWorkspace .empty,.emptyWorkspace .figureStage,.emptyWorkspace .headerActions,.emptyWorkspace .header>p{display:none}
+.emptyWorkspace .center{min-height:0;background:transparent}
+.emptyWorkspace .composer{padding:0;border:0;max-height:none;background:transparent;overflow:visible}
+.emptyWorkspace .composer form{padding:18px 20px}
+.emptyWorkspace .composer textarea{min-height:90px}
+.composer details{margin-top:10px;font-size:12px;color:#576171}
+.composer details select{display:block;max-width:100%;padding:6px;margin-top:6px;background:#fff;color:#263140;border:1px solid #b6beca}
+.operationStatus{max-width:840px;margin:0 auto 10px;padding:8px 10px;border-left:3px solid #356baf;background:#f1f5fa;color:#27374b;font-size:13px;line-height:1.6}
+.operationStatus button{margin-left:10px}
+
+/* The image uses original pixel coordinates at 100%; scroll rather than stretch. */
+.imageFrame{padding:0;align-items:stretch;justify-content:flex-start;overflow:hidden}
+.imageViewport{flex:1;min-height:120px;min-width:0;overflow:auto;position:relative;overscroll-behavior:contain}
+.imageViewport .imageSvg{display:block;max-width:none;max-height:none;flex:none}
+.zoomToolbar{display:flex;align-items:center;gap:4px;flex:none;padding:6px 10px;background:#fff;color:#27313f;border-bottom:1px solid var(--line)}
+.zoomToolbar button{padding:5px 9px;border:1px solid var(--line);background:#fff;color:inherit;border-radius:5px;font-size:12px;cursor:pointer}
+.zoomToolbar button[aria-pressed="true"]{background:#edf2f8;border-color:#8a9db8}
+
+/* Keep the image dominant without requiring a zoom action. */
+.imageViewport .imageSvg{margin:auto}
+.shell:not(.emptyWorkspace) .composer{padding:8px 14px;max-height:30%}
+.shell:not(.emptyWorkspace) .composer form{padding:8px 10px;max-width:none}
+.shell:not(.emptyWorkspace) .composer textarea{min-height:38px;height:38px;max-height:100px}
+.shell:not(.emptyWorkspace) .composer label[for="analysis-instruction"]{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
+.shell:not(.emptyWorkspace) .composer small{margin-top:4px}
+.shell:not(.emptyWorkspace) .composerActions{margin-top:5px}
+.imageGrid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(180px,1fr);gap:8px;padding:8px;overflow:auto;background:#e9edf2}
+.imageTile{display:flex;flex-direction:column;min-width:0;min-height:180px;overflow:hidden;background:#fff;border:1px solid #c6cdd7;border-radius:4px}
+.imageTile[data-active=true]{border-color:#3469a9;box-shadow:0 0 0 1px #3469a9}
+.tileHeading{flex:none;text-align:left;border:0;border-bottom:1px solid #d8dde5;background:#f7f8fa;color:#263140;padding:7px 10px;font:inherit;font-size:12px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imageTile .imageFrame{min-height:130px}.imageTile .zoomToolbar{gap:4px;flex-wrap:wrap;padding:4px}.imageTile .zoomToolbar button{font-size:11px;padding:3px 5px}
+@media(max-width:760px){.imageGrid{grid-template-columns:1fr;grid-auto-rows:300px}.imageTile{min-height:300px}}
+
+/* Reserve vertical space for images and plots, not repeated controls. */
+.shell:not(.emptyWorkspace) .header{min-height:44px;padding:4px 16px;gap:14px}
+.shell:not(.emptyWorkspace) .imageToolbar{padding:4px 10px;gap:8px;min-height:34px;flex:none}
+.imageToolbar strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.shell:not(.emptyWorkspace) .composer{padding:5px 10px;max-height:112px}
+.shell:not(.emptyWorkspace) .composer form{padding:4px 8px}
+.shell:not(.emptyWorkspace) .composer textarea{height:30px;min-height:30px;font-size:14px;line-height:1.4}
+.shell:not(.emptyWorkspace) .composerActions{margin-top:3px;gap:5px}
+.shell:not(.emptyWorkspace) .composerActions button{min-height:28px;padding:4px 9px;font-size:12px}
+.shell:not(.emptyWorkspace) .operationStatus{padding:0;margin:0 0 3px;border:0;background:transparent;line-height:18px;font-size:12px}
+.shell:not(.emptyWorkspace) .operationStatus button{min-height:24px;padding:2px 8px;font-size:12px}
+.figureStage{padding:12px}
+
+.imageGrid{grid-template-rows:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);padding:4px;gap:4px;background:#f1f2f4}
+.imageGrid[data-count="1"]{grid-template-columns:minmax(0,1fr)}
+.imageGrid[data-count="3"],.imageGrid[data-count="4"]{grid-template-rows:repeat(2,minmax(0,1fr))}
+.imageTile{min-height:0;border-radius:0}
+.imageTile .imageFrame{min-height:0}
+.tileHeading{padding:3px 7px}
+.imageToolbar [hidden]{display:none}
+
+/* Selected images determine the layout; never force a fixed split count. */
+.imageGrid,.imageGrid[data-count="1"],.imageGrid[data-count="3"],.imageGrid[data-count="4"]{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));grid-template-rows:none;grid-auto-rows:340px;align-content:start}
+.imageGrid[data-count="1"]{grid-auto-rows:minmax(340px,1fr)}
+.imageTile{min-height:300px}
+.imagePicker{position:relative;flex:none;font-size:12px}
+.imagePicker[open]{position:absolute;z-index:5;top:36px;left:10px;max-width:360px;max-height:280px;overflow:auto;padding:10px;background:#fff;border:1px solid var(--line);box-shadow:0 8px 20px #0002}
+.imagePicker label{display:flex;align-items:center;gap:6px;padding:5px}
+.imageWithResult{display:grid;grid-template-columns:minmax(0,1fr) 310px;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+.imageWithResult>.imageToolbar{grid-column:1/-1}.imageWithResult>.imageGrid,.imageWithResult>.imageFrame{grid-column:1;grid-row:2;min-width:0}
+.inlineResult{grid-column:2;grid-row:2;overflow:auto;padding:14px;border-left:1px solid var(--line);background:#fff;font-size:13px;min-width:0}
+.inlineResult h3{font-size:14px;margin:0 0 8px}.inlineResult p{margin:8px 0;color:#4f5a6a}.inlineResult label{display:grid;gap:5px}.inlineResult select{width:100%;padding:6px;border:1px solid #c6cdd7;background:#fff}.inlineResult svg{max-width:100%;height:auto}.inlineResult details{margin-top:12px}.inlineResult details button{display:block;max-width:100%;overflow-wrap:anywhere;margin:6px 0}
+@media(max-width:1050px){.imageWithResult{display:flex;overflow:auto}.inlineResult{flex:none;border-left:0;border-top:1px solid var(--line);max-height:420px}.imageWithResult>.imageGrid{flex:none;min-height:340px}.imageWithResult>.imageFrame{min-height:340px}}
+.targetBar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--line);padding:10px 14px;font-size:13px}
+.targetBar label{display:flex;align-items:center;gap:8px;color:#4c5868}.targetBar select{padding:6px 8px;border:1px solid #c7ced8;border-radius:5px;background:#fff;color:#233044}.targetBar button[aria-pressed=true]{background:#e9f0f8;color:#1d4e87;border-color:#8aaace}.targetBar>span{font-size:12px;color:#5d6877}
+.fieldList .channelRow{font-size:12px;padding:7px 10px 7px 22px;min-height:32px;background:#fff;color:#4b586a;border:0;border-left:3px solid transparent;display:block;width:100%;text-align:left}
+.fieldList .channelRow[aria-pressed=true]{border-left-color:#356baf;background:#edf3fa;color:#163e70}
+.targetBar input[type=number]{width:88px;padding:6px;border:1px solid #c7ced8;background:#fff;color:#233044}
+/* Image inspection keeps a real canvas height; short windows scroll instead of shrinking pixels. */
+.shell:not(.emptyWorkspace){height:auto;min-height:100dvh;overflow:visible}
+.shell:not(.emptyWorkspace) .layout{flex:none;min-height:calc(100dvh - 90px);grid-template-rows:auto auto}
+.shell:not(.emptyWorkspace) .center{overflow:visible}
+.imageStage:has(>.imageFrame){flex:none;min-height:460px;overflow:visible}
+.imageStage>.imageFrame{flex:none;height:clamp(420px,50vw,640px);min-height:420px}
+.imageStage>.imageFrame>.imageViewport{min-height:380px;flex:1}
+.imageWithResult:has(>.imageFrame){grid-template-rows:auto clamp(420px,50vw,640px)}
+.imageWithResult>.imageFrame{height:100%;min-height:420px}
+@media(max-width:1050px){.imageWithResult:has(>.imageFrame){display:flex}.imageWithResult>.imageFrame{height:clamp(420px,65vw,640px)}}
+@media(max-width:760px){.imageStage:has(>.imageFrame){min-height:360px}.imageStage>.imageFrame,.imageWithResult>.imageFrame{height:clamp(340px,90vw,540px);min-height:340px}.imageStage>.imageFrame>.imageViewport{min-height:300px}}
+.fieldList .channelRow{display:grid;grid-template-columns:78px minmax(0,1fr);align-items:center;gap:8px;padding:5px 8px;border-left:3px solid transparent;min-height:72px}
+.fieldList .channelRow img{display:block;width:78px;height:68px;object-fit:contain;background:#15171a}
+.fieldList .channelRow span{white-space:normal;overflow-wrap:anywhere;font-size:12px;line-height:1.4}
+.sidebar{overflow-y:auto;max-height:calc(100dvh - 80px);position:sticky;top:0}
+/* Keep desktop inspection inside the window; only lists and comparison tiles scroll. */
+.shell:not(.emptyWorkspace) .composer form{display:flex;align-items:center;gap:8px}
+.shell:not(.emptyWorkspace) .composer textarea{flex:1;min-width:80px}
+.shell:not(.emptyWorkspace) .composerActions{flex:none;margin:0}
+.shell:not(.emptyWorkspace) .composerActions>span{display:none}
+.shell:not(.emptyWorkspace) .composer{max-height:86px}
+.shell:not(.emptyWorkspace) .zoomToolbar{padding:3px 8px}
+.shell:not(.emptyWorkspace) .zoomToolbar button{padding:3px 6px}
+.imageViewport{touch-action:none;cursor:grab;user-select:none}
+.detectorOptions{position:relative}
+.detectorOptions summary{cursor:pointer;white-space:nowrap}
+.detectorOptions[open]>div{position:absolute;z-index:10;top:26px;right:0;min-width:220px;padding:12px;background:white;border:1px solid var(--line);box-shadow:0 4px 16px #0002}
+.detectorOptions[open]>div label{margin:5px 0}
+.header .targetBar{border:0;flex:1;padding:0;min-width:0;gap:6px}
+.header .targetBar button{min-height:32px;padding:5px 9px;font-size:12px;white-space:nowrap}
+.header .targetBar label{font-size:12px;gap:4px}
+.transmissionInfo{position:relative;flex:none;font-size:11px;white-space:nowrap}
+.composer .transmissionInfo{margin:0}
+.transmissionInfo summary{cursor:pointer}
+.transmissionInfo[open]>p{position:absolute;z-index:10;bottom:24px;right:0;white-space:normal;width:260px;padding:10px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 16px #0002}
+.shell:not(.emptyWorkspace) .composer{max-height:56px}
+.imageViewport:active{cursor:grabbing}
+.imageSurface{flex:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#eef0f3}
+.imageSurface>.imageViewport{flex:none;min-height:0;max-width:100%;max-height:100%;background:#141518}
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace){height:100dvh;min-height:0;overflow:hidden}
+ .shell:not(.emptyWorkspace) .layout{flex:1;min-height:0;overflow:hidden;grid-template-rows:minmax(0,1fr) auto}
+ .shell:not(.emptyWorkspace) .center{min-height:0;overflow:hidden}
+ .shell:not(.emptyWorkspace) .sidebar{height:100%;min-height:0;max-height:none;position:static;overflow:auto}
+ .imageStage:has(>.imageFrame){flex:1;min-height:0;overflow:hidden}
+ .imageStage>.imageFrame,.imageWithResult>.imageFrame{flex:1;height:auto;min-height:0;overflow:hidden}
+ .imageStage>.imageFrame>.imageViewport{min-height:0;flex:1}
+ .imageWithResult:has(>.imageFrame){display:grid;grid-template-rows:auto minmax(0,1fr)}
+ .imageWithResult>.imageFrame{height:100%;min-height:0}
+ .imageWithResult>.imageGrid{min-height:0}
+ .targetBar{flex:none;padding:5px 10px;gap:8px}
+ .inlineResult{min-height:0;max-height:none;overflow:auto}
+}
+/* Selected-field channels share the available height instead of fixed tall cards. */
+@media(min-width:761px){
+ .imageGrid,.imageGrid[data-count="1"],.imageGrid[data-count="3"],.imageGrid[data-count="4"]{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));grid-template-rows:minmax(0,1fr);grid-auto-rows:minmax(240px,1fr);align-content:stretch;padding:2px;gap:2px}
+ .imageGrid>.imageTile{min-height:0}
+ .imageGrid .zoomToolbar{padding:2px;gap:2px;flex-wrap:nowrap;overflow-x:auto}
+ .imageGrid .zoomToolbar button{flex:none;padding:2px 4px;font-size:10px}
+ .imageGrid .tileHeading{padding:2px 5px;font-size:11px}
+ .imageGrid .imageSurface{background:#f0f1f3}
+}
+
+/* Integrated workspace: image stays visible while the inspector changes tools. */
+.integratedPanel{position:static;min-width:0;min-height:0;width:auto;height:auto;max-height:none;overflow:auto;background:#fff;box-shadow:none}
+.integratedPanel [hidden]{display:none!important}
+.workTabs{display:flex;position:sticky;top:0;z-index:6;background:#fff;border-bottom:1px solid var(--line)}
+.workTabs button{flex:1;border:0;border-bottom:2px solid transparent;background:#fff;padding:10px 5px;font:inherit;font-size:13px;cursor:pointer}
+.workTabs button[aria-pressed=true]{color:#1c5ca3;border-bottom-color:#286cb8}
+.integratedPanel .targetBar{display:flex;flex-direction:column;align-items:stretch;padding:10px;gap:8px}
+.integratedPanel .targetBar button{min-height:28px;padding:4px 7px;font-size:12px}
+.runControls{display:flex;gap:6px;align-items:center}
+.runControls select{min-width:0;flex:1}
+.integratedPanel .targetBar .segmented{display:flex;flex-wrap:wrap;gap:4px}
+.integratedPanel .targetBar label{display:grid;gap:5px}
+.integratedPanel .detectorOptions[open]>div{position:static;min-width:0;box-shadow:none;border:0;padding:6px 0}
+.integratedPanel .panelSection{padding:12px;gap:9px}
+.integratedPanel .comparison{padding:12px;overflow:visible}
+.integratedPanel .comparison fieldset{padding:8px}
+.integratedPanel .comparisonControls{gap:8px}
+.integratedPanel .figureStage{padding:12px;overflow:visible;min-width:0}
+.integratedPanel .figureStage svg{max-width:100%;height:auto}
+.integratedPanel .actions{flex-wrap:wrap}
+.integratedPanel .actions button{max-width:100%;overflow-wrap:anywhere}
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace) .integratedLayout{display:grid;grid-template-columns:clamp(120px,10.5vw,140px) minmax(0,1fr) clamp(260px,22vw,300px);grid-template-rows:minmax(0,1fr) auto;grid-template-areas:"side center panel" "side drawer panel";overflow:hidden;min-height:0}
+ .integratedLayout .drawer .tableWrap{max-height:20dvh}
+}
+@media(max-width:760px){.integratedLayout .integratedPanel{max-height:55dvh;flex:none;border-top:1px solid var(--line)}}
+
+/* Image inspection and the AI conversation share horizontal space. */
+.inspection{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden}
+.aiToggle{display:none}
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace) .inspectionWithAi{display:grid;grid-template-columns:minmax(0,1fr) clamp(260px,21vw,330px);grid-template-rows:minmax(0,1fr)}
+ .inspectionWithAi .inspection{grid-column:1;grid-row:1}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composer{grid-column:2;grid-row:1;display:flex;flex-direction:column;min-width:0;min-height:0;max-height:none;padding:10px;border-top:0;border-left:1px solid var(--line);overflow:auto}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composer .response{flex:1;min-height:100px;overflow:auto}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composer form{display:flex;flex-direction:column;align-items:stretch;flex:none;width:100%;margin-top:auto;gap:8px;padding:8px}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composer label[for="analysis-instruction"]{position:static;clip-path:none;width:auto;height:auto;overflow:visible;font-size:13px}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composer textarea{width:100%;height:112px;min-height:96px;max-height:220px;font-size:14px;resize:vertical}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composerActions{display:flex;flex-wrap:wrap;margin:0}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composerActions button{min-height:30px;padding:4px 7px}
+ .inspectionWithAi .transmissionInfo[open]>p{position:static;width:auto;margin:6px 0;padding:6px}
+ .integratedLayout .fieldList .channelRow{grid-template-columns:minmax(0,1fr);gap:2px;padding:4px 6px}
+ .integratedLayout .fieldList .channelRow img{width:100%;height:76px}
+ .integratedLayout .fieldList .channelRow span{font-size:11px}
+ .integratedLayout .sidebar{padding-left:4px;padding-right:4px}
+}
+@media(min-width:761px) and (max-width:1179px){
+ .shell:not(.emptyWorkspace) .inspectionWithAi{display:flex;position:relative}
+ .shell:not(.emptyWorkspace) .inspectionWithAi .composer{display:none}
+ .shell:not(.emptyWorkspace) .inspectionWithAi.aiExpanded .composer{display:flex;position:absolute;z-index:12;right:0;top:0;bottom:0;width:300px;max-width:100%;box-shadow:-4px 0 20px #0002}
+ .aiToggle{display:inline-flex}
+}
+@media(max-width:760px){.aiToggle{display:inline-flex}.inspectionWithAi .composer{display:none}.inspectionWithAi.aiExpanded .composer{display:block;max-height:60dvh}.inspectionWithAi .composer textarea{min-height:96px!important}}
+
+/* Layout A (2026-10-06): fields | large image | method/results panel. The AI entry lives in the method panel. */
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace) .integratedLayout{grid-template-columns:200px minmax(0,1fr) clamp(340px,26vw,400px)}
+}
+.methodPanel{display:grid;gap:14px;padding:14px 16px}
+.goalForm{display:grid;gap:8px}
+.goalForm label{font-weight:600;font-size:14px;color:var(--ink)}
+.goalForm textarea{width:100%;min-height:88px;max-height:240px;padding:8px 10px;font:inherit;font-size:14px;line-height:1.5;border:1px solid var(--line-strong);border-radius:6px;resize:vertical;box-sizing:border-box}
+.goalActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.methodCard{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.methodCardHeader{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#f6f7f9;border-bottom:1px solid var(--line);font-size:14px}
+.methodSteps{list-style:none;margin:0;padding:0}
+.methodStep{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 12px;border-bottom:1px solid var(--line)}
+.stepNumber{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#9ca3af}
+.methodStep[data-tone="done"] .stepNumber{background:#15803d}
+.methodStep[data-tone="current"] .stepNumber{background:var(--blue)}
+.methodStep[data-tone="attention"] .stepState{color:#b45309}
+.stepBody{display:grid;gap:2px;min-width:0}
+.stepTitle{font-weight:600;font-size:14px}
+.stepDescription{font-size:13px;color:var(--ink)}
+.stepState{font-size:12.5px;color:var(--muted)}
+.methodStep[data-tone="done"] .stepState{color:#15803d}
+.methodStep[data-tone="current"] .stepState{color:var(--blue)}
+.methodApply{display:flex;gap:10px;align-items:center;padding:10px 12px}
+.linkButton{border:0;background:none;padding:2px 0;color:var(--blue);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.linkButton:disabled{color:var(--muted);cursor:default}
+.definitionForm{display:grid;gap:6px;margin-top:6px;font-size:13px}
+.definitionForm label{display:grid;gap:3px;color:var(--muted)}
+.definitionForm select,.definitionForm input{font:inherit;font-size:13px;padding:4px 6px}
+.definitionHint{margin:0;font-size:12.5px;color:var(--muted)}
+.methodSheet{position:fixed;z-index:30;top:0;right:0;bottom:0;width:min(520px,100%);overflow:auto;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 24px #0002;padding:18px 20px;display:grid;align-content:start;gap:14px}
+.methodSheet h2{margin:0;font-size:17px}
+.methodSheet h3{margin:0;font-size:14px}
+.methodSheet p,.methodSheet li{font-size:13.5px;line-height:1.6}
+.methodSheet section{display:grid;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--line)}

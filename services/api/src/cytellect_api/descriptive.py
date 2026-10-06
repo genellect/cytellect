@@ -6,7 +6,7 @@ from cytellect_analysis.descriptive_contracts import DescriptiveRequestType
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from fastapi import Depends, HTTPException
 
-from .regions import is_region
+from .regions import is_region, require_compartment_revision
 from .storage import read_json
 
 
@@ -17,7 +17,7 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
     def descriptive_preview(rid: str, body: DescriptiveRequestType, who: Owner):
         rev = revision(rid, who)
         if (rev["state"] != "succeeded" or not is_region(rev)
-                or rev["config"].get("recipe", {}).get("version") != "1.2.0"):
+                or rev["config"].get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0")):
             raise HTTPException(409, "workspace_measurements_required")
         if body.selection.source != "region":
             raise HTTPException(422, "descriptive_source_mismatch")
@@ -41,9 +41,11 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
             raise HTTPException(409, "review_required")
         if not is_region(rev) and unresolved_nucleolar_failures(report, rev["config"]):
             raise HTTPException(409, "resolve_or_explicitly_exclude_failed_nucleoli")
-        expected_source = "region" if is_region(rev) else "legacy-cell"
-        if body.selection.source != expected_source:
+        expected_source = ("region", "compartment-summary") if is_region(rev) else ("legacy-cell",)
+        if body.selection.source not in expected_source:
             raise HTTPException(422, "descriptive_source_mismatch")
+        if body.selection.source == "compartment-summary":
+            require_compartment_revision(rev)
         with store.transaction() as conn:
             jid = queue(conn, rev["workspace_id"], rid, "statistics", body.model_dump(mode="json"))
         return {"job_id": jid}

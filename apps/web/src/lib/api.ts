@@ -33,6 +33,7 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+  signal_threshold_indeterminate: "画像内の輝度が一定のため、陽性領域を検出できません。別のチャンネルを指定してください。",
  proposal_service_disabled:"解析案の補助は現在無効です。管理者がサービス設定を確認してください。",
  proposal_service_unavailable:"提案サービスに接続できません。接続状態を確認してください。",
  proposal_model_unavailable:"OpenAIの応答を取得できませんでした。サービスの通信状態を確認してください。",

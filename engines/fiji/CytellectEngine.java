@@ -51,11 +51,66 @@ public class CytellectEngine {
     static void execute(Path request) throws Exception {
         execute(request, binary -> BinaryImages.componentsLabeling(binary,8,32));
     }
+    static void detectSignal(JsonObject root, java.util.function.Function<ByteProcessor,ImageProcessor> labelComponents) throws Exception {
+        Path out=Path.of(root.get("directory").getAsString());
+        JsonObject parameters=root.getAsJsonObject("detector");
+        ImagePlus image=IJ.openImage(out.resolve("signal.tif").toString());
+        if(image==null) throw new IllegalArgumentException("signal_input_missing");
+        int w=image.getWidth(),h=image.getHeight(),size=w*h;
+        FloatProcessor detection=image.getProcessor().convertToFloatProcessor();
+        double sigma=number(parameters,"smoothing_sigma_px");
+        if(sigma>0) new GaussianBlur().blurGaussian(detection,sigma,sigma,0.01);
+        float[] signal=(float[])detection.getPixels();
+        float low=Float.POSITIVE_INFINITY,high=Float.NEGATIVE_INFINITY;
+        for(float value:signal) {low=Math.min(low,value);high=Math.max(high,value);}
+        String method=parameters.get("threshold_method").getAsString();
+        boolean otsuMethod=method.equals("otsu");
+        if(!otsuMethod && !method.equals("manual")) throw new IllegalArgumentException("unknown_signal_threshold");
+        boolean indeterminate=otsuMethod && low==high;
+        int otsu=0;
+        if(otsuMethod && !indeterminate) {
+            int[] histogram=new int[256];
+            for(float value:signal) histogram[Math.min(255,(int)((value-low)*256/(high-low)))]++;
+            otsu=new AutoThresholder().getThreshold(AutoThresholder.Method.Otsu,histogram);
+        }
+        ByteProcessor binary=new ByteProcessor(w,h);
+        if(!indeterminate) for(int i=0;i<size;i++) {
+            boolean selected=otsuMethod?Math.min(255,(int)((signal[i]-low)*256/(high-low)))>otsu:
+                signal[i]>number(parameters,"threshold");
+            if(selected) binary.set(i,255);
+        }
+        if(parameters.get("split_touching").getAsBoolean()) new EDM().toWatershed(binary);
+        ImageProcessor components=labelComponents.apply(binary);
+        Map<Integer,Integer> areas=new TreeMap<>();
+        for(int i=0;i<size;i++) {int id=(int)components.getf(i);if(id>0) areas.merge(id,1,Integer::sum);}
+        Map<Integer,Integer> ids=new HashMap<>();int next=1;
+        for(Map.Entry<Integer,Integer> entry:areas.entrySet())
+            if(entry.getValue()>=parameters.get("minimum_area_px").getAsInt()) ids.put(entry.getKey(),next++);
+        float[] labels=new float[size];
+        for(int i=0;i<size;i++) {Integer id=ids.get((int)components.getf(i));if(id!=null) labels[i]=id;}
+        save(labels,w,h,out.resolve("regions.tif"));
+        JsonObject info=new JsonObject();
+        info.addProperty("operation","signal-only");
+        info.addProperty("engine","Fiji / ImageJ / MorphoLibJ");
+        info.addProperty("java_version",System.getProperty("java.version"));
+        info.addProperty("headless",java.awt.GraphicsEnvironment.isHeadless());
+        info.add("parameters",parameters.deepCopy());
+        info.addProperty("status",indeterminate?"indeterminate":ids.isEmpty()?"no_candidate":"candidate");
+        info.addProperty("threshold_method",method);
+        info.addProperty("histogram_bins",256);
+        info.addProperty("detection_minimum",low);info.addProperty("detection_maximum",high);
+        if(otsuMethod && !indeterminate) info.addProperty("otsu_bin",otsu);
+        info.addProperty("selection_rule",otsuMethod?"floor(min(255, (signal-min)*256/(max-min))) > otsu_bin":"signal > threshold");
+        info.addProperty("connectivity",8);
+        info.addProperty("biological_positivity_established",false);
+        Files.writeString(out.resolve("engine-result.json"),new GsonBuilder().serializeNulls().setPrettyPrinting().create().toJson(info));
+    }
     // Package-private dependency boundary permits a fixed test helper to make a
     // component operation fail. CLI/API requests cannot replace this function.
     static void execute(Path request, java.util.function.Function<ByteProcessor,ImageProcessor> labelComponents) throws Exception {
         JsonObject root=JsonParser.parseString(Files.readString(request)).getAsJsonObject();
         if(root.has("roi_zip")) { verifyRois(root); return; }
+        if(root.has("mode") && root.get("mode").getAsString().equals("signal-only")) {detectSignal(root,labelComponents);return;}
         boolean nuclearOnly=root.has("mode") && root.get("mode").getAsString().equals("nuclear-only");
         if(root.has("mode") && !nuclearOnly) throw new IllegalArgumentException("unknown_operation");
         JsonObject recipe=root.getAsJsonObject(nuclearOnly?"detector":"recipe");
@@ -121,12 +176,21 @@ public class CytellectEngine {
             box[2]=Math.max(box[2],x);box[3]=Math.max(box[3],y);
         }
         boolean dapiLow=recipe.get("nucleolar_method").getAsString().equals("dapi-low");
+        boolean controlled=recipe.has("compartment_threshold_method");
+        String thresholdMethod=controlled?recipe.get("compartment_threshold_method").getAsString():"otsu";
+        if(controlled && (!root.get("reuse_nuclei").getAsBoolean() || dapiLow || !hasNcl
+                || !(thresholdMethod.equals("otsu") || thresholdMethod.equals("manual"))))
+            throw new IllegalArgumentException("invalid_compartment_threshold_mode");
+        boolean manual=controlled && thresholdMethod.equals("manual");
+        double maximumArea=controlled && recipe.has("maximum_area_px") && !recipe.get("maximum_area_px").isJsonNull()
+            ? number(recipe,"maximum_area_px") : Double.POSITIVE_INFINITY;
         FloatProcessor detection=(dapiLow||!hasNcl?dapi:ncl).getProcessor().convertToFloatProcessor();
         double sigma=number(recipe,"smoothing_sigma_px");
         if(sigma>0) new GaussianBlur().blurGaussian(detection,sigma,sigma,0.01);
         float[] signal=(float[])detection.getPixels(), nucleoli=new float[size];
         int next=1;
         JsonObject statuses=new JsonObject();
+        JsonObject thresholds=new JsonObject();
         for(Map.Entry<Integer,int[]> nucleus:bounds.entrySet()) {
             int label=nucleus.getKey();int[] box=nucleus.getValue();
             if(!hasNcl) {statuses.addProperty(""+label,"not_applicable_no_ncl");continue;}
@@ -138,9 +202,23 @@ public class CytellectEngine {
                 int i=(y0+y)*w+x0+x;
                 if(nuclei[i]==label) {values[count++]=signal[i];low=Math.min(low,signal[i]);high=Math.max(high,signal[i]);}
             }
-            if(low==high) {statuses.addProperty(""+label,"indeterminate");continue;}
+            JsonObject details=new JsonObject();
+            if(controlled) {
+                details.addProperty("method",thresholdMethod);
+                details.addProperty("detection_minimum",low);details.addProperty("detection_maximum",high);
+                details.addProperty("threshold_units","input intensity after optional detection-only Gaussian blur");
+                thresholds.add(""+label,details);
+            }
+            if(low==high && !manual) {
+                if(controlled) details.addProperty("missing_reason","uniform_signal");
+                statuses.addProperty(""+label,"indeterminate");continue;
+            }
             double threshold=0;int otsu=0;
-            if(dapiLow) {
+            if(manual) {
+                threshold=number(recipe,"compartment_threshold");
+                details.addProperty("threshold",threshold);
+                details.addProperty("selection_rule","signal > threshold");
+            } else if(dapiLow) {
                 Arrays.sort(values,0,count);double position=(count-1)*number(recipe,"dapi_low_percentile")/100;
                 int lower=(int)Math.floor(position),upper=(int)Math.ceil(position);
                 threshold=values[lower]+(position-lower)*(values[upper]-values[lower]);
@@ -148,12 +226,17 @@ public class CytellectEngine {
                 int[] histogram=new int[256];
                 for(int i=0;i<count;i++) histogram[Math.min(255,(int)((values[i]-low)*256/(high-low)))]++;
                 otsu=new AutoThresholder().getThreshold(AutoThresholder.Method.Otsu,histogram);
+                if(controlled) {
+                    details.addProperty("histogram_bins",256);details.addProperty("otsu_bin",otsu);
+                    details.addProperty("source_bin_boundary",low+(otsu+1)*(double)(high-low)/256.0);
+                    details.addProperty("selection_rule","floor(min(255, (signal-min)*256/(max-min))) > otsu_bin");
+                }
             }
             ByteProcessor binary=new ByteProcessor(cw,ch);
             for(int y=0;y<ch;y++) for(int x=0;x<cw;x++) {
                 int i=(y0+y)*w+x0+x;
                 if(nuclei[i]==label) {
-                    boolean selected=dapiLow?signal[i]<threshold:Math.min(255,(int)((signal[i]-low)*256/(high-low)))>otsu;
+                    boolean selected=manual?signal[i]>threshold:dapiLow?signal[i]<threshold:Math.min(255,(int)((signal[i]-low)*256/(high-low)))>otsu;
                     if(selected) binary.set(x,y,255);
                 }
             }
@@ -162,7 +245,8 @@ public class CytellectEngine {
             Map<Integer,Integer> area=new TreeMap<>();
             for(int i=0;i<cw*ch;i++) {int id=(int)components.getf(i);if(id>0) area.merge(id,1,Integer::sum);}
             Map<Integer,Integer> ids=new HashMap<>();
-            for(Map.Entry<Integer,Integer> entry:area.entrySet()) if(entry.getValue()>=recipe.get("minimum_area_px").getAsInt()) ids.put(entry.getKey(),next++);
+            for(Map.Entry<Integer,Integer> entry:area.entrySet()) if(entry.getValue()>=recipe.get("minimum_area_px").getAsInt()
+                    && entry.getValue()<=maximumArea) ids.put(entry.getKey(),next++);
             for(int y=0;y<ch;y++) for(int x=0;x<cw;x++) {
                 Integer id=ids.get((int)components.getf(x,y));if(id!=null) nucleoli[(y0+y)*w+x0+x]=id;
             }
@@ -187,6 +271,13 @@ public class CytellectEngine {
         info.addProperty("nuclei_reused",root.get("reuse_nuclei").getAsBoolean());
         info.addProperty("nucleolar_status_protocol_version","1.1.0");
         info.add("nucleolar_status",statuses);
+        if(controlled) {
+            info.addProperty("nucleolar_detector_protocol_version","1.1.0");
+            info.addProperty("nucleolar_algorithm",manual?"Explicit per-nucleus NCL threshold; MorphoLibJ 8-connectivity":"ImageJ 256-bin per-nucleus NCL Otsu; MorphoLibJ 8-connectivity");
+            info.add("nucleolar_thresholds",thresholds);
+            info.addProperty("smoothing_scope","full defining plane, detection only; threshold and components restricted to parent nucleus");
+            info.addProperty("area_filter_stage","after optional ImageJ EDM watershed");
+        }
         Files.writeString(out.resolve("engine-result.json"),new GsonBuilder().setPrettyPrinting().create().toJson(info));
     }
 }

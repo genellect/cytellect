@@ -1,5 +1,7 @@
 # Current implementation handoff
 
+**Latest:** [Claude transfer and requirements, 2026-10-06](claude-handoff-2026-10-06.md). Codex work stopped by user request. Read this before the historical notes below.
+
 The original Cloud task ended after a narrow worker checkpoint. It was not continuous development and did not complete the MVP. Local work has resumed in parallel across Web, Fiji, analysis/statistics and API/operations.
 
 The current working implementation includes Web/API/worker, masks and measurements, statistics/exports, real Fiji CPU integration, source/recipe/environment tracking and protection tests. Published real images now supplement numerical synthetic tests. Follow [roadmap](roadmap.md) for open verification gates; do not infer completion from files existing or a task being dispatched.

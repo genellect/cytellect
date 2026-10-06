@@ -140,8 +140,13 @@ nucleus/nucleolus relationships retain their existing specialized recipes.
 
 Nuclear probability, NMS and normalization percentiles are recorded. Native
 coordinates and original measurement pixels are preserved. The standard-2g
-automatic admission bounds remain 2048 px per side and 2,700,000 total pixels;
-the worker never shrinks an image to fit. Reusing corrected labels does not rerun
+detector plane stays within 2048 px per side and 2,700,000 total pixels. Inputs
+above those bounds, within the 4096 input ceiling, use nuclear-only detector
+protocol 1.1.0: an explicitly recorded anti-aliased bilinear detector copy and
+nearest-neighbour label restoration to original coordinates. Original measurement
+arrays are never resized. Shapes, pixel-centre transforms and hashes are saved;
+smaller planes retain the original detector path. Reduced-scale detection needs
+mask review and is not guaranteed to preserve small nuclei. Reusing corrected labels does not rerun
 Fiji. Per-field provenance distinguishes the original detector event from execution
 in the current attempt, including source pixel/model hashes and correction history.
 

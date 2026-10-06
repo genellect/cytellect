@@ -296,7 +296,7 @@ def prepare_region_observations(report, field_snapshot, selector):
             if selector.channel_id not in channel_map:
                 raise ValueError("descriptive_channel_identity_mismatch")
             channel = channel_map[selector.channel_id]
-            identities.add((channel.label, channel.stain))
+            identities.add((channel.label, channel.stain, image_info.get("input_mode", "native")))
         rows: dict[int, dict[str, Any]] = defaultdict(dict)
         for row in table.rows:
             if (row.field_id != fid or row.analysis_revision_id != table.analysis_revision_id

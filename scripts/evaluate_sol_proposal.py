@@ -17,7 +17,7 @@ def main() -> None:
     try:
         validated = validate_draft(
             ProposalContext.model_validate(request["context"]), request["draft"],
-            model="gpt-6.1-sol", prompt_version="2026-10-06.1",
+            model="gpt-6.1-sol", prompt_version="2026-10-06.2",
         )
         print(json.dumps({"valid": True, "codes": [], "needs_confirmation": validated.needs_confirmation}))
     except ProposalRejected as error:

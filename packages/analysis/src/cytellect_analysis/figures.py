@@ -186,6 +186,29 @@ def figure_settings(plot):
             "line_width_pt": .6, "png_dpi": 300}
 
 
+def apply_plot_controls(axes, plot):
+    """Presentation-only controls; omitted fields preserve historical rendering."""
+    lower, upper = axes.get_ylim()
+    lower = plot.get("y_min") if plot.get("y_min") is not None else lower
+    upper = plot.get("y_max") if plot.get("y_max") is not None else upper
+    if not np.isfinite([lower, upper]).all() or lower >= upper:
+        raise ValueError("figure_y_range_invalid")
+    step = plot.get("y_tick_step")
+    if step is not None:
+        if not np.isfinite(step) or step <= 0 or (upper - lower) / step > 99:
+            raise ValueError("figure_tick_count_exceeded")
+        # Anchor ticks at the explicit/auto lower bound. Bound work before allocation.
+        ticks = lower + np.arange(int(np.floor((upper - lower) / step)) + 1) * step
+        axes.set_yticks(ticks)
+    if step is not None or plot.get("y_min") is not None or plot.get("y_max") is not None:
+        axes.set_ylim(lower, upper)
+    if plot.get("point_size") is not None:
+        from matplotlib.collections import PathCollection
+        for collection in axes.collections:
+            if isinstance(collection, PathCollection):
+                collection.set_sizes([plot["point_size"]])
+
+
 def _validate_text_layout(figure, axes):
     """Reject demonstrably unreadable labels before publishing figure files."""
     figure.canvas.draw()
@@ -369,6 +392,7 @@ def render_figures(result, output: Path):
                 properties.set_family(font)
                 properties.set_weight(selected_font.weight)
                 item.set_fontproperties(properties)
+            apply_plot_controls(ax, plot)
             _validate_text_layout(fig, ax)
             for suffix in ("svg", "pdf", "png"):
                 metadata: dict[str, str | None] = {"Creator": "Cytellect " + FIGURE_VERSION}

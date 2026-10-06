@@ -71,7 +71,7 @@ export function NuclearChoice({ grouping, preview, onChoose }: {
   return (
     <fieldset className={styles.nuclearChoice}>
       <legend>{chosen ? "核検出に使うチャンネル" : "核検出に使うチャンネルを選択"}</legend>
-      <p className={styles.hint}>ファイル名から染色を判別できませんでした。核を染めた画像（DAPI・Hoechst・DRAQ など）を選んでください。</p>
+      <p className={styles.hint}>核を染めたチャンネルを指定します。この設定を全視野に適用します。</p>
       <div role="radiogroup" aria-label="核検出に使うチャンネル">
         {grouping.channels.map((channel) => {
           const src = preview(channel.token);
@@ -129,7 +129,7 @@ export function ImportSummary({ grouping, files }: { grouping: Grouping; files: 
     <section className={styles.importSummary} aria-labelledby="import-title">
       <h3 id="import-title">読み込み結果</h3>
       <p>{files} ファイル → {grouping.fields.length} 視野 · {grouping.channels.length} チャンネル</p>
-      {count > 0 && <p className={styles.issueCount}>確認が必要な項目 {count} 件</p>}
+      {count > 0 && <p className={styles.issueCount}>読み込みの詳細 {count} 件</p>}
       {kinds.map(({ kind, items }) => (
         <details key={kind} className={styles.issue} open={kind !== "missing_channel"}>
           <summary>{ISSUE_TEXT[kind].title}（{items.length}）</summary>

@@ -8,10 +8,11 @@ from pathlib import Path
 import numpy as np
 from matplotlib.text import Text
 
+from .common_statistics_figures import COMPARTMENT_LABELS
 from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
-from .figures import LABELS, _validate_text_layout, figure_settings, plt, select_font
+from .figures import LABELS, _validate_text_layout, apply_plot_controls, figure_settings, plt, select_font
 from .statistical_methods import methods_metadata, readable_descriptive_methods
 
 FIGURE_VERSION = "1.0.1"
@@ -31,7 +32,7 @@ def _source_measurement_policy(result):
 
 def _selected_channel(result):
     selection = result["spec"]["selection"]
-    if selection["source"] != "region" or selection.get("channel_id") is None:
+    if selection["source"] not in ("region", "compartment-summary") or selection.get("channel_id") is None:
         return None
     return next(item["channel"] for item in result["source_fields"][0]["channel_provenance"]
                 if item["channel"]["channel_id"] == selection["channel_id"])
@@ -72,6 +73,9 @@ def _caption(result, labels):
                  "Horizontal jitter affects display only (seed 0); values and selection are unchanged."]
     if selected_identity:
         lines.insert(3, ("測定チャンネル: " if ja else "Measured channel: ") + selected_identity + ".")
+    if result["spec"]["selection"]["source"] == "compartment-summary":
+        lines.insert(3, ("核ごとの区画サマリー値: " if ja else "Per-nucleus compartment-summary value: ")
+                     + result["metric_definition"] + ".")
     if result.get("source_review") == "automatic_unreviewed":
         lines.append("領域の目視確認前に生成した記述図。" if ja else "Descriptive output generated before visual review of regions.")
     lines += ["", "Field / source mapping:"]
@@ -144,6 +148,10 @@ def _ylabel(result, ja):
               "median": ("Region median intensity", "領域の輝度中央値"),
               "integrated": ("Region integrated intensity", "領域の積算輝度"),
               "value": ("Measured value", "測定値")}
+    if metric in COMPARTMENT_LABELS:
+        channel = _selected_channel(result)
+        label = (f"{channel['label']}: " if channel else "") + COMPARTMENT_LABELS[metric][ja]
+        return f"{label}\n({unit})"
     label = labels[metric.removesuffix("_corrected")][ja]
     channel = _selected_channel(result)
     if channel:
@@ -224,6 +232,7 @@ def render_descriptive(result, output: Path, *, methods_template=None):
                 properties.set_family(selected_font.family)
                 properties.set_weight(selected_font.weight)
                 item.set_fontproperties(properties)
+            apply_plot_controls(axes, plot)
             _validate_text_layout(figure, axes)
             for suffix in ("svg", "pdf", "png"):
                 metadata: dict[str, str | None] = {"Creator": "Cytellect descriptive figure " + FIGURE_VERSION}

@@ -549,6 +549,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/region-compartment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compartment Status */
+        get: operations["compartment_status_v1_revisions__rid__region_compartment_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/gfp-gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gfp Gate
+         * @description GFP-positive nuclei against designated negative-control fields (gfp-gate/2.0.0), per acquisition date.
+         */
+        post: operations["gfp_gate_v1_workspaces__wid__gfp_gate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/compartment-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compartment Summary
+         * @description Per-nucleus nucleolar/nucleoplasmic summary computed by the worker (never in the browser).
+         */
+        get: operations["compartment_summary_v1_revisions__rid__compartment_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/region-measurements": {
         parameters: {
             query?: never;
@@ -983,6 +1040,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
         };
         /** AssociationView */
         AssociationView: {
@@ -1045,6 +1110,114 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** AutomaticBackgroundConstants */
+        AutomaticBackgroundConstants: {
+            /** Tile Size Px */
+            tile_size_px: number;
+            /** Perinuclear Margin Px */
+            perinuclear_margin_px: number;
+            /** Margin Metric */
+            margin_metric: string;
+            /** Min Unexcluded Fraction */
+            min_unexcluded_fraction: number;
+            /** Bright Rule */
+            bright_rule: string;
+            /** Bright K */
+            bright_k: number;
+            /** Bright Mad Floor */
+            bright_mad_floor: number;
+            /** Mad Scale */
+            mad_scale: number;
+            /** Tile Median K */
+            tile_median_k: number;
+            /** Tile Dispersion K */
+            tile_dispersion_k: number;
+            /** Rejection Passes */
+            rejection_passes: number;
+            /** Min Tiles */
+            min_tiles: number;
+            /** Min Quadrants */
+            min_quadrants: number;
+            /** Quadrant Rule */
+            quadrant_rule: string;
+        };
+        /**
+         * AutomaticBackgroundPolicy
+         * @description Raw values plus corrections from an automatic, unconfirmed background candidate.
+         */
+        AutomaticBackgroundPolicy: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.2.0";
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "automatic_background";
+        };
+        /** AutomaticBackgroundProvenance */
+        AutomaticBackgroundProvenance: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "established" | "not_established";
+            /**
+             * Background Source
+             * @default automatic_candidate
+             * @constant
+             */
+            background_source: "automatic_candidate";
+            /**
+             * Confirmed
+             * @default false
+             * @constant
+             */
+            confirmed: false;
+            /**
+             * Algorithm
+             * @constant
+             */
+            algorithm: "cytellect-automatic-background";
+            /**
+             * Algorithm Version
+             * @constant
+             */
+            algorithm_version: "1.0.0";
+            constants: components["schemas"]["AutomaticBackgroundConstants"];
+            /** Exclusion Mask Sha256 */
+            exclusion_mask_sha256: string;
+            /** Additional Exclusion */
+            additional_exclusion: boolean;
+            /** Bright Threshold */
+            bright_threshold: number | null;
+            /** Excluded Pixel Count */
+            excluded_pixel_count: number;
+            /** Eligible Tile Count */
+            eligible_tile_count: number;
+            /** Median Rejected Tile Count */
+            median_rejected_tile_count: number;
+            /** Dispersion Rejected Tile Count */
+            dispersion_rejected_tile_count: number;
+            /** Retained Tile Count */
+            retained_tile_count: number;
+            /** Quadrants */
+            quadrants: number[];
+            /** Retained Tile Median Min */
+            retained_tile_median_min: number | null;
+            /** Retained Tile Median Max */
+            retained_tile_median_max: number | null;
+            /** Background Mask Sha256 */
+            background_mask_sha256: string | null;
+            /** Background Pixel Count */
+            background_pixel_count: number | null;
+            /** Background Median */
+            background_median: number | null;
+            /** Reason */
+            reason: ("automatic_background_insufficient_tiles" | "automatic_background_insufficient_coverage") | null;
+        };
         /** Background */
         Background: {
             /** Polygon */
@@ -1101,6 +1274,8 @@ export interface components {
             ch1?: string | null;
             /** Ch2 */
             ch2?: string | null;
+            /** Ch3 */
+            ch3?: string | null;
             /** Labels */
             labels?: string | null;
         };
@@ -1172,6 +1347,24 @@ export interface components {
              */
             storage_maximum: 255 | 65535;
             background: components["schemas"]["RawBackgroundProvenance"];
+        };
+        /** ChannelProvenanceV4 */
+        ChannelProvenanceV4: {
+            /** Channel */
+            channel: components["schemas"]["ChannelSpec"] | components["schemas"]["ObservedChannelSpec"];
+            /**
+             * Dtype
+             * @enum {string}
+             */
+            dtype: "uint8" | "uint16";
+            /** Pixel Sha256 */
+            pixel_sha256: string;
+            /**
+             * Storage Maximum
+             * @enum {integer}
+             */
+            storage_maximum: 255 | 65535;
+            background: components["schemas"]["AutomaticBackgroundProvenance"];
         };
         /** ChannelSpec */
         ChannelSpec: {
@@ -1248,6 +1441,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
             /**
              * Histogram Bins
              * @default 10
@@ -1402,6 +1603,39 @@ export interface components {
             /** Contrasts */
             contrasts: string[][];
         };
+        /**
+         * CompartmentSummarySelection
+         * @description Per-nucleus values from a nucleoplasm revision's compartment-summary.json.
+         *
+         *     Separately versioned observation source (compartment-summary selection 1.0.0);
+         *     the descriptive and inferential protocols that consume it are unchanged.
+         *     The log2 ratio is per channel; area fraction and count are channel-neutral.
+         */
+        CompartmentSummarySelection: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source: "compartment-summary";
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /**
+             * Channel Id
+             * @default null
+             */
+            channel_id: string | null;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count";
+        };
         /** ContourView */
         ContourView: {
             /** Id */
@@ -1472,6 +1706,26 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /**
+             * Y Min
+             * @default null
+             */
+            y_min: number | null;
+            /**
+             * Y Max
+             * @default null
+             */
+            y_max: number | null;
+            /**
+             * Y Tick Step
+             * @default null
+             */
+            y_tick_step: number | null;
+            /**
+             * Point Size
+             * @default null
+             */
+            point_size: number | null;
         };
         /** DescriptiveRequest */
         DescriptiveRequest: {
@@ -1481,7 +1735,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
             /**
              * Group By
              * @default field
@@ -1590,6 +1844,30 @@ export interface components {
             image_info: components["schemas"]["ImageInfo"];
             /** Synthetic */
             synthetic: boolean;
+        };
+        /** GfpGateField */
+        GfpGateField: {
+            /** Field Id */
+            field_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /**
+             * Control
+             * @default false
+             */
+            control: boolean;
+        };
+        /** GfpGateRequest */
+        GfpGateRequest: {
+            /** Gfp Channel Id */
+            gfp_channel_id: string;
+            /**
+             * Percentile
+             * @default 99
+             */
+            percentile: number;
+            /** Fields */
+            fields: components["schemas"]["GfpGateField"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1782,6 +2060,134 @@ export interface components {
              */
             percentile_high: number;
         };
+        /** NucleolarDetectorSpec */
+        NucleolarDetectorSpec: {
+            /**
+             * Engine
+             * @default fiji-nucleolar-compartments
+             * @constant
+             */
+            engine: "fiji-nucleolar-compartments";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "1.0.0";
+            /**
+             * Smoothing Sigma Px
+             * @default 0
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Minimum Area Px
+             * @default 1
+             */
+            minimum_area_px: number;
+            /**
+             * Split Touching
+             * @default false
+             */
+            split_touching: boolean;
+        };
+        /**
+         * NucleolarDetectorV11
+         * @description Opt-in threshold/area controls; the saved 1.0 detector remains unchanged.
+         */
+        NucleolarDetectorV11: {
+            /**
+             * Engine
+             * @default fiji-nucleolar-compartments
+             * @constant
+             */
+            engine: "fiji-nucleolar-compartments";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "1.1.0";
+            /**
+             * Threshold Method
+             * @default otsu
+             * @enum {string}
+             */
+            threshold_method: "otsu" | "manual";
+            /** Threshold */
+            threshold?: number | null;
+            /**
+             * Smoothing Sigma Px
+             * @default 0
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Minimum Area Px
+             * @default 1
+             */
+            minimum_area_px: number;
+            /** Maximum Area Px */
+            maximum_area_px?: number | null;
+            /**
+             * Split Touching
+             * @default false
+             */
+            split_touching: boolean;
+        };
+        /** NucleolarDetectorV20 */
+        NucleolarDetectorV20: {
+            /**
+             * Engine
+             * @default cytellect-nucleolar-v2
+             * @constant
+             */
+            engine: "cytellect-nucleolar-v2";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "2.0.0";
+            /**
+             * Source
+             * @default dapi_poor
+             * @enum {string}
+             */
+            source: "dapi_poor" | "marker";
+            /**
+             * Smoothing Sigma Px
+             * @default 2
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Rim Exclusion Px
+             * @default 4
+             */
+            rim_exclusion_px: number;
+            /**
+             * Relative Threshold
+             * @default 0.7
+             */
+            relative_threshold: number;
+            /**
+             * Marker Fraction
+             * @default 0.4
+             */
+            marker_fraction: number;
+            /**
+             * Background Radius Px
+             * @default 10
+             */
+            background_radius_px: number;
+            /**
+             * Minimum Area Px
+             * @default 4
+             */
+            minimum_area_px: number;
+            /** Maximum Area Px */
+            maximum_area_px?: number | null;
+            /**
+             * Minimum Solidity
+             * @default 0.6
+             */
+            minimum_solidity: number;
+        };
         /** NumericalSelection */
         NumericalSelection: {
             /**
@@ -1828,7 +2234,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
             /**
              * Group By
              * @default field
@@ -2103,6 +2509,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
         };
         /** ProposalChannelLink */
         ProposalChannelLink: {
@@ -2289,9 +2703,9 @@ export interface components {
             reuse_revision?: string | null;
             plan_resolution?: components["schemas"]["PlanResolution"] | null;
             /** Measurement */
-            measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | null;
+            measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | components["schemas"]["AutomaticBackgroundPolicy"] | null;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Backgrounds */
             backgrounds?: {
                 [key: string]: {
@@ -2423,6 +2837,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
         };
         /** RegionComparisonRequest */
         RegionComparisonRequest: {
@@ -2474,7 +2896,8 @@ export interface components {
              * @constant
              */
             version: "2.0.0";
-            selection: components["schemas"]["RegionSelection"];
+            /** Selection */
+            selection: components["schemas"]["RegionSelection"] | components["schemas"]["CompartmentSummarySelection"];
             design: components["schemas"]["ComparisonDesign"];
             /** Conditions */
             conditions: string[];
@@ -2616,6 +3039,45 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** RegionCompartmentRecipe */
+        RegionCompartmentRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.4.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default fiji_nuclear_compartment
+             * @constant
+             */
+            source: "fiji_nuclear_compartment";
+            /**
+             * Compartment
+             * @enum {string}
+             */
+            compartment: "nucleoli" | "nucleoplasm";
+            /** Nuclear Revision Id */
+            nuclear_revision_id: string;
+            /** Nuclear Channel Id */
+            nuclear_channel_id: string;
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            /** Detector */
+            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"];
+            /** Nucleolar Revision Id */
+            nucleolar_revision_id?: string | null;
+        };
         /** RegionExcludedFailure */
         RegionExcludedFailure: {
             /** Field Id */
@@ -2653,7 +3115,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment";
             /** Shape */
             shape: number[];
             file: components["schemas"]["RegionStoredFile"];
@@ -2686,6 +3148,12 @@ export interface components {
         };
         /** RegionImageInfo */
         RegionImageInfo: {
+            /**
+             * Input Mode
+             * @default native
+             * @enum {string}
+             */
+            input_mode: "native" | "display-rgb";
             /**
              * Kind
              * @default region-2d
@@ -2890,6 +3358,53 @@ export interface components {
              */
             correction_missing_reason: "background_not_established";
         };
+        /** RegionMeasurementRowV4 */
+        RegionMeasurementRowV4: {
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Region Id */
+            region_id: number;
+            /** Channel Id */
+            channel_id: string;
+            /** Area Px */
+            area_px: number;
+            /** Area Um2 */
+            area_um2: number | null;
+            /** Area Missing Reason */
+            area_missing_reason: "calibration_unknown" | null;
+            /** Mean */
+            mean: number;
+            /** Median */
+            median: number;
+            /** Integrated */
+            integrated: number;
+            /** Mean Corrected */
+            mean_corrected: number | null;
+            /** Median Corrected */
+            median_corrected: number | null;
+            /** Integrated Corrected */
+            integrated_corrected: number | null;
+            /** Intensity Missing Reason */
+            intensity_missing_reason?: null;
+            /** Storage Limit Fraction */
+            storage_limit_fraction: number;
+            /** Storage Limit Missing Reason */
+            storage_limit_missing_reason?: null;
+            /** Acquisition Saturation Fraction */
+            acquisition_saturation_fraction: number | null;
+            /** Acquisition Saturation Missing Reason */
+            acquisition_saturation_missing_reason: "acquisition_limit_unknown" | null;
+            /** Touches Border */
+            touches_border: boolean;
+            /** Correction Missing Reason */
+            correction_missing_reason: ("automatic_background_insufficient_tiles" | "automatic_background_insufficient_coverage") | null;
+        };
         /** RegionMeasurementTable */
         RegionMeasurementTable: {
             /**
@@ -3003,6 +3518,44 @@ export interface components {
             /** Rows */
             rows: components["schemas"]["RegionMeasurementRowV3"][];
         };
+        /** RegionMeasurementTableV4 */
+        RegionMeasurementTableV4: {
+            /**
+             * Protocol Version
+             * @default 4.0.0
+             * @constant
+             */
+            protocol_version: "4.0.0";
+            measurement: components["schemas"]["AutomaticBackgroundPolicy"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "no_regions";
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            region_set: components["schemas"]["RegionSetSpec"];
+            /** Shape Yx */
+            shape_yx: [
+                number,
+                number
+            ];
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /**
+             * Hash Format
+             * @default cytellect-array-v1
+             * @constant
+             */
+            hash_format: "cytellect-array-v1";
+            calibration: components["schemas"]["Calibration2D"] | null;
+            /** Channel Provenance */
+            channel_provenance: components["schemas"]["ChannelProvenanceV4"][];
+            /** Rows */
+            rows: components["schemas"]["RegionMeasurementRowV4"][];
+        };
         /** RegionMetadataEdit */
         RegionMetadataEdit: {
             /**
@@ -3095,7 +3648,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
@@ -3135,7 +3688,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV2"];
@@ -3172,10 +3725,50 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV3"];
+            };
+            /** Field Masks */
+            field_masks: {
+                [key: string]: components["schemas"]["RegionFieldMask"];
+            };
+            /** Field Outcomes */
+            field_outcomes: {
+                [key: string]: "measured" | "no_regions" | "failed" | "excluded_failed";
+            };
+            /** Field Failures */
+            field_failures: components["schemas"]["RegionFieldFailure"][];
+            /** Excluded Failed Fields */
+            excluded_failed_fields: components["schemas"]["RegionExcludedFailure"][];
+            /** Exclusions */
+            exclusions: components["schemas"]["RegionExclusion"][];
+        };
+        /**
+         * RegionReportV4
+         * @description Raw values plus corrections from automatic, unconfirmed background candidates.
+         */
+        RegionReportV4: {
+            /**
+             * Analysis Kind
+             * @default region-2d
+             * @constant
+             */
+            analysis_kind: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "4.0.0";
+            measurement: components["schemas"]["AutomaticBackgroundPolicy"];
+            /** Revision Id */
+            revision_id: string;
+            /** Recipe */
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            /** Field Tables */
+            field_tables: {
+                [key: string]: components["schemas"]["RegionMeasurementTableV4"];
             };
             /** Field Masks */
             field_masks: {
@@ -3224,9 +3817,39 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment";
             /** Defining Channel Id */
             defining_channel_id?: string | null;
+        };
+        /**
+         * RegionSignalRecipe
+         * @description Exploratory signal-positive areas; never implicitly nuclei or nucleoli.
+         */
+        RegionSignalRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.3.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default fiji_positive_regions
+             * @constant
+             */
+            source: "fiji_positive_regions";
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            detector?: components["schemas"]["SignalDetectorSpec"];
         };
         /** RegionStoredFile */
         RegionStoredFile: {
@@ -3279,6 +3902,77 @@ export interface components {
             reviewed: boolean;
             /** Created */
             created: number;
+        };
+        /** ScaledNuclearRecipe */
+        ScaledNuclearRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.5.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default stardist_nuclear
+             * @constant
+             */
+            source: "stardist_nuclear";
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            /**
+             * Nuclear Role Source
+             * @enum {string}
+             */
+            nuclear_role_source: "recorded_stain" | "user_selected_role";
+            /** Detection Max Side Px */
+            detection_max_side_px: number;
+            detector?: components["schemas"]["NuclearDetectorSpec"];
+        };
+        /** SignalDetectorSpec */
+        SignalDetectorSpec: {
+            /**
+             * Engine
+             * @default fiji-positive-regions
+             * @constant
+             */
+            engine: "fiji-positive-regions";
+            /**
+             * Protocol Version
+             * @default 1.0.0
+             * @constant
+             */
+            protocol_version: "1.0.0";
+            /**
+             * Threshold Method
+             * @enum {string}
+             */
+            threshold_method: "otsu" | "manual";
+            /** Threshold */
+            threshold?: number | null;
+            /**
+             * Smoothing Sigma Px
+             * @default 0
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Minimum Area Px
+             * @default 1
+             */
+            minimum_area_px: number;
+            /**
+             * Split Touching
+             * @default false
+             */
+            split_touching: boolean;
         };
         /** StatisticsRequest */
         StatisticsRequest: {
@@ -3407,6 +4101,10 @@ export interface components {
             revision_id?: string | null;
             /** Exclusion Reason */
             exclusion_reason?: string | null;
+            /** Target Revisions */
+            target_revisions?: {
+                [key: string]: string;
+            } | null;
         };
         /** WorkspaceView */
         WorkspaceView: {
@@ -3428,33 +4126,89 @@ export interface components {
             bytes: number;
             analysis_plan?: components["schemas"]["AdoptedPlan"] | null;
         };
-        /** PreviewPlaneDisplay */
-        PreviewPlaneDisplay: {
-            /** Channel Id */
-            channel_id: string;
-            /** Dtype */
-            dtype: string;
+        /**
+         * OriginalRgbPreviewMetadata
+         * @description Unscaled display-code samples, not recovered acquisition intensities.
+         */
+        OriginalRgbPreviewMetadata: {
+            /**
+             * Version
+             * @default 2.0.0
+             * @constant
+             */
+            version: "2.0.0";
+            /** Field Id */
+            field_id: string;
+            /** Requested Channel */
+            requested_channel: string;
+            /**
+             * Composite
+             * @default false
+             * @constant
+             */
+            composite: false;
+            /**
+             * Scope
+             * @default whole-plane
+             * @constant
+             */
+            scope: "whole-plane";
+            /**
+             * Mode
+             * @default original-display-rgb
+             * @constant
+             */
+            mode: "original-display-rgb";
             /**
              * Value Basis
+             * @default display-rgb-code
+             * @constant
+             */
+            value_basis: "display-rgb-code";
+            /**
+             * Dtype
+             * @default uint8
+             * @constant
+             */
+            dtype: "uint8";
+            /**
+             * Source Axes
              * @enum {string}
              */
-            value_basis: "native-grayscale" | "legacy-imported";
-            /** Source Min */
-            source_min: number;
-            /** Source Max */
-            source_max: number;
-            /** Percentile Low Value */
-            percentile_low_value: number;
-            /** Percentile High Value */
-            percentile_high_value: number;
-            /** Normalization Span */
-            normalization_span: number;
-            /** Display Black Value */
-            display_black_value: number;
-            /** Display White Value */
-            display_white_value: number;
-            /** Constant Plane */
-            constant_plane: boolean;
+            source_axes: "YXS" | "SYX";
+            /** Source Shape */
+            source_shape: [
+                number,
+                number,
+                number
+            ];
+            /** Rendered Shape */
+            rendered_shape: [
+                number,
+                number,
+                number
+            ];
+            /**
+             * Color Mode
+             * @enum {string}
+             */
+            color_mode: "RGB" | "RGBA";
+            /** Alpha Preserved */
+            alpha_preserved: boolean;
+            /**
+             * Contrast Applied
+             * @default false
+             * @constant
+             */
+            contrast_applied: false;
+            /**
+             * Sample Values Unchanged
+             * @default true
+             * @constant
+             */
+            sample_values_unchanged: true;
+            /** Source File Sha256 */
+            source_file_sha256: string;
         };
         /** PreviewDisplayMetadata */
         PreviewDisplayMetadata: {
@@ -3491,6 +4245,39 @@ export interface components {
             /** Planes */
             planes: components["schemas"]["PreviewPlaneDisplay"][];
         };
+        /** PreviewPlaneDisplay */
+        PreviewPlaneDisplay: {
+            /** Channel Id */
+            channel_id: string;
+            /** Dtype */
+            dtype: string;
+            /**
+             * Value Basis
+             * @enum {string}
+             */
+            value_basis: "native-grayscale" | "legacy-imported";
+            /** Source Min */
+            source_min: number;
+            /** Source Max */
+            source_max: number;
+            /** Percentile Low Value */
+            percentile_low_value: number;
+            /** Percentile High Value */
+            percentile_high_value: number;
+            /** Normalization Span */
+            normalization_span: number;
+            /** Display Black Value */
+            display_black_value: number;
+            /** Display White Value */
+            display_white_value: number;
+            /** Constant Plane */
+            constant_plane: boolean;
+        };
+        /**
+         * RegionPreviewDisplayMetadata
+         * @description Generic previews distinguish scaled grayscale from original RGB display codes.
+         */
+        RegionPreviewDisplayMetadata: components["schemas"]["PreviewDisplayMetadata"] | components["schemas"]["OriginalRgbPreviewMetadata"];
         /** DescriptiveOutputFile */
         DescriptiveOutputFile: {
             /** Sha256 */
@@ -4821,9 +5608,9 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
-                    /** @description ASCII-escaped JSON for the exact rendered PNG; display only. */
+                    /** @description Exact PNG display transform, including unscaled original RGB display codes. */
                     "X-Cytellect-Preview-Display"?: {
-                        "application/json": components["schemas"]["PreviewDisplayMetadata"];
+                        "application/json": components["schemas"]["RegionPreviewDisplayMetadata"];
                     };
                     [name: string]: unknown;
                 };
@@ -4877,6 +5664,105 @@ export interface operations {
             };
         };
     };
+    compartment_status_v1_revisions__rid__region_compartment_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gfp_gate_v1_workspaces__wid__gfp_gate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GfpGateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compartment_summary_v1_revisions__rid__compartment_summary_get: {
+        parameters: {
+            query: {
+                field_id: string;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     measurements_v1_revisions__rid__region_measurements_get: {
         parameters: {
             query?: never;
@@ -4894,7 +5780,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegionReport"] | components["schemas"]["RegionReportV2"] | components["schemas"]["RegionReportV3"];
+                    "application/json": components["schemas"]["RegionReport"] | components["schemas"]["RegionReportV2"] | components["schemas"]["RegionReportV3"] | components["schemas"]["RegionReportV4"];
                 };
             };
             /** @description Validation Error */

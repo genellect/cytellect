@@ -223,7 +223,7 @@ describe("proposal service", () => {
     const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
     expect(await response.json()).toEqual({ code: "model_output_incomplete" });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect([...store.spent.values()][0]).toBe(worstCaseUsd(readConfig(ENV)!, CONTEXT, []));
+    expect([...store.spent.values()][0]).toBe(worstCaseUsd(Object.assign(readConfig(ENV)!, {promptVersion: "2026-10-06.1"}), CONTEXT, []));
   });
 
   it("retains full reservation when a successful answer omits usage", async () => {
@@ -231,7 +231,7 @@ describe("proposal service", () => {
     const token = await device(store);
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(DRAFT) }] }] })));
     expect((await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher })).status).toBe(200);
-    expect([...store.spent.values()][0]).toBe(worstCaseUsd(readConfig(ENV)!, CONTEXT, []));
+    expect([...store.spent.values()][0]).toBe(worstCaseUsd(Object.assign(readConfig(ENV)!, {promptVersion: "2026-10-06.1"}), CONTEXT, []));
   });
 
   it.each([
@@ -241,7 +241,7 @@ describe("proposal service", () => {
     const token = await device(store);
     const fetcher = vi.fn(async () => modelReply(JSON.stringify(DRAFT), usage));
     expect((await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher })).status).toBe(200);
-    expect([...store.spent.values()][0]).toBe(worstCaseUsd(readConfig(ENV)!, CONTEXT, []));
+    expect([...store.spent.values()][0]).toBe(worstCaseUsd(Object.assign(readConfig(ENV)!, {promptVersion: "2026-10-06.1"}), CONTEXT, []));
     expect(store.usage.size).toBe(0);
   });
 
@@ -253,7 +253,7 @@ describe("proposal service", () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ draft: DRAFT, model: ENV.OPENAI_MODEL, prompt_version: "2026-10-06.1" });
       expect(fetcher).toHaveBeenCalledTimes(1);
-      expect([...store.spent.values()][0]).toBe(Math.max(worstCaseUsd(readConfig(ENV)!, CONTEXT, []),
+      expect([...store.spent.values()][0]).toBe(Math.max(worstCaseUsd(Object.assign(readConfig(ENV)!, {promptVersion: "2026-10-06.1"}), CONTEXT, []),
         observedCost({ inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, cachedInputTokens: 0, calls: 1 }, 2.5, 0.1, 10)));
       expect([...store.usage.values()][0].inputTokens).toBe(usage.input_tokens);
       const next = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
@@ -283,7 +283,7 @@ describe("proposal service", () => {
     expect(await response.json()).toEqual({ code: "budget_reconciliation_required" });
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(store.reservations.size).toBe(0);
-    expect([...store.spent.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(0.2 + worstCaseUsd(readConfig(ENV)!, CONTEXT, []));
+    expect([...store.spent.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(0.2 + worstCaseUsd(Object.assign(readConfig(ENV)!, {promptVersion: "2026-10-06.1"}), CONTEXT, []));
   });
 
   it("checks a hold raised between reservation and first outbound call", async () => {
@@ -320,7 +320,7 @@ describe("proposal service", () => {
     const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
     expect(await response.json()).toEqual({ code: "model_unavailable" });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect([...store.spent.values()][0]).toBe(worstCaseUsd(readConfig(ENV)!, CONTEXT, []));
+    expect([...store.spent.values()][0]).toBe(worstCaseUsd(Object.assign(readConfig(ENV)!, {promptVersion: "2026-10-06.1"}), CONTEXT, []));
   });
 
   it("reserves schema and UTF-8 input and applies conservative cache-aware accounting", async () => {
@@ -337,4 +337,30 @@ describe("proposal service", () => {
     expect(sent.redirect).toBe("manual");
     expect(sent.signal).toBeInstanceOf(AbortSignal);
   });
+});
+
+
+it("accepts preimport planning without fabricated acquisition facts", () => {
+  const context = {...CONTEXT, channels: [], field_count: 0};
+  expect(checkRequest({context})).not.toBeNull();
+  for (const change of [{goal: ""}, {channels: CONTEXT.channels}, {units_known: true}, {condition_count: 2}, {background_available: true}]) {
+    expect(checkRequest({context: {...context, ...change}})).toBeNull();
+  }
+  expect(checkRequest({context: {...context, field_count: 1}})).toBeNull();
+});
+
+
+it("negotiates planning prompts before a paid call and preserves older clients", async () => {
+  const store = new MemoryStore(), token = await device(store);
+  const raw = {...DRAFT, recipe: "none", channels: [], metrics: [], figures: [], missing_information: ["撮影する核染色"], rationale: "核染色から領域を検出し、独立実験単位で集計します。"};
+  const fetcher = vi.fn(async (_url: unknown, init?: RequestInit) => {
+    expect(String(init?.body)).toContain("planning conversation before image import");
+    return modelReply(JSON.stringify(raw));
+  });
+  const context = {...CONTEXT, channels: [], field_count: 0};
+  expect((await handle(post("/v1/proposals", {context}, token), ENV, store, {fetcher})).status).toBe(400);
+  expect(fetcher).not.toHaveBeenCalled();
+  const response = await handle(post("/v1/proposals", {context, prompt_version: "2026-10-06.2"}, token), ENV, store, {fetcher});
+  expect(response.status).toBe(200);
+  expect((await response.json() as {prompt_version:string}).prompt_version).toBe("2026-10-06.2");
 });

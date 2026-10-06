@@ -167,3 +167,17 @@ def test_posix_reaps_descendant_when_direct_child_exits_first(tmp_path, monkeypa
         time.sleep(0.01)
     assert not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
     assert store.one(jobs, id=job["id"])["error"] == "worker_process_failed"
+
+
+def test_generic_child_failure_is_reported_as_analysis_failed_not_supervision_failure(tmp_path, monkeypatch):
+    store, settings, job = queued(tmp_path)
+    original = subprocess.Popen
+    code = ("import json,pathlib,sys; d=pathlib.Path(sys.argv[1]);"
+            "(d.parent/'status.json').write_text(json.dumps({'error':'analysis_failed'}))")
+
+    def launch(args, **kwargs):
+        return original([sys.executable, "-c", code, args[3]], **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    assert execute(store, settings, job)
+    assert store.one(jobs, id=job["id"])["error"] == "analysis_failed"

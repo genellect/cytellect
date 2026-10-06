@@ -19,6 +19,7 @@ export interface AddedFile {
   size: number;
   /** Content hash when already known; used only for duplicate detection. */
   sha256?: string;
+  inputMode?: "native" | "display-rgb";
   /** OME channel name when the header provides one (one channel per file). */
   omeChannel?: string;
   /** Channel names of a multi-channel OME-TIFF, read by the import API. */
@@ -79,7 +80,6 @@ const STAIN_TOKEN = new RegExp(`^(${Object.keys(STAINS).sort((a, b) => b.length 
 const WELL_TOKEN = /^[A-P]\d{1,2}$/;
 const DATE_TOKEN = /^(20\d{2})-?(\d{2})-?(\d{2})$/;
 const IMAGE_EXTENSION = /\.(?:ome\.tiff?|tiff?)$/i;
-const OME_EXTENSION = /\.ome\.tiff?$/i;
 
 export function isSupportedImage(path: string): boolean {
   return IMAGE_EXTENSION.test(path);
@@ -134,7 +134,7 @@ function matchChannel(tokens: string[], folders: string[]): ChannelMatch | null 
 }
 
 /** Group added files into fields and channels without inferring stains from indices. */
-export function groupFiles(files: AddedFile[]): Grouping {
+export function groupFiles(files: AddedFile[], mode: "automatic" | "single" = "automatic"): Grouping {
   const issues: GroupingIssue[] = [];
   const fields = new Map<string, GroupedField>();
   const channels = new Map<string, ChannelDefinition>();
@@ -165,10 +165,10 @@ export function groupFiles(files: AddedFile[]): Grouping {
       place(file, folders, tokens, token, describe(token, "ome", file.omeChannel));
       continue;
     }
-    const match = matchChannel(tokens, folders);
+    const match = mode === "single" ? null : matchChannel(tokens, folders);
     if (!match) {
-      // A name-less OME-TIFF usually holds every channel; its header is read on import.
-      issues.push(OME_EXTENSION.test(file.path) ? { kind: "channels_pending", path: file.path } : { kind: "channel_unidentified", path: file.path });
+      // Preserve unnamed planes independently, without guessing biological pairing.
+      place(file, folders, [stem], "c1", {token: "c1", stain: null, role: null, evidence: "user"});
       continue;
     }
     const keyFolders = match.folderUsed ? folders.slice(0, -1) : folders;
@@ -241,4 +241,15 @@ export function nameChannel(grouping: Grouping, token: string, stain: string): G
 
 export function channelName(channel: ChannelDefinition): string {
   return channel.stain ?? channel.token;
+}
+
+/** Restore the union: incomplete fields need not contain every channel. */
+export function restoredChannels(fields: Array<{image_info: {channels: Array<{channel_id: string; label: string; stain: string | null}>}}>): ChannelDefinition[] {
+  const known = new Map<string, {label: string; channel: ChannelDefinition}>();
+  for (const field of fields) for (const spec of field.image_info.channels) {
+    const previous = known.get(spec.channel_id);
+    if (previous && (previous.label !== spec.label || previous.channel.stain !== spec.stain)) throw new Error("保存されたチャンネル情報が一致しません。");
+    known.set(spec.channel_id, {label: spec.label, channel: {token: spec.channel_id, stain: spec.stain, role: null, evidence: "registered_source"}});
+  }
+  return [...known.values()].map(value => value.channel).sort((a, b) => a.token.localeCompare(b.token));
 }

@@ -43,46 +43,61 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
       const id = path.split("/")[3]; const rid = figureRevisions.get(id); const excluded = rid === "r2"; const points = excluded ? [2] : [1, 2];
       return json({analysis_kind: "descriptive", revision_id: rid, spec: figureSpecs.get(id), metric: "area_px", unit: "pixel²", counts: {observations: points.length}, selection: {excluded: excluded ? 1 : 0}, field_summary: [{field_id: "f1", selected_rows: points.length, median: excluded ? 20 : 15, q1: excluded ? 20 : 12.5, q3: excluded ? 20 : 17.5, status: "selected"}], plot_data: points.map(id => ({field_id: "f1", region_id: id, value: id*10})), source_fields: [], excluded_failed_fields: [], warnings: [], figure: {source_files: ["figure.svg", "figure.pdf", "figure.png", "plot-data.csv", "methods.md"]}});
     }
-    if (path.endsWith("/proposal-drafts")) {proposalCount++; if (proposalCount === 1) {expect(body.retry_failed).toBeUndefined(); return json({detail:"proposal_explicit_retry_required"},409);} expect(body.retry_failed).toBe(true); return json({proposal:{draft:{rationale:"公開テストの解析案",missing_information:[]},needs_confirmation:[]}});}
+    if (path.endsWith("/proposal-drafts")) {proposalCount++; if (proposalCount === 1) {expect(body.retry_failed).toBeUndefined(); return json({detail:"proposal_explicit_retry_required"},409);} expect(body.retry_failed).toBe(true); return json({proposal:{draft:{recipe:"nuclear-intensity",channels:[{token:"c2",stain:null,role:"nuclear",reason:"synthetic fixture"}],metrics:[{metric:"area",channel:null}],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"公開テストの解析案"},needs_confirmation:[]}});}
     if (path.includes("/files/")) return route.fulfill({headers, contentType: "text/plain", body: "synthetic transport fixture"});
     return json({detail: "unexpected_test_route"}, 404);
   });
   await page.goto("/workspace");
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
-  await expect(page.getByRole("button", {name: "解析を実行", exact: true})).toBeDisabled();
-  await page.getByRole("radio", {name: "c2 を核検出に使う"}).click();
-  await page.getByRole("button", {name: "解析を実行", exact: true}).click();
-  await expect(page.getByRole("status").first()).toContainText("1 / 1");
+  // Nothing runs before the nuclear channel is known; the method card offers one click per channel.
+  const method = page.getByRole("region", {name: "解析方法"});
+  await expect(method.getByRole("button", {name: "c2 で核を検出", exact: true})).toBeVisible();
+  expect(analysisCount).toBe(0);
+  await method.getByRole("button", {name: "c2 で核を検出", exact: true}).click();
+  await expect(method).toContainText("1/1 視野");
   expect(analysisCount).toBe(1);
-  await page.getByText("解析方法の提案", {exact:true}).click();
-  await page.getByLabel("解析の目的", {exact:true}).fill("核面積を確認");
-  await page.getByLabel("上記の情報を送信することに同意する").check();
-  await page.getByRole("button", {name:"提案を作成",exact:true}).click();
+  await page.getByLabel("何を調べますか", {exact: true}).fill("核面積を確認");
+  await page.getByRole("button", {name: "AI に方法を選ばせる", exact: true}).click();
+  await expect.poll(() => proposalCount).toBe(1);
   await expect(page.getByText(/再送すると追加のAPI利用料/)).toBeVisible();
   expect(proposalCount).toBe(1);
-  await page.getByRole("button", {name:"費用を確認して再送",exact:true}).click();
-  await expect(page.getByText("公開テストの解析案", {exact:true})).toBeVisible();
+  await page.getByRole("button", {name: "再送信（追加料金が発生する場合があります）", exact: true}).click();
+  await expect(page.getByText("公開テストの解析案", {exact: true})).toBeVisible();
   expect(proposalCount).toBe(2);
-  await page.getByText("解析方法の提案", {exact:true}).click();
+  // The AI's nuclear channel matches the chosen one, so nothing is re-run.
+  expect(analysisCount).toBe(1);
   const run = writes.find(value => value.path.endsWith("/region-analyses"))!;
   expect(run.body).toMatchObject({recipe: {version: "1.2.0", nuclear_role_source: "user_selected_role"}, measurement: {mode: "raw_intensity"}});
   expect(JSON.stringify(writes)).not.toContain('"confirmed":true');
+  // Figures are server-rendered from the adopted revision and carry an English legend.
   await page.getByRole("button", {name: "グラフ", exact: true}).click();
-  await expect(page.getByRole("img", {name: /area_px.*視野ごとの分布/})).toBeVisible();
-  await page.locator('circle[data-region="1"]').click();
+  await page.getByRole("button", {name: "図を作成", exact: true}).click();
+  await expect(page.getByRole("img", {name: "保存するグラフ"})).toBeVisible();
+  await expect(page.getByRole("figure", {name: /Figure legend/})).toBeVisible();
+  expect([...figureRevisions.values()]).toEqual(["r1"]);
+  await page.getByRole("button", {name: "方法", exact: true}).click();
+  await page.locator('[data-region="1"]').first().click();
   await page.getByRole("button", {name: "対象から除外", exact: true}).click();
-  await expect(page.getByRole("complementary", {name: "選択対象の操作"}).getByText("領域 1（除外）", {exact: true})).toBeVisible();
+  await expect.poll(() => selection.entries[0]?.revision_id).toBe("r2");
+  // The figure from r1 is not kept after the correction; it is rebuilt explicitly from r2.
   await page.getByRole("button", {name: "グラフ", exact: true}).click();
-  await expect(page.getByRole("img", {name: /area_px.*視野ごとの分布/})).toContainText("n = 1");
-  await page.getByLabel("幅 (mm)").selectOption("183");
+  await expect(page.getByText("設定を変更しました。「図を作成」で反映します。")).toBeVisible();
+  await page.getByRole("button", {name: "図を作成", exact: true}).click();
+  await expect.poll(() => [...figureRevisions.values()].at(-1)).toBe("r2");
+  await page.getByLabel("幅 (mm)").fill("183");
+  await page.getByRole("button", {name: "図を作成", exact: true}).click();
   await expect.poll(() => figureCount).toBeGreaterThan(2);
+  const plot = (figureSpecs.get(`s${figureCount}`) as {plot: {width_inches: number; language: string}}).plot;
+  expect(plot.width_inches).toBeCloseTo(183 / 25.4, 6);
+  expect(plot.language).toBe("en");
   expect(analysisCount).toBe(1);
   expect(writes.some(value => value.path.endsWith("/review"))).toBe(false);
+  await page.getByRole("button", {name: "方法", exact: true}).click();
   await page.getByRole("button", {name: "元に戻す", exact: true}).click();
   await expect.poll(() => selection.entries[0]?.revision_id).toBe("r1");
   const other = await context.newPage();
   await other.goto("/workspace?id=w1");
-  await expect(other.getByRole("status").first()).toContainText("1 / 1");
+  await expect(other.getByRole("region", {name: "解析方法"})).toContainText("1/1 視野");
   await other.getByRole("button", {name: /測定値 ·/}).click();
   await expect(other.getByRole("cell", {name: "採用", exact: true})).toHaveCount(2);
   // A different tab adopts r2; the stale r1 tab must not overwrite it.
@@ -131,20 +146,22 @@ test("failed uploads and analyses remain visible and allow comparison only after
     return json({detail: "unused_fixture_route"}, 404);
   });
   await page.goto("/workspace?id=w2");
-  await expect(page.getByRole("status").first()).toContainText("2 / 4");
-  await page.getByRole("button", {name: "群を比較", exact: true}).click();
+  await expect(page.getByRole("region", {name: "解析方法"})).toContainText("2/3 視野");
+  await expect(page.getByRole("button", {name: "未登録の視野 処理失敗", exact: true})).toBeVisible();
+  await page.getByRole("button", {name: "統計", exact: true}).click();
   await expect(page.getByText("未完了の視野が 2 件あります。", {exact: false})).toBeVisible();
-  for (const [name, reason] of [["視野 3 要確認", "画像処理失敗を確認"], ["未登録の視野 要確認", "原ファイルが破損"]]) {
+  for (const [name, reason] of [["視野 3 処理失敗", "画像処理失敗を確認"], ["未登録の視野 処理失敗", "原ファイルが破損"]]) {
     await page.getByRole("button", {name, exact: true}).click();
-    await expect(page.getByRole("button", {name: "この視野を比較対象から除外"})).toBeDisabled();
-    await page.getByLabel("視野の除外理由").fill(reason);
-    await page.getByRole("button", {name: "この視野を比較対象から除外"}).click();
+    await expect(page.getByRole("button", {name: "この視野を解析から外す"})).toBeDisabled();
+    await page.getByLabel("解析から外す理由").fill(reason);
+    await page.getByRole("button", {name: "この視野を解析から外す"}).click();
     await expect(page.getByText(`除外理由：${reason}`, {exact: true})).toBeVisible();
   }
   await page.reload();
-  await expect(page.getByRole("button", {name: "視野 3 除外", exact: true})).toBeVisible();
-  await expect(page.getByRole("button", {name: "未登録の視野 除外", exact: true})).toBeVisible();
-  await page.getByRole("button", {name: "群を比較", exact: true}).click();
+  await page.getByText("除外した画像 2 件", {exact: true}).click();
+  await expect(page.getByRole("navigation", {name: "画像とグラフ"})).toContainText("視野 3：画像処理失敗を確認");
+  await expect(page.getByRole("navigation", {name: "画像とグラフ"})).toContainText("未登録の視野：原ファイルが破損");
+  await page.getByRole("button", {name: "統計", exact: true}).click();
   await expect(page.getByText("未完了の視野が", {exact: false})).toHaveCount(0);
   for (let index = 1; index <= 2; index++) {
     for (const key of ["condition", "sample", "experimental_unit"]) await page.getByLabel(`視野 ${index} ${key}`, {exact: true}).fill(`${key}-${index}`);

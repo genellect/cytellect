@@ -252,3 +252,13 @@ def test_numeric_table_descriptions_do_not_create_independent_replication():
     assert result["plot_data"][0]["source_row"] == 2
     with pytest.raises(ValueError, match="numeric_field_required"):
         describe_numeric([{**rows[0], "field_id": None}], request("numerical", "value"))
+
+def test_native_and_display_rgb_intensities_cannot_be_pooled_but_areas_can():
+    report, snapshots = region_fixture()
+    other, other_snapshots = region_fixture(field_id="f2")
+    other_snapshots["f2"]["image_info"]["input_mode"] = "display-rgb"
+    report["field_tables"].update(other["field_tables"])
+    snapshots.update(other_snapshots)
+    with pytest.raises(ValueError, match="descriptive_channel_identity_mismatch"):
+        describe_regions(report, snapshots, request(metric="mean"))
+    assert describe_regions(report, snapshots, request(metric="area_px"))["counts"]["input_fields"] == 2

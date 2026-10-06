@@ -215,3 +215,28 @@ def test_same_workspace_rejects_changed_channel_identity(tmp_path):
                                "ch0": ("image.tif", tiff_bytes(np.ones((12, 12), np.uint16)), "image/tiff")})
     assert response.status_code == 409 and response.json()["detail"] == "region_workspace_channel_identity_mismatch"
     assert len(client.get(f"/v1/workspaces/{wid}/region-fields").json()) == 1
+
+
+@pytest.mark.parametrize("order", [(1, 4), (4, 1)])
+def test_workspace_accepts_channel_subsets_without_discarding_or_renaming(tmp_path, order):
+    client, _, _ = authenticated(tmp_path)
+    wid = client.post("/v1/workspaces", headers=HEADERS, json={"title": "partial fields"}).json()["id"]
+    for count in order:
+        spec = {"channels": [{"channel_id": f"c{i}", "label": f"Channel {i}",
+                              "identity_confirmed": True} for i in range(count)]}
+        files = {f"ch{i}": ("arbitrary.tif", tiff_bytes(np.full((12, 12), i + 1, np.uint16)), "image/tiff")
+                 for i in range(count)}
+        result = client.post(f"/v1/workspaces/{wid}/region-fields", headers=HEADERS,
+                             data={"specification": json.dumps(spec)}, files=files)
+        assert result.status_code == 201, result.text
+        assert [c["channel_id"] for c in result.json()["image_info"]["channels"]] == [f"c{i}" for i in range(count)]
+    stored = client.get(f"/v1/workspaces/{wid}/region-fields").json()
+    assert len(stored) == 2
+    assert sorted(len(f["image_info"]["channels"]) for f in stored) == [1, 4]
+    changed = {"channels": [{"channel_id": "c0", "label": "Unchanged", "stain": "different",
+                             "identity_confirmed": True}]}
+    rejected = client.post(f"/v1/workspaces/{wid}/region-fields", headers=HEADERS,
+                           data={"specification": json.dumps(changed)},
+                           files={"ch0": ("x.tif", tiff_bytes(np.ones((12, 12), np.uint16)), "image/tiff")})
+    assert rejected.status_code == 409
+    assert len(client.get(f"/v1/workspaces/{wid}/region-fields").json()) == 2

@@ -10,11 +10,11 @@ import styles from "./product.module.css";
 
 const docs = "https://github.com/genellect/cytellect/blob/main/docs/";
 const Arrow = () => <span aria-hidden="true">↗</span>;
-function NavigationLinks(){return <><a href="#workflow">プロダクト</a><Link data-lp-event="example" href="/demo">解析例</Link><a data-lp-event="guide" href="#guide">ガイド</a><a data-lp-event="download_section" href="#download" className={styles.navDownload}>ダウンロード <Arrow /></a><a data-lp-event="launch" href="#launch">インストール済みの方</a></>;}
+function NavigationLinks(){return <><a href="#workflow">プロダクト</a><Link data-lp-event="example" href="/demo">解析例</Link><Link data-lp-event="workspace" href="/workspace">解析画面</Link><a data-lp-event="guide" href="#guide">ガイド</a><a data-lp-event="download_section" href="#download" className={styles.navDownload}>ダウンロード <Arrow /></a><a data-lp-event="launch" href="#launch">インストール済みの方</a></>;}
 
 export default function PublicLanding() {
-  return <div className={styles.page} data-cytellect-public-landing>
-    <LandingAnalytics />
+  return <div className={styles.page} data-cytellect-public-page="/">
+    <LandingAnalytics page="/" />
     <a className={styles.skipLink} href="#main">本文へ</a>
     <header className={styles.header}><Link href="/" aria-label="Cytellect ホーム" className={styles.wordmark}>cytellect</Link><nav className={styles.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <main id="main">

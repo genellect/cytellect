@@ -10,7 +10,7 @@ from matplotlib.text import Text
 
 from .descriptive_contracts import PagedDescriptiveRequest, parse_descriptive_request
 from .descriptive_figures import _source_measurement_policy, _ylabel
-from .figures import _validate_text_layout, figure_settings, plt, select_font
+from .figures import _validate_text_layout, apply_plot_controls, figure_settings, plt, select_font
 
 VERSION = "2.0.0"
 PRESENTATION_ERRORS = frozenset({
@@ -71,6 +71,7 @@ def page_layout(result):
     figure, axes = plt.subplots()
     try:
         axes.scatter([0, 0], [min(row["value"] for row in rows), max(row["value"] for row in rows)])
+        apply_plot_controls(axes, plot)
         limits, ticks = list(map(float, axes.get_ylim())), list(map(float, axes.get_yticks()))
     finally:
         plt.close(figure)
@@ -139,6 +140,7 @@ def render_pages(result, output: Path, layout):
                     properties.set_family(font.family)
                     properties.set_weight(font.weight)
                     item.set_fontproperties(properties)
+                apply_plot_controls(axes, plot)
                 try:
                     _validate_text_layout(figure, axes)
                 except ValueError as exc:

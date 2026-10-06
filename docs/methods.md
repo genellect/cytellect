@@ -67,3 +67,148 @@ reviewed. It contains observed points and field summaries, with no inferred
 biological replicate count, p-value or inferential confidence interval. The
 existing reviewed, design-aware comparison routes remain separate. Revising a
 mask or exclusion creates a new measurement version; figure styling does not.
+
+## Automatic background candidate: measurement protocol 4.0.0
+
+Policy `1.2.0/automatic_background` measures the raw protocol 3.0.0 values and
+adds corrections from an automatic background candidate (algorithm
+`cytellect-automatic-background` 1.0.0). It is recorded as
+`background_source=automatic_candidate`, `confirmed=false`; it is never a
+human-confirmed ROI. A request cannot combine it with ROI backgrounds
+(`region_automatic_background_roi_conflict`); confirmed ROIs keep protocol 1.0.0.
+
+Per field and channel, on original pixels only:
+
+1. Exclusion: every labelled pixel of the measured region set (for compartment
+   recipes also every source nucleus, including excluded nuclei), dilated by a
+   Euclidean 8 px perinuclear margin; plus bright pixels strictly above
+   `median + 3 × 1.4826 × max(MAD, 1)` of the remaining pixels of that channel.
+   The one-unit MAD floor keeps quantized low-signal backgrounds usable. Otsu is
+   not used because it also splits unimodal noise.
+2. Tiles: 32 × 32 px from the origin; partial edge tiles are dropped. A tile is
+   eligible with ≥ 90 % unexcluded pixels.
+3. One rejection pass on eligible tiles, using unexcluded pixels: reject a tile
+   whose median m satisfies `|m − median(m)| > 3 × 1.4826 × MAD(m)` or whose MAD d
+   satisfies `d > median(d) + 3 × 1.4826 × MAD(d)`.
+4. At least 4 retained tiles whose centres lie in at least 3 image quadrants
+   (centre at or after half the extent belongs to the lower/right quadrant).
+5. B = unexcluded pixels of retained tiles; `b = median(I[B])`. Corrected mean
+   `mean(I[R]) − b`, corrected median `median(I[R]) − b`, corrected integral
+   `ΣI[R] − |R|b`; signed, unclipped.
+
+Failure (`automatic_background_insufficient_tiles` or
+`automatic_background_insufficient_coverage`) leaves that channel's corrected
+values null with the reason; raw values and other channels are still reported
+and the field does not fail. Provenance records the constants, bright threshold,
+exclusion and background mask hashes, eligible/rejected/retained tile counts,
+quadrants and the retained tile-median range. Synthetic counterexamples are
+tested: a confluent field and one-sided background fail; a linear illumination
+gradient is not removed (b is one global median, the tile-median range shows the
+spread); a local diffuse blob is excluded; field-wide diffuse signal is reported
+as background, which is why the candidate is never treated as confirmed. Exports
+and statistical summaries refuse protocol 4.0.0 until their own Methods text is
+versioned.
+
+
+## Generic display-RGB input transform 1.0.0
+
+Generic region inputs may explicitly select `input_mode=display-rgb`. Each uint8 RGB/RGBA TIFF becomes one measurement plane by `max(R,G,B)`; alpha is ignored. The original resolution and original files are retained. Unlike the historical NCL compatibility recipe, this input transform does not resize, clip corrected values, or apply a legacy epsilon. This is a display-code measurement, not recovery of acquired raw fluorescence: an acquisition LUT, gamma or clipping cannot be inverted. The input mode is retained in immutable field snapshots and replay, Methods records the transform, and measurement CSV identifies `intensity_source=display_code_max_rgb`. Native remains the default and continues to reject RGB. Generic inputs and measurement contracts accept up to four explicitly mapped planes; no plane or duplicate is silently discarded. The nuclear detector still requires an adopted or confirmed defining role, and does not infer stain identity from RGB colour.
+
+Display-RGB input transform 1.0.0 and native acquired grayscale intensities are different measurement sources. Generic descriptive/comparison preparation rejects pooling these sources for intensity outcomes, even when channel labels and stains match. Area outcomes may combine them because canonical mask areas retain their pixel/calibration definitions. Statistical Methods explicitly identify display-RGB values as max(R,G,B) display codes; they are not acquired raw fluorescence. This admission guard does not change the underlying measured numbers.
+
+Signal-area recipe 1.3.0 (`fiji_positive_regions`) applies the fixed Fiji/ImageJ threshold and connected-component engine to one explicitly selected acquired channel. Default Otsu is an exploratory per-field threshold, with optional explicit manual threshold; smoothing, minimum area and touching-region splitting are saved detector settings. Signal areas are independent region revisions and do not establish nuclei, whole cells, nucleoli, or biological GFP/NCL positivity. Measurements use unchanged original-resolution measurement planes; display-RGB conversion remains separately recorded. Reusing a mask requires the same source, defining channel, detector settings and input pixel hash; nucleus revisions remain available separately.
+
+Compartment recipe 1.4.0 pins an immutable successful nuclear revision from the same workspace and field. Its canonical mask file/hash and original image identity are checked before NCL compartment detection and again during mask reuse. Previously excluded source nuclei remain excluded. NCL-enriched candidate labels retain parent nuclear IDs in detector provenance; nucleoplasm is the original nucleus minus the candidate union only for eligible parents. Every parent state and missing reason is preserved, including indeterminate/no-candidate/processing-failed parents and empty nucleoplasm after subtraction. Missing parents never become fabricated zero-valued compartment observations or whole-nucleus nucleoplasm. Compartment revisions preserve the original nuclear revision and have independently selected region-set IDs and saved detector parameters.
+
+## Explicit nuclear detection scale
+
+Generic nuclear recipe 1.5.0 records an explicitly selected `detection_max_side_px`
+(integer 64–2048). Only the detector copy is reduced: no upsampling is performed,
+the existing capacity bound still applies, and measurement pixels remain at their
+original resolution. Detector protocol 1.2.0 records requested and actual shapes,
+the pixel-centre transform and canonical restored-label hashes. Labels are restored
+with nearest-neighbour pixel-centre mapping before original-pixel measurement.
+Changing scale requires a new detector run and invalidates dependent compartments;
+it cannot reuse masks produced with another scale. Omitting scale retains the
+older capacity-based behavior and recipe version.
+
+Scale is an experimental setting, not an accuracy guarantee or a universal default.
+The StarDist [FAQ](https://stardist.net/faq/#do-i-need-to-rescale-my-images-how-do-i-know-which-pixel-resolution-is-required)
+describes input object-size mismatch as one possible source of oversegmentation.
+Inspect boundaries on representative fields before applying a scale to a batch.
+
+## GFP-positive nuclei from negative controls (gfp-gate/2.0.0, 2026-10-06)
+
+`POST /v1/workspaces/{wid}/gfp-gate` labels nuclei of adopted nuclear revisions
+as GFP positive when their raw GFP mean exceeds the 99th percentile (linear
+interpolation; configurable 50–<100) of the GFP means of nuclei in the fields the
+researcher designates as negative controls (untransfected or GFP-negative cells),
+computed separately per acquisition date. A date with fewer than 20 control
+nuclei has no threshold and its nuclei are unselected with a reason; missing GFP
+values are never treated as positive. Pooled-population Otsu is not used because
+its threshold moves with the transfected fraction. GFP is a selection or
+covariate, never a denominator. The control-distribution approach follows
+per-nucleus gates such as Sutton & DeRose, J Biol Chem 2021
+(doi:10.1016/j.jbc.2021.100633). Connecting the gate to comparisons and figures
+is a later, versioned step.
+
+## Per-nucleus compartment-summary selection 1.0.0 (2026-10-06)
+
+The primary NCL relocation metric, `log2_nucleoplasm_over_nucleolus` (log2 of the
+mean nucleoplasm intensity over the mean intensity of the adopted nucleolar union
+of the same nucleus; [nucleolar-compartments.md](nucleolar-compartments.md)), and
+the channel-neutral `nucleolar_area_fraction` and `nucleolar_count` can be selected
+with `selection={"source":"compartment-summary","version":"1.0.0",...}` in common
+statistics (`POST /v1/revisions/{rid}/common-statistics`, request 2.0.0) and in
+per-field descriptions (`POST /v1/revisions/{rid}/descriptive`). The aggregation,
+tests, Holm family and descriptive summaries are the existing, unchanged protocols
+(field median → sample mean → independent-unit mean; Welch/paired t,
+Mann–Whitney U, Wilcoxon, Welch ANOVA, Kruskal–Wallis; per-field median and
+quartiles). Only the observation source is new and separately versioned.
+
+- Source: a reviewed nucleoplasm revision whose recipe has `nucleolar_revision_id`.
+  The worker reads each field's `compartment-summary.json` from the revision that
+  derived the mask (also for child or cohort revisions that reuse it) after
+  checking the saved labels against the report's canonical mask hash. Nothing is
+  remeasured; pixel values are raw (`compartment-summary/1.0.0` has no background
+  subtraction). A summary with any other value basis is refused.
+- Binding and integrity: every nucleus with nucleoplasm must be exactly a region
+  of the reviewed nucleoplasm table with the same area, and no other region may
+  exist. Each row must satisfy union + nucleoplasm = nucleus area for candidate
+  parents, zero nucleoplasm for candidate-free parents, the recorded area
+  fraction, and log2 = log2(nucleoplasm mean / nucleolar mean) exactly. Nucleus
+  geometry must agree across channels. Failures are explicit error codes.
+- Observations are nuclei; a nucleus keeps the nucleoplasm region ID (its parent
+  nucleus ID). Region exclusions of the nucleoplasm revision and whole-field
+  exclusions are honoured and remain in the ledgers. Exclusions applied in the
+  nuclear and nucleolar revisions were already applied when the summary was made.
+- Missingness: a summary row with a `missing_reason` is a missing observation with
+  that reason (`no_nucleolus`, `no_nucleoplasm`, `nonpositive_signal`), never a
+  value and never zero. For count and area fraction a candidate-free nucleus is
+  missing (`no_nucleolus`): a candidate-free parent does not establish zero
+  nucleoli (compartment protocol 1.0.1). Count and fraction therefore describe
+  nuclei with at least one adopted nucleolus.
+- Acquisition review: the ratio is treated as an intensity outcome (actual
+  acquisition batches, a single storage dtype, no condition-confounded batches,
+  nucleoplasm-region saturation rejected). Saturation in the nucleolar union is not
+  recorded by the summary and is reported as the warning
+  `nucleolar_union_saturation_not_assessed`. Count and fraction require the
+  explicit equal-spatial-sampling confirmation and a single calibration, as for
+  pixel area.
+- Records: each source field carries the summary protocol, selection version,
+  canonical SHA-256 of the summary and its nucleolar revision identity; figures,
+  captions and Methods state the per-nucleus definition and channel/stain.
+- Export/replay limit: the region bundle does not carry the nuclear and nucleolar
+  source masks needed to regenerate the summary from original pixels. Export lists
+  such results in `statistics-omitted.json` (and the export job's
+  `statistics_omitted`) with `region_export_compartment_summary_unsupported`
+  instead of including them; recomputation from a bundle refuses with the same
+  code. Descriptive preview (unreviewed) is not available for this selection.
+
+Numerical tests (`tests/test_compartment_observations.py`) use synthetic pixels
+whose per-nucleus log2 values are exact powers of two: two conditions × three
+units × two fields give unit means −1, −1.5, −0.5 versus 0.5, 1, 0; Welch's t
+matches SciPy, the exact Mann–Whitney U is 0 with p = 2/20, an explicitly
+excluded nucleus would change a field median and does not, and the missing nucleus
+stays in the missingness ledger. These tests establish arithmetic and source
+binding only, not nucleolar segmentation validity or biological interpretation.

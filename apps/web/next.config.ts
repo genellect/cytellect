@@ -10,6 +10,8 @@ const config: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
   ...(!local ? {
+    // One canonical landing page; earlier /product links keep working.
+    async redirects() { return [{ source: "/product", destination: "/", permanent: true }]; },
     async headers() {
       return [{ source: "/:path*", headers: [
         { key: "Cache-Control", value: "no-store, max-age=0" },

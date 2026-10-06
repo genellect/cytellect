@@ -150,3 +150,22 @@ def test_worker_export_writes_private_job_artifacts(tmp_path):
     run_region_export(store, {"revision_id": "r1", "workspace_id": "w", "payload": {"include_raw": False}}, output)
     assert read_json(output / "result.json") == {"files": ["analysis.zip", "methods.md"],
                                                  "raw_included": False, "revision_id": "r1"}
+
+
+def test_compartment_summary_statistics_are_recorded_as_omitted_not_silently_dropped(tmp_path):
+    from cytellect_api.db import jobs
+
+    store, settings, config = setup_fields(tmp_path)
+    execute(store, settings, config)
+    payload = {"mode": "descriptive", "selection": {"source": "compartment-summary", "region_set_id": "cells",
+                                                    "metric": "nucleolar_count"}}
+    with store.transaction() as connection:
+        connection.execute(jobs.insert().values(id="j_ratio", workspace_id="w", revision_id="r1", kind="statistics",
+                                                state="succeeded", payload=payload, created=1.0, result_dir="missing"))
+    output = store.safe_path("export-attempt")
+    run_region_export(store, {"revision_id": "r1", "workspace_id": "w", "payload": {"include_raw": False}}, output)
+    omitted = [{"job_id": "j_ratio", "reason": "region_export_compartment_summary_unsupported"}]
+    assert read_json(output / "result.json")["statistics_omitted"] == omitted
+    with zipfile.ZipFile(output / "analysis.zip") as opened:
+        assert json.loads(opened.read("statistics-omitted.json")) == omitted
+        assert not any(name.startswith("statistics/") for name in opened.namelist())

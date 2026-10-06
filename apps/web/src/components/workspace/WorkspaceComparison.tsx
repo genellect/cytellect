@@ -9,13 +9,13 @@ import {comparisonRequest, createComparisonAdapter, type ComparisonChoices, type
 import type {WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import styles from "./analysis-workspace.module.css";
 
-interface Props {selectionChanged?: boolean; selection?: WorkspaceSelection | null; workspace: string; sources: ComparisonSource[]; pendingFields: number; blocked: boolean; options: Array<{key: string; label: string}>; regionSet: string; onInspect: (field: string) => void}
+interface Props {beforePrepare?: () => Promise<WorkspaceSelection | null>; selectionChanged?: boolean; selection?: WorkspaceSelection | null; workspace: string; sources: ComparisonSource[]; pendingFields: number; blocked: boolean; options: Array<{key: string; label: string}>; regionSet: string; onInspect: (field: string) => void}
 const blank: Metadata = {condition: null, sample: null, experimental_unit: null, pair: null, acquisition_date: null, repeat_length: null};
 const fail = (error: unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : "比較を完了できませんでした。";
 const initial: ComparisonChoices = {metric: "area_px", channel: null, regionSet: "nuclei", design: "independent", method: "parametric", unitDefinition: "", pairingBasis: "", contrasts: [], independence: false, acquisition: false, sampling: false, missingness: false, kind: "distribution", width: 178, height: 76, yLabel: ""};
 
 /** Progressive inference: metadata and human decisions are never prerequisites for raw analysis. */
-export function WorkspaceComparison({selection = null, selectionChanged = false, workspace, sources, pendingFields, blocked, options, regionSet, onInspect}: Props) {
+export function WorkspaceComparison({beforePrepare, selection = null, selectionChanged = false, workspace, sources, pendingFields, blocked, options, regionSet, onInspect}: Props) {
   const adapter = useMemo(() => createComparisonAdapter(), []);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [batchKey, setBatchKey] = useState<keyof Metadata>("condition");
@@ -56,7 +56,8 @@ export function WorkspaceComparison({selection = null, selectionChanged = false,
   }
   async function prepare() {
     if (!metadataReady || busy || blocked || selectionChanged) return; setBusy(true); setError("");
-    try {const revision = await adapter.cohort(workspace, sources, fields, selection); setPrepared({revision, identity}); setReview(false);}
+    // The compared target is adopted only now, by this explicit action, never by viewing it.
+    try {const adopted = beforePrepare ? await beforePrepare() : selection; const revision = await adapter.cohort(workspace, sources, fields, adopted); setPrepared({revision, identity: JSON.stringify([sources.map(source => [source.field, source.revision]), fields, adopted])}); setReview(false);}
     catch (cause) {setError(fail(cause));} finally {setBusy(false);}
   }
   async function calculate() {

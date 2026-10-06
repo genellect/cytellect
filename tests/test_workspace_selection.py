@@ -193,3 +193,60 @@ def test_selection_change_during_calculation_is_fenced_without_removing_prior_ar
     assert client.get(f"/v1/jobs/{previous['id']}/files/figure.svg").content == original_file
     # A stale second completion must not overwrite the finished rejection.
     assert not store.finish(running, store.relative_path(output))
+
+
+def test_target_adoptions_survive_switch_reload_and_nuclear_undo(tmp_path):
+    client, app, _, wid, body, _ = setup_cohort(tmp_path)
+    original = dict(app.state.store.one(revisions, id=body["sources"][0]["revision_id"]))
+    fid = original["config"]["field_ids"][0]
+    recipes = {
+        "nucleus-a": {"source": "stardist_nuclear", "defining_channel_id": "dna"},
+        "nucleus-b": {"source": "stardist_nuclear", "defining_channel_id": "dna"},
+        "gfp-a": {"source": "fiji_positive_regions", "region_set_id": "gfp_positive", "defining_channel_id": "green"},
+        "nucleoli-b": {"source": "fiji_nuclear_compartment", "compartment": "nucleoli",
+                       "nuclear_revision_id": "nucleus-b", "nuclear_channel_id": "dna", "defining_channel_id": "ncl"},
+    }
+    with app.state.store.transaction() as conn:
+        for rid, recipe in recipes.items():
+            record = copy.deepcopy(original)
+            record.update(id=rid, config={**record["config"], "recipe": recipe})
+            conn.execute(revisions.insert().values(**record))
+    path = f"/v1/workspaces/{wid}/selection"
+    selection = client.get(path).json()
+    def adopt(rid):
+        nonlocal selection
+        entry = next(e for e in selection["entries"] if e["field_id"] == fid)
+        entry["revision_id"] = rid
+        # An old client that omits the map must not discard other target choices.
+        entry.pop("target_revisions", None)
+        selection = save(client, wid, selection)
+        return next(e for e in selection["entries"] if e["field_id"] == fid)
+    adopt("nucleus-b")
+    # Simulate an existing pre-map adoption record before the first target switch.
+    from cytellect_api.db import workspace_selections
+    legacy = copy.deepcopy(selection)
+    for entry in legacy["entries"]:
+        entry.pop("target_revisions", None)
+    with app.state.store.transaction() as conn:
+        conn.execute(workspace_selections.update().where(workspace_selections.c.workspace_id == wid)
+                     .values(entries=legacy["entries"]))
+    selection = legacy
+    assert adopt("gfp-a")["target_revisions"]["nuclei"] == "nucleus-b"
+    adopt("nucleoli-b")
+    assert adopt("gfp-a")["target_revisions"] == {
+        "nuclei": "nucleus-b", "nucleoli": "nucleoli-b", "gfp": "gfp-a"}
+    assert client.get(path).json() == selection
+    assert adopt("nucleus-a")["target_revisions"] == {"nuclei": "nucleus-a", "gfp": "gfp-a"}
+    assert adopt("gfp-a")["target_revisions"]["nuclei"] == "nucleus-a"
+    stale = copy.deepcopy(selection)
+    entry = next(e for e in stale["entries"] if e["field_id"] == fid)
+    entry["revision_id"] = "nucleoli-b"
+    assert client.post(path, headers=HEADERS, json=stale).json()["detail"] == "workspace_derived_revision_stale"
+    invalid = copy.deepcopy(selection)
+    entry = next(e for e in invalid["entries"] if e["field_id"] == fid)
+    entry["target_revisions"]["ncl"] = "nucleus-a"
+    assert client.post(path, headers=HEADERS, json=invalid).json()["detail"] == "workspace_target_revision_mismatch"
+    invalid = copy.deepcopy(selection)
+    entry = next(e for e in invalid["entries"] if e["field_id"] == fid)
+    entry["target_revisions"]["ncl"] = body["sources"][1]["revision_id"]
+    assert client.post(path, headers=HEADERS, json=invalid).json()["detail"] == "workspace_selection_invalid_revision"

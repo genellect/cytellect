@@ -60,7 +60,7 @@
           "$ref": "#/$defs/ContextChannel"
         },
         "maxItems": 6,
-        "minItems": 1,
+        "minItems": 0,
         "title": "Channels",
         "type": "array"
       },
@@ -80,7 +80,7 @@
       },
       "field_count": {
         "maximum": 10000,
-        "minimum": 1,
+        "minimum": 0,
         "title": "Field Count",
         "type": "integer"
       },

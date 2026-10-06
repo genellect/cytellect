@@ -2,7 +2,8 @@
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
 
-export const PROMPT_VERSION = "2026-10-06.1";
+export const PROMPT_VERSION = "2026-10-06.2";
+export const LEGACY_PROMPT_VERSION = "2026-10-06.1";
 export const MODEL = "gpt-6.1-sol";
 export type ReasoningEffort = "low" | "medium";
 
@@ -39,7 +40,10 @@ Registered method notes (cite only relevant IDs, never as product-validation cla
 - lord-2020, DOI 10.1083/jcb.202001064: show replicate membership and unit summaries. Cytellect aggregates field median, sample mean and independent-unit mean, rather than treating cells as independent replicates.
 - schmied-2024, DOI 10.1038/s41592-023-01987-9: preserve acquisition and analysis methods with results. Reporting guidance does not validate an individual output.`;
 
+const PREIMPORT_INSTRUCTION = "- When field_count is 0, this is a planning conversation before image import. Explain a useful conditional analysis approach for the goal in plain Japanese rationale, and list the essential information to confirm. Return recipe none, empty channels/metrics/figures/additional_analyses, and descriptive statistics with all options null. Do not invent acquired images, channels, replication or executable settings.";
+
 export interface ModelSettings {
+  promptVersion?: string;
   apiKey: string;
   model: string;
   maxOutputTokens: number;
@@ -131,7 +135,7 @@ export function requestPayload(settings: ModelSettings, context: unknown, previe
     reasoning: { effort: settings.reasoningEffort ?? "medium" },
     max_output_tokens: settings.maxOutputTokens,
     input: [
-      { role: "system", content: [{ type: "input_text", text: SYSTEM_PROMPT }] },
+      { role: "system", content: [{ type: "input_text", text: (settings.promptVersion ?? PROMPT_VERSION) === PROMPT_VERSION ? SYSTEM_PROMPT + "\n" + PREIMPORT_INSTRUCTION : SYSTEM_PROMPT }] },
       { role: "user", content: userContent(context, previews, repair) },
     ],
     text: { format: { type: "json_schema", name: "cytellect_proposal", strict: true, schema: contract.draft_schema } },

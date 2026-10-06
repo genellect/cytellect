@@ -6,7 +6,7 @@
  * returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, LEGACY_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
@@ -124,6 +124,12 @@ export function checkRequest(body: Record<string, unknown>): { context: Record<s
   if (!matchesSchema(context, contract.context_schema)) return null;
   const channels = (context!.channels as { token: string }[]).map((channel) => channel.token);
   if (new Set(channels).size !== channels.length) return null;
+  if (context!.field_count === 0) {
+    if (channels.length || !String(context!.goal ?? "").trim() || context!.condition_count
+      || context!.units_known || context!.pairing_known || context!.complete_pair_count
+      || context!.supplied_regions || context!.measured_table || context!.background_available
+      || (context!.units_per_condition as unknown[] | undefined)?.length) return null;
+  } else if (!channels.length) return null;
   const previews = body.previews ?? [];
   if (!Array.isArray(previews) || previews.length > LIMITS.previews) return null;
   for (const preview of previews) {
@@ -141,7 +147,7 @@ export function checkRequest(body: Record<string, unknown>): { context: Record<s
       if (width < 1 || height < 1 || width > 512 || height > 512) return null;
     } catch { return null; }
   }
-  const extra = Object.keys(body).filter((key) => key !== "context" && key !== "previews");
+  const extra = Object.keys(body).filter((key) => key !== "context" && key !== "previews" && key !== "prompt_version");
   return extra.length ? null : { context: context!, previews: previews as Preview[] };
 }
 
@@ -186,16 +192,20 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const body = await readJson(request);
     const checked = body && checkRequest(body);
     if (!checked) return failure(400, "request_invalid");
+    const promptVersion = body!.prompt_version ?? LEGACY_PROMPT_VERSION;
+    if (promptVersion !== PROMPT_VERSION && promptVersion !== LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
+    if (checked.context.field_count === 0 && promptVersion !== PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
+    const modelConfig = {...config, promptVersion};
     const requestId = request.headers.get("idempotency-key");
     if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return failure(400, "request_id_required");
     if (!(await store.claimRequest(deviceHash, requestId.toLowerCase(), now))) return failure(409, "duplicate_request");
     const period = month(now);
     if (!(await store.countDeviceRequest(deviceHash, period, config.deviceRequests))) return failure(429, "device_quota_exhausted");
     const reservation = crypto.randomUUID();
-    const amount = worstCaseUsd(config, checked.context, checked.previews);
+    const amount = worstCaseUsd(modelConfig, checked.context, checked.previews);
     if (!(await store.reserve(reservation, period, amount, config.budget, now))) return failure(429, "monthly_budget_exhausted");
     try {
-      const result = await draftProposal({ ...config, fetcher: options.fetcher, beforeCall: async () => {
+      const result = await draftProposal({ ...modelConfig, fetcher: options.fetcher, beforeCall: async () => {
         if (await store.budgetBlocked()) throw new ModelError("budget_reconciliation_required");
       } },
         checked.context, checked.previews);
@@ -204,19 +214,19 @@ export async function handle(request: Request, env: Env, store: Store, options: 
       const spent = result.usageComplete ? ((result.inputTokens - result.cachedInputTokens) * config.priceCacheWrite
         + result.cachedInputTokens * config.priceCachedIn + result.outputTokens * config.priceOut) / 1_000_000 : amount;
       await store.settle(reservation, period, spent, result.usageComplete ? {
-        model: config.model, promptVersion: PROMPT_VERSION, inputTokens: result.inputTokens,
+        model: config.model, promptVersion, inputTokens: result.inputTokens,
         cachedInputTokens: result.cachedInputTokens, outputTokens: result.outputTokens, calls: result.calls,
       } : undefined);
-      return json(200, { draft: result.draft, model: config.model, prompt_version: PROMPT_VERSION });
+      return json(200, { draft: result.draft, model: config.model, prompt_version: promptVersion });
     } catch (error) {
       // Usage of a failed call is unknown here: settle conservatively at the reserved amount.
       const usage = error instanceof ModelError ? error.observedUsage : undefined;
       await store.settle(reservation, period, usage
         ? Math.max(amount, observedCost(usage, config.priceCacheWrite, config.priceCachedIn, config.priceOut)) : amount,
-      usage ? { ...usage, model: config.model, promptVersion: PROMPT_VERSION } : undefined,
+      usage ? { ...usage, model: config.model, promptVersion } : undefined,
       error instanceof ModelError && error.code === "model_usage_exceeded");
       if (error instanceof ModelError && error.validatedDraft !== undefined) {
-        return json(200, { draft: error.validatedDraft, model: config.model, prompt_version: PROMPT_VERSION });
+        return json(200, { draft: error.validatedDraft, model: config.model, prompt_version: promptVersion });
       }
       const code = error instanceof ModelError ? error.code : "model_unavailable";
       if (error instanceof ModelError && code === "model_unavailable") {

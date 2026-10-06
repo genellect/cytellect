@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 from .planning import ReferenceId
 
 PROPOSAL_PROTOCOL = "1.1.0"
-PROPOSAL_PROMPT_VERSION = "2026-10-06.1"
+PROPOSAL_PROMPT_VERSION = "2026-10-06.2"
 PROPOSAL_MODEL = "gpt-6.1-sol"
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]
@@ -47,8 +47,8 @@ class ProposalContext(ProposalModel):
     """Normalized metadata sent to the proposal service; no paths, names or values."""
     protocol: Literal["1.1.0"] = "1.1.0"
     goal: Annotated[str, Field(max_length=2000)] = ""
-    channels: Annotated[list[ContextChannel], Field(min_length=1, max_length=6)]
-    field_count: Annotated[int, Field(ge=1, le=10000)]
+    channels: Annotated[list[ContextChannel], Field(min_length=0, max_length=6)]
+    field_count: Annotated[int, Field(ge=0, le=10000)]
     condition_count: Annotated[int, Field(ge=0, le=100)] = 0
     units_known: StrictBool = False
     pairing_known: StrictBool = False
@@ -60,6 +60,13 @@ class ProposalContext(ProposalModel):
 
     @model_validator(mode="after")
     def unique_channels(self):
+        if self.field_count == 0:
+            if (self.channels or self.condition_count or self.units_known or self.pairing_known
+                    or self.units_per_condition or self.complete_pair_count or self.supplied_regions
+                    or self.measured_table or self.background_available or not self.goal.strip()):
+                raise ValueError("proposal_empty_workspace_facts_invalid")
+        elif not self.channels:
+            raise ValueError("proposal_acquired_channels_required")
         if len({channel.token for channel in self.channels}) != len(self.channels):
             raise ValueError("proposal_context_channel_duplicate")
         if self.units_per_condition and len(self.units_per_condition) != self.condition_count:

@@ -108,7 +108,7 @@ class RegionSetSpec(RegionModel):
     region_set_id: Id
     label: Label
     mask_revision_id: Id
-    source: Literal["manual", "imported", "stardist_nuclear"]
+    source: Literal["manual", "imported", "stardist_nuclear", "fiji_positive_regions", "fiji_nuclear_compartment"]
     defining_channel_id: Id | None = None
 
     @field_validator("label")
@@ -120,7 +120,7 @@ class RegionSetSpec(RegionModel):
 
     @model_validator(mode="after")
     def detector_requires_channel(self):
-        if self.source == "stardist_nuclear" and self.defining_channel_id is None:
+        if self.source in ("stardist_nuclear", "fiji_positive_regions", "fiji_nuclear_compartment") and self.defining_channel_id is None:
             raise ValueError("nuclear_detection_requires_defining_channel")
         return self
 
@@ -136,8 +136,8 @@ class RegionMeasurementSpec(RegionModel):
     field_id: Id
     analysis_revision_id: Id
     region_set: RegionSetSpec
-    channels: Annotated[tuple[ChannelSpec, ...], Field(min_length=1, max_length=3)]
-    backgrounds: Annotated[tuple[BackgroundSpec, ...], Field(min_length=1, max_length=3)]
+    channels: Annotated[tuple[ChannelSpec, ...], Field(min_length=1, max_length=4)]
+    backgrounds: Annotated[tuple[BackgroundSpec, ...], Field(min_length=1, max_length=4)]
     calibration: Calibration2D | None = None
 
     @model_validator(mode="after")
