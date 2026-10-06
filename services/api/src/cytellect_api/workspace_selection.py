@@ -1,5 +1,5 @@
 """Persisted field adoption; whole-ledger CAS prevents stale tabs changing cohorts."""
-from typing import Annotated
+from typing import Annotated, Literal
 
 from cytellect_analysis.regions import Id, RegionModel
 from fastapi import Depends, HTTPException
@@ -8,16 +8,19 @@ from sqlalchemy import select
 
 from .db import fields, revisions, workspace_selections, workspaces
 
+Target = Literal["nuclei", "gfp", "ncl", "nucleoli", "nucleoplasm"]
+
 
 class WorkspaceSelectionEntry(RegionModel):
     id: Id
     field_id: Id | None = None
     revision_id: Id | None = None
     exclusion_reason: str | None = Field(default=None, min_length=1, max_length=300)
+    target_revisions: dict[Target, Id] | None = Field(default=None, max_length=5, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def coherent(self):
-        if self.revision_id and not self.field_id:
+        if (self.revision_id or self.target_revisions) and not self.field_id:
             raise ValueError("field_required")
         if self.exclusion_reason is not None and not self.exclusion_reason.strip():
             raise ValueError("exclusion_reason_required")
@@ -35,6 +38,58 @@ class WorkspaceSelection(RegionModel):
         if len(ids) != len(set(ids)) or len(fids) != len(set(fids)):
             raise ValueError("duplicate_selection")
         return self
+
+
+def revision_target(revision):
+    recipe = revision["config"].get("recipe", {})
+    if recipe.get("source") == "stardist_nuclear":
+        return "nuclei"
+    if recipe.get("source") == "fiji_nuclear_compartment":
+        return recipe.get("compartment")
+    if recipe.get("source") == "fiji_positive_regions":
+        return {"gfp_positive": "gfp", "ncl_positive": "ncl"}.get(recipe.get("region_set_id"))
+    return None
+
+
+def selected_revision(conn, wid, fid, rid):
+    rev = conn.execute(select(revisions).where(revisions.c.id == rid)).mappings().first()
+    if (not rev or rev["workspace_id"] != wid or rev["state"] != "succeeded"
+            or rev["config"].get("field_ids") != [fid] or rev["config"].get("cohort_sources")):
+        raise HTTPException(409, "workspace_selection_invalid_revision")
+    return rev
+
+
+def update_target_adoption(conn, wid, entry, before):
+    # Omitted maps from older clients preserve previously adopted targets.
+    targets = dict(entry.get("target_revisions", (before or {}).get("target_revisions", {})))
+    if before and "target_revisions" not in before and before.get("revision_id"):
+        previous = selected_revision(conn, wid, entry["field_id"], before["revision_id"])
+        previous_target = revision_target(previous)
+        if previous_target:
+            targets.setdefault(previous_target, previous["id"])
+    active = selected_revision(conn, wid, entry["field_id"], entry["revision_id"]) if entry["revision_id"] else None
+    active_target = revision_target(active) if active else None
+    if active_target and active is not None:
+        targets[active_target] = active["id"]
+    resolved = {}
+    for target, rid in targets.items():
+        rev = selected_revision(conn, wid, entry["field_id"], rid)
+        if revision_target(rev) != target:
+            raise HTTPException(409, "workspace_target_revision_mismatch")
+        resolved[target] = rev
+    nucleus = resolved.get("nuclei")
+    for target in ("nucleoli", "nucleoplasm"):
+        derived = resolved.get(target)
+        if not derived:
+            continue
+        recipe = derived["config"]["recipe"]
+        if (not nucleus or recipe.get("nuclear_revision_id") != nucleus["id"]
+                or recipe.get("nuclear_channel_id") != nucleus["config"]["recipe"].get("defining_channel_id")):
+            if active_target == target:
+                raise HTTPException(409, "workspace_derived_revision_stale")
+            targets.pop(target)
+    if targets or "target_revisions" in entry or "target_revisions" in (before or {}):
+        entry["target_revisions"] = targets
 
 
 def selection_at(conn, wid):
@@ -98,12 +153,7 @@ def register_workspace_selection_routes(api, store, owner, workspace, touch):
                 before = old.get(entry["id"])
                 if before and before["field_id"] and before["field_id"] != entry["field_id"]:
                     raise HTTPException(409, "workspace_field_identity_changed")
-                if entry["revision_id"]:
-                    rev = conn.execute(select(revisions).where(revisions.c.id == entry["revision_id"])).mappings().first()
-                    if (not rev or rev["workspace_id"] != wid or rev["state"] != "succeeded"
-                            or rev["config"].get("field_ids") != [entry["field_id"]]
-                            or rev["config"].get("cohort_sources")):
-                        raise HTTPException(409, "workspace_selection_invalid_revision")
+                update_target_adoption(conn, wid, entry, before)
             updated = {"version": body.version + 1, "entries": entries}
             if conn.execute(select(workspace_selections.c.workspace_id).where(workspace_selections.c.workspace_id == wid)).first():
                 conn.execute(workspace_selections.update().where(workspace_selections.c.workspace_id == wid).values(**updated))

@@ -11,7 +11,7 @@ from matplotlib.text import Text
 from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
-from .figures import LABELS, _validate_text_layout, figure_settings, plt, select_font
+from .figures import LABELS, _validate_text_layout, apply_plot_controls, figure_settings, plt, select_font
 from .statistical_methods import methods_metadata, readable_descriptive_methods
 
 FIGURE_VERSION = "1.0.1"
@@ -224,6 +224,7 @@ def render_descriptive(result, output: Path, *, methods_template=None):
                 properties.set_family(selected_font.family)
                 properties.set_weight(selected_font.weight)
                 item.set_fontproperties(properties)
+            apply_plot_controls(axes, plot)
             _validate_text_layout(figure, axes)
             for suffix in ("svg", "pdf", "png"):
                 metadata: dict[str, str | None] = {"Creator": "Cytellect descriptive figure " + FIGURE_VERSION}

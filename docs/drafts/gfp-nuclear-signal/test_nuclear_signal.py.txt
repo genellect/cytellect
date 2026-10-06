@@ -1,0 +1,64 @@
+"""Nuclear-union signal thresholding: containment is not a positive-nucleus gate."""
+import os
+
+import numpy as np
+import pytest
+from cytellect_analysis.signal_engine import SignalDetectorSpec, detect_nuclear_signal, nuclear_signal_parentage
+
+
+def field():
+    parents=np.zeros((24,32),np.uint32)
+    parents[4:20,4:16]=7
+    parents[4:20,16:28]=19
+    image=np.full(parents.shape,10,np.uint16)
+    image[8:12,12:20]=200  # Touches across a shared parent boundary.
+    return image,parents
+
+
+def test_parentage_rejects_outside_or_cross_parent_objects():
+    _,parents=field()
+    labels=np.zeros_like(parents);labels[8:12,12:20]=1
+    with pytest.raises(ValueError,match="nuclear_signal_parent_mismatch"):
+        nuclear_signal_parentage(parents,labels)
+    labels[:]=0;labels[0,0]=1
+    with pytest.raises(ValueError,match="nuclear_signal_parent_mismatch"):
+        nuclear_signal_parentage(parents,labels)
+
+
+@pytest.mark.fiji
+@pytest.mark.parametrize("method,sigma",[("otsu",0),("manual",1)])
+def test_actual_fiji_domain_ignores_outside_signal_and_separates_parents(tmp_path,method,sigma):
+    runtime=os.environ.get("CYTELLECT_FIJI_EXECUTABLE")
+    if not runtime: pytest.skip("Pinned Fiji required; nuclear-signal validation not executed")
+    image,parents=field();original=parents.copy()
+    spec=SignalDetectorSpec(threshold_method=method,threshold=50 if method=="manual" else None,
+                            smoothing_sigma_px=sigma)
+    labels,info=detect_nuclear_signal(image,parents,spec,tmp_path/"first",runtime,scratch_root=tmp_path)
+    changed=image.copy();changed[parents==0]=65535
+    other,other_info=detect_nuclear_signal(changed,parents,spec,tmp_path/"second",runtime,scratch_root=tmp_path)
+    np.testing.assert_array_equal(labels,other)
+    np.testing.assert_array_equal(parents,original)
+    assert not labels[parents==0].any()
+    assert set(map(int,info["parent_ids"].values()))=={7,19}
+    assert len(info["parent_ids"])==2
+    assert not info["biological_positivity_established"] and not info["nuclear_gate_performed"]
+    assert info["parent_nuclear_mask_sha256"]==other_info["parent_nuclear_mask_sha256"]
+    if method=="otsu":
+        expected=np.zeros_like(parents);expected[8:12,12:16]=1;expected[8:12,16:20]=2
+        np.testing.assert_array_equal(labels,expected)
+        assert info["otsu_bin"]==other_info["otsu_bin"]
+        assert np.sum(image[labels>0],dtype=np.float64)==6400
+
+
+@pytest.mark.fiji
+@pytest.mark.parametrize("method",["otsu","manual"])
+def test_actual_uniform_negative_has_no_regions_or_positive_nucleus_claim(tmp_path,method):
+    runtime=os.environ.get("CYTELLECT_FIJI_EXECUTABLE")
+    if not runtime: pytest.skip("Pinned Fiji required; nuclear-signal validation not executed")
+    image,parents=field();image[:]=10;image[parents==0]=65535
+    spec=SignalDetectorSpec(threshold_method=method,threshold=50 if method=="manual" else None)
+    labels,info=detect_nuclear_signal(image,parents,spec,tmp_path/"uniform",runtime,scratch_root=tmp_path)
+    assert not labels.any()
+    assert info["status"]==("indeterminate" if method=="otsu" else "no_candidate")
+    assert set(info["parent_states"].values())=={info["status"]}
+    assert not info["nuclear_gate_performed"]

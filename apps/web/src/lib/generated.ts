@@ -1000,6 +1000,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
         };
         /** AssociationView */
         AssociationView: {
@@ -1267,6 +1275,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
             /**
              * Histogram Bins
              * @default 10
@@ -1491,6 +1507,26 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /**
+             * Y Min
+             * @default null
+             */
+            y_min: number | null;
+            /**
+             * Y Max
+             * @default null
+             */
+            y_max: number | null;
+            /**
+             * Y Tick Step
+             * @default null
+             */
+            y_tick_step: number | null;
+            /**
+             * Point Size
+             * @default null
+             */
+            point_size: number | null;
         };
         /** DescriptiveRequest */
         DescriptiveRequest: {
@@ -1810,9 +1846,8 @@ export interface components {
              */
             engine: "fiji-nucleolar-compartments";
             /**
-             * Protocol Version
-             * @default 1.0.0
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             protocol_version: "1.0.0";
             /**
@@ -1825,6 +1860,48 @@ export interface components {
              * @default 1
              */
             minimum_area_px: number;
+            /**
+             * Split Touching
+             * @default false
+             */
+            split_touching: boolean;
+        };
+        /**
+         * NucleolarDetectorV11
+         * @description Opt-in threshold/area controls; the saved 1.0 detector remains unchanged.
+         */
+        NucleolarDetectorV11: {
+            /**
+             * Engine
+             * @default fiji-nucleolar-compartments
+             * @constant
+             */
+            engine: "fiji-nucleolar-compartments";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "1.1.0";
+            /**
+             * Threshold Method
+             * @default otsu
+             * @enum {string}
+             */
+            threshold_method: "otsu" | "manual";
+            /** Threshold */
+            threshold?: number | null;
+            /**
+             * Smoothing Sigma Px
+             * @default 0
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Minimum Area Px
+             * @default 1
+             */
+            minimum_area_px: number;
+            /** Maximum Area Px */
+            maximum_area_px?: number | null;
             /**
              * Split Touching
              * @default false
@@ -2152,6 +2229,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
         };
         /** ProposalChannelLink */
         ProposalChannelLink: {
@@ -2340,7 +2425,7 @@ export interface components {
             /** Measurement */
             measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | null;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Backgrounds */
             backgrounds?: {
                 [key: string]: {
@@ -2472,6 +2557,14 @@ export interface components {
             y_label: string;
             /** Group Order */
             group_order?: string[];
+            /** Y Min */
+            y_min?: number | null;
+            /** Y Max */
+            y_max?: number | null;
+            /** Y Tick Step */
+            y_tick_step?: number | null;
+            /** Point Size */
+            point_size?: number | null;
         };
         /** RegionComparisonRequest */
         RegionComparisonRequest: {
@@ -2699,7 +2792,8 @@ export interface components {
             nuclear_channel_id: string;
             /** Defining Channel Id */
             defining_channel_id: string;
-            detector?: components["schemas"]["NucleolarDetectorSpec"];
+            /** Detector */
+            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"];
         };
         /** RegionExcludedFailure */
         RegionExcludedFailure: {
@@ -3186,7 +3280,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
@@ -3226,7 +3320,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV2"];
@@ -3263,7 +3357,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV3"];
@@ -3400,6 +3494,40 @@ export interface components {
             reviewed: boolean;
             /** Created */
             created: number;
+        };
+        /** ScaledNuclearRecipe */
+        ScaledNuclearRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.5.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default stardist_nuclear
+             * @constant
+             */
+            source: "stardist_nuclear";
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            /**
+             * Nuclear Role Source
+             * @enum {string}
+             */
+            nuclear_role_source: "recorded_stain" | "user_selected_role";
+            /** Detection Max Side Px */
+            detection_max_side_px: number;
+            detector?: components["schemas"]["NuclearDetectorSpec"];
         };
         /** SignalDetectorSpec */
         SignalDetectorSpec: {
@@ -3565,6 +3693,10 @@ export interface components {
             revision_id?: string | null;
             /** Exclusion Reason */
             exclusion_reason?: string | null;
+            /** Target Revisions */
+            target_revisions?: {
+                [key: string]: string;
+            } | null;
         };
         /** WorkspaceView */
         WorkspaceView: {

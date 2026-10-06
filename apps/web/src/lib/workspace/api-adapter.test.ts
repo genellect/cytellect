@@ -12,6 +12,11 @@ function fake(handler: (path: string, options?: RequestInit) => Promise<unknown>
   return {adapter: createApiAdapter({request, post, wait: async () => {}}), request, post};
 }
 describe("real workspace transport boundaries", () => {
+  it("keeps legacy detection unchanged and versions an explicitly selected detection scale", () => {
+    expect(nuclearRecipe(channel)).not.toHaveProperty("detection_max_side_px");
+    expect(nuclearRecipe(channel, 320)).toMatchObject({version: "1.5.0", detection_max_side_px: 320, defining_channel_id: "channel2"});
+    for (const invalid of [0, 63, 2049, 320.5, NaN]) expect(() => nuclearRecipe(channel, invalid)).toThrow();
+  });
   it("merges a deduplicated upload without changing the existing adopted revision", async () => {
     const {adapter} = fake(async () => ({id: "f1", workspace_id: "w1", image_info: {shape: [2, 2], channels: []}, metadata: {}}));
     await adapter.registerImport("w1", "pending");
@@ -75,6 +80,9 @@ describe("real workspace transport boundaries", () => {
     expect(request).toHaveBeenLastCalledWith("/v1/jobs/j1/result", undefined);
     expect(post).toHaveBeenCalledWith("/v1/revisions/r1/descriptive-preview", expect.objectContaining({selection: {source: "region", region_set_id: "nuclei", metric: "mean", channel_id: "channel2"}, plot: expect.objectContaining({width_inches: 178/25.4, y_label: "Raw intensity"})}));
     expect(figureIdentity("r1", choice)).not.toBe(figureIdentity("r2", choice));
+    for (const patch of [{xLabel: "Field"}, {fontSize: 9}, {language: "en" as const}, {yMin: 0}, {yMax: 100}, {yTickStep: 10}, {pointSize: 25}]) {
+      expect(figureIdentity("r1", choice)).not.toBe(figureIdentity("r1", {...choice, ...patch}));
+    }
     expect(figureIdentity("r1", choice)).not.toBe(figureIdentity("r1", {...choice, channel: "channel1"}));
   });
   it("keeps positive-region identity in graph and delete requests", async () => {

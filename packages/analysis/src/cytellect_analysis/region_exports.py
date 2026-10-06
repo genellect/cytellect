@@ -24,6 +24,7 @@ from .region_contracts import (
     RegionImageInfo,
     RegionNuclearRecipe,
     RegionSignalRecipe,
+    ScaledNuclearRecipe,
     region_report_from_json,
     scientific_specification,
     validate_region_report_policy,
@@ -77,7 +78,7 @@ def region_methods(config, report, provenance):
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
     area_only = request.measurement is not None and request.measurement.mode == "area_only"
     raw_only = request.measurement is not None and request.measurement.mode == "raw_intensity"
-    nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe))
+    nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe))
     initial = ("Initial masks: a confirmed nuclear-stain channel was submitted to the fixed offline Fiji/StarDist 2D "
                "Versatile (fluorescent nuclei) model. This model defines nuclei, not whole cells or nucleoli."
                if nuclear else f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.")
@@ -122,20 +123,24 @@ def region_methods(config, report, provenance):
                      "These intensities are display-code values (0–255), not acquired raw fluorescence. "
                      "Acquisition LUTs, clipping and gamma cannot be reversed. Original TIFFs and input mode are retained for replay.")
         lines.append("Display-RGB fields: " + ", ".join(display_fields) + ".")
-    if isinstance(request.recipe, AdoptedNuclearRecipe):
+    if isinstance(request.recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe)):
         lines = [line.replace("a confirmed nuclear-stain channel", "the adopted nuclear-role channel") for line in lines]
         lines.append(f"Nuclear role evidence: {request.recipe.nuclear_role_source}; adoption does not certify segmentation quality.")
-    if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
+    if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe)):
         detector = request.recipe.detector
         lines.extend([
             (f"Nuclear recipe {request.recipe.version}; defining channel {request.recipe.defining_channel_id}."
-             if isinstance(request.recipe, AdoptedNuclearRecipe) else
+             if isinstance(request.recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe)) else
              f"Nuclear recipe {request.recipe.version}; confirmed defining channel {request.recipe.defining_channel_id}."),
             f"Detection normalization percentiles {detector.percentile_low:g}–{detector.percentile_high:g}; "
             f"probability threshold {detector.probability:g}; NMS threshold {detector.nms:g}.",
             "Saved labels use original image coordinates. Detection preprocessing does not alter "
             "measurement pixels. Corrected labels are preserved when metadata/background changes or a batch expands.",
         ])
+    if isinstance(request.recipe, ScaledNuclearRecipe):
+        lines.append(f"Requested detection maximum side: {request.recipe.detection_max_side_px} px; "
+                     "no upscaling. Runtime capacity can reduce detection further. "
+                     "The actual transform is recorded per field; measurements retain original pixels.")
     if signal:
         lines.append(f"Signal detector protocol 1.0.0; recipe {request.recipe.version}; "
                      f"defining channel {request.recipe.defining_channel_id}; settings "
@@ -150,11 +155,14 @@ def region_methods(config, report, provenance):
             engine = event.get("engine", {})
             if compartment:
                 lines.append(f"Field {fid} nuclear source: " + json.dumps(provenance["fields"][fid].get("nuclear_source"), sort_keys=True) + ".")
+                lines.append(f"Field {fid} nucleolar detector settings: " + request.recipe.detector.model_dump_json() + ".")
+                if engine.get("nucleolar_thresholds") is not None:
+                    lines.append(f"Field {fid} recorded nuclear thresholds: " + json.dumps(engine["nucleolar_thresholds"], sort_keys=True) + ".")
                 lines.append(f"Field {fid} compartment parent states: " + json.dumps({key: engine.get(key) for key in ("nucleolar_states", "parent_ids", "eligible_nucleus_ids", "excluded_nucleus_ids", "missing_parent_count", "missing_parent_reasons", "nucleoplasm_missing_reasons", "compartment_missing_parent_count")}, sort_keys=True) + ".")
-            if engine.get("nuclear_detector_protocol_version") == "1.1.0":
+            if engine.get("nuclear_detector_protocol_version") in ("1.1.0", "1.2.0"):
                 transform = engine["coordinate_transform"]
                 lines.append(
-                    f"Field {fid} detection protocol 1.1.0: original image {transform['original_shape_yx']} YX; "
+                    f"Field {fid} detection protocol {engine['nuclear_detector_protocol_version']}: original image {transform['original_shape_yx']} YX; "
                     f"detection image {transform['detection_shape_yx']} YX; "
                     f"scale X={transform['scale_x']}, Y={transform['scale_y']}. "
                     "Detection-only resizing uses anti-aliased bilinear interpolation and numpy-rint to source dtype. "
@@ -255,7 +263,7 @@ def _recompute_statistics(report, config, result):
         calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
     calculated["revision_id"] = report["revision_id"]
     if result.get("source_review") == "automatic_unreviewed":
-        if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0") or result["spec"].get("mode") != "descriptive":
+        if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0") or result["spec"].get("mode") != "descriptive":
             raise ValueError("region_export_statistics_unrecognized_fields")
         calculated["source_review"] = "automatic_unreviewed"
     if set(result) - (set(calculated) | {"figure"}):

@@ -17,7 +17,7 @@ from matplotlib.ticker import MaxNLocator
 
 from .common_statistics_contracts import CommonStatisticsResult
 from .exports_csv import write_csv
-from .figures import COLORS, MARKERS, _validate_text_layout, figure_settings, select_font
+from .figures import COLORS, MARKERS, _validate_text_layout, apply_plot_controls, figure_settings, select_font
 from .regions import RegionModel
 
 FIGURE_VERSION = "1.0.1"
@@ -249,6 +249,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 properties.set_family(selected_font.family)
                 properties.set_weight(selected_font.weight)
                 item.set_fontproperties(properties)
+            apply_plot_controls(ax, plot)
             _validate_text_layout(fig, ax)
             for suffix in ("svg", "pdf", "png"):
                 file_metadata: dict[str, str | None] = {"Creator": "Cytellect common statistics " + figure_version}

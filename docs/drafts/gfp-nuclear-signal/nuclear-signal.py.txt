@@ -1,0 +1,72 @@
+
+def nuclear_signal_parentage(nuclei: np.ndarray, labels: np.ndarray) -> dict:
+    """Edited or detected signal objects must remain wholly inside one nucleus."""
+    from .masks import validate_labels
+
+    try:
+        validate_labels(nuclei, labels)
+    except ValueError as exc:
+        raise ValueError("nuclear_signal_parent_mismatch") from exc
+    ids, positions = np.unique(labels, return_index=True)
+    parents = {int(label): int(nuclei.flat[position]) for label, position in zip(ids, positions, strict=True) if label}
+    present = set(parents.values())
+    return {"parent_ids": parents,
+            "parent_states": {int(parent): "candidate" if int(parent) in present else "no_candidate"
+                              for parent in np.unique(nuclei) if parent},
+            "effective_nuclear_mask_sha256": _array_hash(nuclei, "<u4"),
+            "mask_sha256": _array_hash(labels, "<u4")}
+
+
+def detect_nuclear_signal(
+    image: np.ndarray, nuclei: np.ndarray, parameters: SignalDetectorSpec,
+    output_dir: Path, executable: str, scratch_root: Path | None = None,
+) -> tuple[np.ndarray, dict]:
+    """Field-common threshold inside supplied nuclei; never a positive-nucleus gate."""
+    from . import engine
+    from .masks import validate_label_array
+
+    parameters = SignalDetectorSpec.model_validate(parameters)
+    validate_label_array(nuclei)
+    if (not isinstance(image, np.ndarray) or image.ndim != 2 or min(image.shape) < 1
+            or max(image.shape) > 4096 or image.dtype not in (np.uint8, np.uint16)
+            or image.shape != nuclei.shape or int(nuclei.max()) >= 2**24):
+        raise ValueError("fiji_input_format")
+    if parameters.threshold is not None and parameters.threshold > np.iinfo(image.dtype).max:
+        raise ValueError("signal_threshold_outside_input_range")
+    source_hash = _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
+    parent_hash = _array_hash(nuclei, "<u4")
+    runtime, java, lock = engine.runtime_info(executable)
+    output = output_dir.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    tifffile.imwrite(output / "signal.tif", image, photometric="minisblack")
+    tifffile.imwrite(output / "nuclei-input.tif", nuclei.astype(np.float32), photometric="minisblack")
+    (output / "request.json").write_text(json.dumps({"directory": str(output), "mode": "nuclear-signal",
+        "detector": parameters.model_dump(mode="json")}), encoding="utf-8")
+    assets = engine._execute_bridge(output, runtime, java, scratch_root)
+    array = tifffile.imread(output / "regions.tif")
+    if (array.shape != image.shape or not np.isfinite(array).all() or np.any(array < 0)
+            or np.any(array != np.floor(array)) or np.any(array >= 2**24)):
+        raise engine.EngineUnavailable("fiji_invalid_output_labels")
+    labels = array.astype(np.uint32)
+    ancestry = nuclear_signal_parentage(nuclei, labels)
+    info = json.loads((output / "engine-result.json").read_text(encoding="utf-8"))
+    if (info.get("operation") != "nuclear-signal" or info.get("parameters") != parameters.model_dump(mode="json")
+            or info.get("status") not in {"candidate", "no_candidate", "indeterminate", "no_nuclei"}
+            or (info.get("status") == "candidate") != bool(labels.any())
+            or info.get("biological_positivity_established") is not False
+            or info.get("nuclear_gate_performed") is not False
+            or {int(k): v for k, v in info.get("parent_ids", {}).items()} != ancestry["parent_ids"]
+            or {int(k) for k in info.get("parent_states", {})} != set(ancestry["parent_states"])):
+        raise engine.EngineUnavailable("fiji_invalid_output_provenance")
+    if (source_hash != _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
+            or parent_hash != _array_hash(nuclei, "<u4")):
+        raise engine.EngineUnavailable("nuclear_signal_source_modified")
+    identity = engine._engine_identity(assets, java, lock, automatic=False)
+    identity.pop("model_sha256")
+    info.update(identity)
+    info.update({"nuclear_signal_protocol_version": "1.0.0", "input_shape_yx": list(image.shape),
+                 "input_dtype": image.dtype.name, "exploratory_threshold": True,
+                 "input_sha256": source_hash, "parent_nuclear_mask_sha256": parent_hash,
+                 "canonical_labels_sha256": _array_hash(labels, "<u4")})
+    (output / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
+    return labels, info

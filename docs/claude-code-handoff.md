@@ -1,5 +1,7 @@
 # Developer handoff — 2026-10-05
 
+**Superseded for ongoing work:** start with [the 2026-10-06 Claude handoff](claude-handoff-2026-10-06.md). It records the later unmerged repairs, rejected UI, current priorities and explicit Codex stop. The production record below remains historical evidence, not proof that those later repairs are released.
+
 **Latest delivery record:** [2026-10-06 production delivery](production-delivery-2026-10-06.md).
 Read that record before acting on the earlier
 [production handoff](claude-production-handoff-2026-10-05.md). Claude's cloud work

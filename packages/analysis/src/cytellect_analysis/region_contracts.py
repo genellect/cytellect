@@ -8,9 +8,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat, TypeAdapter, field_validator, model_validator
+from pydantic import Field, FiniteFloat, StrictInt, TypeAdapter, field_validator, model_validator
 
-from .compartment_engine import NucleolarDetectorSpec
+from .compartment_engine import NucleolarDetector, NucleolarDetectorSpec
 from .plan_adoption import PlanResolution
 from .region_measurement_v2 import (
     RegionMeasurementPolicy,
@@ -183,6 +183,18 @@ class AdoptedNuclearRecipe(RegionModel):
     detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
 
 
+class ScaledNuclearRecipe(RegionModel):
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.5.0"] = "1.5.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["stardist_nuclear"] = "stardist_nuclear"
+    defining_channel_id: Id
+    nuclear_role_source: Literal["recorded_stain", "user_selected_role"]
+    detection_max_side_px: Annotated[StrictInt, Field(ge=64, le=2048)]
+    detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
+
+
 class RegionSignalRecipe(RegionModel):
     """Exploratory signal-positive areas; never implicitly nuclei or nucleoli."""
     id: Literal["region-2d"] = "region-2d"
@@ -211,7 +223,14 @@ class RegionCompartmentRecipe(RegionModel):
     nuclear_revision_id: Id
     nuclear_channel_id: Id
     defining_channel_id: Id
-    detector: NucleolarDetectorSpec = Field(default_factory=NucleolarDetectorSpec)
+    detector: NucleolarDetector = Field(default_factory=NucleolarDetectorSpec)
+
+    @field_validator("detector", mode="before")
+    @classmethod
+    def historical_detector_default(cls, value):
+        if isinstance(value, dict) and "protocol_version" not in value:
+            return {"protocol_version": "1.0.0", **value}
+        return value
 
     @model_validator(mode="after")
     def distinct_channels(self):
@@ -222,7 +241,7 @@ class RegionCompartmentRecipe(RegionModel):
         return self
 
 
-RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe, Field(discriminator="version")]
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | ScaledNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe, Field(discriminator="version")]
 
 
 RECORDED_NUCLEAR_STAINS = frozenset({"dapi", "hoechst", "hoechst33258", "hoechst33342", "draq", "draq5", "draq7"})
@@ -234,7 +253,7 @@ def validate_nuclear_role_evidence(recipe: RegionRecipeType, image_info: RegionI
     A user-selected role remains an explicit choice, distinct from recorded stain
     evidence. This guard is shared by admission, worker and saved-mask replay.
     """
-    if not isinstance(recipe, AdoptedNuclearRecipe):
+    if not isinstance(recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe)):
         return
     channel = next((item for item in image_info.channels if item.channel_id == recipe.defining_channel_id), None)
     if channel is None:

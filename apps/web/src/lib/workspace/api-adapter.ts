@@ -5,7 +5,7 @@ import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
 import type {DistributionPoint, FieldSummary} from "./adapter";
 
-export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null}
+export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm", string>>}
 export interface WorkspaceSelection {version: number; entries: SelectionEntry[]}
 export interface ImportedField {
   id: string; workspace_id: string;
@@ -26,14 +26,15 @@ interface Report {
   field_failures: Array<{field_id: string; reason: string}>;
   exclusions: SavedResult["exclusions"];
 }
-export interface FigureChoice {metric: string; channel: string | null; width: number; height: number; label: string}
+export interface FigureChoice {metric: string; channel: string | null; width: number; height: number; label: string; xLabel?: string; fontSize?: number; language?: "ja" | "en"; yMin?: number | null; yMax?: number | null; yTickStep?: number | null; pointSize?: number | null}
 export interface SavedFigure {job: string; revision: string; choice: FigureChoice; result: DescriptiveResult}
 export interface Recipe {
-  id: "region-2d"; version: "1.2.0" | "1.3.0" | "1.4.0"; region_set_id: string; label: string;
+  id: "region-2d"; version: "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0"; region_set_id: string; label: string;
   source: "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment"; defining_channel_id: string;
   compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
-  detector?: {threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; split_touching: boolean};
+  detector?: {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean};
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
+  detection_max_side_px?: number;
 }
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
 export interface Transport {
@@ -52,14 +53,16 @@ export function channelSpecification(channel: ChannelDefinition) {
     acquisition_saturation_value: null, acquisition_saturation_confirmed: false};
 }
 
-export function nuclearRecipe(channel: ChannelDefinition): Recipe {
+export function nuclearRecipe(channel: ChannelDefinition, detectionMaxSide?: number | null): Recipe {
   if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください");
-  return {id: "region-2d", version: "1.2.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
+  if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください");
+  return {id: "region-2d", version: detectionMaxSide == null ? "1.2.0" : "1.5.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
+    ...(detectionMaxSide == null ? {} : {detection_max_side_px: detectionMaxSide}),
     defining_channel_id: channel.token, nuclear_role_source: channel.evidence === "user" ? "user_selected_role" : "recorded_stain"};
 }
 
 /** Figure identity includes both the saved revision and every editable setting. */
-export function figureIdentity(revision: string, choice: FigureChoice) { return JSON.stringify([revision, choice.metric, choice.channel, choice.width, choice.height, choice.label]); }
+export function figureIdentity(revision: string, choice: FigureChoice) { return JSON.stringify([revision, choice.metric, choice.channel, choice.width, choice.height, choice.label, choice.xLabel ?? "", choice.fontSize ?? 7, choice.language ?? "ja", choice.yMin ?? null, choice.yMax ?? null, choice.yTickStep ?? null, choice.pointSize ?? null]); }
 
 /** Map saved values for interactive selection; never calculate summaries in the browser. */
 export function savedDistribution(figure: SavedFigure): {points: DistributionPoint[]; summaries: FieldSummary[]} {
@@ -217,10 +220,22 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await assertSelection(workspace);
       return adopt(workspace, await readResult(revision, field));
     },
+    async editMask(workspace: string, result: SavedResult, recipe: Recipe, operation: "add" | "replace", polygon: Point[], region?: number) {
+      if (polygon.length < 3 || (operation === "replace" && !region)) throw new Error("修正する領域と輪郭を指定してください");
+      await assertSelection(workspace);
+      await client.post(`/v1/workspaces/${workspace}/current`, {revision_id: result.revision});
+      const created = await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-edits`, {
+        field_id: result.field, region_set_id: recipe.region_set_id, operation,
+        ids: operation === "add" ? [] : [region], polygon,
+        expected_mask_revision_id: result.masks.metadata.mask_revision_id,
+      });
+      await waitJob(workspace, created.job_id);
+      return adopt(workspace, await readResult(created.revision_id, result.field, recipe));
+    },
     async figure(workspace: string, result: SavedResult, choice: FigureChoice): Promise<SavedFigure> {
       const created = await client.post<{job_id: string}>(`/v1/revisions/${result.revision}/descriptive-preview`, {
         mode: "descriptive", selection: {source: "region", region_set_id: result.regionSet || "nuclei", metric: choice.metric, channel_id: choice.channel},
-        group_by: "field", plot: {kind: "distribution", preset: "custom", width_inches: choice.width / 25.4, height_inches: choice.height / 25.4, language: "ja", y_label: choice.label},
+        group_by: "field", plot: {kind: "distribution", preset: "custom", width_inches: choice.width / 25.4, height_inches: choice.height / 25.4, language: choice.language ?? "ja", y_label: choice.label, x_label: choice.xLabel ?? "", font_size: choice.fontSize ?? 7, y_min: choice.yMin ?? null, y_max: choice.yMax ?? null, y_tick_step: choice.yTickStep ?? null, point_size: choice.pointSize ?? null},
       });
       await waitJob(workspace, created.job_id);
       const saved = await client.request<DescriptiveResult>(`/v1/jobs/${created.job_id}/result`);

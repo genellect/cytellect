@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import numpy as np
-from pydantic import Field, FiniteFloat
+from pydantic import Field, FiniteFloat, TypeAdapter, model_validator
 
 from .contracts import Recipe
 from .masks import validate_label_array, validate_labels
@@ -20,6 +20,37 @@ class NucleolarDetectorSpec(RegionModel):
     smoothing_sigma_px: Annotated[FiniteFloat, Field(ge=0, le=10)] = 0.0
     minimum_area_px: Annotated[int, Field(ge=1, le=100000)] = 1
     split_touching: bool = False
+
+
+class NucleolarDetectorV11(RegionModel):
+    """Opt-in threshold/area controls; the saved 1.0 detector remains unchanged."""
+    engine: Literal["fiji-nucleolar-compartments"] = "fiji-nucleolar-compartments"
+    protocol_version: Literal["1.1.0"] = "1.1.0"
+    threshold_method: Literal["otsu", "manual"] = "otsu"
+    threshold: Annotated[FiniteFloat, Field(ge=0, le=65535)] | None = None
+    smoothing_sigma_px: Annotated[FiniteFloat, Field(ge=0, le=10)] = 0.0
+    minimum_area_px: Annotated[int, Field(strict=True, ge=1, le=100000)] = 1
+    maximum_area_px: Annotated[int, Field(strict=True, ge=1, le=16777216)] | None = None
+    split_touching: bool = False
+
+    @model_validator(mode="after")
+    def valid_threshold_and_area(self):
+        if (self.threshold_method == "manual") != (self.threshold is not None):
+            raise ValueError("nucleolar_threshold_rule_invalid")
+        if self.maximum_area_px is not None and self.maximum_area_px < self.minimum_area_px:
+            raise ValueError("nucleolar_area_range_invalid")
+        return self
+
+
+NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11,
+                              Field(discriminator="protocol_version")]
+
+
+class _ControlledCompartmentRecipe(Recipe):
+    """Internal fixed-bridge extension, never an alternate legacy/GFP recipe."""
+    compartment_threshold_method: Literal["otsu", "manual"]
+    compartment_threshold: Annotated[FiniteFloat, Field(ge=0, le=65535)] | None = None
+    maximum_area_px: int | None = None
 
 
 def derive_compartment_masks(
@@ -50,8 +81,8 @@ def derive_compartment_masks(
     kept_parents = {child: parent for child, parent in parents.items() if parent in eligible}
     missing_nucleoplasm = sorted(eligible - {int(value) for value in np.unique(nucleoplasm_labels) if value})
     return {"nucleoli": nucleolar_labels, "nucleoplasm": nucleoplasm_labels}, {
-        "compartment_protocol_version": "1.0.0",
-        "compartment_status": "incomplete" if omitted else "complete" if nucleus_ids else "no_nuclei",
+        "compartment_protocol_version": "1.0.1",
+        "compartment_status": "incomplete" if omitted or missing_nucleoplasm else "complete" if nucleus_ids else "no_nuclei",
         "nucleolar_states": outcomes, "parent_ids": kept_parents,
         "nuclear_count": len(nucleus_ids), "eligible_nucleus_ids": sorted(eligible),
         "excluded_nucleus_ids": omitted, "missing_parent_count": len(omitted),
@@ -66,7 +97,7 @@ def derive_compartment_masks(
 
 
 def detect_compartments(
-    channels: dict[str, np.ndarray], nuclei: np.ndarray, parameters: NucleolarDetectorSpec,
+    channels: dict[str, np.ndarray], nuclei: np.ndarray, parameters: NucleolarDetector,
     output_dir: Path, executable: str, scratch_root: Path | None = None,
 ) -> tuple[dict[str, np.ndarray], dict]:
     """Reuse ImageJ per-nucleus Otsu / MorphoLibJ, never rerun StarDist.
@@ -77,7 +108,9 @@ def detect_compartments(
     """
     from . import engine
 
-    parameters = NucleolarDetectorSpec.model_validate(parameters)
+    if isinstance(parameters, dict) and "protocol_version" not in parameters:
+        parameters = {"protocol_version": "1.0.0", **parameters}
+    parameters = TypeAdapter(NucleolarDetector).validate_python(parameters)
     validate_label_array(nuclei)
     if set(channels) != {"dapi", "ncl"}:
         raise ValueError("compartment_channels_required")
@@ -92,6 +125,13 @@ def detect_compartments(
                     smoothing_sigma_px=parameters.smoothing_sigma_px,
                     minimum_area_px=parameters.minimum_area_px,
                     split_touching=parameters.split_touching)
+    if isinstance(parameters, NucleolarDetectorV11):
+        if parameters.threshold is not None and parameters.threshold > np.iinfo(channels["ncl"].dtype).max:
+            raise ValueError("nucleolar_threshold_outside_input_range")
+        recipe = _ControlledCompartmentRecipe(
+            **recipe.model_dump(), compartment_threshold_method=parameters.threshold_method,
+            compartment_threshold=parameters.threshold, maximum_area_px=parameters.maximum_area_px,
+        )
     returned_nuclei, nucleoli, info = engine.detect(
         channels, recipe, output_dir, executable, nuclei=nuclei, scratch_root=scratch_root,
     )
@@ -110,6 +150,8 @@ def detect_compartments(
                  "input_shape_yx": list(nuclei.shape), "nuclear_detection_performed": False,
                  "coordinate_transform": {"scale_x": 1, "scale_y": 1},
                  "ncl_definition_circularity": "candidate masks depend on the NCL signal being measured"})
+    if isinstance(parameters, NucleolarDetectorV11):
+        info["nucleolar_detector_protocol_version"] = "1.1.0"
     # The retained runtime contains this model, but it was not used in this call.
     info.pop("model", None)
     info.pop("model_sha256", None)

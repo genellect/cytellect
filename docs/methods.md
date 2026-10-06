@@ -78,3 +78,20 @@ Display-RGB input transform 1.0.0 and native acquired grayscale intensities are 
 Signal-area recipe 1.3.0 (`fiji_positive_regions`) applies the fixed Fiji/ImageJ threshold and connected-component engine to one explicitly selected acquired channel. Default Otsu is an exploratory per-field threshold, with optional explicit manual threshold; smoothing, minimum area and touching-region splitting are saved detector settings. Signal areas are independent region revisions and do not establish nuclei, whole cells, nucleoli, or biological GFP/NCL positivity. Measurements use unchanged original-resolution measurement planes; display-RGB conversion remains separately recorded. Reusing a mask requires the same source, defining channel, detector settings and input pixel hash; nucleus revisions remain available separately.
 
 Compartment recipe 1.4.0 pins an immutable successful nuclear revision from the same workspace and field. Its canonical mask file/hash and original image identity are checked before NCL compartment detection and again during mask reuse. Previously excluded source nuclei remain excluded. NCL-enriched candidate labels retain parent nuclear IDs in detector provenance; nucleoplasm is the original nucleus minus the candidate union only for eligible parents. Every parent state and missing reason is preserved, including indeterminate/no-candidate/processing-failed parents and empty nucleoplasm after subtraction. Missing parents never become fabricated zero-valued compartment observations or whole-nucleus nucleoplasm. Compartment revisions preserve the original nuclear revision and have independently selected region-set IDs and saved detector parameters.
+
+## Explicit nuclear detection scale
+
+Generic nuclear recipe 1.5.0 records an explicitly selected `detection_max_side_px`
+(integer 64–2048). Only the detector copy is reduced: no upsampling is performed,
+the existing capacity bound still applies, and measurement pixels remain at their
+original resolution. Detector protocol 1.2.0 records requested and actual shapes,
+the pixel-centre transform and canonical restored-label hashes. Labels are restored
+with nearest-neighbour pixel-centre mapping before original-pixel measurement.
+Changing scale requires a new detector run and invalidates dependent compartments;
+it cannot reuse masks produced with another scale. Omitting scale retains the
+older capacity-based behavior and recipe version.
+
+Scale is an experimental setting, not an accuracy guarantee or a universal default.
+The StarDist [FAQ](https://stardist.net/faq/#do-i-need-to-rescale-my-images-how-do-i-know-which-pixel-resolution-is-required)
+describes input object-size mismatch as one possible source of oversegmentation.
+Inspect boundaries on representative fields before applying a scale to a batch.

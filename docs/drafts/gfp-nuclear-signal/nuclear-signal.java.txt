@@ -1,0 +1,78 @@
+    static void detectNuclearSignal(JsonObject root, java.util.function.Function<ByteProcessor,ImageProcessor> labelComponents) throws Exception {
+        Path out=Path.of(root.get("directory").getAsString());
+        JsonObject p=root.getAsJsonObject("detector");
+        ImagePlus image=IJ.openImage(out.resolve("signal.tif").toString());
+        ImagePlus parentImage=IJ.openImage(out.resolve("nuclei-input.tif").toString());
+        if(image==null || parentImage==null || image.getWidth()!=parentImage.getWidth() || image.getHeight()!=parentImage.getHeight())
+            throw new IllegalArgumentException("nuclear_signal_input_invalid");
+        int w=image.getWidth(),h=image.getHeight(),size=w*h;
+        float[] source=pixels(image),parents=pixels(parentImage),signal=source.clone(),weight=new float[size];
+        Map<Integer,int[]> boxes=new TreeMap<>();int domainCount=0;
+        for(int y=0;y<h;y++) for(int x=0;x<w;x++) {
+            int i=y*w+x,label=(int)parents[i];
+            if(parents[i]!=label || label<0 || label>=16777216) throw new IllegalArgumentException("nuclear_signal_input_invalid");
+            if(label==0) {signal[i]=0;continue;}
+            domainCount++;weight[i]=1;
+            int[] box=boxes.get(label);if(box==null) {box=new int[]{x,y,x,y};boxes.put(label,box);}
+            box[0]=Math.min(box[0],x);box[1]=Math.min(box[1],y);box[2]=Math.max(box[2],x);box[3]=Math.max(box[3],y);
+        }
+        double sigma=number(p,"smoothing_sigma_px");
+        if(sigma>0) {
+            GaussianBlur blur=new GaussianBlur();
+            blur.blurGaussian(new FloatProcessor(w,h,signal),sigma,sigma,0.01);
+            blur.blurGaussian(new FloatProcessor(w,h,weight),sigma,sigma,0.01);
+            for(int i=0;i<size;i++) if(parents[i]>0) signal[i]/=weight[i];
+        }
+        float low=Float.POSITIVE_INFINITY,high=Float.NEGATIVE_INFINITY;
+        for(int i=0;i<size;i++) if(parents[i]>0) {low=Math.min(low,signal[i]);high=Math.max(high,signal[i]);}
+        String method=p.get("threshold_method").getAsString();
+        boolean otsuMethod=method.equals("otsu");
+        if(!otsuMethod && !method.equals("manual")) throw new IllegalArgumentException("unknown_signal_threshold");
+        boolean indeterminate=domainCount>0 && otsuMethod && low==high;
+        int otsu=0;
+        if(domainCount>0 && otsuMethod && !indeterminate) {
+            int[] hist=new int[256];
+            for(int i=0;i<size;i++) if(parents[i]>0) hist[Math.min(255,(int)((signal[i]-low)*256/(high-low)))]++;
+            otsu=new AutoThresholder().getThreshold(AutoThresholder.Method.Otsu,hist);
+        }
+        float[] labels=new float[size];int next=1;
+        JsonObject parentIds=new JsonObject(),states=new JsonObject();
+        for(Map.Entry<Integer,int[]> entry:boxes.entrySet()) {
+            int parent=entry.getKey();int[] box=entry.getValue();
+            if(indeterminate) {states.addProperty(""+parent,"indeterminate");continue;}
+            int x0=box[0],y0=box[1],cw=box[2]-x0+1,ch=box[3]-y0+1;
+            ByteProcessor binary=new ByteProcessor(cw,ch);
+            for(int y=0;y<ch;y++) for(int x=0;x<cw;x++) {
+                int i=(y0+y)*w+x0+x;if(parents[i]!=parent) continue;
+                boolean selected=otsuMethod?Math.min(255,(int)((signal[i]-low)*256/(high-low)))>otsu:signal[i]>number(p,"threshold");
+                if(selected) binary.set(x,y,255);
+            }
+            if(p.get("split_touching").getAsBoolean()) new EDM().toWatershed(binary);
+            ImageProcessor components=labelComponents.apply(binary);
+            Map<Integer,Integer> areas=new TreeMap<>(),ids=new HashMap<>();
+            for(int i=0;i<cw*ch;i++) {int id=(int)components.getf(i);if(id>0) areas.merge(id,1,Integer::sum);}
+            for(Map.Entry<Integer,Integer> component:areas.entrySet()) if(component.getValue()>=p.get("minimum_area_px").getAsInt()) {
+                ids.put(component.getKey(),next);parentIds.addProperty(""+next,parent);next++;
+            }
+            for(int y=0;y<ch;y++) for(int x=0;x<cw;x++) {Integer id=ids.get((int)components.getf(x,y));if(id!=null) labels[(y0+y)*w+x0+x]=id;}
+            states.addProperty(""+parent,ids.isEmpty()?"no_candidate":"candidate");
+        }
+        save(labels,w,h,out.resolve("regions.tif"));
+        JsonObject info=new JsonObject();
+        info.addProperty("operation","nuclear-signal");info.addProperty("engine","Fiji / ImageJ / MorphoLibJ");
+        info.addProperty("java_version",System.getProperty("java.version"));info.addProperty("headless",java.awt.GraphicsEnvironment.isHeadless());
+        info.add("parameters",p.deepCopy());info.add("parent_ids",parentIds);info.add("parent_states",states);
+        info.addProperty("status",domainCount==0?"no_nuclei":indeterminate?"indeterminate":next==1?"no_candidate":"candidate");
+        info.addProperty("threshold_scope","union of supplied nuclear pixels within one field");
+        info.addProperty("threshold_method",method);info.addProperty("histogram_bins",256);
+        if(domainCount>0) {info.addProperty("detection_minimum",low);info.addProperty("detection_maximum",high);}
+        if(otsuMethod && domainCount>0 && !indeterminate) {
+            info.addProperty("otsu_bin",otsu);info.addProperty("source_bin_boundary",low+(otsu+1)*(double)(high-low)/256.0);
+        }
+        if(!otsuMethod) info.addProperty("threshold",number(p,"threshold"));
+        info.addProperty("selection_rule",otsuMethod?"floor(min(255, (signal-min)*256/(max-min))) > otsu_bin":"signal > threshold");
+        info.addProperty("smoothing_scope","nuclear-union normalized Gaussian convolution; outside signal excluded");
+        info.addProperty("connectivity",8);info.addProperty("component_scope","separate parent nucleus");
+        info.addProperty("biological_positivity_established",false);info.addProperty("nuclear_gate_performed",false);
+        Files.writeString(out.resolve("engine-result.json"),new GsonBuilder().serializeNulls().setPrettyPrinting().create().toJson(info));
+    }

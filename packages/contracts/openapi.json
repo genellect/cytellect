@@ -2780,6 +2780,58 @@
             "type": "array",
             "maxItems": 30,
             "title": "Group Order"
+          },
+          "y_min": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Min"
+          },
+          "y_max": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Max"
+          },
+          "y_tick_step": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Tick Step"
+          },
+          "point_size": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 400.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Size"
           }
         },
         "additionalProperties": false,
@@ -3434,6 +3486,58 @@
             "maxItems": 30,
             "title": "Group Order"
           },
+          "y_min": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Min"
+          },
+          "y_max": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Max"
+          },
+          "y_tick_step": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Tick Step"
+          },
+          "point_size": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 400.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Size"
+          },
           "histogram_bins": {
             "type": "integer",
             "maximum": 50.0,
@@ -3912,6 +4016,62 @@
             "maxItems": 30,
             "title": "Group Order",
             "type": "array"
+          },
+          "y_min": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Y Min"
+          },
+          "y_max": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Y Max"
+          },
+          "y_tick_step": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1000000000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Y Tick Step"
+          },
+          "point_size": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 400,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Point Size"
           }
         },
         "title": "DescriptivePlot",
@@ -4866,6 +5026,80 @@
         "type": "object",
         "title": "NucleolarDetectorSpec"
       },
+      "NucleolarDetectorV11": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "const": "fiji-nucleolar-compartments",
+            "title": "Engine",
+            "default": "fiji-nucleolar-compartments"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Protocol Version",
+            "default": "1.1.0"
+          },
+          "threshold_method": {
+            "type": "string",
+            "enum": [
+              "otsu",
+              "manual"
+            ],
+            "title": "Threshold Method",
+            "default": "otsu"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 65535.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "smoothing_sigma_px": {
+            "type": "number",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Smoothing Sigma Px",
+            "default": 0.0
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Minimum Area Px",
+            "default": 1
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16777216.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Area Px"
+          },
+          "split_touching": {
+            "type": "boolean",
+            "title": "Split Touching",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NucleolarDetectorV11",
+        "description": "Opt-in threshold/area controls; the saved 1.0 detector remains unchanged."
+      },
       "NumericalSelection": {
         "additionalProperties": false,
         "properties": {
@@ -5636,6 +5870,58 @@
             "type": "array",
             "maxItems": 30,
             "title": "Group Order"
+          },
+          "y_min": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Min"
+          },
+          "y_max": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Max"
+          },
+          "y_tick_step": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Tick Step"
+          },
+          "point_size": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 400.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Size"
           }
         },
         "additionalProperties": false,
@@ -6074,6 +6360,9 @@
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/ScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -6088,7 +6377,8 @@
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
-                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
               }
             }
           },
@@ -6383,6 +6673,58 @@
             "type": "array",
             "maxItems": 30,
             "title": "Group Order"
+          },
+          "y_min": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Min"
+          },
+          "y_max": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Max"
+          },
+          "y_tick_step": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000000000000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Tick Step"
+          },
+          "point_size": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 400.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point Size"
           }
         },
         "additionalProperties": false,
@@ -6845,7 +7187,22 @@
             "title": "Defining Channel Id"
           },
           "detector": {
-            "$ref": "#/components/schemas/NucleolarDetectorSpec"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorSpec"
+              },
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV11"
+              }
+            ],
+            "title": "Detector",
+            "discriminator": {
+              "propertyName": "protocol_version",
+              "mapping": {
+                "1.0.0": "#/components/schemas/NucleolarDetectorSpec",
+                "1.1.0": "#/components/schemas/NucleolarDetectorV11"
+              }
+            }
           }
         },
         "additionalProperties": false,
@@ -8297,6 +8654,9 @@
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/ScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -8311,7 +8671,8 @@
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
-                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
               }
             }
           },
@@ -8433,6 +8794,9 @@
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/ScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -8447,7 +8811,8 @@
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
-                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
               }
             }
           },
@@ -8570,6 +8935,9 @@
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/ScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -8584,7 +8952,8 @@
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
-                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
               }
             }
           },
@@ -9009,6 +9378,75 @@
           "created"
         ],
         "title": "RevisionView"
+      },
+      "ScaledNuclearRecipe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Id",
+            "default": "region-2d"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.5.0",
+            "title": "Version",
+            "default": "1.5.0"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "const": "stardist_nuclear",
+            "title": "Source",
+            "default": "stardist_nuclear"
+          },
+          "defining_channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Defining Channel Id"
+          },
+          "nuclear_role_source": {
+            "type": "string",
+            "enum": [
+              "recorded_stain",
+              "user_selected_role"
+            ],
+            "title": "Nuclear Role Source"
+          },
+          "detection_max_side_px": {
+            "type": "integer",
+            "maximum": 2048.0,
+            "minimum": 64.0,
+            "title": "Detection Max Side Px"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/NuclearDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "region_set_id",
+          "label",
+          "defining_channel_id",
+          "nuclear_role_source",
+          "detection_max_side_px"
+        ],
+        "title": "ScaledNuclearRecipe"
       },
       "SignalDetectorSpec": {
         "properties": {
@@ -9440,6 +9878,33 @@
               }
             ],
             "title": "Exclusion Reason"
+          },
+          "target_revisions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9_-]+$"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "nuclei",
+                    "gfp",
+                    "ncl",
+                    "nucleoli",
+                    "nucleoplasm"
+                  ]
+                },
+                "type": "object",
+                "maxProperties": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Revisions"
           }
         },
         "additionalProperties": false,

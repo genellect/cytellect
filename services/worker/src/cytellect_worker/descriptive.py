@@ -1,8 +1,12 @@
 """Source-bound, non-inferential statistics inside the supervised worker."""
 
+import zipfile
+from pathlib import Path
+
 from cytellect_analysis.descriptive import describe_legacy, describe_regions
 from cytellect_analysis.descriptive_contracts import parse_descriptive_request
 from cytellect_analysis.descriptive_output import render_descriptive_output
+from cytellect_analysis.images import sha256
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from cytellect_analysis.statistical_methods import CURRENT_METHODS_TEMPLATE
 from cytellect_api.db import revisions
@@ -14,7 +18,7 @@ def run_descriptive(store, job, output):
     preview = job["payload"].get("_automatic_preview") is True
     preview_allowed = (preview and rev is not None
                        and rev["config"].get("analysis_kind") == "region-2d"
-                       and rev["config"].get("recipe", {}).get("version") in ("1.2.0", "1.3.0", "1.4.0"))
+                       and rev["config"].get("recipe", {}).get("version") in ("1.2.0", "1.3.0", "1.4.0", "1.5.0"))
     if (rev is None or rev["workspace_id"] != job["workspace_id"]
             or rev["state"] != "succeeded" or (not rev["reviewed"] and not preview_allowed)):
         raise ValueError("review_required")
@@ -36,4 +40,14 @@ def run_descriptive(store, job, output):
         result["source_review"] = "automatic_unreviewed"
     result["figure"] = render_descriptive_output(result, output, methods_template=CURRENT_METHODS_TEMPLATE)
     write_json(output / "result.json", result)
+    if result["figure"].get("status", "ready") == "ready":
+        files = result["figure"]["source_files"]
+        if not files or any(Path(name).name != name or (output / name).is_symlink()
+                            or not (output / name).is_file() for name in files):
+            raise ValueError("descriptive_output_artifact_mismatch")
+        archive = output / "figure.zip"
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for name in files:
+                bundle.write(output / name, arcname=name)
+        write_json(output / "figure-archive.json", {"sha256": sha256(archive), "bytes": archive.stat().st_size})
     return output

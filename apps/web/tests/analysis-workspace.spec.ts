@@ -24,13 +24,15 @@ test("registered GFP figure uses the recorded measurement channel", async ({page
   await expect(figure).not.toContainText("n = 0");
 });
 
-test("adds images, adopts one proposal and inspects fields while the run continues", async ({ page }) => {
+test("workspace entry has real file controls; explicit public example progresses", async ({ page }) => {
   await page.route("**/v1/session", route => route.fulfill({contentType:"application/json", body:JSON.stringify({authenticated:true,retention_hours:24,demo:false})}));
   await page.goto("/workspace");
   // No workspace form or method choice precedes adding images.
-  await expect(page.getByRole("heading", { name: "画像を追加" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "フォルダを追加" })).toBeVisible();
-  await expect(page.getByText("画像と原値の測定は解析サーバーで処理します。")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "画像解析", exact: true })).toBeVisible();
+  await expect(page.getByTestId("file-input")).toHaveAttribute("multiple", "");
+  await expect(page.getByTestId("folder-input")).toHaveAttribute("webkitdirectory", "");
+  await expect(page.locator("svg image, img")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "フォルダを追加", exact: true }).first()).toBeVisible();
   await expect(page.getByText(/公開画像|サンプル/)).toHaveCount(0);
   await adoptPublicSample(page);
   await expect(page.getByRole("status").filter({ hasText: "解析中" })).toBeVisible();

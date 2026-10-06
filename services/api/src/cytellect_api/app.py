@@ -1022,6 +1022,15 @@ def create_app(settings: Settings | None = None):
         if j["state"] != "succeeded" or not j["result_dir"]:
             raise HTTPException(404, "artifact_not_found")
         root = store.safe_path(j["result_dir"])
+        if name == "figure.zip":
+            path = root / name
+            record_path = root / "figure-archive.json"
+            if path.is_symlink() or not path.is_file() or not record_path.is_file():
+                raise HTTPException(404, "artifact_not_found")
+            record = read_json(record_path)
+            if path.stat().st_size != record.get("bytes") or sha256(path) != record.get("sha256"):
+                raise HTTPException(404, "artifact_not_found")
+            return FileResponse(path, media_type="application/zip", filename=name)
         index = root / "descriptive-output.json"
         if index.exists() or "figure_policy" in (j.get("payload") or {}):
             from cytellect_analysis.descriptive_output import (

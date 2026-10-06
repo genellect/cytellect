@@ -33,17 +33,26 @@ def test_paged_and_tables_only_jobs_remain_private_complete_and_exportable(tmp_p
     assert len(result["plot_data"]) == 9 and {row["value"] for row in result["plot_data"]} == {25}
     assert result["counts"]["experimental_units"] is None
     assert client.get(f"/v1/jobs/{jid}/files/figure-002.svg").status_code == 200
+    package = client.get(f"/v1/jobs/{jid}/files/figure.zip")
+    assert package.status_code == 200 and package.headers["cache-control"] == "no-store"
+    with zipfile.ZipFile(io.BytesIO(package.content)) as archive:
+        assert set(archive.namelist()) == set(result["figure"]["source_files"])
+        assert archive.read("figure-002.svg") == client.get(f"/v1/jobs/{jid}/files/figure-002.svg").content
+        assert archive.read("figure-002.pdf") == client.get(f"/v1/jobs/{jid}/files/figure-002.pdf").content
+        assert "plot-data.csv" in archive.namelist()
     assert client.get(f"/v1/jobs/{jid}/files/figure-003.svg").status_code == 404
     assert client.get(f"/v1/jobs/{jid}/files/descriptive-output.json").status_code == 404
     foreign = TestClient(app)
     foreign.post("/v1/invitations/redeem", headers=HEADERS, json={"token": store.invite()})
     assert foreign.get(f"/v1/jobs/{jid}/files/figure-002.svg").status_code == 404
+    assert foreign.get(f"/v1/jobs/{jid}/files/figure.zip").status_code == 404
     body["plot"]["y_label"] = "Unavailable \u0378"
     unavailable = client.post(f"/v1/revisions/{rid}/descriptive", headers=HEADERS, json=body).json()["job_id"]
     assert process_one(store, settings)
     assert client.get(f"/v1/jobs/{unavailable}").json()["state"] == "succeeded"
     tables = client.get(f"/v1/jobs/{unavailable}/result").json()
     assert tables["figure"]["status"] == "tables_only"
+    assert client.get(f"/v1/jobs/{unavailable}/files/figure.zip").status_code == 404
     assert tables["plot_data"] == result["plot_data"]
     csv = client.get(f"/v1/jobs/{unavailable}/files/plot-data.csv")
     assert csv.status_code == 200 and csv.headers["cache-control"] == "no-store"
@@ -59,6 +68,9 @@ def test_paged_and_tables_only_jobs_remain_private_complete_and_exportable(tmp_p
     assert replayed["matched_saved_measurements"] and replayed["matched_saved_descriptions"]
     assert replayed["descriptive_figures_ready"] is False
     folder = store.safe_path(store.one(jobs, id=jid)["result_dir"])
+    archive = folder / "figure.zip"
+    archive.write_bytes(archive.read_bytes() + b"tampered")
+    assert client.get(f"/v1/jobs/{jid}/files/figure.zip").status_code == 404
     page = folder / "figure-002.svg"
     page.write_bytes(page.read_bytes() + b"changed")
     assert client.get(f"/v1/jobs/{jid}/files/figure-002.svg").status_code == 404

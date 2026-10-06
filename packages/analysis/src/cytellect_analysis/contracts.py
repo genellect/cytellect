@@ -109,6 +109,19 @@ class PlotSpec(StrictModel):
     x_label: str = Field(default="", max_length=120)
     y_label: str = Field(default="", max_length=120)
     group_order: list[str] = Field(default_factory=list, max_length=30)
+    y_min: Annotated[FiniteFloat, Field(ge=-1e15, le=1e15)] | None = Field(default=None, exclude_if=lambda value: value is None)
+    y_max: Annotated[FiniteFloat, Field(ge=-1e15, le=1e15)] | None = Field(default=None, exclude_if=lambda value: value is None)
+    y_tick_step: Annotated[FiniteFloat, Field(gt=0, le=1e15)] | None = Field(default=None, exclude_if=lambda value: value is None)
+    point_size: Annotated[FiniteFloat, Field(gt=0, le=400)] | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def valid_axis_controls(self):
+        if self.y_min is not None and self.y_max is not None:
+            if self.y_min >= self.y_max:
+                raise ValueError("figure_y_range_invalid")
+            if self.y_tick_step is not None and (self.y_max - self.y_min) / self.y_tick_step > 99:
+                raise ValueError("figure_tick_count_exceeded")
+        return self
 
 class StatisticsRequest(StrictModel):
     metric: Literal[

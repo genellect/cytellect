@@ -35,14 +35,20 @@ class EngineUnavailable(RuntimeError):
     """The pinned engine cannot safely execute the requested operation."""
 
 
-def nuclear_detection_shape(shape: tuple[int, int]) -> tuple[int, int]:
+def nuclear_detection_shape(shape: tuple[int, int], *, detection_max_side: int | None = None) -> tuple[int, int]:
     """Bound only detector work; this is never a measurement-image transform."""
     if len(shape) != 2 or min(shape) < 1:
         raise ValueError("fiji_input_dimensions")
     if max(shape) > MAX_NUCLEAR_INPUT_SIDE:
         raise ValueError("fiji_input_format")
+    if detection_max_side is not None and (
+        type(detection_max_side) is not int or not 64 <= detection_max_side <= MAX_AUTOMATIC_DETECTION_SIDE
+    ):
+        raise ValueError("fiji_detection_max_side_invalid")
     factor = min(1.0, MAX_AUTOMATIC_DETECTION_SIDE / max(shape),
                  math.sqrt(MAX_AUTOMATIC_DETECTION_PIXELS / (shape[0] * shape[1])))
+    if detection_max_side is not None:
+        factor = min(factor, detection_max_side / max(shape))
     return max(1, math.floor(shape[0] * factor)), max(1, math.floor(shape[1] * factor))
 
 
@@ -163,18 +169,21 @@ def _engine_identity(assets: Path, java: Path, lock: dict, *, automatic: bool) -
 
 
 def detect_nuclei(image: np.ndarray, parameters: NuclearDetectorSpec, output_dir: Path,
-                  executable: str, scratch_root: Path | None = None) -> tuple[np.ndarray, dict]:
+                  executable: str, scratch_root: Path | None = None, *,
+                  detection_max_side: int | None = None) -> tuple[np.ndarray, dict]:
     """Detect nuclei with bounded preprocessing; measure only the original plane.
 
     Channel identity and explicit nuclear-stain confirmation belong to the
     versioned region recipe. This fixed adapter never changes measurement pixels.
+    An explicit maximum is detection-only and never enlarges a small image.
+    Omission preserves the existing capacity-only behavior and its provenance.
     """
     parameters = NuclearDetectorSpec.model_validate(parameters)
     if not isinstance(image, np.ndarray) or image.ndim != 2 or min(image.shape) < 1:
         raise ValueError("fiji_input_dimensions")
     if image.dtype not in (np.uint8, np.uint16):
         raise ValueError("fiji_input_format")
-    detection_shape = nuclear_detection_shape(image.shape)
+    detection_shape = nuclear_detection_shape(image.shape, detection_max_side=detection_max_side)
     scaled = detection_shape != image.shape
     runtime, java, lock = runtime_info(executable)
     output = output_dir.resolve()
@@ -221,6 +230,23 @@ def detect_nuclei(image: np.ndarray, parameters: NuclearDetectorSpec, output_dir
             "detection_input_sha256": _array_hash(detection_image, "|u1" if image.dtype.itemsize == 1 else "<u2"),
             "canonical_labels_sha256": _array_hash(labels, "<u4"),
         })
+    if detection_max_side is not None:
+        info.update({
+            "nuclear_detector_protocol_version": "1.2.0",
+            "requested_detection_max_side_px": detection_max_side,
+            "detection_resize_policy": "explicit-max-side-with-capacity-bound",
+            "detection_resize_applied": scaled,
+            "detection_input_sha256": _array_hash(detection_image, "|u1" if image.dtype.itemsize == 1 else "<u2"),
+            "canonical_labels_sha256": _array_hash(labels, "<u4"),
+        })
+        if not scaled:
+            info["coordinate_transform"] = {
+                "scale_x": 1, "scale_y": 1,
+                "original_shape_yx": list(image.shape), "detection_shape_yx": list(detection_shape),
+                "mapping": "pixel-center", "image_interpolation": "none", "anti_aliasing": False,
+                "image_rounding": "none", "label_interpolation": "identity",
+                "canonical_coordinates": "original-image",
+            }
     (output / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
     return labels, info
 
