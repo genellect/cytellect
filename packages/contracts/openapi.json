@@ -1653,6 +1653,54 @@
         }
       }
     },
+    "/v1/workspaces/{wid}/gfp-gate": {
+      "post": {
+        "summary": "Gfp Gate",
+        "description": "GFP-positive nuclei against designated negative-control fields (gfp-gate/2.0.0), per acquisition date.",
+        "operationId": "gfp_gate_v1_workspaces__wid__gfp_gate_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GfpGateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/compartment-summary": {
       "get": {
         "summary": "Compartment Summary",
@@ -4911,6 +4959,65 @@
           "synthetic"
         ],
         "title": "FieldView"
+      },
+      "GfpGateField": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Field Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Revision Id"
+          },
+          "control": {
+            "type": "boolean",
+            "title": "Control",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_id",
+          "revision_id"
+        ],
+        "title": "GfpGateField"
+      },
+      "GfpGateRequest": {
+        "properties": {
+          "gfp_channel_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Gfp Channel Id"
+          },
+          "percentile": {
+            "type": "number",
+            "exclusiveMaximum": 100.0,
+            "minimum": 50.0,
+            "title": "Percentile",
+            "default": 99.0
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/GfpGateField"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gfp_channel_id",
+          "fields"
+        ],
+        "title": "GfpGateRequest"
       },
       "HTTPValidationError": {
         "properties": {

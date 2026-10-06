@@ -4,7 +4,7 @@ import Link from "next/link";
 import {useSearchParams} from "next/navigation";
 import {routeIdentity, promoteIdentity, resolveIdentity} from "@/lib/workspace/route-identity";
 import {API_CONFIGURED, ApiError, errorMessage} from "@/lib/api";
-import {createApiAdapter, nuclearRecipe, type CompartmentSummaryFile, type ValidatedProposal, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
+import {createApiAdapter, nuclearRecipe, type CompartmentSummaryFile, type GfpGateResult, type ValidatedProposal, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
 import {chooseNuclearChannel, groupFiles, isSupportedImage, restoredChannels, type AddedFile, type Grouping} from "@/lib/workspace/grouping";
 import {targetOf, validTargetResults, type Target} from "@/lib/workspace/target-results";
 import {tiffInputMode} from "@/lib/workspace/tiff-intake";
@@ -60,6 +60,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   const [definitionOpen, setDefinitionOpen] = useState(false);
   const [, setSelectionTick] = useState(0);
   const [proposal, setProposal] = useState<ValidatedProposal | null>(null);
+  const [gfp, setGfp] = useState<{enabled: boolean; channel: string; controls: string[]; result: GfpGateResult | null; error: string}>({enabled: false, channel: "", controls: [], result: null, error: ""});
   const [aiTrialStarted, setAiTrialStarted] = useState(false);
   const [summary, setSummary] = useState<{revision: string; value: CompartmentSummaryFile} | null>(null);
   const [signalChannels, setSignalChannels] = useState({gfp: "", ncl: ""});
@@ -513,6 +514,21 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   const aiNeedsConfirmation = aiNuclear && proposal!.needs_confirmation.includes(aiNuclear.token) && nuclear.length !== 1;
   const compartmentsUsed = !aiDraft || aiDraft.recipe === "nuclear-ncl";
   const aiMark = (text: string) => aiDraft ? `${text}（AI が選択）` : text;
+  async function runGfpGate() {
+    if (!workspace || !gfp.channel || !gfp.controls.length) return;
+    const chosen = methodFields.flatMap(value => {const nucleus = storedTargets(value).nuclei; return nucleus ? [{field_id: value.field!.id, revision_id: nucleus.result.revision, control: gfp.controls.includes(value.field!.id)}] : [];});
+    try {setGfp(previous => ({...previous, error: "", result: null})); const result = await adapter.gfpGate(workspace, {gfp_channel_id: gfp.channel, percentile: 99, fields: chosen}); setGfp(previous => ({...previous, result}));}
+    catch (error) {setGfp(previous => ({...previous, error: message(error)}));}
+  }
+  const gfpCounts = gfp.result ? Object.values(gfp.result.field_counts).reduce((total, value) => ({positive: total.positive + value.positive, negative: total.negative + value.negative}), {positive: 0, negative: 0}) : null;
+  const gfpForm = gfp.enabled && <div className={styles.definitionForm}>
+    <label>GFP のチャンネル<select value={gfp.channel} onChange={event => setGfp(previous => ({...previous, channel: event.target.value, result: null}))}><option value="">選択してください</option>{(grouping?.channels ?? []).filter(value => value.token !== nuclear[0]?.token).map(value => <option key={value.token} value={value.token}>{value.stain || value.token}</option>)}</select></label>
+    <fieldset style={{border: 0, padding: 0, margin: 0, display: "grid", gap: 2}}><legend style={{color: "var(--muted)"}}>陰性対照の視野（未導入・GFP 陰性の細胞）</legend>
+      {methodFields.map(value => <label key={value.key} style={{display: "flex", gap: 6, alignItems: "center"}}><input type="checkbox" checked={gfp.controls.includes(value.field!.id)} onChange={event => setGfp(previous => ({...previous, result: null, controls: event.target.checked ? [...previous.controls, value.field!.id] : previous.controls.filter(id => id !== value.field!.id)}))}/>{value.label}</label>)}</fieldset>
+    <p className={styles.definitionHint}>陰性対照の核の GFP 平均の 99 パーセンタイルを、撮影日ごとのしきい値にします。</p>
+    <span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={!gfp.channel || !gfp.controls.length || !nucleiReady || busy} onClick={() => void runGfpGate()}>判定する</button></span>
+    {gfp.error && <p role="alert">{gfp.error}</p>}
+  </div>;
   const steps: MethodStep[] = [
     {id: "nuclei", number: 1, title: "核", description: nuclear.length === 1 ? `${nuclearName} から核を自動検出（StarDist 2D）` : "核を染めたチャンネルから核を自動検出（StarDist 2D）", state: nuclear.length !== 1 && methodFields.length ? "核を染めたチャンネルを選んでください" : progressText("nuclei"), tone: nuclear.length !== 1 && methodFields.length ? "attention" : tone("nuclei"),
       action: {label: "輪郭を見る", onClick: () => void switchTarget("nuclei"), disabled: !doneCount("nuclei") || busy},
@@ -523,8 +539,10 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     {id: "nucleoplasm", number: 3, title: "核質", description: "核から、確認・修正した核小体を除いた領域", state: doneCount("nucleoli") ? progressText("nucleoplasm") : "核小体の確定後に計算します", tone: tone("nucleoplasm")},
     {id: "background", number: 4, title: "背景", description: "背景は未設定（元の値で測定）", state: "自動の背景候補は準備中です", tone: "todo"},
     {id: "values", number: 5, title: "測る値", description: aiDraft?.metrics.length ? aiMark(aiDraft.metrics.map(value => (value.channel ? value.channel + " " : "") + (metricName[value.metric] ?? value.metric)).join("、")) : "NCL の核質/核小体 比（log2）、核小体の数と面積", state: doneCount("nucleoplasm") ? "下の「核ごとの値」に表示" : "核質の計算後に表示", tone: doneCount("nucleoplasm") ? "done" : "todo"},
-    {id: "compare", number: 6, title: "比較", description: aiDraft?.statistics.test ? aiMark(`${testName[aiDraft.statistics.test] ?? aiDraft.statistics.test}（独立した実験を n とする）`) : "独立した実験を n として群を比べる", state: "群と実験単位を入力してから計算します", tone: "todo", action: {label: "開く", onClick: () => {setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length}},
-    {id: "figure", number: 7, title: "図", description: aiDraft?.figures.length ? aiMark(aiDraft.figures.map(value => figureName[value.kind] ?? value.kind).join("、") + "（英語の図と説明文）") : "実験単位の点と細胞の分布（英語の図と説明文）", state: "—", tone: "todo", action: {label: "開く", onClick: () => setView("figure"), disabled: !item?.result}},
+    {id: "gfp", number: 6, title: "対象", description: gfp.enabled ? "GFP 陽性の核に限る（陰性対照を基準）" : "すべての核", state: gfp.result && gfpCounts ? `陽性 ${gfpCounts.positive}・陰性 ${gfpCounts.negative} 核` : gfp.enabled ? "GFP チャンネルと陰性対照の視野を選んでください" : "—", tone: gfp.result ? "done" : gfp.enabled ? "attention" : "todo",
+      action: {label: gfp.enabled ? "限定しない" : "GFP 陽性に限る", onClick: () => setGfp(previous => ({...previous, enabled: !previous.enabled, result: null}))}, details: gfpForm || undefined},
+    {id: "compare", number: 7, title: "比較", description: aiDraft?.statistics.test ? aiMark(`${testName[aiDraft.statistics.test] ?? aiDraft.statistics.test}（独立した実験を n とする）`) : "独立した実験を n として群を比べる", state: "群と実験単位を入力してから計算します", tone: "todo", action: {label: "開く", onClick: () => {setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length}},
+    {id: "figure", number: 8, title: "図", description: aiDraft?.figures.length ? aiMark(aiDraft.figures.map(value => figureName[value.kind] ?? value.kind).join("、") + "（英語の図と説明文）") : "実験単位の点と細胞の分布（英語の図と説明文）", state: "—", tone: "todo", action: {label: "開く", onClick: () => setView("figure"), disabled: !item?.result}},
   ];
   async function applyMethod() {
     // One explicit action applies the current nucleolar definition to every field, then derives nucleoplasm.

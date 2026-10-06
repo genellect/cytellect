@@ -17,6 +17,7 @@ from cytellect_analysis.display_contracts import (
     RegionPreviewDisplayMetadata,
 )
 from cytellect_analysis.engine import nuclear_detection_shape
+from cytellect_analysis.gfp_gate import apply_control_gate, control_thresholds
 from cytellect_analysis.images import read_tiff, render_preview_with_display, sha256
 from cytellect_analysis.masks import contours, polygon_mask
 from cytellect_analysis.region_contracts import (
@@ -36,7 +37,7 @@ from cytellect_analysis.region_contracts import (
 from cytellect_analysis.region_metadata import region_metadata_child_config
 from fastapi import Depends, File, Form, HTTPException, Response, UploadFile
 from PIL import Image
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select, update
 
 from .db import fields, revisions, uid, workspaces
@@ -57,6 +58,18 @@ class RegionFieldView(BaseModel):
 def is_region(value):
     return value.get("config", value.get("image_info", {})).get("analysis_kind",
            value.get("image_info", {}).get("kind")) == "region-2d"
+
+
+class GfpGateField(BaseModel):
+    field_id: Annotated[str, Field(min_length=1, max_length=100)]
+    revision_id: Annotated[str, Field(min_length=1, max_length=100)]
+    control: bool = False
+
+
+class GfpGateRequest(BaseModel):
+    gfp_channel_id: Annotated[str, Field(min_length=1, max_length=100)]
+    percentile: Annotated[float, Field(ge=50, lt=100)] = 99.0
+    fields: Annotated[list[GfpGateField], Field(min_length=1, max_length=100)]
 
 
 def register_region_routes(api, store, settings, owner, workspace, revision,
@@ -378,6 +391,40 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                       "nucleolar_states", "parent_ids", "eligible_nucleus_ids", "excluded_nucleus_ids",
                       "missing_parent_count", "missing_parent_reasons", "nucleoplasm_missing_reasons", "compartment_missing_parent_count")}}
             for fid, value in provenance.get("fields", {}).items()}}
+
+    @api.post("/v1/workspaces/{wid}/gfp-gate")
+    def gfp_gate(wid: str, body: GfpGateRequest, who: Owner):
+        """GFP-positive nuclei against designated negative-control fields (gfp-gate/2.0.0), per acquisition date."""
+        workspace(wid, who)
+        rows = []
+        for item in body.fields:
+            rev = region_revision(item.revision_id, who)
+            recipe = rev["config"].get("recipe", {})
+            if rev["workspace_id"] != wid or recipe.get("source") != "stardist_nuclear" or item.field_id not in rev["config"]["field_ids"]:
+                raise HTTPException(409, "gfp_gate_requires_nuclear_revision")
+            report = read_json(result_root(rev) / "measurements.json")
+            table = report.get("field_tables", {}).get(item.field_id)
+            if table is None:
+                raise HTTPException(409, "field_failed")
+            excluded = {e["region_id"] for e in report.get("exclusions", []) if e["field_id"] == item.field_id}
+            if None in excluded:
+                continue
+            metadata = field_record(item.field_id, who)["metadata"] or {}
+            for row in table["rows"]:
+                if row["channel_id"] == body.gfp_channel_id and row["region_id"] not in excluded:
+                    rows.append({"field_id": item.field_id, "region_id": row["region_id"], "gfp_mean": row.get("mean"),
+                                 "acquisition_date": metadata.get("acquisition_date"), "control": item.control})
+        if not any(row["control"] for row in rows):
+            raise HTTPException(422, "gfp_gate_requires_control_fields")
+        thresholds = control_thresholds(rows, body.percentile)
+        gated = apply_control_gate(rows, thresholds)
+        counts: dict[str, dict[str, int]] = {}
+        for row in gated:
+            value = counts.setdefault(row["field_id"], {"positive": 0, "negative": 0, "control": 0, "unselected": 0})
+            key = "control" if row["control"] else "positive" if row["gfp_positive"] else "negative" if row["gfp_gate_reason"] == "within_control_range" else "unselected"
+            value[key] += 1
+        return {**thresholds, "gfp_channel_id": body.gfp_channel_id, "values": "raw", "field_counts": counts,
+                "nuclei": [{key: row[key] for key in ("field_id", "region_id", "gfp_mean", "gfp_positive", "gfp_gate_reason")} for row in gated]}
 
     @api.get("/v1/revisions/{rid}/compartment-summary")
     def compartment_summary(rid: str, field_id: str, who: Owner):

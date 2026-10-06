@@ -566,6 +566,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/gfp-gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gfp Gate
+         * @description GFP-positive nuclei against designated negative-control fields (gfp-gate/2.0.0), per acquisition date.
+         */
+        post: operations["gfp_gate_v1_workspaces__wid__gfp_gate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/compartment-summary": {
         parameters: {
             query?: never;
@@ -1791,6 +1811,30 @@ export interface components {
             image_info: components["schemas"]["ImageInfo"];
             /** Synthetic */
             synthetic: boolean;
+        };
+        /** GfpGateField */
+        GfpGateField: {
+            /** Field Id */
+            field_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /**
+             * Control
+             * @default false
+             */
+            control: boolean;
+        };
+        /** GfpGateRequest */
+        GfpGateRequest: {
+            /** Gfp Channel Id */
+            gfp_channel_id: string;
+            /**
+             * Percentile
+             * @default 99
+             */
+            percentile: number;
+            /** Fields */
+            fields: components["schemas"]["GfpGateField"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -5596,6 +5640,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gfp_gate_v1_workspaces__wid__gfp_gate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GfpGateRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

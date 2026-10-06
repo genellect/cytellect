@@ -136,3 +136,18 @@ Scale is an experimental setting, not an accuracy guarantee or a universal defau
 The StarDist [FAQ](https://stardist.net/faq/#do-i-need-to-rescale-my-images-how-do-i-know-which-pixel-resolution-is-required)
 describes input object-size mismatch as one possible source of oversegmentation.
 Inspect boundaries on representative fields before applying a scale to a batch.
+
+## GFP-positive nuclei from negative controls (gfp-gate/2.0.0, 2026-10-06)
+
+`POST /v1/workspaces/{wid}/gfp-gate` labels nuclei of adopted nuclear revisions
+as GFP positive when their raw GFP mean exceeds the 99th percentile (linear
+interpolation; configurable 50–<100) of the GFP means of nuclei in the fields the
+researcher designates as negative controls (untransfected or GFP-negative cells),
+computed separately per acquisition date. A date with fewer than 20 control
+nuclei has no threshold and its nuclei are unselected with a reason; missing GFP
+values are never treated as positive. Pooled-population Otsu is not used because
+its threshold moves with the transfected fraction. GFP is a selection or
+covariate, never a denominator. The control-distribution approach follows
+per-nucleus gates such as Sutton & DeRose, J Biol Chem 2021
+(doi:10.1016/j.jbc.2021.100633). Connecting the gate to comparisons and figures
+is a later, versioned step.

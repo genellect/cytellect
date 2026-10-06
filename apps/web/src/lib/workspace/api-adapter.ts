@@ -47,6 +47,7 @@ export interface ProposalDraft {
   missing_information: string[]; reference_ids: string[]; rationale: string;
 }
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
+export interface GfpGateResult {percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
 export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
 export interface CompartmentSummaryFile {channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>}
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
@@ -244,6 +245,9 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       });
       await waitJob(workspace, created.job_id);
       return adopt(workspace, await readResult(created.revision_id, result.field, recipe));
+    },
+    async gfpGate(workspace: string, body: {gfp_channel_id: string; percentile: number; fields: Array<{field_id: string; revision_id: string; control: boolean}>}) {
+      return client.post<GfpGateResult>(`/v1/workspaces/${workspace}/gfp-gate`, body);
     },
     async compartmentSummary(revision: string, field: string) {
       return client.request<CompartmentSummaryFile>(`/v1/revisions/${revision}/compartment-summary?field_id=${encodeURIComponent(field)}`);
