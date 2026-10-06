@@ -1,24 +1,14 @@
 # Cytellect
 
-蛍光顕微鏡画像から細胞核を検出・測定し、実験単位の統計と論文用の図を出力するアプリケーション。
-Web（Vercel）、Windows ローカル版、Docker の3形態で、同じ解析実装を配布しています。
+蛍光画像の核定量から、実験単位の統計と論文用の図まで。
 
-研究用プロトタイプです。研究画像での妥当性確認と利用者評価は未完了です（[roadmap](docs/roadmap.md)）。
+Next.js の Web、FastAPI の API、Fiji と Python 解析パッケージを動かすワーカーの3層構成。数値はすべてワーカーが計算し、API が保存・配信する。
 
-利用者・研究者向けの説明は [解析機能の説明](docs/implementation-overview.ja.md) にあります。このREADMEは開発者向けです。 · [English](README.en.md)
+`prototype` · Web / Windows / Docker · [研究者向けの機能説明](docs/implementation-overview.ja.md) · [English](README.en.md)
 
 ---
 
-## 何が難しいか
-
-このリポジトリの設計は、次の4つの制約から決まっています。
-
-1. **数値の正しさを後から検証できること**：測定値・統計量・図は論文の根拠になる。同じ入力から同じバイト列を出し、第三者が再計算して照合できる必要がある。
-2. **研究データを外に出さないこと**：未発表の画像を扱う。ネットワーク、ログ、CI、外部 AI のどこにも漏らさない。
-3. **ネイティブの画像処理エンジンを安全に使うこと**：Fiji / StarDist（Java・TensorFlow）を、版を固定したまま、隔離されたプロセスで実行する。
-4. **LLM を判断に使わないこと**：解析計画の提案にだけ LLM を使い、数値や結論には関与させない。
-
-## 1つの解析がたどる経路
+## 処理の流れ
 
 ```mermaid
 sequenceDiagram
@@ -43,11 +33,11 @@ sequenceDiagram
     B->>A: 結果の取得（保存済みの値を表示）
 ```
 
-ブラウザは計算しません。表示している数値は、すべてサーバーに保存された値です。
+ブラウザは計算を行わず、サーバーに保存された値だけを表示する。
 
-## 保証していること
+## 不変条件
 
-| 保証 | 実装している場所 | 検証 |
+| 不変条件 | 実装 | 検証 |
 |---|---|---|
 | 原画像の画素を変更しない | 検出は複製に対して実行。測定は原画素を読む | ImageJ による独立計算との一致（公開画像3種） |
 | 結果を上書きしない | 修正・除外・背景変更のたびに不変の revision を作成。親の変更で子と派生結果を無効化 | revision と無効化の API テスト |
@@ -71,11 +61,11 @@ sequenceDiagram
 | リポジトリ → CI | 秘密情報・研究データの混入、依存の汚染 | Gitleaks による全履歴スキャン、公開ツリーの検査、lockfile とハッシュによる固定、`pnpm audit`、CycloneDX SBOM |
 | 保存データ | 長期の残留 | リポジトリ外の非公開ディレクトリに置き、最終操作から24時間で削除 |
 
-詳細は [security.md](docs/security.md) と [proposal-service.md](docs/proposal-service.md) を参照してください。
+詳細：[security.md](docs/security.md)、[proposal-service.md](docs/proposal-service.md)
 
-## 動かす
+## ローカル実行
 
-Python 3.12、Node.js 24、pnpm 11.19.0、uv 0.12.2 が必要です。
+Python 3.12 · Node.js 24 · pnpm 11.19.0 · uv 0.12.2
 
 ```sh
 uv sync --locked --dev && pnpm install --frozen-lockfile
@@ -92,13 +82,13 @@ uv run cytellect-worker               # Worker
 pnpm dev                              # Web
 ```
 
-確認：`uv run ruff check . && uv run pytest`、`pnpm check && pnpm test`
+検証：`uv run ruff check . && uv run pytest` · `pnpm check && pnpm test`
 
-Docker は `CYTELLECT_RUNTIME_DIR` に UID 10001 所有のディレクトリを指定して `docker compose up --build -d`。Windows の Docker Desktop は [docker-desktop.md](docs/docker-desktop.md) を参照してください。
+Docker：`CYTELLECT_RUNTIME_DIR`（UID 10001 所有）を指定して `docker compose up --build -d`。Docker Desktop は [docker-desktop.md](docs/docker-desktop.md)。
 
-## コードを読む順番
+## 主要モジュール
 
-| 知りたいこと | 読む場所 |
+| 対象 | ファイル |
 |---|---|
 | API の入口と認証 | [`services/api/src/cytellect_api/app.py`](services/api/src/cytellect_api/app.py) |
 | ジョブの lease と状態 | [`services/api/src/cytellect_api/db.py`](services/api/src/cytellect_api/db.py) |
@@ -109,9 +99,9 @@ Docker は `CYTELLECT_RUNTIME_DIR` に UID 10001 所有のディレクトリを�
 | 提案中継と予算 | [`services/proposal-worker/src/`](services/proposal-worker/src/) |
 | 生成される型 | [`packages/contracts/`](packages/contracts/) |
 
-## CI と公開
+## CI / リリース
 
-`main` に入るには5つの必須チェック（`python`、`web`、`fiji-browser`、`local-windows`、`python-windows-314`）の通過が必要です。`fiji-browser` は実 Fiji とブラウザで公開画像を解析し、ImageJ の独立計算と照合します。
+必須チェック：`python` · `web` · `fiji-browser` · `local-windows` · `python-windows-314`。`fiji-browser` は実 Fiji とブラウザで公開画像を解析し、ImageJ の独立計算と照合する。
 
 | 形態 | 公開の条件 |
 |---|---|
@@ -124,12 +114,12 @@ Docker は `CYTELLECT_RUNTIME_DIR` に UID 10001 所有のディレクトリを�
 
 Next.js 16 · React 19 · TypeScript 6 / Python 3.12 · FastAPI · Pydantic 2 · SQLAlchemy 2 · Alembic · SQLite / NumPy · SciPy · statsmodels · scikit-image · Matplotlib / Fiji · StarDist 2D 0.3.0 · MorphoLibJ / Cloudflare Workers · D1 · OpenAI Responses API / Vercel · Docker Compose / Pytest · Vitest · Playwright · Ruff · mypy · Gitleaks
 
-依存とライセンスの一覧は [oss.md](docs/oss.md) にあります。
+依存とライセンス：[oss.md](docs/oss.md)
 
-## 関連資料
+## ドキュメント
 
 [architecture.md](docs/architecture.md)（構成） · [security.md](docs/security.md)（データ保護） · [local.md](docs/local.md)（Windows 版） · [fiji.md](docs/fiji.md)（エンジンの固定） · [deployment.md](docs/deployment.md)（Web の公開） · [proposal-deployment.md](docs/proposal-deployment.md)（中継の公開） · [requirements.md](docs/requirements.md)（要件）
 
 ## ライセンス
 
-ソースコードは Apache License 2.0。Fiji、モデルの重み、公開データセットには、それぞれのライセンスが適用されます。[CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
+Apache License 2.0。Fiji、モデルの重み、公開データセットはそれぞれのライセンスに従う。[CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
