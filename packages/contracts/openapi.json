@@ -1653,6 +1653,53 @@
         }
       }
     },
+    "/v1/revisions/{rid}/compartment-summary": {
+      "get": {
+        "summary": "Compartment Summary",
+        "description": "Per-nucleus nucleolar/nucleoplasmic summary computed by the worker (never in the browser).",
+        "operationId": "compartment_summary_v1_revisions__rid__compartment_summary_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/region-measurements": {
       "get": {
         "summary": "Measurements",

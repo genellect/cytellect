@@ -566,6 +566,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/compartment-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compartment Summary
+         * @description Per-nucleus nucleolar/nucleoplasmic summary computed by the worker (never in the browser).
+         */
+        get: operations["compartment_summary_v1_revisions__rid__compartment_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/region-measurements": {
         parameters: {
             query?: never;
@@ -5569,6 +5589,39 @@ export interface operations {
     compartment_status_v1_revisions__rid__region_compartment_status_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compartment_summary_v1_revisions__rid__compartment_summary_get: {
+        parameters: {
+            query: {
+                field_id: string;
+            };
             header?: never;
             path: {
                 rid: string;
