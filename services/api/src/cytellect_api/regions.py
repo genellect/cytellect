@@ -70,6 +70,29 @@ def require_compartment_revision(rev):
         raise HTTPException(422, str(exc)) from None
 
 
+def require_gfp_gate_source(rev, selection):
+    """A GFP nucleus filter needs adopted nuclear identity, known controls and the GFP channel.
+
+    The worker repeats the full binding against the saved nuclear rows; these are
+    the immediate request-level refusals.
+    """
+    gate = getattr(selection, "gfp_gate", None)
+    if gate is None:
+        return
+    from cytellect_analysis.gfp_selection import binding_kind
+
+    try:
+        binding_kind(rev["config"].get("recipe"))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    snapshot = rev["config"].get("field_snapshot", {})
+    if set(gate.control_field_ids) - set(snapshot):
+        raise HTTPException(422, "gfp_gate_unknown_control_field")
+    if any(all(channel.get("channel_id") != gate.gfp_channel_id for channel in field["image_info"].get("channels", []))
+           for field in snapshot.values()):
+        raise HTTPException(422, "gfp_gate_channel_unknown")
+
+
 class GfpGateField(BaseModel):
     field_id: Annotated[str, Field(min_length=1, max_length=100)]
     revision_id: Annotated[str, Field(min_length=1, max_length=100)]

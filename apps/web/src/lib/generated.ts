@@ -1635,6 +1635,7 @@ export interface components {
              * @enum {string}
              */
             metric: "log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count";
+            gfp_gate?: components["schemas"]["GfpGateFilter"] | null;
         };
         /** ContourView */
         ContourView: {
@@ -1856,6 +1857,40 @@ export interface components {
              * @default false
              */
             control: boolean;
+        };
+        /**
+         * GfpGateFilter
+         * @description Optional nucleus filter 1.0.0: keep nuclei by the negative-control GFP gate (gfp-gate/2.0.0).
+         *
+         *     The percentile is the researcher's recorded choice (50 to <100); it is never
+         *     searched or tuned by the software. Control fields supply the per-date
+         *     threshold and are never compared observations.
+         */
+        GfpGateFilter: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /**
+             * Gate Protocol
+             * @constant
+             */
+            gate_protocol: "gfp-gate/2.0.0";
+            /** Gfp Channel Id */
+            gfp_channel_id: string;
+            /**
+             * Percentile
+             * @default 99
+             */
+            percentile: number;
+            /** Control Field Ids */
+            control_field_ids: string[];
+            /**
+             * Keep
+             * @enum {string}
+             */
+            keep: "positive" | "negative";
         };
         /** GfpGateRequest */
         GfpGateRequest: {
@@ -3804,6 +3839,7 @@ export interface components {
              * @enum {string}
              */
             metric: "area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected";
+            gfp_gate?: components["schemas"]["GfpGateFilter"] | null;
         };
         /** RegionSetSpec */
         RegionSetSpec: {

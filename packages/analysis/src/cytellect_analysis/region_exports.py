@@ -274,6 +274,11 @@ def _recompute_statistics(report, config, result):
     if uses_compartment_summary(result.get("spec")):
         # Replay would need the nuclear and adopted-nucleolar source masks, which this bundle does not carry.
         raise ValueError("region_export_compartment_summary_unsupported")
+    from .gfp_selection import uses_gfp_gate
+
+    if uses_gfp_gate(result.get("spec")):
+        # Replay would need the bound nuclear revision and control designation, which this bundle does not carry.
+        raise ValueError("region_export_gfp_gate_unsupported")
     _statistics_methods_template(result)
     if result.get("analysis_kind") not in ("descriptive", "region-comparison", "region-association") or result.get("source_kind") != "region-2d":
         raise ValueError("region_export_statistics_unsupported")

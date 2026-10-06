@@ -15,16 +15,31 @@ export type RegionComparisonMetric = Extract<Selection, {source: "region"}>["met
 export type CompartmentComparisonMetric = Extract<Selection, {source: "compartment-summary"}>["metric"];
 export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count"];
 const isCompartmentMetric = (metric: string): metric is CompartmentComparisonMetric => (COMPARTMENT_METRICS as readonly string[]).includes(metric);
-export function comparisonSelection(regionSet: string, metric: RegionComparisonMetric | CompartmentComparisonMetric, channel: string | null): Selection {
+export type GfpGateFilter = components["schemas"]["GfpGateFilter"];
+/** The researcher's GFP nucleus filter decision: the GFP channel and the designated negative-control fields. */
+export interface GfpChoice {channel: string; controls: string[]; keep?: GfpGateFilter["keep"]; percentile?: number}
+/** GFP nucleus filter 1.0.0 (gfp-gate/2.0.0). The percentile is recorded as chosen, never searched. */
+export function gfpGateFilter(choice: GfpChoice): GfpGateFilter {
+  const controls = [...new Set(choice.controls)];
+  if (!choice.channel || !controls.length) throw new Error("GFP のチャンネルと陰性対照の視野を選んでください。");
+  const percentile = choice.percentile ?? 99;
+  if (!Number.isFinite(percentile) || percentile < 50 || percentile >= 100) throw new Error("陰性対照の percentile は 50 以上 100 未満で指定してください。");
+  return {version: "1.0.0", gate_protocol: "gfp-gate/2.0.0", gfp_channel_id: choice.channel, percentile, control_field_ids: controls, keep: choice.keep ?? "positive"};
+}
+export function comparisonSelection(regionSet: string, metric: RegionComparisonMetric | CompartmentComparisonMetric, channel: string | null, gfp: GfpChoice | null = null): Selection {
+  // Without a GFP decision the selection is sent exactly as before (no gfp_gate key).
+  const gate = gfp ? {gfp_gate: gfpGateFilter(gfp)} : {};
   // The ratio is per channel; nucleolar count and area fraction are channel-neutral.
-  if (isCompartmentMetric(metric)) return {source: "compartment-summary", version: "1.0.0", region_set_id: regionSet, metric, channel_id: metric === "log2_nucleoplasm_over_nucleolus" ? channel : null};
-  return {source: "region", region_set_id: regionSet, metric, channel_id: channel};
+  if (isCompartmentMetric(metric)) return {source: "compartment-summary", version: "1.0.0", region_set_id: regionSet, metric, channel_id: metric === "log2_nucleoplasm_over_nucleolus" ? channel : null, ...gate};
+  return {source: "region", region_set_id: regionSet, metric, channel_id: channel, ...gate};
 }
 export interface ComparisonChoices {
   metric: RegionComparisonMetric | CompartmentComparisonMetric; channel: string | null; regionSet: string; design: "independent" | "paired";
   method: "parametric" | "rank"; unitDefinition: string; pairingBasis: string;
   contrasts: string[][]; independence: boolean; acquisition: boolean; sampling: boolean; missingness: boolean;
   kind: CommonPlotKind; width: number; height: number; yLabel: string;
+  /** Optional GFP nucleus filter; absent or null compares every nucleus. */
+  gfp?: GfpChoice | null;
 }
 export function comparisonRequest(choices: ComparisonChoices): CommonComparisonRequest {
   const conditions = [...new Set(choices.contrasts.flat())];
@@ -34,7 +49,7 @@ export function comparisonRequest(choices: ComparisonChoices): CommonComparisonR
   if (choices.design === "paired" && !choices.pairingBasis.trim()) throw new Error("対応の根拠を指定してください。");
   const settings = comparisonMethod(choices.method, choices.design, conditions.length)!;
   return {mode: "region-experimental-unit", ...settings,
-    selection: comparisonSelection(choices.regionSet, choices.metric, choices.channel),
+    selection: comparisonSelection(choices.regionSet, choices.metric, choices.channel, choices.gfp ?? null),
     design: {kind: choices.design, confirmed: true, unit_definition: choices.unitDefinition.trim(), pairing_basis: choices.design === "paired" ? choices.pairingBasis.trim() : null},
     conditions, comparison_family: {family_id: "workspace-planned", kind: "planned", control: null, contrasts: choices.contrasts},
     acquisition_review: {confirmed: true, basis: choices.metric === "area_um2" ? "calibrated-area" : "same-settings", field_batches: {}, spatial_sampling_confirmed: choices.sampling},

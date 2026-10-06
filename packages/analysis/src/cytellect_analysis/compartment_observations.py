@@ -19,6 +19,7 @@ from typing import Any
 from .compartment_summary import PROTOCOL as SUMMARY_PROTOCOL
 from .descriptive import _metadata, prepare_region_observations
 from .descriptive_contracts import CompartmentSummarySelection, RegionSelection
+from .gfp_selection import GATE_KEYS, finish_gated_description, gate_source_observations
 
 SELECTION_VERSION = "1.0.0"
 LOG2 = "log2_nucleoplasm_over_nucleolus"
@@ -181,14 +182,22 @@ def acquisition_proxy(request):
                            selection=SimpleNamespace(metric=proxy, channel_id=request.selection.channel_id))
 
 
-def describe_compartment_summary(report, field_snapshot, request, summaries):
+def describe_compartment_summary(report, field_snapshot, request, summaries, nuclear=None):
+    """``nuclear`` is the adopted nuclear source required by a GFP nucleus filter."""
     from .descriptive import _finish, _request
 
     request = _request(request, "compartment-summary")
     observations, fields, unit, excluded = prepare_compartment_observations(
         report, field_snapshot, request.selection, summaries)
-    result = _finish(observations, fields, request, "region-2d", "nuclei", unit, excluded)
+    record = None
+    if request.selection.gfp_gate is not None:
+        observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,
+                                                        observations, excluded, summaries, nuclear)
+    result = _finish(observations, fields, request, "region-2d", "nuclei", unit, excluded,
+                     () if record is None else GATE_KEYS)
     result["metric_definition"] = f"{DEFINITIONS[request.selection.metric]}; per-field observed values"
     if request.selection.metric == LOG2:
         result["warnings"].append("nucleolar_union_saturation_not_assessed")
+    if record is not None:
+        finish_gated_description(result, record)
     return result

@@ -5,17 +5,17 @@ import {comparisonMethodLabel} from "@/lib/common-statistics";
 import {comparisonWarnings, probabilityLabel} from "@/lib/region-comparison-view";
 import {formatValue, type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
-import {comparisonRequest, createComparisonAdapter, type ComparisonChoices, type ComparisonResult, type ComparisonSource, type Metadata} from "@/lib/workspace/comparison-adapter";
+import {comparisonRequest, createComparisonAdapter, type ComparisonChoices, type ComparisonResult, type ComparisonSource, type GfpChoice, type Metadata} from "@/lib/workspace/comparison-adapter";
 import type {WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import styles from "./analysis-workspace.module.css";
 
-interface Props {beforePrepare?: () => Promise<WorkspaceSelection | null>; selectionChanged?: boolean; selection?: WorkspaceSelection | null; workspace: string; sources: ComparisonSource[]; pendingFields: number; blocked: boolean; options: Array<{key: string; label: string}>; regionSet: string; onInspect: (field: string) => void}
+interface Props {beforePrepare?: () => Promise<WorkspaceSelection | null>; selectionChanged?: boolean; selection?: WorkspaceSelection | null; workspace: string; sources: ComparisonSource[]; pendingFields: number; blocked: boolean; options: Array<{key: string; label: string}>; regionSet: string; onInspect: (field: string) => void; gfp?: GfpChoice | null}
 const blank: Metadata = {condition: null, sample: null, experimental_unit: null, pair: null, acquisition_date: null, repeat_length: null};
 const fail = (error: unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : "比較を完了できませんでした。";
 const initial: ComparisonChoices = {metric: "area_px", channel: null, regionSet: "nuclei", design: "independent", method: "parametric", unitDefinition: "", pairingBasis: "", contrasts: [], independence: false, acquisition: false, sampling: false, missingness: false, kind: "distribution", width: 178, height: 76, yLabel: ""};
 
 /** Progressive inference: metadata and human decisions are never prerequisites for raw analysis. */
-export function WorkspaceComparison({beforePrepare, selection = null, selectionChanged = false, workspace, sources, pendingFields, blocked, options, regionSet, onInspect}: Props) {
+export function WorkspaceComparison({beforePrepare, selection = null, selectionChanged = false, workspace, sources, pendingFields, blocked, options, regionSet, onInspect, gfp = null}: Props) {
   const adapter = useMemo(() => createComparisonAdapter(), []);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [batchKey, setBatchKey] = useState<keyof Metadata>("condition");
@@ -38,7 +38,8 @@ export function WorkspaceComparison({beforePrepare, selection = null, selectionC
   const metadataReady = sources.length >= 2 && pendingFields === 0 && Object.values(fields).every(value => value.condition?.trim() && value.experimental_unit?.trim() && value.sample?.trim() && (choices.design !== "paired" || value.pair?.trim()) && (choices.metric.startsWith("area_") || value.acquisition_date?.trim()));
   const validContrasts = choices.contrasts.length > 0 && choices.contrasts.every(pair => pair.every(group => conditions.includes(group)));
   let spec: ReturnType<typeof comparisonRequest> | null = null;
-  try {if (validContrasts) spec = comparisonRequest({...choices, regionSet});} catch { /* Readiness is represented by the unchecked visible decisions. */ }
+  // An enabled but incomplete GFP step leaves no request, never a silently ungated one.
+  try {if (validContrasts) spec = comparisonRequest({...choices, regionSet, gfp});} catch { /* Readiness is represented by the unchecked visible decisions. */ }
   const ready = !!currentPrepared && review && !!spec && metadataReady && !busy && !blocked;
   const changed = saved && (selectionChanged || saved.identity !== identity || saved.spec !== JSON.stringify(spec));
   // Any source/metadata change revokes human decisions; old output remains visibly historical.

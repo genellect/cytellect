@@ -19,6 +19,7 @@ from .common_statistics_contracts import CommonStatisticsResult
 from .compartment_observations import DEFINITIONS as COMPARTMENT_DEFINITIONS
 from .exports_csv import write_csv
 from .figures import COLORS, MARKERS, _validate_text_layout, apply_plot_controls, figure_settings, select_font
+from .gfp_selection import recorded_gate_lines
 from .regions import RegionModel
 
 FIGURE_VERSION = "1.0.1"
@@ -94,6 +95,7 @@ def common_statistics_methods(result):
                          (" multiplied by confirmed XY pixel area." if source["metric"] == "area_um2" else "."))
         else:
             lines.append(f"{axis} uses raw original-pixel intensity measurements.")
+        lines.extend(recorded_gate_lines(source.get("selection")))
         lines.append(f"{axis} missing outcomes: {len(source['missingness'])}; explicitly excluded failed fields: "
                      f"{len(source['excluded_failed_fields'])}. Full field, observation and unit ledgers are exported.")
         lines.append(f"{axis} acquisition basis: {source['acquisition']['review']['basis']}; "
