@@ -71,7 +71,7 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
     url = service_url(settings)
     if url is None:
         raise ProposalServiceError(503, "proposal_service_disabled")
-    body = json.dumps({"context": context.model_dump(mode="json")}).encode("utf-8")
+    body = json.dumps({"context": context.model_dump(mode="json"), "prompt_version": settings.proposal_prompt_version}).encode("utf-8")
     request = urllib.request.Request(f"{url}/v1/proposals", data=body, method="POST", headers={
         "authorization": f"Bearer {settings.proposal_token}", "content-type": "application/json",
         "user-agent": "Cytellect/0.1",
@@ -198,7 +198,7 @@ def build_context(store, wid: str, goal: str) -> tuple[ProposalContext, list[Pro
             token = f"ch{index + 1}"
             links.append(ProposalChannelLink(token=token, channel_id=role, stain=stain))
             channels.append({"token": token, "stain": stain, "role": kind})
-    if not channels:
+    if rows and not channels:
         raise HTTPException(409, "proposal_requires_images")
     if len(channels) > 6:
         raise HTTPException(409, "proposal_channel_limit")

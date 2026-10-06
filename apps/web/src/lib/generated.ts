@@ -1101,6 +1101,8 @@ export interface components {
             ch1?: string | null;
             /** Ch2 */
             ch2?: string | null;
+            /** Ch3 */
+            ch3?: string | null;
             /** Labels */
             labels?: string | null;
         };
@@ -2687,6 +2689,12 @@ export interface components {
         /** RegionImageInfo */
         RegionImageInfo: {
             /**
+             * Input Mode
+             * @default native
+             * @enum {string}
+             */
+            input_mode: "native" | "display-rgb";
+            /**
              * Kind
              * @default region-2d
              * @constant
@@ -3428,33 +3436,89 @@ export interface components {
             bytes: number;
             analysis_plan?: components["schemas"]["AdoptedPlan"] | null;
         };
-        /** PreviewPlaneDisplay */
-        PreviewPlaneDisplay: {
-            /** Channel Id */
-            channel_id: string;
-            /** Dtype */
-            dtype: string;
+        /**
+         * OriginalRgbPreviewMetadata
+         * @description Unscaled display-code samples, not recovered acquisition intensities.
+         */
+        OriginalRgbPreviewMetadata: {
+            /**
+             * Version
+             * @default 2.0.0
+             * @constant
+             */
+            version: "2.0.0";
+            /** Field Id */
+            field_id: string;
+            /** Requested Channel */
+            requested_channel: string;
+            /**
+             * Composite
+             * @default false
+             * @constant
+             */
+            composite: false;
+            /**
+             * Scope
+             * @default whole-plane
+             * @constant
+             */
+            scope: "whole-plane";
+            /**
+             * Mode
+             * @default original-display-rgb
+             * @constant
+             */
+            mode: "original-display-rgb";
             /**
              * Value Basis
+             * @default display-rgb-code
+             * @constant
+             */
+            value_basis: "display-rgb-code";
+            /**
+             * Dtype
+             * @default uint8
+             * @constant
+             */
+            dtype: "uint8";
+            /**
+             * Source Axes
              * @enum {string}
              */
-            value_basis: "native-grayscale" | "legacy-imported";
-            /** Source Min */
-            source_min: number;
-            /** Source Max */
-            source_max: number;
-            /** Percentile Low Value */
-            percentile_low_value: number;
-            /** Percentile High Value */
-            percentile_high_value: number;
-            /** Normalization Span */
-            normalization_span: number;
-            /** Display Black Value */
-            display_black_value: number;
-            /** Display White Value */
-            display_white_value: number;
-            /** Constant Plane */
-            constant_plane: boolean;
+            source_axes: "YXS" | "SYX";
+            /** Source Shape */
+            source_shape: [
+                number,
+                number,
+                number
+            ];
+            /** Rendered Shape */
+            rendered_shape: [
+                number,
+                number,
+                number
+            ];
+            /**
+             * Color Mode
+             * @enum {string}
+             */
+            color_mode: "RGB" | "RGBA";
+            /** Alpha Preserved */
+            alpha_preserved: boolean;
+            /**
+             * Contrast Applied
+             * @default false
+             * @constant
+             */
+            contrast_applied: false;
+            /**
+             * Sample Values Unchanged
+             * @default true
+             * @constant
+             */
+            sample_values_unchanged: true;
+            /** Source File Sha256 */
+            source_file_sha256: string;
         };
         /** PreviewDisplayMetadata */
         PreviewDisplayMetadata: {
@@ -3491,6 +3555,39 @@ export interface components {
             /** Planes */
             planes: components["schemas"]["PreviewPlaneDisplay"][];
         };
+        /** PreviewPlaneDisplay */
+        PreviewPlaneDisplay: {
+            /** Channel Id */
+            channel_id: string;
+            /** Dtype */
+            dtype: string;
+            /**
+             * Value Basis
+             * @enum {string}
+             */
+            value_basis: "native-grayscale" | "legacy-imported";
+            /** Source Min */
+            source_min: number;
+            /** Source Max */
+            source_max: number;
+            /** Percentile Low Value */
+            percentile_low_value: number;
+            /** Percentile High Value */
+            percentile_high_value: number;
+            /** Normalization Span */
+            normalization_span: number;
+            /** Display Black Value */
+            display_black_value: number;
+            /** Display White Value */
+            display_white_value: number;
+            /** Constant Plane */
+            constant_plane: boolean;
+        };
+        /**
+         * RegionPreviewDisplayMetadata
+         * @description Generic previews distinguish scaled grayscale from original RGB display codes.
+         */
+        RegionPreviewDisplayMetadata: components["schemas"]["PreviewDisplayMetadata"] | components["schemas"]["OriginalRgbPreviewMetadata"];
         /** DescriptiveOutputFile */
         DescriptiveOutputFile: {
             /** Sha256 */
@@ -4821,9 +4918,9 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
-                    /** @description ASCII-escaped JSON for the exact rendered PNG; display only. */
+                    /** @description Exact PNG display transform, including unscaled original RGB display codes. */
                     "X-Cytellect-Preview-Display"?: {
-                        "application/json": components["schemas"]["PreviewDisplayMetadata"];
+                        "application/json": components["schemas"]["RegionPreviewDisplayMetadata"];
                     };
                     [name: string]: unknown;
                 };

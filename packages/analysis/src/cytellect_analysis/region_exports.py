@@ -101,6 +101,16 @@ def region_methods(config, report, provenance):
         lines[4] = "Methods template 1.3.0; region measurement protocol 3.0.0."
         lines = [line for line in lines if not line.startswith("For each channel, a user-confirmed ROI")]
         lines.append("Raw mean, midpoint median and pixel sum use unchanged source pixels. No background has been established; corrected values remain null (background_not_established).")
+    display_fields = [fid for fid in request.field_ids
+                      if config["field_snapshot"][fid]["image_info"].get("input_mode") == "display-rgb"]
+    if display_fields:
+        lines = [line.replace("Measurement uses unchanged native 8/16-bit grayscale values. Display LUTs are not measurements.",
+                              "Native inputs retain original grayscale pixels; display RGB inputs use the conversion below.")
+                 .replace("use unchanged source pixels", "use the recorded input measurement plane") for line in lines]
+        lines.append("Display-RGB input transform 1.0.0: max(R,G,B), ignoring alpha, at original resolution. "
+                     "These intensities are display-code values (0–255), not acquired raw fluorescence. "
+                     "Acquisition LUTs, clipping and gamma cannot be reversed. Original TIFFs and input mode are retained for replay.")
+        lines.append("Display-RGB fields: " + ", ".join(display_fields) + ".")
     if isinstance(request.recipe, AdoptedNuclearRecipe):
         lines = [line.replace("a confirmed nuclear-stain channel", "the adopted nuclear-role channel") for line in lines]
         lines.append(f"Nuclear role evidence: {request.recipe.nuclear_role_source}; adoption does not certify segmentation quality.")
@@ -112,7 +122,7 @@ def region_methods(config, report, provenance):
              f"Nuclear recipe {request.recipe.version}; confirmed defining channel {request.recipe.defining_channel_id}."),
             f"Detection normalization percentiles {detector.percentile_low:g}–{detector.percentile_high:g}; "
             f"probability threshold {detector.probability:g}; NMS threshold {detector.nms:g}.",
-            "Detection and saved labels use original image coordinates. Detection preprocessing does not alter "
+            "Saved labels use original image coordinates. Detection preprocessing does not alter "
             "measurement pixels. Corrected labels are preserved when metadata/background changes or a batch expands.",
         ])
     for fid in request.field_ids:
@@ -123,6 +133,16 @@ def region_methods(config, report, provenance):
         event = provenance.get("fields", {}).get(fid, {}).get("detector")
         if nuclear and event:
             engine = event.get("engine", {})
+            if engine.get("nuclear_detector_protocol_version") == "1.1.0":
+                transform = engine["coordinate_transform"]
+                lines.append(
+                    f"Field {fid} detection protocol 1.1.0: original image {transform['original_shape_yx']} YX; "
+                    f"detection image {transform['detection_shape_yx']} YX; "
+                    f"scale X={transform['scale_x']}, Y={transform['scale_y']}. "
+                    "Detection-only resizing uses anti-aliased bilinear interpolation and numpy-rint to source dtype. "
+                    "Labels are restored by nearest-neighbour pixel-centre mapping to original coordinates. "
+                    "Measurement uses the original-resolution measurement planes. "
+                    "Reduced detection resolution may change segmentation and requires inspection.")
             lines.append(f"Field {fid} detector origin: revision {event.get('origin_revision_id')}; "
                          f"executed in this attempt: {event.get('executed_this_attempt')}; "
                          f"source pixels SHA-256: {event.get('input_sha256')}; "
@@ -158,6 +178,10 @@ def _long_rows(report, config):
             reason = exclusions.get((fid, None)) or exclusions.get((fid, row["region_id"]))
             rows.append({**row, "region_label": table["region_set"]["label"],
                          "channel_label": channel["label"], "stain": channel["stain"],
+                         "input_mode": config["field_snapshot"][fid]["image_info"].get("input_mode", "native"),
+                         "intensity_source": ("display_code_max_rgb" if
+                             config["field_snapshot"][fid]["image_info"].get("input_mode") == "display-rgb"
+                             else "acquired_grayscale"),
                          **metadata, "excluded": bool(reason), "exclusion_reason": reason})
     return rows
 
@@ -378,7 +402,8 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
             path = _safe_path(raw_dir, f"{fid}/{slot}.tif")
             if not path.is_file() or path.stat().st_size != source.bytes or sha256(path) != source.sha256:
                 raise ValueError("region_replay_input_mismatch")
-        channels = {channel.channel_id: read_tiff(_safe_path(raw_dir, f"{fid}/ch{index}.tif"))
+        channels = {channel.channel_id: read_tiff(_safe_path(raw_dir, f"{fid}/ch{index}.tif"),
+                                               legacy=info.input_mode == "display-rgb")
                     for index, channel in enumerate(info.channels)}
         if any(list(array.shape) != info.shape for array in channels.values()):
             raise ValueError("region_replay_input_shape_mismatch")

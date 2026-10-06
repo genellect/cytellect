@@ -30,7 +30,8 @@ def fake_bridge(tmp_path, monkeypatch, *, output=None, info_change=None):
         calls.append((request, image.copy(), scratch))
         assert actual_runtime == runtime and actual_java == java
         assert set(path.name for path in destination.glob("*.tif")) == {"nuclear.tif"}
-        labels = np.zeros(image.shape, dtype=np.float32) if output is None else output
+        labels = (np.zeros(image.shape, dtype=np.float32) if output is None else
+                  output(image.shape) if callable(output) else output)
         tifffile.imwrite(destination / "nuclei.tif", labels, photometric="minisblack")
         info = {"operation": "nuclear-only", "model": "Versatile (fluorescent nuclei)",
                 "parameters": request["detector"], "headless": True, "n_tiles": 1}
@@ -66,13 +67,112 @@ def test_one_native_plane_and_requested_parameters_preserved(tmp_path, monkeypat
     assert not (tmp_path / "out" / "nucleoli.tif").exists()
 
 
-@pytest.mark.parametrize("shape", [(2049, 3), (1644, 1644), (4096, 4096)])
+@pytest.mark.parametrize("shape", [(4097, 3), (3, 4097), (4097, 4097)])
 def test_capacity_fails_before_runtime_or_writes(tmp_path, monkeypatch, shape):
     monkeypatch.setattr(engine, "runtime_info", lambda _: pytest.fail("runtime must not be inspected"))
     image = np.zeros(shape, dtype=np.uint8)
-    with pytest.raises(engine.EngineUnavailable, match="fiji_detection_capacity_exceeded"):
+    with pytest.raises(ValueError, match="fiji_input_format"):
         engine.detect_nuclei(image, NuclearDetectorSpec(), tmp_path / "out", "unused")
     assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("original,expected", [
+    ((2221, 2221), (1643, 1643)), ((4096, 4096), (1643, 1643)),
+    ((2049, 3), (2048, 2)), ((1644, 1644), (1643, 1643)),
+    ((1536, 1739), (1536, 1739)), ((1800, 1500), (1800, 1500)),
+])
+def test_detection_work_is_bounded_without_changing_original_shape(original, expected):
+    actual = engine.nuclear_detection_shape(original)
+    assert actual == expected
+    assert max(actual) <= 2048 and actual[0] * actual[1] <= 2_700_000
+    assert all(a <= b for a, b in zip(actual, original, strict=True))
+
+
+def test_nearest_pixel_centres_preserve_adjacent_ids_background_and_holes():
+    coarse = np.array([[7, 0, 9], [7, 9, 9]], dtype=np.uint32)
+    restored = engine._nuclear_labels_to_original(coarse, (5, 7))
+    expected = np.array([[7, 7, 0, 0, 0, 9, 9]] * 2 + [[7, 7, 9, 9, 9, 9, 9]] * 3,
+                        dtype=np.uint32)
+    np.testing.assert_array_equal(restored, expected)
+    assert set(np.unique(restored)) == {0, 7, 9}
+    assert restored.dtype == np.uint32
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
+def test_bounded_detection_returns_original_labels_and_measures_original_pixels(tmp_path, monkeypatch, dtype):
+    from cytellect_analysis.regions import (
+        BackgroundSpec,
+        ChannelSpec,
+        RegionMeasurementSpec,
+        RegionSetSpec,
+        measure_regions,
+    )
+
+    image = (np.indices((2221, 2221))[1] % 251).astype(dtype)
+    image.flags.writeable = False
+    original_hash = _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
+
+    def coarse_labels(shape):
+        labels = np.zeros(shape, dtype=np.float32)
+        labels[10:40, 20:35] = 7
+        labels[10:40, 35:48] = 19
+        labels[20:25, 25:30] = 0
+        return labels
+
+    calls = fake_bridge(tmp_path, monkeypatch, output=coarse_labels)
+    params = NuclearDetectorSpec(probability=.67, nms=.22, percentile_low=2, percentile_high=98)
+    actual, info = engine.detect_nuclei(image, params, tmp_path / "out", "fixed")
+    request, transported, _ = calls[0]
+    assert transported.shape == (1643, 1643) and transported.dtype == dtype
+    assert request["detector"] == params.model_dump(mode="json")  # No threshold substitution.
+    assert actual.shape == image.shape and set(np.unique(actual)) == {0, 7, 19}
+    np.testing.assert_array_equal(actual, engine._nuclear_labels_to_original(coarse_labels((1643, 1643)), image.shape))
+    np.testing.assert_array_equal(tifffile.imread(tmp_path / "out/nuclei.tif"), actual)
+    assert info["nuclear_detector_protocol_version"] == "1.1.0"
+    assert info["coordinate_transform"]["original_shape_yx"] == [2221, 2221]
+    assert info["coordinate_transform"]["detection_shape_yx"] == [1643, 1643]
+    assert info["coordinate_transform"]["scale_x"] == info["coordinate_transform"]["scale_y"] == 1643 / 2221
+    assert info["coordinate_transform"]["mapping"] == "pixel-center"
+    assert info["coordinate_transform"]["canonical_coordinates"] == "original-image"
+    assert info["input_sha256"] == original_hash == _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
+    assert info["canonical_labels_sha256"] == _array_hash(actual, "<u4")
+    assert info["detection_input_sha256"] == _array_hash(transported, "|u1" if image.dtype.itemsize == 1 else "<u2")
+    background = np.zeros(image.shape, dtype=bool)
+    background[0, :10] = True
+    specification = RegionMeasurementSpec(
+        field_id="f", analysis_revision_id="a", region_set=RegionSetSpec(
+            region_set_id="nuclei", label="Nuclei", mask_revision_id="m", source="stardist_nuclear",
+            defining_channel_id="dna"),
+        channels=(ChannelSpec(channel_id="dna", label="DNA", identity_confirmed=True),),
+        backgrounds=(BackgroundSpec(channel_id="dna", roi_revision_id="b", confirmed=True),),
+    )
+    table = measure_regions({"dna": image}, actual, {"dna": background}, specification)
+    for row in table.rows:
+        pixels = image[actual == row.region_id]
+        assert row.area_px == pixels.size
+        assert row.integrated == float(np.sum(pixels, dtype=np.float64))
+        assert row.mean == float(np.mean(pixels, dtype=np.float64))
+        assert row.integrated_corrected == row.integrated - 4.5 * row.area_px
+
+
+@pytest.mark.fiji
+def test_real_bounded_public_nuclear_plane_restores_original_coordinates(tmp_path):
+    executable = os.environ.get("CYTELLECT_FIJI_EXECUTABLE")
+    if not executable:
+        pytest.skip("Actual Fiji not configured; bounded nuclear inference has NOT passed")
+    root = Path(__file__).resolve().parents[1]
+    source = tifffile.imread(root / "fixtures/public/bbbc013/A01-dapi.tif")
+    # A repeated public plane exercises capacity/coordinates, not biological F1.
+    image = np.tile(source, (4, 4))[:2221, :2221]
+    original = image.copy()
+    labels, info = engine.detect_nuclei(image, NuclearDetectorSpec(), tmp_path / "engine",
+                                       executable, scratch_root=tmp_path)
+    assert labels.shape == image.shape and labels.dtype == np.uint32 and labels.max() > 0
+    assert info["nuclear_detector_protocol_version"] == "1.1.0"
+    assert info["coordinate_transform"]["detection_shape_yx"] == [1643, 1643]
+    np.testing.assert_array_equal(tifffile.imread(tmp_path / "engine/nuclei.tif"), labels)
+    np.testing.assert_array_equal(image, original)
+    assert info["canonical_labels_sha256"] == _array_hash(labels, "<u4")
 
 
 @pytest.mark.parametrize("image,error", [

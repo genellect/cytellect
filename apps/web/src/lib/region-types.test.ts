@@ -2,7 +2,7 @@ import { describe,expect,it } from "vitest";
 import { regionFigureOptions,regionRecipe,type RegionField } from "./region-types";
 
 function field(calibrated:boolean):RegionField{
- return {id:"field-1",workspace_id:"workspace-1",synthetic:false,metadata:{condition:null,experimental_unit:null,sample:null,acquisition_date:null,pair:null,repeat_length:null},image_info:{kind:"region-2d",axes:"YX",inputs:{},channel_arrays:{},shape:[64,64],channels:["Signal","Reference"].map((label,i)=>({channel_id:`channel-${i+1}`,label,stain:null,identity_confirmed:true,acquisition_saturation_value:null,acquisition_saturation_confirmed:false})),calibration:calibrated?{pixel_size_x_um:.2,pixel_size_y_um:.3,confirmed:true}:null,labels_array:null}};
+ return {id:"field-1",workspace_id:"workspace-1",synthetic:false,metadata:{condition:null,experimental_unit:null,sample:null,acquisition_date:null,pair:null,repeat_length:null},image_info:{kind:"region-2d",input_mode:"native",axes:"YX",inputs:{},channel_arrays:{},shape:[64,64],channels:["Signal","Reference"].map((label,i)=>({channel_id:`channel-${i+1}`,label,stain:null,identity_confirmed:true,acquisition_saturation_value:null,acquisition_saturation_confirmed:false})),calibration:calibrated?{pixel_size_x_um:.2,pixel_size_y_um:.3,confirmed:true}:null,labels_array:null}};
 }
 describe("generic region figure choices",()=>{
  it("never offers corrected intensity when only raw pixels were measured",()=>{

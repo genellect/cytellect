@@ -46,6 +46,12 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
     except ValidationError:
         raise ProposalRejected(["proposal_shape_invalid"]) from None
     codes: list[str] = []
+    if context.field_count == 0 and (
+        draft.recipe != "none" or draft.channels or draft.metrics or draft.figures
+        or draft.additional_analyses or draft.statistics.kind != "descriptive"
+        or not draft.missing_information
+    ):
+        codes.append("proposal_images_not_registered")
     known = {channel.token: channel for channel in context.channels}
     tokens = [channel.token for channel in draft.channels]
     if sorted(tokens) != sorted(known):

@@ -1,6 +1,7 @@
 """Additive, owned generic-region endpoints sharing the existing job lifecycle."""
 
 import hashlib
+import io
 import json
 import shutil
 import time
@@ -8,8 +9,14 @@ from copy import deepcopy
 from typing import Annotated
 
 import numpy as np
-from cytellect_analysis.display_contracts import PREVIEW_DISPLAY_HEADER, PREVIEW_PNG_RESPONSE
-from cytellect_analysis.engine import MAX_AUTOMATIC_DETECTION_PIXELS, MAX_AUTOMATIC_DETECTION_SIDE
+import tifffile
+from cytellect_analysis.display_contracts import (
+    PREVIEW_DISPLAY_HEADER,
+    REGION_PREVIEW_PNG_RESPONSE,
+    OriginalRgbPreviewMetadata,
+    RegionPreviewDisplayMetadata,
+)
+from cytellect_analysis.engine import nuclear_detection_shape
 from cytellect_analysis.images import read_tiff, render_preview_with_display, sha256
 from cytellect_analysis.masks import contours, polygon_mask
 from cytellect_analysis.region_contracts import (
@@ -27,10 +34,12 @@ from cytellect_analysis.region_contracts import (
 )
 from cytellect_analysis.region_metadata import region_metadata_child_config
 from fastapi import Depends, File, Form, HTTPException, Response, UploadFile
+from PIL import Image
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select, update
 
 from .db import fields, revisions, uid, workspaces
+from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution
 from .region_inputs import read_label_tiff
 from .storage import read_json
@@ -52,6 +61,7 @@ def is_region(value):
 def register_region_routes(api, store, settings, owner, workspace, revision,
                            field_record, result_root, queue, touch, child_revision):
     Owner = Annotated[str, Depends(owner)]
+    register_contract_schemas(api, RegionPreviewDisplayMetadata)
 
     def region_revision(rid, who):
         rev = revision(rid, who)
@@ -82,11 +92,10 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             if body.recipe.source == "stardist_nuclear":
                 if info.labels_array is not None:
                     raise HTTPException(422, "nuclear_source_requires_no_imported_labels")
-                if f["id"] not in reused_masks and (
-                    max(info.shape) > MAX_AUTOMATIC_DETECTION_SIDE
-                    or info.shape[0] * info.shape[1] > MAX_AUTOMATIC_DETECTION_PIXELS
-                ):
-                    raise HTTPException(422, "fiji_detection_capacity_exceeded")
+                if f["id"] not in reused_masks:
+                    # Only detection is bounded; saved labels and measurement
+                    # pixels retain the original coordinates and resolution.
+                    nuclear_detection_shape(tuple(info.shape))
             if f["id"] in excluded:
                 continue
             if body.measurement is not None:
@@ -107,13 +116,14 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
     @api.post("/v1/workspaces/{wid}/region-fields", status_code=201, response_model=RegionFieldView)
     async def upload_region_field(wid: str, who: Owner, specification: str = Form(...),
                                   ch0: UploadFile = File(...), ch1: UploadFile | None = File(None),
-                                  ch2: UploadFile | None = File(None), labels: UploadFile | None = File(None)):
+                                  ch2: UploadFile | None = File(None), ch3: UploadFile | None = File(None),
+                                  labels: UploadFile | None = File(None)):
         workspace(wid, who)
         try:
             spec = RegionFieldInput.model_validate_json(specification)
         except ValidationError:
             raise HTTPException(422, "invalid_region_field_specification") from None
-        channel_files = [ch0, ch1, ch2]
+        channel_files = [ch0, ch1, ch2, ch3]
         if any((file is not None) != (i < len(spec.channels)) for i, file in enumerate(channel_files)):
             raise HTTPException(422, "region_channel_file_count_mismatch")
         fid = uid()
@@ -166,7 +176,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             shape = None
             arrays = {}
             for i, channel in enumerate(spec.channels):
-                pixels = read_tiff(folder / f"ch{i}.tif")
+                pixels = read_tiff(folder / f"ch{i}.tif", legacy=spec.input_mode == "display-rgb")
                 if shape is not None and pixels.shape != shape:
                     raise ValueError("channel_dimensions_mismatch")
                 shape = pixels.shape
@@ -183,7 +193,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 raise ValueError("region_channels_required")
             info = RegionImageInfo.model_validate({"shape": list(shape), "channels": spec.channels,
                                    "inputs": inputs, "channel_arrays": arrays, "labels_array": label_info,
-                                   "calibration": spec.calibration})
+                                   "calibration": spec.calibration, "input_mode": spec.input_mode})
             with store.transaction() as conn:
                 touch(conn, wid)
                 # Decode outside the write lock, then recheck within the same
@@ -195,12 +205,17 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 count = conn.execute(select(func.count()).select_from(fields).where(fields.c.workspace_id == wid)).scalar_one()
                 if count >= settings.max_fields or w["bytes"] + total > settings.max_upload_bytes:
                     raise HTTPException(413, "workspace_limit")
-                identity = {(c.channel_id, c.label, c.stain) for c in spec.channels}
+                identity = {c.channel_id.casefold(): (c.channel_id, c.label, c.stain) for c in spec.channels}
                 for existing in conn.execute(select(fields).where(fields.c.workspace_id == wid)).mappings():
                     if not is_region(existing):
                         raise HTTPException(409, "workflow_kind_mismatch")
                     existing_info = RegionImageInfo.model_validate(existing["image_info"])
-                    if identity != {(c.channel_id, c.label, c.stain) for c in existing_info.channels}:
+                    existing_identity = {c.channel_id.casefold(): (c.channel_id, c.label, c.stain)
+                                         for c in existing_info.channels}
+                    # Incomplete acquisitions remain registrable; only shared
+                    # channel IDs must have the same scientific identity.
+                    if any(identity[cid] != existing_identity[cid]
+                           for cid in identity.keys() & existing_identity.keys()):
                         raise HTTPException(409, "region_workspace_channel_identity_mismatch")
                 conn.execute(fields.insert().values(id=fid, workspace_id=wid,
                              metadata=spec.metadata.model_dump(mode="json"),
@@ -220,7 +235,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             for file in uploads.values():
                 await file.close()
 
-    @api.get("/v1/region-fields/{fid}/preview", response_class=Response, responses=PREVIEW_PNG_RESPONSE)
+    @api.get("/v1/region-fields/{fid}/preview", response_class=Response, responses=REGION_PREVIEW_PNG_RESPONSE)
     def preview(fid: str, channel_id: str, who: Owner, low: float = 0, high: float = 100, gain: float = 1):
         f = field_record(fid, who)
         if not is_region(f):
@@ -228,6 +243,40 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         info = RegionImageInfo.model_validate(f["image_info"])
         if (channel_id not in info.channel_arrays or not 0 <= low < high <= 100 or not 0.1 <= gain <= 10):
             raise HTTPException(422, "invalid_display_settings")
+        if info.input_mode == "display-rgb":
+            slot = next(i for i, channel in enumerate(info.channels) if channel.channel_id == channel_id)
+            original = store.safe_path("workspaces", f["workspace_id"], "fields", fid, f"ch{slot}.tif")
+            recorded = info.inputs[f"ch{slot}"]
+            if (not original.is_file() or original.stat().st_size != recorded.bytes
+                    or sha256(original) != recorded.sha256):
+                raise HTTPException(409, "region_original_image_mismatch")
+            with tifffile.TiffFile(original, _multifile=False) as tif:
+                series = tif.series[0]
+                if series.axes in ("YXS", "SYX"):
+                    if (len(tif.series) != 1 or series.dtype != np.uint8 or len(series.shape) != 3
+                            or series.shape[series.axes.index("S")] not in (3, 4)):
+                        raise HTTPException(422, "unsupported_original_rgb_preview")
+                    shape = tuple(series.shape[series.axes.index(axis)] for axis in "YX")
+                    if shape != tuple(info.shape):
+                        raise HTTPException(409, "region_original_image_mismatch")
+                    if (low, high, gain) != (0, 100, 1):
+                        raise HTTPException(422, "original_rgb_preview_has_no_contrast_adjustment")
+                    if series.shape[series.axes.index("S")] == 4 and tuple(getattr(tif.pages[0], "extrasamples", ())) != (2,):
+                        # Premultiplied/unspecified alpha cannot be represented as
+                        # unchanged straight-alpha PNG samples without guessing.
+                        raise HTTPException(422, "unsupported_original_rgb_alpha")
+                    rgb = np.moveaxis(series.asarray(), series.axes.index("S"), -1)
+                    output = io.BytesIO()
+                    Image.fromarray(rgb).save(output, format="PNG")
+                    original_display = OriginalRgbPreviewMetadata(
+                        field_id=fid, requested_channel=channel_id,
+                        source_axes="YXS" if series.axes == "YXS" else "SYX", source_shape=series.shape,
+                        rendered_shape=rgb.shape, color_mode="RGBA" if rgb.shape[2] == 4 else "RGB",
+                        alpha_preserved=rgb.shape[2] == 4, source_file_sha256=recorded.sha256,
+                    )
+                    return Response(output.getvalue(), media_type="image/png", headers={
+                        PREVIEW_DISPLAY_HEADER: original_display.model_dump_json(),
+                    })
         path = store.safe_path("workspaces", f["workspace_id"], "fields", fid, f"channel-{channel_id}.npy")
         pixels = np.load(path, allow_pickle=False)
         png, display = render_preview_with_display(

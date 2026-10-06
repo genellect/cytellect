@@ -1545,11 +1545,11 @@
             },
             "headers": {
               "X-Cytellect-Preview-Display": {
-                "description": "ASCII-escaped JSON for the exact rendered PNG; display only.",
+                "description": "Exact PNG display transform, including unscaled original RGB display codes.",
                 "content": {
                   "application/json": {
                     "schema": {
-                      "$ref": "#/components/schemas/PreviewDisplayMetadata"
+                      "$ref": "#/components/schemas/RegionPreviewDisplayMetadata"
                     }
                   }
                 }
@@ -3024,6 +3024,18 @@
               }
             ],
             "title": "Ch2"
+          },
+          "ch3": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ch3"
           },
           "labels": {
             "anyOf": [
@@ -6951,6 +6963,15 @@
       },
       "RegionImageInfo": {
         "properties": {
+          "input_mode": {
+            "type": "string",
+            "enum": [
+              "native",
+              "display-rgb"
+            ],
+            "title": "Input Mode",
+            "default": "native"
+          },
           "kind": {
             "type": "string",
             "const": "region-2d",
@@ -6986,7 +7007,7 @@
               ]
             },
             "type": "array",
-            "maxItems": 3,
+            "maxItems": 4,
             "minItems": 1,
             "title": "Channels"
           },
@@ -7795,7 +7816,7 @@
               "$ref": "#/components/schemas/ChannelProvenanceV2"
             },
             "type": "array",
-            "maxItems": 3,
+            "maxItems": 4,
             "minItems": 1,
             "title": "Channel Provenance"
           },
@@ -7903,7 +7924,7 @@
               "$ref": "#/components/schemas/ChannelProvenanceV3"
             },
             "type": "array",
-            "maxItems": 3,
+            "maxItems": 4,
             "minItems": 1,
             "title": "Channel Provenance"
           },
@@ -9188,73 +9209,137 @@
         ],
         "title": "WorkspaceView"
       },
-      "PreviewPlaneDisplay": {
+      "OriginalRgbPreviewMetadata": {
         "additionalProperties": false,
+        "description": "Unscaled display-code samples, not recovered acquisition intensities.",
         "properties": {
-          "channel_id": {
-            "title": "Channel Id",
+          "version": {
+            "const": "2.0.0",
+            "default": "2.0.0",
+            "title": "Version",
             "type": "string"
           },
-          "dtype": {
-            "title": "Dtype",
+          "field_id": {
+            "title": "Field Id",
+            "type": "string"
+          },
+          "requested_channel": {
+            "title": "Requested Channel",
+            "type": "string"
+          },
+          "composite": {
+            "const": false,
+            "default": false,
+            "title": "Composite",
+            "type": "boolean"
+          },
+          "scope": {
+            "const": "whole-plane",
+            "default": "whole-plane",
+            "title": "Scope",
+            "type": "string"
+          },
+          "mode": {
+            "const": "original-display-rgb",
+            "default": "original-display-rgb",
+            "title": "Mode",
             "type": "string"
           },
           "value_basis": {
-            "enum": [
-              "native-grayscale",
-              "legacy-imported"
-            ],
+            "const": "display-rgb-code",
+            "default": "display-rgb-code",
             "title": "Value Basis",
             "type": "string"
           },
-          "source_min": {
-            "title": "Source Min",
-            "type": "number"
+          "dtype": {
+            "const": "uint8",
+            "default": "uint8",
+            "title": "Dtype",
+            "type": "string"
           },
-          "source_max": {
-            "title": "Source Max",
-            "type": "number"
+          "source_axes": {
+            "enum": [
+              "YXS",
+              "SYX"
+            ],
+            "title": "Source Axes",
+            "type": "string"
           },
-          "percentile_low_value": {
-            "title": "Percentile Low Value",
-            "type": "number"
+          "source_shape": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Source Shape",
+            "type": "array"
           },
-          "percentile_high_value": {
-            "title": "Percentile High Value",
-            "type": "number"
+          "rendered_shape": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Rendered Shape",
+            "type": "array"
           },
-          "normalization_span": {
-            "minimum": 1,
-            "title": "Normalization Span",
-            "type": "number"
+          "color_mode": {
+            "enum": [
+              "RGB",
+              "RGBA"
+            ],
+            "title": "Color Mode",
+            "type": "string"
           },
-          "display_black_value": {
-            "title": "Display Black Value",
-            "type": "number"
-          },
-          "display_white_value": {
-            "title": "Display White Value",
-            "type": "number"
-          },
-          "constant_plane": {
-            "title": "Constant Plane",
+          "alpha_preserved": {
+            "title": "Alpha Preserved",
             "type": "boolean"
+          },
+          "contrast_applied": {
+            "const": false,
+            "default": false,
+            "title": "Contrast Applied",
+            "type": "boolean"
+          },
+          "sample_values_unchanged": {
+            "const": true,
+            "default": true,
+            "title": "Sample Values Unchanged",
+            "type": "boolean"
+          },
+          "source_file_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source File Sha256",
+            "type": "string"
           }
         },
         "required": [
-          "channel_id",
-          "dtype",
-          "value_basis",
-          "source_min",
-          "source_max",
-          "percentile_low_value",
-          "percentile_high_value",
-          "normalization_span",
-          "display_black_value",
-          "display_white_value",
-          "constant_plane"
+          "field_id",
+          "requested_channel",
+          "source_axes",
+          "source_shape",
+          "rendered_shape",
+          "color_mode",
+          "alpha_preserved",
+          "source_file_sha256"
         ],
-        "title": "PreviewPlaneDisplay",
+        "title": "OriginalRgbPreviewMetadata",
         "type": "object"
       },
       "PreviewDisplayMetadata": {
@@ -9329,6 +9414,87 @@
         ],
         "title": "PreviewDisplayMetadata",
         "type": "object"
+      },
+      "PreviewPlaneDisplay": {
+        "additionalProperties": false,
+        "properties": {
+          "channel_id": {
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "dtype": {
+            "title": "Dtype",
+            "type": "string"
+          },
+          "value_basis": {
+            "enum": [
+              "native-grayscale",
+              "legacy-imported"
+            ],
+            "title": "Value Basis",
+            "type": "string"
+          },
+          "source_min": {
+            "title": "Source Min",
+            "type": "number"
+          },
+          "source_max": {
+            "title": "Source Max",
+            "type": "number"
+          },
+          "percentile_low_value": {
+            "title": "Percentile Low Value",
+            "type": "number"
+          },
+          "percentile_high_value": {
+            "title": "Percentile High Value",
+            "type": "number"
+          },
+          "normalization_span": {
+            "minimum": 1,
+            "title": "Normalization Span",
+            "type": "number"
+          },
+          "display_black_value": {
+            "title": "Display Black Value",
+            "type": "number"
+          },
+          "display_white_value": {
+            "title": "Display White Value",
+            "type": "number"
+          },
+          "constant_plane": {
+            "title": "Constant Plane",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channel_id",
+          "dtype",
+          "value_basis",
+          "source_min",
+          "source_max",
+          "percentile_low_value",
+          "percentile_high_value",
+          "normalization_span",
+          "display_black_value",
+          "display_white_value",
+          "constant_plane"
+        ],
+        "title": "PreviewPlaneDisplay",
+        "type": "object"
+      },
+      "RegionPreviewDisplayMetadata": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PreviewDisplayMetadata"
+          },
+          {
+            "$ref": "#/components/schemas/OriginalRgbPreviewMetadata"
+          }
+        ],
+        "description": "Generic previews distinguish scaled grayscale from original RGB display codes.",
+        "title": "RegionPreviewDisplayMetadata"
       },
       "DescriptiveOutputFile": {
         "additionalProperties": false,

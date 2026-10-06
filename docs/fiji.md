@@ -65,12 +65,27 @@ memory limits, retention cleanup, and network isolation. Java heap is bounded at
 
 ## Automatic detection capacity
 
-The provisional **standard-2g** profile admits automatic nuclear detection only
-when **each edge is at most 2048 pixels and total area is at most 2,700,000 pixels**.
-The adapter checks these bounds before runtime inspection, image copies or Java
-startup. Excess returns `fiji_detection_capacity_exceeded`; it never silently
-downsamples a native image. The separate 4096x4096 upload ceiling is an input
-security limit, not a claim that automatic detection works at that size.
+The provisional **standard-2g** profile bounds the plane submitted to StarDist to
+**each edge at most 2048 pixels and total area at most 2,700,000 pixels**.
+The specialized native NCL/GFP adapter retains its original capacity rejection.
+The generic nuclear-only adapter additionally supports larger input planes up to
+the separate 4096x4096 input ceiling through recorded detection protocol **1.1.0**.
+It reduces only the detector copy using anti-aliased bilinear interpolation,
+rounds to the input uint8/uint16 type, and restores integer labels to original
+coordinates with nearest pixel-centre sampling. A 2221x2221 plane therefore uses
+1643x1643 for detection; all quantitative areas and intensities use the original
+2221x2221 pixels and the restored labels. There is no averaging of label IDs or
+substitution of a different model or threshold. Smaller admitted planes retain
+the previous 1.0.0 detector path and results.
+
+Provenance records original/detection shapes and pixel hashes, per-axis scales,
+the pixel-centre mapping, interpolation/rounding, and the restored mask hash.
+The detection mapping is `(original_coordinate + 0.5) * scale - 0.5`; restoration
+selects the corresponding nearest integer label without relabelling. Reducing
+detector resolution can change boundaries or miss small nuclei, so researchers
+must inspect and correct masks. This is an execution policy, not a scientific
+equivalence or accuracy guarantee at the reduced scale. Saved canonical masks
+and measurement replay remain in original coordinates.
 
 This conservative admission rule follows one successful published 1536x1739
 field and failed 4096x4096 capacity runs with both 2 GiB and experimental 4 GiB

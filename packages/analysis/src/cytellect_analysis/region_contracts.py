@@ -65,11 +65,12 @@ class RegionMetadataChange(RegionMetadataEdit):
 
 
 class RegionFieldInput(RegionModel):
+    input_mode: Literal["native", "display-rgb"] = "native"
     version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     client_upload_id: Annotated[str, Field(
         pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     )] | None = None
-    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=3)]
+    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=4)]
     metadata: RegionFieldMetadata = Field(default_factory=RegionFieldMetadata)
     calibration: Calibration2D | None = None
 
@@ -89,10 +90,11 @@ class RegionStoredFile(RegionModel):
 
 
 class RegionImageInfo(RegionModel):
+    input_mode: Literal["native", "display-rgb"] = "native"
     kind: Literal["region-2d"] = "region-2d"
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     axes: Literal["YX"] = "YX"
-    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=3)]
+    channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=4)]
     inputs: dict[Id, RegionStoredFile]
     channel_arrays: dict[Id, RegionStoredFile]
     labels_array: RegionStoredFile | None = None

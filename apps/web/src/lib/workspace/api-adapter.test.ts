@@ -12,6 +12,15 @@ function fake(handler: (path: string, options?: RequestInit) => Promise<unknown>
   return {adapter: createApiAdapter({request, post, wait: async () => {}}), request, post};
 }
 describe("real workspace transport boundaries", () => {
+  it("explicitly recovers an orphan field without adopting old results or failed slots", async () => {
+    const {adapter, post} = fake(async () => ({}));
+    const entry = await adapter.recoverField("w1", "orphan-field");
+    expect(entry).toMatchObject({field_id: "orphan-field", revision_id: null, exclusion_reason: null});
+    expect(adapter.selection()!.entries).toHaveLength(2);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(await adapter.recoverField("w1", "orphan-field")).toEqual(entry);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
   it("refuses a public page connecting to loopback even if an API origin was configured", () => {
     expect(() => assertWorkspaceConnection("example.vercel.app", "http://127.0.0.1:8000")).toThrow("公開サイト");
     expect(() => assertWorkspaceConnection("127.0.0.1", "http://127.0.0.1:8000")).not.toThrow();

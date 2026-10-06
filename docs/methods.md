@@ -67,3 +67,8 @@ reviewed. It contains observed points and field summaries, with no inferred
 biological replicate count, p-value or inferential confidence interval. The
 existing reviewed, design-aware comparison routes remain separate. Revising a
 mask or exclusion creates a new measurement version; figure styling does not.
+
+
+## Generic display-RGB input transform 1.0.0
+
+Generic region inputs may explicitly select `input_mode=display-rgb`. Each uint8 RGB/RGBA TIFF becomes one measurement plane by `max(R,G,B)`; alpha is ignored. The original resolution and original files are retained. Unlike the historical NCL compatibility recipe, this input transform does not resize, clip corrected values, or apply a legacy epsilon. This is a display-code measurement, not recovery of acquired raw fluorescence: an acquisition LUT, gamma or clipping cannot be inverted. The input mode is retained in immutable field snapshots and replay, Methods records the transform, and measurement CSV identifies `intensity_source=display_code_max_rgb`. Native remains the default and continues to reject RGB. Generic inputs and measurement contracts accept up to four explicitly mapped planes; no plane or duplicate is silently discarded. The nuclear detector still requires an adopted or confirmed defining role, and does not infer stain identity from RGB colour.

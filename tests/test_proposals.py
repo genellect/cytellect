@@ -130,7 +130,7 @@ def configured(tmp_path, monkeypatch, reply, *, upload=True):
 
 
 def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_path, monkeypatch):
-    body = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.1"}).encode()
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.2"}).encode()
     client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
     first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
@@ -152,7 +152,7 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
 
 
 def test_route_rejects_invalid_drafts_and_maps_service_failures(tmp_path, monkeypatch):
-    bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.1"}).encode()
+    bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.2"}).encode()
     client, wid, _ = configured(tmp_path, monkeypatch, lambda request: FakeResponse(bad))
     response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert response.status_code == 502
@@ -247,3 +247,25 @@ def test_redirects_are_refused_so_the_device_credential_never_follows_them():
     thread.join(5)
     server.server_close()
     assert hits == [("POST", "Bearer device-secret")]
+
+
+def test_preimport_planning_has_no_invented_acquisitions():
+    context = ProposalContext(goal="核の面積を群間比較したい", channels=[], field_count=0)
+    raw = draft(recipe="none", channels=[], metrics=[], figures=[],
+                statistics={"kind": "descriptive", "test": None, "omnibus": None, "association": None},
+                missing_information=["核染色と独立実験数"], rationale="核染色の画像から面積を測定し、独立実験単位で集計します。")
+    assert validate_draft(context, raw, model="test", prompt_version="test").draft.recipe == "none"
+    assert "proposal_images_not_registered" in codes({**raw, "recipe": "nuclear-intensity"}, context)
+    assert "proposal_images_not_registered" in codes({**raw, "metrics": [{"metric": "area", "channel": None}]}, context)
+    with pytest.raises(ValueError):
+        ProposalContext(goal="planning", channels=[], field_count=1)
+    with pytest.raises(ValueError):
+        ProposalContext(goal="planning", channels=[], field_count=0, units_known=True)
+
+
+def test_preimport_context_from_real_empty_workspace(tmp_path):
+    client, app, settings = authenticated(tmp_path)
+    wid = client.post("/v1/workspaces", json={"title": "planning"}, headers=HEADERS).json()["id"]
+    context, links = proposals.build_context(app.state.store, wid, "核面積を比較したい")
+    assert context.field_count == 0 and context.channels == [] and links == []
+    assert not context.units_known and not context.background_available

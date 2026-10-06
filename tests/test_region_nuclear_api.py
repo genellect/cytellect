@@ -23,12 +23,12 @@ def upload(client, wid, *, shape=(12, 12), labels=False):
 
 @pytest.mark.parametrize("case,expected", [
     ("valid", None), ("labels", "nuclear_source_requires_no_imported_labels"),
-    ("large", "fiji_detection_capacity_exceeded"), ("channel", "unknown_defining_channel"),
+    ("large", None), ("channel", "unknown_defining_channel"),
 ])
 def test_nuclear_queue_does_not_guess_channels_or_resize_input(tmp_path, case, expected):
     client, app, _ = authenticated(tmp_path)
     wid = client.post("/v1/workspaces", headers=HEADERS, json={"title": "Nuclear source"}).json()["id"]
-    fid = upload(client, wid, labels=case == "labels", shape=(2050, 20) if case == "large" else (12, 12))
+    fid = upload(client, wid, labels=case == "labels", shape=(2221, 2221) if case == "large" else (12, 12))
     recipe = nuclear_recipe()
     if case == "channel":
         recipe["defining_channel_id"] = "gfp"

@@ -42,9 +42,9 @@ describe("groupFiles", () => {
     expect(grouping.issues).toEqual(expect.arrayContaining([
       { kind: "missing_channel", field: "A02", token: "gfp" },
       { kind: "duplicate_content", paths: ["A01_dapi.tif", "A02_dapi.tif"] },
-      { kind: "channel_unidentified", path: "image.tif" },
+
       // Two stains in one name are ambiguous and never guessed.
-      { kind: "channel_unidentified", path: "A03_dapi_gfp.tif" },
+
     ]));
   });
 
@@ -62,7 +62,7 @@ describe("groupFiles", () => {
   });
 
   it("keeps a name-less multi-channel OME-TIFF as pending and expands read channels", () => {
-    expect(groupFiles([file("field01.ome.tif")])).toMatchObject({ fields: [], issues: [{ kind: "channels_pending", path: "field01.ome.tif" }] });
+    expect(groupFiles([file("field01.ome.tif")]).fields).toHaveLength(1);
     const read = groupFiles([file("field01.ome.tif", { omeChannels: ["DAPI", "", "NCL"] })]);
     expect(read.fields.map((field) => [field.key, Object.keys(field.files).sort()])).toEqual([["field01", ["c2", "dapi", "ncl"]]]);
     expect(read.channels.map((channel) => [channel.token, channel.stain, channel.evidence])).toEqual([
@@ -73,6 +73,15 @@ describe("groupFiles", () => {
     const grouping = groupFiles([file("2026-10-01/DAPI/s1.tif"), file("2026-10-01/GFP/s1.tif")]);
     expect(grouping.fields).toEqual([expect.objectContaining({ key: "2026-10-01/s1", candidates: { folder: "2026-10-01" } })]);
     expect(grouping.channels.map((channel) => channel.evidence)).toEqual(["folder", "folder"]);
+  });
+
+  it("keeps unnamed files and same-stain batches without filename constraints", () => {
+    const unknown = groupFiles([file("one.tif"), file("two.tif")]);
+    expect(unknown.fields).toHaveLength(2);
+    expect(unknown.channels).toEqual([{token: "c1", stain: null, role: null, evidence: "user"}]);
+    const single = groupFiles([file("A01_c1.tif"), file("A01_c2.tif")], "single");
+    expect(single.fields).toHaveLength(2);
+    expect(single.issues).toEqual([]);
   });
 
   it("names a channel only when the user wants to, and an empty name keeps the stain unknown", () => {

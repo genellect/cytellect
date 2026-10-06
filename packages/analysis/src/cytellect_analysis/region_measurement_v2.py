@@ -42,7 +42,7 @@ class RegionMeasurementSpecV2(RegionModel):
     field_id: Id
     analysis_revision_id: Id
     region_set: RegionSetSpec
-    channels: Annotated[tuple[ChannelSpecType, ...], Field(min_length=1, max_length=3)]
+    channels: Annotated[tuple[ChannelSpecType, ...], Field(min_length=1, max_length=4)]
     calibration: Calibration2D | None = None
 
     @model_validator(mode="after")
@@ -111,7 +111,7 @@ class RegionMeasurementTableV2(RegionModel):
     mask_sha256: Digest64
     hash_format: Literal["cytellect-array-v1"] = "cytellect-array-v1"
     calibration: Calibration2D | None
-    channel_provenance: Annotated[tuple[ChannelProvenanceV2, ...], Field(min_length=1, max_length=3)]
+    channel_provenance: Annotated[tuple[ChannelProvenanceV2, ...], Field(min_length=1, max_length=4)]
     rows: tuple[RegionMeasurementRowV2, ...]
 
     @model_validator(mode="after")
@@ -197,7 +197,7 @@ class RegionMeasurementRowV3(RegionMeasurementRowV2):
 class RegionMeasurementTableV3(RegionMeasurementTableV2):
     measurement: RawIntensityPolicy  # type: ignore[assignment]
     protocol_version: Literal["3.0.0"] = "3.0.0"  # type: ignore[assignment]
-    channel_provenance: Annotated[tuple[ChannelProvenanceV3, ...], Field(min_length=1, max_length=3)]  # type: ignore[assignment]
+    channel_provenance: Annotated[tuple[ChannelProvenanceV3, ...], Field(min_length=1, max_length=4)]  # type: ignore[assignment]
     rows: tuple[RegionMeasurementRowV3, ...]  # type: ignore[assignment]
 
 

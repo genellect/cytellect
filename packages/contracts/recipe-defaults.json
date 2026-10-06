@@ -1,0 +1,30 @@
+{
+  "id": "ncl-native-2d",
+  "version": "1.0.0",
+  "probability": 0.5,
+  "nms": 0.3,
+  "percentile_low": 1.0,
+  "percentile_high": 99.8,
+  "nucleolar_method": "ncl-otsu",
+  "smoothing_sigma_px": 0.0,
+  "minimum_area_px": 1,
+  "split_touching": false,
+  "dapi_low_percentile": 10.0,
+  "gfp_gate": "none",
+  "gfp_threshold": null,
+  "gfp_negative_control_fields": [],
+  "gfp_negative_control_confirmed": false,
+  "gfp_maximum": null,
+  "native_signal_qc_minimum_ratio": null,
+  "seed": 0,
+  "legacy": {
+    "version": "1.0.0",
+    "target_long_dimension_px": 320,
+    "nucleus_area_min_scaled_px": 300,
+    "nucleus_area_max_scaled_px": 6000,
+    "dapi_snr_min": 2.0,
+    "saturation_fraction_max": 0.25,
+    "apply_quality_exclusions": true,
+    "gfp_mode": "otsu-qc-batch"
+  }
+}

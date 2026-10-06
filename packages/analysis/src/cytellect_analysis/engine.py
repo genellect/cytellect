@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
+from skimage.transform import resize
 
 from .contracts import Recipe
 from .masks import validate_labels
@@ -21,14 +23,34 @@ from .regions import _array_hash
 
 # Admission bounds for the fixed -Xmx2g bridge, not a guarantee for every image.
 # The pinned CSBDeep implementation retains predicted tiles; more tiles alone
-# do not bound total memory. Never silently resize a native quantitative input.
+# do not bound total memory. Nuclear-only protocol 1.1 records bounded detector
+# preprocessing; original quantitative pixels and canonical coordinates survive.
 AUTOMATIC_DETECTION_PROFILE = "standard-2g"
 MAX_AUTOMATIC_DETECTION_SIDE = 2048
 MAX_AUTOMATIC_DETECTION_PIXELS = 2_700_000
+MAX_NUCLEAR_INPUT_SIDE = 4096
 
 
 class EngineUnavailable(RuntimeError):
     """The pinned engine cannot safely execute the requested operation."""
+
+
+def nuclear_detection_shape(shape: tuple[int, int]) -> tuple[int, int]:
+    """Bound only detector work; this is never a measurement-image transform."""
+    if len(shape) != 2 or min(shape) < 1:
+        raise ValueError("fiji_input_dimensions")
+    if max(shape) > MAX_NUCLEAR_INPUT_SIDE:
+        raise ValueError("fiji_input_format")
+    factor = min(1.0, MAX_AUTOMATIC_DETECTION_SIDE / max(shape),
+                 math.sqrt(MAX_AUTOMATIC_DETECTION_PIXELS / (shape[0] * shape[1])))
+    return max(1, math.floor(shape[0] * factor)), max(1, math.floor(shape[1] * factor))
+
+
+def _nuclear_labels_to_original(labels: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    """Nearest pixel-centre sampling, exact integer labels, no relabelling/merges."""
+    y = ((2 * np.arange(shape[0], dtype=np.int64) + 1) * labels.shape[0]) // (2 * shape[0])
+    x = ((2 * np.arange(shape[1], dtype=np.int64) + 1) * labels.shape[1]) // (2 * shape[1])
+    return labels[np.ix_(y, x)]
 
 
 def _assets() -> Path:
@@ -142,7 +164,7 @@ def _engine_identity(assets: Path, java: Path, lock: dict, *, automatic: bool) -
 
 def detect_nuclei(image: np.ndarray, parameters: NuclearDetectorSpec, output_dir: Path,
                   executable: str, scratch_root: Path | None = None) -> tuple[np.ndarray, dict]:
-    """Detect fluorescent nuclei from one native plane, without fabricated channels.
+    """Detect nuclei with bounded preprocessing; measure only the original plane.
 
     Channel identity and explicit nuclear-stain confirmation belong to the
     versioned region recipe. This fixed adapter never changes measurement pixels.
@@ -152,18 +174,22 @@ def detect_nuclei(image: np.ndarray, parameters: NuclearDetectorSpec, output_dir
         raise ValueError("fiji_input_dimensions")
     if image.dtype not in (np.uint8, np.uint16):
         raise ValueError("fiji_input_format")
-    if max(image.shape) > MAX_AUTOMATIC_DETECTION_SIDE or image.size > MAX_AUTOMATIC_DETECTION_PIXELS:
-        raise EngineUnavailable("fiji_detection_capacity_exceeded")
+    detection_shape = nuclear_detection_shape(image.shape)
+    scaled = detection_shape != image.shape
     runtime, java, lock = runtime_info(executable)
     output = output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    tifffile.imwrite(output / "nuclear.tif", image, photometric="minisblack")
+    detection_image = image
+    if scaled:
+        detection_image = np.rint(resize(image, detection_shape, order=1, mode="reflect", clip=True,
+                                        preserve_range=True, anti_aliasing=True)).astype(image.dtype)
+    tifffile.imwrite(output / "nuclear.tif", detection_image, photometric="minisblack")
     request = {"directory": str(output), "mode": "nuclear-only",
                "detector": parameters.model_dump(mode="json"), "reuse_nuclei": False}
     (output / "request.json").write_text(json.dumps(request), encoding="utf-8")
     assets = _execute_bridge(output, runtime, java, scratch_root)
     array = tifffile.imread(output / "nuclei.tif")
-    if (array.shape != image.shape or not np.isfinite(array).all() or np.any(array < 0)
+    if (array.shape != detection_shape or not np.isfinite(array).all() or np.any(array < 0)
             or np.any(array != np.floor(array)) or np.any(array >= 2**24)):
         raise EngineUnavailable("fiji_invalid_output_labels")
     labels = array.astype(np.uint32)
@@ -175,6 +201,26 @@ def detect_nuclei(image: np.ndarray, parameters: NuclearDetectorSpec, output_dir
     info.update({"nuclear_detector_protocol_version": "1.0.0", "input_shape_yx": list(image.shape),
                  "input_dtype": image.dtype.name,
                  "input_sha256": _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")})
+    if scaled:
+        tifffile.imwrite(output / "nuclei-detection.tif", labels, photometric="minisblack")
+        labels = _nuclear_labels_to_original(labels, image.shape)
+        # Both the returned array consumed by the worker and the canonical engine
+        # TIFF use original coordinates. Only this private diagnostic retains the
+        # coarse labels; measurements never consume detection_image.
+        tifffile.imwrite(output / "nuclei.tif", labels.astype(np.float32), photometric="minisblack")
+        info.update({
+            "nuclear_detector_protocol_version": "1.1.0",
+            "coordinate_transform": {
+                "scale_x": detection_shape[1] / image.shape[1],
+                "scale_y": detection_shape[0] / image.shape[0],
+                "original_shape_yx": list(image.shape), "detection_shape_yx": list(detection_shape),
+                "mapping": "pixel-center", "image_interpolation": "bilinear", "anti_aliasing": True,
+                "image_rounding": "numpy-rint-to-source-dtype", "label_interpolation": "nearest",
+                "canonical_coordinates": "original-image",
+            },
+            "detection_input_sha256": _array_hash(detection_image, "|u1" if image.dtype.itemsize == 1 else "<u2"),
+            "canonical_labels_sha256": _array_hash(labels, "<u4"),
+        })
     (output / "engine-result.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
     return labels, info
 

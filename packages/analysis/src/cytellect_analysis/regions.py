@@ -136,8 +136,8 @@ class RegionMeasurementSpec(RegionModel):
     field_id: Id
     analysis_revision_id: Id
     region_set: RegionSetSpec
-    channels: Annotated[tuple[ChannelSpec, ...], Field(min_length=1, max_length=3)]
-    backgrounds: Annotated[tuple[BackgroundSpec, ...], Field(min_length=1, max_length=3)]
+    channels: Annotated[tuple[ChannelSpec, ...], Field(min_length=1, max_length=4)]
+    backgrounds: Annotated[tuple[BackgroundSpec, ...], Field(min_length=1, max_length=4)]
     calibration: Calibration2D | None = None
 
     @model_validator(mode="after")

@@ -10,7 +10,7 @@ export interface WorkspaceSelection {version: number; entries: SelectionEntry[]}
 export interface ImportedField {
   id: string; workspace_id: string;
   metadata: Record<string, string | number | null>;
-  image_info: {shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null}>};
+  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null}>};
 }
 export interface MeasurementRow {
   region_id: number; channel_id: string; area_px: number; area_um2: number | null;
@@ -95,11 +95,12 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     return result;
   }
   const runs = new Map<string, {job_id: string; revision_id: string; recipe: string} | "uncertain">();
-  async function waitJob(workspace: string, id: string): Promise<Job> {
+  async function waitJob(workspace: string, id: string, onState?: (state: string) => void): Promise<Job> {
     // Polling reads do not extend retention. A lost connection never resubmits a job.
     for (;;) {
       const jobs = await client.request<Job[]>(`/v1/workspaces/${workspace}/jobs`);
       const job = jobs.find(item => item.id === id);
+      if (job) onState?.(job.state);
       if (!job) throw new Error("処理が見つかりません。作業の保存期限を確認してください");
       if (job.state === "succeeded") return job;
       if (job.state === "failed" || job.state === "cancelled") throw new TerminalJobError(job.error ? errorCodeMessage(job.error) : "処理を中止しました");
@@ -131,10 +132,21 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async excludeField(workspace: string, id: string, reason: string | null) {
       return saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, exclusion_reason: reason} : entry));
     },
+    async recoverField(workspace: string, field: string) {
+      await assertSelection(workspace);
+      const existing = selection!.entries.find(entry => entry.field_id === field);
+      if (existing) return existing;
+      const entry: SelectionEntry = {id: crypto.randomUUID(), field_id: field, revision_id: null, exclusion_reason: null};
+      await saveSelection(workspace, [...selection!.entries, entry]);
+      return entry;
+    },
     async upload(workspace: string, field: GroupedField, channels: Grouping["channels"], files: Map<string, File>, entryId?: string) {
-      if (channels.length > 3) throw new Error("現在は1視野につき3チャンネルまで対応しています");
+      if (channels.length > 4) throw new Error("1視野につき4チャンネルまで取り込めます");
       const data = new FormData();
-      channels.forEach((channel, index) => {
+      const presentChannels = channels.filter(channel => field.files[channel.token]);
+      const modes = new Set(presentChannels.map(channel => field.files[channel.token].inputMode || "native"));
+      if (modes.size > 1) throw new Error("同じ視野にグレースケール画像とRGB表示画像が混在しています。画像ごとに取り込むか、同じ形式で書き出してください。");
+      presentChannels.forEach((channel, index) => {
         const added = field.files[channel.token];
         const file = added && files.get(added.path);
         if (!file) throw new Error(`チャンネル ${channel.stain || channel.token} の画像がありません`);
@@ -143,13 +155,13 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const key = `${workspace}:${field.key}`;
       if (!uploadKeys.has(key)) uploadKeys.set(key, crypto.randomUUID());
       data.set("specification", JSON.stringify({version: "1.1.0", client_upload_id: entryId || uploadKeys.get(key),
-        channels: channels.map(channelSpecification), metadata: {}, calibration: null}));
+        channels: presentChannels.map(channelSpecification), input_mode: modes.has("display-rgb") ? "display-rgb" : "native", metadata: {}, calibration: null}));
       const uploaded = await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields`, {method: "POST", body: data});
       if (entryId) await saveSelection(workspace, selection!.entries.map(entry => entry.id === entryId ? {...entry, field_id: uploaded.id} : entry));
       return uploaded;
     },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },
-    async run(workspace: string, field: string, recipe: Recipe) {
+    async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void) {
       await assertSelection(workspace);
       const key = `${workspace}:${field}`;
       let created = runs.get(key);
@@ -162,7 +174,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         });
         created = {...accepted, recipe: JSON.stringify(recipe)}; runs.set(key, created);
       }
-      try {await waitJob(workspace, created.job_id); return await adopt(workspace, await readResult(created.revision_id, field));}
+      try {await waitJob(workspace, created.job_id, onState); onState?.("reading_results"); return await adopt(workspace, await readResult(created.revision_id, field));}
       catch (error) {if (error instanceof TerminalJobError) runs.delete(key); throw error;}
     },
     readResult,
