@@ -42,4 +42,4 @@ Pull requests run only the jobs their changed paths can affect. `scripts/ci_chan
 
 Documentation (`docs/**`, root-level Markdown, `LICENSE`, `NOTICE`) selects no area. The public-tree check, documentation links and the full-history secret scan always run, and the packaged-documentation tests run whenever the Python suite does not. Skipped jobs report success to branch protection.
 
-Workflows, lockfiles, package manifests, `fixtures/` and any unlisted path select every area. So do every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.
+Workflows, lockfiles, package manifests, `fixtures/` and any unlisted path select every area. So do every merge-queue run, every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.

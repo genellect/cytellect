@@ -4,7 +4,7 @@ Areas: python (Linux lint/types/tests/SBOM), web (contracts, Next.js, proposal
 Worker, public-site browser tests), fiji (real Fiji, API/browser workflow,
 containers), windows (Windows setup/launcher and Python 3.14 suite).
 
-Pushes to main, manual runs, an unreadable diff and any path not listed below
+Pushes to main, merge-queue runs, manual runs, an unreadable diff and any path not listed below
 select every area, so each main commit keeps the full evidence the Windows
 release workflow requires. Hygiene checks (public tree, documentation links,
 secret scan) always run.
