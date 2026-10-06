@@ -20,9 +20,16 @@ export interface SavedResult {
   regionSet?: string; revision: string; field: string; rows: MeasurementRow[];
   masks: {regions: Array<{id: number; points: Point[]}>; metadata: {mask_revision_id: string}};
   exclusions: Array<{field_id: string; region_id: number | null; reason: string}>;
+  /** Measurement protocol of the saved table; "4.0.0" carries automatic-background corrections. */
+  protocol?: string;
 }
+/** Raw values (3.0.0) or raw values plus an automatic, unconfirmed background candidate (4.0.0). */
+export type MeasurementPolicy = {version: "1.1.0"; mode: "raw_intensity"} | {version: "1.2.0"; mode: "automatic_background"};
+export const rawMeasurement: MeasurementPolicy = {version: "1.1.0", mode: "raw_intensity"};
+export const automaticBackground: MeasurementPolicy = {version: "1.2.0", mode: "automatic_background"};
+const measurementOf = (result: SavedResult): MeasurementPolicy => result.protocol === "4.0.0" ? automaticBackground : rawMeasurement;
 interface Report {
-  revision_id: string; field_tables: Record<string, {rows: MeasurementRow[]}>;
+  revision_id: string; protocol_version?: string; field_tables: Record<string, {rows: MeasurementRow[]}>;
   field_failures: Array<{field_id: string; reason: string}>;
   exclusions: SavedResult["exclusions"];
 }
@@ -49,7 +56,11 @@ export interface ProposalDraft {
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
 export interface GfpGateResult {percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
 export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
-export interface CompartmentSummaryFile {channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>}
+export interface CompartmentSummaryFile {
+  channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>;
+  /** Present for automatic-background measurements; a channel without a background has no rows and a reason. */
+  corrected_channels?: Record<string, {protocol: string; rows: CompartmentSummaryRow[]; missing_reason?: string | null}>;
+}
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
 export interface Transport {
   request: typeof request; post: typeof post; blob: typeof fetchBlob; wait: () => Promise<void>;
@@ -136,7 +147,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     const table = report.field_tables[field];
     if (!table) throw new Error("この視野の測定値がありません");
     const masks = await client.request<SavedResult["masks"]>(`/v1/revisions/${revision}/region-masks?field_id=${encodeURIComponent(field)}`);
-    return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions};
+    return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions, protocol: report.protocol_version};
   }
   return {
     async create() {const record = await client.post<Workspace>("/v1/workspaces", {title: "画像解析"}); await loadSelection(record.id); return record;},
@@ -187,16 +198,16 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       return uploaded;
     },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },
-    async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void) {
+    async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void, measurement: MeasurementPolicy = rawMeasurement) {
       await assertSelection(workspace);
-      const key = `${workspace}:${field}:${JSON.stringify(recipe)}`;
+      const key = `${workspace}:${field}:${JSON.stringify(recipe)}:${measurement.mode}`;
       let created = runs.get(key);
       if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みで保存済みの処理状態を確認してください。");
       if (created && created.recipe !== JSON.stringify(recipe)) throw new Error("受付済みの解析条件が異なります。再読み込みして処理状態を確認してください。");
       if (!created) {
         runs.set(key, "uncertain");
         const accepted = await client.post<{job_id: string; revision_id: string}>(`/v1/workspaces/${workspace}/region-analyses`, {
-          field_ids: [field], recipe, measurement: {version: "1.1.0", mode: "raw_intensity"}, backgrounds: {}, exclusions: [],
+          field_ids: [field], recipe, measurement, backgrounds: {}, exclusions: [],
         });
         created = {...accepted, recipe: JSON.stringify(recipe)}; runs.set(key, created);
       }
@@ -224,7 +235,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
           field_id: result.field, region_set_id: recipe.region_set_id, operation: "delete", ids: [region], polygon: [], expected_mask_revision_id: result.masks.metadata.mask_revision_id,
         })
         : await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-reconfigure`, {
-          field_ids: [result.field], recipe, measurement: {version: "1.1.0", mode: "raw_intensity"}, backgrounds: {},
+          field_ids: [result.field], recipe, measurement: measurementOf(result), backgrounds: {},
           exclusions: [...result.exclusions, {field_id: result.field, region_id: region, reason: "ワークスペースで対象から除外（利用者の操作）"}],
         });
       await waitJob(workspace, created.job_id);

@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
-import {assertWorkspaceConnection, channelSpecification, createApiAdapter, figureIdentity, nuclearRecipe, type SavedResult, type Transport} from "./api-adapter";
+import {assertWorkspaceConnection, automaticBackground, channelSpecification, createApiAdapter, figureIdentity, nuclearRecipe, type SavedResult, type Transport} from "./api-adapter";
 import type {ChannelDefinition} from "./grouping";
 
 const channel: ChannelDefinition = {token: "channel2", stain: null, role: "nuclear", evidence: "user"};
@@ -49,6 +49,11 @@ describe("real workspace transport boundaries", () => {
     await expect(adapter.run("w1", "f1", nuclearRecipe(channel))).rejects.toThrow("解析版");
     expect(post).toHaveBeenCalledTimes(1);
     expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/region-analyses", expect.objectContaining({measurement: {version: "1.1.0", mode: "raw_intensity"}, backgrounds: {}}));
+  });
+  it("sends the automatic background policy only when asked and keeps it as a separate run", async () => {
+    const {adapter, post} = fake(async path => path.endsWith("/jobs") ? [{id: "j1", state: "succeeded"}] : {revision_id: "other", field_failures: [], field_tables: {f1: {rows: []}}, exclusions: []});
+    await expect(adapter.run("w1", "f1", nuclearRecipe(channel), undefined, automaticBackground)).rejects.toThrow("解析版");
+    expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/region-analyses", expect.objectContaining({measurement: {version: "1.2.0", mode: "automatic_background"}, backgrounds: {}}));
   });
   it("never resubmits after an uncertain POST or a polling connection failure", async () => {
     const uncertain = fake(async () => [], async () => {throw new TypeError("network");});

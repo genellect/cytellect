@@ -136,6 +136,17 @@ weighted, not a mean of object means) and over the nucleoplasm, the primary
 metric log2(mean nucleoplasm / mean nucleolar union) (White et al., Mol Cell
 2019), and the integrated nucleolus/nucleoplasm ratio (Potapova et al., eLife
 2023). No pseudocount is added; a nucleus without a nucleolus or nucleoplasm, or
-with a non-positive mean, has a missing value and a reason. Values are raw until
-a background policy is applied; the summary states which. The browser only
+with a non-positive mean, has a missing value and a reason. The browser only
 displays these values.
+
+`channels` always holds raw values. When the nucleoplasm revision uses the
+automatic background candidate (measurement protocol 4.0.0, see
+`docs/methods.md`), the summary also holds `corrected_channels`: the same rows
+with the channel's background median `b` subtracted once from both compartment
+means (`mean − b`) and integrals (`Σ − |R|b`), with `values=background_corrected`.
+A channel without an established background has no corrected rows and records
+the reason (`automatic_background_insufficient_tiles` or `…_coverage`); its raw
+values are not substituted. The workspace uses raw values by default; corrected
+values are opt-in and displayed per nucleus. Comparisons, figures and exports
+still refuse protocol 4.0.0 and use raw values until their own Methods text is
+versioned.

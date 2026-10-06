@@ -150,6 +150,28 @@ def _compartment_nuclei(store, recipe, workspace_id, fid, image_info):
                     "nuclear_channel_id": recipe.nuclear_channel_id}
 
 
+def _compartment_summary_report(inputs, nucleoplasm, channels, table) -> dict:
+    """Per-nucleus ratios from original pixels: raw values always, corrected values
+    only from an established automatic background (protocol 4.0.0); a channel
+    without one keeps its corrected summary missing with the reason."""
+    nuclei, nucleoli, identity = inputs
+    report = {"nucleolar_revision": identity,
+              "channels": {cid: compartment_summary(nuclei, nucleoli, nucleoplasm, plane)
+                           for cid, plane in channels.items()}}
+    if table.protocol_version == "4.0.0":
+        corrected = {}
+        for item in table.channel_provenance:
+            cid, background = item.channel.channel_id, item.background
+            corrected[cid] = (compartment_summary(nuclei, nucleoli, nucleoplasm, channels[cid],
+                                                  background.background_median)
+                              if background.status == "established"
+                              else {"protocol": "compartment-summary/1.0.0", "rows": [],
+                                    "missing_reason": background.reason})
+        report["corrected_channels"] = corrected
+        report["background"] = "automatic_candidate"
+    return report
+
+
 def _adopted_nucleoli(store, recipe, workspace_id, fid, image_info):
     """Load the adopted nucleoli labels (with exclusions) that define nucleoplasm."""
     source = store.one(revisions, id=recipe.nucleolar_revision_id)
@@ -295,6 +317,7 @@ def run_region_analysis(store, settings, job, output):
             provenance_fields[fid] = {"history": history, "inputs": image_info.model_dump(mode="json")["inputs"],
                                       "source_channels": [c.model_dump(mode="json") for c in image_info.channels]}
             source_nuclei = None
+            summary_inputs = None
             # Every source nucleus, including excluded ones, is kept out of an
             # automatic background candidate; it is never used for measurement.
             background_exclusion = None
@@ -350,11 +373,8 @@ def run_region_analysis(store, settings, job, output):
                             store, request.recipe, revision["workspace_id"], fid, image_info)
                         labels, engine_info = nucleoplasm_from_adopted_nucleoli(source_nuclei, adopted, states)
                         engine_info["nucleolar_revision"] = nucleolar_identity
-                        # Per-nucleus ratios from original pixels for every measured channel (raw values).
-                        write_json(destination / "compartment-summary.json", {
-                            "nucleolar_revision": nucleolar_identity,
-                            "channels": {channel_id: compartment_summary(source_nuclei, adopted, labels, plane)
-                                         for channel_id, plane in channels.items()}})
+                        # Written after measurement so an automatic background can be applied.
+                        summary_inputs = (source_nuclei, adopted, nucleolar_identity)
                         provenance_fields[fid]["nucleolar_source"] = nucleolar_identity
                     elif isinstance(request.recipe, RegionCompartmentRecipe):
                         assert source_nuclei is not None
@@ -440,6 +460,9 @@ def run_region_analysis(store, settings, job, output):
                                               background_exclusion=background_exclusion if automatic else None)
             for cid, background in background_masks.items():
                 np.save(destination / f"background-{cid}.npy", background, allow_pickle=False)
+            if summary_inputs is not None:
+                write_json(destination / "compartment-summary.json",
+                           _compartment_summary_report(summary_inputs, labels, channels, table))
             field_tables[fid] = table.model_dump(mode="json")
             outcomes[fid] = table.status
         except Exception as exc:

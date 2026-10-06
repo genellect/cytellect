@@ -4,7 +4,7 @@ import Link from "next/link";
 import {useSearchParams} from "next/navigation";
 import {routeIdentity, promoteIdentity, resolveIdentity} from "@/lib/workspace/route-identity";
 import {API_CONFIGURED, ApiError, errorMessage} from "@/lib/api";
-import {createApiAdapter, nuclearRecipe, type CompartmentSummaryFile, type GfpGateResult, type ValidatedProposal, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
+import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type CompartmentSummaryFile, type GfpGateResult, type ValidatedProposal, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
 import {chooseNuclearChannel, groupFiles, isSupportedImage, restoredChannels, type AddedFile, type Grouping} from "@/lib/workspace/grouping";
 import {targetOf, validTargetResults, type Target} from "@/lib/workspace/target-results";
 import {tiffInputMode} from "@/lib/workspace/tiff-intake";
@@ -61,6 +61,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   const [definitionOpen, setDefinitionOpen] = useState(false);
   const [, setSelectionTick] = useState(0);
   const [proposal, setProposal] = useState<ValidatedProposal | null>(null);
+  const [background, setBackground] = useState<"automatic" | "raw">("raw");
   const [gfp, setGfp] = useState<{enabled: boolean; channel: string; controls: string[]; result: GfpGateResult | null; error: string}>({enabled: false, channel: "", controls: [], result: null, error: ""});
   const [aiTrialStarted, setAiTrialStarted] = useState(false);
   const [summary, setSummary] = useState<{revision: string; value: CompartmentSummaryFile} | null>(null);
@@ -368,10 +369,12 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
             if (target === "nucleoplasm" && !targets.nucleoli) throw new Error("先に核小体を検出・確認してください。核質は採用した核小体から求めます。");
             recipe = {id: "region-2d", version: "1.4.0", source: "fiji_nuclear_compartment", region_set_id: target, label: targetLabel[target], compartment: target as "nucleoli" | "nucleoplasm", nuclear_revision_id: nucleus.result.revision, nuclear_channel_id: nucleus.recipe.defining_channel_id, defining_channel_id: signalChannel, detector: nucleolarDefinition.source === "ncl" ? {engine:"fiji-nucleolar-compartments", protocol_version:"1.1.0", threshold_method:signalMethod, threshold:signalMethod === "manual" ? signalThreshold : null, smoothing_sigma_px:compartmentSettings.smoothing, minimum_area_px:compartmentSettings.minimumArea, maximum_area_px:compartmentSettings.maximumArea, split_touching:compartmentSettings.split} : nucleolarDetectorV2(nucleolarDefinition), ...(target === "nucleoplasm" && targets.nucleoli ? {nucleolar_revision_id: targets.nucleoli.result.revision} : {})};
           } else recipe = target === "nuclei" ? nuclearRecipe(nuclear[0], nuclearMaxSide) : {id: "region-2d", version: "1.3.0", region_set_id: target + "_positive", label: targetLabel[target], source: "fiji_positive_regions", defining_channel_id: signalChannel, detector: {threshold_method: signalMethod, threshold: signalMethod === "manual" ? signalThreshold : null, smoothing_sigma_px: 0, minimum_area_px: 1, split_touching: false}};
-          if (JSON.stringify(targets[target]?.recipe) === JSON.stringify(recipe)) continue;
+          const measurement = target === "nucleoplasm" && background === "automatic" ? automaticBackground : rawMeasurement;
+          const saved = targets[target];
+          if (saved && JSON.stringify(saved.recipe) === JSON.stringify(recipe) && (target !== "nucleoplasm" || (saved.result.protocol === "4.0.0") === (background === "automatic"))) continue;
           if (!value.field!.image_info.channels.some(channel => channel.channel_id === recipe.defining_channel_id)) throw new Error("検出用チャンネルがありません。");
           setSelected(value.key); setChannel(recipe.defining_channel_id); setView("image"); setOperation(value.label + "：" + recipe.label + "の受付中"); update(value.key, {status: "running", error: undefined, recipe});
-          const result = await adapter.run(workspace, value.field!.id, recipe, progress(recipe.label));
+          const result = await adapter.run(workspace, value.field!.id, recipe, progress(recipe.label), measurement);
           if (target === "nuclei") {delete targets.nucleoli; delete targets.nucleoplasm;}
           targets[target] = {result, recipe}; update(value.key, {status: "done", result, recipe, targetResults: targets, history: [], redo: []});
         } catch (error) {update(value.key, {status: "failed", error: message(error), targetResults: targets});}
@@ -530,6 +533,22 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     <span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={!gfp.channel || !gfp.controls.length || !nucleiReady || busy} onClick={() => void runGfpGate()}>判定する</button></span>
     {gfp.error && <p role="alert">{gfp.error}</p>}
   </div>;
+  const plasmResult = item ? storedTargets(item).nucleoplasm?.result : undefined;
+  useEffect(() => {
+    if (!plasmResult || !item?.field) return;
+    let active = true;
+    void adapter.compartmentSummary(plasmResult.revision, item.field.id).then(value => {if (active) setSummary({revision: plasmResult.revision, value});}).catch(() => {});
+    return () => {active = false;};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adapter, plasmResult?.revision, item?.field?.id]);
+  const summaryChannels = summary && summary.revision === plasmResult?.revision ? Object.keys(summary.value.channels).filter(token => token !== nuclear[0]?.token) : [];
+  const summaryChannel = summaryChannels.includes(actualChannel) ? actualChannel : summaryChannels[0];
+  const correctedSummary = summaryChannel ? summary!.value.corrected_channels?.[summaryChannel] : undefined;
+  const backgroundMissing = correctedSummary?.missing_reason ? correctedSummary.missing_reason : null;
+  const summaryRows = !summaryChannel ? [] : correctedSummary && !backgroundMissing ? correctedSummary.rows : summary!.value.channels[summaryChannel].rows;
+  const backgroundReason: Record<string, string> = {automatic_background_insufficient_tiles: "核のない領域が足りません", automatic_background_insufficient_coverage: "核のない領域が画像の一部に偏っています"};
+  const backgroundState = !doneCount("nucleoplasm") ? "核質の計算時に求めます" : backgroundMissing ? `この視野では背景を決められません（${backgroundReason[backgroundMissing] ?? backgroundMissing}）。元の値を表示しています` : correctedSummary ? "背景を引いた値を表示しています" : background === "automatic" ? "「全視野に適用」で背景を求め直します" : "元の値を表示しています";
+  const reasonText: Record<string, string> = {no_nucleolus: "核小体なし", no_nucleoplasm: "核質なし", nonpositive_signal: "輝度が0以下"};
   const steps: MethodStep[] = [
     {id: "nuclei", number: 1, title: "核", description: nuclear.length === 1 ? `${nuclearName} から核を自動検出（StarDist 2D）` : "核を染めたチャンネルから核を自動検出（StarDist 2D）", state: nuclear.length !== 1 && methodFields.length ? "核を染めたチャンネルを選んでください" : progressText("nuclei"), tone: nuclear.length !== 1 && methodFields.length ? "attention" : tone("nuclei"),
       action: {label: "輪郭を見る", onClick: () => void switchTarget("nuclei"), disabled: !doneCount("nuclei") || busy},
@@ -538,11 +557,12 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     {id: "nucleoli", number: 2, title: "核小体", description: compartmentsUsed ? `${nucleolarSourceText[nucleolarDefinition.source].label}を核小体とする` : "この目的では使いません（AI が選択）", state: !compartmentsUsed ? "—" : nucleiReady ? progressText("nucleoli") : "核の検出後に試せます", tone: compartmentsUsed ? tone("nucleoli") : "todo",
       action: {label: definitionOpen ? "閉じる" : "定義を変える", onClick: () => setDefinitionOpen(value => !value)}, details: <>{definitionForm}<span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={!nucleiReady || busy || !item} onClick={() => {if (item) void run(item.key, "nucleoli").then(() => switchTarget("nucleoli"));}}>代表視野で試す</button>{doneCount("nucleoli") > 0 && <button type="button" className={styles.linkButton} disabled={busy} onClick={() => void switchTarget("nucleoli")}>輪郭を見る</button>}</span></>},
     {id: "nucleoplasm", number: 3, title: "核質", description: "核から、確認・修正した核小体を除いた領域", state: doneCount("nucleoli") ? progressText("nucleoplasm") : "核小体の確定後に計算します", tone: tone("nucleoplasm")},
-    {id: "background", number: 4, title: "背景", description: "背景は未設定（元の値で測定）", state: "自動の背景候補は準備中です", tone: "todo"},
+    {id: "background", number: 4, title: "背景", description: background === "automatic" ? "核の外から自動で選んだ背景を引く（元の値も残す）" : "背景を引かない（元の値で比べる）", state: backgroundState, tone: background === "automatic" && backgroundMissing ? "attention" : doneCount("nucleoplasm") ? "done" : "todo",
+      action: {label: background === "automatic" ? "背景を引かない" : "自動の背景を使う", onClick: () => setBackground(value => value === "automatic" ? "raw" : "automatic"), disabled: busy}},
     {id: "values", number: 5, title: "測る値", description: aiDraft?.metrics.length ? aiMark(aiDraft.metrics.map(value => (value.channel ? value.channel + " " : "") + (metricName[value.metric] ?? value.metric)).join("、")) : "NCL の核質/核小体 比（log2）、核小体の数と面積", state: doneCount("nucleoplasm") ? "下の「核ごとの値」に表示" : "核質の計算後に表示", tone: doneCount("nucleoplasm") ? "done" : "todo"},
     {id: "gfp", number: 6, title: "対象", description: gfp.enabled ? "GFP 陽性の核に限る（陰性対照を基準）" : "すべての核", state: gfp.result && gfpCounts ? `陽性 ${gfpCounts.positive}・陰性 ${gfpCounts.negative} 核` : gfp.enabled ? "GFP チャンネルと陰性対照の視野を選んでください" : "—", tone: gfp.result ? "done" : gfp.enabled ? "attention" : "todo",
       action: {label: gfp.enabled ? "限定しない" : "GFP 陽性に限る", onClick: () => setGfp(previous => ({...previous, enabled: !previous.enabled, result: null}))}, details: gfpForm || undefined},
-    {id: "compare", number: 7, title: "比較", description: aiDraft?.statistics.test ? aiMark(`${testName[aiDraft.statistics.test] ?? aiDraft.statistics.test}（独立した実験を n とする）`) : "独立した実験を n として群を比べる", state: "群と実験単位を入力してから計算します", tone: "todo", action: {label: "開く", onClick: () => {setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length}},
+    {id: "compare", number: 7, title: "比較", description: aiDraft?.statistics.test ? aiMark(`${testName[aiDraft.statistics.test] ?? aiDraft.statistics.test}（独立した実験を n とする）`) : "独立した実験を n として群を比べる", state: background === "automatic" ? "背景を引いた値の比較はまだできません。比べるときは背景を「引かない」にしてください" : "群と実験単位を入力してから計算します", tone: background === "automatic" ? "attention" : "todo", action: {label: "開く", onClick: () => {setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length || background === "automatic"}},
     {id: "figure", number: 8, title: "図", description: aiDraft?.figures.length ? aiMark(aiDraft.figures.map(value => figureName[value.kind] ?? value.kind).join("、") + "（英語の図と説明文）") : "実験単位の点と細胞の分布（英語の図と説明文）", state: "—", tone: "todo", action: {label: "開く", onClick: () => setView("figure"), disabled: !item?.result}},
   ];
   async function applyMethod() {
@@ -558,21 +578,10 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     {id: "nuclei", title: "1 核の検出", summary: "Fiji の StarDist 2D（蛍光核用 Versatile モデル）で核を検出します。大きな画像は検出用の複製だけを縮小し、輪郭は元画像の座標に戻します。測定は元の画素値で行います。", settings: [["確率しきい値", "0.5"], ["NMS", "0.3"], ["正規化", "1–99.8 パーセンタイル"]], references: [methodReferences.stardist], limits: ["開始値であり、画像ごとの検出精度は保証しません。輪郭を確認して修正してください。"]},
     {id: "nucleoli", title: "2 核小体の決め方", summary: nucleolarDefinition.source === "dapi_poor" ? "核ごとに、平滑化した核染色が核内中央値の一定割合より暗い部分を核小体とします。NCL がストレスで核小体から出ても核小体の位置を失いません。" : nucleolarDefinition.source === "marker" ? "核小体マーカー（UBF／FBL など）の背景を除き、核ごとに最小〜最大の 40% をしきい値にします。UBF は核小体の中心部（rDNA）を示し、核小体全体ではありません。" : "核ごとに NCL の Otsu しきい値で明るい部分を核小体とします（旧方式）。", settings: Object.entries(nucleolarDefinition.source === "ncl" ? {} : nucleolarDetectorV2(nucleolarDefinition)).filter(([key]) => !["engine", "protocol_version"].includes(key)).map(([key, value]) => [key, String(value)] as [string, string]), references: nucleolarDefinition.source === "dapi_poor" ? [methodReferences.kodiha] : nucleolarDefinition.source === "marker" ? [methodReferences.potapova] : [], limits: nucleolarDefinition.source === "dapi_poor" ? ["DAPI で決めた核小体はタンパク質マーカーより小さめになり、比は 1 に近づく（群の差が小さく出る）方向に偏ります。"] : nucleolarDefinition.source === "ncl" ? ["測る対象（NCL）で領域を決めるため、NCL が移動すると核小体を誤ります。"] : ["マーカーの染色（特異性、他チャンネルからの漏れ込み）を確認してから使ってください。"]},
     {id: "nucleoplasm", title: "3 核質", summary: "核から、確認・修正した核小体の和集合を除いた領域です。しきい値を引き直すことはありません。核小体がない核は核質の値を欠測とします。", settings: [], references: [methodReferences.potapova, methodReferences.white], limits: []},
+    {id: "background", title: "4 背景", summary: background === "automatic" ? "核（除外した核も含む）から離れた領域を小さなタイルに分け、明るさが揃った暗いタイルを画像の複数の区画から集め、その中央値を背景とします。核小体と核質の両方から同じ値を引きます。条件を満たすタイルが足りない視野は背景を欠測とし、補正値を出しません。元の値は常に残します。" : "背景を引かずに元の画素値で比べます。比は背景の分だけ 1 に近づきます。", settings: background === "automatic" ? [["方式", "自動の背景候補（未確認、測定プロトコル 4.0.0）"], ["背景値", "選んだ画素の中央値"]] : [["方式", "元の値（測定プロトコル 3.0.0）"]], references: [], limits: ["自動の背景候補は研究者の確認を経ていません。"]},
     {id: "values", title: "5 測る値", summary: "主な指標は NCL の核小体と核質の平均輝度の比で、log2(核質 ÷ 核小体) として表示します（値が大きいほど核質に移動）。分母が無効な場合は 0 にせず欠測とします。", settings: [], references: [methodReferences.white, methodReferences.potapova], limits: []},
     {id: "compare", title: "6 比較", summary: "細胞ではなく独立した実験（導入・実験回）を n として比べます。細胞・視野・実験単位の値を重ねて示します。", settings: [["集計", "視野の中央値 → サンプルの平均 → 実験単位の平均"]], references: [methodReferences.lord, methodReferences.aarts], limits: []},
   ];
-  const plasmResult = item ? storedTargets(item).nucleoplasm?.result : undefined;
-  useEffect(() => {
-    if (!plasmResult || !item?.field) return;
-    let active = true;
-    void adapter.compartmentSummary(plasmResult.revision, item.field.id).then(value => {if (active) setSummary({revision: plasmResult.revision, value});}).catch(() => {});
-    return () => {active = false;};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adapter, plasmResult?.revision, item?.field?.id]);
-  const summaryChannels = summary && summary.revision === plasmResult?.revision ? Object.keys(summary.value.channels).filter(token => token !== nuclear[0]?.token) : [];
-  const summaryChannel = summaryChannels.includes(actualChannel) ? actualChannel : summaryChannels[0];
-  const summaryRows = summaryChannel ? summary!.value.channels[summaryChannel].rows : [];
-  const reasonText: Record<string, string> = {no_nucleolus: "核小体なし", no_nucleoplasm: "核質なし", nonpositive_signal: "輝度が0以下"};
   const summaryTable = summaryRows.length > 0 && <section className={styles.panelSection} aria-label="核ごとの核質/核小体">
     <h3>核ごとの値（{summaryChannel}・{summaryRows[0].values === "raw" ? "元の値" : "背景補正後"}）</h3>
     <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>核</th><th>核小体数</th><th>核小体面積比</th><th>核小体 平均</th><th>核質 平均</th><th>log2(核質/核小体)</th></tr></thead>
