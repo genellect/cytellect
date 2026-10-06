@@ -1,63 +1,114 @@
 # Cytellect
 
-From 2D fluorescence images to reviewed measurements, statistics and publication-ready figures.
+**Get your microscopy publication-ready.**
 
-[日本語](README.ja.md) · [Requirements](docs/requirements.md) · [Methods](docs/methods.md) · [Validation](docs/validation.md)
+[解析例を見る](https://cytellect.vercel.app/workspace?demo=bbbc013) · [Windows版をダウンロード](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15) · [解析機能の説明](docs/implementation-overview.ja.md)
 
-[Analysis planning](https://cytellect.vercel.app/plan) · [Public sample viewer](https://cytellect.vercel.app/demo) · [Local browser delivery](docs/local.md) · [Hosting costs and trade-offs](docs/hosting-costs.ja.md)
+Cytellect は、2D 蛍光顕微鏡画像から核と核小体を検出・定量し、実験単位の統計解析と論文用の図の作成までを一つのワークスペースで行う解析アプリケーションです。Web、Windows ローカル版、Docker の3つの形態を、同じ解析コードで提供しています。現在は開発中のプロトタイプです。
 
-**Early research prototype.** The Web/API/worker workflow is implemented and tested with published microscopy and independent numerical references. Suitability for the user's experiment and researcher PoC remain unvalidated. The public sample viewer uses published microscopy; a UI deployment does not imply an available analysis server.
+![核の検出結果を重ねた解析画面](apps/web/public/marketing/workspace-public.png)
 
-Cytellect connects the measurement question, region review, fluorescence quantification and experimental-unit comparisons in one Japanese browser workspace. Researchers can inspect and correct regions, then produce editable figures linked to their source measurements and analysis conditions. Fiji + StarDist/ImageJ/MorphoLibJ supplies the initial image-analysis engine; original measurement pixels, display settings and detection preprocessing remain separate. Existing nuclear, nucleolar, NCL and GFP recipes are retained alongside generic 2D region measurements.
+## アーキテクチャ
 
-## Current improvement cycle
-
-The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The [planning guide](docs/analysis-planning.md) explains applicable recipes and unresolved conditions without uploading images; a supported choice can be explicitly adopted into a workspace and resolved against actual channels. The source includes [named channels, reviewed batch registration, manual/imported regions and confirmed nuclear-stain detection](docs/generic-regions.md), optional experimental metadata, original-pixel area/intensity measurements, [per-field descriptive figures](docs/descriptive.md) and explicit [experimental-unit comparisons](docs/region-comparisons.md). Arbitrary-object detection and automatic cell boundaries remain outside this slice. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
-
-The published local.11 Windows package includes statistics1.2.3, figure1.1.3, generic measurement1.0.0, nuclear initialization recipe1.1.0, descriptive output1.0.0 and region comparisons1.0.0. Its release record separates the successful CI-installed run, the retained initial browser failure and a Smart App Control block on another PC. A deployed public UI does not update an installed local package.
-
-The development source additionally supports area-only measurement2.0.0 without background ROIs and planning2.1.0. Intensity remains explicitly unmeasured in this mode; changing modes retains corrected masks in a new unreviewed revision. A combined Windows package is pending exact-source installation and browser acceptance. The public planning guide stays on2.0.0 until that package is available.
-
-## Windows preview
-
-The local edition uses the browser workspace with a private API and Fiji worker on the same PC. Published setup packages appear on the [releases page](https://github.com/genellect/cytellect/releases) only after their installation and browser checks pass. Extract the ZIP, open **Cytellect Setup.cmd**, then start Cytellect from its shortcut. Setup provisions pinned dependencies without changing system Python, PATH or an existing Fiji. Research images remain on the PC;24-hour expiry cleanup while the application is off resumes at next launch. See [local delivery](docs/local.md) for limits and verification.
-
-The same scientific code and contracts support the later hosted edition. No cloud analysis server or paid plan is included in this preview.
-
-[Download Windows preview 0.1.0-local.11](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.11) · [Checksum and acceptance record](docs/local-release-0.1.0.md) · [First analysis with public images (Japanese)](docs/quickstart.ja.md)
-
-## Local development
-
-Use Python3.12, Node.js24 and pnpm11.19.0.
-
-```sh
-uv sync --locked --dev
-pnpm install --frozen-lockfile
-# Set an absolute private directory outside this checkout:
-export CYTELLECT_DATA_DIR=/absolute/private/cytellect
-export CYTELLECT_APP_ORIGIN=http://localhost:3000
-export CYTELLECT_SECURE_COOKIES=false
-uv run python scripts/fiji_setup.py /absolute/private/fiji --platform linux-x64
-export CYTELLECT_FIJI_EXECUTABLE=/absolute/private/fiji
-uv run cytellect invite --hours 24
+```mermaid
+flowchart LR
+    Web["Next.js"] -->|Cookie session| API["FastAPI"]
+    API --> DB[("SQLite")]
+    API --> Files[("private volume")]
+    Worker["worker"] -->|CAS lease| DB
+    Worker --> Child["child process"]
+    Child --> Fiji["Fiji · StarDist<br/>(Java bridge)"]
+    Child --> Files
+    API -. opt-in .-> Relay["Cloudflare Worker · D1"] --> OpenAI["OpenAI Responses"]
 ```
 
-Run `uv run cytellect serve`, `uv run cytellect-worker`, and `pnpm dev` in separate terminals with the same environment. On Windows use PowerShell environment variables and `--platform windows-x64`. The invite is private: never paste it into logs/issues. Nuclear detection requires pinned Fiji. Manual/imported generic region measurements do not run a detector. An unavailable detector produces an explicit failure, never a fallback to another model.
+| | |
+|---|---|
+| `apps/web` | Next.js 16 / React 19。数値計算は持たず、API に保存された値だけを描画。型は OpenAPI から生成 |
+| `services/api` | FastAPI（54 エンドポイント）、SQLite + Alembic。認証、入力検証、revision とジョブの管理 |
+| `services/worker` | ジョブを CAS lease で取得し、1ジョブ1子プロセスで実行。時間・メモリ超過時はプロセスグループごと停止 |
+| `packages/analysis` | 測定・統計・作図・書き出し・replay（45 モジュール）。API とワーカーで共有 |
+| `engines/fiji` | Fiji / StarDist 2D / MorphoLibJ の lock と Java ブリッジ |
+| `services/proposal-worker` | 解析計画提案の中継（Cloudflare Workers + D1）。既定で無効 |
 
-For containers, set `CYTELLECT_RUNTIME_DIR` to a private Linux directory owned by UID10001, outside the checkout, then `docker compose up --build -d`. See [operations](docs/security.md) and [Fiji](docs/fiji.md) for host verification and TLS.
+## 技術スタック
 
-## Scope and evidence
+| | |
+|---|---|
+| Web | Next.js 16 · React 19 · TypeScript 6 |
+| API | Python 3.12 · FastAPI · Pydantic 2 · SQLAlchemy 2 · Alembic · SQLite |
+| 解析 | NumPy · SciPy · statsmodels · pandas · scikit-image · tifffile · Matplotlib |
+| 画像処理 | Fiji · StarDist 2D 0.3.0 · TensorFlow 1.15 (Java) · MorphoLibJ 1.6.5 |
+| LLM | Cloudflare Workers · D1 · OpenAI Responses API (Structured Outputs) |
+| 配布 | Vercel · GitHub Releases · Docker Compose |
+| 検証 | Pytest · Vitest · Playwright · Ruff · mypy · Gitleaks · pip-audit · CycloneDX |
 
-- Native8/16-bit 2D TIFF and verified2/3-channel OME-TIFF; separate legacy RGB recipe. Explicit channel mapping/backgrounds and immutable revisions.
-- CZI conversion stays offline in Fiji/Bio-Formats; follow the [pixel-preserving conversion procedure](docs/converting-czi.md) before import.
-- Nuclear/nucleolar/manual ROI editing; GFP/NCL measurements; paired/Welch and exploratory clustered regression; CSV, editable SVG/PDF, ROI/masks, Methods and replay package.
-- Published real microscopy for image integration/public samples; synthetic pixels only for exact numerical tests. Dataset identity, stains and provenance are recorded.
-- No registration, Supabase, payments, 3D/time series, UBF or automatic cell-boundary inference. An optional LLM analysis proposal is under development, disabled by default and never computes measurements ([design](docs/workspace-redesign.md)).
+## 実装
 
-“Publication-ready” means editable figures, explicit conditions, traceable measurements and replayable outputs. It is not scientific certification. See [roadmap](docs/roadmap.md) for remaining gates.
+### 画像入力と Fiji 連携
 
-## Research information
+画像の読み込みでは、OME-XML と TIFF の IFD を突き合わせ、軸、dtype、plane 数、ストリップの位置まで検証しています。欠けた plane を補ったり、外部ファイルを参照する OME を読んだりはしません。
 
-Private research images, source names, conditions and derived results never belong in GitHub, CI, external AI or public demos. Runtime data is private and expires24hours after explicit activity. Public deployment must pass ownership, TLS, deletion and worker isolation checks before accepting private research data. [Data protection](docs/security.md)
+Fiji はリポジトリに同梱していません。Fiji 本体、StarDist のモデル、プラグインを SHA-256 で lock し、実行前に毎回照合しています。実行時に依存を取得することはありません。Python からは Java ブリッジ（`engines/fiji/CytellectEngine.java`）をヘッドレスで起動し、正規化は画像の複製にだけかけ、ラベル画像は元画像と同じ座標で受け取ります。
 
-Own source is Apache-2.0; third-party code, Fiji, model weights and public datasets retain their own licenses. [OSS inventory](docs/oss.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+### ジョブと revision
+
+検出、修正、除外、背景の変更は、すべて immutable な revision として記録しています。核を変更すると、その子である核小体と、そこから作った統計・図を無効にします。
+
+ジョブは SQLite 上の compare-and-swap で lease を取得します。lease が切れたワーカーは結果を確定できないため、古いワーカーによる上書きは起きません。API は要求を `202` で受け付け、取り消しと再試行に対応しています。ワーカーは psutil で子プロセスツリーの経過時間とメモリ使用量を監視しています。
+
+### 決定的な出力と replay
+
+Matplotlib（Agg）の jitter の seed、SVG の hashsalt、メタデータを固定し、zip のタイムスタンプもそろえています。そのため、同じ入力からは同じバイト列が生成されます。PDF にはフォントを埋め込み、使用したフォントの SHA-256 も記録しています。
+
+書き出しには、SHA-256 の manifest と `replay.py` を同梱しています。受け取った側で測定・統計・図を再計算し、元の出力と一致するかを確かめられます。
+
+### 認証とデータ境界
+
+認証は、招待トークンを `HttpOnly`・`SameSite=Strict` の Cookie に交換する方式です。トークン自体は保存せず、SHA-256 のダイジェストだけを保存します。状態を変える要求では Origin と `X-Cytellect-Request` ヘッダーを検証し、他人のリソースには 404 を返します。
+
+データはリポジトリ外の非公開ボリュームに置き、最終操作から24時間で削除します。Docker では、UID 10001、読み取り専用ルート、`cap_drop: ALL`、`no-new-privileges` で各コンテナを動かし、ワーカーは `network_mode: none` でネットワークから切り離しています。
+
+### LLM 連携
+
+Pydantic の契約から strict な JSON Schema を生成し、Worker 側の定義と一致しているかを CI で検査しています。モデルは閉じた enum の中から選ぶだけで、返答はローカルの意味検査を通してから表示します。番号だけのチャンネルに染色名を付ける案や、実験単位がないのに検定する案はここで除外します。数値の計算に LLM は使いません。
+
+送信は、利用者が機能を有効にし、毎回同意した場合に限ります（同意がなければ `428`）。送るのはチャンネルの記号、件数、目的の文だけです。リダイレクトは拒否し、`store: false` で送信し、本文はログに残しません。費用は呼び出しの前に最悪の金額を D1 に1つの SQL 文で予約し、精算はトリガーで原子的かつ冪等に行います。精算されない予約も、上限の計算に含め続けます。
+
+### Windows 配布
+
+実行環境は、PSF 公式の Python 3.14.8 と Tcl/Tk 9.0.4 から組み立て、venv ランチャーの Authenticode 署名を検証しています。実行ファイルの書き換えや再署名はしていません。依存は `uv export --locked` で出力したハッシュ付きの要件から導入し、システムの Python、PATH、既存の Fiji には触れません。
+
+更新時は、新しい版の起動確認と Fiji の数値確認が通るまで旧版を残し、記録と一致する旧版だけを削除します。研究データは削除の対象にしません。ランチャーは `127.0.0.1` だけで待ち受け、ローカル専用の手順でセッションを確立するため、トークンの入力は不要です。
+
+## CI
+
+| ジョブ | 内容 |
+|---|---|
+| `python` | Ruff、mypy、1,300 件を超える非 Fiji テスト（統計は閉形式解・全列挙と照合）、全履歴の秘密情報スキャン、依存監査、SBOM |
+| `web` | OpenAPI → TypeScript 型の再生成差分、型検査、単体テスト、ビルド、Playwright |
+| `fiji-browser` | 実 Fiji で公開画像を解析して ImageJ の独立計算と照合、実 API に対する E2E、network none・読み取り専用コンテナでの Fiji 実行 |
+| `local-windows` | Windows でのセットアップと起動・終了の境界試験 |
+| `python-windows-314` | Windows / Python 3.14 での全テスト |
+
+Windows 版は、配布する ZIP をクリーンな環境に導入し、ブラウザ試験26件と replay の照合を通過した版だけを公開しています。
+
+## 開発環境
+
+Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。
+
+```bash
+uv sync --locked --dev
+pnpm install --frozen-lockfile
+uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
+
+export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
+uv run cytellect invite --hours 24
+uv run cytellect serve & uv run cytellect-worker & pnpm dev
+```
+
+テストは `uv run pytest` と `pnpm test` で実行します。
+
+## ライセンス
+
+Apache License 2.0 で公開しています。Fiji、モデルの重み、公開データセットには、それぞれのライセンスが適用されます。
