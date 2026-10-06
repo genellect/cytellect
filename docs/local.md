@@ -140,3 +140,33 @@ and requires a separately accepted release. No OS protection is disabled.
 ## Later hosted execution
 
 Preserve the browser workflow and shared analysis packages. Hosted deployment adds a suitable persistent database, private artifacts, durable dispatch and same-origin/domain routing, with access/retention checks on the actual host. Cloud spend controls must not stop required deletion jobs. See [costs and trade-offs](hosting-costs.ja.md), [deployment](deployment.md) and [remaining gates](roadmap.md).
+
+## Workspace entry and Desktop acceptance (2026-10-06)
+
+`/` and `/workspace` open the single analysis workspace. `/product` contains the
+landing page and downloads; GA4 is limited to that route. The previous detailed
+screen is retained at `/legacy` only in local mode or with a loopback API origin.
+Public builds return 404 there, including future remote-API builds. An authenticated session is
+required before the configured new workspace loads private data. Windows uses
+its local-session exchange; Docker uses the existing one-use invitation exchange.
+
+For Docker Desktop, run `scripts/docker-desktop.ps1 Start`. `Open` starts the
+existing installation and opens `http://127.0.0.1:3087/`; `Stop` preserves its
+private Docker volume. Never use volume deletion to update this installation.
+Fiji is installed in the versioned worker image and reused through Docker image
+layers; web/API updates do not fetch a new Fiji distribution automatically.
+
+An operator may enable the approved proposal relay with `-ProposalConfig` pointing
+to a JSON file **outside this repository**, containing `url` (the approved HTTPS
+origin) and `tokenFile` (an absolute, outside-repository device-token file). Only
+the API container mounts this token. The browser and analysis worker do not receive
+it, and the analysis worker remains offline. This file must not contain the OpenAI
+key or the Worker administrator token. Start/Open/Stop should use the same config.
+The API forwards a proposal only after the user confirms the displayed transmission
+scope. See [proposal deployment](proposal-deployment.md) for the separate production
+budget and overrun reconciliation. A failed request is never billed again without
+an explicit retry; the UI warns that retrying may incur another charge.
+
+Public-data/browser acceptance and Windows archive acceptance are recorded against
+the exact release commit. These checks do not establish private-image validity,
+Windows application-control compatibility on every device, or human usability.

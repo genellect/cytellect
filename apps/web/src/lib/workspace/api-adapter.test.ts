@@ -5,8 +5,10 @@ import type {ChannelDefinition} from "./grouping";
 const channel: ChannelDefinition = {token: "channel2", stain: null, role: "nuclear", evidence: "user"};
 const result: SavedResult = {revision: "r1", field: "f1", rows: [], masks: {regions: [], metadata: {mask_revision_id: "m1"}}, exclusions: []};
 function fake(handler: (path: string, options?: RequestInit) => Promise<unknown>, postHandler?: (path: string, body?: unknown) => Promise<unknown>) {
-  const request = vi.fn(handler) as unknown as Transport["request"];
-  const post = vi.fn(postHandler ?? (async () => ({job_id: "j1", revision_id: "r1"}))) as unknown as Transport["post"];
+  let selection = {version: 0, entries: [{id: "f1", field_id: "f1", revision_id: "r1", exclusion_reason: null}]};
+  const request = vi.fn((path: string, options?: RequestInit) => path.endsWith("/selection") ? Promise.resolve(selection) : handler(path, options)) as unknown as Transport["request"];
+  const action = postHandler ?? (async () => ({job_id: "j1", revision_id: "r1"}));
+  const post = vi.fn((path: string, body?: unknown) => {if (path.endsWith("/selection")) {const next = body as typeof selection; selection = {...next, version: next.version + 1}; return Promise.resolve(selection);} return action(path, body);}) as unknown as Transport["post"];
   return {adapter: createApiAdapter({request, post, wait: async () => {}}), request, post};
 }
 describe("real workspace transport boundaries", () => {
@@ -58,5 +60,7 @@ describe("real workspace transport boundaries", () => {
     const {adapter, post} = fake(async () => ({}));
     await adapter.draft("w1", "核面積を確認");
     expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true});
+    await adapter.draft("w1", "核面積を確認", true);
+    expect(post).toHaveBeenLastCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true, retry_failed: true});
   });
 });

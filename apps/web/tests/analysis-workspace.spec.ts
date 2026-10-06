@@ -25,6 +25,7 @@ test("registered GFP figure uses the recorded measurement channel", async ({page
 });
 
 test("adds images, adopts one proposal and inspects fields while the run continues", async ({ page }) => {
+  await page.route("**/v1/session", route => route.fulfill({contentType:"application/json", body:JSON.stringify({authenticated:true,retention_hours:24,demo:false})}));
   await page.goto("/workspace");
   // No workspace form or method choice precedes adding images.
   await expect(page.getByRole("heading", { name: "画像を追加" })).toBeVisible();
@@ -101,8 +102,8 @@ test("a figure point opens its source image and region, and exports are actual o
 
 test("added files are grouped once and rejected real uploads remain visible", async ({ page }) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Upload transport is exercised in the configured API browser job");
-  await page.route("**/v1/workspaces", route => route.fulfill({contentType: "application/json", body: JSON.stringify({id: "grouping-test"})}));
-  await page.route("**/v1/workspaces/grouping-test/region-fields", route => route.fulfill({status: 422, contentType: "application/json", body: JSON.stringify({detail: "unsupported_or_invalid_region_image"})}));
+  await stubInputWorkflow(page);
+
   await page.goto("/workspace");
   await page.getByTestId("file-input").setInputFiles([
     { name: "A01_dapi.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
@@ -127,6 +128,7 @@ test("added files are grouped once and rejected real uploads remain visible", as
 
 test("files that form no field are shown and the run stays unavailable", async ({ page }) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Image grouping requires the configured workspace");
+  await stubInputWorkflow(page);
   await page.goto("/workspace");
   await page.getByTestId("file-input").setInputFiles([
     { name: "field01.ome.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
@@ -148,5 +150,20 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
     await expect(page.getByRole("img", { name: /の画像$/ })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);
+  });
+}
+
+async function stubInputWorkflow(page: import("@playwright/test").Page) {
+  let selection: {version:number; entries:unknown[]} = {version:0,entries:[]};
+  await page.route("**/v1/**", async route => {
+    const request=route.request(), path=new URL(request.url()).pathname;
+    const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request"};
+    const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});
+    if(request.method()==="OPTIONS")return route.fulfill({status:204,headers});
+    if(path==="/v1/session")return json({authenticated:true,retention_hours:24,demo:false});
+    if(path==="/v1/workspaces")return json({id:"grouping-test"});
+    if(path.endsWith("/selection")){if(request.method()==="POST")selection={...request.postDataJSON(),version:selection.version+1};return json(selection);}
+    if(path.endsWith("/region-fields"))return json({detail:"unsupported_or_invalid_region_image"},422);
+    return json({detail:"unexpected_test_route"},404);
   });
 }

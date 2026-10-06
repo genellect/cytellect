@@ -4,7 +4,7 @@ import {defaultFigureEdits} from "../figure-controls";
 import {comparisonMethod, type CommonComparisonRequest, type CommonPlotKind} from "../common-statistics";
 import type {components} from "../generated";
 import type {Job} from "../types";
-import {assertWorkspaceConnection, type SavedResult, type Transport} from "./api-adapter";
+import {assertWorkspaceConnection, type SavedResult, type Transport, type WorkspaceSelection} from "./api-adapter";
 
 export type ComparisonResult = components["schemas"]["CommonComparisonView"];
 export type Metadata = components["schemas"]["RegionFieldMetadata"];
@@ -50,10 +50,10 @@ export function createComparisonAdapter(overrides: Partial<Transport> = {}) {
     }
   }
   return {
-    async metadata(workspace: string, sources: ComparisonSource[]) {
+    async metadata(workspace: string, sources: ComparisonSource[], selection: WorkspaceSelection | null = null) {
       check();
-      const revisions = await client.request<Array<{id: string; state: string; created: number; config: {cohort_sources?: Record<string, {revision_id: string}>; field_snapshot?: Record<string, {metadata: Metadata}>}}>>(`/v1/workspaces/${workspace}/revisions`);
-      const match = revisions.filter(revision => revision.state === "succeeded" && revision.config.cohort_sources && Object.keys(revision.config.cohort_sources).length === sources.length && sources.every(source => revision.config.cohort_sources?.[source.field]?.revision_id === source.revision)).toSorted((a,b) => b.created - a.created)[0];
+      const revisions = await client.request<Array<{id: string; state: string; created: number; config: {workspace_selection?: WorkspaceSelection; cohort_sources?: Record<string, {revision_id: string}>; field_snapshot?: Record<string, {metadata: Metadata}>}}>>(`/v1/workspaces/${workspace}/revisions`);
+      const match = revisions.filter(revision => revision.state === "succeeded" && (!selection || JSON.stringify(revision.config.workspace_selection) === JSON.stringify(selection)) && revision.config.cohort_sources && Object.keys(revision.config.cohort_sources).length === sources.length && sources.every(source => revision.config.cohort_sources?.[source.field]?.revision_id === source.revision)).toSorted((a,b) => b.created - a.created)[0];
       if (!match || !sources.every(source => match.config.field_snapshot?.[source.field])) return null;
       return {revision: match.id, fields: Object.fromEntries(sources.map(source => [source.field, match.config.field_snapshot![source.field].metadata]))};
     },
@@ -66,10 +66,10 @@ export function createComparisonAdapter(overrides: Partial<Transport> = {}) {
       if (result.revision_id !== job.revision_id || result.region_comparison_version !== "2.0.0") throw new Error("保存された比較の出典が一致しません。");
       return {job: job.id, result};
     },
-    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>) {
+    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>, selection: WorkspaceSelection | null = null) {
       if (sources.length < 2 || new Set(sources.map(source => source.field)).size !== sources.length) throw new Error("異なる視野を2件以上選択してください。");
       check(); const current = await client.request<{active_revision: string | null}>(`/v1/workspaces/${workspace}`);
-      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata}, {sources: sources.map(source => [source.field, source.revision]), metadata});
+      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, ...(selection ? {workspace_selection: selection} : {}), sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata}, {sources: sources.map(source => [source.field, source.revision]), metadata, selection});
       if (!result.revision_id) throw new Error("集合の解析版がありません。");
       return result.revision_id;
     },

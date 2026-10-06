@@ -58,6 +58,9 @@ def test_synthetic_analysis_worker_vertical_slice(tmp_path):
 def test_cleanup_revokes_expired_workspace_files(tmp_path):
     client, app, _ = authenticated(tmp_path)
     workspace = client.post("/v1/workspaces", json={"title": "expired"}, headers=HEADERS).json()
+    from cytellect_api.db import workspace_selections
+    assert client.post(f"/v1/workspaces/{workspace['id']}/selection", headers=HEADERS,
+                       json={"version": 0, "entries": []}).status_code == 200
     folder = app.state.store.safe_path("workspaces", workspace["id"])
     folder.mkdir(parents=True)
     with app.state.store.transaction() as conn:
@@ -67,3 +70,4 @@ def test_cleanup_revokes_expired_workspace_files(tmp_path):
     assert client.get(f"/v1/workspaces/{workspace['id']}").status_code == 404
     assert cleanup(app.state.store) == {"workspaces_removed": 1}
     assert not folder.exists()
+    assert not app.state.store.rows(workspace_selections, workspace_id=workspace["id"])

@@ -8,14 +8,14 @@ const api=process.env.CYTELLECT_TEST_API_ORIGIN||"http://localhost:8000";
 const python=process.env.CYTELLECT_TEST_PYTHON||path.join(root,".venv",process.platform==="win32"?"Scripts/python.exe":"bin/python");
 function invite(){
  if(process.env.CYTELLECT_TEST_DATA_DIR){
-  return execFileSync(python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(1))"],{encoding:"utf8",env:process.env}).trim();
+  return execFileSync(python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(300))"],{encoding:"utf8",env:process.env}).trim();
  }
  const file=process.env.CYTELLECT_TEST_INVITE_FILE;
  if(!file)throw new Error("Use a fresh synthetic-only invite file or isolated test data directory");
  return fs.readFileSync(file,"utf8").trim();
 }
 async function login(page:Page){
- await page.goto("/");
+ await page.goto("/legacy");
  await page.getByLabel("招待コード",{exact:true}).fill(invite());
  await page.getByRole("button",{name:"ワークスペースに接続"}).click();
  await expect(page.getByRole("heading",{name:"作業の新規作成"})).toBeVisible();

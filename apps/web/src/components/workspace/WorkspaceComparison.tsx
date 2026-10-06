@@ -1,20 +1,21 @@
 "use client";
 import {useEffect, useMemo, useState} from "react";
-import {ApiError, download, errorMessage} from "@/lib/api";
+import {ApiError, download, errorMessage, request} from "@/lib/api";
 import {comparisonMethodLabel} from "@/lib/common-statistics";
 import {comparisonWarnings, probabilityLabel} from "@/lib/region-comparison-view";
 import {formatValue, type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
 import {comparisonRequest, createComparisonAdapter, type ComparisonChoices, type ComparisonResult, type ComparisonSource, type Metadata} from "@/lib/workspace/comparison-adapter";
+import type {WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import styles from "./analysis-workspace.module.css";
 
-interface Props {workspace: string; sources: ComparisonSource[]; pendingFields: number; blocked: boolean; options: Array<{key: string; label: string}>; regionSet: string; onInspect: (field: string) => void}
+interface Props {selectionChanged?: boolean; selection?: WorkspaceSelection | null; workspace: string; sources: ComparisonSource[]; pendingFields: number; blocked: boolean; options: Array<{key: string; label: string}>; regionSet: string; onInspect: (field: string) => void}
 const blank: Metadata = {condition: null, sample: null, experimental_unit: null, pair: null, acquisition_date: null, repeat_length: null};
 const fail = (error: unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : "比較を完了できませんでした。";
 const initial: ComparisonChoices = {metric: "area_px", channel: null, regionSet: "nuclei", design: "independent", method: "parametric", unitDefinition: "", pairingBasis: "", contrasts: [], independence: false, acquisition: false, sampling: false, missingness: false, kind: "distribution", width: 178, height: 76, yLabel: ""};
 
 /** Progressive inference: metadata and human decisions are never prerequisites for raw analysis. */
-export function WorkspaceComparison({workspace, sources, pendingFields, blocked, options, regionSet, onInspect}: Props) {
+export function WorkspaceComparison({selection = null, selectionChanged = false, workspace, sources, pendingFields, blocked, options, regionSet, onInspect}: Props) {
   const adapter = useMemo(() => createComparisonAdapter(), []);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [batchKey, setBatchKey] = useState<keyof Metadata>("condition");
@@ -29,7 +30,7 @@ export function WorkspaceComparison({workspace, sources, pendingFields, blocked,
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<{job: string; result: ComparisonResult; identity: string; spec: string} | null>(null);
   const fields = Object.fromEntries(sources.map(source => [source.field, metadata[source.field] ?? {...blank, ...source.metadata}]));
-  const identity = JSON.stringify([sources.map(source => [source.field, source.revision]), fields]);
+  const identity = JSON.stringify([sources.map(source => [source.field, source.revision]), fields, selection]);
   const currentPrepared = prepared?.identity === identity ? prepared : null;
   const conditions = [...new Set(Object.values(fields).map(value => value.condition?.trim()).filter((value): value is string => !!value))];
   const pairs = conditions.flatMap((a, i) => conditions.slice(i + 1).map(b => [a, b]));
@@ -39,12 +40,12 @@ export function WorkspaceComparison({workspace, sources, pendingFields, blocked,
   let spec: ReturnType<typeof comparisonRequest> | null = null;
   try {if (validContrasts) spec = comparisonRequest({...choices, regionSet});} catch { /* Readiness is represented by the unchecked visible decisions. */ }
   const ready = !!currentPrepared && review && !!spec && metadataReady && !busy && !blocked;
-  const changed = saved && (saved.identity !== identity || saved.spec !== JSON.stringify(spec));
+  const changed = saved && (selectionChanged || saved.identity !== identity || saved.spec !== JSON.stringify(spec));
   // Any source/metadata change revokes human decisions; old output remains visibly historical.
   useEffect(() => {setReview(false); setChoices(value => ({...value, independence: false, acquisition: false, sampling: false, missingness: false}));}, [identity]);
   useEffect(() => {let active = true; void adapter.history(workspace).then(value => {if (active) setHistory(value);}).catch(() => {}); return () => {active = false;};}, [adapter, workspace]);
-  const sourceIdentity = JSON.stringify(sources.map(source => [source.field, source.revision]));
-  useEffect(() => {let active = true; void adapter.metadata(workspace, sources).then(value => {if (active) setStoredMetadata(value);}).catch(() => {}); return () => {active = false;}; /* IDs, rather than render-time array identity, bind this lookup. */
+  const sourceIdentity = JSON.stringify([sources.map(source => [source.field, source.revision]), selection]);
+  useEffect(() => {let active = true; void adapter.metadata(workspace, sources, selection).then(value => {if (active) setStoredMetadata(value);}).catch(() => {}); return () => {active = false;}; /* IDs, rather than render-time array identity, bind this lookup. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adapter, workspace, sourceIdentity]);
   function choice(next: Partial<ComparisonChoices>, affectsDesign = false) {
@@ -54,8 +55,8 @@ export function WorkspaceComparison({workspace, sources, pendingFields, blocked,
     setMetadata(value => ({...value, [field]: {...fields[field], [key]: text || null}}));
   }
   async function prepare() {
-    if (!metadataReady || busy) return; setBusy(true); setError("");
-    try {const revision = await adapter.cohort(workspace, sources, fields); setPrepared({revision, identity}); setReview(false);}
+    if (!metadataReady || busy || blocked || selectionChanged) return; setBusy(true); setError("");
+    try {const revision = await adapter.cohort(workspace, sources, fields, selection); setPrepared({revision, identity}); setReview(false);}
     catch (cause) {setError(fail(cause));} finally {setBusy(false);}
   }
   async function calculate() {
@@ -64,9 +65,11 @@ export function WorkspaceComparison({workspace, sources, pendingFields, blocked,
     catch (cause) {setError(fail(cause));} finally {setBusy(false);}
   }
   return <section className={styles.comparison} aria-label="独立実験単位の比較">
+    {selectionChanged && <p role="status">採用状態が変更されたか確認できません。保存された比較は旧版として表示します。</p>}
     <h2>群を比較</h2><p>1点は独立実験単位です。領域の中央値 → 試料内の視野平均 → 独立実験単位内の試料平均で集計します。</p>
-    {!!pendingFields && <p role="status">未完了の視野が {pendingFields} 件あります。全視野の解析後に比較対象を保存できます。</p>}
-    {storedMetadata && <button className={styles.secondary} disabled={busy || blocked} onClick={() => {setMetadata(storedMetadata.fields); setPrepared({revision: storedMetadata.revision, identity: JSON.stringify([sources.map(source => [source.field, source.revision]), storedMetadata.fields])}); setReview(false);}}>保存した実験情報を復元</button>}
+    {!!pendingFields && <p role="status">未完了の視野が {pendingFields} 件あります。解析を完了するか、失敗した視野を理由付きで除外してください。</p>}
+    {!!selection?.entries.some(entry => entry.exclusion_reason) && <details><summary>比較から除外した視野</summary>{selection.entries.filter(entry => entry.exclusion_reason).map(entry => <p key={entry.id}>{entry.field_id || "未登録の視野"}：{entry.exclusion_reason}</p>)}</details>}
+    {storedMetadata && <button className={styles.secondary} disabled={busy || blocked} onClick={() => {setMetadata(storedMetadata.fields); setPrepared({revision: storedMetadata.revision, identity: JSON.stringify([sources.map(source => [source.field, source.revision]), storedMetadata.fields, selection])}); setReview(false);}}>保存した実験情報を復元</button>}
     <details open={!saved}><summary>比較条件</summary><fieldset disabled={busy || blocked}>
       <legend>比較する測定値と実験デザイン</legend>
       <div className={styles.comparisonControls}><label>測定値<select value={choices.channel ? `${choices.channel}:${choices.metric}` : choices.metric} onChange={event => {const parts = event.target.value.split(":"); choice({metric: parts.at(-1)! as ComparisonChoices["metric"], channel: parts.length > 1 ? parts[0] : null}, true);}}>{options.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
@@ -101,6 +104,8 @@ export function WorkspaceComparison({workspace, sources, pendingFields, blocked,
   </section>;
 }
 function ComparisonOutput({saved, changed, sources, onInspect, onError}: {saved: {job: string; result: ComparisonResult}; changed: boolean; sources: ComparisonSource[]; onInspect: Props["onInspect"]; onError: (value: string) => void}) {
+  const [adoption, setAdoption] = useState<WorkspaceSelection | null>(null);
+  useEffect(() => {let active = true; setAdoption(null); void request<WorkspaceSelection>(`/v1/revisions/${saved.result.revision_id}/workspace-selection`).then(value => {if (active) setAdoption(value);}).catch(() => {}); return () => {active = false;};}, [saved.result.revision_id]);
   const result = saved.result; const image = usePrivateImage(`/v1/jobs/${saved.job}/files/figure.png`);
   const files = Array.isArray(result.figure.source_files) ? result.figure.source_files.filter((value): value is string => typeof value === "string") : [];
   return <section aria-label="保存された比較結果"><h3>保存された比較結果 {changed && "· 設定変更前の結果"}</h3><p>{result.metric} / {result.unit} · {result.spec.test} · 1点は独立実験単位</p>{image && <img src={image} alt="保存された独立実験単位の比較図" style={{maxWidth: "100%"}}/>}
@@ -110,6 +115,7 @@ function ComparisonOutput({saved, changed, sources, onInspect, onError}: {saved:
     <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>群</th><th>領域</th><th>視野</th><th>試料</th><th>独立単位</th><th>完全ペア</th></tr></thead><tbody>{result.counts.map((row, index) => <tr key={index}>{["condition", "observations", "selected_fields", "samples", "experimental_units", "complete_pairs"].map(key => <td key={key}>{formatValue(row[key])}</td>)}</tr>)}</tbody></table></div>
     {!!result.warnings.length && <ul>{result.warnings.map(warning => <li key={warning}>{comparisonWarnings[warning] ?? warning}</li>)}</ul>}
     <details><summary>採否・欠測と元視野</summary><p>採用 {formatValue(result.selection.selected)} · 除外 {formatValue(result.selection.excluded)} · 欠測 {formatValue(result.selection.missing)} · 対象外 {formatValue(result.selection.out_of_scope)}</p>{result.source_field_ledger.map((row, index) => <p key={index}>{sources.find(source => source.field === row.field_id)?.label ?? String(row.field_id)} · 群 {String(row.condition)} · 単位 {String(row.experimental_unit)} · {row.explicitly_excluded ? "除外" : row.in_scope ? "対象" : "対象外"} <button className={styles.secondary} disabled={changed} onClick={() => onInspect(String(row.field_id))}>元画像を見る</button></p>)}<p>解析版：{result.revision_id}</p></details>
+    {adoption && <details><summary>比較時の視野採否</summary>{adoption.entries.filter(entry => entry.exclusion_reason).map(entry => <p key={entry.id}>{entry.field_id || "未登録の視野"}：{entry.exclusion_reason}</p>)}<button className={styles.secondary} onClick={() => void download(`/v1/revisions/${result.revision_id}/workspace-selection`, "workspace-selection.json").catch(error => onError(fail(error)))}>視野採否を保存 ↓</button></details>}
     <div className={styles.actions}>{files.map(file => <button className={styles.secondary} key={file} onClick={() => void download(`/v1/jobs/${saved.job}/files/${file}`, file).catch(error => onError(fail(error)))}>{file} ↓</button>)}</div>
   </section>;
 }

@@ -42,6 +42,21 @@ async function device(store: MemoryStore, env = ENV) {
 }
 
 describe("proposal service", () => {
+  it.each(["invalid_json_schema", "insufficient_quota", "private-unknown-code"])("returns only sanitized authenticated provider diagnostics: %s", async providerCode => {
+    const store = new MemoryStore(), token = await device(store);
+    const fetcher = vi.fn(async () => Response.json({ error: { code: providerCode, message: "private-key private-research-context", param: "private-field" } },
+      { status: 400, headers: { "x-request-id": "private-request-id" } }));
+    const denied = await handle(post("/v1/proposals", { context: CONTEXT }), ENV, store, { fetcher });
+    expect(await denied.json()).toEqual({ code: "unauthorized" });
+    expect(fetcher).not.toHaveBeenCalled();
+    const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body).toEqual({ code: "model_unavailable", provider_http_status: 400,
+      ...(providerCode === "private-unknown-code" ? {} : { provider_error_code: providerCode }) });
+    expect(JSON.stringify(body)).not.toContain("private");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it("returns a draft with store:false, the strict schema and no stored content", async () => {
     const store = new MemoryStore();
     const token = await device(store);
@@ -231,17 +246,59 @@ describe("proposal service", () => {
   });
 
   it.each([{ input_tokens: 1000, output_tokens: 100_000 }, { input_tokens: 1_000_000, output_tokens: 200 }])(
-    "accounts larger reported usage and rejects the result without a repair call %j", async (usage) => {
+    "returns the billed valid draft and blocks subsequent requests after larger usage %j", async (usage) => {
       const store = new MemoryStore(), token = await device(store);
       const fetcher = vi.fn(async () => modelReply(JSON.stringify(DRAFT), usage));
       const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
-      expect(response.status).toBe(502);
-      expect(await response.json()).toEqual({ code: "model_usage_exceeded" });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ draft: DRAFT, model: ENV.OPENAI_MODEL, prompt_version: "2026-10-06.1" });
       expect(fetcher).toHaveBeenCalledTimes(1);
       expect([...store.spent.values()][0]).toBe(Math.max(worstCaseUsd(readConfig(ENV)!, CONTEXT, []),
         observedCost({ inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, cachedInputTokens: 0, calls: 1 }, 2.5, 0.1, 10)));
       expect([...store.usage.values()][0].inputTokens).toBe(usage.input_tokens);
+      const next = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
+      expect(next.status).toBe(503);
+      expect(await next.json()).toEqual({ code: "budget_reconciliation_required" });
+      expect(fetcher).toHaveBeenCalledTimes(1);
     });
+
+  it.each(["not JSON", JSON.stringify({ recipe: "none" })])("never repairs invalid over-ceiling output %s", async (text) => {
+    const store = new MemoryStore(), token = await device(store);
+    const fetcher = vi.fn(async () => modelReply(text, { input_tokens: 1000, output_tokens: 8001 }));
+    const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
+    expect(await response.json()).toEqual({ code: "model_usage_exceeded" });
+    expect(await store.budgetBlocked()).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("rechecks a concurrent hold before repairing a previously reserved request", async () => {
+    const store = new MemoryStore(), token = await device(store);
+    await store.reserve("other", "2026-10", 0.1, 5, 0);
+    const fetcher = vi.fn(async () => {
+      await store.settle("other", "2026-10", 0.2);
+      return modelReply("invalid JSON");
+    });
+    const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ code: "budget_reconciliation_required" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(store.reservations.size).toBe(0);
+    expect([...store.spent.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(0.2 + worstCaseUsd(readConfig(ENV)!, CONTEXT, []));
+  });
+
+  it("checks a hold raised between reservation and first outbound call", async () => {
+    const store = new MemoryStore(), token = await device(store);
+    const reserve = store.reserve.bind(store);
+    vi.spyOn(store, "reserve").mockImplementation(async (...args) => {
+      const held = await reserve(...args);
+      store.blocked = true;
+      return held;
+    });
+    const fetcher = vi.fn();
+    const response = await handle(post("/v1/proposals", { context: CONTEXT }, token), ENV, store, { fetcher });
+    expect(response.status).toBe(503);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 
   it("does not accept a text result accompanied by a refusal", async () => {
     const store = new MemoryStore();
@@ -277,7 +334,7 @@ describe("proposal service", () => {
     expect(worstCaseUsd(config, { ...CONTEXT, goal: "あ".repeat(1000) }, []))
       .toBeGreaterThan(worstCaseUsd(config, { ...CONTEXT, goal: "a".repeat(1000) }, []));
     const sent = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1];
-    expect(sent.redirect).toBe("error");
+    expect(sent.redirect).toBe("manual");
     expect(sent.signal).toBeInstanceOf(AbortSignal);
   });
 });

@@ -141,6 +141,9 @@ def region_methods(config, report, provenance):
                   "No model download or automatic segmentation is executed.",
                   f"Scientific source identity: {provenance.get('software', {}).get('source_sha256', 'unavailable')}.",
                   "Original images are excluded unless explicitly requested. This bundle contains research information; keep it private.", ""])
+    if config.get("workspace_selection"):
+        lines.extend(["Workspace adoption ledger (including failed uploads/analyses excluded by the user):",
+                      json.dumps(config["workspace_selection"], ensure_ascii=False, sort_keys=True), ""])
     return "\n".join(lines + planning_methods(config))
 
 

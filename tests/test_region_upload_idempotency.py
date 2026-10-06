@@ -309,7 +309,7 @@ def test_migration_preserves_rows_and_adds_scoped_unique_identity(tmp_path, lega
     # Reopening performs no destructive rewrite or double migration.
     reopened = Store(tmp_path)
     with reopened.engine.connect() as conn:
-        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0003"
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0004"
         schema = inspect(conn)
         columns = {column["name"]: column for column in schema.get_columns("fields")}
         assert columns["client_upload_id"]["nullable"] and columns["upload_fingerprint"]["nullable"]

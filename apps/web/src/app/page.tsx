@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
-import PublicLanding from "@/components/PublicLanding";
-import WorkspaceEntry from "@/components/WorkspaceEntry";
-import { API_CONFIGURED, LOCAL_MODE } from "@/lib/api";
+import WorkspacePrototype from "@/components/workspace/WorkspacePrototype";
 
-export const metadata: Metadata = { title: "Cytellect — Get your microscopy publication-ready.", description: "2D蛍光画像の解析手法を整理し、領域の検出・修正、定量、統計、編集可能な論文用グラフまで。CytellectのWindows版は、研究画像をPC内で解析し、ブラウザから操作できます。" };
+export const metadata: Metadata = { title: "画像解析 | Cytellect", description: "画像の追加、領域の確認、定量、統計、グラフの出力。", robots: {index: false, follow: false} };
 
 export default function Page() {
-  if (API_CONFIGURED || LOCAL_MODE) {
-    return <WorkspaceEntry />;
-  }
-  return <PublicLanding />;
+  return <WorkspacePrototype />;
 }

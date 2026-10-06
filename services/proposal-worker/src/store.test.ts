@@ -12,6 +12,7 @@ async function database(): Promise<D1Database> {
   const db = new DatabaseSync(":memory:");
   db.exec(readFileSync(new URL("../migrations/0001_init.sql", import.meta.url), "utf8"));
   db.exec(readFileSync(new URL("../migrations/0002_usage_integrity.sql", import.meta.url), "utf8"));
+  db.exec(readFileSync(new URL("../migrations/0003_budget_reconciliation.sql", import.meta.url), "utf8"));
   const statement = (query: string, values: unknown[] = []) => ({
     bind: (...next: unknown[]) => statement(query, next),
     first: async () => db.prepare(query).get(...values) ?? null,
@@ -21,6 +22,51 @@ async function database(): Promise<D1Database> {
 }
 
 describe("D1Store SQL", () => {
+  it("atomically records overspending, preserves competing holds and blocks every month", async () => {
+    const db = await database(), a = new D1Store(db), b = new D1Store(db);
+    await a.reserve("overspend", "2026-10", 0.1, 5, 0);
+    await b.reserve("in-flight", "2026-10", 0.2, 5, 1);
+    const results = await Promise.all([
+      a.settle("overspend", "2026-10", 0.3),
+      b.reserve("racing", "2026-10", 0.1, 5, 2),
+    ]);
+    expect(results[1]).toBe(false);
+    expect(await b.budgetBlocked()).toBe(true);
+    expect(await b.unsettled("2026-10")).toBe(0.2);
+    expect(await b.reserve("next-month", "2026-11", 0.1, 5, 3)).toBe(false);
+    await a.settle("overspend", "2026-10", 9); // stale retry cannot change accounting
+    await b.settle("in-flight", "2026-10", 0.05);
+    expect(await db.prepare("SELECT spent_usd FROM usage_months WHERE month='2026-10'").first()).toEqual({ spent_usd: 0.35 });
+    expect(await db.prepare("SELECT reserved_usd, accounted_usd, reason FROM budget_incidents").first())
+      .toEqual({ reserved_usd: 0.1, accounted_usd: 0.3, reason: "reservation_exceeded" });
+    expect(await b.budgetBlocked()).toBe(true);
+    await db.prepare("UPDATE budget_incidents SET resolved_at=10, resolution_note='Reviewed tariff correction'").run();
+    expect(await b.budgetBlocked()).toBe(false);
+    expect(await b.reserve("retained-history", "2026-10", 4.66, 5, 11)).toBe(false);
+  });
+
+  it("latches a per-call ceiling violation even below the two-call reservation", async () => {
+    const db = await database(), store = new D1Store(db);
+    await store.reserve("bound", "2026-10", 0.5, 5, 0);
+    await store.settle("bound", "2026-11", 0.1, undefined, true);
+    expect(await store.budgetBlocked()).toBe(false);
+    await store.settle("bound", "2026-10", 0.1, undefined, true);
+    expect(await store.budgetBlocked()).toBe(true);
+    expect(await db.prepare("SELECT reason FROM budget_incidents").first()).toEqual({ reason: "usage_ceiling_exceeded" });
+  });
+
+  it("rolls back incident and cost together if settlement cannot commit", async () => {
+    const db = await database(), store = new D1Store(db);
+    await store.reserve("failure", "2026-10", 0.1, 5, 0);
+    await db.prepare("CREATE TRIGGER fail_delete BEFORE DELETE ON reservations BEGIN SELECT RAISE(ABORT, 'test'); END").run();
+    await expect(store.settle("failure", "2026-10", 0.3)).rejects.toThrow();
+    expect(await store.budgetBlocked()).toBe(false);
+    expect(await store.unsettled("2026-10")).toBe(0.1);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM settlements").first()).toEqual({ n: 0 });
+    await db.prepare("DROP TRIGGER fail_delete").run();
+    await store.settle("failure", "2026-10", 0.3);
+    expect(await store.budgetBlocked()).toBe(true);
+  });
   it("stores only accounting usage and provenance alongside conservative cost", async () => {
     const db = await database();
     const store = new D1Store(db);

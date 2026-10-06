@@ -120,6 +120,7 @@ def configured(tmp_path, monkeypatch, reply, *, upload=True):
     def urlopen(request, timeout):
         calls.append(json.loads(request.data))
         assert request.headers["Authorization"] == "Bearer device-secret"
+        assert request.headers["User-agent"] == "Cytellect/0.1"
         return reply(request)
     monkeypatch.setattr(proposals._OPENER, "open", urlopen)
     wid = client.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
@@ -174,6 +175,37 @@ def test_route_needs_images_is_disabled_without_configuration_and_checks_ownersh
     response = other.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert (response.status_code, response.json()["detail"]) == (503, "proposal_service_disabled")
     assert other.post("/v1/workspaces/missing/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS).status_code == 404
+
+
+@pytest.mark.parametrize(("failure", "expected"), [
+    ({"code": "proposal_service_disabled"}, "proposal_service_disabled"),
+    ({"code": "budget_reconciliation_required"}, "proposal_budget_reconciliation_required"),
+    ({"code": "model_unavailable"}, "proposal_model_unavailable"),
+    ({"code": "model_unavailable", "provider_error_code": "invalid_json_schema", "provider_http_status": 400}, "proposal_provider_invalid_json_schema"),
+    ({"code": "model_unavailable", "provider_error_code": "insufficient_quota", "provider_http_status": 429}, "proposal_provider_insufficient_quota"),
+    ({"code": "model_unavailable", "provider_error_code": "private-unknown", "provider_http_status": 403}, "proposal_provider_http_403"),
+    ({"code": "model_unavailable", "provider_error_code": ["private-context"], "provider_http_status": True}, "proposal_model_unavailable"),
+    ({"code": "model_unavailable", "provider_http_status": "private-status"}, "proposal_model_unavailable"),
+    ({"code": "private-unknown"}, "proposal_service_unavailable"),
+])
+def test_sanitized_service_diagnostics_are_distinct_and_never_echo_raw_body(tmp_path, monkeypatch, failure, expected):
+    def fail(request):
+        payload = {**failure, "message": "private-key private-research-context", "headers": {"authorization": "private-token"}}
+        raise urllib.error.HTTPError(request.full_url, 503, "private-provider-message", {}, io.BytesIO(json.dumps(payload).encode()))
+    client, wid, calls = configured(tmp_path, monkeypatch, fail)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
+    assert response.status_code == 503
+    assert response.json() == {"detail": expected}
+    assert "private" not in response.text and len(calls) == 1
+
+
+@pytest.mark.parametrize("body", [b"<html>private upstream error</html>", b"x" * 2049])
+def test_malformed_or_oversized_service_diagnostics_are_discarded(tmp_path, monkeypatch, body):
+    def fail(request):
+        raise urllib.error.HTTPError(request.full_url, 503, "error", {}, io.BytesIO(body))
+    client, wid, _ = configured(tmp_path, monkeypatch, fail)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
+    assert response.json() == {"detail": "proposal_service_unavailable"}
 
 
 def test_nothing_is_sent_without_the_researchers_transmission_confirmation(tmp_path, monkeypatch):

@@ -41,11 +41,25 @@ def test_three_application_versions_download_fiji_once_and_bound_storage(tmp_pat
     assert before in harness
     # Real collector on actual scratch directories. Only the binary downloader,
     # venv creation and scientific launch checks remain controlled doubles.
-    harness = harness.replace(before, """& $env:CYTELLECT_TEST_PYTHON @Arguments
+    harness = harness.replace(before, """if ($Arguments[5] -cne '--app' -or $Arguments[6] -cne $Directory) {
+                    throw 'storage_subprocess_app_identity_mismatch'
+                }
+                & $env:CYTELLECT_TEST_PYTHON @Arguments
                 if ($LASTEXITCODE -ne 0) { throw 'storage_process_failed' }""")
     harness += r'''
 $script:Fault='none'; $NoShortcut=$true
-$paths=@(); $fijiPaths=@()
+$paths=@(); $fijiPaths=@(); $storageTransitions=@()
+function Assert-StorageTransition([string]$Version,[string[]]$Expected) {
+    $ledger=Get-Content -LiteralPath (Join-Path $InstallRoot 'setup-storage.json') -Raw | ConvertFrom-Json
+    if (($ledger.order -join '|') -cne ($Expected -join '|')) {
+        throw ('storage_order_mismatch_after_'+$Version)
+    }
+    $onDisk=@(Get-ChildItem -LiteralPath (Join-Path $InstallRoot 'apps') -Directory | ForEach-Object {'apps/'+$_.Name})
+    if ((($onDisk | Sort-Object) -join '|') -cne (($Expected | Sort-Object) -join '|')) {
+        throw ('storage_directories_mismatch_after_'+$Version)
+    }
+    $script:storageTransitions += ,@($ledger.order)
+}
 $failedSetupPreserved=$false
 foreach ($version in @('0.1.0-local.1','0.1.0-local.2','0.1.0-local.3')) {
     $manifest=Get-Content -LiteralPath (Join-Path $SourceRoot 'local-release.json') -Raw | ConvertFrom-Json
@@ -66,10 +80,16 @@ foreach ($version in @('0.1.0-local.1','0.1.0-local.2','0.1.0-local.3')) {
     $app=Join-Path $InstallRoot ('apps/'+$version+'-'+('a'*12))
     $paths += $app
     $state=Get-Content -LiteralPath (Join-Path $app 'setup-complete.json') -Raw | ConvertFrom-Json
+    if ($state.version -cne $version -or $state.app -cne $app) {
+        throw ('setup_marker_identity_mismatch_after_'+$version)
+    }
+    $expected=@($paths | Select-Object -Last 2 | ForEach-Object {'apps/'+[IO.Path]::GetFileName($_)})
+    Assert-StorageTransition $version $expected
     $fijiPaths += $state.fiji
 }
 $result=Get-Content -LiteralPath (Join-Path $InstallRoot 'setup-storage-result.json') -Raw | ConvertFrom-Json
 [ordered]@{
+    storage_transitions=$storageTransitions
     fiji_downloads=@($script:Pipeline | Where-Object {$_ -eq 'fiji-install'}).Count
     fiji_paths_same=(@($fijiPaths | Select-Object -Unique).Count -eq 1)
     oldest_removed=(-not (Test-Path -LiteralPath $paths[0]))
@@ -89,7 +109,10 @@ $result=Get-Content -LiteralPath (Join-Path $InstallRoot 'setup-storage-result.j
              "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ["services/api/src", "packages/analysis/src", "services/worker/src"])},
         capture_output=True, text=True, encoding="utf-8", errors="strict", timeout=60)
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert json.loads(completed.stdout) == {"fiji_downloads": 1, "fiji_paths_same": True,
+    expected = [f"apps/0.1.0-local.{number}-{'a' * 12}" for number in (1, 2, 3)]
+    assert json.loads(completed.stdout) == {
+        "storage_transitions": [[expected[0]], expected[:2], expected[1:]],
+        "fiji_downloads": 1, "fiji_paths_same": True,
         "oldest_removed": True, "previous_present": True, "current_present": True,
         "retained": 2, "reclaimed": True, "failed_setup_preserved": True}
 

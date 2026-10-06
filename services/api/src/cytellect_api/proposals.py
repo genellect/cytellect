@@ -30,6 +30,12 @@ from .db import fields, proposal_drafts, revisions, workspaces
 from .regions import is_region
 
 MAX_RESPONSE_BYTES = 64 * 1024
+PROVIDER_ERROR_CODES = frozenset({
+    "model_not_found", "invalid_api_key", "insufficient_quota", "rate_limit_exceeded",
+    "invalid_request_error", "invalid_value", "invalid_json_schema", "unsupported_parameter",
+    "unsupported_value", "missing_required_parameter", "context_length_exceeded",
+    "permission_denied", "authentication_error", "server_error", "overloaded_error",
+})
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -68,21 +74,31 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
     body = json.dumps({"context": context.model_dump(mode="json")}).encode("utf-8")
     request = urllib.request.Request(f"{url}/v1/proposals", data=body, method="POST", headers={
         "authorization": f"Bearer {settings.proposal_token}", "content-type": "application/json",
+        "user-agent": "Cytellect/0.1",
         "Idempotency-Key": request_id or str(uuid.uuid4())})
     try:
         with _OPENER.open(request, timeout=settings.proposal_timeout_seconds) as response:
             data = response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
         code = {401: "proposal_service_unauthorized", 403: "proposal_service_unauthorized",
-                409: "proposal_request_already_sent", 429: "proposal_quota_exhausted",
-                503: "proposal_service_disabled"}.get(error.code, "proposal_service_unavailable")
+                409: "proposal_request_already_sent", 429: "proposal_quota_exhausted"}.get(error.code, "proposal_service_unavailable")
         status = error.code if error.code in (409, 429) else 503
-        if error.code == 502:
+        if error.code in (502, 503):
             try:
-                failure = json.loads(error.read(2048))
+                data = error.read(2049)
+                failure = json.loads(data) if len(data) <= 2048 else None
                 reason = failure.get("code") if isinstance(failure, dict) else None
-                if reason in ("model_refused", "model_output_invalid", "model_output_incomplete"):
+                if error.code == 502 and reason in ("model_refused", "model_output_invalid", "model_output_incomplete", "model_usage_exceeded"):
                     code, status = f"proposal_{reason}", 502
+                elif error.code == 503 and reason in ("proposal_service_disabled", "budget_reconciliation_required", "model_unavailable"):
+                    code = reason if reason == "proposal_service_disabled" else f"proposal_{reason}"
+                    if reason == "model_unavailable" and isinstance(failure, dict):
+                        provider_code = failure.get("provider_error_code")
+                        provider_status = failure.get("provider_http_status")
+                        if isinstance(provider_code, str) and provider_code in PROVIDER_ERROR_CODES:
+                            code = f"proposal_provider_{provider_code}"
+                        elif type(provider_status) is int and 400 <= provider_status <= 599:
+                            code = f"proposal_provider_http_{provider_status}"
             except (ValueError, OSError, AttributeError):
                 pass
         raise ProposalServiceError(status, code) from None

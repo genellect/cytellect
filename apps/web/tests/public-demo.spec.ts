@@ -44,7 +44,7 @@ test("public real-image viewer: selection, channels, measurements, mobile",async
 test("unconfigured public build makes no analysis connection",async({page})=>{
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");
  const connections:string[]=[];page.on("request",r=>{if(r.url().includes(":8000")||r.url().includes("/v1/"))connections.push(r.url());});
- await page.goto("/");
+ await page.goto("/product");
  const release=process.env.CYTELLECT_EXPECT_RELEASE_URL??published.url;
  if(release){
   await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
@@ -75,7 +75,7 @@ test("public landing links saved measurements to their exact image regions",asyn
  page.on("pageerror",e=>errors.push(e.message));page.on("console",m=>{if(m.type()==="error")errors.push(m.text());});
  page.on("request",r=>{if(new URL(r.url()).pathname.startsWith("/v1/"))analysisRequests.push(r.url());});
  const source=JSON.parse(fs.readFileSync(path.resolve("public/demo/4dn-ncl/data.json"),"utf8")) as {measurements:{nucleus_id:number;area_px:number;ncl_nucleus_mean_raw:number}[]};
- await page.goto("/");
+ await page.goto("/product");
  await expect(page.getByRole("heading",{level:1})).toHaveText("Get your microscopy publication-ready.");
  await page.getByText("画像と測定値を見比べる",{exact:false}).click();
  const image=page.getByAltText("4DN公開蛍光画像の領域と測定値の対応例");
@@ -108,7 +108,7 @@ test("public landing links saved measurements to their exact image regions",asyn
 
 test("published Windows asset downloads with the recorded checksum",async({page},testInfo)=>{
  test.skip(process.env.CYTELLECT_TEST_RELEASE_DOWNLOAD!=="1","Explicit public release download verification only");
- await page.goto("/");
+ await page.goto("/product");
  const pending=page.waitForEvent("download");
  await page.getByRole("link",{name:/Windows版をダウンロード/}).click();
  const download=await pending;

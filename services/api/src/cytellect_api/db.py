@@ -37,6 +37,12 @@ workspaces = Table(
     Column("bytes", Integer, default=0, nullable=False),
     Column("analysis_plan", JSON),
 )
+workspace_selections = Table(
+    "workspace_selections", meta,
+    Column("workspace_id", String, primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("entries", JSON, nullable=False),
+)
 invitations = Table(
     "invitations",
     meta,
@@ -317,6 +323,16 @@ class Store:
             )
             if not workspace or workspace["deleted"] or workspace["expires"] <= time.time():
                 return False
+            # Adoption and successful publication share this SQLite write lock.
+            # An already completed artifact stays immutable; only the running
+            # attempt is rejected when another tab changed its selected inputs.
+            if not error and job["kind"] == "statistics" and job["payload"].get("mode") in ("region-experimental-unit", "region-association"):
+                from .workspace_selection import selection_at
+
+                source = c.execute(select(revisions).where(revisions.c.id == job["revision_id"])).mappings().first()
+                adoption = source["config"].get("workspace_selection") if source else None
+                if adoption and selection_at(c, job["workspace_id"]) != adoption:
+                    state, error, result_dir = "failed", "workspace_selection_changed", None
             result = c.execute(
                 update(jobs)
                 .where(
