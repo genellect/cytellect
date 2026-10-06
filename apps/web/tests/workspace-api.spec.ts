@@ -4,7 +4,7 @@ import {expect, test} from "@playwright/test";
 test("real workspace uses saved pixels/results, never legacy confirmation flags, and persists corrections", async ({page, context}) => {
   const writes: Array<{path: string; body: Record<string, unknown>}> = [];
   let selection: {version: number; entries: Array<{id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null}>} = {version: 0, entries: []};
-  let revision = "r1"; let analysisCount = 0; let figureCount = 0;
+  let revision = "r1"; let analysisCount = 0; let figureCount = 0; let proposalCount = 0;
   const channels = [{channel_id: "c1", label: "c1", stain: null}, {channel_id: "c2", label: "c2", stain: null}];
   const field = {id: "f1", workspace_id: "w1", metadata: {}, image_info: {shape: [32, 32], channels}};
   const jobs: Array<{id: string; state: string; revision_id: string; kind: string}> = [];
@@ -43,7 +43,7 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
       const id = path.split("/")[3]; const rid = figureRevisions.get(id); const excluded = rid === "r2"; const points = excluded ? [2] : [1, 2];
       return json({analysis_kind: "descriptive", revision_id: rid, spec: figureSpecs.get(id), metric: "area_px", unit: "pixel²", counts: {observations: points.length}, selection: {excluded: excluded ? 1 : 0}, field_summary: [{field_id: "f1", selected_rows: points.length, median: excluded ? 20 : 15, q1: excluded ? 20 : 12.5, q3: excluded ? 20 : 17.5, status: "selected"}], plot_data: points.map(id => ({field_id: "f1", region_id: id, value: id*10})), source_fields: [], excluded_failed_fields: [], warnings: [], figure: {source_files: ["figure.svg", "figure.pdf", "figure.png", "plot-data.csv", "methods.md"]}});
     }
-    if (path.endsWith("/proposal-drafts")) return json({detail: "proposal_service_disabled"}, 503);
+    if (path.endsWith("/proposal-drafts")) {proposalCount++; if (proposalCount === 1) {expect(body.retry_failed).toBeUndefined(); return json({detail:"proposal_explicit_retry_required"},409);} expect(body.retry_failed).toBe(true); return json({proposal:{draft:{rationale:"公開テストの解析案",missing_information:[]},needs_confirmation:[]}});}
     if (path.includes("/files/")) return route.fulfill({headers, contentType: "text/plain", body: "synthetic transport fixture"});
     return json({detail: "unexpected_test_route"}, 404);
   });
