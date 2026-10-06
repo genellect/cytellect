@@ -80,6 +80,10 @@ def create_app(settings: Settings | None = None):
     store = Store(settings.data_dir)
     api = FastAPI(title="Cytellect private API", version="0.1.0", docs_url=None, redoc_url=None)
     api.state.store, api.state.settings = store, settings
+    if settings.desktop_owner:
+        from .desktop import install_owner_session
+
+        install_owner_session(api, settings, store)
     api.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.app_origin],

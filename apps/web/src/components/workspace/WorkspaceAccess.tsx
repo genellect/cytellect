@@ -5,6 +5,8 @@ import {API_CONFIGURED, LOCAL_MODE, ApiError, errorMessage, post, request} from 
 import type {Session} from "@/lib/types";
 import styles from "./analysis-workspace.module.css";
 
+const DESKTOP_OWNER = process.env.NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER === "true";
+
 /** A session gates private operations; the public example never enters this gate. */
 export default function WorkspaceAccess({children}: {children: ReactNode}) {
   const [state, setState] = useState<"checking" | "login" | "ready" | "error">("checking");
@@ -19,7 +21,14 @@ export default function WorkspaceAccess({children}: {children: ReactNode}) {
       if (current) setState(session.authenticated ? "ready" : "login");
     }).catch(value => {
       if (!current) return;
-      if (value instanceof ApiError && value.status === 401) setState("login");
+      if (value instanceof ApiError && value.status === 401 && DESKTOP_OWNER) {
+        void post("/v1/desktop/session").then(() => {
+          if (current) setState("ready");
+        }).catch(failure => {
+          if (current) {setError(errorMessage(failure)); setState("error");}
+        });
+      }
+      else if (value instanceof ApiError && value.status === 401) setState("login");
       else {setError(errorMessage(value)); setState("error");}
     });
     return () => {current = false;};

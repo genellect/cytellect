@@ -21,6 +21,7 @@ services:
   api:
     environment:
       CYTELLECT_APP_ORIGIN: http://127.0.0.1:3087
+      CYTELLECT_DESKTOP_OWNER: "true"
     networks: [edge, private]
     volumes: !override
       - research:/data
@@ -35,6 +36,7 @@ services:
     build:
       args:
         NEXT_PUBLIC_API_ORIGIN: http://127.0.0.1:8001
+        NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER: "true"
     ports: !override
       - "127.0.0.1:3087:3000"
 volumes:
