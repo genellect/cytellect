@@ -132,6 +132,38 @@ def apply_label_edit(labels, operation, ids, polygon, *, allowed_mask=None):
     return layer
 
 
+def apply_compartment_edit(labels, nuclei, compartment, operation, ids, polygon):
+    """Edit nucleolar candidates inside exactly one saved parent nucleus.
+
+    Nucleoplasm is derived (nucleus minus adopted nucleoli) and is never edited
+    directly. A drawn or merged nucleolus may not span two nuclei or leave its
+    parent; the parent comes from the saved nuclear labels, not from the drawing.
+    """
+    validate_label_array(nuclei)
+    if nuclei.shape != labels.shape:
+        raise ValueError("invalid_edit_labels")
+    if compartment != "nucleoli":
+        raise ValueError("nucleoplasm_is_derived")
+    if operation in ("add", "replace"):
+        selected = polygon_mask(labels.shape, polygon)
+        parents = np.unique(nuclei[selected])
+        parents = parents[parents > 0]
+        if len(parents) != 1:
+            raise ValueError("nucleolus_outside_parent")
+        try:
+            return apply_label_edit(labels, operation, ids, polygon, allowed_mask=nuclei == parents[0])
+        except ValueError as exc:
+            if str(exc) == "label_outside_allowed_mask":
+                raise ValueError("nucleolus_outside_parent") from None
+            raise
+    if operation == "merge":
+        layer = labels.astype(np.uint32, copy=False)
+        parents = np.unique(nuclei[np.isin(layer, ids)])
+        if len(parents[parents > 0]) > 1:
+            raise ValueError("nucleoli_span_parents")
+    return apply_label_edit(labels, operation, ids, polygon)
+
+
 def apply_edit(nuclei, nucleoli, manual, edit: MaskEdit):
     validate_labels(nuclei, nucleoli)
     validate_label_array(manual)

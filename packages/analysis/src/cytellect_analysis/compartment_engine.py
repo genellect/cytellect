@@ -11,6 +11,7 @@ from pydantic import Field, FiniteFloat, TypeAdapter, model_validator
 from .contracts import Recipe
 from .masks import validate_label_array, validate_labels
 from .measurement import normalize_nucleolar_states
+from .nucleolar_detector_v2 import NucleolarDetectorV20, detect_nucleoli_v2
 from .regions import RegionModel, _array_hash
 
 
@@ -42,7 +43,7 @@ class NucleolarDetectorV11(RegionModel):
         return self
 
 
-NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11,
+NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11 | NucleolarDetectorV20,
                               Field(discriminator="protocol_version")]
 
 
@@ -96,6 +97,31 @@ def derive_compartment_masks(
     }
 
 
+def nucleoplasm_from_adopted_nucleoli(nuclei: np.ndarray, nucleoli: np.ndarray, detector_states: dict
+                                      ) -> tuple[np.ndarray, dict]:
+    """Derive nucleoplasm from the researcher-adopted (possibly edited) nucleoli.
+
+    Never re-thresholds. A parent with at least one adopted nucleolus is a
+    candidate; a parent whose candidates were all removed, or which never had
+    one, keeps its recorded detector reason (default ``no_candidate``) and has
+    no nucleoplasm row, exactly as for detector output (protocol 1.0.1).
+    """
+    validate_labels(nuclei, nucleoli)
+    recorded = normalize_nucleolar_states({"nucleolar_states": detector_states or {}})
+    with_children = {int(value) for value in np.unique(nuclei[nucleoli > 0]) if value}
+    states = {}
+    for parent in (int(value) for value in np.unique(nuclei) if value):
+        if parent in with_children:
+            states[parent] = "candidate"
+        else:
+            previous = recorded.get(parent, "no_candidate")
+            states[parent] = "no_candidate" if previous == "candidate" else previous
+    masks, details = derive_compartment_masks(nuclei, nucleoli, states)
+    details["nucleoplasm_definition"] = "eligible parent nuclear pixels minus union of its adopted nucleoli"
+    details["nucleolar_source"] = "adopted_revision"
+    return masks["nucleoplasm"], details
+
+
 def detect_compartments(
     channels: dict[str, np.ndarray], nuclei: np.ndarray, parameters: NucleolarDetector,
     output_dir: Path, executable: str, scratch_root: Path | None = None,
@@ -121,6 +147,18 @@ def detect_compartments(
     source_hashes = {role: _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
                      for role, image in channels.items()}
     nuclear_hash = _array_hash(nuclei, "<u4")
+    if isinstance(parameters, NucleolarDetectorV20):
+        # Protocol 2.0.0 defines nucleoli from DNA-poor holes or a stable marker,
+        # never from the NCL signal being measured. No Fiji call is needed.
+        marker = channels["ncl"] if parameters.source == "marker" else None
+        nucleoli, info = detect_nucleoli_v2(channels["dapi"], marker, nuclei, parameters)
+        masks, details = derive_compartment_masks(nuclei, nucleoli, normalize_nucleolar_states(info))
+        info.update(details)
+        info.update({"input_sha256": source_hashes, "parent_nuclear_mask_sha256": nuclear_hash,
+                     "canonical_mask_sha256": {name: _array_hash(mask, "<u4") for name, mask in masks.items()},
+                     "input_shape_yx": list(nuclei.shape), "nuclear_detection_performed": False,
+                     "coordinate_transform": {"scale_x": 1, "scale_y": 1}})
+        return masks, info
     recipe = Recipe(id="ncl-native-2d", nucleolar_method="ncl-otsu",
                     smoothing_sigma_px=parameters.smoothing_sigma_px,
                     minimum_area_px=parameters.minimum_area_px,

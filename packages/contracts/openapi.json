@@ -5100,6 +5100,96 @@
         "title": "NucleolarDetectorV11",
         "description": "Opt-in threshold/area controls; the saved 1.0 detector remains unchanged."
       },
+      "NucleolarDetectorV20": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "const": "cytellect-nucleolar-v2",
+            "title": "Engine",
+            "default": "cytellect-nucleolar-v2"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "2.0.0",
+            "title": "Protocol Version",
+            "default": "2.0.0"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "dapi_poor",
+              "marker"
+            ],
+            "title": "Source",
+            "default": "dapi_poor"
+          },
+          "smoothing_sigma_px": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Smoothing Sigma Px",
+            "default": 2.0
+          },
+          "rim_exclusion_px": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Rim Exclusion Px",
+            "default": 4
+          },
+          "relative_threshold": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Relative Threshold",
+            "default": 0.7
+          },
+          "marker_fraction": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Marker Fraction",
+            "default": 0.4
+          },
+          "background_radius_px": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Background Radius Px",
+            "default": 10
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Minimum Area Px",
+            "default": 4
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16777216.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Area Px"
+          },
+          "minimum_solidity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Minimum Solidity",
+            "default": 0.6
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NucleolarDetectorV20"
+      },
       "NumericalSelection": {
         "additionalProperties": false,
         "properties": {
@@ -7193,6 +7283,9 @@
               },
               {
                 "$ref": "#/components/schemas/NucleolarDetectorV11"
+              },
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV20"
               }
             ],
             "title": "Detector",
@@ -7200,9 +7293,24 @@
               "propertyName": "protocol_version",
               "mapping": {
                 "1.0.0": "#/components/schemas/NucleolarDetectorSpec",
-                "1.1.0": "#/components/schemas/NucleolarDetectorV11"
+                "1.1.0": "#/components/schemas/NucleolarDetectorV11",
+                "2.0.0": "#/components/schemas/NucleolarDetectorV20"
               }
             }
+          },
+          "nucleolar_revision_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleolar Revision Id"
           }
         },
         "additionalProperties": false,

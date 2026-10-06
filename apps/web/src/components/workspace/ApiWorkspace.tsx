@@ -286,6 +286,11 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
           void loadPreviews(uploaded);}
         catch (error) {update(field.key, {status: "failed", error: message(error)});}
       }
+      // Identical images are kept as separate fields; the researcher decides whether to exclude one.
+      setItems(current => {const seen = new Map<string, string>(); const duplicates: string[] = [];
+        for (const value of current) {if (!value.field) continue; const inputs = (value.field.image_info as {inputs?: unknown}).inputs; if (!inputs) continue; const signature = JSON.stringify(inputs); const first = seen.get(signature); if (first) duplicates.push(`${first} と ${value.label}`); else seen.set(signature, value.label);}
+        if (duplicates.length) setNotice(`同じ画像の視野があります（${duplicates.join("、")}）。両方を残しています。不要なら一方を対象から除外してください。`);
+        return current;});
       if (unsupported) setNotice(`TIFF以外の ${unsupported} 件は追加していません。`);
     } catch (error) {setNotice(message(error));}
     finally {busyRef.current = false; setBusy(false);}
@@ -332,7 +337,8 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
               nucleus = {result: parentResult, recipe: parentRecipe}; targets.nuclei = nucleus; delete targets.nucleoli; delete targets.nucleoplasm;
               update(value.key, {targetResults: targets});
             }
-            recipe = {id: "region-2d", version: "1.4.0", source: "fiji_nuclear_compartment", region_set_id: displayTarget, label: targetLabel[displayTarget], compartment: displayTarget as "nucleoli" | "nucleoplasm", nuclear_revision_id: nucleus.result.revision, nuclear_channel_id: nucleus.recipe.defining_channel_id, defining_channel_id: signalChannel, detector: {engine:"fiji-nucleolar-compartments", protocol_version:"1.1.0", threshold_method:signalMethod, threshold:signalMethod === "manual" ? signalThreshold : null, smoothing_sigma_px:compartmentSettings.smoothing, minimum_area_px:compartmentSettings.minimumArea, maximum_area_px:compartmentSettings.maximumArea, split_touching:compartmentSettings.split}};
+            if (displayTarget === "nucleoplasm" && !targets.nucleoli) throw new Error("先に核小体を検出・確認してください。核質は採用した核小体から求めます。");
+            recipe = {id: "region-2d", version: "1.4.0", source: "fiji_nuclear_compartment", region_set_id: displayTarget, label: targetLabel[displayTarget], compartment: displayTarget as "nucleoli" | "nucleoplasm", nuclear_revision_id: nucleus.result.revision, nuclear_channel_id: nucleus.recipe.defining_channel_id, defining_channel_id: signalChannel, detector: {engine:"fiji-nucleolar-compartments", protocol_version:"1.1.0", threshold_method:signalMethod, threshold:signalMethod === "manual" ? signalThreshold : null, smoothing_sigma_px:compartmentSettings.smoothing, minimum_area_px:compartmentSettings.minimumArea, maximum_area_px:compartmentSettings.maximumArea, split_touching:compartmentSettings.split}, ...(displayTarget === "nucleoplasm" && targets.nucleoli ? {nucleolar_revision_id: targets.nucleoli.result.revision} : {})};
           } else recipe = displayTarget === "nuclei" ? nuclearRecipe(nuclear[0], nuclearMaxSide) : {id: "region-2d", version: "1.3.0", region_set_id: displayTarget + "_positive", label: targetLabel[displayTarget], source: "fiji_positive_regions", defining_channel_id: signalChannel, detector: {threshold_method: signalMethod, threshold: signalMethod === "manual" ? signalThreshold : null, smoothing_sigma_px: 0, minimum_area_px: 1, split_touching: false}};
           if (JSON.stringify(targets[displayTarget]?.recipe) === JSON.stringify(recipe)) continue;
           if (!value.field!.image_info.channels.some(channel => channel.channel_id === recipe.defining_channel_id)) throw new Error("検出用チャンネルがありません。");
@@ -414,7 +420,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     setDraftBusy(true); setDraft(""); setDraftQuestions([]); setDraftRetry(false);
     try {
       let wid = workspace;
-      if (!wid) {const created = await adapter.create(); wid = created.id; setWorkspace(wid); window.history.replaceState(null, "", `/workspace?id=${encodeURIComponent(wid)}`);}
+      if (!wid) {const created = await adapter.create(); wid = created.id; setWorkspace(wid); onCreated(wid); window.history.replaceState(null, "", `/workspace?id=${encodeURIComponent(wid)}`);}
       const response = await adapter.draft(wid, goal, retryFailed); setDraft(response.proposal.draft.rationale); setDraftQuestions(response.proposal.draft.missing_information);}
     catch (error) {if (error instanceof ApiError && error.code === "proposal_explicit_retry_required") {setDraftRetry(true); setDraft("前回のリクエストが完了していません。再送すると追加のAPI利用料が発生する場合があります。");} else setDraft(message(error));}
     finally {busyRef.current = false; setDraftBusy(false);}

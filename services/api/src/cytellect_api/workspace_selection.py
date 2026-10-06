@@ -88,6 +88,13 @@ def update_target_adoption(conn, wid, entry, before):
             if active_target == target:
                 raise HTTPException(409, "workspace_derived_revision_stale")
             targets.pop(target)
+    plasm = resolved.get("nucleoplasm") if "nucleoplasm" in targets else None
+    source = plasm["config"]["recipe"].get("nucleolar_revision_id") if plasm else None
+    # Nucleoplasm derived from adopted nucleoli is current only for those nucleoli.
+    if source is not None and targets.get("nucleoli") != source:
+        if active_target == "nucleoplasm":
+            raise HTTPException(409, "workspace_derived_revision_stale")
+        targets.pop("nucleoplasm")
     if targets or "target_revisions" in entry or "target_revisions" in (before or {}):
         entry["target_revisions"] = targets
 

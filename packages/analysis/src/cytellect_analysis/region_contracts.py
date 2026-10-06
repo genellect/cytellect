@@ -224,6 +224,9 @@ class RegionCompartmentRecipe(RegionModel):
     nuclear_channel_id: Id
     defining_channel_id: Id
     detector: NucleolarDetector = Field(default_factory=NucleolarDetectorSpec)
+    # Nucleoplasm from the adopted (possibly edited) nucleoli revision instead of
+    # re-running the detector. Absent in historical revisions, which keep their meaning.
+    nucleolar_revision_id: Id | None = None
 
     @field_validator("detector", mode="before")
     @classmethod
@@ -234,8 +237,13 @@ class RegionCompartmentRecipe(RegionModel):
 
     @model_validator(mode="after")
     def distinct_channels(self):
-        if self.nuclear_channel_id == self.defining_channel_id:
-            raise ValueError("compartment_requires_distinct_channels")
+        dapi_poor = getattr(self.detector, "source", None) == "dapi_poor"
+        # DNA-poor nucleoli are defined by the nuclear stain itself; other sources need another channel.
+        if dapi_poor != (self.nuclear_channel_id == self.defining_channel_id):
+            raise ValueError("compartment_requires_distinct_channels" if not dapi_poor
+                             else "dapi_poor_nucleoli_use_the_nuclear_channel")
+        if self.nucleolar_revision_id is not None and self.compartment != "nucleoplasm":
+            raise ValueError("nucleolar_revision_only_for_nucleoplasm")
         if not self.label.strip() or any(ord(c) < 32 for c in self.label):
             raise ValueError("region_label_invalid")
         return self

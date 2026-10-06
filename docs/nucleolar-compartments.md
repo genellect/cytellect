@@ -79,3 +79,48 @@ pixels to verify the old/new Otsu agreement, manual equality boundary, inclusive
 area limits, nucleus containment, missing-state handling, and exact original
 pixel measurements. These checks do not establish biological performance on
 stress images. No private image is part of these fixtures.
+
+## Nucleoplasm from adopted nucleoli and parent-contained edits (2026-10-06)
+
+Compartment recipe 1.4.0 accepts an optional `nucleolar_revision_id`, only for
+`compartment=nucleoplasm`. When present, the worker does not rerun the detector:
+it loads that nucleoli revision's saved labels for the field, removes its
+excluded objects, and derives nucleoplasm as each eligible parent nucleus minus
+the union of its adopted nucleoli (`nucleoplasm_from_adopted_nucleoli`). The
+source revision must be a succeeded nucleoli revision with the same nuclear
+revision, nuclear channel and defining channel. A parent with at least one
+adopted nucleolus is a candidate; a parent whose candidates were all removed
+becomes `no_candidate`, and other recorded detector reasons are kept, so no
+whole-nucleus nucleoplasm row is invented (protocol 1.0.1 behaviour). Provenance
+records the nucleolar revision, mask revision and effective mask hash. Workspace
+adoption drops (or, when active, rejects with `workspace_derived_revision_stale`)
+a nucleoplasm revision whose `nucleolar_revision_id` is not the adopted nucleoli
+revision. Historical revisions without the field keep their original meaning.
+
+Nucleolar edits (`region-edits` on a compartment revision) are restricted to
+exactly one saved parent nucleus: an added or redrawn nucleolus that leaves its
+parent or spans two nuclei is rejected (`nucleolus_outside_parent`), and a merge
+across parents is rejected (`nucleoli_span_parents`). Nucleoplasm is never
+edited directly (`nucleoplasm_is_derived`).
+
+## Detector protocol 2.0.0: researcher-selected nucleolar definition (2026-10-06)
+
+NCL leaves nucleoli under nucleolar stress, so masks defined by NCL fail where
+the measurement matters. Protocol 2.0.0 (`engine: cytellect-nucleolar-v2`,
+`cytellect_analysis.nucleolar_detector_v2`) defines nucleoli from a source the
+researcher selects and can change; it runs in the analysis package
+(NumPy/SciPy/scikit-image) and never reruns StarDist.
+
+| `source` | Definition | Reference |
+|---|---|---|
+| `dapi_poor` (default) | Per parent nucleus: Gaussian-smoothed nuclear channel (`smoothing_sigma_px`, default 2), interior after eroding `rim_exclusion_px` (default 4); candidates are pixels below `relative_threshold` (default 0.7) x the interior median; 8-connected components; `minimum_area_px` (4), optional `maximum_area_px`, `minimum_solidity` (0.6). The recipe's defining channel is the nuclear channel. | Kodiha et al., BMC Cell Biol 2011, doi:10.1186/1471-2121-12-25 |
+| `marker` | Stable nucleolar marker (UBF/FBL): rolling-ball background subtraction (`background_radius_px`, 10), Gaussian sigma 0.7 px, per-nucleus threshold min + `marker_fraction` (0.4) x (max - min), same filters. Reported as "FC/rDNA-defined"; masks are not dilated. The defining channel must differ from the nuclear channel. | Potapova et al., eLife 2023, doi:10.7554/eLife.88799 |
+
+States per parent are `candidate`, `no_candidate` or `indeterminate`
+(constant/empty interior); per-parent reference values, thresholds and component
+counts are recorded. DAPI-defined nucleoli under-segment relative to protein
+markers (Kodiha et al. report about two thirds of nucleolar signal recovered);
+this biases nucleoplasm/nucleolus ratios toward 1, i.e. toward smaller group
+differences. Detection uses copies only; measurement uses original pixels.
+Detector 1.0.0/1.1.0 (NCL per-nucleus Otsu/manual) remain for reproducing
+existing analyses and carry the NCL circularity limitation.

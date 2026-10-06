@@ -1908,6 +1908,63 @@ export interface components {
              */
             split_touching: boolean;
         };
+        /** NucleolarDetectorV20 */
+        NucleolarDetectorV20: {
+            /**
+             * Engine
+             * @default cytellect-nucleolar-v2
+             * @constant
+             */
+            engine: "cytellect-nucleolar-v2";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "2.0.0";
+            /**
+             * Source
+             * @default dapi_poor
+             * @enum {string}
+             */
+            source: "dapi_poor" | "marker";
+            /**
+             * Smoothing Sigma Px
+             * @default 2
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Rim Exclusion Px
+             * @default 4
+             */
+            rim_exclusion_px: number;
+            /**
+             * Relative Threshold
+             * @default 0.7
+             */
+            relative_threshold: number;
+            /**
+             * Marker Fraction
+             * @default 0.4
+             */
+            marker_fraction: number;
+            /**
+             * Background Radius Px
+             * @default 10
+             */
+            background_radius_px: number;
+            /**
+             * Minimum Area Px
+             * @default 4
+             */
+            minimum_area_px: number;
+            /** Maximum Area Px */
+            maximum_area_px?: number | null;
+            /**
+             * Minimum Solidity
+             * @default 0.6
+             */
+            minimum_solidity: number;
+        };
         /** NumericalSelection */
         NumericalSelection: {
             /**
@@ -2793,7 +2850,9 @@ export interface components {
             /** Defining Channel Id */
             defining_channel_id: string;
             /** Detector */
-            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"];
+            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"];
+            /** Nucleolar Revision Id */
+            nucleolar_revision_id?: string | null;
         };
         /** RegionExcludedFailure */
         RegionExcludedFailure: {

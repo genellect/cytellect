@@ -10,11 +10,16 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
-from cytellect_analysis.compartment_engine import detect_compartments
+from cytellect_analysis.compartment_engine import detect_compartments, nucleoplasm_from_adopted_nucleoli
 from cytellect_analysis.compartment_review import comparable_region_recipe
 from cytellect_analysis.engine import detect_nuclei
 from cytellect_analysis.images import sha256
-from cytellect_analysis.masks import apply_label_edit, polygon_mask, validate_label_array
+from cytellect_analysis.masks import (
+    apply_compartment_edit,
+    apply_label_edit,
+    polygon_mask,
+    validate_label_array,
+)
 from cytellect_analysis.plan_adoption import validate_revision_plan
 from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
@@ -57,6 +62,8 @@ REGION_FIELD_ERRORS = {
     "select_labels", "merge_requires_multiple_labels", "split_requires_one_label",
     "split_requires_partial_region", "invalid_polygon", "polygon_outside_image",
     "degenerate_polygon", "empty_polygon", "unsupported_label_operation",
+    "nucleolus_outside_parent", "nucleoli_span_parents", "nucleoplasm_is_derived",
+    "compartment_nucleolar_source_invalid", "compartment_nucleolar_mask_mismatch",
     "region_automatic_source_has_imported_labels", "region_parent_detector_provenance_invalid",
     "fiji_not_configured", "fiji_assets_unavailable", "fiji_artifact_hash_mismatch", "fiji_model_hash_mismatch",
     "fiji_bundled_jdk_unavailable", "fiji_detection_capacity_exceeded", "fiji_timeout",
@@ -138,6 +145,39 @@ def _compartment_nuclei(store, recipe, workspace_id, fid, image_info):
                     "mask_sha256": mask["mask_sha256"], "exclusions": exclusions,
                     "effective_mask_sha256": _array_hash(labels, "<u4"),
                     "nuclear_channel_id": recipe.nuclear_channel_id}
+
+
+def _adopted_nucleoli(store, recipe, workspace_id, fid, image_info):
+    """Load the adopted nucleoli labels (with exclusions) that define nucleoplasm."""
+    source = store.one(revisions, id=recipe.nucleolar_revision_id)
+    source_recipe = (source or {}).get("config", {}).get("recipe", {})
+    if (not source or source["workspace_id"] != workspace_id or source["state"] != "succeeded"
+            or not source["result_dir"] or source["config"].get("analysis_kind") != "region-2d"
+            or source_recipe.get("source") != "fiji_nuclear_compartment"
+            or source_recipe.get("compartment") != "nucleoli"
+            or source_recipe.get("nuclear_revision_id") != recipe.nuclear_revision_id
+            or source_recipe.get("nuclear_channel_id") != recipe.nuclear_channel_id
+            or source_recipe.get("defining_channel_id") != recipe.defining_channel_id):
+        raise ValueError("compartment_nucleolar_source_invalid")
+    report = read_json(store.safe_path(source["result_dir"], "measurements.json"))
+    validate_region_report_policy(region_report_from_json(json.dumps(report)), source["config"])
+    mask = report.get("field_masks", {}).get(fid)
+    if not mask or mask["shape"] != image_info.shape:
+        raise ValueError("compartment_nucleolar_source_invalid")
+    labels = _load_array(store.safe_path(source["result_dir"], fid, "labels.npy"),
+                         RegionStoredFile.model_validate(mask["file"]))
+    validate_label_array(labels)
+    if _array_hash(labels, "<u4") != mask["mask_sha256"]:
+        raise ValueError("compartment_nucleolar_mask_mismatch")
+    exclusions = [item for item in report["exclusions"] if item["field_id"] == fid]
+    labels = labels.copy()
+    labels[np.isin(labels, [item["region_id"] for item in exclusions if item["region_id"] is not None])] = 0
+    provenance = read_json(store.safe_path(source["result_dir"], "provenance.json"))
+    engine = provenance.get("fields", {}).get(fid, {}).get("detector", {}).get("engine", {})
+    return labels, engine.get("nucleolar_states", {}), {
+        "revision_id": source["id"], "mask_revision_id": mask["mask_revision_id"],
+        "mask_sha256": mask["mask_sha256"], "exclusions": exclusions,
+        "effective_mask_sha256": _array_hash(labels, "<u4")}
 
 
 def run_region_analysis(store, settings, job, output):
@@ -297,7 +337,15 @@ def run_region_analysis(store, settings, job, output):
                     image = channels[channel.channel_id]
                     detection_started = True
                     detector_attempted = True
-                    if isinstance(request.recipe, RegionCompartmentRecipe):
+                    if (isinstance(request.recipe, RegionCompartmentRecipe)
+                            and request.recipe.nucleolar_revision_id is not None):
+                        assert source_nuclei is not None
+                        adopted, states, nucleolar_identity = _adopted_nucleoli(
+                            store, request.recipe, revision["workspace_id"], fid, image_info)
+                        labels, engine_info = nucleoplasm_from_adopted_nucleoli(source_nuclei, adopted, states)
+                        engine_info["nucleolar_revision"] = nucleolar_identity
+                        provenance_fields[fid]["nucleolar_source"] = nucleolar_identity
+                    elif isinstance(request.recipe, RegionCompartmentRecipe):
                         assert source_nuclei is not None
                         masks, engine_info = detect_compartments(
                             channels={"dapi": channels[request.recipe.nuclear_channel_id], "ncl": image},
@@ -345,7 +393,12 @@ def run_region_analysis(store, settings, job, output):
                 if (edit.expected_mask_revision_id is not None
                         and edit.expected_mask_revision_id != mask_revision_id):
                     raise ValueError("region_stale_mask_revision")
-                labels = apply_label_edit(labels, edit.operation, edit.ids, edit.polygon)
+                if isinstance(request.recipe, RegionCompartmentRecipe):
+                    assert source_nuclei is not None
+                    labels = apply_compartment_edit(labels, source_nuclei, request.recipe.compartment,
+                                                    edit.operation, edit.ids, edit.polygon)
+                else:
+                    labels = apply_label_edit(labels, edit.operation, edit.ids, edit.polygon)
                 mask_revision_id = revision["id"]
                 history.append({"revision_id": revision["id"], "operation": "edit",
                                 "edit": edit.model_dump(mode="json")})
