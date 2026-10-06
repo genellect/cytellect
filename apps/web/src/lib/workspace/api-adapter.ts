@@ -38,6 +38,15 @@ export interface Recipe {
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
   detection_max_side_px?: number;
 }
+export interface ProposalDraft {
+  recipe: "nuclear-intensity" | "nuclear-ncl" | "supplied-regions" | "measured-table" | "none";
+  channels: Array<{token: string; stain: string | null; role: "nuclear" | "measure" | "unused"; reason: string}>;
+  metrics: Array<{metric: string; channel: string | null; region?: string | null}>;
+  statistics: {kind: "descriptive" | "comparison" | "association"; test: string | null; omnibus: string | null; association: string | null};
+  figures: Array<{kind: string; metric: string; channel: string | null}>;
+  missing_information: string[]; reference_ids: string[]; rationale: string;
+}
+export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
 export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
 export interface CompartmentSummaryFile {channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>}
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
@@ -255,7 +264,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     },
     async draft(workspace: string, goal: string, retryFailed = false) {
       // Called only after the one-time scope notice has been accepted in this workspace.
-      return client.post<{proposal: {draft: {rationale: string; missing_information: string[]}; needs_confirmation: string[]}}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(retryFailed ? {retry_failed: true} : {})});
+      return client.post<{proposal: ValidatedProposal}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(retryFailed ? {retry_failed: true} : {})});
     },
   };
 }

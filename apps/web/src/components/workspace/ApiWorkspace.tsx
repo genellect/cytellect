@@ -4,7 +4,7 @@ import Link from "next/link";
 import {useSearchParams} from "next/navigation";
 import {routeIdentity, promoteIdentity, resolveIdentity} from "@/lib/workspace/route-identity";
 import {API_CONFIGURED, ApiError, errorMessage} from "@/lib/api";
-import {createApiAdapter, nuclearRecipe, type CompartmentSummaryFile, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
+import {createApiAdapter, nuclearRecipe, type CompartmentSummaryFile, type ValidatedProposal, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
 import {chooseNuclearChannel, groupFiles, isSupportedImage, restoredChannels, type AddedFile, type Grouping} from "@/lib/workspace/grouping";
 import {targetOf, validTargetResults, type Target} from "@/lib/workspace/target-results";
 import {tiffInputMode} from "@/lib/workspace/tiff-intake";
@@ -59,6 +59,8 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   const [methodSheet, setMethodSheet] = useState(false);
   const [definitionOpen, setDefinitionOpen] = useState(false);
   const [, setSelectionTick] = useState(0);
+  const [proposal, setProposal] = useState<ValidatedProposal | null>(null);
+  const [aiTrialStarted, setAiTrialStarted] = useState(false);
   const [summary, setSummary] = useState<{revision: string; value: CompartmentSummaryFile} | null>(null);
   const [signalChannels, setSignalChannels] = useState({gfp: "", ncl: ""});
   const [region, setRegion] = useState<number>();
@@ -445,7 +447,11 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     try {
       let wid = workspace;
       if (!wid) {const created = await adapter.create(); wid = created.id; setWorkspace(wid); onCreated(wid);}
-      const response = await adapter.draft(wid, goal, retryFailed); setDraft(response.proposal.draft.rationale); setDraftQuestions(response.proposal.draft.missing_information);}
+      const response = await adapter.draft(wid, goal, retryFailed); setDraft(response.proposal.draft.rationale); setDraftQuestions(response.proposal.draft.missing_information);
+      // The AI chooses the method: its validated selection fills the method card directly.
+      setProposal(response.proposal); setAiTrialStarted(false);
+      const nuclearChoice = response.proposal.draft.channels.filter(value => value.role === "nuclear");
+      if (grouping && nuclearChoice.length === 1 && !response.proposal.needs_confirmation.includes(nuclearChoice[0].token) && grouping.channels.some(value => value.token === nuclearChoice[0].token)) {setGrouping(chooseNuclearChannel(grouping, nuclearChoice[0].token)); setChannel(nuclearChoice[0].token);}}
     catch (error) {if (error instanceof ApiError && error.code === "proposal_explicit_retry_required") {setDraftRetry(true); setDraft("前回のリクエストが完了していません。再送すると追加のAPI利用料が発生する場合があります。");} else setDraft(message(error));}
     finally {busyRef.current = false; setDraftBusy(false);}
   }
@@ -499,18 +505,26 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     </>}
     <p className={styles.definitionHint}>変更後に「代表視野で試す」で輪郭を確認し、問題なければ「全視野に適用」を押します。</p>
   </div>;
+  const metricName: Record<string, string> = {area: "面積", mean_raw: "平均輝度（元の値）", integral_raw: "積分輝度（元の値）", mean_corrected: "平均輝度（背景補正）", integral_corrected: "積分輝度（背景補正）", ncl_log2_nucleoplasm_over_nucleoli: "NCL の核質/核小体 比（log2）", nucleolar_area_fraction: "核小体の面積比", nucleolar_count: "核小体の数"};
+  const testName: Record<string, string> = {"welch-t": "Welch の t 検定", "paired-t": "対応のある t 検定", "mann-whitney-u": "Mann–Whitney U 検定", wilcoxon: "Wilcoxon 符号付き順位検定"};
+  const figureName: Record<string, string> = {"field-distribution": "視野ごとの分布", "unit-comparison": "実験単位の比較", paired: "対応のある比較", "association-scatter": "散布図"};
+  const aiDraft = proposal?.draft;
+  const aiNuclear = aiDraft?.channels.find(value => value.role === "nuclear");
+  const aiNeedsConfirmation = aiNuclear && proposal!.needs_confirmation.includes(aiNuclear.token) && nuclear.length !== 1;
+  const compartmentsUsed = !aiDraft || aiDraft.recipe === "nuclear-ncl";
+  const aiMark = (text: string) => aiDraft ? `${text}（AI が選択）` : text;
   const steps: MethodStep[] = [
     {id: "nuclei", number: 1, title: "核", description: nuclear.length === 1 ? `${nuclearName} から核を自動検出（StarDist 2D）` : "核を染めたチャンネルから核を自動検出（StarDist 2D）", state: nuclear.length !== 1 && methodFields.length ? "核を染めたチャンネルを選んでください" : progressText("nuclei"), tone: nuclear.length !== 1 && methodFields.length ? "attention" : tone("nuclei"),
       action: {label: "輪郭を見る", onClick: () => void switchTarget("nuclei"), disabled: !doneCount("nuclei") || busy},
-      details: nuclear.length !== 1 && grouping && methodFields.length > 0 ? <span className={styles.goalActions}>{grouping.channels.map(value => <button key={value.token} type="button" className={styles.secondary} disabled={busy || drawing}
+      details: aiNeedsConfirmation && grouping ? <span className={styles.goalActions}><span className={styles.definitionHint}>AI は {aiNuclear!.token} を核染色と推定しました（{aiNuclear!.reason}）。確認して選んでください。</span></span> : nuclear.length !== 1 && grouping && methodFields.length > 0 ? <span className={styles.goalActions}>{grouping.channels.map(value => <button key={value.token} type="button" className={styles.secondary} disabled={busy || drawing}
         onClick={() => {setGrouping(chooseNuclearChannel(grouping, value.token)); setChannel(value.token);}}>{(value.stain || value.token) + " で核を検出"}</button>)}</span> : undefined},
-    {id: "nucleoli", number: 2, title: "核小体", description: `${nucleolarSourceText[nucleolarDefinition.source].label}を核小体とする`, state: nucleiReady ? progressText("nucleoli") : "核の検出後に試せます", tone: tone("nucleoli"),
+    {id: "nucleoli", number: 2, title: "核小体", description: compartmentsUsed ? `${nucleolarSourceText[nucleolarDefinition.source].label}を核小体とする` : "この目的では使いません（AI が選択）", state: !compartmentsUsed ? "—" : nucleiReady ? progressText("nucleoli") : "核の検出後に試せます", tone: compartmentsUsed ? tone("nucleoli") : "todo",
       action: {label: definitionOpen ? "閉じる" : "定義を変える", onClick: () => setDefinitionOpen(value => !value)}, details: <>{definitionForm}<span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={!nucleiReady || busy || !item} onClick={() => {if (item) void run(item.key, "nucleoli").then(() => switchTarget("nucleoli"));}}>代表視野で試す</button>{doneCount("nucleoli") > 0 && <button type="button" className={styles.linkButton} disabled={busy} onClick={() => void switchTarget("nucleoli")}>輪郭を見る</button>}</span></>},
     {id: "nucleoplasm", number: 3, title: "核質", description: "核から、確認・修正した核小体を除いた領域", state: doneCount("nucleoli") ? progressText("nucleoplasm") : "核小体の確定後に計算します", tone: tone("nucleoplasm")},
     {id: "background", number: 4, title: "背景", description: "背景は未設定（元の値で測定）", state: "自動の背景候補は準備中です", tone: "todo"},
-    {id: "values", number: 5, title: "測る値", description: "NCL の核質/核小体 比（log2）、核小体の数と面積", state: doneCount("nucleoplasm") ? "下の「核ごとの値」に表示" : "核質の計算後に表示", tone: doneCount("nucleoplasm") ? "done" : "todo"},
-    {id: "compare", number: 6, title: "比較", description: "独立した実験を n として群を比べる", state: "群と実験単位を入力してから計算します", tone: "todo", action: {label: "開く", onClick: () => {setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length}},
-    {id: "figure", number: 7, title: "図", description: "実験単位の点と細胞の分布（英語の図と説明文）", state: "—", tone: "todo", action: {label: "開く", onClick: () => setView("figure"), disabled: !item?.result}},
+    {id: "values", number: 5, title: "測る値", description: aiDraft?.metrics.length ? aiMark(aiDraft.metrics.map(value => (value.channel ? value.channel + " " : "") + (metricName[value.metric] ?? value.metric)).join("、")) : "NCL の核質/核小体 比（log2）、核小体の数と面積", state: doneCount("nucleoplasm") ? "下の「核ごとの値」に表示" : "核質の計算後に表示", tone: doneCount("nucleoplasm") ? "done" : "todo"},
+    {id: "compare", number: 6, title: "比較", description: aiDraft?.statistics.test ? aiMark(`${testName[aiDraft.statistics.test] ?? aiDraft.statistics.test}（独立した実験を n とする）`) : "独立した実験を n として群を比べる", state: "群と実験単位を入力してから計算します", tone: "todo", action: {label: "開く", onClick: () => {setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length}},
+    {id: "figure", number: 7, title: "図", description: aiDraft?.figures.length ? aiMark(aiDraft.figures.map(value => figureName[value.kind] ?? value.kind).join("、") + "（英語の図と説明文）") : "実験単位の点と細胞の分布（英語の図と説明文）", state: "—", tone: "todo", action: {label: "開く", onClick: () => setView("figure"), disabled: !item?.result}},
   ];
   async function applyMethod() {
     // One explicit action applies the current nucleolar definition to every field, then derives nucleoplasm.
@@ -545,6 +559,13 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>核</th><th>核小体数</th><th>核小体面積比</th><th>核小体 平均</th><th>核質 平均</th><th>log2(核質/核小体)</th></tr></thead>
     <tbody>{summaryRows.map(row => <tr key={row.nucleus_id}><th>{row.nucleus_id}</th><td>{row.nucleolar_count}</td><td>{row.nucleolar_area_fraction == null ? "—" : row.nucleolar_area_fraction.toFixed(3)}</td><td>{row.nucleolar_mean == null ? "—" : row.nucleolar_mean.toFixed(1)}</td><td>{row.nucleoplasm_mean == null ? "—" : row.nucleoplasm_mean.toFixed(1)}</td><td>{row.log2_nucleoplasm_over_nucleolus == null ? (row.missing_reason ? "欠測：" + (reasonText[row.missing_reason] ?? row.missing_reason) : "—") : row.log2_nucleoplasm_over_nucleolus.toFixed(3)}</td></tr>)}</tbody></table></div>
   </section>;
+  // After the AI chooses an NCL method, the representative field is tried automatically; applying to all stays explicit.
+  useEffect(() => {
+    if (!proposal || aiTrialStarted || proposal.draft.recipe !== "nuclear-ncl" || busy || !item || !nucleiReady || storedTargets(item).nucleoli) return;
+    setAiTrialStarted(true);
+    void run(item.key, "nucleoli");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposal, aiTrialStarted, busy, item?.key, nucleiReady]);
   // Nuclei first: once the nuclear channel is known, detect nuclei on every field without a separate step.
   useEffect(() => {
     if (!workspace || busy || draftBusy || drawing || nuclear.length !== 1 || selectionState !== "current") return;
