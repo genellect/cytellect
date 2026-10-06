@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, FiniteFloat, TypeAdapter, field_validator, model_validator
 
+from .compartment_engine import NucleolarDetectorSpec
 from .plan_adoption import PlanResolution
 from .region_measurement_v2 import (
     RegionMeasurementPolicy,
@@ -200,7 +201,28 @@ class RegionSignalRecipe(RegionModel):
         return value
 
 
-RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | RegionSignalRecipe, Field(discriminator="version")]
+class RegionCompartmentRecipe(RegionModel):
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.4.0"] = "1.4.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["fiji_nuclear_compartment"] = "fiji_nuclear_compartment"
+    compartment: Literal["nucleoli", "nucleoplasm"]
+    nuclear_revision_id: Id
+    nuclear_channel_id: Id
+    defining_channel_id: Id
+    detector: NucleolarDetectorSpec = Field(default_factory=NucleolarDetectorSpec)
+
+    @model_validator(mode="after")
+    def distinct_channels(self):
+        if self.nuclear_channel_id == self.defining_channel_id:
+            raise ValueError("compartment_requires_distinct_channels")
+        if not self.label.strip() or any(ord(c) < 32 for c in self.label):
+            raise ValueError("region_label_invalid")
+        return self
+
+
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe, Field(discriminator="version")]
 
 
 RECORDED_NUCLEAR_STAINS = frozenset({"dapi", "hoechst", "hoechst33258", "hoechst33342", "draq", "draq5", "draq7"})
@@ -336,7 +358,7 @@ class RegionFieldMask(RegionModel):
     mask_revision_id: Id
     mask_sha256: Digest
     region_set_id: Id
-    source: Literal["manual", "imported", "stardist_nuclear", "fiji_positive_regions"]
+    source: Literal["manual", "imported", "stardist_nuclear", "fiji_positive_regions", "fiji_nuclear_compartment"]
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     file: RegionStoredFile
 

@@ -549,6 +549,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/region-compartment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compartment Status */
+        get: operations["compartment_status_v1_revisions__rid__region_compartment_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/region-measurements": {
         parameters: {
             query?: never;
@@ -1784,6 +1801,36 @@ export interface components {
              */
             percentile_high: number;
         };
+        /** NucleolarDetectorSpec */
+        NucleolarDetectorSpec: {
+            /**
+             * Engine
+             * @default fiji-nucleolar-compartments
+             * @constant
+             */
+            engine: "fiji-nucleolar-compartments";
+            /**
+             * Protocol Version
+             * @default 1.0.0
+             * @constant
+             */
+            protocol_version: "1.0.0";
+            /**
+             * Smoothing Sigma Px
+             * @default 0
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Minimum Area Px
+             * @default 1
+             */
+            minimum_area_px: number;
+            /**
+             * Split Touching
+             * @default false
+             */
+            split_touching: boolean;
+        };
         /** NumericalSelection */
         NumericalSelection: {
             /**
@@ -2293,7 +2340,7 @@ export interface components {
             /** Measurement */
             measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | null;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Backgrounds */
             backgrounds?: {
                 [key: string]: {
@@ -2618,6 +2665,42 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** RegionCompartmentRecipe */
+        RegionCompartmentRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.4.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default fiji_nuclear_compartment
+             * @constant
+             */
+            source: "fiji_nuclear_compartment";
+            /**
+             * Compartment
+             * @enum {string}
+             */
+            compartment: "nucleoli" | "nucleoplasm";
+            /** Nuclear Revision Id */
+            nuclear_revision_id: string;
+            /** Nuclear Channel Id */
+            nuclear_channel_id: string;
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            detector?: components["schemas"]["NucleolarDetectorSpec"];
+        };
         /** RegionExcludedFailure */
         RegionExcludedFailure: {
             /** Field Id */
@@ -2655,7 +2738,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment";
             /** Shape */
             shape: number[];
             file: components["schemas"]["RegionStoredFile"];
@@ -3103,7 +3186,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
@@ -3143,7 +3226,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV2"];
@@ -3180,7 +3263,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV3"];
@@ -3232,7 +3315,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment";
             /** Defining Channel Id */
             defining_channel_id?: string | null;
         };
@@ -5023,6 +5106,37 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compartment_status_v1_revisions__rid__region_compartment_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1616,6 +1616,43 @@
         }
       }
     },
+    "/v1/revisions/{rid}/region-compartment-status": {
+      "get": {
+        "summary": "Compartment Status",
+        "operationId": "compartment_status_v1_revisions__rid__region_compartment_status_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/region-measurements": {
       "get": {
         "summary": "Measurements",
@@ -4791,6 +4828,44 @@
         "title": "NuclearDetectorSpec",
         "description": "Allowlisted, offline nucleus model; never an arbitrary image classifier."
       },
+      "NucleolarDetectorSpec": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "const": "fiji-nucleolar-compartments",
+            "title": "Engine",
+            "default": "fiji-nucleolar-compartments"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Protocol Version",
+            "default": "1.0.0"
+          },
+          "smoothing_sigma_px": {
+            "type": "number",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Smoothing Sigma Px",
+            "default": 0.0
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Minimum Area Px",
+            "default": 1
+          },
+          "split_touching": {
+            "type": "boolean",
+            "title": "Split Touching",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NucleolarDetectorSpec"
+      },
       "NumericalSelection": {
         "additionalProperties": false,
         "properties": {
@@ -6000,6 +6075,9 @@
               },
               {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionCompartmentRecipe"
               }
             ],
             "title": "Recipe",
@@ -6009,7 +6087,8 @@
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
-                "1.3.0": "#/components/schemas/RegionSignalRecipe"
+                "1.3.0": "#/components/schemas/RegionSignalRecipe",
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
               }
             }
           },
@@ -6703,6 +6782,84 @@
         ],
         "title": "RegionComparisonView"
       },
+      "RegionCompartmentRecipe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Id",
+            "default": "region-2d"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.4.0",
+            "title": "Version",
+            "default": "1.4.0"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "const": "fiji_nuclear_compartment",
+            "title": "Source",
+            "default": "fiji_nuclear_compartment"
+          },
+          "compartment": {
+            "type": "string",
+            "enum": [
+              "nucleoli",
+              "nucleoplasm"
+            ],
+            "title": "Compartment"
+          },
+          "nuclear_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Nuclear Revision Id"
+          },
+          "nuclear_channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Nuclear Channel Id"
+          },
+          "defining_channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Defining Channel Id"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/NucleolarDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "region_set_id",
+          "label",
+          "compartment",
+          "nuclear_revision_id",
+          "nuclear_channel_id",
+          "defining_channel_id"
+        ],
+        "title": "RegionCompartmentRecipe"
+      },
       "RegionExcludedFailure": {
         "properties": {
           "field_id": {
@@ -6820,7 +6977,8 @@
               "manual",
               "imported",
               "stardist_nuclear",
-              "fiji_positive_regions"
+              "fiji_positive_regions",
+              "fiji_nuclear_compartment"
             ],
             "title": "Source"
           },
@@ -8140,6 +8298,9 @@
               },
               {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionCompartmentRecipe"
               }
             ],
             "title": "Recipe",
@@ -8149,7 +8310,8 @@
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
-                "1.3.0": "#/components/schemas/RegionSignalRecipe"
+                "1.3.0": "#/components/schemas/RegionSignalRecipe",
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
               }
             }
           },
@@ -8272,6 +8434,9 @@
               },
               {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionCompartmentRecipe"
               }
             ],
             "title": "Recipe",
@@ -8281,7 +8446,8 @@
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
-                "1.3.0": "#/components/schemas/RegionSignalRecipe"
+                "1.3.0": "#/components/schemas/RegionSignalRecipe",
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
               }
             }
           },
@@ -8405,6 +8571,9 @@
               },
               {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionCompartmentRecipe"
               }
             ],
             "title": "Recipe",
@@ -8414,7 +8583,8 @@
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
-                "1.3.0": "#/components/schemas/RegionSignalRecipe"
+                "1.3.0": "#/components/schemas/RegionSignalRecipe",
+                "1.4.0": "#/components/schemas/RegionCompartmentRecipe"
               }
             }
           },
@@ -8581,7 +8751,8 @@
               "manual",
               "imported",
               "stardist_nuclear",
-              "fiji_positive_regions"
+              "fiji_positive_regions",
+              "fiji_nuclear_compartment"
             ],
             "title": "Source"
           },

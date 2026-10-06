@@ -43,6 +43,12 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
         report = read_json(result_root(rev) / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "review_required")
+        if rev["config"].get("recipe", {}).get("source") == "fiji_nuclear_compartment":
+            from cytellect_analysis.compartment_review import assert_complete_compartments
+            try:
+                assert_complete_compartments(rev["config"], report, read_json(result_root(rev) / "provenance.json"))
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from None
         config = {**rev["config"], "review_record": rev["review_record"] or {}}
         accepted = {
             "revision_id": rid,

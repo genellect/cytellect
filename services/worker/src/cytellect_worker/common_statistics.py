@@ -31,6 +31,9 @@ def run_common_statistics(store, job, output):
     report = read_json(store.safe_path(rev["result_dir"], "measurements.json"))
     if report["field_failures"]:
         raise ValueError("review_required")
+    if rev["config"].get("recipe", {}).get("source") == "fiji_nuclear_compartment":
+        from cytellect_analysis.compartment_review import assert_complete_compartments
+        assert_complete_compartments(rev["config"], report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
     config = {**rev["config"], "review_record": rev["review_record"] or {}}
     payload = dict(job["payload"])
     accepted = payload.pop("_source_review", {})

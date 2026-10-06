@@ -5,6 +5,7 @@ import time
 from copy import deepcopy
 from typing import Annotated
 
+from cytellect_analysis.compartment_review import assert_complete_compartments, comparable_region_recipe
 from cytellect_analysis.images import sha256
 from cytellect_analysis.region_contracts import (
     RegionAnalysisRequest,
@@ -81,12 +82,14 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                 raise HTTPException(409, "cohort_source_field_missing")
             if config.get("measurement") != {"version": "1.1.0", "mode": "raw_intensity"} or config.get("backgrounds"):
                 raise HTTPException(409, "cohort_raw_measurement_required")
-            if recipe is not None and (config["recipe"] != recipe or config["measurement"] != policy):
+            if recipe is not None and (comparable_region_recipe(config["recipe"]) != comparable_region_recipe(recipe) or config["measurement"] != policy):
                 raise HTTPException(409, "cohort_recipe_mismatch")
             recipe, policy = config["recipe"], config["measurement"]
             try:
                 report = read_json(root / "measurements.json")
                 validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
+                if config["recipe"].get("source") == "fiji_nuclear_compartment":
+                    assert_complete_compartments(config, report, read_json(root / "provenance.json"), [fid])
             except (ValueError, OSError):
                 raise HTTPException(409, "cohort_source_invalid") from None
             if fid not in report["field_tables"] or fid not in report["field_masks"]:

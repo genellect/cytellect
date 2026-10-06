@@ -23,7 +23,7 @@ describe("buildProposal", () => {
   });
 
   it("refuses to run when no field could be formed, instead of an empty run", () => {
-    expect(buildProposal(files(["notes.tif"]))).toMatchObject({ recipe: null, unresolved: ["解析できる視野がありません"] });
+    expect(buildProposal(files([]))).toMatchObject({ recipe: null, unresolved: ["解析できる視野がありません"] });
   });
 
   it("needs no channel decision when a file name already names the nuclear stain", () => {

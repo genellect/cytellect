@@ -29,9 +29,10 @@ interface Report {
 export interface FigureChoice {metric: string; channel: string | null; width: number; height: number; label: string}
 export interface SavedFigure {job: string; revision: string; choice: FigureChoice; result: DescriptiveResult}
 export interface Recipe {
-  id: "region-2d"; version: "1.2.0" | "1.3.0"; region_set_id: string; label: string;
-  source: "stardist_nuclear" | "fiji_positive_regions"; defining_channel_id: string;
-  detector?: {threshold_method: "otsu"; threshold: null; smoothing_sigma_px: number; minimum_area_px: number; split_touching: boolean};
+  id: "region-2d"; version: "1.2.0" | "1.3.0" | "1.4.0"; region_set_id: string; label: string;
+  source: "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment"; defining_channel_id: string;
+  compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
+  detector?: {threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; split_touching: boolean};
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
 }
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
@@ -160,7 +161,12 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       data.set("specification", JSON.stringify({version: "1.1.0", client_upload_id: entryId || uploadKeys.get(key),
         channels: presentChannels.map(channelSpecification), input_mode: modes.has("display-rgb") ? "display-rgb" : "native", metadata: {}, calibration: null}));
       const uploaded = await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields`, {method: "POST", body: data});
-      if (entryId) await saveSelection(workspace, selection!.entries.map(entry => entry.id === entryId ? {...entry, field_id: uploaded.id} : entry));
+      if (entryId) {
+        const existing = selection!.entries.find(entry => entry.field_id === uploaded.id && entry.id !== entryId);
+        await saveSelection(workspace, existing
+          ? selection!.entries.filter(entry => entry.id !== entryId)
+          : selection!.entries.map(entry => entry.id === entryId ? {...entry, field_id: uploaded.id} : entry));
+      }
       return uploaded;
     },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },

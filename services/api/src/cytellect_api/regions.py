@@ -21,6 +21,7 @@ from cytellect_analysis.images import read_tiff, render_preview_with_display, sh
 from cytellect_analysis.masks import contours, polygon_mask
 from cytellect_analysis.region_contracts import (
     RegionAnalysisRequest,
+    RegionCompartmentRecipe,
     RegionFieldInput,
     RegionFieldMetadata,
     RegionImageInfo,
@@ -89,6 +90,19 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 raise HTTPException(422, "region_labels_required")
             if body.recipe.source == "manual" and info.labels_array is not None:
                 raise HTTPException(422, "manual_region_source_requires_no_imported_labels")
+            if isinstance(body.recipe, RegionCompartmentRecipe):
+                source = store.one(revisions, id=body.recipe.nuclear_revision_id)
+                if (not source or source["workspace_id"] != f["workspace_id"] or source["state"] != "succeeded"
+                        or not source["result_dir"] or source["config"].get("analysis_kind") != "region-2d"
+                        or source["config"].get("recipe", {}).get("source") != "stardist_nuclear"
+                        or source["config"]["recipe"].get("defining_channel_id") != body.recipe.nuclear_channel_id):
+                    raise HTTPException(422, "compartment_nuclear_source_invalid")
+                original = source["config"].get("field_snapshot", {}).get(f["id"])
+                if original is None or original["image_info"] != f["image_info"]:
+                    raise HTTPException(422, "compartment_source_image_mismatch")
+                report = read_json(store.safe_path(source["result_dir"], "measurements.json"))
+                if f["id"] not in report.get("field_tables", {}) or f["id"] not in report.get("field_masks", {}):
+                    raise HTTPException(422, "compartment_nuclear_source_invalid")
             if body.recipe.source == "fiji_positive_regions" and info.labels_array is not None:
                 raise HTTPException(422, "signal_source_requires_no_imported_labels")
             if body.recipe.source == "stardist_nuclear":
@@ -145,11 +159,34 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 fields.c.workspace_id == wid,
                 fields.c.client_upload_id == spec.client_upload_id,
             )).mappings().first()
-            if existing is None:
-                return None
-            if existing["upload_fingerprint"] != fingerprint:
-                raise HTTPException(409, "region_upload_id_conflict")
-            return dict(existing)
+            if existing is not None:
+                if existing["upload_fingerprint"] != fingerprint:
+                    raise HTTPException(409, "region_upload_id_conflict")
+                return dict(existing)
+            # Browser reloads regenerate client keys. Identical source bytes and
+            # scientific metadata still represent the same field in this workspace.
+            equivalent = conn.execute(select(fields).where(
+                fields.c.workspace_id == wid,
+                fields.c.upload_fingerprint == fingerprint,
+            ).order_by(fields.c.id)).mappings().first()
+            if equivalent is not None:
+                return dict(equivalent)
+            # Selecting a detector role can change only the evidence-source tag.
+            # It must not duplicate unchanged images or rewrite saved provenance.
+            requested_channels = [{key: value for key, value in channel.model_dump(mode="json").items()
+                                   if key != "identity_source"} for channel in spec.channels]
+            for candidate in conn.execute(select(fields).where(fields.c.workspace_id == wid).order_by(fields.c.id)).mappings():
+                info = candidate["image_info"]
+                if (not is_region(candidate) or info.get("inputs") != inputs
+                        or info.get("input_mode", "native") != spec.input_mode
+                        or info.get("calibration") != (spec.calibration.model_dump(mode="json") if spec.calibration else None)
+                        or candidate["metadata"] != spec.metadata.model_dump(mode="json")):
+                    continue
+                channels = [{key: value for key, value in channel.items() if key != "identity_source"}
+                            for channel in info["channels"]]
+                if channels == requested_channels:
+                    return dict(candidate)
+            return None
 
         try:
             inputs = {}
@@ -329,6 +366,20 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             jid = queue(conn, wid, rid, "analysis", {})
             conn.execute(update(workspaces).where(workspaces.c.id == wid).values(active_revision=rid))
         return {"revision_id": rid, "job_id": jid}
+
+    @api.get("/v1/revisions/{rid}/region-compartment-status")
+    def compartment_status(rid: str, who: Owner):
+        rev = region_revision(rid, who)
+        root = result_root(rev)
+        if rev["config"].get("recipe", {}).get("source") != "fiji_nuclear_compartment":
+            raise HTTPException(409, "compartment_revision_required")
+        provenance = read_json(root / "provenance.json")
+        return {"revision_id": rid, "fields": {
+            fid: {"nuclear_source": value.get("nuclear_source"),
+                  **{key: value.get("detector", {}).get("engine", {}).get(key) for key in (
+                      "nucleolar_states", "parent_ids", "eligible_nucleus_ids", "excluded_nucleus_ids",
+                      "missing_parent_count", "missing_parent_reasons", "nucleoplasm_missing_reasons", "compartment_missing_parent_count")}}
+            for fid, value in provenance.get("fields", {}).items()}}
 
     @api.get("/v1/revisions/{rid}/region-measurements", response_model=RegionReportType)
     def measurements(rid: str, who: Owner):

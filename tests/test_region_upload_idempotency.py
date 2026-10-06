@@ -98,7 +98,8 @@ def test_retry_after_response_loss_ignores_filename_and_normalizes_defaults(tmp_
                                         ensure_ascii=False, allow_nan=False).encode()).hexdigest()
     assert saved["upload_fingerprint"] == expected
     new_spec = {**spec, "client_upload_id": str(uuid4())}
-    assert upload(client, wid, new_spec, images).status_code == 413
+    recovered = upload(client, wid, new_spec, images)
+    assert recovered.status_code == 201 and recovered.json() == first.json()
     assert_single_upload(store, wid, first.json(), images)
 
 
@@ -142,9 +143,9 @@ def test_simultaneous_requests_commit_one_field_and_one_quota_charge(tmp_path, m
     barrier = Barrier(2, action=lambda: rendezvous.append(True))
     original = region_api.read_tiff
 
-    def synchronized_decode(path):
+    def synchronized_decode(path, **kwargs):
         barrier.wait(timeout=15)  # Both passed the pre-decode lookup with no committed field.
-        return original(path)
+        return original(path, **kwargs)
 
     monkeypatch.setattr(region_api, "read_tiff", synchronized_decode)
     # Start both ASGI portals before synchronizing requests. Cold portal startup
@@ -345,3 +346,57 @@ def test_migration_preserves_rows_and_adds_scoped_unique_identity(tmp_path, lega
         assert len(conn.execute(select(fields).where(fields.c.workspace_id == "w1")).all()) == 3
     store.engine.dispose()
     reopened.engine.dispose()
+
+
+def test_new_key_same_images_but_changed_metadata_is_a_distinct_field(tmp_path):
+    client, store, wid = setup_upload(tmp_path)
+    spec, images = upload_input()
+    first = upload(client, wid, spec, images)
+    changed = {**spec, "client_upload_id": str(uuid4()), "metadata": {"condition": "treated"}}
+    second = upload(client, wid, changed, images)
+    assert first.status_code == second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]
+    assert len(store.rows(fields, workspace_id=wid)) == 2
+    assert store.one(workspaces, id=wid)["bytes"] == 2 * sum(map(len, images.values()))
+
+
+def test_different_client_keys_racing_identical_uploads_commit_once(tmp_path, monkeypatch):
+    client, store, wid = setup_upload(tmp_path, max_fields=1)
+    spec, images = upload_input()
+    second_spec = {**spec, "client_upload_id": str(uuid4())}
+    barrier = Barrier(2)
+    original = region_api.read_tiff
+    def synchronized_decode(path, **kwargs):
+        barrier.wait(timeout=15)
+        return original(path, **kwargs)
+    monkeypatch.setattr(region_api, "read_tiff", synchronized_decode)
+    with client, TestClient(client.app) as other:
+        other.cookies.update(client.cookies)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a = pool.submit(upload, client, wid, spec, images)
+            b = pool.submit(upload, other, wid, second_spec, images)
+            responses = [a.result(timeout=30), b.result(timeout=30)]
+    assert all(response.status_code == 201 for response in responses)
+    assert responses[0].json() == responses[1].json()
+    assert_single_upload(store, wid, responses[0].json(), images)
+
+
+def test_detector_role_evidence_change_does_not_duplicate_field_or_rewrite_provenance(tmp_path):
+    spec, images = upload_input()
+    spec["version"] = "1.1.0"
+    del spec["channels"][0]["identity_confirmed"]
+    spec["channels"][0]["identity_source"] = "filename"
+    client, store, wid = setup_upload(tmp_path, max_fields=1)
+    first = upload(client, wid, spec, images)
+    assert first.status_code == 201, first.text
+    changed = deepcopy(spec)
+    changed["client_upload_id"] = str(uuid4())
+    changed["channels"][0]["identity_source"] = "user_entered"
+    recovered = upload(client, wid, changed, images)
+    assert recovered.status_code == 201, recovered.text
+    assert recovered.json() == first.json()
+    assert recovered.json()["image_info"]["channels"][0]["identity_source"] == "filename"
+    assert_single_upload(store, wid, first.json(), images)
+    # Existing key conflicts must still win over normalized content recovery.
+    changed["client_upload_id"] = spec["client_upload_id"]
+    assert upload(client, wid, changed, images).status_code == 409

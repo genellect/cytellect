@@ -17,7 +17,7 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
     def descriptive_preview(rid: str, body: DescriptiveRequestType, who: Owner):
         rev = revision(rid, who)
         if (rev["state"] != "succeeded" or not is_region(rev)
-                or rev["config"].get("recipe", {}).get("version") not in ("1.2.0", "1.3.0")):
+                or rev["config"].get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0")):
             raise HTTPException(409, "workspace_measurements_required")
         if body.selection.source != "region":
             raise HTTPException(422, "descriptive_source_mismatch")

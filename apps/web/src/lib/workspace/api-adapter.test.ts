@@ -12,6 +12,12 @@ function fake(handler: (path: string, options?: RequestInit) => Promise<unknown>
   return {adapter: createApiAdapter({request, post, wait: async () => {}}), request, post};
 }
 describe("real workspace transport boundaries", () => {
+  it("merges a deduplicated upload without changing the existing adopted revision", async () => {
+    const {adapter} = fake(async () => ({id: "f1", workspace_id: "w1", image_info: {shape: [2, 2], channels: []}, metadata: {}}));
+    await adapter.registerImport("w1", "pending");
+    await adapter.upload("w1", {key: "incoming", files: {channel2: {path: "plane.tif", size: 1}}, candidates: {}}, [channel], new Map([["plane.tif", new File(["x"], "plane.tif")]]), "pending");
+    expect(adapter.selection()!.entries).toEqual([{id: "f1", field_id: "f1", revision_id: "r1", exclusion_reason: null}]);
+  });
   it("explicitly recovers an orphan field without adopting old results or failed slots", async () => {
     const {adapter, post} = fake(async () => ({}));
     const entry = await adapter.recoverField("w1", "orphan-field");

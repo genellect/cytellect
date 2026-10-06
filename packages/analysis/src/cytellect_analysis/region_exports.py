@@ -20,6 +20,7 @@ from .plan_adoption import planning_methods, validate_revision_plan
 from .region_contracts import (
     AdoptedNuclearRecipe,
     RegionAnalysisRequest,
+    RegionCompartmentRecipe,
     RegionImageInfo,
     RegionNuclearRecipe,
     RegionSignalRecipe,
@@ -84,6 +85,11 @@ def region_methods(config, report, provenance):
     if signal:
         initial = ("Initial masks: Fiji/ImageJ thresholding and connected components on the defining channel. "
                    "These exploratory signal-positive areas do not establish biological positivity, nuclei or nucleoli.")
+    compartment = isinstance(request.recipe, RegionCompartmentRecipe)
+    if compartment:
+        initial = ("Initial masks: within-nucleus NCL-enriched candidates from the recorded Fiji compartment detector. "
+                   "Nucleoplasm is the source nucleus minus the candidate union only for eligible classified nuclei. "
+                   "Unclassified or failed nuclei are retained as missing parents, never whole-nucleus substitutes.")
     lines = ["# Cytellect region measurement Methods", "",
              "Generated from recorded settings; review the biological definitions before publication.", "",
              (f"Methods template {AREA_METHODS_VERSION}; region measurement protocol 2.0.0." if area_only else
@@ -140,8 +146,11 @@ def region_methods(config, report, provenance):
                            for channel in info.channels)
         lines.append(f"Field {fid}: {labels}.")
         event = provenance.get("fields", {}).get(fid, {}).get("detector")
-        if (nuclear or signal) and event:
+        if (nuclear or signal or compartment) and event:
             engine = event.get("engine", {})
+            if compartment:
+                lines.append(f"Field {fid} nuclear source: " + json.dumps(provenance["fields"][fid].get("nuclear_source"), sort_keys=True) + ".")
+                lines.append(f"Field {fid} compartment parent states: " + json.dumps({key: engine.get(key) for key in ("nucleolar_states", "parent_ids", "eligible_nucleus_ids", "excluded_nucleus_ids", "missing_parent_count", "missing_parent_reasons", "nucleoplasm_missing_reasons", "compartment_missing_parent_count")}, sort_keys=True) + ".")
             if engine.get("nuclear_detector_protocol_version") == "1.1.0":
                 transform = engine["coordinate_transform"]
                 lines.append(
@@ -246,7 +255,7 @@ def _recompute_statistics(report, config, result):
         calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
     calculated["revision_id"] = report["revision_id"]
     if result.get("source_review") == "automatic_unreviewed":
-        if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0") or result["spec"].get("mode") != "descriptive":
+        if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0") or result["spec"].get("mode") != "descriptive":
             raise ValueError("region_export_statistics_unrecognized_fields")
         calculated["source_review"] = "automatic_unreviewed"
     if set(result) - (set(calculated) | {"figure"}):
