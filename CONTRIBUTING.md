@@ -31,4 +31,15 @@ PRs describe purpose, scientific impact, checks performed and remaining limitati
 
 ## CI scope
 
-Pull requests that change only `docs/**`, root-level Markdown, `LICENSE` or `NOTICE` run a fast path (about two minutes): documentation links, the public-tree check, the full-history secret scan and the packaged-documentation tests. The heavy jobs (`web`, `fiji-browser`, `local-windows`, `python-windows-314`) are skipped and report success to branch protection. Any other changed file, every push to `main` and every manual run executes the full suite, so each `main` commit keeps the complete evidence the Windows release workflow requires. The classification is `scripts/ci_changes.py`.
+Pull requests run only the jobs their changed paths can affect. `scripts/ci_changes.py` maps paths to four areas:
+
+| Area | Jobs | Selected by |
+|---|---|---|
+| `python` | Ruff, mypy, Linux test suite, planning/proposal/asset checks, dependency audit and SBOM | analysis, API, worker, scripts, tests, engines, infra |
+| `web` | contract regeneration, Next.js checks and build, proposal Worker, public-site browser tests | `apps/web`, contracts, proposal Worker, analysis/API/worker |
+| `fiji` | real Fiji, API/browser workflow, containers, local web bundle | `apps/web`, contracts, analysis/API/worker, scripts, tests, Fiji engine, infra |
+| `windows` | Windows setup/launcher tests and the Python 3.14 Windows suite | analysis/API/worker, scripts, tests, engines, local-export scripts |
+
+Documentation (`docs/**`, root-level Markdown, `LICENSE`, `NOTICE`) selects no area. The public-tree check, documentation links and the full-history secret scan always run, and the packaged-documentation tests run whenever the Python suite does not. Skipped jobs report success to branch protection.
+
+Workflows, lockfiles, package manifests, `fixtures/` and any unlisted path select every area. So do every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.
