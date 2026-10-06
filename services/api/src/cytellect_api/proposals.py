@@ -68,6 +68,7 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
     body = json.dumps({"context": context.model_dump(mode="json")}).encode("utf-8")
     request = urllib.request.Request(f"{url}/v1/proposals", data=body, method="POST", headers={
         "authorization": f"Bearer {settings.proposal_token}", "content-type": "application/json",
+        "user-agent": "Cytellect/0.1",
         "Idempotency-Key": request_id or str(uuid.uuid4())})
     try:
         with _OPENER.open(request, timeout=settings.proposal_timeout_seconds) as response:

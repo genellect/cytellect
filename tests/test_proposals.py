@@ -120,6 +120,7 @@ def configured(tmp_path, monkeypatch, reply, *, upload=True):
     def urlopen(request, timeout):
         calls.append(json.loads(request.data))
         assert request.headers["Authorization"] == "Bearer device-secret"
+        assert request.headers["User-agent"] == "Cytellect/0.1"
         return reply(request)
     monkeypatch.setattr(proposals._OPENER, "open", urlopen)
     wid = client.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
