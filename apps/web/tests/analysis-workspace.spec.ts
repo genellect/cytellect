@@ -36,7 +36,7 @@ test("workspace entry has real file controls; explicit public example progresses
   await expect(page.getByText(/公開画像|サンプル/)).toHaveCount(0);
   await adoptPublicSample(page);
   await expect(page.getByRole("status").filter({ hasText: "解析中" })).toBeVisible();
-  await expect(page.locator("polygon[data-region]").first()).toBeVisible();
+  await expect(page.locator("[data-region]").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /ウェル A12/ })).toContainText(/待機|解析中/);
   await expect(page.getByText("完了 3/3")).toBeVisible({ timeout: 20000 });
 });
@@ -44,7 +44,7 @@ test("workspace entry has real file controls; explicit public example progresses
 test("a correction updates only that field's figure and can be undone", async ({ page }) => {
   await adoptPublicSample(page);
   await expect(page.getByText("完了 3/3")).toBeVisible({ timeout: 20000 });
-  await page.locator('polygon[data-region="12"]').click();
+  await page.locator('[data-region="12"]').click();
   const panel = page.getByRole("complementary", { name: "選択対象の操作" });
   await expect(panel.getByText("領域 12", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "対象から除外" }).click();
@@ -75,7 +75,7 @@ test("regions can be chosen from the keyboard through the measurement table", as
   await page.keyboard.press("Enter");
   const panel = page.getByRole("complementary", { name: "選択対象の操作" });
   await expect(panel.getByText("領域 7", { exact: true })).toBeVisible();
-  await expect(page.locator('polygon[data-region="7"]')).toHaveClass(/outlineSelected/);
+  await expect(page.locator('[data-region="7"]')).toHaveClass(/outlineSelected/);
   await expect(page.getByRole("button", { name: "領域 7 を選択" })).toHaveAttribute("aria-current", "true");
 });
 
@@ -93,7 +93,7 @@ test("a figure point opens its source image and region, and exports are actual o
   await page.getByRole("button", { name: /^核面積/ }).click();
   await page.locator('circle[data-field="BBBC013/01-A-01"][data-region="5"]').click();
   await expect(page.getByRole("img", { name: "ウェル A01の画像" })).toBeVisible();
-  await expect(page.locator('polygon[data-region="5"]')).toHaveClass(/outlineSelected/);
+  await expect(page.locator('[data-region="5"]')).toHaveClass(/outlineSelected/);
   await page.getByRole("button", { name: /測定値/ }).click();
   await expect(page.getByRole("button", { name: "領域 5 を選択" })).toHaveAttribute("aria-current", "true");
   await page.locator("summary", { hasText: "書き出し" }).click();
@@ -122,8 +122,7 @@ test("added files are grouped once and rejected real uploads remain visible", as
   await expect(summary).toContainText("チャンネルを判別できないファイル（1）");
   await expect(summary).toContainText("overview.tif");
   // A named nuclear stain needs no channel decision at all.
-  await expect(page.getByText("核検出：DAPI（ファイル名）")).toBeVisible();
-  await expect(page.getByRole("button", { name: "解析を実行" })).toBeDisabled();
+  await expect(page.getByRole("region", { name: "解析方法" }).getByText("DAPI から核を自動検出（StarDist 2D）")).toBeVisible();
   await expect(page.locator("main").getByRole("alert")).toContainText("2D・8/16-bitグレースケールTIFF");
   await expect(page.getByRole("link", { name: /SVG|CSV/ })).toHaveCount(0);
 });
