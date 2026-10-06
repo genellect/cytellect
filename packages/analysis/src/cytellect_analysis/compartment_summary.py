@@ -48,7 +48,7 @@ def compartment_summary(nuclei: np.ndarray, nucleoli: np.ndarray, nucleoplasm: n
         elif not plasm.any():
             row["missing_reason"] = "no_nucleoplasm"
         else:
-            offset = background if corrected else 0.0
+            offset = float(background) if background is not None else 0.0
             nucleolar_mean = float(pixels[union].mean()) - offset
             plasm_mean = float(pixels[plasm].mean()) - offset
             nucleolar_integrated = float(pixels[union].sum()) - offset * int(union.sum())
