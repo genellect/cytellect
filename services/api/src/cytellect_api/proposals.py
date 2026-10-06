@@ -92,7 +92,7 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
                     code, status = f"proposal_{reason}", 502
                 elif error.code == 503 and reason in ("proposal_service_disabled", "budget_reconciliation_required", "model_unavailable"):
                     code = reason if reason == "proposal_service_disabled" else f"proposal_{reason}"
-                    if reason == "model_unavailable":
+                    if reason == "model_unavailable" and isinstance(failure, dict):
                         provider_code = failure.get("provider_error_code")
                         provider_status = failure.get("provider_http_status")
                         if isinstance(provider_code, str) and provider_code in PROVIDER_ERROR_CODES:
