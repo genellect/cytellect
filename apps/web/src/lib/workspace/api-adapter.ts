@@ -5,6 +5,8 @@ import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
 import type {DistributionPoint, FieldSummary} from "./adapter";
 
+export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null}
+export interface WorkspaceSelection {version: number; entries: SelectionEntry[]}
 export interface ImportedField {
   id: string; workspace_id: string;
   metadata: Record<string, string | number | null>;
@@ -76,6 +78,22 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     blob: (path, signal) => {check(); return transport.blob(path, signal);},
   };
   const uploadKeys = new Map<string, string>();
+  let selection: WorkspaceSelection | null = null;
+  async function loadSelection(workspace: string) {selection = await client.request<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`); return selection;}
+  async function saveSelection(workspace: string, entries: SelectionEntry[]) {
+    if (!selection) throw new Error("保存状態を再読み込みしてください。");
+    selection = await client.post<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`, {version: selection.version, entries});
+    return selection;
+  }
+  async function assertSelection(workspace: string) {
+    if (!selection) await loadSelection(workspace);
+    const current = await client.request<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`);
+    if (JSON.stringify(current) !== JSON.stringify(selection)) throw new Error("別のタブで採用状態が更新されました。再読み込みしてください。");
+  }
+  async function adopt(workspace: string, result: SavedResult) {
+    await saveSelection(workspace, selection!.entries.map(entry => entry.field_id === result.field ? {...entry, revision_id: result.revision} : entry));
+    return result;
+  }
   const runs = new Map<string, {job_id: string; revision_id: string; recipe: string} | "uncertain">();
   async function waitJob(workspace: string, id: string): Promise<Job> {
     // Polling reads do not extend retention. A lost connection never resubmits a job.
@@ -99,8 +117,21 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     return {revision, field, rows: table.rows, masks, exclusions: report.exclusions};
   }
   return {
-    async create() {return client.post<Workspace>("/v1/workspaces", {title: "画像解析"});},
-    async upload(workspace: string, field: GroupedField, channels: Grouping["channels"], files: Map<string, File>) {
+    async create() {const record = await client.post<Workspace>("/v1/workspaces", {title: "画像解析"}); await loadSelection(record.id); return record;},
+    selection: () => selection,
+    async isSelectionCurrent(workspace: string) {
+      const expected = JSON.stringify(selection);
+      const current = await client.request<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`);
+      return JSON.stringify(current) === expected;
+    },
+    async registerImport(workspace: string, id: string) {
+      if (!selection) await loadSelection(workspace);
+      if (!selection!.entries.some(entry => entry.id === id)) await saveSelection(workspace, [...selection!.entries, {id, field_id: null, revision_id: null, exclusion_reason: null}]);
+    },
+    async excludeField(workspace: string, id: string, reason: string | null) {
+      return saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, exclusion_reason: reason} : entry));
+    },
+    async upload(workspace: string, field: GroupedField, channels: Grouping["channels"], files: Map<string, File>, entryId?: string) {
       if (channels.length > 3) throw new Error("現在は1視野につき3チャンネルまで対応しています");
       const data = new FormData();
       channels.forEach((channel, index) => {
@@ -111,12 +142,15 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       });
       const key = `${workspace}:${field.key}`;
       if (!uploadKeys.has(key)) uploadKeys.set(key, crypto.randomUUID());
-      data.set("specification", JSON.stringify({version: "1.1.0", client_upload_id: uploadKeys.get(key),
+      data.set("specification", JSON.stringify({version: "1.1.0", client_upload_id: entryId || uploadKeys.get(key),
         channels: channels.map(channelSpecification), metadata: {}, calibration: null}));
-      return client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields`, {method: "POST", body: data});
+      const uploaded = await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields`, {method: "POST", body: data});
+      if (entryId) await saveSelection(workspace, selection!.entries.map(entry => entry.id === entryId ? {...entry, field_id: uploaded.id} : entry));
+      return uploaded;
     },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },
     async run(workspace: string, field: string, recipe: Recipe) {
+      await assertSelection(workspace);
       const key = `${workspace}:${field}`;
       let created = runs.get(key);
       if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みで保存済みの処理状態を確認してください。");
@@ -128,7 +162,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         });
         created = {...accepted, recipe: JSON.stringify(recipe)}; runs.set(key, created);
       }
-      try {await waitJob(workspace, created.job_id); return await readResult(created.revision_id, field);}
+      try {await waitJob(workspace, created.job_id); return await adopt(workspace, await readResult(created.revision_id, field));}
       catch (error) {if (error instanceof TerminalJobError) runs.delete(key); throw error;}
     },
     readResult,
@@ -139,10 +173,12 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         client.request<RevisionRecord[]>(`/v1/workspaces/${workspace}/revisions`),
         client.request<Job[]>(`/v1/workspaces/${workspace}/jobs`),
       ]);
-      return {record, fields, revisions, jobs};
+      const adopted = await loadSelection(workspace);
+      return {record, fields, revisions, jobs, selection: adopted};
     },
-    async resume(workspace: string, job: Job, field: string) {await waitJob(workspace, job.id); return readResult(job.revision_id, field);},
+    async resume(workspace: string, job: Job, field: string) {await waitJob(workspace, job.id); return adopt(workspace, await readResult(job.revision_id, field));},
     async correct(workspace: string, result: SavedResult, kind: "exclude" | "delete", region: number, recipe: Recipe) {
+      await assertSelection(workspace);
       await client.post(`/v1/workspaces/${workspace}/current`, {revision_id: result.revision});
       const created = kind === "delete"
         ? await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-edits`, {
@@ -153,11 +189,11 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
           exclusions: [...result.exclusions, {field_id: result.field, region_id: region, reason: "ワークスペースで対象から除外（利用者の操作）"}],
         });
       await waitJob(workspace, created.job_id);
-      return readResult(created.revision_id, result.field);
+      return adopt(workspace, await readResult(created.revision_id, result.field));
     },
     async selectRevision(workspace: string, revision: string, field: string) {
-      await client.post(`/v1/workspaces/${workspace}/current`, {revision_id: revision});
-      return readResult(revision, field);
+      await assertSelection(workspace);
+      return adopt(workspace, await readResult(revision, field));
     },
     async figure(workspace: string, result: SavedResult, choice: FigureChoice): Promise<SavedFigure> {
       const created = await client.post<{job_id: string}>(`/v1/revisions/${result.revision}/descriptive-preview`, {
@@ -173,9 +209,9 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const view = descriptiveFigureView(figure.result);
       return {view, files: figure.result.figure.source_files};
     },
-    async draft(workspace: string, goal: string) {
+    async draft(workspace: string, goal: string, retryFailed = false) {
       // Called only after the one-time scope notice has been accepted in this workspace.
-      return client.post<{proposal: {draft: {rationale: string; missing_information: string[]}; needs_confirmation: string[]}}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true});
+      return client.post<{proposal: {draft: {rationale: string; missing_information: string[]}; needs_confirmation: string[]}}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(retryFailed ? {retry_failed: true} : {})});
     },
   };
 }

@@ -10,6 +10,7 @@ from cytellect_analysis.common_statistics_contracts import (
 )
 from cytellect_api.db import revisions
 from cytellect_api.storage import read_json, write_json
+from cytellect_api.workspace_selection import selection_at
 from pydantic import TypeAdapter
 
 
@@ -23,6 +24,10 @@ def run_common_statistics(store, job, output):
             or rev["state"] != "succeeded" or not rev["reviewed"]
             or rev["config"].get("analysis_kind") != "region-2d"):
         raise ValueError("review_required")
+    if rev["config"].get("workspace_selection"):
+        with store.transaction() as conn:
+            if selection_at(conn, job["workspace_id"]) != rev["config"]["workspace_selection"]:
+                raise ValueError("workspace_selection_changed")
     report = read_json(store.safe_path(rev["result_dir"], "measurements.json"))
     if report["field_failures"]:
         raise ValueError("review_required")

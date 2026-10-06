@@ -25,6 +25,7 @@ test("registered GFP figure uses the recorded measurement channel", async ({page
 });
 
 test("adds images, adopts one proposal and inspects fields while the run continues", async ({ page }) => {
+  await page.route("**/v1/session", route => route.fulfill({contentType:"application/json", body:JSON.stringify({authenticated:true,retention_hours:24,demo:false})}));
   await page.goto("/workspace");
   // No workspace form or method choice precedes adding images.
   await expect(page.getByRole("heading", { name: "画像を追加" })).toBeVisible();

@@ -68,7 +68,8 @@ file rather than silently replacing it. Check `account_id`, Worker name, D1 ID,
 `MONTHLY_BUDGET_USD="0"`, `DEVICE_MONTHLY_REQUESTS="0"`, empty tariffs and disabled
 observability. No scheduled jobs, analytics sinks or research-data storage are added.
 
-Both `0001_init.sql` and `0002_usage_integrity.sql` must be applied. On an existing
+All of `0001_init.sql`, `0002_usage_integrity.sql` and
+`0003_budget_reconciliation.sql` must be applied before enabling calls. On an existing
 database, retain a private D1 export before migration (`d1 export --remote` with
 an output path outside the checkout). It contains access/usage records; do not
 publish it. Never clear reservations to make a budget check pass.
@@ -116,7 +117,7 @@ commit, migration names and sanitized probe results in the release record.
 
 - First disable billing by redeploying this reviewed zero-budget configuration.
   In-flight requests may already have reserved their maximum; preserve those holds.
-- Roll back code only to a recorded version compatible with both D1 migrations:
+- Roll back code only to a recorded version compatible with the applied D1 migrations:
   `pnpm cf rollback VERSION_ID --config wrangler.disabled.json`. Verify its budget
   configuration; rollback must not restore an earlier enabled version. Repeat the
   disabled smoke check. Do not downgrade or restore D1 casually: that can revive
@@ -129,6 +130,43 @@ commit, migration names and sanitized probe results in the release record.
 - Vercel UI deployment, Docker/Windows compatibility and scientific evaluation
   remain separate checks. A deployed disabled Worker is infrastructure readiness,
   not functioning LLM-assisted analysis.
+
+## Production budget and reconciliation
+
+The owner approved a separate **USD 5 per UTC calendar month** production budget
+on 2026-10-06. This does not replace or reset the USD 5 cumulative evaluation
+ledger. Before each request, the Worker atomically admits its two-call maximum
+only if settled costs plus all outstanding reservations fit the monthly budget.
+Unknown or interrupted billing retains its conservative reservation amount.
+
+Migration `0003_budget_reconciliation.sql` creates an operator-reconciliation
+hold when observed per-call token usage exceeds its admitted bound, or when a
+settlement exceeds its reservation. Recording the incident, accounting the cost
+and removing the corresponding reservation are one SQLite transaction. Other
+outstanding reservations remain intact. Every installation and every later month
+is blocked while any incident remains unresolved; increasing the budget or
+restarting the Worker does not clear it. The Worker also checks the hold directly
+before each initial or repair call. Requests already sent to OpenAI cannot be
+recalled: the admission limit cannot guarantee an exact provider invoice when
+the provider reports usage beyond the assumed maximum.
+
+A completed, schema-valid billed draft can still be returned after the incident
+is committed. Local semantic validation and researcher adoption remain required.
+Malformed, refused or incomplete output is not returned, and an exceeded bound
+never triggers a repair call. The response body is not stored with the incident
+or serialized into error diagnostics. Later requests receive HTTP 503 with
+`budget_reconciliation_required` without another model call.
+
+To reconcile, first deploy the zero-budget configuration and let in-flight calls
+finish. Inspect accounting-only `budget_incidents`, `settlements` and outstanding
+`reservations` privately; compare provider usage and the configured tariff/token
+bound. Correct the cause, test admission again and retain all historical costs
+and reservations. Only then mark the specific reviewed incident with
+`resolved_at` (UTC epoch milliseconds) and a short operator `resolution_note`
+containing no research information. There is no public endpoint or automatic
+monthly reset for this action. Never delete incidents, clear reservations or
+reduce recorded spending to unblock calls. Re-enable only within the approved
+budget, then confirm that settled plus outstanding costs still permit admission.
 
 References: [local Wrangler installation](https://developers.cloudflare.com/workers/wrangler/install-and-update/),
 [Worker commands](https://developers.cloudflare.com/workers/wrangler/commands/workers/),

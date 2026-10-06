@@ -45,6 +45,8 @@ export interface ModelSettings {
   maxOutputTokens: number;
   reasoningEffort?: ReasoningEffort;
   fetcher?: typeof fetch;
+  /** Rechecked before initial and repair calls; already sent requests cannot be recalled. */
+  beforeCall?: () => Promise<void>;
 }
 
 export interface Preview { channel: string; png_base64: string }
@@ -66,12 +68,16 @@ const PROVIDER_ERROR_CODES = new Set([
 ]);
 
 export class ModelError extends Error {
+  #validatedDraft?: unknown;
+  get validatedDraft() { return this.#validatedDraft; }
   readonly providerHttpStatus?: number;
   readonly providerErrorCode?: string;
 
-  constructor(readonly code: "model_unavailable" | "model_refused" | "model_output_invalid" | "model_output_incomplete" | "model_usage_exceeded",
-    diagnostics?: { status: unknown; code: unknown }, readonly observedUsage?: ObservedUsage) {
+  constructor(readonly code: "model_unavailable" | "model_refused" | "model_output_invalid" | "model_output_incomplete" | "model_usage_exceeded" | "budget_reconciliation_required",
+    diagnostics?: { status: unknown; code: unknown }, readonly observedUsage?: ObservedUsage, validatedDraft?: unknown) {
     super(code);
+    // Research content must not be serialized by error diagnostics/logging.
+    this.#validatedDraft = validatedDraft;
     if (typeof diagnostics?.status === "number" && Number.isInteger(diagnostics.status)
       && diagnostics.status >= 100 && diagnostics.status <= 599) this.providerHttpStatus = diagnostics.status;
     if (typeof diagnostics?.code === "string" && PROVIDER_ERROR_CODES.has(diagnostics.code)) {
@@ -149,6 +155,7 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
   let usageComplete = true;
   let repair: string | undefined;
   for (let call = 1; call <= 2; call += 1) {
+    await settings.beforeCall?.();
     let response: Response;
     try {
       response = await fetcher("https://api.openai.com/v1/responses", {
@@ -182,7 +189,13 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
       outputTokens += output;
       cachedInputTokens += cached;
       if (input > inputTokenCeiling(settings, context, previews) || output > settings.maxOutputTokens) {
-        throw new ModelError("model_usage_exceeded", undefined, { inputTokens, outputTokens, cachedInputTokens, calls: call });
+        // Stop repairs, but preserve a completed schema-valid draft for the relay
+        // to return only after the accounting incident has been committed.
+        let usable: unknown;
+        if (body.status === "completed") {
+          try { const value = JSON.parse(outputText(body)); if (hasDraftShape(value)) usable = value; } catch { /* Invalid/refused output stays rejected. */ }
+        }
+        throw new ModelError("model_usage_exceeded", undefined, { inputTokens, outputTokens, cachedInputTokens, calls: call }, usable);
       }
     }
     // An incomplete answer can consume its entire reasoning budget without JSON.

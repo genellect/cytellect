@@ -27,7 +27,7 @@ export function workspaceTestRuntime(env:Record<string,string|undefined>=process
 
 export async function createRegionWorkspace(page:Page,title:string){
  const runtime=workspaceTestRuntime();
- await page.goto("/");
+ await page.goto("/legacy");
  if(runtime.local){
   expect(new URL(page.url()).origin).toBe(new URL(runtime.api).origin);
   const setup=await page.request.get(`${runtime.api}/v1/local/setup`);
@@ -38,7 +38,7 @@ export async function createRegionWorkspace(page:Page,title:string){
  }else{
   if(!runtime.dataDir)throw Error("An isolated browser test data directory is required");
   // Capture the one-use value in memory only. Do not emit it to logs or receipts.
-  const token=execFileSync(runtime.python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(1))"],
+  const token=execFileSync(runtime.python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(300))"],
    {encoding:"utf8",env:process.env,stdio:["ignore","pipe","ignore"]}).trim();
   await page.getByLabel("招待コード",{exact:true}).fill(token);
   await page.getByRole("button",{name:"ワークスペースに接続"}).click();

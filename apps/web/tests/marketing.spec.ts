@@ -7,7 +7,7 @@ test.beforeEach(()=>{test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","
 test("immersive LP keeps outcomes readable across viewports and routes to the real product",async({page})=>{
  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
  await page.emulateMedia({reducedMotion:"reduce"});
- await page.goto("/");
+ await page.goto("/product");
  const hero=page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true});
  await expect(hero.getByRole("heading",{level:1})).toHaveText("Get your microscopy publication-ready.");
  await expect(hero.locator("p")).toHaveCount(0);
@@ -42,7 +42,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
 test("failed 3D asset leaves the poster and primary action available",async({page})=>{
  await page.emulateMedia({reducedMotion:"no-preference"});
  await page.route("**/marketing/cell-sculpture.glb",route=>route.abort());
- await page.goto("/");
+ await page.goto("/product");
  await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
  const poster=page.getByAltText("青く照らされた細胞構造",{exact:true});
  await expect(poster).toBeVisible();
@@ -65,7 +65,7 @@ test("a researcher can stop the real 3D rendering and keep it stopped after navi
  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));page.on("console",message=>{if(message.type()==="error")errors.push(message.text());});
  await page.setViewportSize({width:1440,height:900});
  await page.emulateMedia({reducedMotion:"no-preference"});
- await page.goto("/");
+ await page.goto("/product");
  const scene=page.getByTestId("hero-scene");
  await expect(scene).toHaveAttribute("data-state","ready");
  await expect(scene.locator("canvas")).toBeVisible();
@@ -89,7 +89,7 @@ test("a researcher can stop the real 3D rendering and keep it stopped after navi
  expect(errors).toEqual([]);
 });
 test("product walkthrough is explicitly started and returns to the real still image",async({page})=>{
- await page.emulateMedia({reducedMotion:"reduce"});await page.goto("/");
+ await page.emulateMedia({reducedMotion:"reduce"});await page.goto("/product");
  await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).locator("video")).toHaveCount(0);
  await expect(page.getByLabel("解析の操作例",{exact:true})).toHaveCount(0);
  await page.getByRole("button",{name:"操作例を見る",exact:true}).click();

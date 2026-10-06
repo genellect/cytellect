@@ -45,8 +45,33 @@ test("public two-channel regions preserve unknown replication through edits, des
  const result=await json(await page.request.get(`${api}/v1/jobs/${described.job_id}/result`));expect(result.counts).toMatchObject({observations:fixture.count-1,input_fields:1,experimental_units:null});expect(result).not.toHaveProperty("comparisons");
  const plot=page.getByAltText("領域の測定値と視野内中央値の分布図",{exact:true});await expect(plot).toBeVisible();await expect.poll(()=>plot.evaluate(image=>(image as HTMLImageElement).complete&&(image as HTMLImageElement).naturalWidth>0)).toBe(true);
  await expect(page.getByLabel("保存済みの測定値",{exact:true})).toContainText(fixture.names[0]);await page.getByLabel("表示する測定値",{exact:true}).selectOption("area_px");await expect(page.getByText(/表示中は保存済みの条件による結果です/)).toBeVisible();
+ // Reproduce a stale post-submit list response: terminal cached jobs must not
+ // stop tracking the newly accepted job. The direct job endpoint remains live.
+ const previousJobs=await json(await page.request.get(`${api}/v1/workspaces/${workspace.id}/jobs`));
+ let staleJobListResponses=0;
+ const jobListUrl=`**/v1/workspaces/${workspace.id}/jobs`;
+ await page.route(jobListUrl,async route=>{
+  if(staleJobListResponses===0&&route.request().method()==="GET"){
+   staleJobListResponses++;
+   await route.fulfill({contentType:"application/json",body:JSON.stringify(previousJobs)});
+  }else await route.continue();
+ });
+ let failedStatusReads=0;
+ const selectedStatusUrl="**/v1/jobs/*";
+ await page.route(selectedStatusUrl,async route=>{
+  if(failedStatusReads===0&&route.request().method()==="GET"){
+   failedStatusReads++;
+   await route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({detail:"request_failed"})});
+  }else await route.continue();
+ });
  let releaseRequest!:()=>void;const requestGate=new Promise<void>(resolve=>{releaseRequest=resolve;});await page.route("**/descriptive",async route=>{if(route.request().method()==="POST")await requestGate;await route.continue();});
- const newDescription=mutation(page,"/descriptive",()=>page.getByRole("button",{name:"分布図を作成",exact:true}).click());await expect(page.getByText("図の生成を受け付けています。",{exact:true})).toBeVisible();await expect(plot).toHaveCount(0);await expect(page.getByRole("button",{name:"SVG ↓",exact:true})).toHaveCount(0);releaseRequest();const areaDescription=await newDescription;await page.unroute("**/descriptive");await waitJob(page,areaDescription.job_id);await expect(page.getByLabel("保存済みの測定値",{exact:true})).toContainText("面積");await expect(plot).toBeVisible();await expect.poll(()=>plot.evaluate(image=>(image as HTMLImageElement).complete&&(image as HTMLImageElement).naturalWidth>0)).toBe(true);
+ const newDescription=mutation(page,"/descriptive",()=>page.getByRole("button",{name:"分布図を作成",exact:true}).click());await expect(page.getByText("図の生成を受け付けています。",{exact:true})).toBeVisible();await expect(plot).toHaveCount(0);await expect(page.getByRole("button",{name:"SVG ↓",exact:true})).toHaveCount(0);releaseRequest();const areaDescription=await newDescription;await page.unroute("**/descriptive");await waitJob(page,areaDescription.job_id);
+ await expect(page.getByText("図の処理状態を取得できませんでした。",{exact:true})).toBeVisible();await expect(plot).toHaveCount(0);await expect(page.getByRole("button",{name:"SVG ↓",exact:true})).toHaveCount(0);
+ await page.getByRole("button",{name:"処理状態を再読み込み",exact:true}).click();
+ await expect(page.getByLabel("保存済みの測定値",{exact:true})).toContainText("面積");await expect(plot).toBeVisible();await expect.poll(()=>plot.evaluate(image=>(image as HTMLImageElement).complete&&(image as HTMLImageElement).naturalWidth>0)).toBe(true);
+ expect(staleJobListResponses).toBe(1);expect(failedStatusReads).toBe(1);await page.unroute(jobListUrl);await page.unroute(selectedStatusUrl);
+ const jobsAfterRetry=await json(await page.request.get(`${api}/v1/workspaces/${workspace.id}/jobs`));
+ expect(jobsAfterRetry.filter((job:{id:string})=>!previousJobs.some((previous:{id:string})=>previous.id===job.id)).map((job:{id:string})=>job.id)).toEqual([areaDescription.job_id]);
  const areaResult=await json(await page.request.get(`${api}/v1/jobs/${areaDescription.job_id}/result`));expect(areaResult.counts.observations).toBe(fixture.count-1);expect(areaResult.spec.selection).toMatchObject({metric:"area_px",channel_id:null});
  for(const name of ["SVG ↓","全視野の元データ ↓"]){const pending=page.waitForEvent("download");await page.getByRole("button",{name,exact:true}).click();const file=await pending;expect(await file.failure()).toBeNull();if(evidence)await file.saveAs(path.join(evidence,file.suggestedFilename()));}
  await screenshot(page,"generic-description-desktop.png");await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await screenshot(page,"generic-description-mobile.png");await page.setViewportSize({width:1440,height:1000});

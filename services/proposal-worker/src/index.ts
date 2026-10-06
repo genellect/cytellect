@@ -182,6 +182,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     if (!deviceHash || !(await store.deviceActive(deviceHash))) return failure(401, "unauthorized");
     const config = readConfig(env);
     if (!config) return failure(503, "proposal_service_disabled");
+    if (await store.budgetBlocked()) return failure(503, "budget_reconciliation_required");
     const body = await readJson(request);
     const checked = body && checkRequest(body);
     if (!checked) return failure(400, "request_invalid");
@@ -194,7 +195,9 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const amount = worstCaseUsd(config, checked.context, checked.previews);
     if (!(await store.reserve(reservation, period, amount, config.budget, now))) return failure(429, "monthly_budget_exhausted");
     try {
-      const result = await draftProposal({ ...config, fetcher: options.fetcher },
+      const result = await draftProposal({ ...config, fetcher: options.fetcher, beforeCall: async () => {
+        if (await store.budgetBlocked()) throw new ModelError("budget_reconciliation_required");
+      } },
         checked.context, checked.previews);
       // Non-cached input may include cache writes. Until the API's write breakdown is
       // confirmed, retain its higher tariff; this is a conservative ledger, not an invoice.
@@ -210,9 +213,13 @@ export async function handle(request: Request, env: Env, store: Store, options: 
       const usage = error instanceof ModelError ? error.observedUsage : undefined;
       await store.settle(reservation, period, usage
         ? Math.max(amount, observedCost(usage, config.priceCacheWrite, config.priceCachedIn, config.priceOut)) : amount,
-      usage ? { ...usage, model: config.model, promptVersion: PROMPT_VERSION } : undefined);
+      usage ? { ...usage, model: config.model, promptVersion: PROMPT_VERSION } : undefined,
+      error instanceof ModelError && error.code === "model_usage_exceeded");
+      if (error instanceof ModelError && error.validatedDraft !== undefined) {
+        return json(200, { draft: error.validatedDraft, model: config.model, prompt_version: PROMPT_VERSION });
+      }
       const code = error instanceof ModelError ? error.code : "model_unavailable";
-      return failure(code === "model_unavailable" ? 503 : 502, code);
+      return failure(code === "model_unavailable" || code === "budget_reconciliation_required" ? 503 : 502, code);
     }
   }
   return failure(404, "not_found");

@@ -24,6 +24,7 @@ from cytellect_api.db import (
     revisions,
     sessions,
     tables,
+    workspace_selections,
     workspaces,
 )
 from cytellect_api.storage import read_json, write_json
@@ -436,7 +437,7 @@ def cleanup(store):
                 run = store.safe_path("runs", record["id"])
                 if run.exists():
                     shutil.rmtree(run)
-            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts):
+            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, workspace_selections):
                 conn.execute(delete(table).where(table.c.workspace_id == wid))
             conn.execute(
                 update(workspaces)

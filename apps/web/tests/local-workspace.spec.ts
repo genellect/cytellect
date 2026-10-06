@@ -11,7 +11,7 @@ test("local package starts without invitation, processes real GFP, and retains w
  page.on("request",r=>{if(/^https?:/.test(r.url())&&new URL(r.url()).origin!==new URL(origin).origin)external.push(r.url());});
  const startupAt=Date.now();const startupHttp:{session:number|null;setup:number|null}={session:null,setup:null};
  page.on("response",response=>{const pathname=new URL(response.url()).pathname;if(pathname==="/v1/session")startupHttp.session=response.status();if(pathname==="/v1/local/setup")startupHttp.setup=response.status();});
- await page.goto("/");
+ await page.goto("/legacy");
  try{await expect(page.getByRole("heading",{name:"ワークスペース",exact:true})).toBeVisible();}
  catch(error){
   // Fixed categories only: never emit cookies, response bodies, URLs or research-bearing DOM.

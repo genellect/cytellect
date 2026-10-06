@@ -12,6 +12,7 @@ from pydantic import Field, TypeAdapter
 
 from .regions import is_region
 from .storage import read_json
+from .workspace_selection import assert_selection
 
 
 class CommonComparisonView(RegionComparisonResultV2):
@@ -50,6 +51,8 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
             "source_fingerprint": source_fingerprint(report, config),
         }
         with store.transaction() as conn:
+            if config.get("workspace_selection"):
+                assert_selection(conn, rev["workspace_id"], config["workspace_selection"])
             jid = queue(conn, rev["workspace_id"], rid, "statistics",
                         {**body.model_dump(mode="json"), "_source_review": accepted})
         return {"job_id": jid}

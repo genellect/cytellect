@@ -6,12 +6,12 @@
   if (location.origin !== origin || location.search || location.hash || window.parent === window
     || navigator.doNotTrack === "1" || navigator.globalPrivacyControl) return;
   try {
-    if (parent.location.origin !== origin || parent.location.pathname !== "/"
+    if (parent.location.origin !== origin || parent.location.pathname !== "/product"
       || !parent.document.querySelector("[data-cytellect-public-landing]")) return;
   } catch { return; }
   const names = {
     download: "download_click", download_section: "download_section_click",
-    launch: "launch_help_click", launch: "launch_help_click", example: "example_click", planning: "planning_click", guide: "guide_click",
+    launch: "launch_help_click", example: "example_click", planning: "planning_click", guide: "guide_click",
     quickstart: "guide_click", methods: "guide_click", setup: "guide_click", figures: "guide_click",
   };
   window.dataLayer = [];
@@ -27,7 +27,7 @@
       let referrer = "";
       try { const url = new URL(data.referrer); if (url.protocol === "https:") referrer = url.origin; } catch {}
       gtag("config", measurement, {
-        send_page_view: false, page_location: origin + "/", page_title: "Cytellect",
+        send_page_view: false, page_location: origin + "/product", page_title: "Cytellect",
         page_referrer: referrer, allow_google_signals: false, allow_ad_personalization_signals: false,
         cookie_prefix: "cytellect_lp", cookie_flags: "SameSite=Lax;Secure",
       });

@@ -8,7 +8,7 @@ const api=process.env.CYTELLECT_TEST_API_ORIGIN||"http://localhost:8000";
 const python=process.env.CYTELLECT_TEST_PYTHON||path.join(root,".venv",process.platform==="win32"?"Scripts/python.exe":"bin/python");
 
 function invite(){
- if(process.env.CYTELLECT_TEST_DATA_DIR)return execFileSync(python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(1))"],{encoding:"utf8",env:process.env}).trim();
+ if(process.env.CYTELLECT_TEST_DATA_DIR)return execFileSync(python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(300))"],{encoding:"utf8",env:process.env}).trim();
  if(process.env.CYTELLECT_TEST_INVITE_FILE)return fs.readFileSync(process.env.CYTELLECT_TEST_INVITE_FILE,"utf8").trim();
  throw new Error("Use an isolated test data directory or a fresh test invitation");
 }
@@ -18,7 +18,7 @@ async function mutation(page:Page,suffix:string,action:()=>Promise<void>){
  await action();return json(await response);
 }
 async function createWorkspace(page:Page,title:string){
- await page.goto("/");await page.getByLabel("招待コード",{exact:true}).fill(invite());
+ await page.goto("/legacy");await page.getByLabel("招待コード",{exact:true}).fill(invite());
  await page.getByRole("button",{name:"ワークスペースに接続"}).click();
  await page.getByLabel("作業名",{exact:true}).fill(title);
  await page.getByRole("combobox",{name:"解析の種類",exact:true}).selectOption("nuclear");
