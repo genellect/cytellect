@@ -4,12 +4,14 @@ import { useEffect } from "react";
 import { API_CONFIGURED, LOCAL_MODE } from "@/lib/api";
 
 const origin = "https://cytellect.vercel.app";
-const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch"]);
+const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch", "workspace"]);
+/** Public pages without research content. The analysis workspace is never measured. */
+export type MeasuredPage = "/" | "/demo" | "/plan";
 
 /** The Google tag lives in a disposable document, never the application shell. */
-export function LandingAnalytics() {
+export function LandingAnalytics({ page }: { page: MeasuredPage }) {
   useEffect(() => {
-    if (LOCAL_MODE || API_CONFIGURED || location.origin !== origin || location.pathname !== "/product"
+    if (LOCAL_MODE || API_CONFIGURED || location.origin !== origin || location.pathname !== page
       || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) return;
 
     const frame = document.createElement("iframe");
@@ -70,6 +72,6 @@ export function LandingAnalytics() {
       if (frame.contentWindow) (frame.contentWindow as Window & Record<string, unknown>)["ga-disable-G-EHKJ8B8N0Y"] = true;
       frame.remove();
     };
-  }, []);
+  }, [page]);
   return null;
 }

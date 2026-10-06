@@ -1,18 +1,23 @@
-/* Only the public LP may create this document. No application state is read. */
+/* Only the listed public pages may create this document. No application state is read. */
 (() => {
   "use strict";
   const origin = "https://cytellect.vercel.app";
   const measurement = "G-EHKJ8B8N0Y";
   if (location.origin !== origin || location.search || location.hash || window.parent === window
     || navigator.doNotTrack === "1" || navigator.globalPrivacyControl) return;
+  // Fixed page identities; the analysis workspace and every other route are absent.
+  const pages = { "/": "Cytellect", "/demo": "Cytellect — Example analysis", "/plan": "Cytellect — Analysis planning" };
+  let path = "";
   try {
-    if (parent.location.origin !== origin || parent.location.pathname !== "/product"
-      || !parent.document.querySelector("[data-cytellect-public-landing]")) return;
+    path = parent.location.pathname;
+    if (parent.location.origin !== origin || !Object.hasOwn(pages, path)
+      || parent.document.querySelector("[data-cytellect-public-page]")?.getAttribute("data-cytellect-public-page") !== path) return;
   } catch { return; }
   const names = {
     download: "download_click", download_section: "download_section_click",
     launch: "launch_help_click", example: "example_click", planning: "planning_click", guide: "guide_click",
     quickstart: "guide_click", methods: "guide_click", setup: "guide_click", figures: "guide_click",
+    workspace: "workspace_click",
   };
   window.dataLayer = [];
   function gtag() { window.dataLayer.push(arguments); }
@@ -27,7 +32,7 @@
       let referrer = "";
       try { const url = new URL(data.referrer); if (url.protocol === "https:") referrer = url.origin; } catch {}
       gtag("config", measurement, {
-        send_page_view: false, page_location: origin + "/product", page_title: "Cytellect",
+        send_page_view: false, page_location: origin + path, page_title: pages[path],
         page_referrer: referrer, allow_google_signals: false, allow_ad_personalization_signals: false,
         cookie_prefix: "cytellect_lp", cookie_flags: "SameSite=Lax;Secure",
       });

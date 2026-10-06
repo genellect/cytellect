@@ -32,31 +32,35 @@ test("LP sends only fixed page identity and allowlisted actions; exit destroys t
   const tags = await isolatedSite(page, baseURL!);
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(`${origin}/product?private_name=DO_NOT_SEND#private-result`);
+  await page.goto(`${origin}/?private_name=DO_NOT_SEND#private-result`);
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
   expect(tags).toHaveLength(1);
   expect(tags[0]).toContain("id=G-EHKJ8B8N0Y");
   const initial = await commands(page);
   expect(JSON.stringify(initial)).not.toMatch(/DO_NOT_SEND|private-result|private_name/);
   const config = initial.find(row => row[0] === "config")?.[2] as Record<string, unknown>;
-  expect(config).toMatchObject({ page_location: `${origin}/product`, page_title: "Cytellect", send_page_view: false, allow_google_signals: false });
+  expect(config).toMatchObject({ page_location: `${origin}/`, page_title: "Cytellect", send_page_view: false, allow_google_signals: false });
   await page.locator('[data-lp-event="download_section"]').first().click();
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"download_section_click"');
   expect((await commands(page)).filter(row => row[1] === "page_view")).toHaveLength(1);
   // Unknown messages and content never become events.
   await page.evaluate(() => document.querySelector("iframe")?.contentWindow?.postMessage({ type:"cytellect-lp-event", id:"private-file.tif", sequence:8 }, location.origin));
   expect(JSON.stringify(await commands(page))).not.toContain("private-file");
+  // The public example is measured with its own fixed identity; the LP's frame is gone.
   await page.locator('[data-lp-event="example"]').first().click();
   await expect(page).toHaveURL(`${origin}/demo`);
-  await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
+  await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(1);
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
+  const demoConfig = (await commands(page)).find(row => row[0] === "config")?.[2] as Record<string, unknown>;
+  expect(demoConfig).toMatchObject({ page_location: `${origin}/demo`, page_title: "Cytellect — Example analysis" });
   expect(await page.evaluate(() => "dataLayer" in window)).toBe(false);
-  expect(tags).toHaveLength(1);
+  expect(tags).toHaveLength(2);
   expect(errors).toEqual([]);
 });
 
 test("download click uses a fixed event without sending the asset URL", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!);
-  await page.goto(origin + "/product");
+  await page.goto(origin + "/");
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
   // A normal Ctrl-click preserves browser behavior and leaves the LP available for inspection.
   await page.locator('[data-lp-event="download"]').evaluate((anchor: HTMLAnchorElement) => {
@@ -68,9 +72,9 @@ test("download click uses a fixed event without sending the asset URL", async ({
   expect(JSON.stringify(events)).not.toContain("releases/download");
 });
 
-test("non-LP routes, standalone frame, localhost and privacy opt-out never load Google", async ({page, baseURL}) => {
+test("the analysis workspace and other routes, standalone frame, localhost and privacy opt-out never load Google", async ({page, baseURL}) => {
   const tags = await isolatedSite(page, baseURL!);
-  for (const path of ["/", "/workspace", "/legacy", "/plan", "/demo", "/lp-metrics.html"]) {
+  for (const path of ["/workspace", "/legacy", "/product", "/lp-metrics.html"]) {
     await page.goto(origin + path);
     await page.waitForLoadState("networkidle");
     await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
@@ -79,17 +83,30 @@ test("non-LP routes, standalone frame, localhost and privacy opt-out never load 
   await page.waitForLoadState("networkidle");
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
   await page.addInitScript(() => Object.defineProperty(navigator, "globalPrivacyControl", { value:true }));
-  await page.goto(origin + "/product");
-  await expect(page.locator('[data-cytellect-public-landing]')).toBeVisible();
+  await page.goto(origin + "/");
+  await expect(page.locator('[data-cytellect-public-page="/"]')).toBeVisible();
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
   expect(tags).toEqual([]);
 });
 
 test("blocking Google leaves navigation usable", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!, true);
-  await page.goto(origin + "/product");
+  await page.goto(origin + "/");
   await page.locator('[data-lp-event="planning"]').click();
   await expect(page).toHaveURL(`${origin}/plan`);
+  await expect(page.getByRole("link", { name: "cytellect" }).first()).toBeVisible();
+  expect(await commands(page)).toEqual([]);
+});
+
+test("the LP and the analysis screen are separate, and /product moves to the LP", async ({page, baseURL}) => {
+  const moved = await page.request.get(baseURL!.replace(/\/$/, "") + "/product", { maxRedirects: 0 });
+  expect(moved.status()).toBe(308);
+  expect(moved.headers().location).toBe("/");
+  await isolatedSite(page, baseURL!);
+  await page.goto(origin + "/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("publication-ready");
+  await page.getByRole("navigation", { name: "メインナビゲーション" }).getByRole("link", { name: "解析画面" }).click();
+  await expect(page).toHaveURL(`${origin}/workspace`);
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
 });
 
@@ -98,7 +115,7 @@ test("installed-user guidance is visible without contacting a local service", as
   await isolatedSite(page, baseURL!);
   const localRequests: string[] = [];
   page.on("request", request => { if (/^http:\/\/(127\.0\.0\.1|localhost):8765/.test(request.url())) localRequests.push(request.url()); });
-  await page.goto(origin + "/product");
+  await page.goto(origin + "/");
   await page.getByRole("navigation", { name:"メインナビゲーション" }).getByRole("link", {name:"インストール済みの方"}).click();
   await expect(page.locator("#launch")).toBeInViewport();
   await expect(page.locator("#launch")).toContainText("ブラウザで開く");

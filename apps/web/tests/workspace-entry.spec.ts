@@ -1,17 +1,17 @@
 import {expect, test} from "@playwright/test";
 
-test("public root opens the workspace without analytics or a private API connection", async ({page}) => {
+test("the public analysis screen opens without analytics or a private API connection", async ({page}) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED !== "1", "Public build only");
   const external: string[] = [];
   page.on("request", request => {if (/google-analytics|googletagmanager|\/v1\//.test(request.url())) external.push(request.url());});
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(page.getByRole("heading", {name:"画像解析", exact:true})).toBeVisible();
   await expect(page.getByRole("button", {name:"画像を追加", exact:true})).toBeDisabled();
   expect(external).toEqual([]);
   expect((await page.request.get("/legacy")).status()).toBe(404);
 });
 
-test("configured root requires a session and enters the workspace after invitation exchange", async ({page}) => {
+test("the configured analysis screen requires a session and enters the workspace after invitation exchange", async ({page}) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Configured build only");
   let authenticated = false;
   const token = "public-test-invitation-not-a-secret";
@@ -23,7 +23,7 @@ test("configured root requires a session and enters the workspace after invitati
     if (path === "/v1/invitations/redeem") {expect(route.request().postDataJSON()).toEqual({token}); authenticated = true;return route.fulfill({headers,contentType:"application/json",body:"{}"});}
     return route.fulfill({status:404, headers,contentType:"application/json",body:'{"detail":"not_found"}'});
   });
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(page.getByTestId("file-input")).toHaveCount(0);
   await page.getByLabel("招待コード",{exact:true}).fill(token);
   await page.getByRole("button",{name:"ワークスペースに接続",exact:true}).click();

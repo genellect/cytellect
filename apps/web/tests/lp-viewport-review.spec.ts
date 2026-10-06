@@ -4,7 +4,7 @@ import path from 'node:path';
 const dir=process.env.CYTELLECT_SCREENSHOT_DIR;
 test.beforeEach(()=>{test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=='1','Unconfigured public build only');});
 test('first viewport includes hero actions and artwork across window sizes',async({page})=>{
- if(dir)fs.mkdirSync(dir,{recursive:true});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/product');await page.evaluate(()=>document.fonts.ready);
+ if(dir)fs.mkdirSync(dir,{recursive:true});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/');await page.evaluate(()=>document.fonts.ready);
  for(const [width,height] of [[1440,900],[1366,768],[1280,600],[1024,768],[768,1024],[390,844],[390,667],[360,640],[320,568],[740,390],[844,390]]){
  await page.setViewportSize({width,height});await page.evaluate(()=>scrollTo(0,0));const hero=page.getByRole('region',{name:'Get your microscopy publication-ready.',exact:true});
  for(const locator of [hero,hero.getByRole('heading'),hero.getByRole('link',{name:'ダウンロード',exact:true}),hero.getByRole('link',{name:'解析例を見る',exact:true}),hero.getByAltText('青く照らされた細胞構造')]){const b=await locator.boundingBox();expect(b).not.toBeNull();expect(b!.y).toBeGreaterThanOrEqual(0);expect(b!.y+b!.height).toBeLessThanOrEqual(height+1);}
@@ -19,7 +19,7 @@ test('first viewport includes hero actions and artwork across window sizes',asyn
 test('complete cell remains framed in short desktop and tablet WebGL views',async({page})=>{
  await page.emulateMedia({reducedMotion:'no-preference'});
  for(const [width,height] of [[1280,600],[844,390],[768,1024]]){
-  await page.setViewportSize({width,height});await page.goto('/product');const scene=page.getByTestId('hero-scene');await expect(scene).toHaveAttribute('data-state','ready');await page.getByRole('button',{name:'背景映像を停止',exact:true}).click();
+  await page.setViewportSize({width,height});await page.goto('/');const scene=page.getByTestId('hero-scene');await expect(scene).toHaveAttribute('data-state','ready');await page.getByRole('button',{name:'背景映像を停止',exact:true}).click();
   const canvas=scene.locator('canvas');const b=await canvas.boundingBox();expect(b!.y).toBeGreaterThanOrEqual(76);expect(b!.y+b!.height).toBeLessThanOrEqual(height+1);if(dir)await page.screenshot({path:path.join(dir,`hero-webgl-${width}x${height}.png`)});
  }
 });

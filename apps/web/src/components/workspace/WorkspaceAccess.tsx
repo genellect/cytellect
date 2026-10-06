@@ -43,7 +43,7 @@ export default function WorkspaceAccess({children}: {children: ReactNode}) {
   }
   if (!API_CONFIGURED || state === "ready") return children;
   return <main className={styles.shell}>
-    <header className={styles.header}><Link href="/product" className={styles.brand}>cytellect</Link><h1 className={styles.title}>画像解析</h1></header>
+    <header className={styles.header}><Link href="/" className={styles.brand}>cytellect</Link><h1 className={styles.title}>画像解析</h1></header>
     <section className={styles.empty}>
       {state === "checking" ? <p role="status">接続を確認しています。</p> : state === "error" ? <><p role="alert">{error}</p><button className={styles.primary} onClick={() => {setState("checking"); setAttempt(value => value + 1);}}>再接続</button></> : <form onSubmit={event => void connect(event)}>
         <h2>{LOCAL_MODE ? "ワークスペース" : "ワークスペースに接続"}</h2>
