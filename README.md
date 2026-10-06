@@ -34,23 +34,20 @@ Cytellect は、2次元の蛍光画像から細胞核と核小体を検出し、
 | 再現性 | レシピ・測定規約・統計・描画の版番号を記録。成果物に SHA-256 manifest と replay スクリプトを同梱 |
 | 解析案（任意） | 目的文から測定・検定・図の組み合わせを LLM が提案。閉じた選択肢の構造化出力と、ローカルの科学的検査を経て表示。既定は無効 |
 
-## 統計設計
+## 解析パイプラインの実装
 
-細胞は独立な観測ではないため、Cytellect は細胞数ではなく独立した実験単位を n とします。
-
-```text
-細胞 ──(中央値)──▶ 視野 ──(平均)──▶ 試料 ──(平均)──▶ 実験単位 = n
-```
-
-| 方針 | 実装 |
+| 層 | 実装の要点 |
 |---|---|
-| 擬似反復の防止 | 集計規則 `field-median_sample-mean_unit-mean-v1` を結果に記録。視野の条件またぎ、対応なし比較での単位重複、欠けた対応組を拒否 |
-| 手法の選択 | 正規性検定による手法の切り替えはしない。デザインと矛盾する組み合わせは契約で拒否 |
-| 欠測 | 0 で置き換えない。理由付きの欠測として台帳に残し、単位レベルは complete-case |
-| 正確性 | 閉形式解、全並べ替え列挙、独立実装のサンドイッチ推定量と照合するテストで固定 |
-| 根拠 | 帰無仮説下の模擬実験で、細胞単位の回帰（視野クラスタ誤差）は第1種の過誤 32%、実験単位の検定は 2.8%（`scripts/exploratory_model_null_simulation.py`） |
+| 入力検証 | `cytellect_analysis.images` が OME-XML とTIFF IFD を突き合わせ、軸・寸法・dtype・plane 数を検証。外部参照・欠損 plane は例外として拒否 |
+| 検出 | Java ブリッジ（`engines/fiji/CytellectEngine.java`）をヘッドレス Fiji で実行。入力は複製を書き出し、ラベル画像を元座標で受け取る |
+| 版管理 | 検出・修正・除外・背景変更のたびに不変の revision を作成。核を変えると子の核小体を無効化し、統計は確認済み revision からのみ実行 |
+| 測定 | 測定規約（1.x / 2.0.0 / 3.0.0）ごとに列と欠測理由を固定。計算できない値は `null` と理由コードで返す |
+| 統計 | `field-median_sample-mean_unit-mean-v1` で実験単位へ集計して検定。検定の組み合わせは Pydantic 契約で検証し、デザインと矛盾する要求は 422 で拒否 |
+| 作図 | ワーカーで Matplotlib（Agg）により描画。jitter の seed・SVG hashsalt・メタデータを固定し、同じ入力から同じバイト列を生成 |
+| 書き出し | 図・CSV・Methods・ROI・manifest（SHA-256）・`replay.py` を決定的な zip に格納。replay で測定・統計・図を再計算して一致を検査 |
+| 解析案 | 閉じた enum の JSON Schema で Structured Outputs を要求し、`proposal_validation` で意味検査。予算は D1 上で最悪値を1文の SQL で予約 |
 
-詳細は [statistics.md](docs/statistics.md)、[common-statistics.md](docs/common-statistics.md)、[region-comparisons.md](docs/region-comparisons.md) を参照してください。
+統計・作図・測定の各規約は、版番号付きで結果に保存します。数値は閉形式解、全並べ替え列挙、独立実装のサンドイッチ推定量との照合テストで固定しています。手法の詳細は [statistics.md](docs/statistics.md)、[common-statistics.md](docs/common-statistics.md)、[figures.md](docs/figures.md) にあります。
 
 ## アーキテクチャ
 
