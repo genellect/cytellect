@@ -72,6 +72,7 @@ REGION_FIELD_ERRORS = {
     "fiji_invalid_output_labels", "fiji_invalid_output_provenance",
     "fiji_temporary_path_invalid", "fiji_temporary_path_too_long",
     "region_area_only_backgrounds_forbidden", "region_measurement_protocol_mismatch",
+    "region_automatic_background_roi_conflict", "region_background_exclusion_invalid",
     "region_metric_not_measured", "signal_threshold_indeterminate",
     "compartment_nuclear_source_invalid", "compartment_source_image_mismatch",
     "compartment_nuclear_mask_mismatch", "compartment_nuclear_source_excluded",
@@ -139,10 +140,11 @@ def _compartment_nuclei(store, recipe, workspace_id, fid, image_info):
     exclusions = [item for item in report["exclusions"] if item["field_id"] == fid]
     if any(item["region_id"] is None for item in exclusions):
         raise ValueError("compartment_nuclear_source_excluded")
+    source_labels = np.asarray(labels)
     labels = labels.copy()
     excluded_ids = [item["region_id"] for item in exclusions]
     labels[np.isin(labels, excluded_ids)] = 0
-    return labels, {"revision_id": source["id"], "mask_revision_id": mask["mask_revision_id"],
+    return labels, source_labels, {"revision_id": source["id"], "mask_revision_id": mask["mask_revision_id"],
                     "mask_sha256": mask["mask_sha256"], "exclusions": exclusions,
                     "effective_mask_sha256": _array_hash(labels, "<u4"),
                     "nuclear_channel_id": recipe.nuclear_channel_id}
@@ -293,10 +295,13 @@ def run_region_analysis(store, settings, job, output):
             provenance_fields[fid] = {"history": history, "inputs": image_info.model_dump(mode="json")["inputs"],
                                       "source_channels": [c.model_dump(mode="json") for c in image_info.channels]}
             source_nuclei = None
+            # Every source nucleus, including excluded ones, is kept out of an
+            # automatic background candidate; it is never used for measurement.
+            background_exclusion = None
             if isinstance(request.recipe, RegionCompartmentRecipe):
                 source_recipe = (RegionCompartmentRecipe.model_validate(parent["config"]["recipe"])
                                  if cohort is not None and parent is not None else request.recipe)
-                source_nuclei, source_identity = _compartment_nuclei(
+                source_nuclei, background_exclusion, source_identity = _compartment_nuclei(
                     store, source_recipe, revision["workspace_id"], fid, image_info)
                 provenance_fields[fid]["nuclear_source"] = source_identity
                 if old_mask is not None and previous_provenance.get("fields", {}).get(fid, {}).get("nuclear_source") != source_identity:
@@ -430,7 +435,9 @@ def run_region_analysis(store, settings, job, output):
                 recipe=request.recipe, image_info=image_info,
                 measurement=request.measurement,
             )
-            table = measure_regions_versioned(channels, labels, background_masks, specification)
+            automatic = request.measurement is not None and request.measurement.mode == "automatic_background"
+            table = measure_regions_versioned(channels, labels, background_masks, specification,
+                                              background_exclusion=background_exclusion if automatic else None)
             for cid, background in background_masks.items():
                 np.save(destination / f"background-{cid}.npy", background, allow_pickle=False)
             field_tables[fid] = table.model_dump(mode="json")

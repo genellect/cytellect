@@ -17,11 +17,19 @@ from .region_measurement_v2 import (
     RegionMeasurementSpecType,
     RegionMeasurementSpecV2,
     RegionMeasurementSpecV3,
+    RegionMeasurementSpecV4,
     RegionMeasurementTableV2,
     RegionMeasurementTableV3,
+    RegionMeasurementTableV4,
     validate_area_backgrounds,
 )
-from .region_policy import MEASUREMENT_POLICY, MeasurementPolicy, RawIntensityPolicy
+from .region_policy import (
+    MEASUREMENT_POLICY,
+    MODE_BY_PROTOCOL,
+    AutomaticBackgroundPolicy,
+    MeasurementPolicy,
+    RawIntensityPolicy,
+)
 from .regions import (
     BackgroundSpec,
     Calibration2D,
@@ -365,7 +373,8 @@ def scientific_specification(*, field_id: str, revision_id: str, mask_revision_i
         defining_channel_id=recipe.defining_channel_id,
     )
     if measurement is not None:
-        specification_type = RegionMeasurementSpecV3 if measurement.mode == "raw_intensity" else RegionMeasurementSpecV2
+        specification_type = {"area_only": RegionMeasurementSpecV2, "raw_intensity": RegionMeasurementSpecV3,
+                              "automatic_background": RegionMeasurementSpecV4}[measurement.mode]
         return specification_type(
             measurement=measurement, field_id=field_id, analysis_revision_id=revision_id,  # type: ignore[arg-type]
             region_set=region_set, channels=tuple(image_info.channels), calibration=image_info.calibration,
@@ -441,7 +450,7 @@ class RegionReportV2(RegionModel):
     @model_validator(mode="after")
     def complete_outcomes(self):
         _validate_report_outcomes(self)
-        if self.measurement.mode != ("raw_intensity" if self.protocol_version == "3.0.0" else "area_only"):
+        if self.measurement.mode != MODE_BY_PROTOCOL[self.protocol_version]:
             raise ValueError("region_measurement_protocol_mismatch")
         if any(table.measurement != self.measurement for table in self.field_tables.values()):
             raise ValueError("region_measurement_protocol_mismatch")
@@ -454,8 +463,16 @@ class RegionReportV3(RegionReportV2):
     field_tables: dict[Id, RegionMeasurementTableV3]  # type: ignore[assignment]
 
 
-RegionReportType = Annotated[RegionReport | RegionReportV2 | RegionReportV3, Field(discriminator="protocol_version")]
-_REPORT: TypeAdapter[RegionReport | RegionReportV2 | RegionReportV3] = TypeAdapter(RegionReportType)
+class RegionReportV4(RegionReportV2):
+    """Raw values plus corrections from automatic, unconfirmed background candidates."""
+    measurement: AutomaticBackgroundPolicy  # type: ignore[assignment]
+    protocol_version: Literal["4.0.0"] = "4.0.0"  # type: ignore[assignment]
+    field_tables: dict[Id, RegionMeasurementTableV4]  # type: ignore[assignment]
+
+
+_ReportUnion = RegionReport | RegionReportV2 | RegionReportV3 | RegionReportV4
+RegionReportType = Annotated[_ReportUnion, Field(discriminator="protocol_version")]
+_REPORT: TypeAdapter[_ReportUnion] = TypeAdapter(RegionReportType)
 
 
 def region_report_from_json(value: str) -> RegionReportType:

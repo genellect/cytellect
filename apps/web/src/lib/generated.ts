@@ -1070,6 +1070,114 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** AutomaticBackgroundConstants */
+        AutomaticBackgroundConstants: {
+            /** Tile Size Px */
+            tile_size_px: number;
+            /** Perinuclear Margin Px */
+            perinuclear_margin_px: number;
+            /** Margin Metric */
+            margin_metric: string;
+            /** Min Unexcluded Fraction */
+            min_unexcluded_fraction: number;
+            /** Bright Rule */
+            bright_rule: string;
+            /** Bright K */
+            bright_k: number;
+            /** Bright Mad Floor */
+            bright_mad_floor: number;
+            /** Mad Scale */
+            mad_scale: number;
+            /** Tile Median K */
+            tile_median_k: number;
+            /** Tile Dispersion K */
+            tile_dispersion_k: number;
+            /** Rejection Passes */
+            rejection_passes: number;
+            /** Min Tiles */
+            min_tiles: number;
+            /** Min Quadrants */
+            min_quadrants: number;
+            /** Quadrant Rule */
+            quadrant_rule: string;
+        };
+        /**
+         * AutomaticBackgroundPolicy
+         * @description Raw values plus corrections from an automatic, unconfirmed background candidate.
+         */
+        AutomaticBackgroundPolicy: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.2.0";
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "automatic_background";
+        };
+        /** AutomaticBackgroundProvenance */
+        AutomaticBackgroundProvenance: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "established" | "not_established";
+            /**
+             * Background Source
+             * @default automatic_candidate
+             * @constant
+             */
+            background_source: "automatic_candidate";
+            /**
+             * Confirmed
+             * @default false
+             * @constant
+             */
+            confirmed: false;
+            /**
+             * Algorithm
+             * @constant
+             */
+            algorithm: "cytellect-automatic-background";
+            /**
+             * Algorithm Version
+             * @constant
+             */
+            algorithm_version: "1.0.0";
+            constants: components["schemas"]["AutomaticBackgroundConstants"];
+            /** Exclusion Mask Sha256 */
+            exclusion_mask_sha256: string;
+            /** Additional Exclusion */
+            additional_exclusion: boolean;
+            /** Bright Threshold */
+            bright_threshold: number | null;
+            /** Excluded Pixel Count */
+            excluded_pixel_count: number;
+            /** Eligible Tile Count */
+            eligible_tile_count: number;
+            /** Median Rejected Tile Count */
+            median_rejected_tile_count: number;
+            /** Dispersion Rejected Tile Count */
+            dispersion_rejected_tile_count: number;
+            /** Retained Tile Count */
+            retained_tile_count: number;
+            /** Quadrants */
+            quadrants: number[];
+            /** Retained Tile Median Min */
+            retained_tile_median_min: number | null;
+            /** Retained Tile Median Max */
+            retained_tile_median_max: number | null;
+            /** Background Mask Sha256 */
+            background_mask_sha256: string | null;
+            /** Background Pixel Count */
+            background_pixel_count: number | null;
+            /** Background Median */
+            background_median: number | null;
+            /** Reason */
+            reason: ("automatic_background_insufficient_tiles" | "automatic_background_insufficient_coverage") | null;
+        };
         /** Background */
         Background: {
             /** Polygon */
@@ -1199,6 +1307,24 @@ export interface components {
              */
             storage_maximum: 255 | 65535;
             background: components["schemas"]["RawBackgroundProvenance"];
+        };
+        /** ChannelProvenanceV4 */
+        ChannelProvenanceV4: {
+            /** Channel */
+            channel: components["schemas"]["ChannelSpec"] | components["schemas"]["ObservedChannelSpec"];
+            /**
+             * Dtype
+             * @enum {string}
+             */
+            dtype: "uint8" | "uint16";
+            /** Pixel Sha256 */
+            pixel_sha256: string;
+            /**
+             * Storage Maximum
+             * @enum {integer}
+             */
+            storage_maximum: 255 | 65535;
+            background: components["schemas"]["AutomaticBackgroundProvenance"];
         };
         /** ChannelSpec */
         ChannelSpec: {
@@ -2480,7 +2606,7 @@ export interface components {
             reuse_revision?: string | null;
             plan_resolution?: components["schemas"]["PlanResolution"] | null;
             /** Measurement */
-            measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | null;
+            measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | components["schemas"]["AutomaticBackgroundPolicy"] | null;
             /** Recipe */
             recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
             /** Backgrounds */
@@ -3134,6 +3260,53 @@ export interface components {
              */
             correction_missing_reason: "background_not_established";
         };
+        /** RegionMeasurementRowV4 */
+        RegionMeasurementRowV4: {
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Region Id */
+            region_id: number;
+            /** Channel Id */
+            channel_id: string;
+            /** Area Px */
+            area_px: number;
+            /** Area Um2 */
+            area_um2: number | null;
+            /** Area Missing Reason */
+            area_missing_reason: "calibration_unknown" | null;
+            /** Mean */
+            mean: number;
+            /** Median */
+            median: number;
+            /** Integrated */
+            integrated: number;
+            /** Mean Corrected */
+            mean_corrected: number | null;
+            /** Median Corrected */
+            median_corrected: number | null;
+            /** Integrated Corrected */
+            integrated_corrected: number | null;
+            /** Intensity Missing Reason */
+            intensity_missing_reason?: null;
+            /** Storage Limit Fraction */
+            storage_limit_fraction: number;
+            /** Storage Limit Missing Reason */
+            storage_limit_missing_reason?: null;
+            /** Acquisition Saturation Fraction */
+            acquisition_saturation_fraction: number | null;
+            /** Acquisition Saturation Missing Reason */
+            acquisition_saturation_missing_reason: "acquisition_limit_unknown" | null;
+            /** Touches Border */
+            touches_border: boolean;
+            /** Correction Missing Reason */
+            correction_missing_reason: ("automatic_background_insufficient_tiles" | "automatic_background_insufficient_coverage") | null;
+        };
         /** RegionMeasurementTable */
         RegionMeasurementTable: {
             /**
@@ -3246,6 +3419,44 @@ export interface components {
             channel_provenance: components["schemas"]["ChannelProvenanceV3"][];
             /** Rows */
             rows: components["schemas"]["RegionMeasurementRowV3"][];
+        };
+        /** RegionMeasurementTableV4 */
+        RegionMeasurementTableV4: {
+            /**
+             * Protocol Version
+             * @default 4.0.0
+             * @constant
+             */
+            protocol_version: "4.0.0";
+            measurement: components["schemas"]["AutomaticBackgroundPolicy"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "no_regions";
+            /** Field Id */
+            field_id: string;
+            /** Analysis Revision Id */
+            analysis_revision_id: string;
+            region_set: components["schemas"]["RegionSetSpec"];
+            /** Shape Yx */
+            shape_yx: [
+                number,
+                number
+            ];
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /**
+             * Hash Format
+             * @default cytellect-array-v1
+             * @constant
+             */
+            hash_format: "cytellect-array-v1";
+            calibration: components["schemas"]["Calibration2D"] | null;
+            /** Channel Provenance */
+            channel_provenance: components["schemas"]["ChannelProvenanceV4"][];
+            /** Rows */
+            rows: components["schemas"]["RegionMeasurementRowV4"][];
         };
         /** RegionMetadataEdit */
         RegionMetadataEdit: {
@@ -3420,6 +3631,46 @@ export interface components {
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV3"];
+            };
+            /** Field Masks */
+            field_masks: {
+                [key: string]: components["schemas"]["RegionFieldMask"];
+            };
+            /** Field Outcomes */
+            field_outcomes: {
+                [key: string]: "measured" | "no_regions" | "failed" | "excluded_failed";
+            };
+            /** Field Failures */
+            field_failures: components["schemas"]["RegionFieldFailure"][];
+            /** Excluded Failed Fields */
+            excluded_failed_fields: components["schemas"]["RegionExcludedFailure"][];
+            /** Exclusions */
+            exclusions: components["schemas"]["RegionExclusion"][];
+        };
+        /**
+         * RegionReportV4
+         * @description Raw values plus corrections from automatic, unconfirmed background candidates.
+         */
+        RegionReportV4: {
+            /**
+             * Analysis Kind
+             * @default region-2d
+             * @constant
+             */
+            analysis_kind: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "4.0.0";
+            measurement: components["schemas"]["AutomaticBackgroundPolicy"];
+            /** Revision Id */
+            revision_id: string;
+            /** Recipe */
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            /** Field Tables */
+            field_tables: {
+                [key: string]: components["schemas"]["RegionMeasurementTableV4"];
             };
             /** Field Masks */
             field_masks: {
@@ -5363,7 +5614,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegionReport"] | components["schemas"]["RegionReportV2"] | components["schemas"]["RegionReportV3"];
+                    "application/json": components["schemas"]["RegionReport"] | components["schemas"]["RegionReportV2"] | components["schemas"]["RegionReportV3"] | components["schemas"]["RegionReportV4"];
                 };
             };
             /** @description Validation Error */
