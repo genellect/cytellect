@@ -76,6 +76,36 @@ def _request(config):
     return request
 
 
+def _compartment_initial(recipe) -> str | None:
+    """Methods text for nucleolar detector 2.0.0 and nucleoplasm from adopted nucleoli."""
+    if recipe.compartment == "nucleoplasm" and recipe.nucleolar_revision_id is not None:
+        return (f"Nucleoplasm: each source nucleus minus the union of the adopted, researcher-reviewed nucleoli of "
+                f"revision {recipe.nucleolar_revision_id}; no detector or threshold was re-run. A nucleus without an "
+                "adopted nucleolus has no nucleoplasm value (missing, not zero). Per-nucleus summaries report "
+                "log2(mean nucleoplasm / mean nucleolar union) over union pixels without a pseudocount "
+                "(White et al., Mol Cell 2019, doi:10.1016/j.molcel.2019.03.019), with integrated values and the "
+                "nucleolar area fraction (Potapova et al., eLife 2023, doi:10.7554/eLife.88799).")
+    detector = recipe.detector
+    if getattr(detector, "protocol_version", None) != "2.0.0":
+        return None
+    size = (f"8-connected components of {detector.minimum_area_px}"
+            + (f"–{detector.maximum_area_px}" if detector.maximum_area_px is not None else " or more")
+            + f" px with solidity ≥ {detector.minimum_solidity:g} are kept.")
+    if detector.source == "dapi_poor":
+        return ("Initial masks: nucleolar candidates are DNA-poor regions of the nuclear stain "
+                f"(cytellect-nucleolar-v2 2.0.0). Within each nucleus, after a Gaussian σ {detector.smoothing_sigma_px:g} px "
+                f"and excluding a {detector.rim_exclusion_px} px rim, pixels darker than {detector.relative_threshold:g} × "
+                f"the median of the eroded interior are candidates (after Kodiha et al., BMC Cell Biol 2011, "
+                f"doi:10.1186/1471-2121-12-25). {size} This definition does not use the measured NCL channel and can "
+                "under-segment nucleoli.")
+    return ("Initial masks: nucleolar candidates from a nucleolar marker channel (cytellect-nucleolar-v2 2.0.0). "
+            f"After rolling-ball subtraction (radius {detector.background_radius_px} px) and a Gaussian σ 0.7 px, pixels "
+            f"above min + {detector.marker_fraction:g} × (max − min) of the nucleus interior (a {detector.rim_exclusion_px} px rim "
+            "excluded) are candidates "
+            f"(after Potapova et al., eLife 2023, doi:10.7554/eLife.88799). {size} UBF or FBL mark nucleolar "
+            "sub-compartments; candidates are marker-defined.")
+
+
 def region_methods(config, report, provenance):
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
@@ -94,6 +124,7 @@ def region_methods(config, report, provenance):
         initial = ("Initial masks: within-nucleus NCL-enriched candidates from the recorded Fiji compartment detector. "
                    "Nucleoplasm is the source nucleus minus the candidate union only for eligible classified nuclei. "
                    "Unclassified or failed nuclei are retained as missing parents, never whole-nucleus substitutes.")
+        initial = _compartment_initial(request.recipe) or initial
     lines = ["# Cytellect region measurement Methods", "",
              "Generated from recorded settings; review the biological definitions before publication.", "",
              (f"Methods template {AREA_METHODS_VERSION}; region measurement protocol 2.0.0." if area_only else

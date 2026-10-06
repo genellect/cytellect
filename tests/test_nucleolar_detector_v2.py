@@ -103,3 +103,19 @@ def test_recipe_requires_nuclear_channel_for_dapi_poor_and_distinct_channel_othe
     with pytest.raises(ValueError, match="compartment_requires_distinct_channels"):
         RegionCompartmentRecipe.model_validate({**base, "defining_channel_id": "dapi",
                                                 "detector": {"protocol_version": "2.0.0", "source": "marker"}})
+
+
+def test_methods_text_names_the_chosen_nucleolar_definition_and_adopted_nucleoplasm():
+    from cytellect_analysis.region_exports import _compartment_initial
+    base = {"region_set_id": "nucleoli", "label": "Nucleoli", "compartment": "nucleoli",
+            "nuclear_revision_id": "n1", "nuclear_channel_id": "dapi"}
+    dapi = RegionCompartmentRecipe(**base, defining_channel_id="dapi", detector=NucleolarDetectorV20())
+    text = _compartment_initial(dapi)
+    assert "DNA-poor" in text and "0.7 ×" in text and "10.1186/1471-2121-12-25" in text and "NCL-enriched" not in text
+    marker = RegionCompartmentRecipe(**base, defining_channel_id="ubf",
+                                     detector=NucleolarDetectorV20(source="marker", maximum_area_px=500))
+    text = _compartment_initial(marker)
+    assert "marker channel" in text and "0.4 × (max − min)" in text and "4–500 px" in text and "10.7554/eLife.88799" in text
+    plasm = RegionCompartmentRecipe(**{**base, "region_set_id": "nucleoplasm", "compartment": "nucleoplasm"},
+                                    defining_channel_id="dapi", detector=NucleolarDetectorV20(), nucleolar_revision_id="o1")
+    assert "adopted, researcher-reviewed nucleoli of revision o1" in _compartment_initial(plasm)
