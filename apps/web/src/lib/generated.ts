@@ -2293,7 +2293,7 @@ export interface components {
             /** Measurement */
             measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | null;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
             /** Backgrounds */
             backgrounds?: {
                 [key: string]: {
@@ -2655,7 +2655,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions";
             /** Shape */
             shape: number[];
             file: components["schemas"]["RegionStoredFile"];
@@ -3103,7 +3103,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
@@ -3143,7 +3143,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV2"];
@@ -3180,7 +3180,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV3"];
@@ -3232,9 +3232,39 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions";
             /** Defining Channel Id */
             defining_channel_id?: string | null;
+        };
+        /**
+         * RegionSignalRecipe
+         * @description Exploratory signal-positive areas; never implicitly nuclei or nucleoli.
+         */
+        RegionSignalRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.3.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @default fiji_positive_regions
+             * @constant
+             */
+            source: "fiji_positive_regions";
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            detector?: components["schemas"]["SignalDetectorSpec"];
         };
         /** RegionStoredFile */
         RegionStoredFile: {
@@ -3287,6 +3317,43 @@ export interface components {
             reviewed: boolean;
             /** Created */
             created: number;
+        };
+        /** SignalDetectorSpec */
+        SignalDetectorSpec: {
+            /**
+             * Engine
+             * @default fiji-positive-regions
+             * @constant
+             */
+            engine: "fiji-positive-regions";
+            /**
+             * Protocol Version
+             * @default 1.0.0
+             * @constant
+             */
+            protocol_version: "1.0.0";
+            /**
+             * Threshold Method
+             * @enum {string}
+             */
+            threshold_method: "otsu" | "manual";
+            /** Threshold */
+            threshold?: number | null;
+            /**
+             * Smoothing Sigma Px
+             * @default 0
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Minimum Area Px
+             * @default 1
+             */
+            minimum_area_px: number;
+            /**
+             * Split Touching
+             * @default false
+             */
+            split_touching: boolean;
         };
         /** StatisticsRequest */
         StatisticsRequest: {

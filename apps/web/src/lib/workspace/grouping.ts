@@ -242,3 +242,14 @@ export function nameChannel(grouping: Grouping, token: string, stain: string): G
 export function channelName(channel: ChannelDefinition): string {
   return channel.stain ?? channel.token;
 }
+
+/** Restore the union: incomplete fields need not contain every channel. */
+export function restoredChannels(fields: Array<{image_info: {channels: Array<{channel_id: string; label: string; stain: string | null}>}}>): ChannelDefinition[] {
+  const known = new Map<string, {label: string; channel: ChannelDefinition}>();
+  for (const field of fields) for (const spec of field.image_info.channels) {
+    const previous = known.get(spec.channel_id);
+    if (previous && (previous.label !== spec.label || previous.channel.stain !== spec.stain)) throw new Error("保存されたチャンネル情報が一致しません。");
+    known.set(spec.channel_id, {label: spec.label, channel: {token: spec.channel_id, stain: spec.stain, role: null, evidence: "registered_source"}});
+  }
+  return [...known.values()].map(value => value.channel).sort((a, b) => a.token.localeCompare(b.token));
+}

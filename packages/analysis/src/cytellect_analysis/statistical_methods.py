@@ -86,7 +86,16 @@ def _measurement(result):
             label, stain = next(iter(identities))
             lines.append(f"Measured channel: {label}; stain: {stain or 'not recorded'}; recorded channel ID: {channel_id}.")
         if "raw_intensity" in modes:
-            lines.append("Raw-intensity protocol 3.0.0 measured original pixels. Background was not established; corrected intensities are missing.")
+            input_modes = {field.get("image_info", {}).get("input_mode", "native") for field in fields}
+            if input_modes == {"display-rgb"}:
+                lines.append("Raw-intensity protocol 3.0.0 used display-RGB transform 1.0.0: max(R,G,B), "
+                             "ignoring alpha, at original resolution. Values are display codes, not acquired raw fluorescence. "
+                             "Acquisition LUTs, clipping and gamma cannot be reversed. "
+                             "Background was not established; corrected intensities are missing.")
+            elif len(input_modes) > 1 and not metric.startswith("area"):
+                raise ValueError("statistical_methods_source_invalid")
+            else:
+                lines.append("Raw-intensity protocol 3.0.0 measured original pixels. Background was not established; corrected intensities are missing.")
         if "area_only" in modes:
             if metric not in ("area_px", "area_um2"):
                 raise ValueError("statistical_methods_source_invalid")

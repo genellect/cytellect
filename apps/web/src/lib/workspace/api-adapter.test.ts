@@ -49,6 +49,12 @@ describe("real workspace transport boundaries", () => {
     await expect(polling.adapter.run("w1", "f1", nuclearRecipe(channel))).rejects.toThrow();
     expect(polling.post).toHaveBeenCalledTimes(1);
   });
+  it("creates a new job when the defining channel changes", async () => {
+    const {adapter, post} = fake(async path => path.endsWith("/jobs") ? [{id: "j1", state: "succeeded"}] : {revision_id: "different", field_failures: [], field_tables: {}});
+    await expect(adapter.run("w1", "f1", nuclearRecipe(channel))).rejects.toThrow("解析版");
+    await expect(adapter.run("w1", "f1", {...nuclearRecipe(channel), defining_channel_id: "channel3"})).rejects.toThrow("解析版");
+    expect(post).toHaveBeenCalledTimes(2);
+  });
   it("retains the exact mask version and parent for a delete", async () => {
     const {adapter, post} = fake(async path => path.endsWith("/jobs") ? [{id: "j1", state: "succeeded"}] : path.includes("region-masks") ? result.masks : {revision_id: "r1", field_tables: {f1: {rows: []}}, field_failures: [], exclusions: []});
     await adapter.correct("w1", result, "delete", 7, nuclearRecipe(channel));
@@ -64,6 +70,14 @@ describe("real workspace transport boundaries", () => {
     expect(post).toHaveBeenCalledWith("/v1/revisions/r1/descriptive-preview", expect.objectContaining({selection: {source: "region", region_set_id: "nuclei", metric: "mean", channel_id: "channel2"}, plot: expect.objectContaining({width_inches: 178/25.4, y_label: "Raw intensity"})}));
     expect(figureIdentity("r1", choice)).not.toBe(figureIdentity("r2", choice));
     expect(figureIdentity("r1", choice)).not.toBe(figureIdentity("r1", {...choice, channel: "channel1"}));
+  });
+  it("keeps positive-region identity in graph and delete requests", async () => {
+    const {adapter, post} = fake(async path => path.endsWith("/jobs") ? [{id: "j1", state: "succeeded"}] : path.includes("region-masks") ? result.masks : {revision_id: "r1", field_tables: {f1: {rows: []}}, field_failures: [], exclusions: []});
+    const recipe = {...nuclearRecipe(channel), version: "1.3.0" as const, source: "fiji_positive_regions" as const, region_set_id: "gfp_positive", label: "GFP陽性領域"};
+    await adapter.correct("w1", {...result, regionSet: "gfp_positive"}, "delete", 7, recipe);
+    expect(post).toHaveBeenCalledWith("/v1/revisions/r1/region-edits", expect.objectContaining({region_set_id: "gfp_positive"}));
+    await adapter.figure("w1", {...result, regionSet: "gfp_positive"}, {channel: "channel2", metric: "mean", width: 178, height: 76, label: "Intensity"});
+    expect(post).toHaveBeenCalledWith("/v1/revisions/r1/descriptive-preview", expect.objectContaining({selection: expect.objectContaining({region_set_id: "gfp_positive"})}));
   });
   it("sends only a goal and explicit scope consent for optional proposals", async () => {
     const {adapter, post} = fake(async () => ({}));

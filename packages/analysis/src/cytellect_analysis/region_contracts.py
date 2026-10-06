@@ -33,6 +33,7 @@ from .regions import (
     RegionModel,
     RegionSetSpec,
 )
+from .signal_engine import SignalDetectorSpec
 
 Point = Annotated[list[FiniteFloat], Field(min_length=2, max_length=2)]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
@@ -181,7 +182,25 @@ class AdoptedNuclearRecipe(RegionModel):
     detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
 
 
-RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe, Field(discriminator="version")]
+class RegionSignalRecipe(RegionModel):
+    """Exploratory signal-positive areas; never implicitly nuclei or nucleoli."""
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.3.0"] = "1.3.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["fiji_positive_regions"] = "fiji_positive_regions"
+    defining_channel_id: Id
+    detector: SignalDetectorSpec = Field(default_factory=lambda: SignalDetectorSpec(threshold_method="otsu"))
+
+    @field_validator("label")
+    @classmethod
+    def nonblank_label(cls, value):
+        if not value.strip() or any(ord(char) < 32 for char in value):
+            raise ValueError("region_label_invalid")
+        return value
+
+
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | RegionSignalRecipe, Field(discriminator="version")]
 
 
 RECORDED_NUCLEAR_STAINS = frozenset({"dapi", "hoechst", "hoechst33258", "hoechst33342", "draq", "draq5", "draq7"})
@@ -317,7 +336,7 @@ class RegionFieldMask(RegionModel):
     mask_revision_id: Id
     mask_sha256: Digest
     region_set_id: Id
-    source: Literal["manual", "imported", "stardist_nuclear"]
+    source: Literal["manual", "imported", "stardist_nuclear", "fiji_positive_regions"]
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     file: RegionStoredFile
 

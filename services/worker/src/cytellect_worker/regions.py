@@ -21,6 +21,7 @@ from cytellect_analysis.region_contracts import (
     RegionImageInfo,
     RegionMaskEdit,
     RegionNuclearRecipe,
+    RegionSignalRecipe,
     RegionStoredFile,
     region_report_from_json,
     scientific_specification,
@@ -31,6 +32,7 @@ from cytellect_analysis.region_measurement_v2 import measure_regions_versioned
 from cytellect_analysis.region_metadata import validate_region_reuse
 from cytellect_analysis.region_policy import measurement_protocol
 from cytellect_analysis.regions import _array_hash
+from cytellect_analysis.signal_engine import detect_positive_regions
 from cytellect_api.db import fields, jobs, revisions
 from cytellect_api.storage import read_json, write_json
 
@@ -58,7 +60,7 @@ REGION_FIELD_ERRORS = {
     "fiji_invalid_output_labels", "fiji_invalid_output_provenance",
     "fiji_temporary_path_invalid", "fiji_temporary_path_too_long",
     "region_area_only_backgrounds_forbidden", "region_measurement_protocol_mismatch",
-    "region_metric_not_measured",
+    "region_metric_not_measured", "signal_threshold_indeterminate",
     "nuclear_recorded_stain_required", "unknown_defining_channel",
     "cohort_source_invalid", "cohort_source_changed", "cohort_source_field_not_measured",
 }
@@ -195,7 +197,7 @@ def run_region_analysis(store, settings, job, output):
                 raise ValueError("region_source_shape_or_dtype_invalid")
             if request.recipe.defining_channel_id is not None and request.recipe.defining_channel_id not in channels:
                 raise ValueError("region_unknown_defining_channel")
-            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe))
+            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, RegionSignalRecipe))
             if nuclear and image_info.labels_array is not None:
                 raise ValueError("region_automatic_source_has_imported_labels")
             previously_selected = parent is not None and fid in parent["config"]["field_snapshot"]
@@ -223,7 +225,7 @@ def run_region_analysis(store, settings, job, output):
                         or _array_hash(labels, "<u4") != old_mask["mask_sha256"]):
                     raise ValueError("region_parent_mask_mismatch")
                 mask_revision_id = old_mask["mask_revision_id"]
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, RegionSignalRecipe)):
                     detector = deepcopy(previous_provenance.get("fields", {}).get(fid, {}).get("detector"))
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
@@ -239,15 +241,21 @@ def run_region_analysis(store, settings, job, output):
             else:
                 if (edit and edit.field_id == fid) or (previously_selected and fid in previous_report.get("field_tables", {})):
                     raise ValueError("region_parent_mask_missing")
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, RegionSignalRecipe)):
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
                     detection_started = True
                     detector_attempted = True
-                    labels, engine_info = detect_nuclei(
-                        image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
-                        scratch_root=output.parent,
-                    )
+                    if isinstance(request.recipe, RegionSignalRecipe):
+                        labels, engine_info = detect_positive_regions(
+                            image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
+                            scratch_root=output.parent,
+                        )
+                    else:
+                        labels, engine_info = detect_nuclei(
+                            image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
+                            scratch_root=output.parent,
+                        )
                     validate_label_array(labels)
                     if list(labels.shape) != image_info.shape:
                         raise ValueError("fiji_invalid_output_labels")
@@ -260,6 +268,8 @@ def run_region_analysis(store, settings, job, output):
                         "engine": engine_info, "executed_this_attempt": True,
                     }
                     detection_started = False
+                    if isinstance(request.recipe, RegionSignalRecipe) and engine_info.get("status") == "indeterminate":
+                        raise ValueError("signal_threshold_indeterminate")
                 else:
                     labels = _initial_labels(folder, image_info, request.recipe.source)
                 history.append({"revision_id": revision["id"], "operation": "initialize",

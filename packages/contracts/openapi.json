@@ -5997,6 +5997,9 @@
               },
               {
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionSignalRecipe"
               }
             ],
             "title": "Recipe",
@@ -6005,7 +6008,8 @@
               "mapping": {
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
-                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
+                "1.3.0": "#/components/schemas/RegionSignalRecipe"
               }
             }
           },
@@ -6815,7 +6819,8 @@
             "enum": [
               "manual",
               "imported",
-              "stardist_nuclear"
+              "stardist_nuclear",
+              "fiji_positive_regions"
             ],
             "title": "Source"
           },
@@ -8132,6 +8137,9 @@
               },
               {
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionSignalRecipe"
               }
             ],
             "title": "Recipe",
@@ -8140,7 +8148,8 @@
               "mapping": {
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
-                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
+                "1.3.0": "#/components/schemas/RegionSignalRecipe"
               }
             }
           },
@@ -8260,6 +8269,9 @@
               },
               {
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionSignalRecipe"
               }
             ],
             "title": "Recipe",
@@ -8268,7 +8280,8 @@
               "mapping": {
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
-                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
+                "1.3.0": "#/components/schemas/RegionSignalRecipe"
               }
             }
           },
@@ -8389,6 +8402,9 @@
               },
               {
                 "$ref": "#/components/schemas/AdoptedNuclearRecipe"
+              },
+              {
+                "$ref": "#/components/schemas/RegionSignalRecipe"
               }
             ],
             "title": "Recipe",
@@ -8397,7 +8413,8 @@
               "mapping": {
                 "1.0.0": "#/components/schemas/RegionRecipe",
                 "1.1.0": "#/components/schemas/RegionNuclearRecipe",
-                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe"
+                "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
+                "1.3.0": "#/components/schemas/RegionSignalRecipe"
               }
             }
           },
@@ -8563,7 +8580,8 @@
             "enum": [
               "manual",
               "imported",
-              "stardist_nuclear"
+              "stardist_nuclear",
+              "fiji_positive_regions"
             ],
             "title": "Source"
           },
@@ -8591,6 +8609,60 @@
           "source"
         ],
         "title": "RegionSetSpec"
+      },
+      "RegionSignalRecipe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Id",
+            "default": "region-2d"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.3.0",
+            "title": "Version",
+            "default": "1.3.0"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "const": "fiji_positive_regions",
+            "title": "Source",
+            "default": "fiji_positive_regions"
+          },
+          "defining_channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Defining Channel Id"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/SignalDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "region_set_id",
+          "label",
+          "defining_channel_id"
+        ],
+        "title": "RegionSignalRecipe",
+        "description": "Exploratory signal-positive areas; never implicitly nuclei or nucleoli."
       },
       "RegionStoredFile": {
         "properties": {
@@ -8766,6 +8838,68 @@
           "created"
         ],
         "title": "RevisionView"
+      },
+      "SignalDetectorSpec": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "const": "fiji-positive-regions",
+            "title": "Engine",
+            "default": "fiji-positive-regions"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Protocol Version",
+            "default": "1.0.0"
+          },
+          "threshold_method": {
+            "type": "string",
+            "enum": [
+              "otsu",
+              "manual"
+            ],
+            "title": "Threshold Method"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 65535.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "smoothing_sigma_px": {
+            "type": "number",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Smoothing Sigma Px",
+            "default": 0.0
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Minimum Area Px",
+            "default": 1
+          },
+          "split_touching": {
+            "type": "boolean",
+            "title": "Split Touching",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "threshold_method"
+        ],
+        "title": "SignalDetectorSpec"
       },
       "StatisticsRequest": {
         "properties": {

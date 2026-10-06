@@ -22,6 +22,7 @@ from .region_contracts import (
     RegionAnalysisRequest,
     RegionImageInfo,
     RegionNuclearRecipe,
+    RegionSignalRecipe,
     region_report_from_json,
     scientific_specification,
     validate_region_report_policy,
@@ -79,6 +80,10 @@ def region_methods(config, report, provenance):
     initial = ("Initial masks: a confirmed nuclear-stain channel was submitted to the fixed offline Fiji/StarDist 2D "
                "Versatile (fluorescent nuclei) model. This model defines nuclei, not whole cells or nucleoli."
                if nuclear else f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.")
+    signal = isinstance(request.recipe, RegionSignalRecipe)
+    if signal:
+        initial = ("Initial masks: Fiji/ImageJ thresholding and connected components on the defining channel. "
+                   "These exploratory signal-positive areas do not establish biological positivity, nuclei or nucleoli.")
     lines = ["# Cytellect region measurement Methods", "",
              "Generated from recorded settings; review the biological definitions before publication.", "",
              (f"Methods template {AREA_METHODS_VERSION}; region measurement protocol 2.0.0." if area_only else
@@ -125,13 +130,17 @@ def region_methods(config, report, provenance):
             "Saved labels use original image coordinates. Detection preprocessing does not alter "
             "measurement pixels. Corrected labels are preserved when metadata/background changes or a batch expands.",
         ])
+    if signal:
+        lines.append(f"Signal detector protocol 1.0.0; recipe {request.recipe.version}; "
+                     f"defining channel {request.recipe.defining_channel_id}; settings "
+                     + json.dumps(request.recipe.detector.model_dump(mode="json"), sort_keys=True) + ".")
     for fid in request.field_ids:
         info = RegionImageInfo.model_validate(config["field_snapshot"][fid]["image_info"])
         labels = "; ".join(f"{channel.channel_id}: {channel.label} (stain: {channel.stain or 'not recorded'})"
                            for channel in info.channels)
         lines.append(f"Field {fid}: {labels}.")
         event = provenance.get("fields", {}).get(fid, {}).get("detector")
-        if nuclear and event:
+        if (nuclear or signal) and event:
             engine = event.get("engine", {})
             if engine.get("nuclear_detector_protocol_version") == "1.1.0":
                 transform = engine["coordinate_transform"]
@@ -237,7 +246,7 @@ def _recompute_statistics(report, config, result):
         calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
     calculated["revision_id"] = report["revision_id"]
     if result.get("source_review") == "automatic_unreviewed":
-        if config.get("recipe", {}).get("version") != "1.2.0" or result["spec"].get("mode") != "descriptive":
+        if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0") or result["spec"].get("mode") != "descriptive":
             raise ValueError("region_export_statistics_unrecognized_fields")
         calculated["source_review"] = "automatic_unreviewed"
     if set(result) - (set(calculated) | {"figure"}):

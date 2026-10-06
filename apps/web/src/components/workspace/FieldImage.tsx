@@ -5,6 +5,11 @@ import styles from "./analysis-workspace.module.css";
 
 export interface OutlineView { outline: Outline; state: "included" | "excluded" | "deleted" }
 
+/** Holes and disconnected contours retain their parent region ID. */
+export function uniqueRegionCount(contours: ReadonlyArray<{id: number | string}>): number {
+  return new Set(contours.map(contour => String(contour.id))).size;
+}
+
 /** Display-only image with region outlines; preview pixels are never measured. */
 export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, label, controlledZoom, onZoomChange }: {
   src: string | null;
@@ -46,18 +51,18 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
         <button type="button" onClick={() => setZoom(1)} aria-label="原寸で表示">{Math.round(zoom * 100)}%</button>
         <button type="button" onClick={() => setZoom(value => Math.min(8, (value ?? fitZoom) * 1.5))} aria-label="拡大">＋</button>
         <button type="button" onClick={() => {setZoom(null);}}>全体を表示</button>
-        {analyzed && <button type="button" aria-pressed={showOutlines} onClick={() => setShowOutlines(value => !value)}>検出領域 {outlines.filter(value => value.state !== "deleted").length}</button>}
+        {analyzed && <button type="button" aria-pressed={showOutlines} onClick={() => setShowOutlines(value => !value)}>検出領域 {uniqueRegionCount(outlines.filter(value => value.state !== "deleted").map(value => value.outline))}</button>}
       </div>
       <div ref={viewport} className={styles.imageViewport}>
       <svg className={styles.imageSvg} style={{width: size.width * zoom, height: size.height * zoom, minWidth: size.width * zoom}} viewBox={`0 0 ${size.width} ${size.height}`} role="img" aria-label={label}>
         <image href={src} width={size.width} height={size.height} preserveAspectRatio="xMidYMid meet" />
-        {showOutlines && outlines.map(({ outline, state }) => {
+        {showOutlines && outlines.map(({ outline, state }, contourIndex) => {
           if (state === "deleted") return null;
           const id = Number(outline.id);
           const points = outline.points.map(([x, y]) => `${x},${y}`).join(" ");
           const className = [styles.outline, state === "excluded" ? styles.outlineExcluded : "", id === selected ? styles.outlineSelected : ""].join(" ");
           return (
-            <polygon key={outline.id} points={points} className={className} data-region={outline.id}
+            <polygon key={`${outline.id}:${contourIndex}`} points={points} className={className} data-region={outline.id}
               role="button" tabIndex={0} aria-label={`領域 ${id}`} onKeyDown={event => {if (event.key === "Enter" || event.key === " ") {event.preventDefault(); onSelect(id);}}} onClick={() => onSelect(id)}>
               <title>{`領域 ${outline.id}${state === "excluded" ? "（除外）" : ""}`}</title>
             </polygon>

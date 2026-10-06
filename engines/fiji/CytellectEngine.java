@@ -51,11 +51,66 @@ public class CytellectEngine {
     static void execute(Path request) throws Exception {
         execute(request, binary -> BinaryImages.componentsLabeling(binary,8,32));
     }
+    static void detectSignal(JsonObject root, java.util.function.Function<ByteProcessor,ImageProcessor> labelComponents) throws Exception {
+        Path out=Path.of(root.get("directory").getAsString());
+        JsonObject parameters=root.getAsJsonObject("detector");
+        ImagePlus image=IJ.openImage(out.resolve("signal.tif").toString());
+        if(image==null) throw new IllegalArgumentException("signal_input_missing");
+        int w=image.getWidth(),h=image.getHeight(),size=w*h;
+        FloatProcessor detection=image.getProcessor().convertToFloatProcessor();
+        double sigma=number(parameters,"smoothing_sigma_px");
+        if(sigma>0) new GaussianBlur().blurGaussian(detection,sigma,sigma,0.01);
+        float[] signal=(float[])detection.getPixels();
+        float low=Float.POSITIVE_INFINITY,high=Float.NEGATIVE_INFINITY;
+        for(float value:signal) {low=Math.min(low,value);high=Math.max(high,value);}
+        String method=parameters.get("threshold_method").getAsString();
+        boolean otsuMethod=method.equals("otsu");
+        if(!otsuMethod && !method.equals("manual")) throw new IllegalArgumentException("unknown_signal_threshold");
+        boolean indeterminate=otsuMethod && low==high;
+        int otsu=0;
+        if(otsuMethod && !indeterminate) {
+            int[] histogram=new int[256];
+            for(float value:signal) histogram[Math.min(255,(int)((value-low)*256/(high-low)))]++;
+            otsu=new AutoThresholder().getThreshold(AutoThresholder.Method.Otsu,histogram);
+        }
+        ByteProcessor binary=new ByteProcessor(w,h);
+        if(!indeterminate) for(int i=0;i<size;i++) {
+            boolean selected=otsuMethod?Math.min(255,(int)((signal[i]-low)*256/(high-low)))>otsu:
+                signal[i]>number(parameters,"threshold");
+            if(selected) binary.set(i,255);
+        }
+        if(parameters.get("split_touching").getAsBoolean()) new EDM().toWatershed(binary);
+        ImageProcessor components=labelComponents.apply(binary);
+        Map<Integer,Integer> areas=new TreeMap<>();
+        for(int i=0;i<size;i++) {int id=(int)components.getf(i);if(id>0) areas.merge(id,1,Integer::sum);}
+        Map<Integer,Integer> ids=new HashMap<>();int next=1;
+        for(Map.Entry<Integer,Integer> entry:areas.entrySet())
+            if(entry.getValue()>=parameters.get("minimum_area_px").getAsInt()) ids.put(entry.getKey(),next++);
+        float[] labels=new float[size];
+        for(int i=0;i<size;i++) {Integer id=ids.get((int)components.getf(i));if(id!=null) labels[i]=id;}
+        save(labels,w,h,out.resolve("regions.tif"));
+        JsonObject info=new JsonObject();
+        info.addProperty("operation","signal-only");
+        info.addProperty("engine","Fiji / ImageJ / MorphoLibJ");
+        info.addProperty("java_version",System.getProperty("java.version"));
+        info.addProperty("headless",java.awt.GraphicsEnvironment.isHeadless());
+        info.add("parameters",parameters.deepCopy());
+        info.addProperty("status",indeterminate?"indeterminate":ids.isEmpty()?"no_candidate":"candidate");
+        info.addProperty("threshold_method",method);
+        info.addProperty("histogram_bins",256);
+        info.addProperty("detection_minimum",low);info.addProperty("detection_maximum",high);
+        if(otsuMethod && !indeterminate) info.addProperty("otsu_bin",otsu);
+        info.addProperty("selection_rule",otsuMethod?"floor(min(255, (signal-min)*256/(max-min))) > otsu_bin":"signal > threshold");
+        info.addProperty("connectivity",8);
+        info.addProperty("biological_positivity_established",false);
+        Files.writeString(out.resolve("engine-result.json"),new GsonBuilder().serializeNulls().setPrettyPrinting().create().toJson(info));
+    }
     // Package-private dependency boundary permits a fixed test helper to make a
     // component operation fail. CLI/API requests cannot replace this function.
     static void execute(Path request, java.util.function.Function<ByteProcessor,ImageProcessor> labelComponents) throws Exception {
         JsonObject root=JsonParser.parseString(Files.readString(request)).getAsJsonObject();
         if(root.has("roi_zip")) { verifyRois(root); return; }
+        if(root.has("mode") && root.get("mode").getAsString().equals("signal-only")) {detectSignal(root,labelComponents);return;}
         boolean nuclearOnly=root.has("mode") && root.get("mode").getAsString().equals("nuclear-only");
         if(root.has("mode") && !nuclearOnly) throw new IllegalArgumentException("unknown_operation");
         JsonObject recipe=root.getAsJsonObject(nuclearOnly?"detector":"recipe");

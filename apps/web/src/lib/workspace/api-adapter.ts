@@ -17,7 +17,7 @@ export interface MeasurementRow {
   mean: number | null; median: number | null; integrated: number | null;
 }
 export interface SavedResult {
-  revision: string; field: string; rows: MeasurementRow[];
+  regionSet?: string; revision: string; field: string; rows: MeasurementRow[];
   masks: {regions: Array<{id: number; points: Point[]}>; metadata: {mask_revision_id: string}};
   exclusions: Array<{field_id: string; region_id: number | null; reason: string}>;
 }
@@ -29,9 +29,10 @@ interface Report {
 export interface FigureChoice {metric: string; channel: string | null; width: number; height: number; label: string}
 export interface SavedFigure {job: string; revision: string; choice: FigureChoice; result: DescriptiveResult}
 export interface Recipe {
-  id: "region-2d"; version: "1.2.0"; region_set_id: "nuclei"; label: "核";
-  source: "stardist_nuclear"; defining_channel_id: string;
-  nuclear_role_source: "recorded_stain" | "user_selected_role";
+  id: "region-2d"; version: "1.2.0" | "1.3.0"; region_set_id: string; label: string;
+  source: "stardist_nuclear" | "fiji_positive_regions"; defining_channel_id: string;
+  detector?: {threshold_method: "otsu"; threshold: null; smoothing_sigma_px: number; minimum_area_px: number; split_touching: boolean};
+  nuclear_role_source?: "recorded_stain" | "user_selected_role";
 }
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
 export interface Transport {
@@ -94,6 +95,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     await saveSelection(workspace, selection!.entries.map(entry => entry.field_id === result.field ? {...entry, revision_id: result.revision} : entry));
     return result;
   }
+  const revisionRecipes = new Map<string, Recipe>();
   const runs = new Map<string, {job_id: string; revision_id: string; recipe: string} | "uncertain">();
   async function waitJob(workspace: string, id: string, onState?: (state: string) => void): Promise<Job> {
     // Polling reads do not extend retention. A lost connection never resubmits a job.
@@ -107,7 +109,8 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await client.wait();
     }
   }
-  async function readResult(revision: string, field: string): Promise<SavedResult> {
+  async function readResult(revision: string, field: string, recipe?: Recipe): Promise<SavedResult> {
+    if (recipe) revisionRecipes.set(revision, recipe);
     const report = await client.request<Report>(`/v1/revisions/${revision}/region-measurements`);
     if (report.revision_id !== revision) throw new Error("保存された測定値の解析版が一致しません");
     const failure = report.field_failures.find(item => item.field_id === field);
@@ -115,7 +118,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     const table = report.field_tables[field];
     if (!table) throw new Error("この視野の測定値がありません");
     const masks = await client.request<SavedResult["masks"]>(`/v1/revisions/${revision}/region-masks?field_id=${encodeURIComponent(field)}`);
-    return {revision, field, rows: table.rows, masks, exclusions: report.exclusions};
+    return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions};
   }
   return {
     async create() {const record = await client.post<Workspace>("/v1/workspaces", {title: "画像解析"}); await loadSelection(record.id); return record;},
@@ -163,7 +166,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },
     async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void) {
       await assertSelection(workspace);
-      const key = `${workspace}:${field}`;
+      const key = `${workspace}:${field}:${JSON.stringify(recipe)}`;
       let created = runs.get(key);
       if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みで保存済みの処理状態を確認してください。");
       if (created && created.recipe !== JSON.stringify(recipe)) throw new Error("受付済みの解析条件が異なります。再読み込みして処理状態を確認してください。");
@@ -174,7 +177,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         });
         created = {...accepted, recipe: JSON.stringify(recipe)}; runs.set(key, created);
       }
-      try {await waitJob(workspace, created.job_id, onState); onState?.("reading_results"); return await adopt(workspace, await readResult(created.revision_id, field));}
+      try {await waitJob(workspace, created.job_id, onState); onState?.("reading_results"); return await adopt(workspace, await readResult(created.revision_id, field, recipe));}
       catch (error) {if (error instanceof TerminalJobError) runs.delete(key); throw error;}
     },
     readResult,
@@ -185,6 +188,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         client.request<RevisionRecord[]>(`/v1/workspaces/${workspace}/revisions`),
         client.request<Job[]>(`/v1/workspaces/${workspace}/jobs`),
       ]);
+      for (const revision of revisions) revisionRecipes.set(revision.id, revision.config.recipe);
       const adopted = await loadSelection(workspace);
       return {record, fields, revisions, jobs, selection: adopted};
     },
@@ -194,14 +198,14 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await client.post(`/v1/workspaces/${workspace}/current`, {revision_id: result.revision});
       const created = kind === "delete"
         ? await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-edits`, {
-          field_id: result.field, region_set_id: "nuclei", operation: "delete", ids: [region], polygon: [], expected_mask_revision_id: result.masks.metadata.mask_revision_id,
+          field_id: result.field, region_set_id: recipe.region_set_id, operation: "delete", ids: [region], polygon: [], expected_mask_revision_id: result.masks.metadata.mask_revision_id,
         })
         : await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-reconfigure`, {
           field_ids: [result.field], recipe, measurement: {version: "1.1.0", mode: "raw_intensity"}, backgrounds: {},
           exclusions: [...result.exclusions, {field_id: result.field, region_id: region, reason: "ワークスペースで対象から除外（利用者の操作）"}],
         });
       await waitJob(workspace, created.job_id);
-      return adopt(workspace, await readResult(created.revision_id, result.field));
+      return adopt(workspace, await readResult(created.revision_id, result.field, recipe));
     },
     async selectRevision(workspace: string, revision: string, field: string) {
       await assertSelection(workspace);
@@ -209,7 +213,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     },
     async figure(workspace: string, result: SavedResult, choice: FigureChoice): Promise<SavedFigure> {
       const created = await client.post<{job_id: string}>(`/v1/revisions/${result.revision}/descriptive-preview`, {
-        mode: "descriptive", selection: {source: "region", region_set_id: "nuclei", metric: choice.metric, channel_id: choice.channel},
+        mode: "descriptive", selection: {source: "region", region_set_id: result.regionSet || "nuclei", metric: choice.metric, channel_id: choice.channel},
         group_by: "field", plot: {kind: "distribution", preset: "custom", width_inches: choice.width / 25.4, height_inches: choice.height / 25.4, language: "ja", y_label: choice.label},
       });
       await waitJob(workspace, created.job_id);

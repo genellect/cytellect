@@ -89,13 +89,15 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 raise HTTPException(422, "region_labels_required")
             if body.recipe.source == "manual" and info.labels_array is not None:
                 raise HTTPException(422, "manual_region_source_requires_no_imported_labels")
+            if body.recipe.source == "fiji_positive_regions" and info.labels_array is not None:
+                raise HTTPException(422, "signal_source_requires_no_imported_labels")
             if body.recipe.source == "stardist_nuclear":
                 if info.labels_array is not None:
                     raise HTTPException(422, "nuclear_source_requires_no_imported_labels")
                 if f["id"] not in reused_masks:
                     # Only detection is bounded; saved labels and measurement
                     # pixels retain the original coordinates and resolution.
-                    nuclear_detection_shape(tuple(info.shape))
+                    nuclear_detection_shape((info.shape[0], info.shape[1]))
             if f["id"] in excluded:
                 continue
             if body.measurement is not None:

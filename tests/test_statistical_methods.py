@@ -169,3 +169,16 @@ def test_methods_schema_allows_absence_but_does_not_advertise_null_or_null_defau
         assert set(prop) <= {"$ref", "title"}
         assert "methods_template" not in schema.get("required", [])
     assert PagedDescriptiveOutput.model_fields["methods_template"].default is None
+
+def test_display_rgb_methods_name_display_codes_not_acquired_fluorescence():
+    from cytellect_analysis.statistical_methods import _measurement
+
+    report, snapshot = region_fixture()
+    result = describe_regions(report, snapshot, request(metric="mean"))
+    for source in result["source_fields"]:
+        source.update(measurement_protocol="3.0.0", measurement={"version": "1.1.0", "mode": "raw_intensity"})
+        source["image_info"]["input_mode"] = "display-rgb"
+    text = "\n".join(_measurement(result))
+    assert "display-RGB transform 1.0.0: max(R,G,B)" in text
+    assert "not acquired raw fluorescence" in text
+    assert "measured original pixels" not in text

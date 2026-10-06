@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseNuclearChannel, groupFiles, nameChannel } from "./grouping";
+import { chooseNuclearChannel, groupFiles, nameChannel, restoredChannels } from "./grouping";
 
 const file = (path: string, extra = {}) => ({ path, size: 1, ...extra });
 
@@ -91,4 +91,13 @@ describe("groupFiles", () => {
     // Known stains are normalised so recipes recognise them regardless of case.
     expect(nameChannel(grouping, "c1", "ncl").channels[0].stain).toBe("NCL");
   });
+});
+
+it("restores all channels when the first field is incomplete", () => {
+  const c1 = {channel_id: "c1", label: "marker", stain: null};
+  const c4 = {channel_id: "c4", label: "nuclei", stain: "DAPI"};
+  const channels = restoredChannels([{image_info: {channels: [c1]}}, {image_info: {channels: [c1, c4]}}]);
+  const grouping = chooseNuclearChannel({channels, fields: [], issues: []}, "c4");
+  expect(grouping.channels.map(value => [value.token, value.role])).toEqual([["c1", null], ["c4", "nuclear"]]);
+  expect(() => restoredChannels([{image_info: {channels: [c1]}}, {image_info: {channels: [{...c1, stain: "GFP"}]}}])).toThrow("チャンネル情報");
 });
