@@ -18,7 +18,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 
 UV_VERSION = "0.12.2"
 PRODUCTION_EXPORT = ("export", "--locked", "--no-dev", "--no-emit-project", "--no-header")
-ROOT_FILES = {"pyproject.toml", "uv.lock", "README.md", "README.ja.md", "LICENSE", "NOTICE"}
+ROOT_FILES = {"pyproject.toml", "uv.lock", "README.md", "README.en.md", "LICENSE", "NOTICE"}
 SOURCE_TREES = ("packages/analysis/src/", "services/api/src/", "services/worker/src/")
 SCRIPTS = {"scripts/fiji_setup.py", "scripts/local_setup.ps1", "scripts/windows_runtime.ps1"}
 RUNTIME_RECORDS = {"engines/python/windows-runtime.lock.json", "engines/python/windows-tcltk-members.json"}
