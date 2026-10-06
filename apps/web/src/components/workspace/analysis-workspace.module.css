@@ -400,3 +400,40 @@
  .aiToggle{display:inline-flex}
 }
 @media(max-width:760px){.aiToggle{display:inline-flex}.inspectionWithAi .composer{display:none}.inspectionWithAi.aiExpanded .composer{display:block;max-height:60dvh}.inspectionWithAi .composer textarea{min-height:96px!important}}
+
+/* Layout A (2026-10-06): fields | large image | method/results panel. The AI entry lives in the method panel. */
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace) .integratedLayout{grid-template-columns:200px minmax(0,1fr) clamp(340px,26vw,400px)}
+}
+.methodPanel{display:grid;gap:14px;padding:14px 16px}
+.goalForm{display:grid;gap:8px}
+.goalForm label{font-weight:600;font-size:14px;color:var(--ink)}
+.goalForm textarea{width:100%;min-height:64px;max-height:240px;padding:8px 10px;font:inherit;font-size:14px;line-height:1.5;border:1px solid var(--line-strong);border-radius:6px;resize:vertical;box-sizing:border-box}
+.goalForm textarea:focus{min-height:140px}
+.goalActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.methodCard{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.methodCardHeader{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#f6f7f9;border-bottom:1px solid var(--line);font-size:14px}
+.methodSteps{list-style:none;margin:0;padding:0}
+.methodStep{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 12px;border-bottom:1px solid var(--line)}
+.stepNumber{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#9ca3af}
+.methodStep[data-tone="done"] .stepNumber{background:#15803d}
+.methodStep[data-tone="current"] .stepNumber{background:var(--blue)}
+.methodStep[data-tone="attention"] .stepState{color:#b45309}
+.stepBody{display:grid;gap:2px;min-width:0}
+.stepTitle{font-weight:600;font-size:14px}
+.stepDescription{font-size:13px;color:var(--ink)}
+.stepState{font-size:12.5px;color:var(--muted)}
+.methodStep[data-tone="done"] .stepState{color:#15803d}
+.methodStep[data-tone="current"] .stepState{color:var(--blue)}
+.methodApply{display:flex;gap:10px;align-items:center;padding:10px 12px}
+.linkButton{border:0;background:none;padding:2px 0;color:var(--blue);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.linkButton:disabled{color:var(--muted);cursor:default}
+.definitionForm{display:grid;gap:6px;margin-top:6px;font-size:13px}
+.definitionForm label{display:grid;gap:3px;color:var(--muted)}
+.definitionForm select,.definitionForm input{font:inherit;font-size:13px;padding:4px 6px}
+.definitionHint{margin:0;font-size:12.5px;color:var(--muted)}
+.methodSheet{position:fixed;z-index:30;top:0;right:0;bottom:0;width:min(520px,100%);overflow:auto;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 24px #0002;padding:18px 20px;display:grid;align-content:start;gap:14px}
+.methodSheet h2{margin:0;font-size:17px}
+.methodSheet h3{margin:0;font-size:14px}
+.methodSheet p,.methodSheet li{font-size:13.5px;line-height:1.6}
+.methodSheet section{display:grid;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--line)}

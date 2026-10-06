@@ -32,7 +32,9 @@ export interface Recipe {
   id: "region-2d"; version: "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0"; region_set_id: string; label: string;
   source: "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment"; defining_channel_id: string;
   compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
-  detector?: {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean};
+  detector?: {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
+    | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number};
+  nucleolar_revision_id?: string;
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
   detection_max_side_px?: number;
 }
