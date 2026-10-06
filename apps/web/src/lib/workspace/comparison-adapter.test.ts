@@ -19,6 +19,13 @@ describe("workspace inference boundaries", () => {
     expect(() => comparisonRequest({...choices, design: "paired"})).toThrow("対応");
     expect(comparisonRequest({...choices, design: "paired", pairingBasis: "same culture before/after", kind: "paired"}).test).toBe("wilcoxon");
   });
+  it("selects per-nucleus compartment-summary metrics without inventing a channel", () => {
+    const ratio = comparisonRequest({...choices, metric: "log2_nucleoplasm_over_nucleolus", regionSet: "nucleoplasm", channel: "ncl"});
+    expect(ratio.selection).toEqual({source: "compartment-summary", version: "1.0.0", region_set_id: "nucleoplasm", metric: "log2_nucleoplasm_over_nucleolus", channel_id: "ncl"});
+    expect(comparisonRequest({...choices, metric: "nucleolar_count", channel: "ncl"}).selection.channel_id).toBeNull();
+    expect(() => comparisonRequest({...choices, metric: "nucleolar_area_fraction", sampling: false})).toThrow();
+    expect(comparisonRequest(choices).selection).toEqual({source: "region", region_set_id: "nuclei", metric: "area_px", channel_id: null});
+  });
   it("records the predeclared whole family and omnibus independently of obtained p-values", () => {
     const request = comparisonRequest({...choices, contrasts: [["A", "B"], ["A", "C"]]});
     expect(request.omnibus).toBe("kruskal-wallis"); expect(request.conditions).toEqual(["A", "B", "C"]);

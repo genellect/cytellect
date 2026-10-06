@@ -60,6 +60,16 @@ def is_region(value):
            value.get("image_info", {}).get("kind")) == "region-2d"
 
 
+def require_compartment_revision(rev):
+    """A compartment-summary selection needs nucleoplasm derived from adopted nucleoli."""
+    from cytellect_analysis.compartment_observations import require_compartment_source
+
+    try:
+        require_compartment_source(rev["config"].get("recipe"))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
 class GfpGateField(BaseModel):
     field_id: Annotated[str, Field(min_length=1, max_length=100)]
     revision_id: Annotated[str, Field(min_length=1, max_length=100)]

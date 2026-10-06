@@ -81,3 +81,14 @@ def test_common_statistics_pixel_job_download_and_replay(tmp_path, association):
     assert client.delete(f"/v1/workspaces/{wid}", headers=HEADERS).status_code == 200
     assert client.get(f"/v1/jobs/{jid}/common-statistics").status_code == 404
     assert client.get(f"/v1/jobs/{jid}/files/figure.pdf").status_code == 404
+
+
+def test_compartment_summary_selection_requires_a_nucleoplasm_from_adopted_nucleoli_revision(tmp_path):
+    client, app, settings = authenticated(tmp_path)
+    _, rid, _ = reviewed_units(client, app, settings)
+    request = {**common_request(), "selection": {"source": "compartment-summary", "region_set_id": "cells",
+                                                 "channel_id": "actin", "metric": "log2_nucleoplasm_over_nucleolus"}}
+    for path in ("common-statistics", "descriptive"):
+        body = request if path == "common-statistics" else {"mode": "descriptive", "selection": request["selection"]}
+        response = client.post(f"/v1/revisions/{rid}/{path}", headers=HEADERS, json=body)
+        assert response.status_code == 422 and response.json()["detail"] == "compartment_summary_source_required"

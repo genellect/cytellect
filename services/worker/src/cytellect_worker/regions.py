@@ -521,7 +521,12 @@ def run_region_export(store, job, output):
             for slot in snapshot["image_info"]["inputs"]:
                 raw.append((f"{fid}/{slot}.tif", store.safe_path("workspaces", revision["workspace_id"],
                                                                 "fields", fid, f"{slot}.tif")))
+    from cytellect_analysis.region_exports import uses_compartment_summary
+
     records = store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")
+    omitted = [{"job_id": record["id"], "reason": "region_export_compartment_summary_unsupported"}
+               for record in records if uses_compartment_summary(record["payload"])]
+    records = [record for record in records if not uses_compartment_summary(record["payload"])]
     statistics = [read_json(store.safe_path(record["result_dir"], "result.json")) for record in records]
     statistics_roots = [(index, store.safe_path(record["result_dir"])) for index, record in enumerate(records)]
     build_region_bundle(
@@ -529,7 +534,10 @@ def run_region_export(store, job, output):
         provenance=read_json(root / "provenance.json"),
         mask_files={fid: store.safe_path(root, fid, "labels.npy") for fid in report["field_masks"]},
         raw_files=raw, statistics_results=statistics, statistics_roots=statistics_roots, include_raw=include_raw,
+        omitted_statistics=omitted,
     )
-    write_json(output / "result.json", {"files": ["analysis.zip", "methods.md"],
-                                        "raw_included": include_raw, "revision_id": revision["id"]})
+    summary = {"files": ["analysis.zip", "methods.md"], "raw_included": include_raw, "revision_id": revision["id"]}
+    if omitted:
+        summary["statistics_omitted"] = omitted
+    write_json(output / "result.json", summary)
     return output

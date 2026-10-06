@@ -46,8 +46,14 @@ def run_common_statistics(store, job, output):
             or accepted["source_fingerprint"] != source_fingerprint(report, config)):
         raise ValueError("region_comparison_source_review_mismatch")
     request: RegionComparisonRequestV2 | RegionAssociationRequest = TypeAdapter(CommonStatisticsRequest).validate_python(payload)
-    calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
-    value = calculate(report, config, request)
+    if isinstance(request, RegionComparisonRequestV2) and request.selection.source == "compartment-summary":
+        from .compartment_sources import load_compartment_summaries
+
+        value = analyze_region_comparison(report, config, request,
+                                          summaries=load_compartment_summaries(store, rev, report))
+    else:
+        calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
+        value = calculate(report, config, request)
     result: dict[str, Any] = TypeAdapter(CommonStatisticsResult).validate_python(value).model_dump(mode="json")
     result["figure"] = render_common_statistics(result, output)
     write_json(output / "source-review.json", accepted)

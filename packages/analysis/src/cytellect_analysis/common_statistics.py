@@ -15,12 +15,14 @@ from .common_unit_inference import (
     correlate_common_units,
     omnibus_common_units,
 )
+from .compartment_observations import LOG2, acquisition_proxy, compartment_comparison_source
+from .compartment_observations import SAFE_ERROR_CODES as COMPARTMENT_ERRORS
 from .region_comparison import SAFE_ERROR_CODES as COMPARISON_ERRORS
 from .region_comparison import _acquisition, _design_ledger, _source, source_fingerprint
 from .statistics import finite_records
 from .unit_inference import aggregate_unit_observations, apply_holm
 
-SAFE_ERROR_CODES = COMPARISON_ERRORS | frozenset({
+SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | frozenset({
     "common_statistics_finite_units_required", "common_statistics_insufficient_units",
     "common_statistics_constant_units", "common_statistics_not_estimable",
     "common_statistics_insufficient_nonzero_pairs", "common_statistics_unknown_method",
@@ -33,11 +35,17 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | frozenset({
 })
 
 
-def _prepared(report, config, request):
-    snapshot, observations, sources, unit, failed = _source(report, config, request)
+def _prepared(report, config, request, summaries=None):
+    compartment = request.selection.source == "compartment-summary"
+    if compartment:
+        snapshot, observations, sources, unit, failed = compartment_comparison_source(
+            report, config, request.selection, summaries)
+    else:
+        snapshot, observations, sources, unit, failed = _source(report, config, request)
     ledger, unit_ledger, pairs, selected, observation_ledger, missing, counts = _design_ledger(
         snapshot, observations, report, request)
-    acquisition, warnings = _acquisition(sources, snapshot, selected, ledger, request)
+    acquisition, warnings = _acquisition(sources, snapshot, selected, ledger,
+                                         acquisition_proxy(request) if compartment else request)
     if not request.selection.metric.startswith("area_"):
         selected_ids = {(row["field_id"], row["region_id"]) for row in selected}
         for fid, table in report["field_tables"].items():
@@ -54,6 +62,8 @@ def _prepared(report, config, request):
     if failed:
         warnings.append("explicitly_excluded_failed_fields_have_unknown_observation_counts")
     warnings.append("acquisition_comparability_user_confirmed_not_machine_verified")
+    if compartment and request.selection.metric == LOG2:
+        warnings.append("nucleolar_union_saturation_not_assessed")
     return {"metric": request.selection.metric, "unit": unit, "region": sources[0]["region_set"],
             "channel": channel, "source_fields": sources, "source_field_ledger": ledger,
             "observation_ledger": observation_ledger, "plot_data": selected,
@@ -79,9 +89,11 @@ def _counts(prepared, conditions, paired=False):
     return counts
 
 
-def analyze_region_comparison(report, config, request):
+def analyze_region_comparison(report, config, request, summaries=None):
+    """``summaries`` (field -> compartment-summary.json) is required only for a
+    compartment-summary selection; region selections ignore it."""
     request = RegionComparisonRequestV2.model_validate(request)
-    data = _prepared(report, config, request)
+    data = _prepared(report, config, request, summaries)
     units = pd.DataFrame(data["unit_summary"])
     paired = request.design.kind == "paired"
     comparisons = []

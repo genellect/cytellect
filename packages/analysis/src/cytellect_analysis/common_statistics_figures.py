@@ -16,6 +16,7 @@ from matplotlib.text import Text
 from matplotlib.ticker import MaxNLocator
 
 from .common_statistics_contracts import CommonStatisticsResult
+from .compartment_observations import DEFINITIONS as COMPARTMENT_DEFINITIONS
 from .exports_csv import write_csv
 from .figures import COLORS, MARKERS, _validate_text_layout, apply_plot_controls, figure_settings, select_font
 from .regions import RegionModel
@@ -32,12 +33,25 @@ CURRENT_COMMON_METHODS_TEMPLATE = CommonStatisticsMethodsTemplate(
     kind="common-statistics", version="1.0.0")
 
 
+COMPARTMENT_LABELS = {
+    "log2_nucleoplasm_over_nucleolus": ("Nucleoplasm / nucleolus mean", "核質 / 核小体 平均輝度比"),
+    "nucleolar_area_fraction": ("Nucleolar area fraction of nucleus", "核に占める核小体面積比"),
+    "nucleolar_count": ("Nucleoli per nucleus", "核あたりの核小体数"),
+}
+
+
+def compartment_methods_sentence(axis, metric):
+    return (f"{axis} is a per-nucleus compartment-summary value (selection 1.0.0): {COMPARTMENT_DEFINITIONS[metric]}. "
+            "Nuclei, not regions, are the observations; the summary was bound to the reviewed nucleoplasm mask by "
+            "exact nucleus identity and area. Missing values keep their recorded reason and were not replaced with zero.")
+
+
 def _label(source, ja=False):
     channel = source["channel"]
     metric = source["metric"]
     labels = {"area_px": ("Region area", "領域面積"), "area_um2": ("Region area", "領域面積"),
               "mean": ("Mean intensity", "平均輝度"), "median": ("Median intensity", "輝度中央値"),
-              "integrated": ("Integrated intensity", "積算輝度")}
+              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS}
     label = labels[metric.removesuffix("_corrected")][ja]
     if channel:
         label = f"{channel['label']}: {label}"
@@ -71,7 +85,9 @@ def common_statistics_methods(result):
         if source["channel"]:
             ch = source["channel"]
             lines.append(f"{axis} channel ID: {ch['channel_id']}; declared stain: {ch.get('stain') or 'not recorded'}.")
-        if source["metric"].endswith("_corrected"):
+        if source["metric"] in COMPARTMENT_DEFINITIONS:
+            lines.append(compartment_methods_sentence(axis, source["metric"]))
+        elif source["metric"].endswith("_corrected"):
             lines.append(f"{axis} values use the saved confirmed background ROI median; signed corrected values were retained.")
         elif source["metric"].startswith("area_"):
             lines.append(f"{axis} counts original mask pixels" +

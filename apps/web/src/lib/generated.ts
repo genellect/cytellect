@@ -1603,6 +1603,39 @@ export interface components {
             /** Contrasts */
             contrasts: string[][];
         };
+        /**
+         * CompartmentSummarySelection
+         * @description Per-nucleus values from a nucleoplasm revision's compartment-summary.json.
+         *
+         *     Separately versioned observation source (compartment-summary selection 1.0.0);
+         *     the descriptive and inferential protocols that consume it are unchanged.
+         *     The log2 ratio is per channel; area fraction and count are channel-neutral.
+         */
+        CompartmentSummarySelection: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source: "compartment-summary";
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /**
+             * Channel Id
+             * @default null
+             */
+            channel_id: string | null;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count";
+        };
         /** ContourView */
         ContourView: {
             /** Id */
@@ -1702,7 +1735,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
             /**
              * Group By
              * @default field
@@ -2201,7 +2234,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
             /**
              * Group By
              * @default field
@@ -2863,7 +2896,8 @@ export interface components {
              * @constant
              */
             version: "2.0.0";
-            selection: components["schemas"]["RegionSelection"];
+            /** Selection */
+            selection: components["schemas"]["RegionSelection"] | components["schemas"]["CompartmentSummarySelection"];
             design: components["schemas"]["ComparisonDesign"];
             /** Conditions */
             conditions: string[];

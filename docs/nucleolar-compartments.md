@@ -139,6 +139,10 @@ metric log2(mean nucleoplasm / mean nucleolar union) (White et al., Mol Cell
 with a non-positive mean, has a missing value and a reason. The browser only
 displays these values.
 
+These per-nucleus values can be compared through experimental units and plotted
+per field with the separately versioned compartment-summary selection 1.0.0; see
+[methods.md](methods.md#per-nucleus-compartment-summary-selection-100-2026-10-06).
+
 `channels` always holds raw values. When the nucleoplasm revision uses the
 automatic background candidate (measurement protocol 4.0.0, see
 `docs/methods.md`), the summary also holds `corrected_channels`: the same rows
@@ -147,6 +151,6 @@ means (`mean − b`) and integrals (`Σ − |R|b`), with `values=background_corr
 A channel without an established background has no corrected rows and records
 the reason (`automatic_background_insufficient_tiles` or `…_coverage`); its raw
 values are not substituted. The workspace uses raw values by default; corrected
-values are opt-in and displayed per nucleus. Comparisons, figures and exports
-still refuse protocol 4.0.0 and use raw values until their own Methods text is
-versioned.
+values are opt-in and displayed per nucleus. Comparisons and figures use the
+raw `channels` only (corrected summaries are refused), and exports refuse
+protocol 4.0.0, until their own Methods text is versioned.

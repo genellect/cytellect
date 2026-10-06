@@ -126,7 +126,11 @@ def _measurement(result):
                          "interpretation requires independent review.")
     else:
         raise ValueError("statistical_methods_source_invalid")
-    if "area_px" in metric or "area_um2" in metric:
+    if result["spec"]["selection"].get("source") == "compartment-summary":
+        from .common_statistics_figures import compartment_methods_sentence
+
+        lines.append(compartment_methods_sentence("The outcome", metric))
+    elif "area_px" in metric or "area_um2" in metric:
         lines.append("Area is the number of original-coordinate mask pixels; calibrated area multiplies this count by "
                      "the recorded X and Y pixel sizes (or the square of the scalar pixel size in nuclear recipes). "
                      "Unknown calibration is missing, never zero. Repeated channel rows do not increase region counts.")
