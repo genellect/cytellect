@@ -28,3 +28,7 @@ artifacts expire after seven days; never add raw findings, logs or research data
 to artifact upload paths.
 
 PRs describe purpose, scientific impact, checks performed and remaining limitations. Scientific behavior changes need a versioned recipe/method explanation and numerical tests. Do not replace independent experiment replication with cell counts, tune thresholds for significance, or silently omit failed fields.
+
+## CI scope
+
+Pull requests that change only `docs/**`, root-level Markdown, `LICENSE` or `NOTICE` run a fast path (about two minutes): documentation links, the public-tree check, the full-history secret scan and the packaged-documentation tests. The heavy jobs (`web`, `fiji-browser`, `local-windows`, `python-windows-314`) are skipped and report success to branch protection. Any other changed file, every push to `main` and every manual run executes the full suite, so each `main` commit keeps the complete evidence the Windows release workflow requires. The classification is `scripts/ci_changes.py`.
