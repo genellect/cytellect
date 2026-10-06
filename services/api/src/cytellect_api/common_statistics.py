@@ -10,7 +10,7 @@ from cytellect_analysis.common_statistics_contracts import (
 from fastapi import Depends, HTTPException
 from pydantic import Field, TypeAdapter
 
-from .regions import is_region
+from .regions import is_region, require_compartment_revision
 from .storage import read_json
 from .workspace_selection import assert_selection
 
@@ -40,6 +40,8 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
             raise HTTPException(422, "region_analysis_required")
         if rev["state"] != "succeeded" or not rev["reviewed"]:
             raise HTTPException(409, "review_required")
+        if getattr(getattr(body, "selection", None), "source", None) == "compartment-summary":
+            require_compartment_revision(rev)
         report = read_json(result_root(rev) / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "review_required")

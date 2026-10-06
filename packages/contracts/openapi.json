@@ -4334,6 +4334,61 @@
         ],
         "title": "ComparisonFamily"
       },
+      "CompartmentSummarySelection": {
+        "additionalProperties": false,
+        "description": "Per-nucleus values from a nucleoplasm revision's compartment-summary.json.\n\nSeparately versioned observation source (compartment-summary selection 1.0.0);\nthe descriptive and inferential protocols that consume it are unchanged.\nThe log2 ratio is per channel; area fraction and count are channel-neutral.",
+        "properties": {
+          "source": {
+            "const": "compartment-summary",
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "region_set_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id",
+            "type": "string"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Channel Id"
+          },
+          "metric": {
+            "enum": [
+              "log2_nucleoplasm_over_nucleolus",
+              "nucleolar_area_fraction",
+              "nucleolar_count"
+            ],
+            "title": "Metric",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "region_set_id",
+          "metric"
+        ],
+        "title": "CompartmentSummarySelection",
+        "type": "object"
+      },
       "ContourView": {
         "properties": {
           "id": {
@@ -4532,12 +4587,16 @@
               },
               {
                 "$ref": "#/components/schemas/NumericalSelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelection"
               }
             ],
             "title": "Selection",
             "discriminator": {
               "propertyName": "source",
               "mapping": {
+                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
                 "legacy-cell": "#/components/schemas/LegacySelection",
                 "numerical": "#/components/schemas/NumericalSelection",
                 "region": "#/components/schemas/RegionSelection"
@@ -5786,6 +5845,7 @@
           "selection": {
             "discriminator": {
               "mapping": {
+                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
                 "legacy-cell": "#/components/schemas/LegacySelection",
                 "numerical": "#/components/schemas/NumericalSelection",
                 "region": "#/components/schemas/RegionSelection"
@@ -5801,6 +5861,9 @@
               },
               {
                 "$ref": "#/components/schemas/NumericalSelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelection"
               }
             ],
             "title": "Selection"
@@ -7404,7 +7467,22 @@
             "title": "Version"
           },
           "selection": {
-            "$ref": "#/components/schemas/RegionSelection"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RegionSelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelection"
+              }
+            ],
+            "title": "Selection",
+            "discriminator": {
+              "propertyName": "source",
+              "mapping": {
+                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
+                "region": "#/components/schemas/RegionSelection"
+              }
+            }
           },
           "design": {
             "$ref": "#/components/schemas/ComparisonDesign"

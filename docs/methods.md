@@ -151,3 +151,64 @@ covariate, never a denominator. The control-distribution approach follows
 per-nucleus gates such as Sutton & DeRose, J Biol Chem 2021
 (doi:10.1016/j.jbc.2021.100633). Connecting the gate to comparisons and figures
 is a later, versioned step.
+
+## Per-nucleus compartment-summary selection 1.0.0 (2026-10-06)
+
+The primary NCL relocation metric, `log2_nucleoplasm_over_nucleolus` (log2 of the
+mean nucleoplasm intensity over the mean intensity of the adopted nucleolar union
+of the same nucleus; [nucleolar-compartments.md](nucleolar-compartments.md)), and
+the channel-neutral `nucleolar_area_fraction` and `nucleolar_count` can be selected
+with `selection={"source":"compartment-summary","version":"1.0.0",...}` in common
+statistics (`POST /v1/revisions/{rid}/common-statistics`, request 2.0.0) and in
+per-field descriptions (`POST /v1/revisions/{rid}/descriptive`). The aggregation,
+tests, Holm family and descriptive summaries are the existing, unchanged protocols
+(field median → sample mean → independent-unit mean; Welch/paired t,
+Mann–Whitney U, Wilcoxon, Welch ANOVA, Kruskal–Wallis; per-field median and
+quartiles). Only the observation source is new and separately versioned.
+
+- Source: a reviewed nucleoplasm revision whose recipe has `nucleolar_revision_id`.
+  The worker reads each field's `compartment-summary.json` from the revision that
+  derived the mask (also for child or cohort revisions that reuse it) after
+  checking the saved labels against the report's canonical mask hash. Nothing is
+  remeasured; pixel values are raw (`compartment-summary/1.0.0` has no background
+  subtraction). A summary with any other value basis is refused.
+- Binding and integrity: every nucleus with nucleoplasm must be exactly a region
+  of the reviewed nucleoplasm table with the same area, and no other region may
+  exist. Each row must satisfy union + nucleoplasm = nucleus area for candidate
+  parents, zero nucleoplasm for candidate-free parents, the recorded area
+  fraction, and log2 = log2(nucleoplasm mean / nucleolar mean) exactly. Nucleus
+  geometry must agree across channels. Failures are explicit error codes.
+- Observations are nuclei; a nucleus keeps the nucleoplasm region ID (its parent
+  nucleus ID). Region exclusions of the nucleoplasm revision and whole-field
+  exclusions are honoured and remain in the ledgers. Exclusions applied in the
+  nuclear and nucleolar revisions were already applied when the summary was made.
+- Missingness: a summary row with a `missing_reason` is a missing observation with
+  that reason (`no_nucleolus`, `no_nucleoplasm`, `nonpositive_signal`), never a
+  value and never zero. For count and area fraction a candidate-free nucleus is
+  missing (`no_nucleolus`): a candidate-free parent does not establish zero
+  nucleoli (compartment protocol 1.0.1). Count and fraction therefore describe
+  nuclei with at least one adopted nucleolus.
+- Acquisition review: the ratio is treated as an intensity outcome (actual
+  acquisition batches, a single storage dtype, no condition-confounded batches,
+  nucleoplasm-region saturation rejected). Saturation in the nucleolar union is not
+  recorded by the summary and is reported as the warning
+  `nucleolar_union_saturation_not_assessed`. Count and fraction require the
+  explicit equal-spatial-sampling confirmation and a single calibration, as for
+  pixel area.
+- Records: each source field carries the summary protocol, selection version,
+  canonical SHA-256 of the summary and its nucleolar revision identity; figures,
+  captions and Methods state the per-nucleus definition and channel/stain.
+- Export/replay limit: the region bundle does not carry the nuclear and nucleolar
+  source masks needed to regenerate the summary from original pixels. Export lists
+  such results in `statistics-omitted.json` (and the export job's
+  `statistics_omitted`) with `region_export_compartment_summary_unsupported`
+  instead of including them; recomputation from a bundle refuses with the same
+  code. Descriptive preview (unreviewed) is not available for this selection.
+
+Numerical tests (`tests/test_compartment_observations.py`) use synthetic pixels
+whose per-nucleus log2 values are exact powers of two: two conditions × three
+units × two fields give unit means −1, −1.5, −0.5 versus 0.5, 1, 0; Welch's t
+matches SciPy, the exact Mann–Whitney U is 0 with p = 2/20, an explicitly
+excluded nucleus would change a field median and does not, and the missing nucleus
+stays in the missingness ledger. These tests establish arithmetic and source
+binding only, not nucleolar segmentation validity or biological interpretation.

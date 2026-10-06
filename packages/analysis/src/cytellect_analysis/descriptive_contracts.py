@@ -52,6 +52,32 @@ class RegionSelection(StrictModel):
         return self
 
 
+CompartmentSummaryMetric = Literal["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count"]
+
+
+class CompartmentSummarySelection(StrictModel):
+    """Per-nucleus values from a nucleoplasm revision's compartment-summary.json.
+
+    Separately versioned observation source (compartment-summary selection 1.0.0);
+    the descriptive and inferential protocols that consume it are unchanged.
+    The log2 ratio is per channel; area fraction and count are channel-neutral.
+    """
+    source: Literal["compartment-summary"]
+    version: Literal["1.0.0"] = "1.0.0"
+    region_set_id: Id
+    channel_id: Id | None = None
+    metric: CompartmentSummaryMetric
+
+    @model_validator(mode="after")
+    def channel_for_intensity_ratio_only(self):
+        if self.metric == "log2_nucleoplasm_over_nucleolus":
+            if self.channel_id is None:
+                raise ValueError("compartment_summary_channel_required")
+        elif self.channel_id is not None:
+            raise ValueError("compartment_summary_channel_must_be_unset")
+        return self
+
+
 class NumericalSelection(StrictModel):
     source: Literal["numerical"]
     metric: Literal["value"] = "value"
@@ -59,7 +85,8 @@ class NumericalSelection(StrictModel):
 
 class DescriptiveRequest(StrictModel):
     mode: Literal["descriptive"]
-    selection: Annotated[LegacySelection | RegionSelection | NumericalSelection, Field(discriminator="source")]
+    selection: Annotated[LegacySelection | RegionSelection | NumericalSelection | CompartmentSummarySelection,
+                         Field(discriminator="source")]
     group_by: Literal["field"] = "field"
     plot: DescriptivePlot = Field(default_factory=DescriptivePlot)
 

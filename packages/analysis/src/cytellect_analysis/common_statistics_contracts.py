@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, StrictBool, TypeAdapter, field_validator, model_validator
 
 from .contracts import PlotSpec
-from .descriptive_contracts import RegionSelection
+from .descriptive_contracts import CompartmentSummarySelection, RegionSelection
 from .region_comparison_contracts import (
     AcquisitionReview,
     ComparisonDesign,
@@ -24,6 +24,9 @@ class CommonComparisonPlot(PlotSpec):
 class RegionComparisonRequestV2(RegionComparisonRequest):
     # Pydantic overrides are intentional version discriminators, not substitutable v1 inputs.
     version: Literal["2.0.0"]  # type: ignore[assignment]
+    # Additive, separately versioned observation source; region selections are unchanged.
+    selection: Annotated[RegionSelection | CompartmentSummarySelection,  # type: ignore[assignment]
+                         Field(discriminator="source")]
     test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon"]
     omnibus: Literal["welch-anova", "kruskal-wallis"] | None = None
     plot: CommonComparisonPlot = Field(default_factory=CommonComparisonPlot)  # type: ignore[assignment]

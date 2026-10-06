@@ -139,3 +139,7 @@ metric log2(mean nucleoplasm / mean nucleolar union) (White et al., Mol Cell
 with a non-positive mean, has a missing value and a reason. Values are raw until
 a background policy is applied; the summary states which. The browser only
 displays these values.
+
+These per-nucleus values can be compared through experimental units and plotted
+per field with the separately versioned compartment-summary selection 1.0.0; see
+[methods.md](methods.md#per-nucleus-compartment-summary-selection-100-2026-10-06).

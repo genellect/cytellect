@@ -218,3 +218,12 @@ Their source folders or image IDs are not invented experimental units. These
 checks do not establish biological inference over a published dataset with unknown
 replication. Nonpublic experiment validation and researcher usability assessment
 remain separate acceptance gates.
+
+### Per-nucleus compartment-summary outcomes
+
+Request 2.0.0 additionally accepts `selection.source="compartment-summary"`
+(selection 1.0.0) on a reviewed nucleoplasm revision derived from adopted nucleoli.
+Nuclei become the observations; aggregation, tests, Holm family, ledgers and
+figures are unchanged. Region selections, their schema behaviour and saved results
+are unchanged. These results are not yet exportable or replayable from the region
+bundle; see [methods.md](methods.md#per-nucleus-compartment-summary-selection-100-2026-10-06).

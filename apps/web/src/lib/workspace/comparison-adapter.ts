@@ -9,8 +9,19 @@ import {assertWorkspaceConnection, type SavedResult, type Transport, type Worksp
 export type ComparisonResult = components["schemas"]["CommonComparisonView"];
 export type Metadata = components["schemas"]["RegionFieldMetadata"];
 export interface ComparisonSource {field: string; revision: string; label: string; result: SavedResult; metadata: Metadata}
+type Selection = CommonComparisonRequest["selection"];
+export type RegionComparisonMetric = Extract<Selection, {source: "region"}>["metric"];
+/** Per-nucleus values from a nucleoplasm revision's compartment-summary.json (selection 1.0.0). */
+export type CompartmentComparisonMetric = Extract<Selection, {source: "compartment-summary"}>["metric"];
+export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count"];
+const isCompartmentMetric = (metric: string): metric is CompartmentComparisonMetric => (COMPARTMENT_METRICS as readonly string[]).includes(metric);
+export function comparisonSelection(regionSet: string, metric: RegionComparisonMetric | CompartmentComparisonMetric, channel: string | null): Selection {
+  // The ratio is per channel; nucleolar count and area fraction are channel-neutral.
+  if (isCompartmentMetric(metric)) return {source: "compartment-summary", version: "1.0.0", region_set_id: regionSet, metric, channel_id: metric === "log2_nucleoplasm_over_nucleolus" ? channel : null};
+  return {source: "region", region_set_id: regionSet, metric, channel_id: channel};
+}
 export interface ComparisonChoices {
-  metric: CommonComparisonRequest["selection"]["metric"]; channel: string | null; regionSet: string; design: "independent" | "paired";
+  metric: RegionComparisonMetric | CompartmentComparisonMetric; channel: string | null; regionSet: string; design: "independent" | "paired";
   method: "parametric" | "rank"; unitDefinition: string; pairingBasis: string;
   contrasts: string[][]; independence: boolean; acquisition: boolean; sampling: boolean; missingness: boolean;
   kind: CommonPlotKind; width: number; height: number; yLabel: string;
@@ -19,11 +30,11 @@ export function comparisonRequest(choices: ComparisonChoices): CommonComparisonR
   const conditions = [...new Set(choices.contrasts.flat())];
   if (!choices.independence || !choices.acquisition || !choices.missingness || !choices.unitDefinition.trim()) throw new Error("独立性・撮影条件・採否を確認してください。");
   if (conditions.length < 2 || choices.contrasts.some(pair => pair.length !== 2 || pair[0] === pair[1])) throw new Error("比較する群の組を指定してください。");
-  if ((choices.metric === "area_px" || choices.metric.includes("integrated")) && !choices.sampling) throw new Error("画素の大きさと空間サンプリングを確認してください。");
+  if ((choices.metric === "area_px" || choices.metric.includes("integrated") || choices.metric === "nucleolar_count" || choices.metric === "nucleolar_area_fraction") && !choices.sampling) throw new Error("画素の大きさと空間サンプリングを確認してください。");
   if (choices.design === "paired" && !choices.pairingBasis.trim()) throw new Error("対応の根拠を指定してください。");
   const settings = comparisonMethod(choices.method, choices.design, conditions.length)!;
   return {mode: "region-experimental-unit", ...settings,
-    selection: {source: "region", region_set_id: choices.regionSet, metric: choices.metric, channel_id: choices.channel},
+    selection: comparisonSelection(choices.regionSet, choices.metric, choices.channel),
     design: {kind: choices.design, confirmed: true, unit_definition: choices.unitDefinition.trim(), pairing_basis: choices.design === "paired" ? choices.pairingBasis.trim() : null},
     conditions, comparison_family: {family_id: "workspace-planned", kind: "planned", control: null, contrasts: choices.contrasts},
     acquisition_review: {confirmed: true, basis: choices.metric === "area_um2" ? "calibrated-area" : "same-settings", field_batches: {}, spatial_sampling_confirmed: choices.sampling},

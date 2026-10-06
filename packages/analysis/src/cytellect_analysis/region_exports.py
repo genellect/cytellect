@@ -215,6 +215,10 @@ def _long_rows(report, config):
     return rows
 
 
+def uses_compartment_summary(spec):
+    return isinstance(spec, dict) and (spec.get("selection") or {}).get("source") == "compartment-summary"
+
+
 def _uses_common_statistics(result):
     return (result.get("analysis_kind") == "region-association"
             or (result.get("analysis_kind") == "region-comparison"
@@ -236,6 +240,9 @@ def _statistics_methods_template(result):
 def _recompute_statistics(report, config, result):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
+    if uses_compartment_summary(result.get("spec")):
+        # Replay would need the nuclear and adopted-nucleolar source masks, which this bundle does not carry.
+        raise ValueError("region_export_compartment_summary_unsupported")
     _statistics_methods_template(result)
     if result.get("analysis_kind") not in ("descriptive", "region-comparison", "region-association") or result.get("source_kind") != "region-2d":
         raise ValueError("region_export_statistics_unsupported")
@@ -291,7 +298,8 @@ def _render_statistics(calculated, folder, *, methods_template=None, saved_figur
 
 
 def build_region_bundle(destination: Path, *, report, config, provenance, mask_files,
-                        raw_files=(), statistics_results=(), statistics_roots=(), include_raw=False):
+                        raw_files=(), statistics_results=(), statistics_roots=(), include_raw=False,
+                        omitted_statistics=()):
     """Bundle owned server paths only; public URL/access checks belong to the API."""
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
@@ -365,6 +373,9 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
             figure = _render_statistics(calculated, folder, methods_template=_statistics_methods_template(statistics_results[index]),
                                         saved_figure=statistics_results[index].get("figure"))
         _json(folder / "result.json", {**calculated, "figure": figure})
+    if omitted_statistics:
+        # Recorded, not silently dropped: these saved results cannot be replayed from this bundle.
+        _json(content / "statistics-omitted.json", list(omitted_statistics))
     methods = region_methods(config, report, provenance)
     (content / "methods.md").write_text(methods, encoding="utf-8")
     (destination / "methods.md").write_text(methods, encoding="utf-8")

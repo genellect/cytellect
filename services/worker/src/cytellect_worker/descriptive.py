@@ -34,7 +34,16 @@ def run_descriptive(store, job, output):
     snapshot = rev["config"]["field_snapshot"]
     if set(snapshot) != set(rev["config"]["field_ids"]):
         raise ValueError("descriptive_field_snapshot_mismatch")
-    result = (describe_regions if generic else describe_legacy)(report, snapshot, request)
+    if request.selection.source == "compartment-summary":
+        from cytellect_analysis.compartment_observations import describe_compartment_summary
+
+        from .compartment_sources import load_compartment_summaries
+
+        if not generic or preview:
+            raise ValueError("descriptive_source_mismatch")
+        result = describe_compartment_summary(report, snapshot, request, load_compartment_summaries(store, rev, report))
+    else:
+        result = (describe_regions if generic else describe_legacy)(report, snapshot, request)
     result["revision_id"] = rev["id"]
     if preview:
         result["source_review"] = "automatic_unreviewed"

@@ -242,3 +242,13 @@ not an independently replicated SuperPlot. Acquisition/background limitations
 follow [Waters](https://doi.org/10.1083/jcb.200903097). Figure formatting uses the
 [Nature final-artwork guide](https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/),
 without claiming scientific acceptance.
+
+## Per-nucleus compartment-summary selection
+
+`selection.source="compartment-summary"` (selection 1.0.0) describes the saved
+per-nucleus log2 nucleoplasm/nucleolus ratio, nucleolar area fraction or count of
+a reviewed nucleoplasm revision per field with the unchanged descriptive protocol
+1.0.0 (`observation_kind="nuclei"`). Missing reasons are retained, exclusions are
+honoured, and the caption states the per-nucleus definition and channel/stain.
+Definition, binding checks and the export/replay limit are in
+[methods.md](methods.md#per-nucleus-compartment-summary-selection-100-2026-10-06).
