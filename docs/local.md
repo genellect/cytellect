@@ -145,8 +145,8 @@ Preserve the browser workflow and shared analysis packages. Hosted deployment ad
 
 `/` and `/workspace` open the single analysis workspace. `/product` contains the
 landing page and downloads; GA4 is limited to that route. The previous detailed
-screen is retained at `/legacy` only in a configured analysis installation. The
-unconfigured public Vercel build returns 404 there. An authenticated session is
+screen is retained at `/legacy` only in local mode or with a loopback API origin.
+Public builds return 404 there, including future remote-API builds. An authenticated session is
 required before the configured new workspace loads private data. Windows uses
 its local-session exchange; Docker uses the existing one-use invitation exchange.
 

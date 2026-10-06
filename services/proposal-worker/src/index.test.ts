@@ -334,7 +334,7 @@ describe("proposal service", () => {
     expect(worstCaseUsd(config, { ...CONTEXT, goal: "あ".repeat(1000) }, []))
       .toBeGreaterThan(worstCaseUsd(config, { ...CONTEXT, goal: "a".repeat(1000) }, []));
     const sent = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1];
-    expect(sent.redirect).toBe("error");
+    expect(sent.redirect).toBe("manual");
     expect(sent.signal).toBeInstanceOf(AbortSignal);
   });
 });

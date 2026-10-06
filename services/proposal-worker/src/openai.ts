@@ -160,7 +160,9 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
     try {
       response = await fetcher("https://api.openai.com/v1/responses", {
         method: "POST",
-        redirect: "error",
+        // Workerd accepts manual/follow only. Manual returns 3xx to the explicit
+        // non-OK rejection below without forwarding credentials to Location.
+        redirect: "manual",
         signal: AbortSignal.timeout(120_000),
         headers: { authorization: `Bearer ${settings.apiKey}`, "content-type": "application/json" },
         body: JSON.stringify(requestPayload(settings, context, previews, repair)),
