@@ -4,12 +4,7 @@ The active 2026-10-03 improvement sequence is recorded in [Researcher workflow](
 
 This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).
 
-The 2026-10-05 follow-up requires common image-analysis statistics and editable
-figures through the complete installed browser workflow (S15–S18). Scientific
-core/reference tests and API/replay integration are under development; a final
-Windows package containing these additions has not been accepted or published.
-The local.13 source436 candidate is a separate baseline and does not establish
-completion of the added statistics or update-storage requirements.
+The connected image/statistics/graph workspace is delivered in [local.17](local-release-0.1.0-local.17.md). The [integration record](workspace-integration-release-2026-10-08.md) separates source CI, private-image Edge checks, Docker delivery, Worker, Vercel and installed-package acceptance. Biological accuracy, independent researcher evaluation and a hosted private-analysis backend remain separate gates.
 
 PR #11 added manual/imported generic regions, source-linked descriptive figures and trial-mask reuse. Its four required CI checks passed, it merged as dd64f26db0e4ea15970828aaa6dbcae3f9365696, and Vercel automatically published that source. Canonical public-page desktop/mobile/browser checks passed separately from private API execution.
 
@@ -87,9 +82,9 @@ their own evidence.
 
 Public Vercel UI publication is authorized. It may expose only cleared published image samples until the private analysis API is configured and host checks pass. It must not point to localhost in production or accept research uploads without a backend.
 
-Supabase/accounts, teams, long-term storage and payments remain later work. The [single workspace and optional LLM proposal service](workspace-redesign.md) is the active 2026-10-05 increment: UX prototype, review, connection to existing processing, proposal service, then combined acceptance. No paid service purchase is included; the proposal service stays disabled until an operator configures its budget.
+Supabase/accounts, teams, long-term storage and payments remain later work. The [single workspace and optional LLM proposal service](workspace-redesign.md) is connected to the shared settings and selected-field preview. The Cytellect-only Worker is enabled with the approved monthly USD5 limit; explicit-send public-image evaluation is recorded separately from private-image analysis. Upload, navigation and editing do not initiate paid requests. See the [integration record](workspace-integration-release-2026-10-08.md) for the current source and service identities.
 
-The 2026-10-06 workspace specification ([ja](workspace-spec-2026-10-06.ja.md)) adds researcher-selected nucleolar definitions, parent-contained nucleolar edits, nucleoplasm from adopted nucleoli, per-nucleus compartment summaries, the negative-control GFP gate and the automatic background candidate. Still open: comparisons, figures and exports of background-corrected values (protocol 4.0.0 is refused there until its Methods text is versioned), export replay of GFP-gated statistics and a workspace control for the GFP nucleus filter (the filter itself is in common statistics and descriptions), mask merge/split in the workspace, and private full-dataset validation of the nucleolar detector.
+The 2026-10-06 workspace specification ([ja](workspace-spec-2026-10-06.ja.md)) and the later [approved plan](workspace-approved-plan-traceability.md) now connect researcher-selected nucleolar definitions, parent-contained editing, nucleoplasm subtraction, object-level GFP selection, background-corrected measurements, comparisons, editable figures and reproducibility export. Manual edits and adopted revisions are preserved. The previous source gaps listed here are superseded by the integration and exact-package records; private full-dataset biological validation and unassisted researcher evaluation are still open.
 
 Normal publication follows [PR → required CI → main → Vercel](deployment.md). [Figure formatting and statistical meaning](figures.md) are versioned separately.
 

@@ -2,7 +2,7 @@
 
 **Get your microscopy publication-ready.**
 
-[解析例を見る](https://cytellect.vercel.app/workspace?demo=bbbc013) · [Windows版をダウンロード](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15) · [解析機能の説明](docs/implementation-overview.ja.md)
+[解析例を見る](https://cytellect.vercel.app/workspace?demo=bbbc013) · [Windows版をダウンロード](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) · [解析機能の説明](docs/implementation-overview.ja.md)
 
 Cytellect は、2D 蛍光顕微鏡画像から核と核小体を検出・定量し、実験単位の統計解析と論文用の図の作成までを一つのワークスペースで行う解析アプリケーションです。Web、Windows ローカル版、Docker の3つの形態を、同じ解析コードで提供しています。現在は開発中のプロトタイプです。
 
