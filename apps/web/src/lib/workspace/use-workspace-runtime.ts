@@ -343,4 +343,16 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   };
 }
 
-export function useWorkspaceRuntime(initialWorkspaceId?:string){const [runtime]=useState(()=>createWorkspaceRuntime());const state=useSyncExternalStore(runtime.subscribe,runtime.getSnapshot,runtime.getSnapshot);useEffect(()=>{void runtime.load(initialWorkspaceId).catch(()=>{});return()=>runtime.dispose();},[runtime,initialWorkspaceId]);return {...state,...runtime,workspaceId:state.data?.workspaceId||undefined};}
+export function useWorkspaceRuntime(initialWorkspaceId?:string){
+  const [runtime]=useState(()=>createWorkspaceRuntime());
+  const state=useSyncExternalStore(runtime.subscribe,runtime.getSnapshot,runtime.getSnapshot);
+  useEffect(()=>()=>runtime.dispose(),[runtime]);
+  useEffect(()=>{
+    // Recording a newly created ID in the URL must not reload its live inputs,
+    // settings or candidate masks. Actual route changes still restore saved data.
+    const current=runtime.getSnapshot().data;
+    if(current&&(current.workspaceId||undefined)===initialWorkspaceId)return;
+    void runtime.load(initialWorkspaceId).catch(()=>{});
+  },[runtime,initialWorkspaceId]);
+  return {...state,...runtime,workspaceId:state.data?.workspaceId||undefined};
+}

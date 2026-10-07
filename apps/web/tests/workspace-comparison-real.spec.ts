@@ -47,8 +47,9 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     await page.getByRole("button", {name:"測定", exact:true}).click();
   }
   await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/核\s+\d/})).toHaveCount(4, {timeout:900000});
+  await expect(page).toHaveURL(/[?&]id=[^&]+/);
   const workspace = new URL(page.url()).searchParams.get("id")!;
-  if(!resume){const runs=await (await page.request.get(`${api}/v1/workspaces/${workspace}/runs`)).json();expect(runs.some((run:{state:string;steps:unknown[]})=>run.state==="adopted"&&run.steps.length===4)).toBeTruthy();}
+  if(!resume){const response=await page.request.get(`${api}/v1/workspaces/${workspace}/runs`);expect(response.status()).toBe(200);const runs=await response.json();expect(Array.isArray(runs)).toBe(true);expect(runs.some((run:{state:string;steps:unknown[]})=>run.state==="adopted"&&run.steps.length===4)).toBeTruthy();}
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
   await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"統計", exact:true}).click();
   const panel = page.getByRole("region", {name:"測定結果の統計解析"});
@@ -103,8 +104,13 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await expect(figurePanel.getByRole("button", {name:"図を更新", exact:true})).toBeEnabled({timeout:120000});
   expect(statisticsPosts()).toHaveLength(beforeFigure);
   expect(writes.some(value=>value.endsWith("/figure-render"))).toBeTruthy();
+  await expect(figurePanel.getByLabel("元画像を含める",{exact:true})).not.toBeChecked();
+  await figurePanel.getByLabel("元画像を含める",{exact:true}).check();
+  const exported=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/export")&&response.request().method()==="POST");
   const downloaded=page.waitForEvent("download",{timeout:120000});
   await figurePanel.getByRole("button", {name:"保存", exact:true}).click();
+  const exportResponse=await exported;expect(exportResponse.status()).toBe(202);
+  expect(new URL(exportResponse.url()).searchParams.get("include_raw")).toBe("true");
   const publication=await downloaded;
   await publication.saveAs(path.join(output,"publication.zip"));
   await expect(figurePanel.getByRole("button", {name:"保存", exact:true})).toBeEnabled({timeout:120000});
@@ -117,6 +123,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     " assert all(hashlib.sha256(publication.read(name)).hexdigest()==digest for name,digest in receipt['files'].items())",
     " analysis=publication.read('analysis.zip')",
     "with zipfile.ZipFile(io.BytesIO(analysis)) as archive:",
+    " assert json.loads(archive.read('manifest.json'))['raw_included'] is True",
     " assert all((bundle/name).resolve().is_relative_to(bundle.resolve()) for name in archive.namelist())",
     " archive.extractall(bundle)",
     "replay=replay_region_bundle(bundle,bundle/'raw',root/'replayed')",

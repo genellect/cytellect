@@ -9,12 +9,14 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   const evidence=test.info().outputPath("connected");
   await mkdir(evidence,{recursive:true});
   let created = false;
+  let newerWorkspace = false;
   let fields: ImportedField[] = [];
   let selection: WorkspaceSelection = {version: 0, entries: []};
   let assignments: ChannelAssignments = {version: 0, assignments: [], global_field_ids: [], groups: []};
   let specification: {version: number; spec: Record<string, unknown> | null} = {version: 0, spec: null};
   let run: WorkspaceRun | null = null;
   let runCount = 0;
+  let workspaceReads = 0;
   const writes: string[] = [];
   const unexpected: string[] = [];
   const pageErrors: string[] = [];
@@ -31,7 +33,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
     if (method === "OPTIONS") return route.fulfill({status: 204, headers});
     if (method !== "GET") writes.push(`${method} ${path}`);
     if (path === "/v1/session") return json({authenticated: true, retention_hours: 24, demo: false});
-    if (path === "/v1/workspaces") {if (method === "POST") {created = true; return json(workspace, 201);} return json(created ? [workspace] : []);}
+    if (path === "/v1/workspaces") {if (method === "POST") {created = true; return json(workspace, 201);} workspaceReads++; return json(created ? [...(newerWorkspace?[{...workspace,id:"different-workspace",title:"別の作業"}]:[]),workspace] : []);}
     if (path.endsWith("/synthetic-workspace")) return json(workspace);
     if (path.endsWith("/selection")) {
       if (method === "POST") {const body = request.postDataJSON(); expect(body.version).toBe(selection.version); selection = {...body, version: selection.version + 1};}
@@ -92,6 +94,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await expect(page.getByRole("button", {name: "画像を追加", exact: true})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
   await expect(page.getByRole("button", {name: "染色対応", exact: true})).toBeEnabled();
+  await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
   expect(runCount).toBe(0);
   expect(writes.some(value => /proposal|analyses|\/runs/.test(value))).toBe(false);
   await page.getByRole("combobox", {name:"背景補正",exact:true}).selectOption("confirmed_roi");
@@ -155,6 +158,22 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await page.getByRole("button",{name:"元の結果へ戻る",exact:true}).click();
   await expect(figure).toBeVisible();
   await expect(page.getByRole("combobox",{name:"保存した図"})).toHaveValue("historical-figure");
+  // A newer workspace in another tab must not change this tab's saved source.
+  newerWorkspace = true;
+  const savedWrites = writes.length;
+  await page.reload();
+  await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
+  await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"領域 1",exact:true})).toBeVisible();
+  expect(runCount).toBe(1);
+  expect(writes).toHaveLength(savedWrites);
+  const beforeNew=workspaceReads;
+  await page.getByRole("button",{name:"新しいワークスペース",exact:true}).click();
+  await expect(page).not.toHaveURL(/[?&]id=/);
+  await expect(page.getByRole("button",{name:"画像を追加",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toHaveCount(0);
+  expect(workspaceReads).toBe(beforeNew);
+  expect(writes).toHaveLength(savedWrites);
   expect(unexpected).toEqual([]);
   expect(pageErrors).toEqual([]);
 });

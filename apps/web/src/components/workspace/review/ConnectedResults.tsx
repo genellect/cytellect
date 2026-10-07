@@ -73,6 +73,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const [selectedSeries,setSelectedSeries]=useState("");
   const [pointSource,setPointSource]=useState<{job:string;source:FigureSource}|null>(null);
   const [saved,setSaved]=useState<Saved|null>(null),[busy,setBusy]=useState(""),[error,setError]=useState("");
+  const [rawExport,setRawExport]=useState<{revision:string;included:boolean}|null>(null);
+  const includeRaw=!!saved&&rawExport?.revision===saved.revision&&rawExport.included;
   const lock=useRef(false),renderCache=useRef(new Map<string,{job:string;figure:ResultPayload["figure"]}>()),renderIds=useRef(new Map<string,string>());
   useEffect(()=>{if(!workspace)return;let live=true;void request<Job[]>(`/v1/workspaces/${workspace}/jobs`).then(async jobs=>{
     const completed=jobs.filter(job=>job.state==="succeeded"&&(job.kind==="statistics"||job.kind==="figure-render")).sort((a,b)=>b.created-a.created).slice(0,30);
@@ -156,7 +158,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         const output=await request<{source_job_id:string;figure:ResultPayload["figure"]}>(`/v1/jobs/${accepted.job_id}/figure-render`);
         if(output.source_job_id!==saved.job)throw new Error("図の元データが一致しません。");rendered={job:accepted.job_id,figure:output.figure};renderCache.current.set(key,rendered);}
       const updated={...saved,plot:display,figureJob:rendered.job,figure:rendered.figure};setSaved(updated);setHistory(previous=>[updated,...previous.filter(value=>value.figureJob!==updated.figureJob)]);
-      if(downloadZip){setBusy("保存ファイルを作成中…");const exported=await post<{job_id:string}>(`/v1/revisions/${saved.revision}/export`,{});await waitJob(exported.job_id);const packaged=await post<{job_id:string}>(`/v1/jobs/${rendered.job}/publication-package`,{analysis_job_id:exported.job_id,request_id:crypto.randomUUID()});await waitJob(packaged.job_id);await download(`/v1/jobs/${packaged.job_id}/files/publication.zip`,"Cytellect-publication.zip");}
+      if(downloadZip){setBusy("保存ファイルを作成中…");const exported=await post<{job_id:string}>(`/v1/revisions/${saved.revision}/export${includeRaw?"?include_raw=true":""}`,{});await waitJob(exported.job_id);const packaged=await post<{job_id:string}>(`/v1/jobs/${rendered.job}/publication-package`,{analysis_job_id:exported.job_id,request_id:crypto.randomUUID()});await waitJob(packaged.job_id);await download(`/v1/jobs/${packaged.job_id}/files/publication.zip`,"Cytellect-publication.zip");}
     }catch(cause){setError(fail(cause));}finally{lock.current=false;setBusy("");}
   }
   function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setConfirmed(false);}
@@ -202,7 +204,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       {missing>0&&<><p role="status">{missing} 視野の測定が未完了です。</p>{onPrepareMissing&&<button disabled={!!busy||disabled} onClick={()=>{setBusy("必要な測定値を計算中…");void onPrepareMissing().catch(cause=>setError(fail(cause))).finally(()=>setBusy(""));}}>必要な測定値を計算</button>}</>}
       {stale&&<p role="status">測定結果または解析条件が変わりました。再計算してください。</p>}
       {error&&<p role="alert">{error}</p>}
-      {saved&&<div className={styles.downloads}><button disabled={!!busy||stale} onClick={()=>void render(true)}>保存</button></div>}
+      {saved&&<div className={styles.downloads}>{mode==="figure"&&<label className={styles.check}><input type="checkbox" checked={includeRaw} disabled={!!busy||stale} onChange={event=>setRawExport({revision:saved.revision,included:event.target.checked})}/>元画像を含める</label>}<button disabled={!!busy||stale} onClick={()=>void render(true)}>保存</button></div>}
     </div>
     <div className={styles.output} ref={outputRef}>
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}

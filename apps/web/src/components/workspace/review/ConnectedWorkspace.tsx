@@ -23,7 +23,17 @@ type Runtime=ReturnType<typeof useWorkspaceRuntime>;
 const paths={stop:"M6 6h12v12H6z",plus:"M12 4v16M4 12h16",compare:"M3 4h7v16H3zM14 4h7v16h-7z",settings:"M4 7h16M4 17h16M8 4v6M16 14v6",close:"m6 6 12 12M6 18 18-12",back:"m10 5-7 7 7 7M3 12h18",ai:"M4 4h16v12H9l-5 4V4M8 8h8M8 12h5",send:"M12 20V4m-7 7 7-7 7 7"};
 function Icon({name}:{name:keyof typeof paths}){return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d={paths[name]}/></svg>;}
 export default function ConnectedWorkspace(){return <Suspense fallback={<p>読み込み中…</p>}><WorkspaceRoute/></Suspense>;}
-function WorkspaceRoute(){const id=useSearchParams().get("id")||undefined;const runtime=useWorkspaceRuntime(id);return <Workspace runtime={runtime}/>;}
+function WorkspaceRoute(){
+  const id=useSearchParams().get("id")||undefined;
+  const runtime=useWorkspaceRuntime(id);
+  useEffect(()=>{
+    if(id||!runtime.workspaceId||runtime.busy)return;
+    const url=new URL(window.location.href);
+    url.searchParams.set("id",runtime.workspaceId);
+    window.history.replaceState(window.history.state,"",url);
+  },[id,runtime.workspaceId,runtime.busy]);
+  return <Workspace runtime={runtime}/>;
+}
 
 function Workspace({runtime:r}:{runtime:Runtime}){
   const data=r.data;const fields=useMemo(()=>data?.fields||[],[data]);
@@ -114,7 +124,7 @@ function Workspace({runtime:r}:{runtime:Runtime}){
     });
   }
   function returnToResult(){if(editing)return;const context=sourceReturn.current;if(!context)return;++sourceRequest.current;setSelected(context.field);setChannel(context.channel);setTarget(context.target);setMetric(context.metric);setRegion(context.region);setHistorical(context.historical);setMode(context.mode);setReturnMode(null);sourceReturn.current=null;}
-  function newWorkspace(){++sourceRequest.current;sourceReturn.current=null;r.newWorkspace();setHistorical(null);setSelected("");setChannel("");setPicked([]);setRegion(undefined);setGfpSaved(null);setViewport({});setPreviewRequest(null);setMode("image");setReturnMode(null);setLocalError("");}
+  function newWorkspace(){++sourceRequest.current;sourceReturn.current=null;r.newWorkspace();const url=new URL(window.location.href);url.searchParams.delete("id");window.history.replaceState(window.history.state,"",url);setHistorical(null);setSelected("");setChannel("");setPicked([]);setRegion(undefined);setGfpSaved(null);setViewport({});setPreviewRequest(null);setMode("image");setReturnMode(null);setLocalError("");}
   function changeMode(value:Mode){if(editing)return;if(returnMode===value){returnToResult();return;}++sourceRequest.current;sourceReturn.current=null;setPreviewRequest(null);if(value!=="image")setLastResultMode(value);setMode(value);setReturnMode(null);setAssignments(false);setPicker(false);if(value!=="image"&&!data?.workspaceId&&!r.busy)void act(()=>r.ensureWorkspace());}
   function queuePreview(nextTarget:ReviewTarget=target){if(field)setPreviewRequest({field:field.id,target:nextTarget,sequence:Date.now()});}
   function setSetting<K extends keyof RuntimeSettings>(key:K,value:RuntimeSettings[K]){r.setSettings(previous=>({...previous,[key]:value}));queuePreview();}
