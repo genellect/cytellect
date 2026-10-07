@@ -56,7 +56,7 @@ def test_opt_in_relay_keeps_analysis_offline_and_secret_out_of_configuration(tmp
     assert api["secrets"][0]["target"] == api["environment"]["CYTELLECT_PROPOSAL_TOKEN_FILE"]
     desktop = configuration(["-f", str(ROOT / "infra/compose.desktop.yaml"), "-f", str(ROOT / "infra/compose.proposal.yaml")])
     assert set(desktop["services"]["api"]["networks"]) == {"private", "edge", "proposal_outbound"}
-    assert desktop["services"]["api"]["environment"]["CYTELLECT_PROPOSAL_PROMPT_VERSION"] == "2026-10-07.2"
+    assert desktop["services"]["api"]["environment"]["CYTELLECT_PROPOSAL_PROMPT_VERSION"] == "2026-10-08.1"
     assert desktop["services"]["api"]["ports"][0]["host_ip"] == "127.0.0.1"
     assert desktop["services"]["web"]["ports"][0]["host_ip"] == "127.0.0.1"
     assert not desktop["services"]["web"].get("secrets")

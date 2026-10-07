@@ -25,7 +25,7 @@ def gate(**changes):
 
 
 def validate(raw, ctx=None):
-    return validate_draft(ctx or context(), raw, model="test", prompt_version="2026-10-07.2")
+    return validate_draft(ctx or context(), raw, model="test", prompt_version="2026-10-08.1")
 
 
 def test_automatic_background_and_object_threshold_are_structured():

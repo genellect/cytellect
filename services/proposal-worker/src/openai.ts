@@ -2,7 +2,8 @@
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
 
-export const PROMPT_VERSION = "2026-10-07.2";
+export const PROMPT_VERSION = "2026-10-08.1";
+export const PREVIOUS_PROMPT_VERSION = "2026-10-07.2";
 export const PROCESSING_PROMPT_VERSION = "2026-10-07.1";
 export const PREIMPORT_PROMPT_VERSION = "2026-10-06.2";
 export const LEGACY_PROMPT_VERSION = "2026-10-06.1";
@@ -27,7 +28,7 @@ Rules:
 - Paired tests with more than two conditions are unsupported until a specific two-condition contrast is represented; keep these descriptive.
 - Inferential comparisons require at least two recorded independent units per condition in units_per_condition; paired comparisons also need at least two complete_pair_count. Associations need at least three independent units per condition. These are minimum computability checks, not evidence of adequate power. Missing counts mean descriptive output with a concise missing-information item.
 - Give a region for each measurement: nucleus, nucleoli, nucleoplasm or supplied. Intrinsic nucleolar count/fraction/ratio use region null. Never substitute whole-nucleus intensity for nucleoplasm.
-- additional_analyses may combine a comparison and an association. An association needs two distinct proposed metrics as x and y with the same explicit region. Mixed regions and implicit/null regions are unsupported for association; propose separate descriptive analyses instead. Figures reference primary statistics at analysis_index 0 or additional analyses at 1..3; scatter uses its y metric and region.
+- additional_analyses may combine a comparison and an association. An association needs two distinct proposed metrics as x and y. Figures reference primary statistics at analysis_index 0 or additional analyses at 1..3; scatter uses its y metric and region.
 - Figures may only use proposed metrics. Do not add unrelated secondary analyses.
 - For descriptive and comparison statistics, x and y must both be null. Only association statistics have x/y metric objects. For descriptive statistics, test, omnibus and association are also null.
 - field-distribution describes results. unit-comparison requires comparison statistics; paired requires paired-t or wilcoxon; association-scatter requires association statistics. An unsupported paired three-condition design stays descriptive and must not use a paired or unit-comparison figure.
@@ -150,7 +151,7 @@ export function hasDraftShape(value: unknown): boolean {
 
 export function requestPayload(settings: ModelSettings, context: unknown, previews: Preview[], repair?: string) {
   const version = settings.promptVersion ?? PROMPT_VERSION;
-  const current = version === PROMPT_VERSION;
+  const current = version === PROMPT_VERSION || version === PREVIOUS_PROMPT_VERSION;
   const processing = current || version === PROCESSING_PROMPT_VERSION;
   const methods = processing ? SYSTEM_PROMPT
     .replace("nucleolar candidates are defined from NCL itself, so region definition can follow NCL changes.", "nucleolar definition is selected in processing independently of the measured NCL channel.")
@@ -161,7 +162,8 @@ export function requestPayload(settings: ModelSettings, context: unknown, previe
       "Prefer a recorded UBF/FBL/fibrillarin marker, otherwise use dapi_poor on the nuclear channel.",
       "Default to dapi_poor on the nuclear channel. Use a recorded UBF/FBL/fibrillarin marker only when the instruction or saved definition selects that marker. UBF defines the acquired marker region, not an inferred whole nucleolus."
     ) : PROCESSING_INSTRUCTION) : "")
-    + (current ? "\n" + SELECTION_INSTRUCTION : "");
+    + (current ? "\n" + SELECTION_INSTRUCTION : "")
+    + (version === PROMPT_VERSION ? "\n- Association axes must name the same explicit region. Mixed or implicit/null axis regions are unsupported; propose separate descriptive analyses instead." : "");
   return {
     model: settings.model, store: false, service_tier: "default",
     reasoning: { effort: settings.reasoningEffort ?? "medium" },

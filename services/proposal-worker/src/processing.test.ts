@@ -1,12 +1,16 @@
 import {expect,it} from "vitest";
-import {PROMPT_VERSION,PREIMPORT_PROMPT_VERSION,requestPayload,hasDraftShape,inputTokenCeiling} from "./openai";
+import {PROMPT_VERSION,PREVIOUS_PROMPT_VERSION,PREIMPORT_PROMPT_VERSION,requestPayload,hasDraftShape,inputTokenCeiling} from "./openai";
 import {checkRequest} from "./index";
 
 it("uses executable settings only for the new prompt while preserving old clients", () => {
   const options = {apiKey:"test",model:"gpt-6.1-sol",maxOutputTokens:8000};
   const current = requestPayload(options,{},[]);
+  const previous = requestPayload({...options,promptVersion:PREVIOUS_PROMPT_VERSION},{},[]);
+  expect(previous.text.format.schema).toEqual(current.text.format.schema);
+  expect(current.input[0].content[0].text).toContain("Mixed or implicit/null axis regions are unsupported");
+  expect(previous.input[0].content[0].text).not.toContain("Mixed or implicit/null axis regions are unsupported");
   const old = requestPayload({...options,promptVersion:PREIMPORT_PROMPT_VERSION},{},[]);
-  expect(PROMPT_VERSION).toBe("2026-10-07.2");
+  expect(PROMPT_VERSION).toBe("2026-10-08.1");
   expect(current.text.format.schema.required).toContain("processing");
   expect(old.text.format.schema.required).not.toContain("processing");
   expect(current.input[0].content[0].text).toContain("dapi_poor");
