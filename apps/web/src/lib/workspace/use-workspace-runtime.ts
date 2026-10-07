@@ -350,7 +350,8 @@ export function useWorkspaceRuntime(initialWorkspaceId?:string){
   useEffect(()=>{
     // Recording a newly created ID in the URL must not reload its live inputs,
     // settings or candidate masks. Actual route changes still restore saved data.
-    if(initialWorkspaceId&&runtime.getSnapshot().data?.workspaceId===initialWorkspaceId)return;
+    const current=runtime.getSnapshot().data;
+    if(current&&(current.workspaceId||undefined)===initialWorkspaceId)return;
     void runtime.load(initialWorkspaceId).catch(()=>{});
   },[runtime,initialWorkspaceId]);
   return {...state,...runtime,workspaceId:state.data?.workspaceId||undefined};

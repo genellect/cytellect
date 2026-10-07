@@ -16,6 +16,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   let specification: {version: number; spec: Record<string, unknown> | null} = {version: 0, spec: null};
   let run: WorkspaceRun | null = null;
   let runCount = 0;
+  let workspaceReads = 0;
   const writes: string[] = [];
   const unexpected: string[] = [];
   const pageErrors: string[] = [];
@@ -32,7 +33,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
     if (method === "OPTIONS") return route.fulfill({status: 204, headers});
     if (method !== "GET") writes.push(`${method} ${path}`);
     if (path === "/v1/session") return json({authenticated: true, retention_hours: 24, demo: false});
-    if (path === "/v1/workspaces") {if (method === "POST") {created = true; return json(workspace, 201);} return json(created ? [...(newerWorkspace?[{...workspace,id:"different-workspace",title:"別の作業"}]:[]),workspace] : []);}
+    if (path === "/v1/workspaces") {if (method === "POST") {created = true; return json(workspace, 201);} workspaceReads++; return json(created ? [...(newerWorkspace?[{...workspace,id:"different-workspace",title:"別の作業"}]:[]),workspace] : []);}
     if (path.endsWith("/synthetic-workspace")) return json(workspace);
     if (path.endsWith("/selection")) {
       if (method === "POST") {const body = request.postDataJSON(); expect(body.version).toBe(selection.version); selection = {...body, version: selection.version + 1};}
@@ -165,6 +166,13 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toBeVisible();
   await expect(page.getByRole("button",{name:"領域 1",exact:true})).toBeVisible();
   expect(runCount).toBe(1);
+  expect(writes).toHaveLength(savedWrites);
+  const beforeNew=workspaceReads;
+  await page.getByRole("button",{name:"新しいワークスペース",exact:true}).click();
+  await expect(page).not.toHaveURL(/[?&]id=/);
+  await expect(page.getByRole("button",{name:"画像を追加",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toHaveCount(0);
+  expect(workspaceReads).toBe(beforeNew);
   expect(writes).toHaveLength(savedWrites);
   expect(unexpected).toEqual([]);
   expect(pageErrors).toEqual([]);

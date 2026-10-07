@@ -66,3 +66,5 @@ Python全体CIの6件は、正本マスク検証の抜け1件と、接続済み�
 - Vercel: `dpl_FfiMXGzPgsdixZGZT7Q2rMHpLnF9`、production READY、ソース `0fb4a6a8fd2836caaeba16aa815b53c37c413c3e`。[本番LP](https://cytellect.vercel.app/)と[ワークスペース](https://cytellect.vercel.app/workspace)で確認。公開Webは解析API未接続で、実画像解析はDocker／インストール版が担当する。
 
 既存operator設定付きでDockerを構築し、既存研究ボリューム・端末認証を保全して一括更新する。更新後にEdgeを開く。ソースコミット、Dockerのイメージ、CI、Worker、Vercel、配布物をそれぞれ識別し、未完了項目を残す。`down -v`やデータ削除で動作を合わせない。
+
+PR #47の初回コミット `57d9035cd0ad46f8f8fa23967e9238e5c904e019` をDockerへ反映した。Webイメージは `sha256:9a3806a9ed3226052c0598919ff1f79f3db2b49d09aac1c64d96b1405f23c8da`。保存済み作業の再読込が同じ保存先を保持し、追加のrun／有料提案は0件だった。後続レビューでは「新しいワークスペース」で前のIDがURLに残る経路も修正対象に加えた。空の作業への明示切替ではIDを除き、そのURL変更で前の作業を自動復元しない。4画面サイズの既存輸送契約で、再読込と新規切替を確認する。
