@@ -69,6 +69,7 @@ export function WorkspaceComparison({beforePrepare, selection = null, selectionC
   return <section className={styles.comparison} aria-label="独立実験単位の比較">
     {selectionChanged && <p role="status">採用状態が変更されたか確認できません。保存された比較は旧版として表示します。</p>}
     <h2>群を比較</h2><p>1点は独立実験単位です。領域の中央値 → 試料内の視野平均 → 独立実験単位内の試料平均で集計します。</p>
+    {gfp && (!gfp.channel || !gfp.controls.length) && <p role="status">GFP 陽性の核に限る設定が未完了です。方法の「対象」で GFP のチャンネルと陰性対照の視野を選ぶか、「限定しない」に戻してください。</p>}
     {!!pendingFields && <p role="status">未完了の視野が {pendingFields} 件あります。解析を完了するか、失敗した視野を理由付きで除外してください。</p>}
     {!!selection?.entries.some(entry => entry.exclusion_reason) && <details><summary>比較から除外した視野</summary>{selection.entries.filter(entry => entry.exclusion_reason).map(entry => <p key={entry.id}>{entry.field_id || "未登録の視野"}：{entry.exclusion_reason}</p>)}</details>}
     {storedMetadata && <button className={styles.secondary} disabled={busy || blocked} onClick={() => {setMetadata(storedMetadata.fields); setPrepared({revision: storedMetadata.revision, identity: JSON.stringify([sources.map(source => [source.field, source.revision]), storedMetadata.fields, selection])}); setReview(false);}}>保存した実験情報を復元</button>}
