@@ -1,6 +1,6 @@
 "use client";
 import {useEffect, useState, useSyncExternalStore} from "react";
-import {ApiError, errorMessage, request} from "../api";
+import {ApiError, errorCodeMessage, errorMessage, request} from "../api";
 import type {Point} from "../types";
 import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {effectiveChannelAssignments} from "./channel-assignments";
@@ -31,7 +31,7 @@ type Dependencies = {adapter?:Adapter; loadPreview?:typeof loadReviewPreview; re
   readSpecification?:(workspace:string)=>Promise<RuntimeSpecification>; writeSpecification?:(workspace:string,value:RuntimeSpecification)=>Promise<RuntimeSpecification>};
 const emptyData = (): ReviewData => ({workspaceId:"",title:"画像解析",fields:[],channels:[]});
 const labels = {nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
-const message = (error:unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : "処理できませんでした。";
+const message = (error:unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? errorCodeMessage(error.message) : "処理できませんでした。";
 const fingerprint = (value:unknown):string => JSON.stringify(value,(_,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
 export const sameRuntimeRecipe = (a:Recipe,b:Recipe) => fingerprint(a) === fingerprint(b);
 

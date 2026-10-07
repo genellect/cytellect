@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/** Single-workspace prototype with recorded public BBBC013 outputs (no analysis API). */
+/** Registered public demo, plus isolated connected-workspace upload rejection checks. */
 
 async function adoptPublicSample(page: Page) {
   // The registered example opens only from a link (site or review), never from the workspace UI.
@@ -104,9 +104,11 @@ test("a figure point opens its source image and region, and exports are actual o
 
 test("added files are grouped once and rejected real uploads remain visible", async ({ page }) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Upload transport is exercised in the configured API browser job");
-  await stubInputWorkflow(page);
-
+  const transport = await stubInputWorkflow(page);
+  const loaded=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="GET");
   await page.goto("/workspace");
+  await loaded;
+  await expect(page.getByRole("button",{name:"画像を追加",exact:true})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([
     { name: "A01_dapi.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
     { name: "A01_gfp.tif", mimeType: "image/tiff", buffer: Buffer.from("y") },
@@ -115,30 +117,49 @@ test("added files are grouped once and rejected real uploads remain visible", as
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("x") },
     { name: "overview.tif", mimeType: "image/tiff", buffer: Buffer.from("v") },
   ]);
-  await expect(page.getByText(/TIFF以外の 1 件は追加していません/)).toBeVisible();
-  // Nothing is dropped silently: a file without a channel name stays its own field, and missing channels are listed.
-  const summary = page.getByRole("region", { name: "読み込み結果" });
-  await expect(summary).toContainText("5 ファイル → 3 視野 · 3 チャンネル");
-  await expect(summary).toContainText("チャンネルが不足している視野");
-  await expect(summary).toContainText("overview");
-  // A named nuclear stain needs no channel decision at all.
-  await expect(page.getByRole("region", { name: "解析方法" }).getByText("DAPI から核を自動検出（StarDist 2D）")).toBeVisible();
   await expect(page.locator("main").getByRole("alert")).toContainText("2D・8/16-bitグレースケールTIFF");
+  // These deliberately invalid bytes exercise HTTP rejection, not image analysis.
+  // One field groups its DAPI/GFP files into one request; unsupported text is never uploaded.
+  expect(transport.uploads).toHaveLength(1);
+  expect(transport.uploads[0].filenames).toEqual(["A01_dapi.tif", "A01_gfp.tif"]);
+  expect(transport.uploads[0].specification.channels.map(channel => channel.channel_id)).toEqual(["dapi", "gfp"]);
+  expect(transport.selection().entries).toEqual([{id:transport.uploads[0].specification.client_upload_id,field_id:null,revision_id:null,exclusion_reason:null}]);
+  const issues=page.locator("details").filter({has:page.locator("summary",{hasText:/^取込 /})});
+  await issues.locator("summary").click();
+  await expect(issues).toContainText("overview");
+  await expect(issues).toContainText("dapiは未登録");
+  await expect(issues).toContainText("gfpは未登録");
+  await expect(page.getByRole("button",{name:"画像を追加",exact:true})).toBeEnabled();
+  expect(transport.unexpected).toEqual([]);
+  expect(transport.paidCalls).toBe(0);
   await expect(page.getByRole("link", { name: /SVG|CSV/ })).toHaveCount(0);
 });
 
 test("unnamed files stay separate fields and identical bytes are flagged, not merged", async ({ page }) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Image grouping requires the configured workspace");
-  await stubInputWorkflow(page);
+  const transport = await stubInputWorkflow(page);
+  const loaded=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="GET");
   await page.goto("/workspace");
+  await loaded;
+  await expect(page.getByRole("button",{name:"画像を追加",exact:true})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([
     { name: "field01.ome.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
     { name: "image.tif", mimeType: "image/tiff", buffer: Buffer.from("x") },
   ]);
-  const summary = page.getByRole("region", { name: "読み込み結果" });
-  await expect(summary).toContainText("2 ファイル → 2 視野 · 1 チャンネル");
-  await expect(summary).toContainText("内容が同じファイル（1）");
-  await expect(summary).toContainText("field01.ome.tif、image.tif");
+  await expect(page.locator("main").getByRole("alert")).toContainText("2D・8/16-bitグレースケールTIFF");
+  const issues=page.locator("details").filter({has:page.locator("summary",{hasText:/^取込 /})});
+  await issues.locator("summary").click();
+  await expect(issues.getByRole("listitem")).toContainText("field01.ome.tif");
+  await expect(issues.getByRole("listitem")).toContainText("image.tif");
+  await expect(issues.getByRole("listitem")).toContainText("同一内容");
+  // The first rejected field contains its own single file; duplicate content does not merge the two planes.
+  expect(transport.uploads).toHaveLength(1);
+  expect(transport.uploads[0].filenames).toEqual(["field01.ome.tif"]);
+  expect(transport.uploads[0].specification.channels).toHaveLength(1);
+  expect(transport.selection().entries).toHaveLength(1);
+  expect(transport.selection().entries[0].field_id).toBeNull();
+  expect(transport.unexpected).toEqual([]);
+  expect(transport.paidCalls).toBe(0);
 });
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]) {
@@ -154,16 +175,27 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
 }
 
 async function stubInputWorkflow(page: import("@playwright/test").Page) {
-  let selection: {version:number; entries:unknown[]} = {version:0,entries:[]};
+  let selection: {version:number; entries:Array<{id:string;field_id:string|null;revision_id:string|null;exclusion_reason:string|null}>} = {version:0,entries:[]};
+  let created=false,paidCalls=0;
+  const record={id:"grouping-test",title:"Upload rejection test",created:1,expires:Date.now()/1000+86400,deleted:false};
+  const uploads:Array<{filenames:string[];specification:{client_upload_id:string;channels:Array<{channel_id:string}>}}>=[],unexpected:string[]=[];
   await page.route("**/v1/**", async route => {
     const request=route.request(), path=new URL(request.url()).pathname;
     const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request"};
     const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});
     if(request.method()==="OPTIONS")return route.fulfill({status:204,headers});
     if(path==="/v1/session")return json({authenticated:true,retention_hours:24,demo:false});
-    if(path==="/v1/workspaces")return json({id:"grouping-test"});
+    if(path==="/v1/workspaces"){if(request.method()==="POST"){created=true;return json(record,201);}return json(created?[record]:[]);}
+    if(path==="/v1/workspaces/grouping-test")return json(record);
     if(path.endsWith("/selection")){if(request.method()==="POST")selection={...request.postDataJSON(),version:selection.version+1};return json(selection);}
-    if(path.endsWith("/region-fields"))return json({detail:"unsupported_or_invalid_region_image"},422);
+    if(path.endsWith("/region-fields")){if(request.method()==="GET")return json([]);const body=request.postData()||"";uploads.push({filenames:[...body.matchAll(/filename="([^"]+)"/g)].map(match=>match[1]),specification:JSON.parse(/name="specification"\r\n\r\n([^\r\n]+)/.exec(body)![1])});return json({detail:"unsupported_or_invalid_region_image"},422);}
+    if(path.endsWith("/channel-assignments"))return json({version:0,assignments:[]});
+    if(path.endsWith("/field-links"))return json({version:0,entries:[]});
+    if(path.endsWith("/analysis-spec"))return json({version:0,spec:null});
+    if(path.endsWith("/revisions")||path.endsWith("/jobs")||path.endsWith("/runs"))return json([]);
+    if(path.endsWith("/proposal-drafts"))paidCalls++;
+    unexpected.push(`${request.method()} ${path}`);
     return json({detail:"unexpected_test_route"},404);
   });
+  return {uploads,unexpected,selection:()=>selection,get paidCalls(){return paidCalls;}};
 }

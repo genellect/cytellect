@@ -1,218 +1,104 @@
-import {expect, test} from "@playwright/test";
+import {expect,test,type BrowserContext,type Page} from "@playwright/test";
+import type {WorkspaceSelection} from "../src/lib/workspace/api-adapter";
 
-/** Transport/UI regression only. Synthetic response fixtures do not establish Fiji accuracy. */
-test("real workspace uses saved pixels/results, never legacy confirmation flags, and persists corrections", async ({page, context}) => {
-  const writes: Array<{path: string; body: Record<string, unknown>}> = [];
-  let selection: {version: number; entries: Array<{id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null}>} = {version: 0, entries: []};
-  let revision = "r1"; let analysisCount = 0; let figureCount = 0; let proposalCount = 0;
-  const channels = [{channel_id: "c1", label: "c1", stain: null}, {channel_id: "c2", label: "c2", stain: null}];
-  const field = {id: "f1", workspace_id: "w1", metadata: {}, image_info: {shape: [32, 32], channels}};
-  const jobs: Array<{id: string; state: string; revision_id: string; kind: string}> = [];
-  const figureRevisions = new Map<string, string>();
-  const figureSpecs = new Map<string, Record<string, unknown>>();
-  await context.route("**/v1/**", async route => {
-    const url = new URL(route.request().url()); const path = url.pathname; const method = route.request().method();
-    const headers = {"Access-Control-Allow-Origin": new URL(page.url()).origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "content-type,x-cytellect-request"};
-    const json = (body: unknown, status = 200) => route.fulfill({status, headers, contentType: "application/json", body: JSON.stringify(body)});
-    if (method === "OPTIONS") return route.fulfill({status: 204, headers});
-    if (path.endsWith("/region-fields") && method === "POST") {
-      const form = route.request().postDataBuffer()!.toString();
-      expect(form).toContain('"version":"1.1.0"'); expect(form).toContain('"identity_source":"filename"'); expect(form).not.toContain("identity_confirmed");
-      return json(field, 201);
-    }
-    let body: Record<string, unknown> = {};
-    if (method === "POST") {body = route.request().postDataJSON() || {}; writes.push({path, body});}
-    if (path === "/v1/session") return json({authenticated: true, retention_hours: 24, demo: false});
-    if (path.endsWith("/selection")) {if (method === "POST") {if (body.version !== selection.version) return json({detail: "workspace_selection_changed"}, 409); selection = {...body as typeof selection, version: selection.version + 1};} return json(selection);}
-    if (path === "/v1/workspaces/w1") return json({id: "w1", active_revision: revision});
-    if (path.endsWith("/region-fields") && method === "GET") return json([field]);
-    if (path.endsWith("/revisions")) return json(["r1", "r2"].map((id, index) => ({id, state: "succeeded", created: index + 1, config: {recipe: {id: "region-2d", version: "1.2.0", source: "stardist_nuclear", region_set_id: "nuclei", label: "核", defining_channel_id: "c2", nuclear_role_source: "user_selected_role"}, field_ids: ["f1"]}})));
-    if (path === "/v1/workspaces") return json({id: "w1", title: "画像解析", active_revision: null});
-    if (path.endsWith("/preview")) return route.fulfill({headers, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1sAAAAASUVORK5CYII=", "base64")});
-    if (path.endsWith("/region-analyses")) {analysisCount++; jobs.push({id: "a1", state: "succeeded", revision_id: "r1", kind: "analysis"}); return json({job_id: "a1", revision_id: "r1"}, 202);}
-    if (path.endsWith("/region-reconfigure")) {revision = "r2"; jobs.push({id: "a2", state: "succeeded", revision_id: revision, kind: "analysis"}); return json({job_id: "a2", revision_id: revision}, 202);}
-    if (path.endsWith("/current")) return json({});
-    if (path.endsWith("/jobs")) return json(jobs);
-    if (path.endsWith("/region-measurements")) {
-      const rid = path.split("/")[3];
-      return json({revision_id: rid, field_failures: [], exclusions: rid === "r2" ? [{field_id: "f1", region_id: 1, reason: "利用者の操作"}] : [], field_tables: {f1: {rows: [1, 2].flatMap(region => channels.map(channel => ({region_id: region, channel_id: channel.channel_id, area_px: region * 10, area_um2: null, mean: region * 30, median: region * 29, integrated: region * 300})))}}});
-    }
-    if (path.endsWith("/region-masks")) return json({regions: [{id: 1, points: [[3, 3], [12, 3], [12, 12], [3, 12]]}, {id: 2, points: [[18, 18], [28, 18], [28, 28], [18, 28]]}], metadata: {mask_revision_id: `m-${path.split("/")[3]}`}});
-    if (path.endsWith("/descriptive-preview")) {const id = `s${++figureCount}`; const rid = path.split("/")[3]; figureRevisions.set(id, rid); figureSpecs.set(id, body); jobs.push({id, state: "succeeded", revision_id: rid, kind: "statistics"}); return json({job_id: id}, 202);}
-    if (path.endsWith("/result")) {
-      const id = path.split("/")[3]; const rid = figureRevisions.get(id); const excluded = rid === "r2"; const points = excluded ? [2] : [1, 2];
-      return json({analysis_kind: "descriptive", revision_id: rid, spec: figureSpecs.get(id), metric: "area_px", unit: "pixel²", counts: {observations: points.length}, selection: {excluded: excluded ? 1 : 0}, field_summary: [{field_id: "f1", selected_rows: points.length, median: excluded ? 20 : 15, q1: excluded ? 20 : 12.5, q3: excluded ? 20 : 17.5, status: "selected"}], plot_data: points.map(id => ({field_id: "f1", region_id: id, value: id*10})), source_fields: [], excluded_failed_fields: [], warnings: [], figure: {source_files: ["figure.svg", "figure.pdf", "figure.png", "plot-data.csv", "methods.md"]}});
-    }
-    if (path.endsWith("/proposal-drafts")) {proposalCount++; if (proposalCount === 1) {expect(body.retry_failed).toBeUndefined(); return json({detail:"proposal_explicit_retry_required"},409);} expect(body.retry_failed).toBe(true); return json({proposal:{draft:{recipe:"nuclear-intensity",channels:[{token:"c2",stain:null,role:"nuclear",reason:"synthetic fixture"}],metrics:[{metric:"area",channel:null}],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"公開テストの解析案"},needs_confirmation:[]}});}
-    if (path.includes("/files/")) return route.fulfill({headers, contentType: "text/plain", body: "synthetic transport fixture"});
-    return json({detail: "unexpected_test_route"}, 404);
+/** Transport/UI contract only: fixed response records and display pixels are not microscopy acceptance. */
+async function savedWorkspace(context:BrowserContext,page:Page,failed=false){
+  const writes:Array<{path:string;body:Record<string,unknown>}> = [];
+  const fieldIds=failed?["f1","f2","failed1","failed2"]:["f1"];
+  const fields=fieldIds.map((id,index)=>({id,workspace_id:"w",metadata:{display_name:`視野 ${index+1}`},image_info:{shape:[32,32],channels:[{channel_id:"c1",label:"DAPI",stain:"DAPI"}]}}));
+  let selection:WorkspaceSelection={version:1,entries:fieldIds.map((id,index)=>({id,field_id:id,revision_id:index<2?`r${index+1}`:`bad${index}`,target_revisions:{nuclei:index<2?`r${index+1}`:`bad${index}`},exclusion_reason:null}))};
+  let spec:{version:number;spec:Record<string,unknown>|null}={version:0,spec:null};
+  let edited=false,statistics:Record<string,unknown>|null=null,cohort:Record<string,unknown>|null=null;
+  const unexpected:string[]=[];
+  const recipe={id:"region-2d",version:"1.7.0",source:"stardist_nuclear",region_set_id:"nuclei",label:"核",defining_channel_id:"c1",nuclear_role_source:"recorded_stain"};
+  const revision=(id:string,fid:string,state="succeeded")=>({id,state,created:1,config:{recipe,field_ids:[fid],measurement:{version:"1.1.0",mode:"raw_intensity"},backgrounds:{}}});
+  const revisions=()=>[...fieldIds.map((id,index)=>revision(index<2?`r${index+1}`:`bad${index}`,id,index<2?"succeeded":"failed")),...(edited?[revision("edited","f1")]:[])];
+  await context.route("**/v1/**",async route=>{
+    const req=route.request(),path=new URL(req.url()).pathname,method=req.method();
+    const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"};
+    const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});
+    if(method==="OPTIONS")return route.fulfill({status:204,headers});
+    const body=method==="POST"||method==="PUT"?req.postDataJSON()||{}:{};
+    if(method!=="GET")writes.push({path,body});
+    if(path==="/v1/session")return json({authenticated:true,retention_hours:24,demo:false});
+    if(path==="/v1/workspaces")return json([{id:"w",title:"Transport records",created:1,expires:9999999999,deleted:false}]);
+    if(path==="/v1/workspaces/w")return json({id:"w",title:"Transport records",active_revision:selection.entries[0].revision_id});
+    if(path.endsWith("/region-fields"))return json(fields);
+    if(path.endsWith("/channel-assignments"))return json({version:1,assignments:[{channel_id:"c1",stain:"DAPI",role:"nuclear"}],global_field_ids:fieldIds,groups:[]});
+    if(path.endsWith("/field-links"))return json({version:0,entries:[]});
+    if(path.endsWith("/analysis-spec")){if(method==="PUT"){expect(body.version).toBe(spec.version);spec={version:spec.version+1,spec:body.spec};}return json(spec);}
+    if(path.endsWith("/selection")){if(method==="POST"){if(body.version!==selection.version)return json({detail:"workspace_selection_changed"},409);selection={...body,version:selection.version+1,entries:body.entries.map((entry:WorkspaceSelection["entries"][number])=>({...entry,target_revisions:entry.revision_id?{nuclei:entry.revision_id}:entry.target_revisions}))};}return json(selection);}
+    if(path.endsWith("/revisions"))return json(revisions());
+    if(path.endsWith("/runs"))return json([]);
+    if(path.endsWith("/jobs"))return json([...(edited?[{id:"editjob",kind:"analysis",state:"succeeded",revision_id:"edited"}]:[]),...(cohort?[{id:"cohortjob",kind:"analysis",state:"succeeded",revision_id:"cohort"}]:[]),...(statistics?[{id:"stats",kind:"statistics",state:"succeeded",revision_id:"cohort"}]:[])]);
+    if(path.endsWith("/current"))return json({});
+    if(path.endsWith("/region-edits")){expect(body.operation).toBe("delete");expect(body.expected_mask_revision_id).toBe("mask-r1");expect(body.ids).toEqual([1]);edited=true;return json({job_id:"editjob",revision_id:"edited"},202);}
+    if(path.endsWith("/region-cohorts")){cohort=body;return json({job_id:"cohortjob",revision_id:"cohort"},202);}
+    if(path.endsWith("/review"))return json({});
+    if(path.endsWith("/common-statistics")){if(method==="POST"){statistics=body;return json({job_id:"stats"},202);}return json({revision_id:"cohort",source_kind:"region-2d",analysis_kind:"region-comparison",region_comparison_version:"2.0.0",spec:statistics,comparisons:[],counts:[],warnings:[],source_fields:[],figure:{source_files:[]}});}
+    if(path.endsWith("/region-measurements")){const rid=path.split("/")[3],fid=rid==="r2"?"f2":"f1",ids=rid==="edited"?[2]:[1,2];return json({revision_id:rid,protocol_version:"3.0.0",measurement:{version:"1.1.0",mode:"raw_intensity"},field_failures:[],exclusions:[],field_tables:{[fid]:{rows:ids.map(region_id=>({region_id,channel_id:"c1",area_px:region_id*10,area_um2:null,mean:30,median:29,integrated:300}))}}});}
+    if(path.endsWith("/region-masks")){const rid=path.split("/")[3];return json({regions:(rid==="edited"?[2]:[1,2]).map(id=>({id,points:id===1?[[3,3],[12,3],[12,12],[3,12]]:[[18,18],[28,18],[28,28],[18,28]]})),metadata:{mask_revision_id:`mask-${rid}`}});}
+    if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#869fff"/></svg>'});
+    const record=revisions().find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
+    unexpected.push(`${method} ${path}`);return json({detail:"unexpected_transport_route"},404);
   });
-  await page.goto("/workspace");
-  await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
-  // Nothing runs before the nuclear channel is known; the method card offers one click per channel.
-  const method = page.getByRole("region", {name: "解析方法"});
-  await expect(method.getByRole("button", {name: "c2 で核を検出", exact: true})).toBeVisible();
-  expect(analysisCount).toBe(0);
-  await method.getByRole("button", {name: "c2 で核を検出", exact: true}).click();
-  await expect(method).toContainText("1/1 視野");
-  expect(analysisCount).toBe(1);
-  // The card is a general workspace: per-nucleus values by default, nucleolar steps only when chosen.
-  const choices = method.getByRole("group", {name: "解析対象"});
-  await expect(choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）"})).toBeChecked();
-  for (const name of ["陽性領域（GFP などの明るい領域）", "核小体と核質の分布（NCL など）", "手で囲んだ領域（細胞全体・核の外など）"]) await expect(choices.getByRole("radio", {name})).not.toBeChecked();
-  const step = (title: string) => method.getByRole("listitem").filter({has: page.getByText(title, {exact: true})});
-  await method.getByText("測定条件", {exact: true}).click();
-  await expect(step("核小体")).toHaveCount(0);
-  await expect(step("測る値")).toContainText("核ごとの面積と、各チャンネルの平均・中央値・積算輝度（元の値）");
-  await expect(method.getByRole("button", {name: "全視野に適用"})).toBeDisabled();
-  // Choosing what to measure and changing the detection scale only change the view; nothing runs or is adopted.
-  const selectionVersion = selection.version;
-  await choices.getByRole("radio", {name: "核小体と核質の分布（NCL など）"}).check();
-  await expect(method.getByText("DAPI の暗い部分を核小体とする")).toBeVisible();
-  await expect(step("核質")).toHaveCount(1);
-  await expect(step("測る値")).toContainText("核質/核小体 比（log2");
-  await choices.getByRole("radio", {name: "陽性領域（GFP などの明るい領域）"}).check();
-  await expect(method.getByText("DAPI の暗い部分を核小体とする")).toHaveCount(0);
-  await expect(step("陽性領域")).toContainText("チャンネルを選んでください");
-  await expect(step("核質")).toHaveCount(0);
-  await choices.getByRole("radio", {name: "手で囲んだ領域（細胞全体・核の外など）"}).check();
-  await expect(method.getByRole("button", {name: "画像で描く"})).toBeEnabled();
-  await choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）"}).check();
-  await method.getByText("検出設定", {exact: true}).click();
-  const scale = method.getByLabel("検出用画像の大きさ");
-  await expect(scale.locator("option:checked")).toHaveText("核の大きさに合わせる（自動）");
-  await scale.selectOption({label: "長辺 256 px"});
-  await expect(method.getByText("検出の大きさを変更しました（未反映）")).toBeVisible();
-  await expect(method.getByRole("button", {name: "この視野で試す"})).toBeVisible();
-  await expect(method.getByRole("button", {name: "全視野に適用"})).toBeEnabled();
-  await scale.selectOption({label: "核の大きさに合わせる（自動）"});
-  await expect(method.getByText("検出の大きさを変更しました（未反映）")).toHaveCount(0);
-  expect(analysisCount).toBe(1);
-  expect(selection.version).toBe(selectionVersion);
-  await page.getByLabel("AIに指示", {exact: true}).fill("核面積を確認");
-  await page.getByRole("button", {name: "AIに送信", exact: true}).click();
-  await expect.poll(() => proposalCount).toBe(1);
-  await expect(page.getByText(/再送すると追加のAPI利用料/)).toBeVisible();
-  expect(proposalCount).toBe(1);
-  await page.getByRole("button", {name: "再送信（追加料金が発生する場合があります）", exact: true}).click();
-  await expect(page.getByText("公開テストの解析案", {exact: true})).toBeVisible();
-  expect(proposalCount).toBe(2);
-  // The AI's nuclear channel matches the chosen one, so nothing is re-run; its recipe selects the per-nucleus choice.
-  expect(analysisCount).toBe(1);
-  await expect(choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）（AI が選択）"})).toBeChecked();
-  const run = writes.find(value => value.path.endsWith("/region-analyses"))!;
-  // The default detection size is automatic: 1.7.0 sizes detection from the estimated nucleus size (1.2.0 before it existed).
-  expect(run.body).toMatchObject({recipe: {nuclear_role_source: "user_selected_role"}, measurement: {mode: "raw_intensity"}});
-  expect(["1.2.0", "1.7.0"]).toContain((run.body.recipe as {version: string}).version);
-  expect(run.body.recipe).not.toHaveProperty("detection_max_side_px");
-  expect(JSON.stringify(writes)).not.toContain('"confirmed":true');
-  // Figures are server-rendered from the adopted revision and carry an English legend.
-  await page.getByRole("button", {name: "グラフ", exact: true}).click();
-  await page.getByRole("button", {name: "図を作成", exact: true}).click();
-  await expect(page.getByRole("img", {name: "保存するグラフ"})).toBeVisible();
-  await expect(page.getByRole("figure", {name: /Figure legend/})).toBeVisible();
-  expect([...figureRevisions.values()]).toEqual(["r1"]);
-  await page.getByRole("button", {name: "画像解析", exact: true}).click();
-  await page.locator('[data-region="1"]').first().click();
-  await page.getByRole("button", {name: "対象から除外", exact: true}).click();
-  await expect.poll(() => selection.entries[0]?.revision_id).toBe("r2");
-  // The figure from r1 is not kept after the correction; it is rebuilt explicitly from r2.
-  await page.getByRole("button", {name: "グラフ", exact: true}).click();
-  await expect(page.getByText("設定を変更しました。「図を作成」で反映します。")).toBeVisible();
-  await page.getByRole("button", {name: "図を作成", exact: true}).click();
-  await expect.poll(() => [...figureRevisions.values()].at(-1)).toBe("r2");
-  await page.getByLabel("幅 (mm)").fill("183");
-  await page.getByRole("button", {name: "図を作成", exact: true}).click();
-  await expect.poll(() => figureCount).toBeGreaterThan(2);
-  const plot = (figureSpecs.get(`s${figureCount}`) as {plot: {width_inches: number; language: string}}).plot;
-  expect(plot.width_inches).toBeCloseTo(183 / 25.4, 6);
-  expect(plot.language).toBe("en");
-  expect(analysisCount).toBe(1);
-  expect(writes.some(value => value.path.endsWith("/review"))).toBe(false);
-  await page.getByRole("button", {name: "画像解析", exact: true}).click();
-  await page.getByRole("button", {name: "元に戻す", exact: true}).click();
-  await expect.poll(() => selection.entries[0]?.revision_id).toBe("r1");
-  const other = await context.newPage();
-  await other.goto("/workspace?id=w1");
-  await expect(other.getByRole("region", {name: "解析方法"})).toContainText("1/1 視野");
-  await other.getByRole("button", {name: "測定値", exact: true}).click();
-  await expect(other.getByRole("cell", {name: "採用", exact: true})).toHaveCount(2);
-  // A different tab adopts r2; the stale r1 tab must not overwrite it.
-  await page.getByRole("button", {name: "やり直す", exact: true}).click();
-  await expect.poll(() => selection.entries[0]?.revision_id).toBe("r2");
-  await expect(other.getByText("別のタブで採用状態が更新されました。表示中の測定値・図は旧版です。", {exact: false})).toBeVisible();
-  await other.getByRole("button", {name: "領域 1 を選択", exact: true}).click();
-  await expect(other.getByRole("img", {name:"視野 1の画像"})).toBeVisible();
-  await other.getByRole("button", {name: "対象から除外", exact: true}).click();
-  await expect(other.getByRole("button", {name: "最新の採用状態を読み込む"})).toBeVisible();
-  expect(selection.entries[0].revision_id).toBe("r2");
-  await other.close();
-  await page.setViewportSize({width: 390, height: 844});
-  await expect(page.getByRole("navigation", {name: "解析メニュー"})).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  return {writes,unexpected,selection:()=>selection,cohort:()=>cohort};
+}
+
+test("saved structure edits preserve revision history and guard stale tabs",async({page,context})=>{
+  const fixture=await savedWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("button",{name:"領域 1",exact:true}).click();
+  await page.getByRole("button",{name:"選択領域を削除",exact:true}).click();
+  await expect.poll(()=>fixture.selection().entries[0].target_revisions?.nuclei).toBe("edited");
+  await expect(page.getByRole("button",{name:"領域 1",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"領域 2",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"元に戻す",exact:true}).click();
+  await expect.poll(()=>fixture.selection().entries[0].target_revisions?.nuclei).toBe("r1");
+  await expect(page.getByRole("button",{name:"領域 1",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"やり直す",exact:true}).click();
+  await expect.poll(()=>fixture.selection().entries[0].target_revisions?.nuclei).toBe("edited");
+  const other=await context.newPage();await other.goto("/workspace?id=w");
+  await expect(other.getByRole("button",{name:"領域 1",exact:true})).toHaveCount(0);
+  await expect(other.getByRole("button",{name:"領域 2",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"元に戻す",exact:true}).click();
+  await expect.poll(()=>fixture.selection().entries[0].target_revisions?.nuclei).toBe("r1");
+  await other.getByRole("button",{name:"領域 2",exact:true}).click();
+  await other.getByRole("button",{name:"選択領域を削除",exact:true}).click();
+  await expect(other.locator("main").getByRole("alert")).toContainText("別の画面で採用状態が変わりました");
+  expect(fixture.selection().entries[0].target_revisions?.nuclei).toBe("r1");
+  expect(fixture.writes.filter(value=>value.path.endsWith("/region-edits"))).toHaveLength(1);
+  expect(fixture.writes.some(value=>/proposal|region-analyses|\/runs/.test(value.path))).toBe(false);
+  expect(fixture.unexpected).toEqual([]);await other.close();
 });
 
-test("failed uploads and analyses remain visible and allow comparison only after reasoned exclusion", async ({page}) => {
-  const channels = [{channel_id: "c1", label: "DAPI", stain: "DAPI"}];
-  const fields = ["f1", "f2", "failed-field"].map(id => ({id, workspace_id: "w2", metadata: {}, image_info: {shape: [32, 32], channels}}));
-  const recipe = {id: "region-2d", version: "1.2.0", source: "stardist_nuclear", region_set_id: "nuclei", label: "核", defining_channel_id: "c1", nuclear_role_source: "recorded_stain"};
-  let selection = {version: 1, entries: [...fields.map((field, index) => ({id: field.id, field_id: field.id as string | null, revision_id: index < 2 ? `r${index + 1}` : null, exclusion_reason: null as string | null})), {id: "failed-upload", field_id: null, revision_id: null, exclusion_reason: null as string | null}]};
-  let submitted: Record<string, unknown> | null = null;
-  let statisticSpec: Record<string, unknown> | null = null;
-  await page.route("**/v1/**", async route => {
-    const path = new URL(route.request().url()).pathname; const method = route.request().method();
-    const headers = {"Access-Control-Allow-Origin": new URL(page.url()).origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "content-type,x-cytellect-request"};
-    const json = (value: unknown, status = 200) => route.fulfill({status, headers, contentType: "application/json", body: JSON.stringify(value)});
-    if (method === "OPTIONS") return route.fulfill({status: 204, headers});
-    if (path === "/v1/session") return json({authenticated: true, retention_hours: 24, demo: false});
-    if (path === "/v1/workspaces/w2") return json({id: "w2", active_revision: "r2"});
-    if (path.endsWith("/selection")) {if (method === "POST") selection = {...route.request().postDataJSON(), version: selection.version + 1}; return json(selection);}
-    if (path.endsWith("/region-fields")) return json(fields);
-    if (path.endsWith("/revisions")) return json(fields.map((field, index) => ({id: `r${index + 1}`, state: index < 2 ? "succeeded" : "failed", created: index, config: {recipe, field_ids: [field.id]}})));
-    if (path.endsWith("/jobs")) return json([...(submitted ? [{id: "cohort-job", revision_id: "cohort", kind: "analysis", state: "succeeded"}] : []), ...(statisticSpec ? [{id: "statistic-job", revision_id: "cohort", kind: "statistics", state: "succeeded"}] : [])]);
-    if (path.endsWith("/review")) return json({});
-    if (path.endsWith("/workspace-selection")) return json(submitted?.workspace_selection);
-    if (path.endsWith("/common-statistics")) {
-      if (method === "POST") {statisticSpec = route.request().postDataJSON(); return json({job_id: "statistic-job"}, 202);}
-      return json({revision_id: "cohort", analysis_kind: "region-comparison", region_comparison_version: "2.0.0", spec: statisticSpec, metric: "area_px", unit: "pixel²", comparisons: [], counts: [], warnings: [], source_field_ledger: [], selection: {selected: 2, excluded: 0, missing: 0, out_of_scope: 0}, figure: {source_files: []}});
-    }
-    if (path.endsWith("/region-cohorts")) {submitted = route.request().postDataJSON(); return json({job_id: "cohort-job", revision_id: "cohort"}, 202);}
-    if (path.endsWith("/region-measurements")) {const rid = path.split("/")[3]; const fid = rid === "r1" ? "f1" : "f2"; return json({revision_id: rid, field_failures: [], exclusions: [], field_tables: {[fid]: {rows: [{region_id: 1, channel_id: "c1", area_px: 16, area_um2: null, mean: 30, median: 30, integrated: 480}]}}});}
-    if (path.endsWith("/region-masks")) return json({regions: [{id: 1, points: [[1, 1], [5, 1], [5, 5], [1, 5]]}], metadata: {mask_revision_id: "mask"}});
-    if (path.endsWith("/preview")) return route.fulfill({headers, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1sAAAAASUVORK5CYII=", "base64")});
-    return json({detail: "unused_fixture_route"}, 404);
-  });
-  await page.goto("/workspace?id=w2");
-  await expect(page.getByRole("region", {name: "解析方法"})).toContainText("2/3 視野");
-  await expect(page.getByRole("button", {name: "未登録の視野 処理失敗", exact: true})).toBeVisible();
-  await page.getByRole("button", {name: "統計", exact: true}).click();
-  await expect(page.getByText("未完了の視野が 2 件あります。", {exact: false})).toBeVisible();
-  for (const [name, reason] of [["視野 3 処理失敗", "画像処理失敗を確認"], ["未登録の視野 処理失敗", "原ファイルが破損"]]) {
-    await page.getByRole("button", {name, exact: true}).click();
-    await expect(page.getByRole("button", {name: "この視野を解析から外す"})).toBeDisabled();
-    await page.getByLabel("解析から外す理由").fill(reason);
-    await page.getByRole("button", {name: "この視野を解析から外す"}).click();
-    await expect(page.getByText(`除外理由：${reason}`, {exact: true})).toBeVisible();
+test("failed saved entries remain visible until explicitly excluded from comparison",async({page,context})=>{
+  const fixture=await savedWorkspace(context,page,true);await page.goto("/workspace?id=w");
+  const navigation=page.getByRole("navigation",{name:"作業の切替"});
+  await navigation.getByRole("button",{name:"統計",exact:true}).click();
+  const panel=page.getByRole("region",{name:"測定結果の統計解析"});
+  await panel.getByRole("combobox",{name:"解析",exact:true}).selectOption("comparison");
+  await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
+  await expect(panel.getByText("2 視野の測定が未完了です。",{exact:true})).toBeVisible();
+  await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeDisabled();
+  await navigation.getByRole("button",{name:"画像",exact:true}).click();
+  for(const number of [3,4]){
+    await page.getByRole("complementary",{name:"視野一覧"}).getByRole("button").filter({hasText:`${number} 視野 ${number}`}).click();
+    await page.getByRole("button",{name:"この視野を除外",exact:true}).click();
+    await expect.poll(()=>fixture.selection().entries[number-1].exclusion_reason).toBe("利用者が解析対象から除外");
   }
-  await page.reload();
-  await page.getByText("除外した画像 2 件", {exact: true}).click();
-  await expect(page.getByRole("navigation", {name: "画像とグラフ"})).toContainText("視野 3：画像処理失敗を確認");
-  await expect(page.getByRole("navigation", {name: "画像とグラフ"})).toContainText("未登録の視野：原ファイルが破損");
-  await page.getByRole("button", {name: "統計", exact: true}).click();
-  await expect(page.getByText("未完了の視野が", {exact: false})).toHaveCount(0);
-  for (let index = 1; index <= 2; index++) {
-    for (const key of ["condition", "sample", "experimental_unit"]) await page.getByLabel(`視野 ${index} ${key}`, {exact: true}).fill(`${key}-${index}`);
-  }
-  await page.getByRole("button", {name: "比較対象を保存", exact: true}).click();
-  await expect.poll(() => submitted).not.toBeNull();
-  expect(submitted).toMatchObject({sources: [{field_id: "f1", revision_id: "r1"}, {field_id: "f2", revision_id: "r2"}], workspace_selection: {version: 3, entries: selection.entries}});
-  await page.getByLabel("独立実験単位の定義", {exact: true}).fill("独立培養");
-  for (const name of [/condition-1 と condition-2/, /各視野の画像・領域と除外を確認しました/, /入力した単位の独立性/, /領域の定義と面積の尺度/, /画素の大きさと空間サンプリングが同じ/, /保存測定表の値・欠測・除外/]) await page.getByRole("checkbox", {name}).check();
-  await page.getByRole("button", {name: "比較と図を作成", exact: true}).click();
-  await expect(page.getByRole("heading", {name: "保存された比較結果", exact: true})).toBeVisible();
-  // Another tab changes server adoption after this figure completed.
-  selection = {...selection, version: selection.version + 1, entries: selection.entries.map((entry, index) => index === 0 ? {...entry, exclusion_reason: "別タブで変更"} : entry)};
-  await expect(page.getByRole("heading", {name: "保存された比較結果 · 設定変更前の結果", exact: true})).toBeVisible();
-  await page.getByText("比較条件", {exact:true}).click();
-  await expect(page.getByRole("button", {name: "比較と図を再実行", exact: true})).toBeDisabled();
+  await page.reload();await expect(page.getByRole("button",{name:"領域 1",exact:true})).toBeVisible();await navigation.getByRole("button",{name:"統計",exact:true}).click();
+  await expect(panel.getByText("2 視野の測定が未完了です。",{exact:true})).toHaveCount(0);
+  await panel.getByRole("combobox",{name:"解析",exact:true}).selectOption("comparison");
+  await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
+  await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
+  for(let i=0;i<2;i++)for(const key of ["condition","sample","experimental_unit"])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(`${key}-${i}`);
+  await panel.getByLabel("condition-0 / condition-1",{exact:true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した",{exact:true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認した",{exact:true}).check();
+  await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeEnabled();
+  await panel.getByRole("button",{name:"計算",exact:true}).click();
+  await expect.poll(()=>fixture.cohort()).not.toBeNull();
+  expect(fixture.cohort()).toMatchObject({sources:[{field_id:"f1",revision_id:"r1"},{field_id:"f2",revision_id:"r2"}],workspace_selection:{entries:fixture.selection().entries}});
+  expect(fixture.unexpected).toEqual([]);
 });

@@ -5,7 +5,7 @@ import {useSearchParams} from "next/navigation";
 import {useWorkspaceRuntime,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import type {ChannelAssignment,MeasurementRow,GfpGateResult,SavedResult,RevisionRecord} from "@/lib/workspace/api-adapter";
-import {API_CONFIGURED,request} from "@/lib/api";
+import {API_CONFIGURED,ApiError,errorCodeMessage,errorMessage,request} from "@/lib/api";
 import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
 import type {components} from "@/lib/generated";
 import type {Point} from "@/lib/types";
@@ -84,7 +84,7 @@ function Workspace({runtime:r}:{runtime:Runtime}){
   },[busy,classificationCurrent,filterKey,nuclearSignature]);
   const sourceTarget=["nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus"].includes(metric)?"nucleoplasm":target;
   const sources=useMemo(()=>fields.map(value=>({fieldId:value.id,label:value.label,result:value.results[sourceTarget],metadata:{...emptyMetadata,...Object.fromEntries(Object.keys(emptyMetadata).map(key=>[key,value.metadata?.[key]??null]))},excluded:!!value.exclusionReason})),[fields,sourceTarget]);
-  async function act(action:()=>Promise<unknown>){setLocalError("");try{await action();}catch(error){setLocalError(error instanceof Error?error.message:"処理を完了できませんでした。");}}
+  async function act(action:()=>Promise<unknown>){setLocalError("");try{await action();}catch(error){setLocalError(error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。");}}
   function openField(id:string,ch?:string){if(editing)return;setPreviewRequest(null);++sourceRequest.current;setHistorical(null);setSelected(id);if(ch)setChannel(ch);setRegion(undefined);setCompare(false);if(target==="cell"&&!fields.find(value=>value.id===id)?.results.cell&&!busy)void act(()=>r.run("cell",id));}
   async function openSource(id:string,n?:number,revision?:string,sourceStructure?:ReviewTarget,sourceChannel?:string|null){
     if(editing)return;

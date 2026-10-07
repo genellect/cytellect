@@ -35,38 +35,45 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await page.goto(resume ? `/workspace?id=${resume}` : "/workspace");
   if (!resume) {
     await page.getByTestId("file-input").setInputFiles(files);
-    await page.getByRole("radio", {name: "c1 を核検出に使う"}).click();
-    await page.getByRole("button", {name: "解析を実行", exact: true}).click();
+    await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/未測定/})).toHaveCount(4, {timeout:120000});
+    await page.getByRole("button", {name:"染色対応", exact:true}).click();
+    await page.getByLabel("c1の染色名", {exact:true}).fill("DAPI");
+    await page.getByLabel("c1の役割", {exact:true}).selectOption("nuclear");
+    await page.getByLabel("c2の染色名", {exact:true}).fill("GFP");
+    await page.getByLabel("c2の役割", {exact:true}).selectOption("measure");
+    await page.getByRole("button", {name:"保存", exact:true}).click();
+    await expect(page.getByRole("button", {name:"測定", exact:true})).toBeEnabled({timeout:900000});
+    await page.getByLabel("測定する視野", {exact:true}).selectOption("all");
+    await page.getByRole("button", {name:"測定", exact:true}).click();
   }
-  await expect(page.getByRole("status").first()).toContainText("4 / 4", {timeout: 900000});
+  await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/核\s+\d/})).toHaveCount(4, {timeout:900000});
   const workspace = new URL(page.url()).searchParams.get("id")!;
+  if(!resume){const runs=await (await page.request.get(`${api}/v1/workspaces/${workspace}/runs`)).json();expect(runs.some((run:{state:string;steps:unknown[]})=>run.state==="adopted"&&run.steps.length===4)).toBeTruthy();}
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
-  await page.getByRole("button", {name: "群を比較", exact: true}).click();
-  const panel = page.getByRole("region", {name: "独立実験単位の比較"});
-  await panel.getByRole("combobox", {name: "測定値", exact: true}).selectOption("c2:mean");
-  await panel.getByLabel("独立実験単位の定義", {exact: true}).fill("Synthetic independent-unit execution fixture; not biological replicates");
+  await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"統計", exact:true}).click();
+  const panel = page.getByRole("region", {name:"測定結果の統計解析"});
+  const options=page.getByRole("complementary", {name:"解析対象"});
+  await options.getByRole("combobox", {name:"領域",exact:true}).selectOption("nuclei");
+  await options.getByRole("combobox", {name:"指標",exact:true}).selectOption("mean");
+  await options.getByRole("combobox", {name:"染色",exact:true}).selectOption("c2");
+  await panel.getByRole("combobox", {name:"解析",exact:true}).selectOption("comparison");
+  await panel.getByLabel("独立実験単位", {exact:true}).fill("Synthetic independent-unit execution fixture; not biological replicates");
   for (let i = 0; i < 4; i++) {
     await panel.locator('input[aria-label$=" condition"]').nth(i).fill(i < 2 ? "A" : "B");
     await panel.locator('input[aria-label$=" sample"]').nth(i).fill(`synthetic-sample-${i}`);
     await panel.locator('input[aria-label$=" experimental_unit"]').nth(i).fill(`synthetic-unit-${i}`);
+    await panel.locator('input[aria-label$=" acquisition_date"]').nth(i).fill("synthetic-batch");
   }
-  await panel.getByRole("button", {name: "全視野を選択", exact: true}).click();
-  await panel.getByRole("combobox", {name: "まとめて入力", exact: true}).selectOption("acquisition_date");
-  await panel.getByLabel("入力する値", {exact: true}).fill("synthetic-batch");
-  await panel.getByRole("button", {name: "選択した 4 視野に適用", exact: true}).click();
-  await panel.getByRole("button", {name: "画像を見る", exact: true}).first().click();
-  await page.getByRole("button", {name: "群を比較", exact: true}).click();
+  // Source navigation preserves the editable experimental metadata.
+  await panel.locator("details").filter({has:page.getByText("実験情報", {exact:true})}).getByRole("button").first().click();
+  await page.getByRole("button", {name:"元の結果へ戻る", exact:true}).click();
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
-  await panel.getByRole("button", {name: "比較対象を保存", exact: true}).click();
-  await expect(panel.getByLabel(/各視野の画像・領域と除外/)).toBeVisible({timeout: 120000});
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
-  await panel.getByLabel("A と B", {exact: true}).check();
-  await panel.getByLabel(/各視野の画像・領域と除外/).check();
-  await panel.getByLabel(/入力した単位の独立性/).check();
-  await panel.getByLabel(/撮影・標識・背景と非飽和/).check();
-  await panel.getByLabel(/保存測定表の値・欠測・除外/).check();
-  await panel.getByRole("button", {name: "比較と図を作成", exact: true}).click();
-  await expect(panel.getByRole("region", {name: "保存された比較結果"})).toContainText("welch-t", {timeout: 120000});
+  await panel.getByLabel("A / B", {exact:true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", {exact:true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認した", {exact:true}).check();
+  await panel.getByRole("button", {name:"計算", exact:true}).click();
+  await expect(panel.getByText("welch-t", {exact:true}).first()).toBeVisible({timeout:120000});
   const jobs = await (await page.request.get(`${api}/v1/workspaces/${workspace}/jobs`)).json();
   const job = jobs.find((value: {analysis_mode?: string; analysis_version?: string; state: string}) => value.analysis_mode === "region-experimental-unit" && value.analysis_version === "2.0.0" && value.state === "succeeded");
   expect(job).toBeTruthy();
@@ -86,20 +93,42 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     if (name === "figure.pdf") expect(bytes.subarray(0,5).toString()).toBe("%PDF-");
     await writeFile(path.join(output, name), bytes);
   }
-  await panel.getByRole("region", {name: "保存された比較結果"}).scrollIntoViewIfNeeded();
-  await page.screenshot({path: path.join(output, "comparison.png"), fullPage: true});
-  await panel.getByText("比較条件", {exact: true}).click();
-  await panel.getByText("図の設定", {exact: true}).click();
-  await panel.getByLabel("比較図の幅 (mm)", {exact: true}).fill("183");
-  await expect(panel.getByRole("region", {name: "保存された比較結果"})).toContainText("設定変更前の結果");
-  await expect(panel.getByRole("button", {name: "比較と図を再実行"})).toBeEnabled();
+  await page.screenshot({path:path.join(output,"comparison.png"),fullPage:true});
+  const statisticsPosts=()=>writes.filter(value=>value.endsWith("/common-statistics")||value.endsWith("/descriptive"));
+  const beforeFigure=statisticsPosts().length;
+  await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"グラフ", exact:true}).click();
+  const figurePanel=page.getByRole("region", {name:"図の作成・保存"});
+  await figurePanel.getByLabel("幅 / mm", {exact:true}).fill("120");
+  await figurePanel.getByRole("button", {name:"図を更新", exact:true}).click();
+  await expect(figurePanel.getByRole("button", {name:"図を更新", exact:true})).toBeEnabled({timeout:120000});
+  expect(statisticsPosts()).toHaveLength(beforeFigure);
+  expect(writes.some(value=>value.endsWith("/figure-render"))).toBeTruthy();
+  const downloaded=page.waitForEvent("download",{timeout:120000});
+  await figurePanel.getByRole("button", {name:"保存", exact:true}).click();
+  const publication=await downloaded;
+  await publication.saveAs(path.join(output,"publication.zip"));
+  await expect(figurePanel.getByRole("button", {name:"保存", exact:true})).toBeEnabled({timeout:120000});
+  const replay=JSON.parse(execFileSync(python,["-B","-c",[
+    "import sys,json,io,zipfile,hashlib", "from pathlib import Path",
+    "from cytellect_analysis.region_exports import replay_region_bundle",
+    "root=Path(sys.argv[1]);bundle=root/'replay-bundle';bundle.mkdir(exist_ok=True)",
+    "with zipfile.ZipFile(root/'publication.zip') as publication:",
+    " receipt=json.loads(publication.read('manifest.json'))",
+    " assert all(hashlib.sha256(publication.read(name)).hexdigest()==digest for name,digest in receipt['files'].items())",
+    " analysis=publication.read('analysis.zip')",
+    "with zipfile.ZipFile(io.BytesIO(analysis)) as archive:",
+    " assert all((bundle/name).resolve().is_relative_to(bundle.resolve()) for name in archive.namelist())",
+    " archive.extractall(bundle)",
+    "replay=replay_region_bundle(bundle,bundle/'raw',root/'replayed')",
+    "assert replay['matched_saved_measurements'] and replay['matched_saved_comparisons'] and replay['matched_saved_associations']",
+    "print(json.dumps(replay))"
+  ].join("\n"),output],{encoding:"utf8",env:process.env,stdio:["ignore","pipe","ignore"]}));
+
+  expect(statisticsPosts()).toHaveLength(beforeFigure);
   await page.reload();
-  await expect(page.getByRole("status").first()).toContainText("4 / 4");
-  await page.getByRole("button", {name: "群を比較", exact: true}).click();
-  await panel.getByRole("button", {name: "保存した実験情報を復元", exact: true}).click();
-  await panel.getByText("視野の群・試料・実験単位", {exact: true}).click();
+  await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"統計", exact:true}).click();
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
   await expect(panel.locator('input[aria-label$=" experimental_unit"]').first()).toHaveValue("synthetic-unit-0");
-  await expect(panel.getByRole("button", {name: "比較と図を作成", exact: true})).toBeDisabled();
-  await writeFile(path.join(output, "receipt.json"), JSON.stringify({recovery_bootstrap: !!resume, scope: "seeded synthetic images with real Fiji/API/browser; independent-unit arithmetic and editable export acceptance; no biological validation", workspace, job: job.id, revision: job.revision_id, counts: result.counts, comparisons: result.comparisons, sizes, input_bytes: (await readFile(files[0])).length}, null, 2));
+  await expect(panel.getByRole("button", {name:"計算", exact:true})).toBeDisabled();
+  await writeFile(path.join(output, "receipt.json"), JSON.stringify({recovery_bootstrap: !!resume, scope: "seeded synthetic images with real Fiji/API/browser; independent-unit arithmetic and editable export acceptance; no biological validation", workspace, job: job.id, revision: job.revision_id, counts: result.counts, comparisons: result.comparisons, replay, sizes, input_bytes: (await readFile(files[0])).length}, null, 2));
 });
