@@ -26,7 +26,7 @@ def run_descriptive(store, job, output):
     preview = job["payload"].get("_automatic_preview") is True
     preview_allowed = (preview and rev is not None
                        and rev["config"].get("analysis_kind") == "region-2d"
-                       and rev["config"].get("recipe", {}).get("version") in ("1.2.0", "1.3.0", "1.4.0", "1.5.0"))
+                       and rev["config"].get("recipe", {}).get("version") in ("1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0"))
     if (rev is None or rev["workspace_id"] != job["workspace_id"]
             or rev["state"] != "succeeded" or (not rev["reviewed"] and not preview_allowed)):
         raise ValueError("review_required")

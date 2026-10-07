@@ -12,7 +12,9 @@ function fake(handler: (path: string, options?: RequestInit) => Promise<unknown>
   return {adapter: createApiAdapter({request, post, wait: async () => {}}), request, post};
 }
 describe("real workspace transport boundaries", () => {
-  it("keeps legacy detection unchanged and versions an explicitly selected detection scale", () => {
+  it("sizes detection from the nuclei by default and versions an explicitly selected detection scale", () => {
+    // Without an explicit size, the detection copy follows the estimated nucleus size.
+    expect(nuclearRecipe(channel)).toMatchObject({version: "1.7.0", detection_scale: "nuclear-size/1.0.0"});
     expect(nuclearRecipe(channel)).not.toHaveProperty("detection_max_side_px");
     expect(nuclearRecipe(channel, 320)).toMatchObject({version: "1.5.0", detection_max_side_px: 320, defining_channel_id: "channel2"});
     for (const invalid of [0, 63, 2049, 320.5, NaN]) expect(() => nuclearRecipe(channel, invalid)).toThrow();
@@ -40,7 +42,7 @@ describe("real workspace transport boundaries", () => {
   it("records inference and an explicit nuclear-role choice without inventing confirmations or a stain", () => {
     expect(channelSpecification({...channel, role: null, evidence: "filename"})).toMatchObject({identity_source: "filename", stain: null});
     expect(channelSpecification(channel)).not.toHaveProperty("identity_confirmed");
-    expect(nuclearRecipe(channel)).toMatchObject({version: "1.2.0", nuclear_role_source: "user_selected_role", defining_channel_id: "channel2"});
+    expect(nuclearRecipe(channel)).toMatchObject({version: "1.7.0", nuclear_role_source: "user_selected_role", defining_channel_id: "channel2"});
     expect(nuclearRecipe(channel)).not.toHaveProperty("nuclear_stain_confirmed");
     expect(() => nuclearRecipe({...channel, role: null})).toThrow();
   });

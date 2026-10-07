@@ -129,13 +129,47 @@ original resolution. Detector protocol 1.2.0 records requested and actual shapes
 the pixel-centre transform and canonical restored-label hashes. Labels are restored
 with nearest-neighbour pixel-centre mapping before original-pixel measurement.
 Changing scale requires a new detector run and invalidates dependent compartments;
-it cannot reuse masks produced with another scale. Omitting scale retains the
-older capacity-based behavior and recipe version.
+it cannot reuse masks produced with another scale. Omitting scale in a 1.2.0 request retains the
+older capacity-based behavior; the workspace now omits it only through recipe
+1.7.0 below, which sizes the detection copy from the estimated nucleus diameter.
 
 Scale is an experimental setting, not an accuracy guarantee or a universal default.
 The StarDist [FAQ](https://stardist.net/faq/#do-i-need-to-rescale-my-images-how-do-i-know-which-pixel-resolution-is-required)
 describes input object-size mismatch as one possible source of oversegmentation.
 Inspect boundaries on representative fields before applying a scale to a batch.
+
+## Automatic nuclear detection scale (recipe 1.7.0, nuclear-size/1.0.0, 2026-10-07)
+
+Without an explicit size, the workspace now requests nuclear recipe 1.7.0. Per
+field, the typical nucleus diameter is estimated from the defining (nuclear)
+channel's measurement plane:
+
+1. block mean to a grid whose long side is at most 512 px (integer factor f);
+2. Gaussian smoothing, sigma 2 grid px, so chromatin texture inside a nucleus merges;
+3. Otsu threshold, hole filling, 4-connected components of at least 16 grid px;
+4. the area-weighted median component (the component size that covers half of
+   the foreground), converted to an equivalent-circle diameter D in original px.
+
+The detection copy's long side is `round(L × 40 / D)` for an image of long side L,
+bounded to 64–2048 px; when that is not smaller than L the image is not reduced
+beyond the existing capacity bound and is never enlarged. Measurement pixels,
+the detector, its parameters and the label restoration are those of recipe 1.5.0.
+The estimate (grid factor, threshold, component count, D or a missing reason) and
+the chosen size are recorded per field (`detection_scale`); a saved mask can only be
+reused under the same scale protocol.
+
+The target (40 px) was chosen from real-Fiji runs: on the public BBBC007 nuclear
+image enlarged six times, target diameters of 24–40 px reproduced the
+original-resolution count (115 → 116–118) while 48 px or more split nuclei; on
+owner-supplied Airyscan images (validated privately, not published) 24–40 px gave
+whole-nucleus masks while the capacity-only path split nuclei into hundreds of
+fragments. Labels are restored from the reduced copy, so their edges are coarser by
+the reduction factor; inspect and correct boundaries before measurement. Touching
+nuclei that merge in the coarse estimate enlarge D and reduce the copy further;
+choose an explicit size (recipe 1.5.0) when that happens. A real-Fiji regression
+test (`tests/test_nuclear_scale.py`, BBBC013 enlarged six times) requires the
+automatic scale to reproduce the original count within 10% and confirms that the
+capacity-only path does not.
 
 ## GFP-positive nuclei from negative controls (gfp-gate/2.0.0, 2026-10-06)
 

@@ -16,9 +16,11 @@ from .exports import environment
 from .exports_csv import write_csv
 from .images import read_tiff, sha256
 from .masks import polygon_mask, validate_label_array
+from .nuclear_scale import TARGET_DIAMETER_PX
 from .plan_adoption import planning_methods, validate_revision_plan
 from .region_contracts import (
     AdoptedNuclearRecipe,
+    AutoScaledNuclearRecipe,
     RegionAnalysisRequest,
     RegionCompartmentRecipe,
     RegionImageInfo,
@@ -111,7 +113,7 @@ def region_methods(config, report, provenance):
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
     area_only = request.measurement is not None and request.measurement.mode == "area_only"
     raw_only = request.measurement is not None and request.measurement.mode == "raw_intensity"
-    nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe))
+    nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe))
     initial = ("Initial masks: a confirmed nuclear-stain channel was submitted to the fixed offline Fiji/StarDist 2D "
                "Versatile (fluorescent nuclei) model. This model defines nuclei, not whole cells or nucleoli."
                if nuclear else f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.")
@@ -157,14 +159,14 @@ def region_methods(config, report, provenance):
                      "These intensities are display-code values (0–255), not acquired raw fluorescence. "
                      "Acquisition LUTs, clipping and gamma cannot be reversed. Original TIFFs and input mode are retained for replay.")
         lines.append("Display-RGB fields: " + ", ".join(display_fields) + ".")
-    if isinstance(request.recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe)):
+    if isinstance(request.recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe)):
         lines = [line.replace("a confirmed nuclear-stain channel", "the adopted nuclear-role channel") for line in lines]
         lines.append(f"Nuclear role evidence: {request.recipe.nuclear_role_source}; adoption does not certify segmentation quality.")
-    if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe)):
+    if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe)):
         detector = request.recipe.detector
         lines.extend([
             (f"Nuclear recipe {request.recipe.version}; defining channel {request.recipe.defining_channel_id}."
-             if isinstance(request.recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe)) else
+             if isinstance(request.recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe)) else
              f"Nuclear recipe {request.recipe.version}; confirmed defining channel {request.recipe.defining_channel_id}."),
             f"Detection normalization percentiles {detector.percentile_low:g}–{detector.percentile_high:g}; "
             f"probability threshold {detector.probability:g}; NMS threshold {detector.nms:g}.",
@@ -175,6 +177,14 @@ def region_methods(config, report, provenance):
         lines.append(f"Requested detection maximum side: {request.recipe.detection_max_side_px} px; "
                      "no upscaling. Runtime capacity can reduce detection further. "
                      "The actual transform is recorded per field; measurements retain original pixels.")
+    if isinstance(request.recipe, AutoScaledNuclearRecipe):
+        lines.append("Detection scale: nuclear-size/1.0.0. Per field, the typical nucleus diameter was estimated from "
+                     "the nuclear channel (block mean to a <=512 px grid, Gaussian sigma 2 grid px, Otsu threshold, "
+                     "hole filling, area-weighted median component), and the detection copy was reduced so that this "
+                     f"diameter is about {TARGET_DIAMETER_PX} px; small images are not enlarged. StarDist segments "
+                     "nuclei of the size range of its training data (Schmidt et al. 2018). The estimate and the "
+                     "detection size are recorded per field; label edges are coarser by the reduction factor and can be "
+                     "corrected; measurements retain original pixels.")
     if signal:
         lines.append(f"Signal detector protocol 1.0.0; recipe {request.recipe.version}; "
                      f"defining channel {request.recipe.defining_channel_id}; settings "
@@ -309,7 +319,7 @@ def _recompute_statistics(report, config, result):
         calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
     calculated["revision_id"] = report["revision_id"]
     if result.get("source_review") == "automatic_unreviewed":
-        if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0") or result["spec"].get("mode") != "descriptive":
+        if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0") or result["spec"].get("mode") != "descriptive":
             raise ValueError("region_export_statistics_unrecognized_fields")
         calculated["source_review"] = "automatic_unreviewed"
     if set(result) - (set(calculated) | {"figure"}):
