@@ -143,8 +143,11 @@ Preserve the browser workflow and shared analysis packages. Hosted deployment ad
 
 ## Workspace entry and Desktop acceptance (2026-10-06)
 
-`/` and `/workspace` open the single analysis workspace. `/product` contains the
-landing page and downloads; GA4 is limited to that route. The previous detailed
+`/workspace` opens the single analysis workspace. On the public site `/` is the
+landing page with downloads (`/product` redirects there); GA4 is limited to the
+public pages listed in [security](security.md). Installations on the user's own
+computer (the Windows package and Docker Desktop, whose analysis API is on a
+loopback address) open the workspace at `/` as well, so their launchers are unchanged. The previous detailed
 screen is retained at `/legacy` only in local mode or with a loopback API origin.
 Public builds return 404 there, including future remote-API builds. An authenticated session is
 required before the configured new workspace loads private data. Windows uses

@@ -1,6 +1,8 @@
 export const LOCAL_MODE = process.env.NEXT_PUBLIC_CYTELLECT_WEB_MODE === "local";
 export const API = LOCAL_MODE ? "" : process.env.NEXT_PUBLIC_API_ORIGIN || (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 export const API_CONFIGURED = LOCAL_MODE || !!API;
+/** An analysis API on this computer (Docker Desktop, development): the owner's own installation. */
+export const LOOPBACK_API = (() => {try {return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(API).hostname);} catch {return false;}})();
 export class ApiError extends Error { constructor(public code: string, public status: number) { super(code); } }
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  if(!API_CONFIGURED) throw new ApiError("server_not_configured",503);
