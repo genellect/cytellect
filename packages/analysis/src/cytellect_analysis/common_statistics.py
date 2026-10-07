@@ -17,12 +17,14 @@ from .common_unit_inference import (
 )
 from .compartment_observations import LOG2, acquisition_proxy, compartment_comparison_source
 from .compartment_observations import SAFE_ERROR_CODES as COMPARTMENT_ERRORS
+from .gfp_selection import SAFE_ERROR_CODES as GFP_GATE_ERRORS
+from .gfp_selection import gate_of, gate_source_observations, gate_warnings
 from .region_comparison import SAFE_ERROR_CODES as COMPARISON_ERRORS
 from .region_comparison import _acquisition, _design_ledger, _source, source_fingerprint
 from .statistics import finite_records
 from .unit_inference import aggregate_unit_observations, apply_holm
 
-SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | frozenset({
+SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | frozenset({
     "common_statistics_finite_units_required", "common_statistics_insufficient_units",
     "common_statistics_constant_units", "common_statistics_not_estimable",
     "common_statistics_insufficient_nonzero_pairs", "common_statistics_unknown_method",
@@ -35,15 +37,20 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | frozenset({
 })
 
 
-def _prepared(report, config, request, summaries=None):
+def _prepared(report, config, request, summaries=None, nuclear=None):
     compartment = request.selection.source == "compartment-summary"
     if compartment:
         snapshot, observations, sources, unit, failed = compartment_comparison_source(
             report, config, request.selection, summaries)
     else:
         snapshot, observations, sources, unit, failed = _source(report, config, request)
+    gate_record = None
+    if gate_of(request.selection) is not None:
+        observations, gate_record = gate_source_observations(
+            report, config.get("recipe"), snapshot, request.selection, observations, failed, summaries, nuclear)
     ledger, unit_ledger, pairs, selected, observation_ledger, missing, counts = _design_ledger(
-        snapshot, observations, report, request)
+        snapshot, observations, report, request,
+        control_fields=None if gate_record is None else gate_record["control_field_ids"])
     acquisition, warnings = _acquisition(sources, snapshot, selected, ledger,
                                          acquisition_proxy(request) if compartment else request)
     if not request.selection.metric.startswith("area_"):
@@ -64,12 +71,16 @@ def _prepared(report, config, request, summaries=None):
     warnings.append("acquisition_comparability_user_confirmed_not_machine_verified")
     if compartment and request.selection.metric == LOG2:
         warnings.append("nucleolar_union_saturation_not_assessed")
+    selection = {"input_rows": len(observations), **counts}
+    if gate_record is not None:
+        selection["gfp_gate"] = gate_record
+        warnings.extend(gate_warnings(gate_record))
     return {"metric": request.selection.metric, "unit": unit, "region": sources[0]["region_set"],
             "channel": channel, "source_fields": sources, "source_field_ledger": ledger,
             "observation_ledger": observation_ledger, "plot_data": selected,
             "field_summary": finite_records(fields), "sample_summary": finite_records(samples),
             "unit_summary": finite_records(units), "unit_ledger": unit_ledger, "pair_ledger": pairs,
-            "selection": {"input_rows": len(observations), **counts}, "missingness": missing,
+            "selection": selection, "missingness": missing,
             "excluded_failed_fields": failed, "acquisition": acquisition, "warnings": warnings}
 
 
@@ -89,11 +100,13 @@ def _counts(prepared, conditions, paired=False):
     return counts
 
 
-def analyze_region_comparison(report, config, request, summaries=None):
+def analyze_region_comparison(report, config, request, summaries=None, nuclear=None):
     """``summaries`` (field -> compartment-summary.json) is required only for a
-    compartment-summary selection; region selections ignore it."""
+    compartment-summary selection; region selections ignore it. ``nuclear`` is the
+    bound adopted nuclear source for a GFP nucleus filter on a nucleoplasm revision
+    (a nuclear revision is its own source)."""
     request = RegionComparisonRequestV2.model_validate(request)
-    data = _prepared(report, config, request, summaries)
+    data = _prepared(report, config, request, summaries, nuclear)
     units = pd.DataFrame(data["unit_summary"])
     paired = request.design.kind == "paired"
     comparisons = []

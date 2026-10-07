@@ -73,7 +73,11 @@ def _source(report, config, request):
     return snapshot, observations, sources, unit, failed
 
 
-def _design_ledger(snapshot, observations, report, request):
+def _design_ledger(snapshot, observations, report, request, control_fields=None):
+    """``control_fields`` is set only by the GFP nucleus filter; ``None`` keeps the
+    historical ledger exactly (no gate keys or statuses are added)."""
+    gated = control_fields is not None
+    control_fields = set(control_fields or ())
     excluded = {row["field_id"]: row["reason"] for row in report.get("exclusions", [])
                 if row.get("region_id") is None}
     excluded.update({row["field_id"]: row["reason"] for row in report.get("excluded_failed_fields", [])})
@@ -90,8 +94,11 @@ def _design_ledger(snapshot, observations, report, request):
         item = {"field_id": fid, **{key: md.get(key) for key in (
             "condition", "sample", "experimental_unit", "pair", "acquisition_date")},
             "in_scope": scope, "explicitly_excluded": fid in excluded, "exclusion_reason": excluded.get(fid)}
+        if gated:
+            item["gfp_negative_control"] = fid in control_fields
         ledger.append(item)
-        if not scope:
+        if not scope or fid in control_fields:
+            # GFP negative-control fields set thresholds only; they never form compared units.
             continue
         required = ("sample", "experimental_unit", "pair") if paired else ("sample", "experimental_unit")
         if any(not isinstance(md.get(key), str) or not md[key].strip() for key in required):
@@ -110,6 +117,9 @@ def _design_ledger(snapshot, observations, report, request):
         if fid in excluded:
             record["excluded_fields"].append(fid)
     if set(request.conditions) != {key[0] for key in units}:
+        if gated and set(request.conditions) <= {key[0] for key in units} | {
+                snapshot[fid]["metadata"].get("condition") for fid in control_fields}:
+            raise ValueError("gfp_gate_condition_only_control_fields")
         raise ValueError("region_comparison_condition_scope_mismatch")
     by_unit = defaultdict(set)
     pairs: dict[str, dict[str, Any]] = defaultdict(dict)
@@ -124,11 +134,21 @@ def _design_ledger(snapshot, observations, report, request):
     if paired and any(set(groups) != set(request.conditions) for groups in pairs.values()):
         raise ValueError("incomplete_pairs")
     selected, missing, observation_ledger = [], [], []
+    gate_emptied: set[tuple[str, str]] = set()
     counts: Counter[str] = Counter()
     for row in observations:
         value = _finite(row["value"])
         scope = row["condition"] in request.conditions
-        reason = "out_of_scope" if not scope else "excluded" if row["excluded"] else "missing" if value is None else "selected"
+        if gated and row["field_id"] in control_fields:
+            reason = "gfp_negative_control"
+        elif not scope:
+            reason = "out_of_scope"
+        elif row["excluded"]:
+            reason = "excluded"
+        elif gated and row["gate_selected"] is not True:
+            reason = "gfp_gate_unselected"
+        else:
+            reason = "missing" if value is None else "selected"
         entry = {**row, "value": value, "selection_status": reason}
         observation_ledger.append(entry)
         counts[reason] += 1
@@ -138,18 +158,25 @@ def _design_ledger(snapshot, observations, report, request):
         elif reason == "missing":
             missing.append({"observation_id": row["observation_id"], "field_id": row["field_id"],
                             "reason": row.get("missing_reason") or "metric_unavailable"})
+        elif reason == "gfp_gate_unselected":
+            gate_emptied.add((row["condition"], row["experimental_unit"]))
     for field in ledger:
         status_counts = Counter(row["selection_status"] for row in observation_ledger if row["field_id"] == field["field_id"])
         field.update(input_observations=sum(status_counts.values()), selected_observations=status_counts["selected"],
                      excluded_observations=status_counts["excluded"], missing_observations=status_counts["missing"])
-        field["status"] = ("out_of_scope" if not field["in_scope"] else "excluded" if field["explicitly_excluded"]
+        if gated:
+            field["gfp_gate_unselected_observations"] = status_counts["gfp_gate_unselected"]
+        field["status"] = ("gfp_negative_control" if gated and field["gfp_negative_control"]
+                           else "out_of_scope" if not field["in_scope"] else "excluded" if field["explicitly_excluded"]
                            else "no_regions" if not status_counts else "selected" if status_counts["selected"]
                            else "no_selected_values")
-    for record in units.values():
+    for key, record in units.items():
         explicitly_excluded = set(record["field_ids"]) == set(record["excluded_fields"])
         record["status"] = "excluded" if explicitly_excluded else "selected" if record["selected_observations"] else "no_values"
         if record["status"] == "no_values":
-            raise ValueError("region_comparison_unit_without_values")
+            # An unexcluded unit without kept nuclei is undefined, never zero or dropped.
+            raise ValueError("gfp_gate_unit_without_selected_nuclei" if key in gate_emptied
+                             else "region_comparison_unit_without_values")
     pair_ledger = []
     for pair, groups in sorted(pairs.items()):
         statuses = {record["status"] for record in groups.values()}

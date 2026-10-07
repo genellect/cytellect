@@ -521,12 +521,15 @@ def run_region_export(store, job, output):
             for slot in snapshot["image_info"]["inputs"]:
                 raw.append((f"{fid}/{slot}.tif", store.safe_path("workspaces", revision["workspace_id"],
                                                                 "fields", fid, f"{slot}.tif")))
+    from cytellect_analysis.gfp_selection import uses_gfp_gate
     from cytellect_analysis.region_exports import uses_compartment_summary
 
     records = store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")
-    omitted = [{"job_id": record["id"], "reason": "region_export_compartment_summary_unsupported"}
-               for record in records if uses_compartment_summary(record["payload"])]
-    records = [record for record in records if not uses_compartment_summary(record["payload"])]
+    omitted = [{"job_id": record["id"], "reason": "region_export_compartment_summary_unsupported"
+                if uses_compartment_summary(record["payload"]) else "region_export_gfp_gate_unsupported"}
+               for record in records if uses_compartment_summary(record["payload"]) or uses_gfp_gate(record["payload"])]
+    records = [record for record in records
+               if not uses_compartment_summary(record["payload"]) and not uses_gfp_gate(record["payload"])]
     statistics = [read_json(store.safe_path(record["result_dir"], "result.json")) for record in records]
     statistics_roots = [(index, store.safe_path(record["result_dir"])) for index, record in enumerate(records)]
     build_region_bundle(
