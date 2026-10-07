@@ -19,6 +19,7 @@ from cytellect_analysis.proposal_contracts import PROPOSAL_PROTOCOL, ProposalCon
 from cytellect_analysis.proposal_validation import ProposalRejected, context_sha256, validate_draft
 from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
+    AutoScaledNuclearRecipe,
     RegionImageInfo,
     ScaledNuclearRecipe,
     validate_nuclear_role_evidence,
@@ -168,8 +169,12 @@ def build_context(store, wid: str, goal: str) -> tuple[ProposalContext, list[Pro
     if region and len(region) != len(rows):
         raise HTTPException(409, "proposal_mixed_input_modes")
     if region:
-        if config.get("recipe", {}).get("version") in ("1.2.0", "1.5.0"):
-            adopted = (ScaledNuclearRecipe if config["recipe"]["version"] == "1.5.0" else AdoptedNuclearRecipe).model_validate(config["recipe"])
+        if config.get("recipe", {}).get("version") in ("1.2.0", "1.5.0", "1.7.0"):
+            version = config["recipe"]["version"]
+            adopted: AdoptedNuclearRecipe | ScaledNuclearRecipe | AutoScaledNuclearRecipe = (
+                ScaledNuclearRecipe.model_validate(config["recipe"]) if version == "1.5.0"
+                else AutoScaledNuclearRecipe.model_validate(config["recipe"]) if version == "1.7.0"
+                else AdoptedNuclearRecipe.model_validate(config["recipe"]))
             for row in region:
                 validate_nuclear_role_evidence(adopted, RegionImageInfo.model_validate(row["image_info"]))
         seen: dict[str, dict] = {}
@@ -185,7 +190,7 @@ def build_context(store, wid: str, goal: str) -> tuple[ProposalContext, list[Pro
             token = f"ch{index + 1}"
             links.append(ProposalChannelLink(token=token, channel_id=channel_id, stain=spec.get("stain")))
             recipe = config.get("recipe", {})
-            adopted_role = (recipe.get("version") in ("1.2.0", "1.5.0")
+            adopted_role = (recipe.get("version") in ("1.2.0", "1.5.0", "1.7.0")
                             and recipe.get("nuclear_role_source") in ("recorded_stain", "user_selected_role"))
             role = ("nuclear" if recipe.get("defining_channel_id") == channel_id
                     and (recipe.get("nuclear_stain_confirmed") is True or adopted_role) else None)

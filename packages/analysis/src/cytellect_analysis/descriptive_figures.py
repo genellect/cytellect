@@ -13,6 +13,7 @@ from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
 from .figures import LABELS, _validate_text_layout, apply_plot_controls, figure_settings, plt, select_font
+from .gfp_selection import recorded_gate_lines
 from .statistical_methods import methods_metadata, readable_descriptive_methods
 
 FIGURE_VERSION = "1.0.1"
@@ -78,6 +79,8 @@ def _caption(result, labels):
                      + result["metric_definition"] + ".")
     if result.get("source_review") == "automatic_unreviewed":
         lines.append("領域の目視確認前に生成した記述図。" if ja else "Descriptive output generated before visual review of regions.")
+    # Recorded in English: the gate thresholds and filter are the reproducible record.
+    lines.extend(recorded_gate_lines(result["selection"]))
     lines += ["", "Field / source mapping:"]
     for field in result["source_fields"]:
         fid = field["field_id"]
@@ -129,6 +132,7 @@ def descriptive_methods(result, *, methods_template=None):
               if policy is not None else
               "Input, channel, mask and background provenance is stored in figure-data.json. ") + "Original acquisition settings "
              "and biological suitability require researcher review. Output contains research information and must remain private.", "",
+             *recorded_gate_lines(result["selection"]),
              "Selection: " + json.dumps(result["selection"], ensure_ascii=False, sort_keys=True),
              "Warnings: " + "; ".join(result["warnings"]), ""]
     return "\n".join(lines)

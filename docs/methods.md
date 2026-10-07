@@ -129,13 +129,47 @@ original resolution. Detector protocol 1.2.0 records requested and actual shapes
 the pixel-centre transform and canonical restored-label hashes. Labels are restored
 with nearest-neighbour pixel-centre mapping before original-pixel measurement.
 Changing scale requires a new detector run and invalidates dependent compartments;
-it cannot reuse masks produced with another scale. Omitting scale retains the
-older capacity-based behavior and recipe version.
+it cannot reuse masks produced with another scale. Omitting scale in a 1.2.0 request retains the
+older capacity-based behavior; the workspace now omits it only through recipe
+1.7.0 below, which sizes the detection copy from the estimated nucleus diameter.
 
 Scale is an experimental setting, not an accuracy guarantee or a universal default.
 The StarDist [FAQ](https://stardist.net/faq/#do-i-need-to-rescale-my-images-how-do-i-know-which-pixel-resolution-is-required)
 describes input object-size mismatch as one possible source of oversegmentation.
 Inspect boundaries on representative fields before applying a scale to a batch.
+
+## Automatic nuclear detection scale (recipe 1.7.0, nuclear-size/1.0.0, 2026-10-07)
+
+Without an explicit size, the workspace now requests nuclear recipe 1.7.0. Per
+field, the typical nucleus diameter is estimated from the defining (nuclear)
+channel's measurement plane:
+
+1. block mean to a grid whose long side is at most 512 px (integer factor f);
+2. Gaussian smoothing, sigma 2 grid px, so chromatin texture inside a nucleus merges;
+3. Otsu threshold, hole filling, 4-connected components of at least 16 grid px;
+4. the area-weighted median component (the component size that covers half of
+   the foreground), converted to an equivalent-circle diameter D in original px.
+
+The detection copy's long side is `round(L × 40 / D)` for an image of long side L,
+bounded to 64–2048 px; when that is not smaller than L the image is not reduced
+beyond the existing capacity bound and is never enlarged. Measurement pixels,
+the detector, its parameters and the label restoration are those of recipe 1.5.0.
+The estimate (grid factor, threshold, component count, D or a missing reason) and
+the chosen size are recorded per field (`detection_scale`); a saved mask can only be
+reused under the same scale protocol.
+
+The target (40 px) was chosen from real-Fiji runs: on the public BBBC007 nuclear
+image enlarged six times, target diameters of 24–40 px reproduced the
+original-resolution count (115 → 116–118) while 48 px or more split nuclei; on
+owner-supplied Airyscan images (validated privately, not published) 24–40 px gave
+whole-nucleus masks while the capacity-only path split nuclei into hundreds of
+fragments. Labels are restored from the reduced copy, so their edges are coarser by
+the reduction factor; inspect and correct boundaries before measurement. Touching
+nuclei that merge in the coarse estimate enlarge D and reduce the copy further;
+choose an explicit size (recipe 1.5.0) when that happens. A real-Fiji regression
+test (`tests/test_nuclear_scale.py`, BBBC013 enlarged six times) requires the
+automatic scale to reproduce the original count within 10% and confirms that the
+capacity-only path does not.
 
 ## GFP-positive nuclei from negative controls (gfp-gate/2.0.0, 2026-10-06)
 
@@ -149,8 +183,81 @@ values are never treated as positive. Pooled-population Otsu is not used because
 its threshold moves with the transfected fraction. GFP is a selection or
 covariate, never a denominator. The control-distribution approach follows
 per-nucleus gates such as Sutton & DeRose, J Biol Chem 2021
-(doi:10.1016/j.jbc.2021.100633). Connecting the gate to comparisons and figures
-is a later, versioned step.
+(doi:10.1016/j.jbc.2021.100633). Comparisons and figures use it through the
+separately versioned nucleus filter below.
+
+## GFP nucleus filter 1.0.0 for comparisons and descriptions (2026-10-06)
+
+Region selections and compartment-summary selections 1.0.0 accept an optional
+`gfp_gate` in common statistics request 2.0.0
+(`POST /v1/revisions/{rid}/common-statistics`) and in per-field descriptions
+(`POST /v1/revisions/{rid}/descriptive`):
+
+```json
+{"version": "1.0.0", "gate_protocol": "gfp-gate/2.0.0", "gfp_channel_id": "gfp",
+ "percentile": 99, "control_field_ids": ["..."], "keep": "positive"}
+```
+
+The filter changes which nuclei enter the unchanged protocols: aggregation
+(field median → sample mean → independent-unit mean), tests, Holm family and
+per-field summaries are not modified. Without `gfp_gate` every request, result
+and figure is byte-identical to before; the absent key is omitted, not `null`.
+Generic comparison 1.0.0, region association 1.0.0 and automatic descriptive
+previews refuse the filter (`gfp_gate_unsupported_request`,
+`gfp_gate_preview_unsupported`).
+
+- GFP value: the raw per-nucleus arithmetic mean of the declared GFP channel in
+  the adopted nuclear (`stardist_nuclear`) revision rows of the same fields. A
+  nuclear revision is its own source (binding `same_revision`). A nucleoplasm
+  revision (`fiji_nuclear_compartment`, `compartment="nucleoplasm"`) is bound per
+  field to the nuclear revision recorded in its provenance (`nuclear_source`):
+  the nuclear report must still hold that mask revision and canonical mask hash
+  and the same nucleus exclusions (binding `parent_nucleus`). Nucleoplasm region
+  IDs and compartment-summary rows are parent nucleus IDs and are joined by exact
+  ID; a compartment-summary nucleus area must equal the nuclear area, and a
+  nucleoplasm region must be strictly smaller than its nucleus. The GFP channel
+  identity must equal the field's declared channel. Nucleoli regions, signal
+  regions, manual or imported regions and historical revisions without a recorded
+  nuclear source are refused (`gfp_gate_nuclear_source_unbound`); any
+  disagreement is `gfp_gate_nuclear_identity_mismatch`.
+- Threshold: `gfp-gate/2.0.0` unchanged, per acquisition date, from the
+  unexcluded nuclei of the designated control fields (percentile 50–<100,
+  default 99, linear interpolation, strictly greater is positive, at least 20
+  control nuclei). The percentile is the researcher's recorded choice and is
+  never searched; changing it is a new, recorded analysis. Every measured field
+  needs an acquisition date (`gfp_gate_acquisition_date_required`). Control
+  fields must be registered, measured and not excluded
+  (`gfp_gate_unknown_control_field`, `gfp_gate_control_field_excluded`).
+- Selection: `keep="positive"` keeps `above_control_threshold`;
+  `keep="negative"` keeps `within_control_range`. Nuclei with `gfp_missing`,
+  `too_few_control_nuclei` or `no_control_threshold` are never kept and never
+  zero. Explicit nucleus and field exclusions take precedence and are recorded as
+  `nucleus_excluded` when the nucleus is absent from the nuclear rows.
+- Ledgers: control fields set thresholds only. Their observations have
+  `selection_status="gfp_negative_control"` and their fields
+  `status="gfp_negative_control"`; they never form compared units. Unselected
+  nuclei keep `selection_status="gfp_gate_unselected"` with `gfp_mean`,
+  `gfp_gate_threshold` and `gfp_gate_reason`. An unexcluded unit without kept
+  nuclei (`gfp_gate_unit_without_selected_nuclei`) or a compared condition made
+  only of control fields (`gfp_gate_condition_only_control_fields`) is refused,
+  never dropped.
+- Record: `selection.gfp_gate` stores the filter, channel identity, binding and
+  per-field nuclear source (revision, mask revision, mask hash and, for a bound
+  nuclear revision, the SHA-256 of its report), per-date thresholds, control
+  nucleus counts and control field IDs, reason counts, kept counts per field and
+  the number of nuclei with saturated GFP. Methods and figure captions state the
+  filter, channel, percentile, controls and each date's threshold in English.
+  Warnings: `gfp_gated_subset_selected_by_expression_level_not_randomized`
+  always; `gfp_gate_dates_without_control_threshold_unselected` and
+  `gfp_gate_saturated_gfp_nuclei_present` when applicable.
+- Export: analysis bundles omit gated statistics with
+  `region_export_gfp_gate_unsupported`, because replay would need the bound
+  nuclear revision and control designation, which the bundle does not carry.
+- Validation: synthetic numerical tests (hand-calculated thresholds, kept nuclei
+  and unit means; tests compared with SciPy) and an owned API/worker job on
+  synthetic pixels. Biological validity of a GFP threshold on real data, and an
+  end-to-end nucleoplasm run through the Fiji compartment pipeline, are not
+  established by these tests.
 
 ## Per-nucleus compartment-summary selection 1.0.0 (2026-10-06)
 

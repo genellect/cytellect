@@ -186,6 +186,8 @@ def _gating(result):
 
 
 def readable_descriptive_methods(result):
+    from .gfp_selection import recorded_gate_lines
+
     counts, selection = result["counts"], result["selection"]
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.",
              "Statistical Methods template: cytellect-statistical-methods 1.0.0.",
@@ -204,6 +206,7 @@ def readable_descriptive_methods(result):
              f"Explicitly excluded failed fields: {_count(counts, 'excluded_failed_fields')}; their observation counts remain unknown. "
              "Missing values and empty fields were retained with reasons, not replaced with zero.",
              *_gating(result),
+             *recorded_gate_lines(result["selection"]),
              "No new normalization, image processing or selection was performed by this descriptive protocol.",
              "Complete observation values, field summaries and selection records are in plot-data.csv, field-summary.csv, "
              "selection.csv and figure-data.json; missingness.csv is included when missing outcomes exist. "

@@ -13,12 +13,20 @@ from cytellect_api.db import revisions
 from cytellect_api.storage import read_json, write_json
 
 
+def _gfp_source(store, rev, report, request):
+    if getattr(request.selection, "gfp_gate", None) is None:
+        return None
+    from .gfp_sources import load_gfp_nuclear_source
+
+    return load_gfp_nuclear_source(store, rev, report)
+
+
 def run_descriptive(store, job, output):
     rev = store.one(revisions, id=job["revision_id"])
     preview = job["payload"].get("_automatic_preview") is True
     preview_allowed = (preview and rev is not None
                        and rev["config"].get("analysis_kind") == "region-2d"
-                       and rev["config"].get("recipe", {}).get("version") in ("1.2.0", "1.3.0", "1.4.0", "1.5.0"))
+                       and rev["config"].get("recipe", {}).get("version") in ("1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0"))
     if (rev is None or rev["workspace_id"] != job["workspace_id"]
             or rev["state"] != "succeeded" or (not rev["reviewed"] and not preview_allowed)):
         raise ValueError("review_required")
@@ -41,9 +49,14 @@ def run_descriptive(store, job, output):
 
         if not generic or preview:
             raise ValueError("descriptive_source_mismatch")
-        result = describe_compartment_summary(report, snapshot, request, load_compartment_summaries(store, rev, report))
+        result = describe_compartment_summary(report, snapshot, request, load_compartment_summaries(store, rev, report),
+                                              nuclear=_gfp_source(store, rev, report, request))
+    elif generic:
+        if preview and getattr(request.selection, "gfp_gate", None) is not None:
+            raise ValueError("gfp_gate_preview_unsupported")
+        result = describe_regions(report, snapshot, request, nuclear=_gfp_source(store, rev, report, request))
     else:
-        result = (describe_regions if generic else describe_legacy)(report, snapshot, request)
+        result = describe_legacy(report, snapshot, request)
     result["revision_id"] = rev["id"]
     if preview:
         result["source_review"] = "automatic_unreviewed"

@@ -83,6 +83,8 @@ class RegionAssociationRequest(RegionModel):
 
     @model_validator(mode="after")
     def explicit_association(self):
+        if self.x_selection.gfp_gate is not None or self.y_selection.gfp_gate is not None:
+            raise ValueError("gfp_gate_unsupported_request")
         if self.missingness_confirmed is not True or self.design.kind != "independent":
             raise ValueError("common_statistics_independent_association_required")
         if self.x_selection == self.y_selection:

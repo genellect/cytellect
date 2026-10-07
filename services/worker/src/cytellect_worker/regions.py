@@ -21,9 +21,11 @@ from cytellect_analysis.masks import (
     polygon_mask,
     validate_label_array,
 )
+from cytellect_analysis.nuclear_scale import automatic_detection_max_side, estimate_nuclear_diameter
 from cytellect_analysis.plan_adoption import validate_revision_plan
 from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
+    AutoScaledNuclearRecipe,
     RegionAnalysisRequest,
     RegionCompartmentRecipe,
     RegionFieldMetadata,
@@ -301,7 +303,7 @@ def run_region_analysis(store, settings, job, output):
                 raise ValueError("region_source_shape_or_dtype_invalid")
             if request.recipe.defining_channel_id is not None and request.recipe.defining_channel_id not in channels:
                 raise ValueError("region_unknown_defining_channel")
-            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe))
+            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe))
             if nuclear and image_info.labels_array is not None:
                 raise ValueError("region_automatic_source_has_imported_labels")
             previously_selected = parent is not None and fid in parent["config"]["field_snapshot"]
@@ -342,7 +344,7 @@ def run_region_analysis(store, settings, job, output):
                         or _array_hash(labels, "<u4") != old_mask["mask_sha256"]):
                     raise ValueError("region_parent_mask_mismatch")
                 mask_revision_id = old_mask["mask_revision_id"]
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
                     detector = deepcopy(previous_provenance.get("fields", {}).get(fid, {}).get("detector"))
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
@@ -356,12 +358,15 @@ def run_region_analysis(store, settings, job, output):
                     if (isinstance(request.recipe, ScaledNuclearRecipe)
                             and detector.get("detection_max_side_px") != request.recipe.detection_max_side_px):
                         raise ValueError("region_parent_detector_provenance_invalid")
+                    if (isinstance(request.recipe, AutoScaledNuclearRecipe)
+                            and (detector.get("detection_scale") or {}).get("protocol") != request.recipe.detection_scale):
+                        raise ValueError("region_parent_detector_provenance_invalid")
                     detector["executed_this_attempt"] = False
                     provenance_fields[fid]["detector"] = detector
             else:
                 if (edit and edit.field_id == fid) or (previously_selected and fid in previous_report.get("field_tables", {})):
                     raise ValueError("region_parent_mask_missing")
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
                     detection_started = True
@@ -390,6 +395,15 @@ def run_region_analysis(store, settings, job, output):
                             image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
                             scratch_root=output.parent,
                         )
+                    elif isinstance(request.recipe, AutoScaledNuclearRecipe):
+                        # The detection copy is sized from this field's own nuclear pixels.
+                        scale_record = estimate_nuclear_diameter(image)
+                        scale_record["detection_max_side_px"] = automatic_detection_max_side(
+                            image.shape, scale_record["diameter_px"])
+                        labels, engine_info = detect_nuclei(
+                            image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
+                            scratch_root=output.parent, detection_max_side=scale_record["detection_max_side_px"],
+                        )
                     elif isinstance(request.recipe, ScaledNuclearRecipe):
                         labels, engine_info = detect_nuclei(
                             image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
@@ -413,6 +427,8 @@ def run_region_analysis(store, settings, job, output):
                     }
                     if isinstance(request.recipe, ScaledNuclearRecipe):
                         provenance_fields[fid]["detector"]["detection_max_side_px"] = request.recipe.detection_max_side_px
+                    if isinstance(request.recipe, AutoScaledNuclearRecipe):
+                        provenance_fields[fid]["detector"]["detection_scale"] = scale_record
                     detection_started = False
                     if isinstance(request.recipe, RegionSignalRecipe) and engine_info.get("status") == "indeterminate":
                         raise ValueError("signal_threshold_indeterminate")
@@ -521,12 +537,15 @@ def run_region_export(store, job, output):
             for slot in snapshot["image_info"]["inputs"]:
                 raw.append((f"{fid}/{slot}.tif", store.safe_path("workspaces", revision["workspace_id"],
                                                                 "fields", fid, f"{slot}.tif")))
+    from cytellect_analysis.gfp_selection import uses_gfp_gate
     from cytellect_analysis.region_exports import uses_compartment_summary
 
     records = store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")
-    omitted = [{"job_id": record["id"], "reason": "region_export_compartment_summary_unsupported"}
-               for record in records if uses_compartment_summary(record["payload"])]
-    records = [record for record in records if not uses_compartment_summary(record["payload"])]
+    omitted = [{"job_id": record["id"], "reason": "region_export_compartment_summary_unsupported"
+                if uses_compartment_summary(record["payload"]) else "region_export_gfp_gate_unsupported"}
+               for record in records if uses_compartment_summary(record["payload"]) or uses_gfp_gate(record["payload"])]
+    records = [record for record in records
+               if not uses_compartment_summary(record["payload"]) and not uses_gfp_gate(record["payload"])]
     statistics = [read_json(store.safe_path(record["result_dir"], "result.json")) for record in records]
     statistics_roots = [(index, store.safe_path(record["result_dir"])) for index, record in enumerate(records)]
     build_region_bundle(

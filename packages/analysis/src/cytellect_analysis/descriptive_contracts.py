@@ -27,6 +27,43 @@ RegionMetric = Literal[
 ]
 
 
+class GfpGateFilter(StrictModel):
+    """Optional nucleus filter 1.0.0: keep nuclei by the negative-control GFP gate (gfp-gate/2.0.0).
+
+    The percentile is the researcher's recorded choice (50 to <100); it is never
+    searched or tuned by the software. Control fields supply the per-date
+    threshold and are never compared observations.
+    """
+    version: Literal["1.0.0"]
+    gate_protocol: Literal["gfp-gate/2.0.0"]
+    gfp_channel_id: Id
+    percentile: Annotated[float, Field(strict=True, ge=50, lt=100, allow_inf_nan=False)] = 99.0
+    control_field_ids: Annotated[list[Id], Field(min_length=1, max_length=100)]
+    keep: Literal["positive", "negative"]
+
+    @model_validator(mode="after")
+    def distinct_controls(self):
+        if len(set(self.control_field_ids)) != len(self.control_field_ids):
+            raise ValueError("gfp_gate_duplicate_control_field")
+        return self
+
+
+def _omit_default(schema: dict[str, Any]) -> None:
+    # An absent filter is optional in generated clients and omitted from saved bytes.
+    schema.pop("default", None)
+
+
+class _OptionalGate(StrictModel):
+    """Omit an absent gate so ungated requests and results keep their historical bytes."""
+
+    @model_serializer(mode="wrap")
+    def omit_absent_gate(self, handler):
+        value = handler(self)
+        if isinstance(value, dict) and getattr(self, "gfp_gate", None) is None:
+            value.pop("gfp_gate", None)
+        return value
+
+
 class DescriptivePlot(PlotSpec):
     kind: Literal["distribution"] = "distribution"
 
@@ -36,11 +73,12 @@ class LegacySelection(StrictModel):
     metric: LegacyMetric
 
 
-class RegionSelection(StrictModel):
+class RegionSelection(_OptionalGate):
     source: Literal["region"]
     region_set_id: Id
     channel_id: Id | None = None
     metric: RegionMetric
+    gfp_gate: GfpGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def channel_for_intensity_only(self):
@@ -55,7 +93,7 @@ class RegionSelection(StrictModel):
 CompartmentSummaryMetric = Literal["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count"]
 
 
-class CompartmentSummarySelection(StrictModel):
+class CompartmentSummarySelection(_OptionalGate):
     """Per-nucleus values from a nucleoplasm revision's compartment-summary.json.
 
     Separately versioned observation source (compartment-summary selection 1.0.0);
@@ -67,6 +105,7 @@ class CompartmentSummarySelection(StrictModel):
     region_set_id: Id
     channel_id: Id | None = None
     metric: CompartmentSummaryMetric
+    gfp_gate: GfpGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def channel_for_intensity_ratio_only(self):

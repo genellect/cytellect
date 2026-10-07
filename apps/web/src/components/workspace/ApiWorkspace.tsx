@@ -4,7 +4,7 @@ import Link from "next/link";
 import {useSearchParams} from "next/navigation";
 import {routeIdentity, promoteIdentity, resolveIdentity} from "@/lib/workspace/route-identity";
 import {API_CONFIGURED, ApiError, errorMessage} from "@/lib/api";
-import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type CompartmentSummaryFile, type GfpGateResult, type ValidatedProposal, type MaskOperation, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
+import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type CompartmentSummaryFile, type GfpGateResult, type ProposalDraft, type ValidatedProposal, type MaskOperation, type ImportedField, type Recipe, type SavedResult} from "@/lib/workspace/api-adapter";
 import {chooseNuclearChannel, groupFiles, isSupportedImage, restoredChannels, type AddedFile, type Grouping} from "@/lib/workspace/grouping";
 import {targetOf, validTargetResults, type Target} from "@/lib/workspace/target-results";
 import {tiffInputMode} from "@/lib/workspace/tiff-intake";
@@ -26,6 +26,17 @@ type Item = {targetResults?: Partial<Record<Target, {result: SavedResult; recipe
 const statusLabel = {importing: "読込中", ready: "未解析", running: "解析中", done: "完了", failed: "処理失敗"};
 const message = (error: unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : "処理できませんでした";
 const choiceKey = (channel: string | null, metric: string) => channel ? `${channel}:${metric}` : metric;
+/** What the researcher measures after nuclei. Each choice uses an analysis that already exists; none is the default for everyone except per-nucleus values. */
+type AnalysisChoice = "nuclear" | "positive" | "nucleolar" | "drawn";
+const analysisChoices: Array<{id: AnalysisChoice; label: string; description: string}> = [
+  {id: "nuclear", label: "核ごとの輝度と面積（各チャンネル）", description: "検出した核ごとに、面積と各チャンネルの平均・中央値・積算輝度を測ります。"},
+  {id: "positive", label: "陽性領域（GFP などの明るい領域）", description: "選んだチャンネルでしきい値より明るい領域を検出し、面積と輝度を測ります。核の内外は区別せず、画像全体から検出します。"},
+  {id: "nucleolar", label: "核小体と核質の分布（NCL など）", description: "核を核小体と核質に分け、核ごとに核質/核小体の比を求めます。"},
+  {id: "drawn", label: "手で囲んだ領域（細胞全体・核の外など）", description: "画像の上で測りたい範囲を囲み、その面積と各チャンネルの輝度を測ります。"},
+];
+/** The AI proposal selects a choice only when its recipe is one of these; it never adds an analysis. */
+const aiChoiceOf: Partial<Record<ProposalDraft["recipe"], AnalysisChoice>> = {"nuclear-intensity": "nuclear", "nuclear-ncl": "nucleolar", "supplied-regions": "drawn"};
+const detectionSizes = [256, 320, 640, 1024, 1643, 2048];
 
 /** No mock adapter or browser quantitation is reachable from the real workspace. */
 export default function ApiWorkspace() {
@@ -59,6 +70,8 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   const [nucleolarDefinition, setNucleolarDefinition] = useState<NucleolarDefinition>({source: "dapi_poor", marker: "", pixelUm: null, relative: 0.7});
   const [methodSheet, setMethodSheet] = useState(false);
   const [definitionOpen, setDefinitionOpen] = useState(false);
+  const [analysisChoice, setAnalysisChoice] = useState<AnalysisChoice>("nuclear");
+  const [positiveTarget, setPositiveTarget] = useState<"gfp" | "ncl">("gfp");
   const [, setSelectionTick] = useState(0);
   const [proposal, setProposal] = useState<ValidatedProposal | null>(null);
   const [background, setBackground] = useState<"automatic" | "raw">("raw");
@@ -173,7 +186,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
         setFileCount(saved.fields.reduce((count, field) => count + field.image_info.channels.length, 0));
         const recovered: Item[] = [];
         for (const [index, field] of saved.fields.entries()) {
-          const revisions = saved.revisions.filter(value => ["succeeded", "queued", "running"].includes(value.state) && ["1.2.0", "1.3.0", "1.4.0", "1.5.0"].includes(value.config.recipe.version) && value.config.field_ids.length === 1 && value.config.field_ids[0] === field.id).sort((a,b) => b.created-a.created);
+          const revisions = saved.revisions.filter(value => ["succeeded", "queued", "running"].includes(value.state) && ["1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0"].includes(value.config.recipe.version) && value.config.field_ids.length === 1 && value.config.field_ids[0] === field.id).sort((a,b) => b.created-a.created);
           const entry = saved.selection.entries.find(value => value.field_id === field.id);
           if (!entry) {recovered.push({entryId: "", key: field.id, label: `視野 ${index + 1}`, field, orphan: true, status: "failed", error: "画像は保存されていますが、解析対象への登録が完了していません。", history: [], redo: []}); void loadPreviews(field); continue;}
           const revision = entry.revision_id ? revisions.find(value => value.id === entry.revision_id) : revisions.find(value => value.state !== "succeeded");
@@ -203,6 +216,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
         const allRecipes = recovered.filter(value => !value.exclusionReason).flatMap(value => Object.values(value.targetResults || {}).map(saved => saved!.recipe));
         const savedNuclear = allRecipes.find(value => value.source === "stardist_nuclear");
         if (savedNuclear) {
+          // 1.5.0 records an explicit detection size; 1.7.0 (automatic, from the estimated nucleus size) and 1.2.0 have none.
           setNuclearMaxSide(savedNuclear.detection_max_side_px ?? null);
           setGrouping(current => current ? chooseNuclearChannel(current, savedNuclear.defining_channel_id) : current);
           for (const value of recovered) {
@@ -220,6 +234,10 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
           setItems([...recovered]);
         }
         setSignalChannels({gfp: allRecipes.find(value => value.region_set_id === "gfp_positive")?.defining_channel_id || "", ncl: allRecipes.find(value => value.region_set_id === "ncl_positive" || value.source === "fiji_nuclear_compartment")?.defining_channel_id || ""});
+        // A restored workspace reopens on what it has measured; viewing never writes adoption.
+        const savedPositive = allRecipes.find(value => value.source === "fiji_positive_regions");
+        if (allRecipes.some(value => value.source === "fiji_nuclear_compartment")) setAnalysisChoice("nucleolar");
+        else if (savedPositive) {setAnalysisChoice("positive"); setPositiveTarget(savedPositive.region_set_id === "ncl_positive" ? "ncl" : "gfp");}
       }).catch(error => setNotice(message(error))).finally(() => {busyRef.current = false; setBusy(false);});
     }
     return () => {mounted.current = false;};
@@ -458,6 +476,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
       const response = await adapter.draft(wid, goal, retryFailed); setDraft(response.proposal.draft.rationale); setDraftQuestions(response.proposal.draft.missing_information);
       // The AI chooses the method: its validated selection fills the method card directly.
       setProposal(response.proposal); setAiTrialStarted(false);
+      const chosen = aiChoiceOf[response.proposal.draft.recipe]; if (chosen) setAnalysisChoice(chosen);
       const nuclearChoice = response.proposal.draft.channels.filter(value => value.role === "nuclear");
       if (grouping && nuclearChoice.length === 1 && !response.proposal.needs_confirmation.includes(nuclearChoice[0].token) && grouping.channels.some(value => value.token === nuclearChoice[0].token)) {setGrouping(chooseNuclearChannel(grouping, nuclearChoice[0].token)); setChannel(nuclearChoice[0].token);}}
     catch (error) {if (error instanceof ApiError && error.code === "proposal_explicit_retry_required") {setDraftRetry(true); setDraft("前回のリクエストが完了していません。再送すると追加のAPI利用料が発生する場合があります。");} else setDraft(message(error));}
@@ -494,7 +513,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
     : nuclear.length !== 1 ? "核検出に使うチャンネルを指定すると、画像で確認できます。"
     : `核検出 ${nuclear[0].stain || nuclear[0].token} · 「一括解析」で核の検出と輝度測定を開始します。`;
   const targetChannel = displayTarget === "nuclei" ? nuclearToken || "" : signalChannels[signalKey(displayTarget)];
-  const targetControls = grouping && items.some(value => value.field) && <section className={styles.targetBar} aria-label="画像と測定対象"><div className={styles.segmented} role="group" aria-label="表示対象">{([{id: "nuclei", label: "核"}, {id: "gfp", label: "GFP陽性領域"}, {id: "ncl", label: "NCL陽性領域（画像全体）"}, {id: "nucleoli", label: "核小体"}, {id: "nucleoplasm", label: "核質"}] as const).filter(target => target.id !== "nucleoplasm" && (compartmentTargetsEnabled || !isCompartment(target.id))).map(target => <button key={target.id} aria-pressed={displayTarget === target.id} disabled={drawing || busy || draftBusy} onClick={() => void switchTarget(target.id)}>{target.label}</button>)}</div><label>{displayTarget === "nuclei" ? "核を染めた画像" : (displayTarget === "gfp" ? "GFP" : "NCL") + " の画像"}<select value={targetChannel} disabled={drawing || busy || draftBusy} onChange={event => changeTargetChannel(event.target.value)}><option value="">チャンネルを指定</option>{grouping.channels.map(value => <option key={value.token} value={value.token}>{value.stain || value.token}</option>)}</select></label><details className={styles.detectorOptions}><summary>検出設定</summary><div>{displayTarget === "nuclei" && <label>検出用画像の長辺<select value={nuclearMaxSide ?? 0} disabled={drawing || busy} onChange={event => {setNuclearMaxSide(Number(event.target.value) || null); setNotice("検出条件を変更しました。「この視野で検出」で新しい輪郭を確認してください。");}}><option value={0}>容量に合わせる</option>{[320, 640, 1024, 1643, 2048].map(size => <option key={size} value={size}>{size} px</option>)}</select></label>}<label>方法<select aria-label="解析方法" value={displayTarget === "nuclei" ? "stardist" : signalMethod} disabled={drawing || busy || draftBusy || displayTarget === "nuclei"} onChange={event => setSignalMethod(event.target.value as "otsu" | "manual")}>{displayTarget === "nuclei" ? <option value="stardist">StarDist 2D</option> : <><option value="otsu">Fiji・Otsu</option><option value="manual">Fiji・手動しきい値</option></>}</select></label>{displayTarget !== "nuclei" && signalMethod === "manual" && <label>しきい値<input type="number" min={0} max={65535} value={signalThreshold} disabled={drawing || busy} onChange={event => setSignalThreshold(Number(event.target.value))}/></label>}{isCompartment(displayTarget) && <><label>平滑化 σ (px)<input type="number" min={0} step={0.1} value={compartmentSettings.smoothing} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,smoothing:Number(event.target.value)}))}/></label><label>最小面積 (px²)<input type="number" min={1} value={compartmentSettings.minimumArea} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,minimumArea:Number(event.target.value)}))}/></label><label>最大面積 (px²)<input type="number" min={1} placeholder="上限なし" value={compartmentSettings.maximumArea ?? ""} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,maximumArea:event.target.value ? Number(event.target.value) : null}))}/></label><label><input type="checkbox" checked={compartmentSettings.split} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,split:event.target.checked}))}/>接触した領域を分離</label></>}</div></details><div className={styles.runControls}><select aria-label="解析する視野" value={runRange} disabled={drawing || busy} onChange={event => setRunRange(event.target.value as "selected"|"all")}><option value="selected">選択視野</option><option value="all">全視野</option></select><button className={styles.secondary} disabled={drawing || busy || draftBusy || !item?.field} onClick={() => void run(runRange === "selected" ? item?.key : undefined)}>{item?.result ? "再計算" : "解析"}</button></div></section>;
+  const targetControls = grouping && items.some(value => value.field) && <section className={styles.targetBar} aria-label="画像と測定対象"><div className={styles.segmented} role="group" aria-label="表示対象">{([{id: "nuclei", label: "核"}, {id: "gfp", label: "GFP陽性領域"}, {id: "ncl", label: "NCL陽性領域（画像全体）"}, {id: "nucleoli", label: "核小体"}, {id: "nucleoplasm", label: "核質"}] as const).filter(target => target.id !== "nucleoplasm" && (compartmentTargetsEnabled || !isCompartment(target.id))).map(target => <button key={target.id} aria-pressed={displayTarget === target.id} disabled={drawing || busy || draftBusy} onClick={() => void switchTarget(target.id)}>{target.label}</button>)}</div><label>{displayTarget === "nuclei" ? "核を染めた画像" : (displayTarget === "gfp" ? "GFP" : "NCL") + " の画像"}<select value={targetChannel} disabled={drawing || busy || draftBusy} onChange={event => changeTargetChannel(event.target.value)}><option value="">チャンネルを指定</option>{grouping.channels.map(value => <option key={value.token} value={value.token}>{value.stain || value.token}</option>)}</select></label><details className={styles.detectorOptions}><summary>検出設定</summary><div><label>方法<select aria-label="解析方法" value={displayTarget === "nuclei" ? "stardist" : signalMethod} disabled={drawing || busy || draftBusy || displayTarget === "nuclei"} onChange={event => setSignalMethod(event.target.value as "otsu" | "manual")}>{displayTarget === "nuclei" ? <option value="stardist">StarDist 2D</option> : <><option value="otsu">Fiji・Otsu</option><option value="manual">Fiji・手動しきい値</option></>}</select></label>{displayTarget !== "nuclei" && signalMethod === "manual" && <label>しきい値<input type="number" min={0} max={65535} value={signalThreshold} disabled={drawing || busy} onChange={event => setSignalThreshold(Number(event.target.value))}/></label>}{isCompartment(displayTarget) && <><label>平滑化 σ (px)<input type="number" min={0} step={0.1} value={compartmentSettings.smoothing} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,smoothing:Number(event.target.value)}))}/></label><label>最小面積 (px²)<input type="number" min={1} value={compartmentSettings.minimumArea} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,minimumArea:Number(event.target.value)}))}/></label><label>最大面積 (px²)<input type="number" min={1} placeholder="上限なし" value={compartmentSettings.maximumArea ?? ""} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,maximumArea:event.target.value ? Number(event.target.value) : null}))}/></label><label><input type="checkbox" checked={compartmentSettings.split} disabled={drawing || busy} onChange={event => setCompartmentSettings(previous => ({...previous,split:event.target.checked}))}/>接触した領域を分離</label></>}</div></details><div className={styles.runControls}><select aria-label="解析する視野" value={runRange} disabled={drawing || busy} onChange={event => setRunRange(event.target.value as "selected"|"all")}><option value="selected">選択視野</option><option value="all">全視野</option></select><button className={styles.secondary} disabled={drawing || busy || draftBusy || !item?.field} onClick={() => void run(runRange === "selected" ? item?.key : undefined)}>{item?.result ? "再計算" : "解析"}</button></div></section>;
   const methodFields = items.filter(value => value.field && !value.exclusionReason && !value.orphan);
   const doneCount = (target: Target) => methodFields.filter(value => storedTargets(value)[target]).length;
   const progressText = (target: Target) => methodFields.length ? `${doneCount(target)}/${methodFields.length} 視野` : "画像を追加してください";
@@ -507,6 +526,7 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
       {(Object.keys(nucleolarSourceText) as NucleolarSource[]).map(source => <option key={source} value={source}>{nucleolarSourceText[source].label}</option>)}</select></label>
     <p className={styles.definitionHint}>{nucleolarSourceText[nucleolarDefinition.source].description}</p>
     {nucleolarDefinition.source === "marker" && <label>マーカーのチャンネル<select value={nucleolarDefinition.marker} disabled={busy} onChange={event => setNucleolarDefinition(previous => ({...previous, marker: event.target.value}))}><option value="">選択してください</option>{markerChoices.map(value => <option key={value.token} value={value.token}>{value.stain || value.token}</option>)}</select></label>}
+    {nucleolarDefinition.source === "ncl" && <label>NCL のチャンネル<select value={signalChannels.ncl} disabled={busy} onChange={event => setSignalChannels(previous => ({...previous, ncl: event.target.value}))}><option value="">選択してください</option>{markerChoices.map(value => <option key={value.token} value={value.token}>{value.stain || value.token}</option>)}</select></label>}
     {nucleolarDefinition.source !== "ncl" && <>
       <label>画素サイズ（µm/px、撮影記録の値）<input type="number" min={0.005} max={5} step={0.0001} value={nucleolarDefinition.pixelUm ?? ""} placeholder="不明なら空欄" disabled={busy} onChange={event => setNucleolarDefinition(previous => ({...previous, pixelUm: event.target.value ? Number(event.target.value) : null}))}/></label>
       {nucleolarDefinition.source === "dapi_poor" && <label>暗さのしきい値（核内の中央値に対する比）<input type="number" min={0.3} max={0.95} step={0.05} value={nucleolarDefinition.relative} disabled={busy} onChange={event => setNucleolarDefinition(previous => ({...previous, relative: Number(event.target.value) || 0.7}))}/></label>}
@@ -519,7 +539,8 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   const aiDraft = proposal?.draft;
   const aiNuclear = aiDraft?.channels.find(value => value.role === "nuclear");
   const aiNeedsConfirmation = aiNuclear && proposal!.needs_confirmation.includes(aiNuclear.token) && nuclear.length !== 1;
-  const compartmentsUsed = !aiDraft || aiDraft.recipe === "nuclear-ncl";
+  const aiChoice = aiDraft ? aiChoiceOf[aiDraft.recipe] : undefined;
+  const aiChose = !!aiChoice && aiChoice === analysisChoice;
   const aiMark = (text: string) => aiDraft ? `${text}（AI が選択）` : text;
   async function runGfpGate() {
     if (!workspace || !gfp.channel || !gfp.controls.length) return;
@@ -558,39 +579,118 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   const backgroundReason: Record<string, string> = {automatic_background_insufficient_tiles: "核のない領域が足りません", automatic_background_insufficient_coverage: "核のない領域が画像の一部に偏っています"};
   const backgroundState = !doneCount("nucleoplasm") ? "核質の計算時に求めます" : backgroundMissing ? `この視野では背景を決められません（${backgroundReason[backgroundMissing] ?? backgroundMissing}）。元の値を表示しています` : correctedSummary ? "背景を引いた値を表示しています" : background === "automatic" ? "「全視野に適用」で背景を求め直します" : "元の値を表示しています";
   const reasonText: Record<string, string> = {no_nucleolus: "核小体なし", no_nucleoplasm: "核質なし", nonpositive_signal: "輝度が0以下"};
-  const steps: MethodStep[] = [
-    {id: "nuclei", number: 1, title: "核", description: nuclear.length === 1 ? `${nuclearName} から核を自動検出（StarDist 2D）` : "核を染めたチャンネルから核を自動検出（StarDist 2D）", state: nuclear.length !== 1 && methodFields.length ? "核を染めたチャンネルを選んでください" : progressText("nuclei"), tone: nuclear.length !== 1 && methodFields.length ? "attention" : tone("nuclei"),
-      action: {label: "輪郭を見る", onClick: () => void switchTarget("nuclei"), disabled: !doneCount("nuclei") || busy},
-      details: aiNeedsConfirmation && grouping ? <span className={styles.goalActions}><span className={styles.definitionHint}>AI は {aiNuclear!.token} を核染色と推定しました（{aiNuclear!.reason}）。確認して選んでください。</span></span> : nuclear.length !== 1 && grouping && methodFields.length > 0 ? <span className={styles.goalActions}>{grouping.channels.map(value => <button key={value.token} type="button" className={styles.secondary} disabled={busy || drawing}
-        onClick={() => {setGrouping(chooseNuclearChannel(grouping, value.token)); setChannel(value.token);}}>{(value.stain || value.token) + " で核を検出"}</button>)}</span> : undefined},
-    {id: "nucleoli", number: 2, title: "核小体", description: compartmentsUsed ? `${nucleolarSourceText[nucleolarDefinition.source].label}を核小体とする` : "この目的では使いません（AI が選択）", state: !compartmentsUsed ? "—" : nucleiReady ? progressText("nucleoli") : "核の検出後に試せます", tone: compartmentsUsed ? tone("nucleoli") : "todo",
-      action: {label: definitionOpen ? "閉じる" : "定義を変える", onClick: () => setDefinitionOpen(value => !value)}, details: <>{definitionForm}<span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={!nucleiReady || busy || !item} onClick={() => {if (item) void run(item.key, "nucleoli").then(() => switchTarget("nucleoli"));}}>代表視野で試す</button>{doneCount("nucleoli") > 0 && <button type="button" className={styles.linkButton} disabled={busy} onClick={() => void switchTarget("nucleoli")}>輪郭を見る</button>}</span></>},
-    {id: "nucleoplasm", number: 3, title: "核質", description: "核から、確認・修正した核小体を除いた領域", state: doneCount("nucleoli") ? progressText("nucleoplasm") : "核小体の確定後に計算します", tone: tone("nucleoplasm")},
-    {id: "background", number: 4, title: "背景", description: background === "automatic" ? "核の外から自動で選んだ背景を引く（元の値も残す）" : "背景を引かない（元の値で比べる）", state: backgroundState, tone: background === "automatic" && backgroundMissing ? "attention" : doneCount("nucleoplasm") ? "done" : "todo",
-      action: {label: background === "automatic" ? "背景を引かない" : "自動の背景を使う", onClick: () => setBackground(value => value === "automatic" ? "raw" : "automatic"), disabled: busy}},
-    {id: "values", number: 5, title: "測る値", description: aiDraft?.metrics.length ? aiMark(aiDraft.metrics.map(value => (value.channel ? value.channel + " " : "") + (metricName[value.metric] ?? value.metric)).join("、")) : "NCL の核質/核小体 比（log2）、核小体の数と面積", state: doneCount("nucleoplasm") ? "下の「核ごとの値」に表示" : "核質の計算後に表示", tone: doneCount("nucleoplasm") ? "done" : "todo"},
-    {id: "gfp", number: 6, title: "対象", description: gfp.enabled ? "GFP 陽性の核に限る（陰性対照を基準）" : "すべての核", state: gfp.result && gfpCounts ? `陽性 ${gfpCounts.positive}・陰性 ${gfpCounts.negative} 核` : gfp.enabled ? "GFP チャンネルと陰性対照の視野を選んでください" : "—", tone: gfp.result ? "done" : gfp.enabled ? "attention" : "todo",
-      action: {label: gfp.enabled ? "限定しない" : "GFP 陽性に限る", onClick: () => setGfp(previous => ({...previous, enabled: !previous.enabled, result: null}))}, details: gfpForm || undefined},
-    {id: "compare", number: 7, title: "比較", description: aiDraft?.statistics.test ? aiMark(`${testName[aiDraft.statistics.test] ?? aiDraft.statistics.test}（独立した実験を n とする）`) : "独立した実験を n として群を比べる", state: background === "automatic" ? "背景を引いた値の比較はまだできません。比べるときは背景を「引かない」にしてください" : "群と実験単位を入力してから計算します", tone: background === "automatic" ? "attention" : "todo", action: {label: "開く", onClick: () => {if (plasmReady && displayTarget !== "nucleoplasm") void switchTarget("nucleoplasm"); setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length || background === "automatic"}},
-    {id: "figure", number: 8, title: "図", description: aiDraft?.figures.length ? aiMark(aiDraft.figures.map(value => figureName[value.kind] ?? value.kind).join("、") + "（英語の図と説明文）") : "実験単位の点と細胞の分布（英語の図と説明文）", state: "—", tone: "todo", action: {label: "開く", onClick: () => setView("figure"), disabled: !item?.result}},
-  ];
-  async function applyMethod() {
-    // One explicit action applies the current nucleolar definition to every field, then derives nucleoplasm.
-    await run(undefined, "nucleoli");
-    await new Promise(resolve => window.setTimeout(resolve, 50)); // let the adopted nucleoli commit
-    await run(undefined, "nucleoplasm");
+  const choiceText = analysisChoices.find(value => value.id === analysisChoice)!;
+  // Detection scale: null asks the server to size detection from the estimated nucleus size.
+  const scalePending = methodFields.some(value => {const nucleus = storedTargets(value).nuclei; return !!nucleus && (nucleus.recipe.detection_max_side_px ?? null) !== nuclearMaxSide;});
+  const scaleForm = nuclear.length === 1 && <div className={styles.definitionForm}>
+    <label>検出用画像の大きさ<select value={nuclearMaxSide ?? 0} disabled={drawing || busy} onChange={event => setNuclearMaxSide(Number(event.target.value) || null)}>
+      <option value={0}>核の大きさに合わせる（自動）</option>{detectionSizes.map(size => <option key={size} value={size}>長辺 {size} px</option>)}</select></label>
+    {scalePending ? <><p className={styles.definitionHint}>まだ反映していません。「この視野で試す」で輪郭を確認し、「全視野に適用」で全視野の核を検出し直します。核小体・核質の結果は作り直しになります。</p>
+      <span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={busy || drawing || !item?.field} onClick={() => {if (item) void run(item.key, "nuclei").then(() => switchTarget("nuclei"));}}>この視野で試す</button></span></>
+      : <p className={styles.definitionHint}>検出用の複製だけを縮小します。測定は元の画像で行います。</p>}
+  </div>;
+  const nuclearChoice = aiNeedsConfirmation && grouping ? <span className={styles.goalActions}><span className={styles.definitionHint}>AI は {aiNuclear!.token} を核染色と推定しました（{aiNuclear!.reason}）。確認して選んでください。</span></span> : nuclear.length !== 1 && grouping && methodFields.length > 0 ? <span className={styles.goalActions}>{grouping.channels.map(value => <button key={value.token} type="button" className={styles.secondary} disabled={busy || drawing}
+    onClick={() => {setGrouping(chooseNuclearChannel(grouping, value.token)); setChannel(value.token);}}>{(value.stain || value.token) + " で核を検出"}</button>)}</span> : undefined;
+  const positiveChannel = signalChannels[positiveTarget];
+  const positiveName = (grouping?.channels.find(value => value.token === positiveChannel)?.stain || positiveChannel) || "選んだチャンネル";
+  function choosePositiveChannel(token: string) {
+    if (displayTarget === positiveTarget) changeTargetChannel(token);
+    else setSignalChannels(previous => ({...previous, [positiveTarget]: token}));
   }
+  const positiveForm = <div className={styles.definitionForm}>
+    <label>シグナル<select value={positiveTarget} disabled={busy || drawing} onChange={event => setPositiveTarget(event.target.value as "gfp" | "ncl")}><option value="gfp">GFP</option><option value="ncl">NCL</option></select></label>
+    <label>チャンネル<select value={positiveChannel} disabled={busy || drawing} onChange={event => choosePositiveChannel(event.target.value)}><option value="">選択してください</option>{(grouping?.channels ?? []).map(value => <option key={value.token} value={value.token}>{value.stain || value.token}</option>)}</select></label>
+    <label>しきい値<select value={signalMethod} disabled={busy || drawing} onChange={event => setSignalMethod(event.target.value as "otsu" | "manual")}><option value="otsu">視野ごとに自動で決める（Otsu）</option><option value="manual">輝度を指定する</option></select></label>
+    {signalMethod === "manual" && <label>輝度（元の画素値）<input type="number" min={0} max={65535} value={signalThreshold} disabled={busy || drawing} onChange={event => setSignalThreshold(Number(event.target.value))}/></label>}
+    <p className={styles.definitionHint}>{signalMethod === "otsu" ? "Otsu は視野ごとにしきい値が変わる探索的な方法です。" : "全視野に同じ輝度を使います。"}「代表視野で試す」で輪郭を確認し、「全視野に適用」を押します。</p>
+    <span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={!positiveChannel || busy || drawing || !item?.field} onClick={() => {if (item) void run(item.key, positiveTarget).then(() => switchTarget(positiveTarget));}}>代表視野で試す</button></span>
+  </div>;
+  // The result set a comparison or figure uses follows the choice.
+  const choiceTarget: Target = analysisChoice === "nuclear" ? "nuclei" : analysisChoice === "positive" ? positiveTarget
+    : analysisChoice === "nucleolar" ? (plasmReady ? "nucleoplasm" : doneCount("nucleoli") ? "nucleoli" : displayTarget) : displayTarget;
+  function showChoiceTarget() {if (choiceTarget !== displayTarget && doneCount(choiceTarget)) void switchTarget(choiceTarget);}
+  function chooseAnalysis(choice: AnalysisChoice) {
+    setAnalysisChoice(choice);
+    // Only the view follows the choice; nothing is run or adopted until 「全視野に適用」.
+    const target: Target | null = choice === "nuclear" ? "nuclei" : choice === "positive" ? positiveTarget : choice === "nucleolar" ? (doneCount("nucleoli") ? "nucleoli" : null) : null;
+    if (target && target !== displayTarget && doneCount(target)) void switchTarget(target);
+  }
+  const choiceForm = <fieldset className={styles.choiceList} aria-label="測るもの">
+    {analysisChoices.map(choice => <label key={choice.id} className={styles.choice}><input type="radio" name="analysis-choice" value={choice.id} checked={analysisChoice === choice.id} disabled={drawing} onChange={() => chooseAnalysis(choice.id)}/><span>{choice.label}{aiChose && aiChoice === choice.id ? "（AI が選択）" : ""}</span></label>)}
+  </fieldset>;
+  const nucleolar = analysisChoice === "nucleolar";
+  const drawnSet = targetLabel[displayTarget];
+  const valuesText: Record<AnalysisChoice, string> = {
+    nuclear: "核ごとの面積と、各チャンネルの平均・中央値・積算輝度（元の値）",
+    positive: `${positiveTarget === "gfp" ? "GFP" : "NCL"} 陽性領域ごとの面積と、各チャンネルの輝度（元の値）`,
+    nucleolar: "核ごとの核質/核小体 比（log2、核以外の各チャンネル）、核小体の数と面積",
+    drawn: "描いた領域ごとの面積と、各チャンネルの輝度（元の値）",
+  };
+  const valuesState = nucleolar ? (doneCount("nucleoplasm") ? "下の「核ごとの値」に表示" : "核質の計算後に表示")
+    : analysisChoice === "positive" ? (doneCount(positiveTarget) ? "下の「測定値」に表示" : "陽性領域の検出後に表示")
+    : doneCount("nuclei") ? "下の「測定値」に表示" : "核の検出後に表示";
+  const valuesDone = nucleolar ? doneCount("nucleoplasm") > 0 : analysisChoice === "positive" ? doneCount(positiveTarget) > 0 : doneCount("nuclei") > 0;
+  const effectiveBackground = nucleolar ? background : "raw";
+  const choiceSteps: Array<Omit<MethodStep, "number">> = analysisChoice === "positive" ? [
+    {id: "positive", title: "陽性領域", description: `${positiveName} で${signalMethod === "manual" ? `輝度 ${signalThreshold} より` : "視野ごとのしきい値（Otsu）より"}明るい領域を検出`, state: !positiveChannel ? "チャンネルを選んでください" : progressText(positiveTarget), tone: !positiveChannel && methodFields.length ? "attention" : tone(positiveTarget),
+      action: {label: "輪郭を見る", onClick: () => void switchTarget(positiveTarget), disabled: !doneCount(positiveTarget) || busy}, details: positiveForm},
+  ] : nucleolar ? [
+    {id: "nucleoli", title: "核小体", description: `${nucleolarSourceText[nucleolarDefinition.source].label}を核小体とする`, state: nucleiReady ? progressText("nucleoli") : "核の検出後に試せます", tone: tone("nucleoli"),
+      action: {label: definitionOpen ? "閉じる" : "定義を変える", onClick: () => setDefinitionOpen(value => !value)}, details: <>{definitionForm}<span className={styles.goalActions}><button type="button" className={styles.linkButton} disabled={!nucleiReady || busy || !item} onClick={() => {if (item) void run(item.key, "nucleoli").then(() => switchTarget("nucleoli"));}}>代表視野で試す</button>{doneCount("nucleoli") > 0 && <button type="button" className={styles.linkButton} disabled={busy} onClick={() => void switchTarget("nucleoli")}>輪郭を見る</button>}</span></>},
+    {id: "nucleoplasm", title: "核質", description: "核から、確認・修正した核小体を除いた領域", state: doneCount("nucleoli") ? progressText("nucleoplasm") : "核小体の確定後に計算します", tone: tone("nucleoplasm")},
+  ] : analysisChoice === "drawn" ? [
+    {id: "drawn", title: "領域を描く", description: "画像の上の「領域を描く」を押し、輪郭に沿ってクリックして「輪郭を保存」を押す", state: `描いた領域は表示中の「${drawnSet}」の表に加わります（${drawnSet}と区別されません）`, tone: item?.result ? "current" : "todo",
+      action: {label: "画像で描く", disabled: !item?.result || busy, onClick: () => {setView("image"); setImageLayout("single"); if (item?.recipe) setChannel(item.recipe.defining_channel_id);}}},
+  ] : [];
+  const visibleSteps: Array<Omit<MethodStep, "number">> = [
+    {id: "nuclei", title: "核", description: nuclear.length === 1 ? `${nuclearName} から核を自動検出（StarDist 2D）` : "核を染めたチャンネルから核を自動検出（StarDist 2D）", state: nuclear.length !== 1 && methodFields.length ? "核を染めたチャンネルを選んでください" : scalePending ? "検出の大きさを変更しました（未反映）" : progressText("nuclei"), tone: nuclear.length !== 1 && methodFields.length || scalePending ? "attention" : tone("nuclei"),
+      action: {label: "輪郭を見る", onClick: () => void switchTarget("nuclei"), disabled: !doneCount("nuclei") || busy},
+      details: nuclearChoice || scaleForm ? <>{nuclearChoice}{scaleForm}</> : undefined},
+    {id: "measure", title: "測るもの", description: choiceText.description, state: aiChose ? "AI が選択" : "", tone: "done", details: choiceForm},
+    ...choiceSteps,
+    {id: "background", title: "背景", description: effectiveBackground === "automatic" ? "核の外から自動で選んだ背景を引く（元の値も残す）" : "背景を引かない（元の値で比べる）", state: nucleolar ? backgroundState : "自動の背景は「核小体と核質の分布」でのみ使えます", tone: nucleolar && background === "automatic" && backgroundMissing ? "attention" : nucleolar ? (doneCount("nucleoplasm") ? "done" : "todo") : valuesDone ? "done" : "todo",
+      action: nucleolar ? {label: background === "automatic" ? "背景を引かない" : "自動の背景を使う", onClick: () => setBackground(value => value === "automatic" ? "raw" : "automatic"), disabled: busy} : undefined},
+    {id: "values", title: "測る値", description: aiChose && aiDraft?.metrics.length ? `${aiDraft.metrics.map(value => (value.channel ? value.channel + " " : "") + (metricName[value.metric] ?? value.metric)).join("、")}（AI が選択）` : valuesText[analysisChoice], state: valuesState, tone: valuesDone ? "done" : "todo"},
+    {id: "gfp", title: "対象", description: gfp.enabled ? "GFP 陽性の核に限る（陰性対照を基準）" : "すべての核", state: gfp.result && gfpCounts ? `陽性 ${gfpCounts.positive}・陰性 ${gfpCounts.negative} 核` : gfp.enabled ? "GFP チャンネルと陰性対照の視野を選んでください" : "—", tone: gfp.result ? "done" : gfp.enabled ? "attention" : "todo",
+      action: {label: gfp.enabled ? "限定しない" : "GFP 陽性に限る", onClick: () => setGfp(previous => ({...previous, enabled: !previous.enabled, result: null}))}, details: gfpForm || undefined},
+    {id: "compare", title: "比較", description: aiDraft?.statistics.test ? aiMark(`${testName[aiDraft.statistics.test] ?? aiDraft.statistics.test}（独立した実験を n とする）`) : "独立した実験を n として群を比べる", state: effectiveBackground === "automatic" ? "背景を引いた値の比較はまだできません。比べるときは背景を「引かない」にしてください" : "群と実験単位を入力してから計算します", tone: effectiveBackground === "automatic" ? "attention" : "todo",
+      action: {label: "開く", onClick: () => {showChoiceTarget(); setComparisonOpened(true); setView("comparison");}, disabled: !methodFields.length || effectiveBackground === "automatic"}},
+    {id: "figure", title: "図", description: aiDraft?.figures.length ? aiMark(aiDraft.figures.map(value => figureName[value.kind] ?? value.kind).join("、") + "（英語の図と説明文）") : "実験単位の点と領域ごとの分布（英語の図と説明文）", state: "—", tone: "todo", action: {label: "開く", onClick: () => {showChoiceTarget(); setView("figure");}, disabled: !item?.result}},
+  ];
+  const steps: MethodStep[] = visibleSteps.map((step, index) => ({...step, number: index + 1}));
+  const stepNumber = new Map(steps.map(step => [step.id, step.number]));
+  async function applyMethod() {
+    // One explicit action applies the current settings to every field. Nuclei are re-detected only after a scale change.
+    const settle = () => new Promise(resolve => window.setTimeout(resolve, 50)); // let adopted results commit
+    if (scalePending) {await run(undefined, "nuclei"); await settle();}
+    if (analysisChoice === "positive") await run(undefined, positiveTarget);
+    if (nucleolar) {await run(undefined, "nucleoli"); await settle(); await run(undefined, "nucleoplasm");}
+  }
+  const applyDisabled = !nucleiReady || busy || selectionState !== "current"
+    || ((analysisChoice === "nuclear" || analysisChoice === "drawn") && !scalePending)
+    || (analysisChoice === "positive" && !positiveChannel)
+    || (nucleolar && nucleolarDefinition.source === "marker" && !nucleolarDefinition.marker);
   const methodPanel = <MethodPanel goal={goal} onGoal={value => {setGoal(value); setDraftRetry(false);}} onAi={() => void requestDraft()} aiBusy={draftBusy} aiDisabled={(!goal.trim() && !items.length) || busy || draftRetry}
     aiResponse={(draft || draftBusy) && <div className={styles.response} aria-live="polite">{draftBusy ? <p>解析方法を作成しています…</p> : <><p>{draft}</p>{draftQuestions.length > 0 && <ul>{draftQuestions.map((question, index) => <li key={index}>{question}</li>)}</ul>}</>}{draftRetry && <button className={styles.secondary} disabled={draftBusy || busy} onClick={() => void requestDraft(true)}>再送信（追加料金が発生する場合があります）</button>}</div>}
-    steps={steps} onApply={() => void applyMethod()} applyLabel="全視野に適用" applyDisabled={!nucleiReady || busy || selectionState !== "current" || (nucleolarDefinition.source === "marker" && !nucleolarDefinition.marker)} onMethodDetails={() => setMethodSheet(true)}/>;
-  const methodDetails: MethodDetail[] = [
-    {id: "nuclei", title: "1 核の検出", summary: "Fiji の StarDist 2D（蛍光核用 Versatile モデル）で核を検出します。大きな画像は検出用の複製だけを縮小し、輪郭は元画像の座標に戻します。測定は元の画素値で行います。", settings: [["確率しきい値", "0.5"], ["NMS", "0.3"], ["正規化", "1–99.8 パーセンタイル"]], references: [methodReferences.stardist], limits: ["開始値であり、画像ごとの検出精度は保証しません。輪郭を確認して修正してください。"]},
-    {id: "nucleoli", title: "2 核小体の決め方", summary: nucleolarDefinition.source === "dapi_poor" ? "核ごとに、平滑化した核染色が核内中央値の一定割合より暗い部分を核小体とします。NCL がストレスで核小体から出ても核小体の位置を失いません。" : nucleolarDefinition.source === "marker" ? "核小体マーカー（UBF／FBL など）の背景を除き、核ごとに最小〜最大の 40% をしきい値にします。UBF は核小体の中心部（rDNA）を示し、核小体全体ではありません。" : "核ごとに NCL の Otsu しきい値で明るい部分を核小体とします（旧方式）。", settings: Object.entries(nucleolarDefinition.source === "ncl" ? {} : nucleolarDetectorV2(nucleolarDefinition)).filter(([key]) => !["engine", "protocol_version"].includes(key)).map(([key, value]) => [key, String(value)] as [string, string]), references: nucleolarDefinition.source === "dapi_poor" ? [methodReferences.kodiha] : nucleolarDefinition.source === "marker" ? [methodReferences.potapova] : [], limits: nucleolarDefinition.source === "dapi_poor" ? ["DAPI で決めた核小体はタンパク質マーカーより小さめになり、比は 1 に近づく（群の差が小さく出る）方向に偏ります。"] : nucleolarDefinition.source === "ncl" ? ["測る対象（NCL）で領域を決めるため、NCL が移動すると核小体を誤ります。"] : ["マーカーの染色（特異性、他チャンネルからの漏れ込み）を確認してから使ってください。"]},
-    {id: "nucleoplasm", title: "3 核質", summary: "核から、確認・修正した核小体の和集合を除いた領域です。しきい値を引き直すことはありません。核小体がない核は核質の値を欠測とします。", settings: [], references: [methodReferences.potapova, methodReferences.white], limits: []},
-    {id: "background", title: "4 背景", summary: background === "automatic" ? "核（除外した核も含む）から離れた領域を小さなタイルに分け、明るさが揃った暗いタイルを画像の複数の区画から集め、その中央値を背景とします。核小体と核質の両方から同じ値を引きます。条件を満たすタイルが足りない視野は背景を欠測とし、補正値を出しません。元の値は常に残します。" : "背景を引かずに元の画素値で比べます。比は背景の分だけ 1 に近づきます。", settings: background === "automatic" ? [["方式", "自動の背景候補（未確認、測定プロトコル 4.0.0）"], ["背景値", "選んだ画素の中央値"]] : [["方式", "元の値（測定プロトコル 3.0.0）"]], references: [], limits: ["自動の背景候補は研究者の確認を経ていません。"]},
-    {id: "values", title: "5 測る値", summary: "主な指標は NCL の核小体と核質の平均輝度の比で、log2(核質 ÷ 核小体) として表示します（値が大きいほど核質に移動）。分母が無効な場合は 0 にせず欠測とします。", settings: [], references: [methodReferences.white, methodReferences.potapova], limits: []},
-    {id: "compare", title: "6 比較", summary: "細胞ではなく独立した実験（導入・実験回）を n として比べます。細胞・視野・実験単位の値を重ねて示します。", settings: [["集計", "視野の中央値 → サンプルの平均 → 実験単位の平均"]], references: [methodReferences.lord, methodReferences.aarts], limits: []},
+    steps={steps} onApply={() => void applyMethod()} applyLabel="全視野に適用" applyDisabled={applyDisabled} onMethodDetails={() => setMethodSheet(true)}/>;
+  const valuesDetail: Record<AnalysisChoice, string> = {
+    nuclear: "核ごとに、面積と各チャンネルの平均・中央値・積算輝度を元の画素値で測ります。表示用の輝度調整は測定値を変えません。",
+    positive: "陽性領域ごとに、面積と各チャンネルの平均・中央値・積算輝度を元の画素値で測ります。",
+    nucleolar: "主な指標は、核小体と核質の平均輝度の比で、log2(核質 ÷ 核小体) として表示します（値が大きいほど核質に多い）。核以外の各チャンネルについて求めます。分母が無効な場合は 0 にせず欠測とします。",
+    drawn: "描いた領域ごとに、面積と各チャンネルの平均・中央値・積算輝度を元の画素値で測ります。",
+  };
+  const allDetails: MethodDetail[] = [
+    {id: "nuclei", title: "核の検出", summary: "Fiji の StarDist 2D（蛍光核用 Versatile モデル）で核を検出します。大きな画像は検出用の複製だけを縮小し、輪郭は元画像の座標に戻します。測定は元の画素値で行います。", settings: [["確率しきい値", "0.5"], ["NMS", "0.3"], ["正規化", "1–99.8 パーセンタイル"], ["検出用画像の大きさ", nuclearMaxSide ? `長辺 ${nuclearMaxSide} px` : "核の大きさに合わせる（自動）"]], references: [methodReferences.stardist], limits: ["開始値であり、画像ごとの検出精度は保証しません。輪郭を確認して修正してください。"]},
+    {id: "positive", title: "陽性領域", summary: "選んだチャンネルの元の画素値に Fiji/ImageJ のしきい値処理をかけ、つながった明るい画素を 1 つの領域とします。既定の Otsu は視野ごとにしきい値を決めます。輝度を指定した場合は全視野で同じ値を使います。", settings: [["チャンネル", positiveName], ["しきい値", signalMethod === "manual" ? `輝度 ${signalThreshold}` : "Otsu（視野ごと、探索的）"], ["平滑化", "なし"], ["最小面積", "1 px"], ["接触した領域", "分けない"]], references: [], limits: ["検出した領域は核・細胞全体・核小体を表さず、GFP や NCL の生物学的な陽性判定でもありません。", "核の内外を区別せず、画像全体から検出します。"]},
+    {id: "nucleoli", title: "核小体の決め方", summary: nucleolarDefinition.source === "dapi_poor" ? "核ごとに、平滑化した核染色が核内中央値の一定割合より暗い部分を核小体とします。NCL がストレスで核小体から出ても核小体の位置を失いません。" : nucleolarDefinition.source === "marker" ? "核小体マーカー（UBF／FBL など）の背景を除き、核ごとに最小〜最大の 40% をしきい値にします。UBF は核小体の中心部（rDNA）を示し、核小体全体ではありません。" : "核ごとに NCL の Otsu しきい値で明るい部分を核小体とします（旧方式）。", settings: Object.entries(nucleolarDefinition.source === "ncl" ? {} : nucleolarDetectorV2(nucleolarDefinition)).filter(([key]) => !["engine", "protocol_version"].includes(key)).map(([key, value]) => [key, String(value)] as [string, string]), references: nucleolarDefinition.source === "dapi_poor" ? [methodReferences.kodiha] : nucleolarDefinition.source === "marker" ? [methodReferences.potapova] : [], limits: nucleolarDefinition.source === "dapi_poor" ? ["DAPI で決めた核小体はタンパク質マーカーより小さめになり、比は 1 に近づく（群の差が小さく出る）方向に偏ります。"] : nucleolarDefinition.source === "ncl" ? ["測る対象（NCL）で領域を決めるため、NCL が移動すると核小体を誤ります。"] : ["マーカーの染色（特異性、他チャンネルからの漏れ込み）を確認してから使ってください。"]},
+    {id: "nucleoplasm", title: "核質", summary: "核から、確認・修正した核小体の和集合を除いた領域です。しきい値を引き直すことはありません。核小体がない核は核質の値を欠測とします。", settings: [], references: [methodReferences.potapova, methodReferences.white], limits: []},
+    {id: "drawn", title: "手で囲んだ領域", summary: "画像の上で描いた多角形を、表示中の領域の表に新しい領域として加え、元の画素値で面積と各チャンネルの輝度を測ります。描くたびに新しい版として保存し、元に戻せます。", settings: [["加える表", drawnSet]], references: [], limits: ["描いた領域は表示中の領域（核など）と同じ表に入り、検出した領域と区別されません。核と分けて集計する専用の表はまだありません。"]},
+    {id: "background", title: "背景", summary: effectiveBackground === "automatic" ? "核（除外した核も含む）から離れた領域を小さなタイルに分け、明るさが揃った暗いタイルを画像の複数の区画から集め、その中央値を背景とします。核小体と核質の両方から同じ値を引きます。条件を満たすタイルが足りない視野は背景を欠測とし、補正値を出しません。元の値は常に残します。" : "背景を引かずに元の画素値で比べます。比は背景の分だけ 1 に近づきます。", settings: effectiveBackground === "automatic" ? [["方式", "自動の背景候補（未確認、測定プロトコル 4.0.0）"], ["背景値", "選んだ画素の中央値"]] : [["方式", "元の値（測定プロトコル 3.0.0）"]], references: [], limits: effectiveBackground === "automatic" ? ["自動の背景候補は研究者の確認を経ていません。"] : nucleolar ? [] : ["自動の背景は「核小体と核質の分布」でのみ使えます。"]},
+    {id: "values", title: "測る値", summary: valuesDetail[analysisChoice], settings: [], references: nucleolar ? [methodReferences.white, methodReferences.potapova] : [], limits: []},
+    {id: "compare", title: "比較", summary: "細胞ではなく独立した実験（導入・実験回）を n として比べます。細胞・視野・実験単位の値を重ねて示します。", settings: [["集計", "視野の中央値 → サンプルの平均 → 実験単位の平均"]], references: [methodReferences.lord, methodReferences.aarts], limits: []},
   ];
+  // The details sheet lists only the steps shown on the card, numbered as on the card.
+  const methodDetails: MethodDetail[] = allDetails.filter(detail => stepNumber.has(detail.id)).map(detail => ({...detail, title: `${stepNumber.get(detail.id)} ${detail.title}`}));
   const summaryTable = summaryRows.length > 0 && <section className={styles.panelSection} aria-label="核ごとの核質/核小体">
     <h3>核ごとの値（{summaryChannel}・{summaryRows[0].values === "raw" ? "元の値" : "背景補正後"}）</h3>
     <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>核</th><th>核小体数</th><th>核小体面積比</th><th>核小体 平均</th><th>核質 平均</th><th>log2(核質/核小体)</th></tr></thead>
@@ -598,11 +698,11 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
   </section>;
   // After the AI chooses an NCL method, the representative field is tried automatically; applying to all stays explicit.
   useEffect(() => {
-    if (!proposal || aiTrialStarted || proposal.draft.recipe !== "nuclear-ncl" || busy || !item || !nucleiReady || storedTargets(item).nucleoli) return;
+    if (!proposal || aiTrialStarted || proposal.draft.recipe !== "nuclear-ncl" || analysisChoice !== "nucleolar" || busy || !item || !nucleiReady || storedTargets(item).nucleoli) return;
     setAiTrialStarted(true);
     void run(item.key, "nucleoli");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposal, aiTrialStarted, busy, item?.key, nucleiReady]);
+  }, [proposal, aiTrialStarted, analysisChoice, busy, item?.key, nucleiReady]);
   // Nuclei first: once the nuclear channel is known, detect nuclei on every field without a separate step.
   useEffect(() => {
     if (!workspace || busy || draftBusy || drawing || nuclear.length !== 1 || selectionState !== "current") return;
@@ -628,12 +728,12 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
 
         </div>{!items.length && composer}
       </section>
-      {items.length > 0 && <aside className={[styles.panel,styles.integratedPanel].join(" ")} aria-label="解析と結果"><nav className={styles.workTabs} aria-label="解析メニュー"><button aria-pressed={view === "image"} onClick={() => setView("image")}>方法</button><button aria-pressed={view === "comparison"} onClick={() => {setComparisonOpened(true);setView("comparison");}}>統計</button><button aria-pressed={view === "figure"} onClick={() => setView("figure")}>グラフ</button></nav><div hidden={view !== "image"}>{methodPanel}{summaryTable}<details className={styles.panelSection}><summary>表示と検出の設定</summary>{targetControls}</details>
+      {items.length > 0 && <aside className={[styles.panel,styles.integratedPanel].join(" ")} aria-label="解析と結果"><nav className={styles.workTabs} aria-label="解析メニュー"><button aria-pressed={view === "image"} onClick={() => setView("image")}>方法</button><button aria-pressed={view === "comparison"} onClick={() => {setComparisonOpened(true);setView("comparison");}}>統計</button><button aria-pressed={view === "figure"} onClick={() => setView("figure")}>グラフ</button></nav><div hidden={view !== "image"}>{methodPanel}{nucleolar && summaryTable}<details className={styles.panelSection}><summary>表示と検出の設定</summary>{targetControls}</details>
         {item?.result && <><section className={styles.panelSection}><h3>領域を修正</h3><p>{region ? `領域 ${region}${excluded.has(region) ? "（除外）" : ""}` : "画像または測定表で領域を選択"}</p><div className={styles.actions}><button className={styles.secondary} disabled={drawing || busy || !region || excluded.has(region)} onClick={() => void correct("exclude")}>対象から除外</button><button className={styles.secondary} disabled={drawing || busy || !region} onClick={() => void correct("delete")}>領域を削除</button><button className={styles.secondary} disabled={drawing || busy || !item?.history.length} onClick={() => void correct("undo")}>元に戻す</button><button className={styles.secondary} disabled={drawing || busy || !item?.redo.length} onClick={() => void correct("redo")}>やり直す</button></div>{busy && item?.result && <p>更新中。直前の保存結果を表示しています。</p>}</section>
 </>}
         <details className={styles.panelSection}><summary>取り込み設定</summary><label>画像の構成<select value={intakeMode} disabled={drawing || busy || items.length > 0} onChange={event => setIntakeMode(event.target.value as "automatic" | "single")}><option value="automatic">チャンネル別画像を視野ごとにまとめる</option><option value="single">同じ染色：1ファイルを1視野にする</option></select></label><p>ファイル名の変更は不要です。</p>{items.length > 0 && <Link href="/">別の画像構成で新しく取り込む</Link>}{grouping?.issues.filter(issue => issue.kind === "duplicate_channel").map(issue => issue.kind === "duplicate_channel" && <fieldset key={issue.field + issue.token}><legend>{issue.token} の画像</legend>{issue.paths.map(path => <button key={path} disabled={drawing || busy || draftBusy} className={styles.secondary} onClick={() => {channelChoices.current.set(issue.field + ":" + issue.token, path); void addFiles([]);}}>{path.split("/").at(-1)} を使用</button>)}</fieldset>)}</details>
         {item?.result && <details className={styles.panelSection}><summary>保存結果の出典</summary><p>解析版：{item.result.revision}</p><p>マスク版：{item.result.masks.metadata.mask_revision_id}</p><p>原値測定。検出結果の品質確認前。</p></details>}
-</div><div className={styles.comparisonMount} hidden={view !== "comparison"}>{comparisonOpened && <WorkspaceComparison beforePrepare={() => alignSelection(displayTarget)} workspace={workspace} sources={items.flatMap(value => value.result && value.field && !value.orphan && !value.exclusionReason ? [{field: value.field.id, revision: value.result.revision, label: value.label, result: value.result, metadata: value.field.metadata}] : [])} pendingFields={items.filter(value => !value.result && !value.exclusionReason).length} selection={adapter.selection()} selectionChanged={selectionState !== "current"} blocked={busy || selectionState !== "current"} options={comparisonOptions} regionSet={item?.recipe?.region_set_id || "nuclei"} onInspect={field => {const target = items.find(value => value.field?.id === field); if (target) {setSelected(target.key);}}}/>}</div><div hidden={view !== "figure"}>{item?.result ? <WorkspaceFigureEditor adapter={adapter} workspace={workspace} result={item.result} options={metricOptions} disabled={drawing || busy || selectionState !== "current"}/> : <p className={styles.panelSection}>領域を検出すると、測定値からグラフを作成できます。</p>}</div>
+</div><div className={styles.comparisonMount} hidden={view !== "comparison"}>{comparisonOpened && <WorkspaceComparison beforePrepare={() => alignSelection(displayTarget)} workspace={workspace} sources={items.flatMap(value => value.result && value.field && !value.orphan && !value.exclusionReason ? [{field: value.field.id, revision: value.result.revision, label: value.label, result: value.result, metadata: value.field.metadata}] : [])} pendingFields={items.filter(value => !value.result && !value.exclusionReason).length} selection={adapter.selection()} selectionChanged={selectionState !== "current"} blocked={busy || selectionState !== "current"} options={comparisonOptions} regionSet={item?.recipe?.region_set_id || "nuclei"} gfp={gfp.enabled ? {channel: gfp.channel, controls: gfp.controls} : null} onInspect={field => {const target = items.find(value => value.field?.id === field); if (target) {setSelected(target.key);}}}/>}</div><div hidden={view !== "figure"}>{item?.result ? <WorkspaceFigureEditor adapter={adapter} workspace={workspace} result={item.result} options={metricOptions} disabled={drawing || busy || selectionState !== "current"}/> : <p className={styles.panelSection}>領域を検出すると、測定値からグラフを作成できます。</p>}</div>
       </aside>}
       <section className={[styles.drawer, drawer ? styles.drawerOpen : ""].join(" ")} aria-label="測定値"><button className={styles.drawerToggle} onClick={() => setDrawer(!drawer)} aria-expanded={drawer}>測定値 · {item?.label} · {rows.length} 領域</button>{drawer && <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>領域</th><th>面積 / px²</th><th>平均{displayRgb ? "（表示輝度）" : "（原値）"}</th><th>中央値{displayRgb ? "（表示輝度）" : "（原値）"}</th><th>積算{displayRgb ? "（表示輝度）" : "（原値）"}</th><th>採否</th></tr></thead><tbody>{rows.map(row => <tr key={row.region_id}><th><button className={styles.rowButton} aria-label={`領域 ${row.region_id} を選択`} onClick={() => {setRegion(row.region_id); setView("image");}}>{row.region_id}</button></th>{[row.area_px, row.mean, row.median, row.integrated].map((value, index) => <td key={index}>{value === null ? "—" : Number(value.toPrecision(6))}</td>)}<td>{excluded.has(row.region_id) ? "除外" : "採用"}</td></tr>)}</tbody></table></div>}</section>
     </div>{fileInputs}{methodSheet && <MethodSheet details={methodDetails} onClose={() => setMethodSheet(false)}/>}

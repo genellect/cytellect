@@ -39,7 +39,7 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
   expect(measurementResponse.ok()).toBeTruthy(); const report = await measurementResponse.json();
   expect(report.protocol_version).toBe("3.0.0");
   expect(report.field_failures).toEqual([]); expect(report.field_tables[field.id].rows.length).toBeGreaterThan(0);
-  expect(report.recipe).toMatchObject({version: "1.2.0", defining_channel_id: "c2", nuclear_role_source: "user_selected_role"});
+  expect(report.recipe).toMatchObject({version: "1.7.0", detection_scale: "nuclear-size/1.0.0", defining_channel_id: "c2", nuclear_role_source: "user_selected_role"});
   const reference = JSON.parse(execFileSync(python!, ["-B", "-c", [
     "import json,sys,numpy as np,tifffile",
     "from pathlib import Path",

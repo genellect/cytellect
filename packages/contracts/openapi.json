@@ -3054,6 +3054,75 @@
         ],
         "title": "AssociationView"
       },
+      "AutoScaledNuclearRecipe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "const": "region-2d",
+            "title": "Id",
+            "default": "region-2d"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.7.0",
+            "title": "Version",
+            "default": "1.7.0"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "const": "stardist_nuclear",
+            "title": "Source",
+            "default": "stardist_nuclear"
+          },
+          "defining_channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Defining Channel Id"
+          },
+          "nuclear_role_source": {
+            "type": "string",
+            "enum": [
+              "recorded_stain",
+              "user_selected_role"
+            ],
+            "title": "Nuclear Role Source"
+          },
+          "detection_scale": {
+            "type": "string",
+            "const": "nuclear-size/1.0.0",
+            "title": "Detection Scale",
+            "default": "nuclear-size/1.0.0"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/NuclearDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "region_set_id",
+          "label",
+          "defining_channel_id",
+          "nuclear_role_source"
+        ],
+        "title": "AutoScaledNuclearRecipe",
+        "description": "Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.0.0)."
+      },
       "AutomaticBackgroundConstants": {
         "properties": {
           "tile_size_px": {
@@ -4379,6 +4448,16 @@
             ],
             "title": "Metric",
             "type": "string"
+          },
+          "gfp_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -5045,6 +5124,65 @@
           "revision_id"
         ],
         "title": "GfpGateField"
+      },
+      "GfpGateFilter": {
+        "additionalProperties": false,
+        "description": "Optional nucleus filter 1.0.0: keep nuclei by the negative-control GFP gate (gfp-gate/2.0.0).\n\nThe percentile is the researcher's recorded choice (50 to <100); it is never\nsearched or tuned by the software. Control fields supply the per-date\nthreshold and are never compared observations.",
+        "properties": {
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "gate_protocol": {
+            "const": "gfp-gate/2.0.0",
+            "title": "Gate Protocol",
+            "type": "string"
+          },
+          "gfp_channel_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Gfp Channel Id",
+            "type": "string"
+          },
+          "percentile": {
+            "default": 99.0,
+            "exclusiveMaximum": 100,
+            "minimum": 50,
+            "title": "Percentile",
+            "type": "number"
+          },
+          "control_field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Control Field Ids",
+            "type": "array"
+          },
+          "keep": {
+            "enum": [
+              "positive",
+              "negative"
+            ],
+            "title": "Keep",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "gate_protocol",
+          "gfp_channel_id",
+          "control_field_ids",
+          "keep"
+        ],
+        "title": "GfpGateFilter",
+        "type": "object"
       },
       "GfpGateRequest": {
         "properties": {
@@ -7016,6 +7154,9 @@
                 "$ref": "#/components/schemas/ScaledNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/AutoScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -7031,7 +7172,8 @@
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
                 "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
-                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe",
+                "1.7.0": "#/components/schemas/AutoScaledNuclearRecipe"
               }
             }
           },
@@ -9658,6 +9800,9 @@
                 "$ref": "#/components/schemas/ScaledNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/AutoScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -9673,7 +9818,8 @@
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
                 "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
-                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe",
+                "1.7.0": "#/components/schemas/AutoScaledNuclearRecipe"
               }
             }
           },
@@ -9798,6 +9944,9 @@
                 "$ref": "#/components/schemas/ScaledNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/AutoScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -9813,7 +9962,8 @@
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
                 "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
-                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe",
+                "1.7.0": "#/components/schemas/AutoScaledNuclearRecipe"
               }
             }
           },
@@ -9939,6 +10089,9 @@
                 "$ref": "#/components/schemas/ScaledNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/AutoScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -9954,7 +10107,8 @@
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
                 "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
-                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe",
+                "1.7.0": "#/components/schemas/AutoScaledNuclearRecipe"
               }
             }
           },
@@ -10079,6 +10233,9 @@
                 "$ref": "#/components/schemas/ScaledNuclearRecipe"
               },
               {
+                "$ref": "#/components/schemas/AutoScaledNuclearRecipe"
+              },
+              {
                 "$ref": "#/components/schemas/RegionSignalRecipe"
               },
               {
@@ -10094,7 +10251,8 @@
                 "1.2.0": "#/components/schemas/AdoptedNuclearRecipe",
                 "1.3.0": "#/components/schemas/RegionSignalRecipe",
                 "1.4.0": "#/components/schemas/RegionCompartmentRecipe",
-                "1.5.0": "#/components/schemas/ScaledNuclearRecipe"
+                "1.5.0": "#/components/schemas/ScaledNuclearRecipe",
+                "1.7.0": "#/components/schemas/AutoScaledNuclearRecipe"
               }
             }
           },
@@ -10224,6 +10382,16 @@
             ],
             "title": "Metric",
             "type": "string"
+          },
+          "gfp_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

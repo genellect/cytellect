@@ -77,6 +77,9 @@ class RegionComparisonRequest(RegionModel):
 
     @model_validator(mode="after")
     def explicit_scope(self):
+        if self.version == "1.0.0" and self.selection.gfp_gate is not None:
+            # The GFP nucleus filter is defined only for common statistics request 2.0.0.
+            raise ValueError("gfp_gate_unsupported_request")
         if (len(self.conditions) != len(set(self.conditions))
                 or set(self.conditions) != {group for pair in self.comparison_family.contrasts for group in pair}):
             raise ValueError("region_comparison_condition_scope_mismatch")

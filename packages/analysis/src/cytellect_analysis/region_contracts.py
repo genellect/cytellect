@@ -203,6 +203,19 @@ class ScaledNuclearRecipe(RegionModel):
     detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
 
 
+class AutoScaledNuclearRecipe(RegionModel):
+    """Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.0.0)."""
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.7.0"] = "1.7.0"
+    region_set_id: Id
+    label: Label
+    source: Literal["stardist_nuclear"] = "stardist_nuclear"
+    defining_channel_id: Id
+    nuclear_role_source: Literal["recorded_stain", "user_selected_role"]
+    detection_scale: Literal["nuclear-size/1.0.0"] = "nuclear-size/1.0.0"
+    detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
+
+
 class RegionSignalRecipe(RegionModel):
     """Exploratory signal-positive areas; never implicitly nuclei or nucleoli."""
     id: Literal["region-2d"] = "region-2d"
@@ -257,7 +270,7 @@ class RegionCompartmentRecipe(RegionModel):
         return self
 
 
-RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | ScaledNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe, Field(discriminator="version")]
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | ScaledNuclearRecipe | AutoScaledNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe, Field(discriminator="version")]
 
 
 RECORDED_NUCLEAR_STAINS = frozenset({"dapi", "hoechst", "hoechst33258", "hoechst33342", "draq", "draq5", "draq7"})
@@ -269,7 +282,7 @@ def validate_nuclear_role_evidence(recipe: RegionRecipeType, image_info: RegionI
     A user-selected role remains an explicit choice, distinct from recorded stain
     evidence. This guard is shared by admission, worker and saved-mask replay.
     """
-    if not isinstance(recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe)):
+    if not isinstance(recipe, (AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe)):
         return
     channel = next((item for item in image_info.channels if item.channel_id == recipe.defining_channel_id), None)
     if channel is None:

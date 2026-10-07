@@ -38,14 +38,14 @@ interface Report {
 export interface FigureChoice {metric: string; channel: string | null; width: number; height: number; label: string; xLabel?: string; fontSize?: number; language?: "ja" | "en"; yMin?: number | null; yMax?: number | null; yTickStep?: number | null; pointSize?: number | null}
 export interface SavedFigure {job: string; revision: string; choice: FigureChoice; result: DescriptiveResult}
 export interface Recipe {
-  id: "region-2d"; version: "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0"; region_set_id: string; label: string;
+  id: "region-2d"; version: "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.7.0"; region_set_id: string; label: string;
   source: "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment"; defining_channel_id: string;
   compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
   detector?: {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
     | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number};
   nucleolar_revision_id?: string;
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
-  detection_max_side_px?: number;
+  detection_max_side_px?: number; detection_scale?: "nuclear-size/1.0.0";
 }
 export interface ProposalDraft {
   recipe: "nuclear-intensity" | "nuclear-ncl" | "supplied-regions" | "measured-table" | "none";
@@ -83,8 +83,10 @@ export function channelSpecification(channel: ChannelDefinition) {
 export function nuclearRecipe(channel: ChannelDefinition, detectionMaxSide?: number | null): Recipe {
   if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください");
   if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください");
-  return {id: "region-2d", version: detectionMaxSide == null ? "1.2.0" : "1.5.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
-    ...(detectionMaxSide == null ? {} : {detection_max_side_px: detectionMaxSide}),
+  // Without an explicit size the detection copy follows the estimated nucleus size (nuclear-size/1.0.0),
+  // so high-resolution images are not split into nuclear texture.
+  return {id: "region-2d", version: detectionMaxSide == null ? "1.7.0" : "1.5.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
+    ...(detectionMaxSide == null ? {detection_scale: "nuclear-size/1.0.0" as const} : {detection_max_side_px: detectionMaxSide}),
     defining_channel_id: channel.token, nuclear_role_source: channel.evidence === "user" ? "user_selected_role" : "recorded_stain"};
 }
 
