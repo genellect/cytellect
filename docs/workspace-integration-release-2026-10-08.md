@@ -32,7 +32,7 @@
 | 明示操作以外の有料API呼出し | 私有画像の受入操作では0件 |
 | Worker更新と公開画像のAI→共通設定→選択視野プレビュー | 実経路で確認。prompt 2026-10-07.2／gpt-6.1-sol。再表示で追加呼出しなし、採用・一括実行なし |
 | ユーザーDockerへの一括更新・Edge表示 | 統合画面とレビュー修正を反映しEdgeで開いた。API・Fiji・ワーカー起動、3表示の収まりと通常操作の有料呼出し0件を確認。研究ボリュームと既存認証を保持 |
-| GitHub CI・main | PR #46の必須5項目が合格し、`0fb4a6a8fd2836caaeba16aa815b53c37c413c3e`へ統合 |
+| GitHub CI・main | PR #46の必須5項目が合格。保存先・明示画像出力のPR #47も対象CIが合格し、`023fafcb0ed8bd84de20c84c03c9770d2f68d636`へ統合 |
 | Vercel本番 | 上記mainの自動公開を確認。Desktop／MobileのEdgeでLP・ワークスペース・旧ページ404、はみ出し・描画エラー・意図しない有料呼出しなし |
 | Windows配布物 | 新しいmainからの配布前検査中。新しいZIPは未公開 |
 
@@ -61,10 +61,18 @@ Python全体CIの6件は、正本マスク検証の抜け1件と、接続済み�
 最初のlocal.17配布試行は未公開である。新規・更新セットアップとブラウザ25件は合格したが、新規ワークスペースIDがURLに保存されず、比較のハーネスが`null`の保存先を問い合わせて停止した。新規データのURLを正しいIDへ結び付け、URLを記録しただけでは実行中の状態を再読込しないよう修正した。別の作業が最近使った一覧の先頭になっても、再読込はURLで指定した元データを復元する。統合画面の保存には、既定では画像を含めず、明示選択した場合だけ元画像を含める経路を接続した。26件・数値再実行の合格前に、そのZIPを配布リンクへ採用しない。
 
 - GitHub: [PR #46](https://github.com/genellect/cytellect/pull/46)、必須CI [37656032907](https://github.com/genellect/cytellect/actions/runs/37656032907)。Python 1,682件、Windows Python 3.14 1,814件、実API／Fijiブラウザ56件が合格。OS・構成別の省略は合格件数に含めない。
-- Docker: ソース `0c4f84ca02a6fa24c29f488a6f6e20dd3b28c924`、Webイメージ `sha256:39a0a9fb5fc5d972d29885286501a8c5dcd6e4600bd8e787c4fa79e514c7aac8`。統合mainとの差分はブラウザテストと本記録のみで、製品の画面・解析コードは一致する。
+- Docker: ソース `309a0c3e3fdb0fd0f11d7fb857e8344387cc4ed2`、Webイメージ `sha256:159fbda385daa28849e13a6e01d1af657a9d4b5ed5cdd3f8ddadfa3e52d22754`。統合main `023fafcb` とツリーは一致し、保存先と明示画像出力まで反映した。Edgeの3表示、再読込、新規切替を確認した。
 - Worker: `1d6f3640-ba64-4989-84e6-9029371a8cda`、prompt `2026-10-08.1`、既存の月額5ドル上限を維持。
-- Vercel: `dpl_FfiMXGzPgsdixZGZT7Q2rMHpLnF9`、production READY、ソース `0fb4a6a8fd2836caaeba16aa815b53c37c413c3e`。[本番LP](https://cytellect.vercel.app/)と[ワークスペース](https://cytellect.vercel.app/workspace)で確認。公開Webは解析API未接続で、実画像解析はDocker／インストール版が担当する。
+- Vercel: `dpl_FeemMyU2hSBQQmZW3RJUJv5CLguw`、production READY、ソース `023fafcb0ed8bd84de20c84c03c9770d2f68d636`。[本番LP](https://cytellect.vercel.app/)と[ワークスペース](https://cytellect.vercel.app/workspace)をDesktop／MobileのEdgeで確認。公開Webは解析API未接続で、実画像解析はDocker／インストール版が担当する。
 
 既存operator設定付きでDockerを構築し、既存研究ボリューム・端末認証を保全して一括更新する。更新後にEdgeを開く。ソースコミット、Dockerのイメージ、CI、Worker、Vercel、配布物をそれぞれ識別し、未完了項目を残す。`down -v`やデータ削除で動作を合わせない。
 
 PR #47の初回コミット `57d9035cd0ad46f8f8fa23967e9238e5c904e019` をDockerへ反映した。Webイメージは `sha256:9a3806a9ed3226052c0598919ff1f79f3db2b49d09aac1c64d96b1405f23c8da`。保存済み作業の再読込が同じ保存先を保持し、追加のrun／有料提案は0件だった。後続レビューでは「新しいワークスペース」で前のIDがURLに残る経路も修正対象に加えた。空の作業への明示切替ではIDを除き、そのURL変更で前の作業を自動復元しない。4画面サイズの既存輸送契約で、再読込と新規切替を確認する。
+
+後続コミット `309a0c3` の4画面サイズの輸送契約と、Dockerの再読込・新規切替が合格した。Dockerの当該操作でサーバーへの変更要求は0件。PR #47の[CI 37672696019](https://github.com/genellect/cytellect/actions/runs/37672696019)はWeb、Pythonの配布・文書検査、Fijiブラウザ検査が合格。変更領域で選択されなかったWindows検査は省略であり、合格件数へ含めない。Windows配布には、統合mainの全5検査と別の実ZIP受入を必要とする。
+
+配布元main `023fafcb` の[CI 37676973664](https://github.com/genellect/cytellect/actions/runs/37676973664)は必須5項目すべて合格。Pythonは1,682件合格・142件省略・Fiji別ジョブ20件除外、Windows Python 3.14は1,815件合格・9件省略・Fiji別ジョブ20件除外。公開された旧パッケージへこれらの件数を遡って付け替えない。
+
+2回目の[local.17配布検査 37680659866](https://github.com/genellect/cytellect/actions/runs/37680659866)も未公開である。新規・更新導入、ブラウザ25件、終了処理は合格したが、比較の画面照合で停止した。隔離したWindows API／Fijiで再現し、保存済みの比較が成功し、設定は`welch-t`、表示名は`Welch t-test`であることを確認した。検査が内部設定値を表示名として検索していたのが原因であり、検定・測定のアルゴリズムは変更しない。表示名だけでなく保存された検定設定も照合する。数値再実行は当該配布試行では未実行であり、合格扱いにしない。
+
+後続の同一入力ハッシュ・採用マスクによる回復検査では、図編集、元画像付きZIP、測定値と比較の再実行が一致した。比較のみを要求したパッケージに相関の再実行結果まで要求する検査も修正した。比較・測定・記述結果の一致と、未実行の相関を合格扱いにしないことを確認する。既存の別の数値ハーネスは比較と相関の両方を実行するため、両方の一致要求を維持する。
