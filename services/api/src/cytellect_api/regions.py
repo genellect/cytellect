@@ -4,9 +4,7 @@ import hashlib
 import io
 import json
 import shutil
-import time
-from copy import deepcopy
-from typing import Annotated
+from typing import Annotated, Literal
 
 import numpy as np
 import tifffile
@@ -16,13 +14,16 @@ from cytellect_analysis.display_contracts import (
     OriginalRgbPreviewMetadata,
     RegionPreviewDisplayMetadata,
 )
-from cytellect_analysis.engine import nuclear_detection_shape
-from cytellect_analysis.gfp_gate import apply_control_gate, control_thresholds
+from cytellect_analysis.gfp_gate import (
+    apply_control_gate,
+    apply_exploratory_gate,
+    control_thresholds,
+    exploratory_thresholds,
+)
 from cytellect_analysis.images import read_tiff, render_preview_with_display, sha256
-from cytellect_analysis.masks import contours, polygon_mask
+from cytellect_analysis.masks import contours
 from cytellect_analysis.region_contracts import (
     RegionAnalysisRequest,
-    RegionCompartmentRecipe,
     RegionFieldInput,
     RegionFieldMetadata,
     RegionImageInfo,
@@ -31,19 +32,20 @@ from cytellect_analysis.region_contracts import (
     RegionReportType,
     region_report_from_json,
     region_request_config,
-    validate_nuclear_role_evidence,
     validate_region_report_policy,
 )
 from cytellect_analysis.region_metadata import region_metadata_child_config
 from fastapi import Depends, File, Form, HTTPException, Response, UploadFile
 from PIL import Image
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, FiniteFloat, ValidationError, model_validator
 from sqlalchemy import func, select, update
 
-from .db import fields, revisions, uid, workspaces
+from .db import fields, uid, workspaces
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution
+from .region_enqueue import enqueue_region, validate_region_request
 from .region_inputs import read_label_tiff
+from .region_ome import register_region_ome_routes
 from .storage import read_json
 
 
@@ -83,6 +85,9 @@ def require_gfp_gate_source(rev, selection):
 
     try:
         binding_kind(rev["config"].get("recipe"))
+        recipe = rev["config"].get("recipe", {})
+        if (recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell") != (getattr(gate, "unit", "nucleus") == "cell_roi"):
+            raise ValueError("gfp_gate_nuclear_source_invalid")
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
     snapshot = rev["config"].get("field_snapshot", {})
@@ -103,12 +108,31 @@ class GfpGateRequest(BaseModel):
     gfp_channel_id: Annotated[str, Field(min_length=1, max_length=100)]
     percentile: Annotated[float, Field(ge=50, lt=100)] = 99.0
     fields: Annotated[list[GfpGateField], Field(min_length=1, max_length=100)]
+    method: Literal["negative_control", "manual", "batch_otsu"] = "negative_control"
+    threshold: FiniteFloat | None = None
+    values: Literal["raw", "corrected"] = "raw"
+    unit: Literal["nucleus", "cell_roi"] = "nucleus"
+
+    @model_validator(mode="after")
+    def valid_gate(self):
+        if self.unit == "cell_roi" and self.method == "negative_control":
+            raise ValueError("cell_roi_requires_exploratory_gate")
+        if len({item.field_id for item in self.fields}) != len(self.fields):
+            raise ValueError("gfp_gate_duplicate_field")
+        if (self.method == "manual") != (self.threshold is not None):
+            raise ValueError("gfp_exploratory_threshold_invalid")
+        if self.method == "negative_control" and self.values != "raw":
+            raise ValueError("gfp_control_gate_requires_raw_values")
+        if self.method != "negative_control" and any(item.control for item in self.fields):
+            raise ValueError("gfp_exploratory_gate_has_no_control_fields")
+        return self
 
 
 def register_region_routes(api, store, settings, owner, workspace, revision,
                            field_record, result_root, queue, touch, child_revision):
     Owner = Annotated[str, Depends(owner)]
     register_contract_schemas(api, RegionPreviewDisplayMetadata)
+    register_region_ome_routes(api, store, settings, owner, workspace, touch, RegionFieldView, is_region)
 
     def region_revision(rid, who):
         rev = revision(rid, who)
@@ -117,58 +141,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         return rev
 
     def validate_request(body, selected, reused_masks=()):
-        ids = {f["id"] for f in selected}
-        if not ids:
-            raise HTTPException(422, "images_required")
-        if set(body.backgrounds) - ids or any(e.field_id not in ids for e in body.exclusions):
-            raise HTTPException(422, "unknown_region_field")
-        excluded = {e.field_id for e in body.exclusions if e.region_id is None}
-        for f in selected:
-            info = RegionImageInfo.model_validate(f["image_info"])
-            try:
-                validate_nuclear_role_evidence(body.recipe, info)
-            except ValueError as error:
-                raise HTTPException(422, str(error)) from None
-            channels = {c.channel_id for c in info.channels}
-            if body.recipe.defining_channel_id is not None and body.recipe.defining_channel_id not in channels:
-                raise HTTPException(422, "unknown_defining_channel")
-            if body.recipe.source == "imported" and info.labels_array is None:
-                raise HTTPException(422, "region_labels_required")
-            if body.recipe.source == "manual" and info.labels_array is not None:
-                raise HTTPException(422, "manual_region_source_requires_no_imported_labels")
-            if isinstance(body.recipe, RegionCompartmentRecipe):
-                source = store.one(revisions, id=body.recipe.nuclear_revision_id)
-                if (not source or source["workspace_id"] != f["workspace_id"] or source["state"] != "succeeded"
-                        or not source["result_dir"] or source["config"].get("analysis_kind") != "region-2d"
-                        or source["config"].get("recipe", {}).get("source") != "stardist_nuclear"
-                        or source["config"]["recipe"].get("defining_channel_id") != body.recipe.nuclear_channel_id):
-                    raise HTTPException(422, "compartment_nuclear_source_invalid")
-                original = source["config"].get("field_snapshot", {}).get(f["id"])
-                if original is None or original["image_info"] != f["image_info"]:
-                    raise HTTPException(422, "compartment_source_image_mismatch")
-                report = read_json(store.safe_path(source["result_dir"], "measurements.json"))
-                if f["id"] not in report.get("field_tables", {}) or f["id"] not in report.get("field_masks", {}):
-                    raise HTTPException(422, "compartment_nuclear_source_invalid")
-            if body.recipe.source == "fiji_positive_regions" and info.labels_array is not None:
-                raise HTTPException(422, "signal_source_requires_no_imported_labels")
-            if body.recipe.source == "stardist_nuclear":
-                if info.labels_array is not None:
-                    raise HTTPException(422, "nuclear_source_requires_no_imported_labels")
-                if f["id"] not in reused_masks:
-                    # Only detection is bounded; saved labels and measurement
-                    # pixels retain the original coordinates and resolution.
-                    nuclear_detection_shape((info.shape[0], info.shape[1]))
-            if f["id"] in excluded:
-                continue
-            if body.measurement is not None:
-                # The request model requires exactly {} for area-only; absence
-                # of background is never converted into a zero-valued ROI.
-                continue
-            backgrounds = body.backgrounds.get(f["id"], {})
-            if set(backgrounds) != channels:
-                raise HTTPException(422, "confirm_background_for_every_channel")
-            for bg in backgrounds.values():
-                polygon_mask(info.shape, bg.polygon)
+        return validate_region_request(store, body, selected, reused_masks)
 
     @api.get("/v1/workspaces/{wid}/region-fields", response_model=list[RegionFieldView])
     def list_region_fields(wid: str, who: Owner):
@@ -288,18 +261,12 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 count = conn.execute(select(func.count()).select_from(fields).where(fields.c.workspace_id == wid)).scalar_one()
                 if count >= settings.max_fields or w["bytes"] + total > settings.max_upload_bytes:
                     raise HTTPException(413, "workspace_limit")
-                identity = {c.channel_id.casefold(): (c.channel_id, c.label, c.stain) for c in spec.channels}
-                for existing in conn.execute(select(fields).where(fields.c.workspace_id == wid)).mappings():
+                existing_rows = conn.execute(select(fields).where(fields.c.workspace_id == wid)).mappings().all()
+                for existing in existing_rows:
                     if not is_region(existing):
                         raise HTTPException(409, "workflow_kind_mismatch")
-                    existing_info = RegionImageInfo.model_validate(existing["image_info"])
-                    existing_identity = {c.channel_id.casefold(): (c.channel_id, c.label, c.stain)
-                                         for c in existing_info.channels}
-                    # Incomplete acquisitions remain registrable; only shared
-                    # channel IDs must have the same scientific identity.
-                    if any(identity[cid] != existing_identity[cid]
-                           for cid in identity.keys() & existing_identity.keys()):
-                        raise HTTPException(409, "region_workspace_channel_identity_mismatch")
+                # Channel IDs are local acquisition slots. Newly imported fields retain
+                # their own metadata and receive no existing role assignment implicitly.
                 conn.execute(fields.insert().values(id=fid, workspace_id=wid,
                              metadata=spec.metadata.model_dump(mode="json"),
                              image_info=info.model_dump(mode="json"), synthetic=False,
@@ -371,45 +338,8 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
 
     @api.post("/v1/workspaces/{wid}/region-analyses", status_code=202)
     def start(wid: str, body: RegionAnalysisRequest, who: Owner):
-        workspace_record = workspace(wid, who)
-        selected = [dict(f) for f in store.rows(fields, workspace_id=wid) if is_region(f)]
-        if body.field_ids is not None:
-            if set(body.field_ids) - {f["id"] for f in selected}:
-                raise HTTPException(422, "unknown_region_field")
-            selected = [f for f in selected if f["id"] in body.field_ids]
-        parent = None
-        reused_masks = ()
-        if body.reuse_revision:
-            parent = region_revision(body.reuse_revision, who)
-            if parent["workspace_id"] != wid:
-                raise HTTPException(404, "revision_not_found")
-            root = result_root(parent)
-            if not set(parent["config"]["field_ids"]).issubset({f["id"] for f in selected}):
-                raise HTTPException(409, "batch_must_include_reused_fields")
-            if parent["config"]["recipe"] != body.recipe.model_dump(mode="json"):
-                raise HTTPException(409, "batch_reuse_requires_unchanged_recipe")
-            # Experimental metadata is versioned in snapshots, not rewritten on
-            # the original upload row. Expanding a trial retains its adopted data.
-            previous = parent["config"]["field_snapshot"]
-            selected = [deepcopy(previous[f["id"]]) if f["id"] in previous else f for f in selected]
-            reused_masks = read_json(root / "measurements.json").get("field_masks", {})
-        validate_request(body, selected, reused_masks)
-        rid = uid()
-        config = {**region_request_config(body), "analysis_kind": "region-2d",
-                  "field_ids": [f["id"] for f in selected], "field_snapshot": {f["id"]: f for f in selected}}
-        if parent is not None and "plan_resolution" not in body.model_fields_set:
-            inherit_plan_resolution(config, parent["config"])
-        bind_revision_plan(config, workspace_record.get("analysis_plan"),
-                           parent_config=parent["config"] if parent is not None else None)
-        with store.transaction() as conn:
-            w = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
-            if parent is not None and w["active_revision"] != parent["id"]:
-                raise HTTPException(409, "stale_revision")
-            conn.execute(revisions.insert().values(id=rid, workspace_id=wid, parent_id=w["active_revision"],
-                         config=config, state="queued", reviewed=False, created=time.time()))
-            jid = queue(conn, wid, rid, "analysis", {})
-            conn.execute(update(workspaces).where(workspaces.c.id == wid).values(active_revision=rid))
-        return {"revision_id": rid, "job_id": jid}
+        workspace(wid, who)
+        return enqueue_region(store, settings, wid, body)
 
     @api.get("/v1/revisions/{rid}/region-compartment-status")
     def compartment_status(rid: str, who: Owner):
@@ -427,13 +357,14 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
 
     @api.post("/v1/workspaces/{wid}/gfp-gate")
     def gfp_gate(wid: str, body: GfpGateRequest, who: Owner):
-        """GFP-positive nuclei against designated negative-control fields (gfp-gate/2.0.0), per acquisition date."""
+        """Classify saved nuclei by mean GFP intensity; no new pixel masks are created."""
         workspace(wid, who)
         rows = []
         for item in body.fields:
             rev = region_revision(item.revision_id, who)
             recipe = rev["config"].get("recipe", {})
-            if rev["workspace_id"] != wid or recipe.get("source") != "stardist_nuclear" or item.field_id not in rev["config"]["field_ids"]:
+            expected_source = (recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell") if body.unit == "cell_roi" else recipe.get("source") == "stardist_nuclear"
+            if rev["workspace_id"] != wid or not expected_source or item.field_id not in rev["config"]["field_ids"]:
                 raise HTTPException(409, "gfp_gate_requires_nuclear_revision")
             report = read_json(result_root(rev) / "measurements.json")
             table = report.get("field_tables", {}).get(item.field_id)
@@ -442,22 +373,31 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             excluded = {e["region_id"] for e in report.get("exclusions", []) if e["field_id"] == item.field_id}
             if None in excluded:
                 continue
-            metadata = field_record(item.field_id, who)["metadata"] or {}
+            record = field_record(item.field_id, who)
+            if body.gfp_channel_id not in {channel["channel_id"] for channel in record["image_info"].get("channels", [])}:
+                raise HTTPException(422, "gfp_gate_channel_unknown")
+            # New exploratory gates bind dates to the measured snapshot, matching formal statistics.
+            metadata = (record["metadata"] or {}) if body.method == "negative_control" else rev["config"].get("field_snapshot", {}).get(item.field_id, {}).get("metadata", {})
             for row in table["rows"]:
                 if row["channel_id"] == body.gfp_channel_id and row["region_id"] not in excluded:
-                    rows.append({"field_id": item.field_id, "region_id": row["region_id"], "gfp_mean": row.get("mean"),
+                    rows.append({"field_id": item.field_id, "region_id": row["region_id"], "gfp_mean": row.get("mean_corrected" if body.values == "corrected" else "mean"),
                                  "acquisition_date": metadata.get("acquisition_date"), "control": item.control})
-        if not any(row["control"] for row in rows):
+        if body.method == "negative_control" and not any(row["control"] for row in rows):
             raise HTTPException(422, "gfp_gate_requires_control_fields")
-        thresholds = control_thresholds(rows, body.percentile)
-        gated = apply_control_gate(rows, thresholds)
+        if body.method == "negative_control":
+            thresholds = control_thresholds(rows, body.percentile)
+            gated = apply_control_gate(rows, thresholds)
+        else:
+            thresholds = exploratory_thresholds(rows, body.method, body.threshold)
+            gated = apply_exploratory_gate(rows, thresholds)
         counts: dict[str, dict[str, int]] = {}
         for row in gated:
             value = counts.setdefault(row["field_id"], {"positive": 0, "negative": 0, "control": 0, "unselected": 0})
-            key = "control" if row["control"] else "positive" if row["gfp_positive"] else "negative" if row["gfp_gate_reason"] == "within_control_range" else "unselected"
+            key = "control" if row["control"] else "positive" if row["gfp_positive"] else "negative" if row["gfp_gate_reason"] in ("within_control_range", "at_or_below_exploratory_threshold") else "unselected"
             value[key] += 1
-        return {**thresholds, "gfp_channel_id": body.gfp_channel_id, "values": "raw", "field_counts": counts,
-                "nuclei": [{key: row[key] for key in ("field_id", "region_id", "gfp_mean", "gfp_positive", "gfp_gate_reason")} for row in gated]}
+        objects = [{key: row[key] for key in ("field_id", "region_id", "gfp_mean", "gfp_positive", "gfp_gate_reason")} for row in gated]
+        return {**thresholds, "gfp_channel_id": body.gfp_channel_id, "values": body.values, "unit": body.unit,
+                "field_counts": counts, "objects": objects, "nuclei": objects if body.unit == "nucleus" else []}
 
     @api.get("/v1/revisions/{rid}/compartment-summary")
     def compartment_summary(rid: str, field_id: str, who: Owner):

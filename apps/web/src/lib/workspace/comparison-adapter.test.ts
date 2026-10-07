@@ -43,6 +43,12 @@ describe("workspace inference boundaries", () => {
     expect(request.omnibus).toBe("kruskal-wallis"); expect(request.conditions).toEqual(["A", "B", "C"]);
     expect(request.comparison_family.kind).toBe("planned");
   });
+  it("keeps the explicit cell ROI gate unit and refuses it for nuclear compartment summaries", () => {
+    const gfp={version:"1.1.0" as const,gate_protocol:"gfp-gate/3.0.0" as const,gfp_channel_id:"gfp",method:"manual" as const,threshold:20,values:"corrected" as const,keep:"positive" as const};
+    expect(comparisonRequest({...choices,gfp}).selection.gfp_gate).toMatchObject({unit:"nucleus",threshold:20,values:"corrected"});
+    expect(comparisonRequest({...choices,regionSet:"cell",gfp:{...gfp,unit:"cell_roi"}}).selection.gfp_gate).toMatchObject({unit:"cell_roi"});
+    expect(()=>comparisonRequest({...choices,metric:"nucleolar_count",gfp:{...gfp,unit:"cell_roi"}})).toThrow("細胞ROI");
+  });
   it("assembles exact saved sources with CAS; review is separate and explicit", async () => {
     const {adapter, post} = fake(async path => path.endsWith("/jobs") ? [{id: "j", state: "succeeded"}] : {active_revision: "latest"});
     expect(await adapter.cohort("w", sources, {f1: {condition: "A"}, f2: {condition: "B"}})).toBe("cohort");

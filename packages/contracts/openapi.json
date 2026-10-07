@@ -1186,6 +1186,61 @@
         }
       }
     },
+    "/v1/tables/{tid}/descriptive": {
+      "post": {
+        "summary": "Table Descriptive",
+        "operationId": "table_descriptive_v1_tables__tid__descriptive_post",
+        "parameters": [
+          {
+            "name": "tid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DescriptiveRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PagedDescriptiveRequest"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{wid}/jobs": {
       "get": {
         "summary": "List Jobs",
@@ -1372,6 +1427,55 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/region-fields/ome": {
+      "post": {
+        "summary": "Upload Ome",
+        "operationId": "upload_ome_v1_workspaces__wid__region_fields_ome_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_ome_v1_workspaces__wid__region_fields_ome_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionFieldView"
+                }
               }
             }
           },
@@ -1656,7 +1760,7 @@
     "/v1/workspaces/{wid}/gfp-gate": {
       "post": {
         "summary": "Gfp Gate",
-        "description": "GFP-positive nuclei against designated negative-control fields (gfp-gate/2.0.0), per acquisition date.",
+        "description": "Classify saved nuclei by mean GFP intensity; no new pixel masks are created.",
         "operationId": "gfp_gate_v1_workspaces__wid__gfp_gate_post",
         "parameters": [
           {
@@ -2482,6 +2586,620 @@
         }
       }
     },
+    "/v1/workspaces/{wid}/channel-assignments": {
+      "get": {
+        "summary": "Get Assignments",
+        "operationId": "get_assignments_v1_workspaces__wid__channel_assignments_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelAssignments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Save Assignments",
+        "operationId": "save_assignments_v1_workspaces__wid__channel_assignments_put",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelAssignmentsWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelAssignments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/analysis-spec": {
+      "get": {
+        "summary": "Get Spec",
+        "operationId": "get_spec_v1_workspaces__wid__analysis_spec_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisSpecView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Save Spec",
+        "operationId": "save_spec_v1_workspaces__wid__analysis_spec_put",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisSpecWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisSpecView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/runs": {
+      "get": {
+        "summary": "List Runs",
+        "operationId": "list_runs_v1_workspaces__wid__runs_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Start Run",
+        "operationId": "start_run_v1_workspaces__wid__runs_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/runs/{run_id}": {
+      "get": {
+        "summary": "Get Run",
+        "operationId": "get_run_v1_workspaces__wid__runs__run_id__get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/runs/{run_id}/accept": {
+      "post": {
+        "summary": "Accept Run",
+        "operationId": "accept_run_v1_workspaces__wid__runs__run_id__accept_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/runs/{run_id}/cancel": {
+      "post": {
+        "summary": "Cancel Run",
+        "operationId": "cancel_run_v1_workspaces__wid__runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/field-links": {
+      "get": {
+        "summary": "Get Links",
+        "operationId": "get_links_v1_workspaces__wid__field_links_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/field-links/{fid}": {
+      "put": {
+        "summary": "Save Link",
+        "operationId": "save_link_v1_workspaces__wid__field_links__fid__put",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          },
+          {
+            "name": "fid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldLinkWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/publication-package": {
+      "post": {
+        "summary": "Publication Package",
+        "operationId": "publication_package_v1_jobs__jid__publication_package_post",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationPackageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/figure-render": {
+      "post": {
+        "summary": "Render",
+        "operationId": "render_v1_jobs__jid__figure_render_post",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FigureRenderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Rendered",
+        "operationId": "rendered_v1_jobs__jid__figure_render_get",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/workspace-selection": {
       "get": {
         "summary": "Saved Selection",
@@ -2793,6 +3511,223 @@
         "type": "object",
         "title": "AnalysisRequest"
       },
+      "AnalysisSelectionDraft": {
+        "properties": {
+          "field_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Field Ids"
+          },
+          "gfp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gfp"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AnalysisSelectionDraft"
+      },
+      "AnalysisSpec": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
+          "channel_assignment_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Channel Assignment Version"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "nuclei",
+              "nucleoli",
+              "nucleoplasm",
+              "cell"
+            ],
+            "title": "Target",
+            "default": "nuclei"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/RuntimeSettingsDraft"
+          },
+          "processing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "measurement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RawIntensityPolicy"
+              },
+              {
+                "$ref": "#/components/schemas/AutomaticBackgroundPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement"
+          },
+          "backgrounds": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "patternProperties": {
+                  "^[A-Za-z0-9_-]+$": {
+                    "$ref": "#/components/schemas/RegionBackground"
+                  }
+                },
+                "propertyNames": {
+                  "maxLength": 80,
+                  "minLength": 1
+                },
+                "type": "object"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Backgrounds"
+          },
+          "confirmed_channel_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Confirmed Channel Ids"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/SavedDraftMetric"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Metrics"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/AnalysisSelectionDraft"
+          },
+          "statistics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StatisticsDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "additional_analyses": {
+            "items": {
+              "$ref": "#/components/schemas/SavedDraftStatistics"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Additional Analyses"
+          },
+          "figure_proposals": {
+            "items": {
+              "$ref": "#/components/schemas/SavedDraftFigure"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Figure Proposals"
+          },
+          "figure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_assignment_version"
+        ],
+        "title": "AnalysisSpec"
+      },
+      "AnalysisSpecView": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version"
+          },
+          "spec": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "spec"
+        ],
+        "title": "AnalysisSpecView"
+      },
+      "AnalysisSpecWrite": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/AnalysisSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "spec"
+        ],
+        "title": "AnalysisSpecWrite"
+      },
       "AreaBackgroundProvenance": {
         "properties": {
           "status": {
@@ -2814,6 +3749,26 @@
       },
       "AssociationPlot": {
         "properties": {
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "preset": {
             "type": "string",
             "enum": [
@@ -2953,7 +3908,10 @@
           },
           "region_association_version": {
             "type": "string",
-            "const": "1.0.0",
+            "enum": [
+              "1.0.0",
+              "1.1.0"
+            ],
             "title": "Region Association Version",
             "default": "1.0.0"
           },
@@ -3453,6 +4411,15 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "experimental-unit",
+              "descriptive"
+            ],
+            "title": "Mode",
+            "default": "experimental-unit"
           }
         },
         "type": "object",
@@ -3536,6 +4503,31 @@
           "metadata"
         ],
         "title": "Body_upload_field_v1_workspaces__wid__fields_post"
+      },
+      "Body_upload_ome_v1_workspaces__wid__region_fields_ome_post": {
+        "properties": {
+          "ome": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Ome"
+          },
+          "client_upload_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Upload Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ome"
+        ],
+        "title": "Body_upload_ome_v1_workspaces__wid__region_fields_ome_post"
       },
       "Body_upload_region_field_v1_workspaces__wid__region_fields_post": {
         "properties": {
@@ -3630,6 +4622,182 @@
           "confirmed"
         ],
         "title": "Calibration2D"
+      },
+      "ChannelAssignment": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "nuclear",
+              "measure",
+              "unused"
+            ],
+            "title": "Role"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "stain",
+          "role"
+        ],
+        "title": "ChannelAssignment"
+      },
+      "ChannelAssignmentGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "field_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Field Ids"
+          },
+          "channel_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Channel Ids"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelAssignment"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Assignments"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "field_ids",
+          "channel_ids",
+          "assignments"
+        ],
+        "title": "ChannelAssignmentGroup"
+      },
+      "ChannelAssignments": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelAssignment"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Assignments"
+          },
+          "global_field_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Global Field Ids"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelAssignmentGroup"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Groups"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "assignments"
+        ],
+        "title": "ChannelAssignments"
+      },
+      "ChannelAssignmentsWrite": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelAssignment"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Assignments"
+          },
+          "field_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9_-]+$"
+                },
+                "type": "array",
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "assignments"
+        ],
+        "title": "ChannelAssignmentsWrite"
       },
       "ChannelProvenance": {
         "properties": {
@@ -3921,6 +5089,26 @@
       },
       "CommonComparisonPlot": {
         "properties": {
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "preset": {
             "type": "string",
             "enum": [
@@ -4455,9 +5643,13 @@
                 "$ref": "#/components/schemas/GfpGateFilter"
               },
               {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Gfp Gate"
           }
         },
         "required": [
@@ -4523,6 +5715,28 @@
       "DescriptivePlot": {
         "additionalProperties": false,
         "properties": {
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureStyle"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureAxes"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "preset": {
             "default": "nature-single",
             "enum": [
@@ -4700,6 +5914,25 @@
         ],
         "title": "DescriptiveRequest"
       },
+      "DraftBackground": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "raw",
+              "automatic",
+              "confirmed_roi"
+            ],
+            "title": "Mode"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "DraftBackground"
+      },
       "DraftChannel": {
         "properties": {
           "token": {
@@ -4818,6 +6051,76 @@
         ],
         "title": "DraftFigure"
       },
+      "DraftGfpSelection": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "nucleus",
+              "cell_roi"
+            ],
+            "title": "Unit",
+            "default": "nucleus"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "batch_otsu",
+              "negative_control"
+            ],
+            "title": "Method"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "values": {
+            "type": "string",
+            "enum": [
+              "raw",
+              "corrected"
+            ],
+            "title": "Values",
+            "default": "raw"
+          },
+          "keep": {
+            "type": "string",
+            "enum": [
+              "positive",
+              "negative"
+            ],
+            "title": "Keep",
+            "default": "positive"
+          },
+          "percentile": {
+            "type": "number",
+            "exclusiveMaximum": 100.0,
+            "minimum": 50.0,
+            "title": "Percentile",
+            "default": 99.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "method"
+        ],
+        "title": "DraftGfpSelection"
+      },
       "DraftMetric": {
         "properties": {
           "metric": {
@@ -4871,6 +6174,135 @@
           "channel"
         ],
         "title": "DraftMetric"
+      },
+      "DraftNuclearProcessing": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel"
+          },
+          "detection_max_side_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2048.0,
+                "minimum": 64.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detection Max Side Px"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/NuclearDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel"
+        ],
+        "title": "DraftNuclearProcessing"
+      },
+      "DraftNucleolarProcessing": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel"
+          },
+          "detector": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV11"
+              },
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV20"
+              },
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV21"
+              }
+            ],
+            "title": "Detector"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "detector"
+        ],
+        "title": "DraftNucleolarProcessing"
+      },
+      "DraftProcessing": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "nuclei": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftNuclearProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nucleoli": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftNucleolarProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftSignalProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nuclei",
+          "nucleoli",
+          "signal"
+        ],
+        "title": "DraftProcessing",
+        "description": "Registered execution settings only; not code, masks or biological confirmations."
+      },
+      "DraftSignalProcessing": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/SignalDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "detector"
+        ],
+        "title": "DraftSignalProcessing"
       },
       "DraftStatistics": {
         "properties": {
@@ -4994,6 +6426,128 @@
         ],
         "title": "Exclusion"
       },
+      "ExploratoryGfpGateFilter": {
+        "additionalProperties": false,
+        "description": "Nuclear-object mean gate; thresholds never classify individual image pixels.",
+        "properties": {
+          "version": {
+            "const": "1.1.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "gate_protocol": {
+            "const": "gfp-gate/3.0.0",
+            "title": "Gate Protocol",
+            "type": "string"
+          },
+          "gfp_channel_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Gfp Channel Id",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "manual",
+              "batch_otsu"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Threshold"
+          },
+          "values": {
+            "default": "raw",
+            "enum": [
+              "raw",
+              "corrected"
+            ],
+            "title": "Values",
+            "type": "string"
+          },
+          "unit": {
+            "default": "nucleus",
+            "enum": [
+              "nucleus",
+              "cell_roi"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "keep": {
+            "enum": [
+              "positive",
+              "negative"
+            ],
+            "title": "Keep",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "gate_protocol",
+          "gfp_channel_id",
+          "method",
+          "keep"
+        ],
+        "title": "ExploratoryGfpGateFilter",
+        "type": "object"
+      },
+      "FieldLinkWrite": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version"
+          },
+          "selection_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Selection Version"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "analysis",
+              "reference"
+            ],
+            "title": "Kind"
+          },
+          "reference_for_field_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference For Field Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "selection_version",
+          "kind"
+        ],
+        "title": "FieldLinkWrite"
+      },
       "FieldMetadata": {
         "properties": {
           "condition": {
@@ -5097,6 +6651,231 @@
           "synthetic"
         ],
         "title": "FieldView"
+      },
+      "FigureAxes": {
+        "additionalProperties": false,
+        "description": "Versioned display scales and scatter X bounds; never transform source values.",
+        "properties": {
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "x_scale": {
+            "default": "linear",
+            "enum": [
+              "linear",
+              "log10",
+              "log2"
+            ],
+            "title": "X Scale",
+            "type": "string"
+          },
+          "y_scale": {
+            "default": "linear",
+            "enum": [
+              "linear",
+              "log10",
+              "log2"
+            ],
+            "title": "Y Scale",
+            "type": "string"
+          },
+          "x_min": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "X Min"
+          },
+          "x_max": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "X Max"
+          },
+          "x_tick_step": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1000000000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "X Tick Step"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "FigureAxes",
+        "type": "object"
+      },
+      "FigureDraft": {
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "area_px",
+                  "area_um2",
+                  "mean",
+                  "median",
+                  "integrated",
+                  "mean_corrected",
+                  "median_corrected",
+                  "integrated_corrected"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ncl_nucleus_mean",
+                  "ncl_nucleus_median",
+                  "ncl_nucleus_integrated",
+                  "ncl_nucleus_mean_corrected",
+                  "ncl_nucleus_median_corrected",
+                  "ncl_nucleus_integrated_corrected",
+                  "ncl_nucleoli_mean",
+                  "ncl_nucleoli_median",
+                  "ncl_nucleoli_integrated",
+                  "ncl_nucleoli_mean_corrected",
+                  "ncl_nucleoli_median_corrected",
+                  "ncl_nucleoli_integrated_corrected",
+                  "ncl_nucleoplasm_mean",
+                  "ncl_nucleoplasm_median",
+                  "ncl_nucleoplasm_integrated",
+                  "ncl_nucleoplasm_mean_corrected",
+                  "ncl_nucleoplasm_median_corrected",
+                  "ncl_nucleoplasm_integrated_corrected",
+                  "gfp_mean",
+                  "gfp_median",
+                  "gfp_integrated",
+                  "gfp_mean_corrected",
+                  "gfp_median_corrected",
+                  "gfp_integrated_corrected",
+                  "nucleus_area_px",
+                  "nucleus_area_um2",
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleoplasm_area_px",
+                  "nucleoplasm_area_um2",
+                  "nucleolar_count",
+                  "nucleolar_area_fraction",
+                  "ncl_nucleoplasm_over_nucleoli",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "ncl_legacy_release"
+                ]
+              }
+            ],
+            "title": "Metric",
+            "default": "area_px"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "plot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommonComparisonPlot"
+              },
+              {
+                "$ref": "#/components/schemas/AssociationPlot"
+              }
+            ],
+            "title": "Plot"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FigureDraft"
+      },
+      "FigureRenderRequest": {
+        "properties": {
+          "plot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Plot"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Request Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plot",
+          "request_id"
+        ],
+        "title": "FigureRenderRequest"
+      },
+      "FigureStyle": {
+        "additionalProperties": false,
+        "description": "Presentation-only extension; omitted style retains historical rendering.",
+        "properties": {
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "series_colors": {
+            "additionalProperties": {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            "maxProperties": 100,
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "title": "Series Colors",
+            "type": "object"
+          },
+          "show_legend": {
+            "default": true,
+            "title": "Show Legend",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "FigureStyle",
+        "type": "object"
       },
       "GfpGateField": {
         "properties": {
@@ -5207,6 +6986,45 @@
             "maxItems": 100,
             "minItems": 1,
             "title": "Fields"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "negative_control",
+              "manual",
+              "batch_otsu"
+            ],
+            "title": "Method",
+            "default": "negative_control"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "values": {
+            "type": "string",
+            "enum": [
+              "raw",
+              "corrected"
+            ],
+            "title": "Values",
+            "default": "raw"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "nucleus",
+              "cell_roi"
+            ],
+            "title": "Unit",
+            "default": "nucleus"
           }
         },
         "type": "object",
@@ -5334,7 +7152,9 @@
               "analysis",
               "statistics",
               "table-statistics",
-              "export"
+              "export",
+              "figure-render",
+              "publication-package"
             ],
             "title": "Kind"
           },
@@ -5682,6 +7502,49 @@
         "title": "NuclearDetectorSpec",
         "description": "Allowlisted, offline nucleus model; never an arbitrary image classifier."
       },
+      "NucleolarDefinitionDraft": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "dapi_poor",
+              "marker",
+              "ncl"
+            ],
+            "title": "Source",
+            "default": "dapi_poor"
+          },
+          "marker": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "title": "Marker",
+            "default": ""
+          },
+          "pixelUm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pixelum"
+          },
+          "relative": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Relative",
+            "default": 0.7
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NucleolarDefinitionDraft"
+      },
       "NucleolarDetectorSpec": {
         "properties": {
           "engine": {
@@ -5883,6 +7746,94 @@
         "additionalProperties": false,
         "type": "object",
         "title": "NucleolarDetectorV20"
+      },
+      "NucleolarDetectorV21": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "const": "cytellect-nucleolar-v2",
+            "title": "Engine",
+            "default": "cytellect-nucleolar-v2"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "2.1.0",
+            "title": "Protocol Version",
+            "default": "2.1.0"
+          },
+          "source": {
+            "type": "string",
+            "const": "marker",
+            "title": "Source",
+            "default": "marker"
+          },
+          "smoothing_sigma_px": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Smoothing Sigma Px",
+            "default": 0.7
+          },
+          "rim_exclusion_px": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Rim Exclusion Px",
+            "default": 4
+          },
+          "relative_threshold": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Relative Threshold",
+            "default": 0.7
+          },
+          "marker_fraction": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Marker Fraction",
+            "default": 0.4
+          },
+          "background_radius_px": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Background Radius Px",
+            "default": 10
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Minimum Area Px",
+            "default": 4
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16777216.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Area Px"
+          },
+          "minimum_solidity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Minimum Solidity",
+            "default": 0.6
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NucleolarDetectorV21",
+        "description": "Marker-only revision: the recorded smoothing sigma is the effective value."
       },
       "NumericalSelection": {
         "additionalProperties": false,
@@ -6589,6 +8540,26 @@
       },
       "PlotSpec": {
         "properties": {
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "preset": {
             "type": "string",
             "enum": [
@@ -6824,6 +8795,36 @@
             "type": "string",
             "maxLength": 600,
             "title": "Rationale"
+          },
+          "processing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "background": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftBackground"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gfp_selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftGfpSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -6857,6 +8858,51 @@
             "type": "boolean",
             "title": "Retry Failed",
             "default": false
+          },
+          "field_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Id"
+          },
+          "current_processing": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "maxProperties": 4
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Processing"
+          },
+          "previous_goal": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Previous Goal",
+            "default": ""
+          },
+          "previous_proposal": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "maxProperties": 13
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Proposal"
           }
         },
         "additionalProperties": false,
@@ -6883,6 +8929,29 @@
           "channels"
         ],
         "title": "ProposalDraftResponse"
+      },
+      "PublicationPackageRequest": {
+        "properties": {
+          "analysis_job_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Analysis Job Id"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Request Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "analysis_job_id",
+          "request_id"
+        ],
+        "title": "PublicationPackageRequest"
       },
       "RawBackgroundProvenance": {
         "properties": {
@@ -7199,6 +9268,17 @@
             "type": "object",
             "title": "Backgrounds"
           },
+          "confirmed_channel_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Confirmed Channel Ids"
+          },
           "exclusions": {
             "items": {
               "$ref": "#/components/schemas/RegionExclusion"
@@ -7224,7 +9304,10 @@
           },
           "version": {
             "type": "string",
-            "const": "1.0.0",
+            "enum": [
+              "1.0.0",
+              "1.1.0"
+            ],
             "title": "Version"
           },
           "x_selection": {
@@ -7400,6 +9483,26 @@
       },
       "RegionComparisonPlot": {
         "properties": {
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigureAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "preset": {
             "type": "string",
             "enum": [
@@ -8006,6 +10109,9 @@
               },
               {
                 "$ref": "#/components/schemas/NucleolarDetectorV20"
+              },
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV21"
               }
             ],
             "title": "Detector",
@@ -8014,7 +10120,8 @@
               "mapping": {
                 "1.0.0": "#/components/schemas/NucleolarDetectorSpec",
                 "1.1.0": "#/components/schemas/NucleolarDetectorV11",
-                "2.0.0": "#/components/schemas/NucleolarDetectorV20"
+                "2.0.0": "#/components/schemas/NucleolarDetectorV20",
+                "2.1.0": "#/components/schemas/NucleolarDetectorV21"
               }
             }
           },
@@ -10389,9 +12496,13 @@
                 "$ref": "#/components/schemas/GfpGateFilter"
               },
               {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Gfp Gate"
           }
         },
         "required": [
@@ -10689,6 +12800,516 @@
         ],
         "title": "RevisionView"
       },
+      "RuntimeSettingsDraft": {
+        "properties": {
+          "nuclearMaxSide": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2048.0,
+                "minimum": 64.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nuclearmaxside"
+          },
+          "nuclearProbability": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Nuclearprobability",
+            "default": 0.5
+          },
+          "nuclearNms": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Nuclearnms",
+            "default": 0.3
+          },
+          "nucleolarDefinition": {
+            "$ref": "#/components/schemas/NucleolarDefinitionDraft"
+          },
+          "nucleolarSigma": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 20.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleolarsigma"
+          },
+          "nucleolarRim": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleolarrim"
+          },
+          "nucleolarMinimumArea": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleolarminimumarea"
+          },
+          "nucleolarMaximumArea": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16777216.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleolarmaximumarea"
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "raw",
+              "automatic",
+              "confirmed_roi"
+            ],
+            "title": "Background",
+            "default": "raw"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RuntimeSettingsDraft",
+        "description": "Names deliberately match the workspace runtime; null keeps versioned detector defaults."
+      },
+      "SavedDraftFigure": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "field-distribution",
+              "unit-comparison",
+              "paired",
+              "association-scatter"
+            ],
+            "title": "Kind"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "area",
+              "mean_raw",
+              "integral_raw",
+              "mean_corrected",
+              "integral_corrected",
+              "ncl_log2_nucleoplasm_over_nucleoli",
+              "nucleolar_area_fraction",
+              "nucleolar_count"
+            ],
+            "title": "Metric"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus",
+                  "nucleoli",
+                  "nucleoplasm",
+                  "supplied"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "analysis_index": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Analysis Index",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "metric",
+          "channel"
+        ],
+        "title": "SavedDraftFigure"
+      },
+      "SavedDraftMetric": {
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "area",
+                  "mean_raw",
+                  "integral_raw",
+                  "mean_corrected",
+                  "integral_corrected",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "nucleolar_area_fraction",
+                  "nucleolar_count"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "area_px",
+                  "area_um2",
+                  "mean",
+                  "median",
+                  "integrated",
+                  "mean_corrected",
+                  "median_corrected",
+                  "integrated_corrected"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ncl_nucleus_mean",
+                  "ncl_nucleus_median",
+                  "ncl_nucleus_integrated",
+                  "ncl_nucleus_mean_corrected",
+                  "ncl_nucleus_median_corrected",
+                  "ncl_nucleus_integrated_corrected",
+                  "ncl_nucleoli_mean",
+                  "ncl_nucleoli_median",
+                  "ncl_nucleoli_integrated",
+                  "ncl_nucleoli_mean_corrected",
+                  "ncl_nucleoli_median_corrected",
+                  "ncl_nucleoli_integrated_corrected",
+                  "ncl_nucleoplasm_mean",
+                  "ncl_nucleoplasm_median",
+                  "ncl_nucleoplasm_integrated",
+                  "ncl_nucleoplasm_mean_corrected",
+                  "ncl_nucleoplasm_median_corrected",
+                  "ncl_nucleoplasm_integrated_corrected",
+                  "gfp_mean",
+                  "gfp_median",
+                  "gfp_integrated",
+                  "gfp_mean_corrected",
+                  "gfp_median_corrected",
+                  "gfp_integrated_corrected",
+                  "nucleus_area_px",
+                  "nucleus_area_um2",
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleoplasm_area_px",
+                  "nucleoplasm_area_um2",
+                  "nucleolar_count",
+                  "nucleolar_area_fraction",
+                  "ncl_nucleoplasm_over_nucleoli",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "ncl_legacy_release"
+                ]
+              }
+            ],
+            "title": "Metric"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus",
+                  "nucleoli",
+                  "nucleoplasm",
+                  "supplied"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "channel"
+        ],
+        "title": "SavedDraftMetric"
+      },
+      "SavedDraftStatistics": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "descriptive",
+              "comparison",
+              "association"
+            ],
+            "title": "Kind"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "welch-t",
+                  "paired-t",
+                  "mann-whitney-u",
+                  "wilcoxon"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Omnibus"
+          },
+          "association": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pearson",
+                  "spearman"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Association"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedDraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "y": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedDraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "test",
+          "omnibus",
+          "association"
+        ],
+        "title": "SavedDraftStatistics"
+      },
+      "SavedNuclearProcessing": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel"
+          },
+          "detection_max_side_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2048.0,
+                "minimum": 64.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detection Max Side Px"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/NuclearDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel"
+        ],
+        "title": "SavedNuclearProcessing"
+      },
+      "SavedNucleolarProcessing": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel"
+          },
+          "detector": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV11"
+              },
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV20"
+              },
+              {
+                "$ref": "#/components/schemas/NucleolarDetectorV21"
+              }
+            ],
+            "title": "Detector"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "detector"
+        ],
+        "title": "SavedNucleolarProcessing"
+      },
+      "SavedProcessing": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "nuclei": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedNuclearProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nucleoli": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedNucleolarProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedSignalProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nuclei",
+          "nucleoli",
+          "signal"
+        ],
+        "title": "SavedProcessing"
+      },
+      "SavedSignalProcessing": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/SignalDetectorSpec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "detector"
+        ],
+        "title": "SavedSignalProcessing"
+      },
       "ScaledNuclearRecipe": {
         "properties": {
           "id": {
@@ -10819,6 +13440,197 @@
           "threshold_method"
         ],
         "title": "SignalDetectorSpec"
+      },
+      "StatisticsDraft": {
+        "properties": {
+          "method": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedDraftStatistics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "area_px",
+                  "area_um2",
+                  "mean",
+                  "median",
+                  "integrated",
+                  "mean_corrected",
+                  "median_corrected",
+                  "integrated_corrected"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ncl_nucleus_mean",
+                  "ncl_nucleus_median",
+                  "ncl_nucleus_integrated",
+                  "ncl_nucleus_mean_corrected",
+                  "ncl_nucleus_median_corrected",
+                  "ncl_nucleus_integrated_corrected",
+                  "ncl_nucleoli_mean",
+                  "ncl_nucleoli_median",
+                  "ncl_nucleoli_integrated",
+                  "ncl_nucleoli_mean_corrected",
+                  "ncl_nucleoli_median_corrected",
+                  "ncl_nucleoli_integrated_corrected",
+                  "ncl_nucleoplasm_mean",
+                  "ncl_nucleoplasm_median",
+                  "ncl_nucleoplasm_integrated",
+                  "ncl_nucleoplasm_mean_corrected",
+                  "ncl_nucleoplasm_median_corrected",
+                  "ncl_nucleoplasm_integrated_corrected",
+                  "gfp_mean",
+                  "gfp_median",
+                  "gfp_integrated",
+                  "gfp_mean_corrected",
+                  "gfp_median_corrected",
+                  "gfp_integrated_corrected",
+                  "nucleus_area_px",
+                  "nucleus_area_um2",
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleoplasm_area_px",
+                  "nucleoplasm_area_um2",
+                  "nucleolar_count",
+                  "nucleolar_area_fraction",
+                  "ncl_nucleoplasm_over_nucleoli",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "ncl_legacy_release"
+                ]
+              }
+            ],
+            "title": "Metric",
+            "default": "area_px"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "x_metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "area_px",
+                  "area_um2",
+                  "mean",
+                  "median",
+                  "integrated",
+                  "mean_corrected",
+                  "median_corrected",
+                  "integrated_corrected"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X Metric"
+          },
+          "x_channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X Channel Id"
+          },
+          "design": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "independent",
+                  "paired"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design"
+          },
+          "unit_definition": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Unit Definition",
+            "default": ""
+          },
+          "pairing_basis": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Pairing Basis",
+            "default": ""
+          },
+          "conditions": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Conditions"
+          },
+          "comparisons": {
+            "items": {
+              "items": {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Comparisons"
+          },
+          "field_metadata": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/RegionFieldMetadata"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Field Metadata"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StatisticsDraft"
       },
       "StatisticsRequest": {
         "properties": {
@@ -11115,6 +13927,62 @@
         "type": "object",
         "title": "WorkspaceInput"
       },
+      "WorkspaceRunRequest": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Request Id"
+          },
+          "spec_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Spec Version"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "nuclei",
+              "nucleoli",
+              "nucleoplasm",
+              "cell"
+            ],
+            "title": "Target"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "measurement"
+            ],
+            "title": "Purpose",
+            "default": "measurement"
+          },
+          "field_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Field Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request_id",
+          "spec_version",
+          "target",
+          "field_ids"
+        ],
+        "title": "WorkspaceRunRequest"
+      },
       "WorkspaceSelection": {
         "properties": {
           "version": {
@@ -11204,11 +14072,12 @@
                     "gfp",
                     "ncl",
                     "nucleoli",
-                    "nucleoplasm"
+                    "nucleoplasm",
+                    "cell"
                   ]
                 },
                 "type": "object",
-                "maxProperties": 5
+                "maxProperties": 6
               },
               {
                 "type": "null"

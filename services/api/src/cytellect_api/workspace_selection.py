@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from .db import fields, revisions, workspace_selections, workspaces
 
-Target = Literal["nuclei", "gfp", "ncl", "nucleoli", "nucleoplasm"]
+Target = Literal["nuclei", "gfp", "ncl", "nucleoli", "nucleoplasm", "cell"]
 
 
 class WorkspaceSelectionEntry(RegionModel):
@@ -16,7 +16,7 @@ class WorkspaceSelectionEntry(RegionModel):
     field_id: Id | None = None
     revision_id: Id | None = None
     exclusion_reason: str | None = Field(default=None, min_length=1, max_length=300)
-    target_revisions: dict[Target, Id] | None = Field(default=None, max_length=5, exclude_if=lambda value: value is None)
+    target_revisions: dict[Target, Id] | None = Field(default=None, max_length=6, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def coherent(self):
@@ -42,6 +42,8 @@ class WorkspaceSelection(RegionModel):
 
 def revision_target(revision):
     recipe = revision["config"].get("recipe", {})
+    if recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell":
+        return "cell"
     if recipe.get("source") == "stardist_nuclear":
         return "nuclei"
     if recipe.get("source") == "fiji_nuclear_compartment":

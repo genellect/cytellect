@@ -79,6 +79,26 @@ def selection(ids, **changes):
             "gfp_gate": gate(ids, **changes)}
 
 
+def test_gfp_association_v11_through_api_worker_and_owned_result(tmp_path, monkeypatch):
+    client, app, settings = authenticated(tmp_path)
+    _, rid, ids = reviewed_nuclei(client, app, settings, monkeypatch)
+    prior = comparison(selection(ids))
+    request = {key: prior[key] for key in ("design", "conditions", "acquisition_review", "missingness_confirmed")}
+    request.update(mode="region-association", version="1.1.0", method="spearman",
+                   x_selection={**selection(ids), "channel_id": "gfp"}, y_selection=selection(ids))
+    response = client.post(f"/v1/revisions/{rid}/common-statistics", headers=HEADERS, json=request)
+    assert response.status_code == 202, response.text
+    jid = response.json()["job_id"]
+    process_one(app.state.store, settings)
+    assert client.get(f"/v1/jobs/{jid}").json()["state"] == "succeeded"
+    response = client.get(f"/v1/jobs/{jid}/common-statistics")
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["region_association_version"] == "1.1.0"
+    assert {row["experimental_unit"]: row["y"] for row in result["unit_summary"]} == POSITIVE_UNITS
+    assert result["x_source"]["selection"]["gfp_gate"] == result["y_source"]["selection"]["gfp_gate"]
+
+
 def test_gated_comparison_description_and_export_through_jobs(tmp_path, monkeypatch):
     client, app, settings = authenticated(tmp_path)
     wid, rid, ids = reviewed_nuclei(client, app, settings, monkeypatch)
@@ -116,8 +136,14 @@ def test_gated_comparison_description_and_export_through_jobs(tmp_path, monkeypa
     assert exported.status_code == 202, exported.text
     process_one(app.state.store, settings)
     summary = client.get(f"/v1/jobs/{exported.json()['job_id']}/result").json()
-    assert {row["reason"] for row in summary["statistics_omitted"]} == {"region_export_gfp_gate_unsupported"}
-    assert len(summary["statistics_omitted"]) == 2
+    assert "statistics_omitted" not in summary
+    from cytellect_analysis.region_exports import replay_region_bundle
+    from cytellect_api.db import jobs
+    export_job = app.state.store.one(jobs, id=exported.json()["job_id"])
+    assert export_job["state"] == "succeeded", export_job["error"]
+    verification = replay_region_bundle(app.state.store.safe_path(export_job["result_dir"], "bundle"),
+        app.state.store.safe_path("workspaces", wid, "fields"), tmp_path / "replayed")
+    assert verification["matched_saved_comparisons"] and verification["matched_saved_descriptions"]
     client.close()
     app.state.store.engine.dispose()
 

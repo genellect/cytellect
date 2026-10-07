@@ -3,9 +3,11 @@ from copy import deepcopy
 
 
 def comparable_region_recipe(recipe: dict) -> dict:
+    """Compare detector settings for cohorts whose per-field parents are separately pinned."""
     value = deepcopy(recipe)
     if value.get("source") == "fiji_nuclear_compartment":
         value.pop("nuclear_revision_id", None)
+        value.pop("nucleolar_revision_id", None)
     return value
 
 

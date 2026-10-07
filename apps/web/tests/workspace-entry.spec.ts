@@ -5,7 +5,7 @@ test("the public analysis screen opens without analytics or a private API connec
   const external: string[] = [];
   page.on("request", request => {if (/google-analytics|googletagmanager|\/v1\//.test(request.url())) external.push(request.url());});
   await page.goto("/workspace");
-  await expect(page.getByRole("heading", {name:"画像解析", exact:true})).toBeVisible();
+  await expect(page.getByRole("heading", {name:"画像解析", exact:true, level:1})).toBeVisible();
   await expect(page.getByRole("button", {name:"画像を追加", exact:true})).toBeDisabled();
   expect(external).toEqual([]);
   expect((await page.request.get("/legacy")).status()).toBe(404);

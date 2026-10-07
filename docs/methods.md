@@ -37,6 +37,11 @@ without rewriting historical requests. [Common statistics](common-statistics.md)
 defines the rank tests, multi-group omnibus, matched-unit associations,
 permutation policy and separately versioned Methods/figures. Their applicability
 depends on the recorded experimental design and acquisition review.
+Executable workspace association proposals require both axes to name the same
+explicit measurement region. Cross-region associations and implicit region
+axes are unsupported; use separate descriptive analyses until a dedicated
+source-matching contract is available. Saving or restoring a proposal must not
+silently substitute another region for either axis.
 
 References:
 - [StarDist](https://imagej.net/plugins/stardist)
@@ -319,3 +324,29 @@ matches SciPy, the exact Mann–Whitney U is 0 with p = 2/20, an explicitly
 excluded nucleus would change a field median and does not, and the missing nucleus
 stays in the missingness ledger. These tests establish arithmetic and source
 binding only, not nucleolar segmentation validity or biological interpretation.
+
+## Explicit channel identity corrections
+
+The workspace channel assignment ledger stores the researcher's current channel-to-stain
+and analysis-role choices, including an explicitly unknown stain or unused channel.
+Saving uses an ownership-checked version comparison; no channel number or display color
+establishes a stain. Original upload records and measurement pixels remain unchanged.
+New generic-region analyses copy the current confirmed identities and assignment ledger
+into their immutable configuration. Existing revisions retain their historical identities,
+and batch mask reuse rejects a changed channel identity. Further uploads compare their
+identity against the current mapping. Workspace retention removes the mapping with its
+other metadata. The optional proposal context uses the current explicit mapping; it does
+not rename saved scientific outputs.
+
+
+### Marker smoothing protocol compatibility
+
+`cytellect-nucleolar-v2/2.0.0` marker detection continues to use Gaussian sigma 0.7 px, including historical recipes whose `smoothing_sigma_px` records another value. Those records are not rewritten or reinterpreted. Its DAPI-poor path continues to use the recorded sigma as before.
+
+Marker-only protocol `2.1.0` uses the recorded `smoothing_sigma_px` (0–20 px), with 0.7 px as the new-request default. Rolling-ball subtraction, threshold definition, rim exclusion, component filtering, coordinates and original measurement pixels are unchanged. Opening an old result or editing an unrelated setting does not upgrade it. An explicit marker sigma edit, a new marker configuration or adoption of a 2.1.0 proposal creates the new protocol configuration; accepted masks remain unchanged until the usual preview/adoption operation. Fiji NCL protocol 1.1.0 is unaffected. This is parameter-semantic compatibility, not a claim of biological validation.
+
+### Measured CSV distribution and SVG source navigation
+
+Explicit descriptive CSV import requires `field_id,value`; study metadata may remain unknown. The historical experimental-unit import remains strict. The descriptive route uses the existing per-field summaries without inferential tests or invented replicates. Comparison rejects incomplete study metadata before queuing. Numerical replay format 2 records the original CSV byte hash, normalized observations, saved descriptive settings, page artifacts and renderer Methods; replay checks the exact original CSV before recalculation.
+
+SVG observation marks carry identities already present in saved result rows. Nuclear or ROI observations return to the saved field, object, measured channel and mask revision. Experimental-unit marks expose their saved constituent observations. These annotations do not generate observations or change measurements, aggregation or statistical tests. The pagination contract remains 2.0.0; presentation renderer 2.0.1 honors saved point size, field color and legend settings. Figure files record their renderer and code identity. Reproduction of historical presentation requires its recorded code version.

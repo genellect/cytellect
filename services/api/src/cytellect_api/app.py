@@ -4,7 +4,7 @@ import json
 import secrets
 import shutil
 import time
-from typing import Annotated
+from typing import Annotated, Literal
 
 import numpy as np
 import tifffile
@@ -18,7 +18,11 @@ from cytellect_analysis.contracts import (
     StatisticsRequest,
     required_channel_roles,
 )
-from cytellect_analysis.descriptive_contracts import PagedDescriptiveOutput, PagedDescriptiveResult
+from cytellect_analysis.descriptive_contracts import (
+    DescriptiveRequestType,
+    PagedDescriptiveOutput,
+    PagedDescriptiveResult,
+)
 from cytellect_analysis.display_contracts import (
     PREVIEW_DISPLAY_HEADER,
     PREVIEW_PNG_RESPONSE,
@@ -37,10 +41,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from sqlalchemy import func, select, update
 
+from .analysis_spec import register_analysis_spec_routes
+from .channel_assignments import register_channel_assignment_routes
 from .common_statistics import register_common_statistics_routes
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
+from .field_links import register_field_link_routes
+from .figure_render import register_figure_render_routes
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
 from .proposals import register_proposal_routes
@@ -50,6 +58,7 @@ from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
 from .views import FieldView, JobView, MasksView, RevisionView, WorkspaceView
+from .workspace_runs import register_workspace_run_routes
 from .workspace_selection import register_workspace_selection_routes
 
 
@@ -88,7 +97,7 @@ def create_app(settings: Settings | None = None):
         CORSMiddleware,
         allow_origins=[settings.app_origin],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Content-Type", "X-Cytellect-Request"],
         expose_headers=[PREVIEW_DISPLAY_HEADER],
     )
@@ -873,7 +882,8 @@ def create_app(settings: Settings | None = None):
         return {"job_id": new_id, "revision_id": original["revision_id"]}
 
     @api.post("/v1/workspaces/{wid}/tables", status_code=201)
-    async def import_table(wid: str, who: Owner, file: UploadFile = File(...)):
+    async def import_table(wid: str, who: Owner, file: UploadFile = File(...),
+                           mode: Literal["experimental-unit", "descriptive"] = Form("experimental-unit")):
         from cytellect_analysis.numerical_csv import parse_numeric_csv
 
         workspace(wid, who)
@@ -883,7 +893,7 @@ def create_app(settings: Settings | None = None):
         await file.close()
         if len(content) > 8 * 1024**2:
             raise HTTPException(413, "table_size_limit")
-        parsed = parse_numeric_csv(content)
+        parsed = parse_numeric_csv(content, mode=mode)
         tid = uid()
         folder = store.safe_path("workspaces", wid, "tables", tid)
         try:
@@ -928,8 +938,26 @@ def create_app(settings: Settings | None = None):
         workspace(table["workspace_id"], who)
         if body.metric != "value" or body.mode != "experimental-unit":
             raise HTTPException(422, "numeric_tables_require_unit_value_analysis")
+        from cytellect_analysis.numerical_csv import REQUIRED
+
+        data = read_json(store.safe_path("workspaces", table["workspace_id"], "tables", tid, "table.json"))
+        if any(not isinstance(row.get(key), str) or not row[key].strip()
+               for row in data["rows"] for key in REQUIRED - {"value"}):
+            raise HTTPException(422, "numeric_csv_metadata_invalid")
         with store.transaction() as conn:
             jid = queue(conn, table["workspace_id"], tid, "table-statistics", body.model_dump())
+        return {"job_id": jid}
+
+    @api.post("/v1/tables/{tid}/descriptive", status_code=202)
+    def table_descriptive(tid: str, body: DescriptiveRequestType, who: Owner):
+        table = store.one(tables, id=tid)
+        if table is None:
+            raise HTTPException(404, "table_not_found")
+        workspace(table["workspace_id"], who)
+        if body.selection.source != "numerical":
+            raise HTTPException(422, "descriptive_source_mismatch")
+        with store.transaction() as conn:
+            jid = queue(conn, table["workspace_id"], tid, "table-statistics", body.model_dump(mode="json"))
         return {"job_id": jid}
 
     @api.get("/v1/workspaces/{wid}/jobs", response_model=list[JobView])
@@ -1022,9 +1050,9 @@ def create_app(settings: Settings | None = None):
         if j["state"] != "succeeded" or not j["result_dir"]:
             raise HTTPException(404, "artifact_not_found")
         root = store.safe_path(j["result_dir"])
-        if name == "figure.zip":
+        if name in ("figure.zip", "publication.zip"):
             path = root / name
-            record_path = root / "figure-archive.json"
+            record_path = root / ("publication-archive.json" if name == "publication.zip" else "figure-archive.json")
             if path.is_symlink() or not path.is_file() or not record_path.is_file():
                 raise HTTPException(404, "artifact_not_found")
             record = read_json(record_path)
@@ -1032,7 +1060,7 @@ def create_app(settings: Settings | None = None):
                 raise HTTPException(404, "artifact_not_found")
             return FileResponse(path, media_type="application/zip", filename=name)
         index = root / "descriptive-output.json"
-        if index.exists() or "figure_policy" in (j.get("payload") or {}):
+        if name != "analysis.zip" and (index.exists() or "figure_policy" in (j.get("payload") or {})):
             from cytellect_analysis.descriptive_output import (
                 descriptive_output_file,
                 read_descriptive_output_index,
@@ -1063,6 +1091,11 @@ def create_app(settings: Settings | None = None):
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace)
     register_workspace_selection_routes(api, store, owner, workspace, touch)
+    register_channel_assignment_routes(api, store, owner, workspace, touch)
+    register_analysis_spec_routes(api, store, owner, workspace, touch)
+    register_workspace_run_routes(api, store, owner, workspace, touch)
+    register_field_link_routes(api, store, owner, workspace, touch)
+    register_figure_render_routes(api, store, owner, job_record, queue)
     register_region_cohort_routes(api, store, owner, workspace, revision, result_root, queue)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

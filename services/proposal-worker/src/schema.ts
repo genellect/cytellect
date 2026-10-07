@@ -3,7 +3,7 @@
  */
 type Schema = Record<string, unknown>;
 const annotations = new Set(["title", "description", "default", "$defs"]);
-const supported = new Set(["$ref", "type", "anyOf", "enum", "const", "properties", "required", "additionalProperties", "items", "minItems", "maxItems", "minimum", "maximum", "minLength", "maxLength", "pattern"]);
+const supported = new Set(["$ref", "type", "anyOf", "enum", "const", "properties", "required", "additionalProperties", "items", "minItems", "maxItems", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern"]);
 
 export function matchesSchema(value: unknown, raw: unknown, root: unknown = raw, depth = 0): boolean {
   if (depth > 30 || !raw || typeof raw !== "object" || Array.isArray(raw)) return false;
@@ -23,6 +23,8 @@ export function matchesSchema(value: unknown, raw: unknown, root: unknown = raw,
   if (type === "integer" || type === "number") {
     return typeof value === "number" && Number.isFinite(value) && (type !== "integer" || Number.isInteger(value))
       && (typeof schema.minimum !== "number" || value >= schema.minimum)
+      && (typeof schema.exclusiveMinimum !== "number" || value > schema.exclusiveMinimum)
+      && (typeof schema.exclusiveMaximum !== "number" || value < schema.exclusiveMaximum)
       && (typeof schema.maximum !== "number" || value <= schema.maximum);
   }
   if (type === "string") {

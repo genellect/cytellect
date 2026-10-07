@@ -35,6 +35,7 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ proposal_association_same_region_required:"相関の横軸と縦軸には同じ測定領域を指定してください。核と核小体など、異なる領域を組み合わせた相関は現在実行できません。",
   signal_threshold_indeterminate: "画像内の輝度が一定のため、陽性領域を検出できません。別のチャンネルを指定してください。",
  proposal_service_disabled:"解析案の補助は現在無効です。管理者がサービス設定を確認してください。",
  proposal_service_unavailable:"提案サービスに接続できません。接続状態を確認してください。",
@@ -148,6 +149,9 @@ const messages:Record<string,string> = {
  descriptive_calibration_mismatch:"画像の校正情報と測定結果が一致しません。原画像から再測定してください。",
  descriptive_field_coverage_mismatch:"採用した視野と測定結果が一致しません。解析版を再確認してください。",
  no_valid_selected_measurements:"選択した指標に有効な測定値がありません。領域・対象選別・欠測理由を確認してください。",
+ figure_log_requires_positive_values:"対数軸には0以下の値を表示できません。線形軸を使用してください。",
+ figure_x_range_invalid:"横軸の範囲を確認してください。",
+ figure_numeric_x_requires_scatter:"横軸の数値設定は散布図で使用できます。",
  figure_labels_overlap:"条件名や目盛りが重なっています。図の幅を広げるか、ラベルを短くしてください。",
  figure_text_outside_canvas:"図中の文字が枠からはみ出します。図の高さ・幅またはラベルを調整してください。",
  region_sensitivity_requires_native_ncl:"核小体領域の感度解析には通常NCLレシピの解析版を選択してください。",

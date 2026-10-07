@@ -73,6 +73,7 @@ def test_area_to_intensity_and_back_preserves_exact_masks_and_old_config_keys(tm
     request = RegionAnalysisRequest.model_validate(region_request(fid))
     old_shape = request.model_dump(mode="json")
     old_shape.pop("measurement")
+    old_shape.pop("confirmed_channel_ids")
     assert region_request_config(request) == old_shape
 
 

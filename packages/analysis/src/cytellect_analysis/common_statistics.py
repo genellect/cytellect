@@ -34,6 +34,8 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | fr
     "common_statistics_independent_association_required", "common_statistics_distinct_metrics_required",
     "common_statistics_matched_region_set_required", "common_statistics_pooling_confirmation_required",
     "common_statistics_result_required",
+    "common_statistics_matched_gfp_selection_required", "common_statistics_matched_intensity_policy_required",
+    "common_statistics_matched_observations_required",
 })
 
 
@@ -142,7 +144,7 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
                          "aggregation": request.aggregation}, **data).model_dump(mode="json")
 
 
-def analyze_region_association(report, config, request):
+def analyze_region_association(report, config, request, *, nuclear=None):
     request = RegionAssociationRequest.model_validate(request)
     # Reuse the exact source/design/acquisition review without fabricating tests.
     # All condition pairs are acquisition checks only; they do not produce p-values.
@@ -150,8 +152,13 @@ def analyze_region_association(report, config, request):
                  if request.scope == "pooled" else [])
     common = dict(design=request.design, conditions=request.conditions, acquisition_review=request.acquisition_review,
                   comparison_family=SimpleNamespace(contrasts=contrasts))
-    x = _prepared(report, config, SimpleNamespace(selection=request.x_selection, **common))
-    y = _prepared(report, config, SimpleNamespace(selection=request.y_selection, **common))
+    x = _prepared(report, config, SimpleNamespace(selection=request.x_selection, **common), nuclear=nuclear)
+    y = _prepared(report, config, SimpleNamespace(selection=request.y_selection, **common), nuclear=nuclear)
+    if request.version == "1.1.0":
+        def identity(source):
+            return {(r["field_id"], r["region_id"]) for r in source["plot_data"]}
+        if identity(x) != identity(y):
+            raise ValueError("common_statistics_matched_observations_required")
     def by_unit(source):
         return {(r["condition"], r["experimental_unit"]): r for r in source["unit_summary"]}
     xx, yy = by_unit(x), by_unit(y)
@@ -182,6 +189,7 @@ def analyze_region_association(report, config, request):
         warnings.append("pooled_association_may_reflect_condition_or_acquisition_batch_confounding")
     missingness = [{"axis": axis, **row} for axis, source in (("x", x), ("y", y)) for row in source["missingness"]]
     return RegionAssociationResult(
+        region_association_version=request.version,
         inference_version=VERSION, revision_id=report["revision_id"], source_fingerprint=source_fingerprint(report, config),
         spec=request, x_source=x, y_source=y, unit_summary=matched, unit_ledger=ledger, associations=associations,
         counts=[{"condition": c, "matched_units": sum(r["condition"] == c for r in matched),

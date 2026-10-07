@@ -18,17 +18,27 @@ const isCompartmentMetric = (metric: string): metric is CompartmentComparisonMet
 export type GfpGateFilter = components["schemas"]["GfpGateFilter"];
 /** The researcher's GFP nucleus filter decision: the GFP channel and the designated negative-control fields. */
 export interface GfpChoice {channel: string; controls: string[]; keep?: GfpGateFilter["keep"]; percentile?: number}
+export type GfpSelectionChoice = GfpChoice | GfpGateFilter | {version:"1.1.0";gate_protocol:"gfp-gate/3.0.0";gfp_channel_id:string;method:"manual"|"batch_otsu";threshold:number|null;values:"raw"|"corrected";keep:"positive"|"negative";unit?:"nucleus"|"cell_roi"};
 /** GFP nucleus filter 1.0.0 (gfp-gate/2.0.0). The percentile is recorded as chosen, never searched. */
-export function gfpGateFilter(choice: GfpChoice): GfpGateFilter {
+export function gfpGateFilter(choice: GfpSelectionChoice): GfpGateFilter | components["schemas"]["ExploratoryGfpGateFilter"] {
+  if("version" in choice){
+    if(!choice.gfp_channel_id)throw new Error("GFP のチャンネルを選んでください。");
+    if(choice.version==="1.1.0"){
+      if(choice.method==="manual"&&(choice.threshold===null||!Number.isFinite(choice.threshold)))throw new Error("GFP のしきい値を入力してください。");
+      return {...choice,unit:choice.unit??"nucleus"};
+    }
+    return gfpGateFilter({channel:choice.gfp_channel_id,controls:choice.control_field_ids,percentile:choice.percentile,keep:choice.keep});
+  }
   const controls = [...new Set(choice.controls)];
   if (!choice.channel || !controls.length) throw new Error("GFP のチャンネルと陰性対照の視野を選んでください。");
   const percentile = choice.percentile ?? 99;
   if (!Number.isFinite(percentile) || percentile < 50 || percentile >= 100) throw new Error("陰性対照の percentile は 50 以上 100 未満で指定してください。");
   return {version: "1.0.0", gate_protocol: "gfp-gate/2.0.0", gfp_channel_id: choice.channel, percentile, control_field_ids: controls, keep: choice.keep ?? "positive"};
 }
-export function comparisonSelection(regionSet: string, metric: RegionComparisonMetric | CompartmentComparisonMetric, channel: string | null, gfp: GfpChoice | null = null): Selection {
+export function comparisonSelection(regionSet: string, metric: RegionComparisonMetric | CompartmentComparisonMetric, channel: string | null, gfp: GfpSelectionChoice | null = null): Selection {
   // Without a GFP decision the selection is sent exactly as before (no gfp_gate key).
   const gate = gfp ? {gfp_gate: gfpGateFilter(gfp)} : {};
+  if(isCompartmentMetric(metric)&&gate.gfp_gate?.version==="1.1.0"&&gate.gfp_gate.unit==="cell_roi")throw new Error("細胞ROIのGFP分類は、核小体数・面積割合・核質／核小体比の選別には使用できません。");
   // The ratio is per channel; nucleolar count and area fraction are channel-neutral.
   if (isCompartmentMetric(metric)) return {source: "compartment-summary", version: "1.0.0", region_set_id: regionSet, metric, channel_id: metric === "log2_nucleoplasm_over_nucleolus" ? channel : null, ...gate};
   return {source: "region", region_set_id: regionSet, metric, channel_id: channel, ...gate};
@@ -39,7 +49,7 @@ export interface ComparisonChoices {
   contrasts: string[][]; independence: boolean; acquisition: boolean; sampling: boolean; missingness: boolean;
   kind: CommonPlotKind; width: number; height: number; yLabel: string;
   /** Optional GFP nucleus filter; absent or null compares every nucleus. */
-  gfp?: GfpChoice | null;
+  gfp?: GfpSelectionChoice | null;
 }
 export function comparisonRequest(choices: ComparisonChoices): CommonComparisonRequest {
   const conditions = [...new Set(choices.contrasts.flat())];

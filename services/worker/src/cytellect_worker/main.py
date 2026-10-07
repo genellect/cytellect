@@ -6,6 +6,9 @@ import time
 
 import numpy as np
 from cytellect_analysis.contracts import MaskEdit, Recipe, StatisticsRequest
+from cytellect_analysis.descriptive import describe_numeric
+from cytellect_analysis.descriptive_contracts import parse_descriptive_request
+from cytellect_analysis.descriptive_output import render_descriptive_output
 from cytellect_analysis.exports import build_export_bundle
 from cytellect_analysis.figures import render_figures
 from cytellect_analysis.masks import apply_edit, detect_nucleoli, polygon_mask
@@ -24,6 +27,7 @@ from cytellect_api.db import (
     revisions,
     sessions,
     tables,
+    workspace_channel_assignments,
     workspace_selections,
     workspaces,
 )
@@ -327,9 +331,11 @@ def run_table_statistics(store, job, output):
     if table is None or table["workspace_id"] != job["workspace_id"]:
         raise ValueError("table_not_found")
     data = read_json(store.safe_path("workspaces", job["workspace_id"], "tables", table["id"], "table.json"))
-    result = analyze_numeric(data["rows"], StatisticsRequest.model_validate(job["payload"]))
+    descriptive = job["payload"].get("mode") == "descriptive"
+    result = (describe_numeric(data["rows"], parse_descriptive_request(job["payload"])) if descriptive
+              else analyze_numeric(data["rows"], StatisticsRequest.model_validate(job["payload"])))
     result["table_id"] = table["id"]
-    result["figure"] = render_figures(result, output)
+    result["figure"] = (render_descriptive_output(result, output) if descriptive else render_figures(result, output))
     build_numeric_bundle(
         output,
         content=store.safe_path("workspaces", job["workspace_id"], "tables", table["id"], "input.csv").read_bytes(),
@@ -385,16 +391,20 @@ def run_export(store, job, output):
 
 
 def process_one(store, settings):
-    from .supervision import execute
+    from cytellect_api.workspace_runs import advance_workspace_runs
 
+    from .supervision import execute
+    advanced = advance_workspace_runs(store, settings)
     job = store.claim()
     if job is None:
-        return False
+        return advanced
     execute(store, settings, job)
+    advance_workspace_runs(store, settings)
     return True
 
 
 def cleanup(store):
+    from cytellect_api.db import workspace_analysis_runs, workspace_analysis_specs, workspace_field_links
     now = time.time()
     removed = 0
     with store.transaction() as conn:
@@ -437,7 +447,7 @@ def cleanup(store):
                 run = store.safe_path("runs", record["id"])
                 if run.exists():
                     shutil.rmtree(run)
-            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, workspace_selections):
+            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
                 conn.execute(delete(table).where(table.c.workspace_id == wid))
             conn.execute(
                 update(workspaces)

@@ -4,6 +4,20 @@ import { chooseNuclearChannel, groupFiles, nameChannel, restoredChannels } from 
 const file = (path: string, extra = {}) => ({ path, size: 1, ...extra });
 
 describe("groupFiles", () => {
+  it("does not invent a second field from a channel-range composite with all source planes", () => {
+    const files = [file("batch/sample_c1-4.tif"), ...[1,2,3,4].map(id => file(`batch/sample_c${id}.tif`))];
+    const grouping = groupFiles(files);
+    expect(grouping.fields).toHaveLength(1);
+    expect(Object.keys(grouping.fields[0].files)).toEqual(["c1","c2","c3","c4"]);
+    expect(grouping.issues).toEqual([{kind:"channel_range_reference",path:"batch/sample_c1-4.tif",channels:["c1","c2","c3","c4"]}]);
+    expect(grouping.channels.every(channel => channel.stain === null)).toBe(true);
+    expect(groupFiles(files,"single").fields).toHaveLength(5);
+  });
+  it("keeps a lone range image without claiming it is c1 or dropping it", () => {
+    const grouping = groupFiles([file("sample_c1-4.tif")]);
+    expect(grouping.fields).toHaveLength(1);
+    expect(grouping.channels[0]).toMatchObject({token:"image",stain:null,role:null});
+  });
   it("pairs fields by removing a delimited stain token and keeps stain identity", () => {
     const grouping = groupFiles([file("exp/A01_DAPI.tif"), file("exp/A01_GFP.tif"), file("exp/A02_DAPI.tif"), file("exp/A02_GFP.tif")]);
     expect(grouping.fields.map((field) => field.key)).toEqual(["exp/A01", "exp/A02"]);

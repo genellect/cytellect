@@ -11,7 +11,7 @@ from pydantic import Field, FiniteFloat, TypeAdapter, model_validator
 from .contracts import Recipe
 from .masks import validate_label_array, validate_labels
 from .measurement import normalize_nucleolar_states
-from .nucleolar_detector_v2 import NucleolarDetectorV20, detect_nucleoli_v2
+from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21, detect_nucleoli_v2
 from .regions import RegionModel, _array_hash
 
 
@@ -43,7 +43,7 @@ class NucleolarDetectorV11(RegionModel):
         return self
 
 
-NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11 | NucleolarDetectorV20,
+NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21,
                               Field(discriminator="protocol_version")]
 
 

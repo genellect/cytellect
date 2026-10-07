@@ -4,9 +4,15 @@ import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-vi
 import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
 import type {DistributionPoint, FieldSummary} from "./adapter";
+import type { ProposalProcessing, NuclearProcessingDetector, SignalProcessingDetector } from "./proposal-processing";
+import {localProposal, type ProposalChannelLink} from "./proposal-mapping";
 
-export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm", string>>}
+export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm" | "cell", string>>}
 export interface WorkspaceSelection {version: number; entries: SelectionEntry[]}
+export interface ChannelAssignment {channel_id: string; stain: string | null; role: "nuclear" | "measure" | "unused"}
+export interface ChannelAssignmentGroup {id:string;field_ids:string[];channel_ids:string[];assignments:ChannelAssignment[]}
+export interface ChannelAssignments {version: number; assignments: ChannelAssignment[];groups?:ChannelAssignmentGroup[];global_field_ids?:string[]}
+export interface FieldLinks {version:number;entries:Array<{field_id:string;kind:"analysis"|"reference";reference_for_field_id:string|null;previous_exclusion?:string|null}>}
 export interface ImportedField {
   id: string; workspace_id: string;
   metadata: Record<string, string | number | null>;
@@ -15,6 +21,8 @@ export interface ImportedField {
 export interface MeasurementRow {
   region_id: number; channel_id: string; area_px: number; area_um2: number | null;
   mean: number | null; median: number | null; integrated: number | null;
+  mean_corrected?: number | null; median_corrected?: number | null; integrated_corrected?: number | null;
+  area_missing_reason?: string | null; intensity_missing_reason?: string | null; correction_missing_reason?: string | null;
 }
 export interface SavedResult {
   regionSet?: string; revision: string; field: string; rows: MeasurementRow[];
@@ -22,6 +30,9 @@ export interface SavedResult {
   exclusions: Array<{field_id: string; region_id: number | null; reason: string}>;
   /** Measurement protocol of the saved table; "4.0.0" carries automatic-background corrections. */
   protocol?: string;
+  measurement?: MeasurementPolicy | {version:"1.0.0";mode:"area_only"} | null;
+  backgrounds?: Record<string,Record<string,{polygon:Point[];confirmed:true}>>;
+  confirmedChannelIds?:string[];
 }
 /** Raw values (3.0.0) or raw values plus an automatic, unconfirmed background candidate (4.0.0). */
 /** Mask corrections the workspace offers; delete goes through the exclusion/delete path. */
@@ -29,7 +40,7 @@ export type MaskOperation = "add" | "replace" | "split" | "merge";
 export type MeasurementPolicy = {version: "1.1.0"; mode: "raw_intensity"} | {version: "1.2.0"; mode: "automatic_background"};
 export const rawMeasurement: MeasurementPolicy = {version: "1.1.0", mode: "raw_intensity"};
 export const automaticBackground: MeasurementPolicy = {version: "1.2.0", mode: "automatic_background"};
-const measurementOf = (result: SavedResult): MeasurementPolicy => result.protocol === "4.0.0" ? automaticBackground : rawMeasurement;
+const measurementOf = (result: SavedResult) => result.measurement !== undefined ? result.measurement : result.protocol === "1.0.0" ? null : result.protocol === "2.0.0" ? {version:"1.0.0",mode:"area_only"} : result.protocol === "4.0.0" ? automaticBackground : rawMeasurement;
 interface Report {
   revision_id: string; protocol_version?: string; field_tables: Record<string, {rows: MeasurementRow[]}>;
   field_failures: Array<{field_id: string; reason: string}>;
@@ -38,32 +49,40 @@ interface Report {
 export interface FigureChoice {metric: string; channel: string | null; width: number; height: number; label: string; xLabel?: string; fontSize?: number; language?: "ja" | "en"; yMin?: number | null; yMax?: number | null; yTickStep?: number | null; pointSize?: number | null}
 export interface SavedFigure {job: string; revision: string; choice: FigureChoice; result: DescriptiveResult}
 export interface Recipe {
-  id: "region-2d"; version: "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.7.0"; region_set_id: string; label: string;
-  source: "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment"; defining_channel_id: string;
+  id: "region-2d"; version: "1.0.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.7.0"; region_set_id: string; label: string;
+  source: "manual" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment"; defining_channel_id: string;
   compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
-  detector?: {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
-    | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number};
+  detector?: NuclearProcessingDetector | SignalProcessingDetector | {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
+    | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number};
   nucleolar_revision_id?: string;
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
   detection_max_side_px?: number; detection_scale?: "nuclear-size/1.0.0";
 }
+export interface ProposalMetric {metric:string;channel:string|null;region?:string|null}
+export interface ProposalStatistics {kind:"descriptive"|"comparison"|"association";test:string|null;omnibus:string|null;association:string|null;x?:ProposalMetric|null;y?:ProposalMetric|null}
 export interface ProposalDraft {
   recipe: "nuclear-intensity" | "nuclear-ncl" | "supplied-regions" | "measured-table" | "none";
   channels: Array<{token: string; stain: string | null; role: "nuclear" | "measure" | "unused"; reason: string}>;
   metrics: Array<{metric: string; channel: string | null; region?: string | null}>;
-  statistics: {kind: "descriptive" | "comparison" | "association"; test: string | null; omnibus: string | null; association: string | null};
-  figures: Array<{kind: string; metric: string; channel: string | null}>;
+  statistics: ProposalStatistics;
+  additional_analyses?: ProposalStatistics[];
+  figures: Array<{kind: string; metric: string; channel: string | null;region?:string|null;analysis_index?:number}>;
   missing_information: string[]; reference_ids: string[]; rationale: string;
+  processing?: ProposalProcessing | null;
+  background?:{mode:"raw"|"automatic"|"confirmed_roi"}|null;
+  gfp_selection?:{channel:string;unit:"nucleus"|"cell_roi";method:"manual"|"batch_otsu"|"negative_control";threshold:number|null;values:"raw"|"corrected";keep:"positive"|"negative";percentile:number}|null;
 }
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
-export interface GfpGateResult {percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
+export interface GfpGateResult {unit?: "nucleus" | "cell_roi"; objects?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; protocol?: string; method?: "negative_control" | "manual" | "batch_otsu"; nuclei?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
 export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
 export interface CompartmentSummaryFile {
   channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>;
   /** Present for automatic-background measurements; a channel without a background has no rows and a reason. */
   corrected_channels?: Record<string, {protocol: string; rows: CompartmentSummaryRow[]; missing_reason?: string | null}>;
 }
-export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"]}}
+export type RunTarget = "nuclei" | "nucleoli" | "nucleoplasm" | "cell";
+export interface WorkspaceRun {id:string; workspace_id:string;spec_version:number;target:RunTarget;state:"queued"|"running"|"succeeded"|"failed"|"cancelled"|"adopted";created:number;updated:number;steps:Array<{field_id:string;target:RunTarget;state:"pending"|"queued"|"succeeded"|"reused"|"failed"|"blocked";revision_id:string|null;job_id:string|null;recipe:Recipe|null;error:string|null;background_pending?:boolean}>}
+export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"];measurement?:SavedResult["measurement"];backgrounds?:SavedResult["backgrounds"];confirmed_channel_ids?:string[]}}
 export interface Transport {
   request: typeof request; post: typeof post; blob: typeof fetchBlob; wait: () => Promise<void>;
 }
@@ -131,6 +150,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     return result;
   }
   const revisionRecipes = new Map<string, Recipe>();
+  const revisionConfigs = new Map<string,RevisionRecord["config"]>();
   const runs = new Map<string, {job_id: string; revision_id: string; recipe: string} | "uncertain">();
   async function waitJob(workspace: string, id: string, onState?: (state: string) => void): Promise<Job> {
     // Polling reads do not extend retention. A lost connection never resubmits a job.
@@ -153,11 +173,21 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     const table = report.field_tables[field];
     if (!table) throw new Error("この視野の測定値がありません");
     const masks = await client.request<SavedResult["masks"]>(`/v1/revisions/${revision}/region-masks?field_id=${encodeURIComponent(field)}`);
-    return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions, protocol: report.protocol_version};
+    const record=revisionConfigs.has(revision)?{config:revisionConfigs.get(revision)}:await client.request<{config?:RevisionRecord["config"]}>(`/v1/revisions/${revision}`);
+    return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions, protocol: report.protocol_version,
+      ...(record.config?{measurement:record.config.measurement??null,backgrounds:record.config.backgrounds??{},confirmedChannelIds:record.config.confirmed_channel_ids??[]}: {})};
   }
   return {
     async create() {const record = await client.post<Workspace>("/v1/workspaces", {title: "画像解析"}); await loadSelection(record.id); return record;},
     selection: () => selection,
+    getFieldLinks(workspace:string){return client.request<FieldLinks>(`/v1/workspaces/${workspace}/field-links`);},
+    async saveFieldLink(workspace:string,field:string,value:{version:number;selection_version:number;kind:"analysis"|"reference";reference_for_field_id:string|null}){const result=await client.request<FieldLinks>(`/v1/workspaces/${workspace}/field-links/${field}`,{method:"PUT",body:JSON.stringify(value)});await loadSelection(workspace);return result;},
+    getChannelAssignments(workspace: string) {
+      return client.request<ChannelAssignments>(`/v1/workspaces/${workspace}/channel-assignments`);
+    },
+    saveChannelAssignments(workspace: string, assignments: {version:number;assignments:ChannelAssignment[];field_ids?:string[]}) {
+      return client.request<ChannelAssignments>(`/v1/workspaces/${workspace}/channel-assignments`, {method: "PUT", body: JSON.stringify(assignments)});
+    },
     async isSelectionCurrent(workspace: string) {
       const expected = JSON.stringify(selection);
       const current = await client.request<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`);
@@ -203,10 +233,17 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       }
       return uploaded;
     },
+    async uploadOme(workspace:string,file:File,entryId:string){
+      const data=new FormData();data.set("ome",file);data.set("client_upload_id",entryId);
+      const uploaded=await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields/ome`,{method:"POST",body:data});
+      const existing=selection!.entries.find(entry=>entry.field_id===uploaded.id&&entry.id!==entryId);
+      await saveSelection(workspace,existing?selection!.entries.filter(entry=>entry.id!==entryId):selection!.entries.map(entry=>entry.id===entryId?{...entry,field_id:uploaded.id}:entry));
+      return uploaded;
+    },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },
-    async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void, measurement: MeasurementPolicy = rawMeasurement) {
+    async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void, measurement: MeasurementPolicy = rawMeasurement, options: {adopt?: boolean} = {}) {
       await assertSelection(workspace);
-      const key = `${workspace}:${field}:${JSON.stringify(recipe)}:${measurement.mode}`;
+      const key = `${workspace}:${field}:${JSON.stringify(recipe)}:${measurement.mode}:${options.adopt !== false}`;
       let created = runs.get(key);
       if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みで保存済みの処理状態を確認してください。");
       if (created && created.recipe !== JSON.stringify(recipe)) throw new Error("受付済みの解析条件が異なります。再読み込みして処理状態を確認してください。");
@@ -217,9 +254,14 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         });
         created = {...accepted, recipe: JSON.stringify(recipe)}; runs.set(key, created);
       }
-      try {await waitJob(workspace, created.job_id, onState); onState?.("reading_results"); return await adopt(workspace, await readResult(created.revision_id, field, recipe));}
+      try {await waitJob(workspace, created.job_id, onState); onState?.("reading_results"); const saved = await readResult(created.revision_id, field, recipe); return options.adopt === false ? saved : await adopt(workspace, saved);}
       catch (error) {if (error instanceof TerminalJobError) runs.delete(key); throw error;}
     },
+    startWorkspaceRun(workspace:string,body:{request_id:string;spec_version:number;target:RunTarget;field_ids:string[];purpose?:"preview"|"measurement"}){return client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs`,body);},
+    listWorkspaceRuns(workspace:string){return client.request<WorkspaceRun[]>(`/v1/workspaces/${workspace}/runs`);},
+    async waitWorkspaceRun(workspace:string,id:string,onState?:(run:WorkspaceRun)=>void){for(;;){const run=await client.request<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}`);onState?.(run);if(run.state!=="queued"&&run.state!=="running")return run;await client.wait();}},
+    async acceptWorkspaceRun(workspace:string,id:string){const run=await client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}/accept`,{});await loadSelection(workspace);return run;},
+    cancelWorkspaceRun(workspace:string,id:string){return client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}/cancel`,{});},
     readResult,
     async restore(workspace: string) {
       const [record, fields, revisions, jobs] = await Promise.all([
@@ -228,7 +270,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         client.request<RevisionRecord[]>(`/v1/workspaces/${workspace}/revisions`),
         client.request<Job[]>(`/v1/workspaces/${workspace}/jobs`),
       ]);
-      for (const revision of revisions) revisionRecipes.set(revision.id, revision.config.recipe);
+      for (const revision of revisions) {revisionRecipes.set(revision.id, revision.config.recipe);revisionConfigs.set(revision.id,revision.config);}
       const adopted = await loadSelection(workspace);
       return {record, fields, revisions, jobs, selection: adopted};
     },
@@ -241,7 +283,8 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
           field_id: result.field, region_set_id: recipe.region_set_id, operation: "delete", ids: [region], polygon: [], expected_mask_revision_id: result.masks.metadata.mask_revision_id,
         })
         : await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-reconfigure`, {
-          field_ids: [result.field], recipe, measurement: measurementOf(result), backgrounds: {},
+          field_ids: [result.field], recipe, measurement: measurementOf(result), backgrounds: result.backgrounds??{},
+          ...(result.confirmedChannelIds?.length?{confirmed_channel_ids:result.confirmedChannelIds}:{}),
           exclusions: [...result.exclusions, {field_id: result.field, region_id: region, reason: "ワークスペースで対象から除外（利用者の操作）"}],
         });
       await waitJob(workspace, created.job_id);
@@ -263,7 +306,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await waitJob(workspace, created.job_id);
       return adopt(workspace, await readResult(created.revision_id, result.field, recipe));
     },
-    async gfpGate(workspace: string, body: {gfp_channel_id: string; percentile: number; fields: Array<{field_id: string; revision_id: string; control: boolean}>}) {
+    async gfpGate(workspace: string, body: {gfp_channel_id: string; percentile: number; unit?: "nucleus" | "cell_roi"; method?: "negative_control" | "manual" | "batch_otsu"; threshold?: number; values?: "raw" | "corrected"; fields: Array<{field_id: string; revision_id: string; control: boolean}>}) {
       return client.post<GfpGateResult>(`/v1/workspaces/${workspace}/gfp-gate`, body);
     },
     async compartmentSummary(revision: string, field: string) {
@@ -283,9 +326,10 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const view = descriptiveFigureView(figure.result);
       return {view, files: figure.result.figure.source_files};
     },
-    async draft(workspace: string, goal: string, retryFailed = false) {
+    async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
       // Called only after the one-time scope notice has been accepted in this workspace.
-      return client.post<{proposal: ValidatedProposal}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(retryFailed ? {retry_failed: true} : {})});
+      const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
+      return {proposal: localProposal(response.proposal,response.channels)};
     },
   };
 }

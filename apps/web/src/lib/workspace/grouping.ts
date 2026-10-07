@@ -41,6 +41,7 @@ export interface GroupedField {
 }
 
 export type GroupingIssue =
+  | { kind: "channel_range_reference"; path: string; channels: string[] }
   | { kind: "duplicate_channel"; field: string; token: string; paths: string[] }
   | { kind: "duplicate_content"; paths: string[] }
   | { kind: "missing_channel"; field: string; token: string }
@@ -163,6 +164,25 @@ export function groupFiles(files: AddedFile[], mode: "automatic" | "single" = "a
     if (file.omeChannel) {
       const token = file.omeChannel.trim().toLowerCase();
       place(file, folders, tokens, token, describe(token, "ome", file.omeChannel));
+      continue;
+    }
+    // A range suffix is not a single channel. With all matching component
+    // files present, use those planes and report the range image separately.
+    // This never identifies a biological stain or decomposes RGB intensities.
+    const range = mode === "automatic" ? /^(.*?)[_ .-](c|ch|channel)(\d+)-(?:c|ch|channel)?(\d+)$/i.exec(stem) : null;
+    if (range && Number(range[4]) > Number(range[3]) && Number(range[4]) - Number(range[3]) < 16) {
+      const channelIds = Array.from({length:Number(range[4]) - Number(range[3]) + 1}, (_, index) => `${range[2].toLowerCase()}${Number(range[3]) + index}`);
+      const companions = files.filter(candidate => {
+        const part = splitPath(candidate.path);
+        return part.folders.join("/") === folders.join("/") && channelIds.some(id => part.stem.toLowerCase() === `${range[1]}_${id}`.toLowerCase() || part.stem.toLowerCase() === `${range[1]}-${id}`.toLowerCase());
+      });
+      if (channelIds.every(id => companions.some(candidate => splitPath(candidate.path).stem.toLowerCase().endsWith(`_${id}`) || splitPath(candidate.path).stem.toLowerCase().endsWith(`-${id}`)))) {
+        issues.push({kind:"channel_range_reference", path:file.path, channels:channelIds});
+        continue;
+      }
+      // Without individual planes, retain the image independently instead of
+      // turning c1-4 into a misleading c1 channel of another field.
+      place(file, folders, [stem], "image", {token:"image",stain:null,role:null,evidence:"user"});
       continue;
     }
     const match = mode === "single" ? null : matchChannel(tokens, folders);

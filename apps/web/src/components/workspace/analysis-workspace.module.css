@@ -439,3 +439,74 @@
 .methodSheet h3{margin:0;font-size:14px}
 .methodSheet p,.methodSheet li{font-size:13.5px;line-height:1.6}
 .methodSheet section{display:grid;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+/* Integrated workspace sizing: one image surface and one shared tool dock. */
+.toolPanel{display:flex;flex-direction:column;overflow:hidden}
+.toolContent{flex:1;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain}
+.toolContent>div{min-width:0;max-width:100%}
+.toolContent fieldset,.toolContent label,.toolContent select,.toolContent input{min-width:0;max-width:100%}
+.toolContent .comparisonControls{display:grid;grid-template-columns:minmax(0,1fr)}
+.toolContent .comparisonControls label{display:grid;gap:4px}
+.toolContent .comparison p{overflow-wrap:anywhere;font-size:13px}
+.toolContent .comparison h2{font-size:18px}
+.toolContent .tableWrap{max-width:100%;overflow:auto}
+.toolPanel .workTabs{flex:none;position:static}
+.sidebarAdd{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px 8px}
+.sidebarAdd button{font-size:11px;min-height:28px;padding:4px 6px;background:#fff;color:var(--ink);border-color:var(--line-strong)}
+.importDetails{font-size:12px;margin:0 8px 8px}
+.integratedLayout .fieldList>li>button:not(.channelRow){display:grid;grid-template-columns:minmax(0,1fr);gap:2px;padding:8px;font-size:12px}
+.integratedLayout .fieldList>li>button>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.integratedLayout .imageToolbar{flex-wrap:wrap;gap:4px;font-size:12px}
+.integratedLayout .imageToolbar>strong{flex:1;min-width:60px;max-width:none;font-size:12px}
+.integratedLayout .imageToolbar .secondary{min-height:28px;padding:4px 7px;font-size:11px}
+.integratedLayout .imageToolbar label{display:flex;align-items:center;gap:4px}
+.integratedLayout .zoomToolbar{flex-wrap:wrap;padding:4px;gap:3px}
+.integratedLayout .zoomToolbar button{min-height:27px;padding:3px 6px;font-size:11px}
+.measurementPanel{min-width:0;padding:8px}
+.measurementHeading{margin:0 0 8px;font-size:13px}
+.measurementPanel .tableWrap{max-height:none;overflow:auto}
+.measurementPanel .table th,.measurementPanel .table td{padding:6px 8px;font-size:12px}
+.aiDock{flex:none;min-width:0;border-top:1px solid var(--line);background:#fff}
+.shell:not(.emptyWorkspace) .aiDock .composer{padding:8px;max-height:none;overflow:visible;border:0}
+.shell:not(.emptyWorkspace) .aiDock .composer form{display:flex;flex-direction:column;align-items:stretch;gap:5px;padding:8px;border-radius:8px}
+.shell:not(.emptyWorkspace) .aiDock .composer label[for="analysis-instruction"]{position:static;clip-path:none;width:auto;height:auto;overflow:visible;font-size:12px}
+.shell:not(.emptyWorkspace) .aiDock .composer textarea{min-height:60px;height:60px;max-height:120px;flex:none;width:100%;font-size:13px;line-height:1.5}
+.shell:not(.emptyWorkspace) .aiDock .composerActions{justify-content:flex-end;flex-wrap:wrap}
+.shell:not(.emptyWorkspace) .aiDock .composerActions>button[type=button]{display:none}
+.aiDock .response{max-height:140px;overflow:auto;font-size:12px}
+.aiDock .composer details{font-size:11px;margin-top:0}
+.integratedLayout .methodPanel{padding:10px;gap:8px}
+.integratedLayout .stepDescription{font-size:12px;line-height:1.5}
+.integratedLayout .methodStep{padding:8px;gap:6px;grid-template-columns:20px minmax(0,1fr) auto}
+.integratedLayout .methodApply button{width:auto;min-height:32px;padding:6px 12px}
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace) .integratedLayout{grid-template-columns:148px minmax(0,1fr) clamp(320px,30vw,460px);grid-template-rows:minmax(0,1fr);grid-template-areas:"side center panel";min-height:0;flex:1;overflow:hidden}
+ .integratedLayout .fieldList .channelRow img{height:64px;object-fit:contain}
+ .shell:not(.emptyWorkspace) .integratedLayout .center{grid-row:1;min-height:0}
+ .integratedLayout .imageStage,.integratedLayout .inspection{min-height:0;flex:1}
+ .integratedLayout .imageSurface>.imageViewport{flex:1;max-width:none;max-height:none}
+}
+@media(max-width:760px){.toolPanel{min-height:420px;max-height:none!important}.aiDock{position:relative}.toolContent{max-height:50dvh}}
+/* Give a single image its own aspect-matched column; allocate spare width to tools. */
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace) .integratedLayout:not([data-comparison=true]){grid-template-columns:148px clamp(250px,calc((100dvh - 124px) * var(--image-aspect)),calc(100vw - 480px)) minmax(320px,1fr)}
+}
+.toolContent .comparisonMount{container-type:inline-size;overflow:hidden;min-width:0}
+.toolContent .comparisonMount>section{width:100%;min-width:0;max-width:100%;overflow:hidden;padding:12px}
+.toolContent .comparisonMount p{white-space:normal;overflow-wrap:anywhere;font-size:13px}
+.toolContent .comparisonMount fieldset{min-width:0}
+.toolContent .comparisonMount label{white-space:normal;display:grid;gap:4px}
+.toolContent .comparisonMount table{max-width:100%}
+/* Analysis, statistics and figure editing are modes of the same workspace. */
+@media(min-width:761px){
+ .shell:not(.emptyWorkspace) .integratedLayout:not([data-focus=image]){grid-template-columns:148px minmax(0,1fr);grid-template-areas:"side panel"}
+ .integratedLayout:not([data-focus=image]) .center{display:none}
+}
+.integratedLayout:not([data-focus=image]) .toolContent{padding:12px}
+.integratedLayout:not([data-focus=image]) .aiDock .composer form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.integratedLayout:not([data-focus=image]) .aiDock .composer label{grid-column:1/-1}
+.integratedLayout:not([data-focus=image]) .aiDock .composer textarea{min-height:40px;height:40px}
+.integratedLayout:not([data-focus=image]) .aiDock .transmissionInfo{grid-column:1/-1}
+.integratedLayout .methodStep{grid-template-columns:minmax(0,1fr) auto}
+.analysisChoice{padding:8px 12px}
+.measurementConditions{border-top:1px solid var(--line);padding:10px 12px;font-size:13px}
+.measurementConditions summary{cursor:pointer}

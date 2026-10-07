@@ -1,0 +1,5 @@
+.assignments{display:grid;gap:6px;padding:10px 8px;border-bottom:1px solid #dce1e8;font-size:12px;background:#fff;min-width:0}
+.assignments strong{font-size:12px}.scope{font-size:11px;color:#536073}
+.row{display:flex;align-items:end;gap:4px;min-width:0}.row label{display:grid;grid-template-columns:24px minmax(0,1fr);align-items:center;gap:3px;flex:1;min-width:0}.row input{min-width:0;width:100%;padding:5px 3px;border:1px solid #c9d1dc;border-radius:4px;font:inherit;background:#fff;color:#17202d}
+.row .nuclear{padding:5px 4px;min-height:0;border:1px solid #c9d1dc;border-radius:4px;background:#fff;color:#536073;font:inherit}.row .nuclear[aria-pressed=true]{background:#e7f0fb;color:#145497;border-color:#7baddc}
+.assignments .save{justify-self:end;padding:4px 10px;min-height:0;border:1px solid #bfcbd9;border-radius:4px;background:#f6f9fc;color:#17202d;font:inherit}.assignments p{margin:0;font-size:11px;color:#a12a25;overflow-wrap:anywhere}

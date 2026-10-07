@@ -15,7 +15,13 @@ import uuid
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from cytellect_analysis.proposal_contracts import PROPOSAL_PROTOCOL, ProposalContext, ValidatedProposal
+from cytellect_analysis.proposal_contracts import (
+    PROPOSAL_PROTOCOL,
+    DraftProcessing,
+    ProposalContext,
+    ProposalDraft,
+    ValidatedProposal,
+)
 from cytellect_analysis.proposal_validation import ProposalRejected, context_sha256, validate_draft
 from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
@@ -28,6 +34,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from sqlalchemy import select, update
 
+from .channel_assignments import apply_channel_assignments
 from .db import fields, proposal_drafts, revisions, workspaces
 from .regions import is_region
 
@@ -128,6 +135,10 @@ class ProposalDraftRequest(BaseModel):
     goal: Annotated[str, Field(max_length=2000)] = ""
     transmission_confirmed: StrictBool = False
     retry_failed: StrictBool = False
+    field_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
+    current_processing: Annotated[dict, Field(max_length=4)] | None = None
+    previous_goal: Annotated[str, Field(max_length=2000)] = ""
+    previous_proposal: Annotated[dict, Field(max_length=13)] | None = None
 
 
 class ProposalChannelLink(BaseModel):
@@ -148,13 +159,22 @@ def _complete(rows, key):
     return bool(rows) and all(row["metadata"].get(key) not in (None, "") for row in rows)
 
 
-def build_context(store, wid: str, goal: str) -> tuple[ProposalContext, list[ProposalChannelLink]]:
+def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tuple[ProposalContext, list[ProposalChannelLink]]:
     """Derive every proposal input from the workspace; nothing else is asked of the researcher.
 
     Only channel tokens, recorded stains and counts/flags leave the PC. Channel
     labels, file names, metadata values, images and measurements stay local.
     """
     rows = store.rows(fields, workspace_id=wid)
+    from .workspace_selection import selection_at
+    with store.engine.connect() as conn:
+        adopted_selection = selection_at(conn, wid)
+    excluded = {entry["field_id"] for entry in adopted_selection["entries"] if entry.get("exclusion_reason")}
+    if field_id is not None and not any(row["id"] == field_id for row in rows):
+        raise HTTPException(404, "field_not_found")
+    if field_id in excluded:
+        raise HTTPException(409, "proposal_selected_field_excluded")
+    rows = [row for row in rows if row["id"] not in excluded]
     workspace_row = store.one(workspaces, id=wid)
     if workspace_row is None:
         raise HTTPException(404, "workspace_not_found")
@@ -177,6 +197,17 @@ def build_context(store, wid: str, goal: str) -> tuple[ProposalContext, list[Pro
                 else AdoptedNuclearRecipe.model_validate(config["recipe"]))
             for row in region:
                 validate_nuclear_role_evidence(adopted, RegionImageInfo.model_validate(row["image_info"]))
+        # Current user assignments override old adopted-recipe identities for a
+        # new proposal. They never rewrite the source field or saved revisions.
+        region = apply_channel_assignments(store, wid, region, include_roles=True)
+        if field_id is not None:
+            selected = next(row for row in region if row["id"] == field_id)
+            def configuration(row):
+                info = row["image_info"]
+                return (info.get("input_mode", "native"), sorted((spec["channel_id"], spec.get("stain") or "", spec.get("assignment_role") or "")
+                    for spec in info["channels"]))
+            region = [row for row in region if configuration(row) == configuration(selected)]
+            rows = region
         seen: dict[str, dict] = {}
         for row in region:
             for spec in row["image_info"]["channels"]:
@@ -194,6 +225,8 @@ def build_context(store, wid: str, goal: str) -> tuple[ProposalContext, list[Pro
                             and recipe.get("nuclear_role_source") in ("recorded_stain", "user_selected_role"))
             role = ("nuclear" if recipe.get("defining_channel_id") == channel_id
                     and (recipe.get("nuclear_stain_confirmed") is True or adopted_role) else None)
+            if "assignment_role" in spec:
+                role = spec["assignment_role"]
             channels.append({"token": token, "stain": spec.get("stain"), "role": role})
     else:
         roles = dict.fromkeys(role for row in rows for role in row["image_info"].get("channel_roles", []))
@@ -227,13 +260,55 @@ def build_context(store, wid: str, goal: str) -> tuple[ProposalContext, list[Pro
     unit_counts = [len({row["metadata"].get("experimental_unit") for row in rows
                        if row["metadata"].get("condition") == condition and row["metadata"].get("experimental_unit")})
                    for condition in sorted(conditions)]
+    # Persisted configuration is authoritative; only opaque channels/settings leave the PC.
+    from .analysis_spec import analysis_spec_at
+    with store.engine.connect() as conn:
+        specification = analysis_spec_at(conn, wid).get("spec") or {}
+    channel_tokens = {link.channel_id: link.token for link in links}
+    background_mode = specification.get("settings", {}).get("background")
+    gate = specification.get("selection", {}).get("gfp")
+    current_gfp = None
+    registered_controls = False
+    if gate and gate.get("gfp_channel_id") in channel_tokens:
+        control_ids = gate.get("control_field_ids", [])
+        registered_controls = bool(control_ids) and set(control_ids) <= {row["id"] for row in rows}
+        current_gfp = {"channel": channel_tokens[gate["gfp_channel_id"]], "unit": gate.get("unit", "nucleus"),
+                       "method": gate.get("method", "negative_control"), "threshold": gate.get("threshold"),
+                       "values": gate.get("values", "raw"), "keep": gate.get("keep", "positive"),
+                       "percentile": gate.get("percentile", 99)}
+    if background_mode == "confirmed_roi":
+        recorded = specification.get("backgrounds", {})
+        background_available = bool(rows) and all(all(recorded.get(row["id"], {}).get(link.channel_id, {}).get("confirmed")
+            for link in links) for row in rows)
+    adopted_cells = set()
+    for entry in adopted_selection["entries"]:
+        cell_revision = entry.get("target_revisions", {}).get("cell")
+        if cell_revision:
+            cell_record = store.one(revisions, id=cell_revision, workspace_id=wid)
+            cell_recipe = cell_record["config"].get("recipe", {}) if cell_record else {}
+            if cell_record and cell_record["state"] == "succeeded" and cell_recipe.get("source") == "manual" and cell_recipe.get("region_set_id") == "cell":
+                adopted_cells.add(entry["field_id"])
+    image_metadata: list[dict] = []
+    for row in region:
+        info = row["image_info"]
+        calibration = info.get("calibration") or {}
+        image = {"width": info["shape"][1], "height": info["shape"][0], "axes": "YX",
+                 "input_mode": info.get("input_mode", "native"),
+                 "pixel_size_x_um": calibration.get("pixel_size_x_um"),
+                 "pixel_size_y_um": calibration.get("pixel_size_y_um")}
+        if image not in image_metadata and len(image_metadata) < 8:
+            image_metadata.append(image)
     context = ProposalContext.model_validate(dict(
         goal=goal, channels=channels, field_count=len(rows), condition_count=len(conditions),
         units_known=_complete(rows, "experimental_unit") and _complete(rows, "condition"), pairing_known=pairing_known,
         units_per_condition=unit_counts, complete_pair_count=len(pair_groups) if pairing_known else 0,
-        supplied_regions=bool(region) and all(row["image_info"].get("labels_array") for row in region),
+        supplied_regions=bool(region) and all(row["image_info"].get("labels_array") or row["id"] in adopted_cells for row in region),
         # This route plans the image cohort, not unrelated numerical tables.
         measured_table=False, background_available=background_available,
+        current_background={"mode": background_mode} if background_mode else None,
+        current_gfp=current_gfp, negative_control_fields_known=registered_controls,
+        acquired_dates_known=_complete(rows, "acquisition_date"),
+        image_metadata=image_metadata,
     ))
     return context, links
 
@@ -251,6 +326,37 @@ def _source_stamp(store, wid: str) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
+def _continuation_context(context: ProposalContext, links: list[ProposalChannelLink], body: ProposalDraftRequest) -> ProposalContext:
+    """Normalize only closed settings; never send private channel IDs or arbitrary JSON."""
+    channel_tokens = {link.channel_id: link.token for link in links}
+
+    def normalized(value, depth=0):
+        if depth > 12:
+            raise ValueError("proposal_continuation_invalid")
+        if isinstance(value, list):
+            if len(value) > 8:
+                raise ValueError("proposal_continuation_invalid")
+            return [normalized(item, depth + 1) for item in value]
+        if isinstance(value, dict):
+            result = {}
+            for key, item in value.items():
+                if key in ("channel", "token") and item is not None:
+                    if not isinstance(item, str) or item not in channel_tokens:
+                        raise ValueError("proposal_continuation_channel_unknown")
+                    result[key] = channel_tokens[item]
+                else:
+                    result[key] = normalized(item, depth + 1)
+            return result
+        return value
+
+    current = DraftProcessing.model_validate(normalized(body.current_processing)) if body.current_processing else None
+    previous = ProposalDraft.model_validate(normalized(body.previous_proposal)) if body.previous_proposal else None
+    if not context.field_count and current is not None:
+        raise ValueError("proposal_continuation_requires_images")
+    return ProposalContext.model_validate({**context.model_dump(), "current_processing":current,
+        "previous_goal":body.previous_goal, "previous_proposal":previous})
+
+
 def register_proposal_routes(api, store, settings, owner, workspace):
     Owner = Annotated[str, Depends(owner)]
 
@@ -260,7 +366,8 @@ def register_proposal_routes(api, store, settings, owner, workspace):
         if body.transmission_confirmed is not True:
             raise HTTPException(428, "proposal_transmission_not_confirmed")
         try:
-            context, links = build_context(store, wid, body.goal)
+            context, links = build_context(store, wid, body.goal, body.field_id)
+            context = _continuation_context(context, links, body)
         except ValueError:
             raise HTTPException(409, "proposal_context_unsupported") from None
         source_stamp = _source_stamp(store, wid)
@@ -301,6 +408,8 @@ def register_proposal_routes(api, store, settings, owner, workspace):
             raise HTTPException(error.status, error.code) from None
         except ProposalRejected as error:
             # Codes only: the draft text itself is never echoed into logs.
+            if "proposal_association_same_region_required" in error.codes:
+                raise HTTPException(502, "proposal_association_same_region_required") from None
             raise HTTPException(502, {"code": "proposal_rejected", "reasons": error.codes}) from None
         except ValueError:
             raise HTTPException(503, "proposal_service_misconfigured") from None
@@ -312,7 +421,8 @@ def register_proposal_routes(api, store, settings, owner, workspace):
                         proposal_drafts.c.state == "pending").values(state="failed"))
         workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
         try:
-            refreshed, refreshed_links = build_context(store, wid, body.goal)
+            refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id)
+            refreshed = _continuation_context(refreshed, refreshed_links, body)
             changed = (context_sha256(refreshed) != context_sha256(context) or refreshed_links != links
                        or _source_stamp(store, wid) != source_stamp)
         except ValueError:

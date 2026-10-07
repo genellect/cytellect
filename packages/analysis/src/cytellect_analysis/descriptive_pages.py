@@ -10,9 +10,11 @@ from matplotlib.text import Text
 
 from .descriptive_contracts import PagedDescriptiveRequest, parse_descriptive_request
 from .descriptive_figures import _source_measurement_policy, _ylabel
+from .figure_sources import attach_svg_sources, bind_points
 from .figures import _validate_text_layout, apply_plot_controls, figure_settings, plt, select_font
 
-VERSION = "2.0.0"
+VERSION = "2.0.0"  # Saved pagination contract; independent of presentation fixes.
+RENDER_VERSION = "2.0.1"
 PRESENTATION_ERRORS = frozenset({
     "figure_labels_overlap", "figure_text_outside_canvas", "japanese_font_not_installed",
     "sans_serif_font_not_installed", "figure_font_glyphs_unavailable",
@@ -23,6 +25,16 @@ class DescriptivePresentationError(ValueError):
     def __init__(self, code: str, page_index: int | None):
         super().__init__(code)
         self.code, self.page_index = code, page_index
+
+
+def _page_capacity(style):
+    if style["preset"] == "nature-single":
+        return 4
+    if style["preset"] == "nature-double":
+        return 8
+    # Custom pages reserve nine font-size units per field's two-line tick label.
+    # Keep the manifest's eight-field bound; rendering still validates text fit.
+    return max(1, min(8, math.floor(style["width_inches"] * 72 / (9 * style["font_size_pt"]))))
 
 
 def page_layout(result):
@@ -57,7 +69,7 @@ def page_layout(result):
     _source_measurement_policy(result)
     plot = request.plot.model_dump(mode="json")
     style, ja = figure_settings(plot), request.plot.language == "ja"
-    capacity = 4 if request.plot.preset == "nature-single" else 8
+    capacity = _page_capacity(style)
     plans = [{"page_index": index // capacity + 1, "field_ids": order[index:index + capacity],
               "field_numbers": list(range(index + 1, min(index + capacity, len(order)) + 1))}
              for index in range(0, len(order), capacity)]
@@ -107,7 +119,7 @@ def render_pages(result, output: Path, layout):
                          "font.weight": "normal", "axes.labelweight": "normal", "axes.titleweight": "normal",
                          "svg.fonttype": "none", "pdf.fonttype": 42, "text.usetex": False,
                          "text.parse_math": False, "axes.unicode_minus": False, "axes.linewidth": .6,
-                         "svg.hashsalt": "cytellect-descriptive-figure-" + VERSION}):
+                         "svg.hashsalt": "cytellect-descriptive-figure-" + RENDER_VERSION}):
         for plan in layout["page_plan"]:
             page = plan["page_index"]
             figure, axes = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
@@ -115,9 +127,11 @@ def render_pages(result, output: Path, layout):
                 for index, fid in enumerate(plan["field_ids"]):
                     values = layout["values"][fid]
                     if values:
-                        axes.scatter(index + layout["jitter"][fid], values, s=9, color="#526b78", alpha=.65, linewidths=0)
-                        axes.scatter(index + .23, summaries[fid]["median"], s=17, marker="s", facecolors="none",
-                                     edgecolors="#17292f", linewidths=.7)
+                        color = plot.get("style", {}).get("series_colors", {}).get(fid, "#526b78")
+                        bind_points(axes.scatter(index + layout["jitter"][fid], values, s=plot.get("point_size", 9), color=color, alpha=.65, linewidths=0),
+                                    [row for row in result["plot_data"] if row["field_id"] == fid])
+                        bind_points(axes.scatter(index + .23, summaries[fid]["median"], s=17, marker="s", facecolors="none",
+                                                edgecolors="#17292f", linewidths=.7), [{"field_id": fid}])
                 ticks = [f"{layout['labels'][fid]}\n{len(layout['values'][fid])} " + ("観測" if ja else "obs.")
                          for fid in plan["field_ids"]]
                 axes.set_xticks(range(len(ticks)), ticks)
@@ -129,7 +143,8 @@ def render_pages(result, output: Path, layout):
                 axes.set_title(f"{title} · {'ページ' if ja else 'Page'} {page}/{len(layout['page_plan'])}", loc="left", pad=7)
                 axes.spines[["top", "right"]].set_visible(False)
                 # Legend keys describe the common marks; they are not dummy observations.
-                figure.legend(handles=[Line2D([], [], marker="o", linestyle="none", markersize=3,
+                if plot.get("style", {}).get("show_legend", True):
+                    figure.legend(handles=[Line2D([], [], marker="o", linestyle="none", markersize=3,
                                              color="#526b78", label=observation_label),
                                        Line2D([], [], marker="s", linestyle="none", markersize=4,
                                               markerfacecolor="none", color="#17292f", label=median_label)],
@@ -148,12 +163,14 @@ def render_pages(result, output: Path, layout):
                         raise
                     raise DescriptivePresentationError(str(exc), page) from None
                 for suffix in ("svg", "pdf", "png"):
-                    metadata: dict[str, str | None] = {"Creator": "Cytellect descriptive figure " + VERSION}
+                    metadata: dict[str, str | None] = {"Creator": "Cytellect descriptive figure " + RENDER_VERSION}
                     if suffix == "svg":
                         metadata["Date"] = None
                     if suffix == "pdf":
                         metadata.update(CreationDate=None, ModDate=None)
                     figure.savefig(output / f"figure-{page:03d}.{suffix}", dpi=style["png_dpi"], metadata=metadata)
+                    if suffix == "svg":
+                        attach_svg_sources(output / f"figure-{page:03d}.{suffix}", figure)
             finally:
                 plt.close(figure)
     return font.metadata()

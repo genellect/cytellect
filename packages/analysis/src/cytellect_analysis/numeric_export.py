@@ -7,6 +7,9 @@ import zipfile
 from pathlib import Path
 
 from .contracts import StatisticsRequest
+from .descriptive import describe_numeric
+from .descriptive_contracts import parse_descriptive_request
+from .descriptive_output import render_descriptive_output
 from .exports import _json, environment
 from .figures import render_figures
 from .images import sha256
@@ -14,6 +17,7 @@ from .numerical_csv import analyze_numeric, parse_numeric_csv
 from .replay import _inside
 
 FORMAT = "cytellect-numerical-reproducibility/1"
+DESCRIPTIVE_FORMAT = "cytellect-numerical-reproducibility/2"
 
 
 def numeric_methods(result, source):
@@ -46,9 +50,12 @@ def numeric_methods(result, source):
 
 def build_numeric_bundle(destination: Path, *, content: bytes, table_id: str, result, provenance):
     """Called inside the table-statistics job after figures are generated."""
-    parsed = parse_numeric_csv(content)
+    descriptive = result.get("spec", {}).get("mode") == "descriptive"
+    parsed = parse_numeric_csv(content, mode="descriptive" if descriptive else "experimental-unit")
     source = {"table_id": table_id, "kind": "measured-numerical-assay",
               "sha256": hashlib.sha256(content).hexdigest(), "bytes": len(content)}
+    if descriptive:
+        source["import_mode"] = "descriptive"
     if result.get("table_id") != table_id:
         raise ValueError("numeric_export_source_mismatch")
     bundle = destination / "bundle"
@@ -58,14 +65,16 @@ def build_numeric_bundle(destination: Path, *, content: bytes, table_id: str, re
     _json(bundle / "statistics.json", result)
     _json(bundle / "environment.json", environment())
     _json(bundle / "provenance.json", provenance)
+    descriptive_files = set(result.get("figure", {}).get("source_files", [])) if descriptive else set()
     for file in sorted(destination.iterdir()):
         if file.is_file() and (file.suffix == ".csv" or file.name in {
             "figure.png", "figure.svg", "figure.pdf", "figure-caption.md", "figure-data.json"
-        }):
+        } or file.name in descriptive_files or (descriptive and file.name == "descriptive-output.json")):
             shutil.copyfile(file, bundle / file.name)
-    methods = numeric_methods(result, source)
-    (bundle / "methods.md").write_text(methods, encoding="utf-8")
-    (destination / "methods.md").write_text(methods, encoding="utf-8")
+    if not descriptive:
+        methods = numeric_methods(result, source)
+        (bundle / "methods.md").write_text(methods, encoding="utf-8")
+        (destination / "methods.md").write_text(methods, encoding="utf-8")
     (bundle / "replay.py").write_text(
         '"""Use the recorded Cytellect code and locked environment."""\n'
         'from cytellect_analysis.numeric_export import main\n'
@@ -80,7 +89,7 @@ def build_numeric_bundle(destination: Path, *, content: bytes, table_id: str, re
         "against table.json, and recalculates saved comparisons and figures without network access. "
         "Compare statistics.json, source CSVs and figures; retain the declared table identity. "
         "Keep both source and results private.\n", encoding="utf-8")
-    manifest = {"format": FORMAT, "table_id": table_id, "raw_included": False,
+    manifest = {"format": DESCRIPTIVE_FORMAT if descriptive else FORMAT, "table_id": table_id, "raw_included": False,
                 "replay_scope": "hash-verified measured CSV -> saved statistics and figures",
                 "files": {p.name: sha256(p) for p in sorted(bundle.iterdir()) if p.is_file()}}
     _json(bundle / "manifest.json", manifest)
@@ -98,7 +107,7 @@ def replay_numeric(bundle_dir: Path, input_csv: Path, output_dir: Path):
     if output_dir.is_relative_to(bundle_dir) or bundle_dir.is_relative_to(output_dir):
         raise ValueError("replay_output_must_be_separate")
     manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("format") != FORMAT:
+    if manifest.get("format") not in (FORMAT, DESCRIPTIVE_FORMAT):
         raise ValueError("numeric_replay_format_invalid")
     required = {"source.json", "table.json", "statistics.json", "environment.json", "provenance.json"}
     if not required.issubset(manifest.get("files", {})):
@@ -112,18 +121,25 @@ def replay_numeric(bundle_dir: Path, input_csv: Path, output_dir: Path):
     content = input_csv.read_bytes()
     if len(content) != source["bytes"] or hashlib.sha256(content).hexdigest() != source["sha256"]:
         raise ValueError("replay_original_hash_mismatch")
-    parsed = parse_numeric_csv(content)
+    descriptive = manifest["format"] == DESCRIPTIVE_FORMAT
+    if descriptive and source.get("import_mode") != "descriptive":
+        raise ValueError("numeric_replay_format_invalid")
+    parsed = parse_numeric_csv(content, mode="descriptive" if descriptive else "experimental-unit")
     if parsed != json.loads((bundle_dir / "table.json").read_text(encoding="utf-8")):
         raise ValueError("numeric_replay_observations_mismatch")
     recorded = json.loads((bundle_dir / "statistics.json").read_text(encoding="utf-8"))
     if recorded.get("table_id") != source["table_id"] or manifest.get("table_id") != source["table_id"]:
         raise ValueError("numeric_export_source_mismatch")
-    fresh = analyze_numeric(parsed["rows"], StatisticsRequest.model_validate(recorded["spec"]))
+    if (recorded.get("spec", {}).get("mode") == "descriptive") != descriptive:
+        raise ValueError("numeric_replay_format_invalid")
+    fresh = (describe_numeric(parsed["rows"], parse_descriptive_request(recorded["spec"])) if descriptive
+             else analyze_numeric(parsed["rows"], StatisticsRequest.model_validate(recorded["spec"])))
     fresh["table_id"] = source["table_id"]
     output_dir.mkdir(parents=True, exist_ok=False)
-    fresh["figure"] = render_figures(fresh, output_dir)
+    fresh["figure"] = (render_descriptive_output(fresh, output_dir) if descriptive else render_figures(fresh, output_dir))
     _json(output_dir / "statistics.json", fresh)
-    (output_dir / "methods.md").write_text(numeric_methods(fresh, source), encoding="utf-8")
+    if not descriptive:
+        (output_dir / "methods.md").write_text(numeric_methods(fresh, source), encoding="utf-8")
     return fresh
 
 

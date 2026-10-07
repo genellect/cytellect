@@ -18,7 +18,7 @@ from test_proposals import ACTIN_DRAFT, CONTEXT, FakeResponse, codes, configured
 from test_region_api import make_field, region_request
 
 BODY = {"transmission_confirmed": True}
-REPLY = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.2"}).encode()
+REPLY = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-08.1"}).encode()
 
 
 def test_ratio_requires_background_and_paired_three_conditions_are_unsupported():
@@ -32,7 +32,7 @@ def test_ratio_requires_background_and_paired_three_conditions_are_unsupported()
 
 def test_association_axes_and_regions_are_executable_and_multiple_analyses_are_separate():
     metric = {"metric": "mean_raw", "channel": "c3", "region": "nucleus"}
-    ratio = {"metric": "ncl_log2_nucleoplasm_over_nucleoli", "channel": "ncl", "region": None}
+    ratio = {"metric": "area", "channel": None, "region": "nucleus"}
     association = {"kind": "association", "test": None, "omnibus": None, "association": "spearman", "x": metric, "y": ratio}
     raw = draft(additional_analyses=[association], figures=[
         *draft()["figures"], {"kind": "association-scatter", **ratio, "analysis_index": 1}])
@@ -175,3 +175,30 @@ def test_context_change_during_call_releases_the_request(tmp_path, monkeypatch):
     # The changed workspace is a new request; the stale one is not left pending.
     assert client.post(path, json=BODY, headers=HEADERS).status_code == 200
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize("additional", [False, True])
+@pytest.mark.parametrize("other_region", ["nucleoli", "nucleoplasm", None])
+def test_association_requires_explicit_same_region_for_every_analysis(additional, other_region):
+    x = {"metric": "mean_raw", "channel": "c3", "region": "nucleus"}
+    y = {"metric": "mean_raw", "channel": "ncl", "region": other_region}
+    association = {"kind": "association", "test": None, "omnibus": None,
+                   "association": "pearson", "x": x, "y": y}
+    raw = draft(metrics=[x, y], figures=[], **({"additional_analyses": [association]}
+                if additional else {"statistics": association}))
+    assert "proposal_association_same_region_required" in codes(raw)
+
+
+@pytest.mark.parametrize("additional", [False, True])
+def test_saved_proposal_axes_cannot_change_region(additional):
+    from cytellect_api.analysis_spec import AnalysisSpecView, AnalysisSpecWrite
+
+    method = {"kind": "association", "test": None, "omnibus": None, "association": "pearson",
+              "x": {"metric": "mean_raw", "channel": "c3", "region": "nucleoli"},
+              "y": {"metric": "mean_raw", "channel": "ncl", "region": "nucleus"}}
+    body = {"channel_assignment_version": 0, **({"additional_analyses": [method]}
+            if additional else {"statistics": {"method": method}})}
+    # Historical settings remain readable so the operator can replace the proposal.
+    assert AnalysisSpecView.model_validate({"version": 1, "spec": body}).spec is not None
+    with pytest.raises(ValueError, match="proposal_association_same_region_required"):
+        AnalysisSpecWrite.model_validate({"version": 1, "spec": body})

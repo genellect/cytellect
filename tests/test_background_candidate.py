@@ -257,15 +257,20 @@ def test_existing_policy_versions_keep_their_protocols_and_metrics():
         AutomaticBackgroundPolicy(version="1.1.0", mode="automatic_background")
 
 
-def test_unversioned_downstream_methods_refuse_protocol_4():
+def test_versioned_downstream_methods_support_protocol_4_and_reject_mismatch():
     from cytellect_analysis.descriptive import region_report_measurement_policy
-    from cytellect_analysis.region_exports import _request
+    from cytellect_analysis.region_exports import DEPENDENT_FORMAT, _request, bundle_format
 
+    assert region_report_measurement_policy({"protocol_version": "4.0.0", "measurement": POLICY.model_dump()}) == POLICY
     with pytest.raises(ValueError, match="region_measurement_protocol_mismatch"):
-        region_report_measurement_policy({"protocol_version": "4.0.0", "measurement": POLICY.model_dump()})
-    with pytest.raises(ValueError, match="region_export_protocol_unsupported"):
-        _request({"analysis_kind": "region-2d", "field_ids": ["f1"], "recipe": RECIPE,
-                   "measurement": POLICY.model_dump(), "backgrounds": {}, "exclusions": []})
+        region_report_measurement_policy({"protocol_version": "3.0.0", "measurement": POLICY.model_dump()})
+    config = {"analysis_kind": "region-2d", "field_ids": ["f1"], "recipe": RECIPE,
+              "measurement": POLICY.model_dump(), "backgrounds": {}, "exclusions": [],
+              "field_snapshot": {"f1": {}}}
+    assert _request(config).measurement == POLICY
+    assert bundle_format(POLICY) == DEPENDENT_FORMAT
+    with pytest.raises(ValueError, match="region_bundle_snapshot_invalid"):
+        _request({**config, "field_snapshot": {}})
 
 
 def test_worker_records_automatic_unconfirmed_background(tmp_path, monkeypatch):
