@@ -12,6 +12,7 @@ from .common_statistics_figures import COMPARTMENT_LABELS
 from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
+from .figure_sources import attach_svg_sources, bind_points
 from .figures import (
     LABELS,
     _validate_text_layout,
@@ -212,14 +213,15 @@ def render_descriptive(result, output: Path, *, methods_template=None):
                 if len(values) != summary["selected_rows"]:
                     raise ValueError("descriptive_figure_source_mismatch")
                 if values:
-                    axes.scatter(index + rng.uniform(-.15, .15, len(values)), values, s=9,
+                    bind_points(axes.scatter(index + rng.uniform(-.15, .15, len(values)), values, s=9,
                                  color=series_color(plot, fid, "#526b78"), alpha=.65, linewidths=0,
-                                 label=("観測値" if ja else "Observation") if fid == first_observed else None)
-                    axes.scatter(index + .23, summary["median"], s=17, marker="s", facecolors="none",
+                                 label=("観測値" if ja else "Observation") if fid == first_observed else None),
+                                [row for row in rows if row["field_id"] == fid])
+                    bind_points(axes.scatter(index + .23, summary["median"], s=17, marker="s", facecolors="none",
                                  edgecolors="#17292f", linewidths=.7,
                                  label=(("測定群中央値" if ja else "Set median")
                                         if result["source_kind"] == "measured-numerical-assay"
-                                        else "視野中央値" if ja else "Field median") if fid == first_observed else None)
+                                        else "視野中央値" if ja else "Field median") if fid == first_observed else None), [{"field_id": fid}])
             ticks = [f"{labels[fid]}\n{sum(row['field_id'] == fid for row in rows)} "
                      + ("観測" if ja else "obs.") for fid in order]
             axes.set_xticks(range(len(order)), ticks)
@@ -253,6 +255,8 @@ def render_descriptive(result, output: Path, *, methods_template=None):
                 if suffix == "pdf":
                     metadata.update(CreationDate=None, ModDate=None)
                 figure.savefig(output / f"figure.{suffix}", dpi=style["png_dpi"], metadata=metadata)
+                if suffix == "svg":
+                    attach_svg_sources(output / f"figure.{suffix}", figure)
         finally:
             plt.close(figure)
     files = ["figure.svg", "figure.pdf", "figure.png"]

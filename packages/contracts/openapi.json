@@ -1186,6 +1186,61 @@
         }
       }
     },
+    "/v1/tables/{tid}/descriptive": {
+      "post": {
+        "summary": "Table Descriptive",
+        "operationId": "table_descriptive_v1_tables__tid__descriptive_post",
+        "parameters": [
+          {
+            "name": "tid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DescriptiveRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PagedDescriptiveRequest"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{wid}/jobs": {
       "get": {
         "summary": "List Jobs",
@@ -3594,6 +3649,22 @@
               }
             ]
           },
+          "additional_analyses": {
+            "items": {
+              "$ref": "#/components/schemas/SavedDraftStatistics"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Additional Analyses"
+          },
+          "figure_proposals": {
+            "items": {
+              "$ref": "#/components/schemas/SavedDraftFigure"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Figure Proposals"
+          },
           "figure": {
             "anyOf": [
               {
@@ -4340,6 +4411,15 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "experimental-unit",
+              "descriptive"
+            ],
+            "title": "Mode",
+            "default": "experimental-unit"
           }
         },
         "type": "object",
@@ -12820,8 +12900,18 @@
         "title": "RuntimeSettingsDraft",
         "description": "Names deliberately match the workspace runtime; null keeps versioned detector defaults."
       },
-      "SavedDraftMetric": {
+      "SavedDraftFigure": {
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "field-distribution",
+              "unit-comparison",
+              "paired",
+              "association-scatter"
+            ],
+            "title": "Kind"
+          },
           "metric": {
             "type": "string",
             "enum": [
@@ -12866,6 +12956,127 @@
               }
             ],
             "title": "Region"
+          },
+          "analysis_index": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Analysis Index",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "metric",
+          "channel"
+        ],
+        "title": "SavedDraftFigure"
+      },
+      "SavedDraftMetric": {
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "area",
+                  "mean_raw",
+                  "integral_raw",
+                  "mean_corrected",
+                  "integral_corrected",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "nucleolar_area_fraction",
+                  "nucleolar_count"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "area_px",
+                  "area_um2",
+                  "mean",
+                  "median",
+                  "integrated",
+                  "mean_corrected",
+                  "median_corrected",
+                  "integrated_corrected"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ncl_nucleus_mean",
+                  "ncl_nucleus_median",
+                  "ncl_nucleus_integrated",
+                  "ncl_nucleus_mean_corrected",
+                  "ncl_nucleus_median_corrected",
+                  "ncl_nucleus_integrated_corrected",
+                  "ncl_nucleoli_mean",
+                  "ncl_nucleoli_median",
+                  "ncl_nucleoli_integrated",
+                  "ncl_nucleoli_mean_corrected",
+                  "ncl_nucleoli_median_corrected",
+                  "ncl_nucleoli_integrated_corrected",
+                  "ncl_nucleoplasm_mean",
+                  "ncl_nucleoplasm_median",
+                  "ncl_nucleoplasm_integrated",
+                  "ncl_nucleoplasm_mean_corrected",
+                  "ncl_nucleoplasm_median_corrected",
+                  "ncl_nucleoplasm_integrated_corrected",
+                  "gfp_mean",
+                  "gfp_median",
+                  "gfp_integrated",
+                  "gfp_mean_corrected",
+                  "gfp_median_corrected",
+                  "gfp_integrated_corrected",
+                  "nucleus_area_px",
+                  "nucleus_area_um2",
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleoplasm_area_px",
+                  "nucleoplasm_area_um2",
+                  "nucleolar_count",
+                  "nucleolar_area_fraction",
+                  "ncl_nucleoplasm_over_nucleoli",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "ncl_legacy_release"
+                ]
+              }
+            ],
+            "title": "Metric"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus",
+                  "nucleoli",
+                  "nucleoplasm",
+                  "supplied"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           }
         },
         "additionalProperties": false,
@@ -12875,6 +13086,95 @@
           "channel"
         ],
         "title": "SavedDraftMetric"
+      },
+      "SavedDraftStatistics": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "descriptive",
+              "comparison",
+              "association"
+            ],
+            "title": "Kind"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "welch-t",
+                  "paired-t",
+                  "mann-whitney-u",
+                  "wilcoxon"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Omnibus"
+          },
+          "association": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pearson",
+                  "spearman"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Association"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedDraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "y": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SavedDraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "test",
+          "omnibus",
+          "association"
+        ],
+        "title": "SavedDraftStatistics"
       },
       "SavedNuclearProcessing": {
         "properties": {
@@ -13146,7 +13446,7 @@
           "method": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/DraftStatistics"
+                "$ref": "#/components/schemas/SavedDraftStatistics"
               },
               {
                 "type": "null"

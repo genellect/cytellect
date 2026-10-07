@@ -18,6 +18,7 @@ from matplotlib.ticker import MaxNLocator
 from .common_statistics_contracts import CommonStatisticsResult
 from .compartment_observations import DEFINITIONS as COMPARTMENT_DEFINITIONS
 from .exports_csv import write_csv
+from .figure_sources import attach_svg_sources, bind_points
 from .figures import (
     COLORS,
     MARKERS,
@@ -191,9 +192,9 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
             if association:
                 for i, group in enumerate(order):
                     points = [r for r in rows if r["condition"] == group]
-                    ax.scatter([r["x"] for r in points], [r["y"] for r in points], s=18,
+                    bind_points(ax.scatter([r["x"] for r in points], [r["y"] for r in points], s=18,
                                color=series_color(plot, group, COLORS[i % len(COLORS)]), marker=MARKERS[i % len(MARKERS)],
-                               linewidths=.35, edgecolors="white", label=f"{group} (n={len(points)})")
+                               linewidths=.35, edgecolors="white", label=f"{group} (n={len(points)})"), points)
                     glyphs.extend({**r, "display_x": r["x"], "display_y": r["y"]} for r in points)
                 ax.set_xlabel(plot["x_label"] or _label(canonical["x_source"], ja))
                 ax.set_ylabel(plot["y_label"] or _label(canonical["y_source"], ja))
@@ -244,8 +245,8 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                         graphical_summary.append({"condition": group, "kde": "Gaussian", "bandwidth": "Scott",
                                                   "grid_points": 100, "min": float(values.min()), "max": float(values.max())})
                     jitter = np.zeros(len(points)) if plot["kind"] == "paired" else rng.uniform(-.12, .12, len(points))
-                    ax.scatter(i + jitter, values, s=18, color=series_color(plot, group, COLORS[i % len(COLORS)]),
-                               marker=MARKERS[i % len(MARKERS)], edgecolor="white", linewidth=.35, zorder=3)
+                    bind_points(ax.scatter(i + jitter, values, s=18, color=series_color(plot, group, COLORS[i % len(COLORS)]),
+                               marker=MARKERS[i % len(MARKERS)], edgecolor="white", linewidth=.35, zorder=3), points)
                     glyphs.extend({**r, "display_x": float(i + offset), "display_y": r["value"]}
                                   for r, offset in zip(points, jitter, strict=True))
                 if plot["kind"] == "paired":
@@ -288,6 +289,8 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 if suffix == "pdf":
                     file_metadata.update(CreationDate=None, ModDate=None)
                 fig.savefig(output / f"figure.{suffix}", dpi=300, metadata=file_metadata)
+                if suffix == "svg":
+                    attach_svg_sources(output / f"figure.{suffix}", fig)
         finally:
             plt.close(fig)
     tables = _tables(canonical)

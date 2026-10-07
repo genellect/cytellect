@@ -10,7 +10,9 @@ REQUIRED = {"condition", "experimental_unit", "sample", "field_id", "acquisition
 OPTIONAL = {"pair", "repeat_length", "unit", "assay"}
 
 
-def parse_numeric_csv(content: bytes):
+def parse_numeric_csv(content: bytes, *, mode: str = "experimental-unit"):
+    if mode not in ("experimental-unit", "descriptive"):
+        raise ValueError("numeric_csv_import_mode_invalid")
     if len(content) > 8 * 1024 * 1024:
         raise ValueError("numeric_csv_too_large")
     try:
@@ -19,7 +21,8 @@ def parse_numeric_csv(content: bytes):
         raise ValueError("numeric_csv_requires_utf8") from exc
     reader = csv.DictReader(io.StringIO(text), strict=True)
     names = reader.fieldnames or []
-    if len(names) != len(set(names)) or not REQUIRED.issubset(names) or set(names) - REQUIRED - OPTIONAL:
+    required = REQUIRED if mode == "experimental-unit" else {"field_id", "value"}
+    if len(names) != len(set(names)) or not required.issubset(names) or set(names) - REQUIRED - OPTIONAL:
         raise ValueError("numeric_csv_columns_invalid")
     rows: list[dict[str, Any]] = []
     field_metadata: dict[str, tuple] = {}
@@ -28,9 +31,13 @@ def parse_numeric_csv(content: bytes):
             if len(rows) >= 100000 or None in raw or any(value is None for value in raw.values()):
                 raise ValueError("numeric_csv_rows_invalid")
             row = {key: value.strip() for key, value in raw.items()}
-            for key in REQUIRED - {"value"}:
+            for key in required - {"value"}:
                 if not row[key] or len(row[key]) > 80:
                     raise ValueError("numeric_csv_metadata_invalid")
+            for key in REQUIRED - required:
+                if len(row.get(key, "")) > 80:
+                    raise ValueError("numeric_csv_metadata_invalid")
+                row[key] = row.get(key) or None
             for key in OPTIONAL & set(row):
                 if len(row[key]) > 120:
                     raise ValueError("numeric_csv_metadata_invalid")
@@ -43,10 +50,10 @@ def parse_numeric_csv(content: bytes):
                 raise ValueError("numeric_csv_nonfinite_value")
             row.update(value=value, repeat_length=length, pair=row.get("pair") or None,
                        excluded=False, gfp_positive=True)
-            metadata = tuple(row[key] for key in ("condition", "experimental_unit", "sample", "acquisition_date", "pair"))
-            if row["field_id"] in field_metadata and field_metadata[row["field_id"]] != metadata:
+            field_identity = tuple(row[key] for key in ("condition", "experimental_unit", "sample", "acquisition_date", "pair"))
+            if row["field_id"] in field_metadata and field_metadata[row["field_id"]] != field_identity:
                 raise ValueError("inconsistent_field_metadata")
-            field_metadata[row["field_id"]] = metadata
+            field_metadata[row["field_id"]] = field_identity
             rows.append(row)
     except csv.Error as exc:
         raise ValueError("numeric_csv_malformed") from exc
@@ -56,8 +63,12 @@ def parse_numeric_csv(content: bytes):
     assays = {row.get("assay", "") for row in rows}
     if len(units) != 1 or len(assays) != 1:
         raise ValueError("numeric_csv_single_assay_and_unit_required")
-    return {"rows": rows, "metadata": {"unit": next(iter(units)), "assay": next(iter(assays)),
-                                      "row_count": len(rows), "conditions": sorted({row["condition"] for row in rows}), "kind": "measured-numerical-assay"}}
+    metadata = {"unit": next(iter(units)), "assay": next(iter(assays)), "row_count": len(rows),
+                "conditions": sorted({row["condition"] for row in rows if row["condition"]}),
+                "kind": "measured-numerical-assay"}
+    if mode == "descriptive":
+        metadata["import_mode"] = mode
+    return {"rows": rows, "metadata": metadata}
 
 
 def analyze_numeric(rows, request):
@@ -65,6 +76,9 @@ def analyze_numeric(rows, request):
         raise ValueError("numeric_assay_requires_experimental_unit_value")
     if request.plot.kind == "scatter":
         raise ValueError("numeric_assay_has_no_gfp_scatter")
+    if any(not isinstance(row.get(key), str) or not row[key].strip()
+           for row in rows for key in REQUIRED - {"value"}):
+        raise ValueError("numeric_csv_metadata_invalid")
     if (getattr(request, "sensitivity_gfp_thresholds", []) or getattr(request, "sensitivity_complete_dates", False)
             or getattr(request, "sensitivity_legacy_high_regions", [])
             or getattr(request, "sensitivity_region_revision_ids", [])):

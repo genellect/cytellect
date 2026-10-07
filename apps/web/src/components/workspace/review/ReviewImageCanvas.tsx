@@ -67,6 +67,13 @@ export function reviewViewportCamera(viewport: ReviewImageViewport, available: S
   return {scale: viewport.scale, x: available.width / 2 - viewport.centerX * viewport.scale, y: available.height / 2 - viewport.centerY * viewport.scale};
 }
 
+/** Reveal a selected source object without changing magnification or moving visible objects. */
+export function reviewImageReveal(camera: Camera, anchor: {x:number;y:number}, image: Size, available: Size): Camera {
+  const x=anchor.x*camera.scale+camera.x,y=anchor.y*camera.scale+camera.y;
+  if(x>=0&&x<=available.width&&y>=0&&y<=available.height)return camera;
+  return boundedCamera({...camera,x:available.width/2-anchor.x*camera.scale,y:available.height/2-anchor.y*camera.scale},image,available);
+}
+
 export function reviewImageSelection(ids: readonly number[], selected: number | undefined, direction: -1 | 1): number | undefined {
   const unique = [...new Set(ids)].sort((a, b) => a - b);
   if (!unique.length) return undefined;
@@ -91,6 +98,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
+  const focusedSelection = useRef("");
   const drawingPointer = useRef<number | null>(null);
   const drag = useRef<{pointer: number; x: number; y: number; camera: Camera; moved: boolean} | null>(null);
   const suppressClick = useRef(false);
@@ -127,6 +135,17 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
     if (onViewportChange) onViewportChange(next ? {scale: next.scale, centerX: (available.width / 2 - next.x) / next.scale, centerY: (available.height / 2 - next.y) / next.scale} : null);
     if (sharedViewport === undefined) setManual(next ? {source, camera: next} : null);
   };
+
+  const revealSelection=useEffectEvent(()=>{
+    if(selected===undefined){focusedSelection.current="";return;}
+    if(!selectedAnchor||loadedSource!==src||available.width<=0||available.height<=0||draft)return;
+    const key=`${identity}:${selected}`;
+    if(focusedSelection.current===key)return;
+    focusedSelection.current=key;
+    const revealed=reviewImageReveal(camera,selectedAnchor,imageSize,available);
+    if(revealed!==camera)publishCamera(revealed);
+  });
+  useEffect(()=>{revealSelection();},[selected,selectedAnchor?.x,selectedAnchor?.y,identity,loadedSource,available.width,available.height]);
 
   const changeZoom = (factor: number, anchor = {x: available.width / 2, y: available.height / 2}) => {
     const scale = Math.max(fit.scale, Math.min(Math.max(8, fit.scale * 8), camera.scale * factor));

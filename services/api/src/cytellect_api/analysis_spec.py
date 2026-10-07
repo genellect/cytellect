@@ -4,11 +4,13 @@ from typing import Annotated, Literal
 from cytellect_analysis.common_statistics_contracts import AssociationPlot, CommonComparisonPlot
 from cytellect_analysis.descriptive_contracts import GfpFilter, LegacyMetric, RegionMetric
 from cytellect_analysis.proposal_contracts import (
+    DraftFigure,
     DraftMetric,
     DraftNuclearProcessing,
     DraftNucleolarProcessing,
     DraftSignalProcessing,
     DraftStatistics,
+    MetricId,
 )
 from cytellect_analysis.region_contracts import RegionBackground, RegionFieldMetadata
 from cytellect_analysis.region_policy import AutomaticBackgroundPolicy, RawIntensityPolicy
@@ -62,8 +64,23 @@ class AnalysisSelectionDraft(RegionModel):
         return self
 
 
+class SavedDraftMetric(DraftMetric):
+    # Saved editable metrics intentionally include the manual measurement vocabulary.
+    metric: MetricId | RegionMetric | LegacyMetric  # type: ignore[assignment]
+    channel: Id | None
+
+
+class SavedDraftStatistics(DraftStatistics):
+    x: SavedDraftMetric | None = None
+    y: SavedDraftMetric | None = None
+
+
+class SavedDraftFigure(DraftFigure):
+    channel: Id | None
+
+
 class StatisticsDraft(RegionModel):
-    method: DraftStatistics | None = None
+    method: SavedDraftStatistics | None = None
     metric: RegionMetric | LegacyMetric = "area_px"
     channel_id: Id | None = None
     x_metric: RegionMetric | None = None
@@ -103,10 +120,6 @@ class SavedProcessing(RegionModel):
     signal: SavedSignalProcessing | None
 
 
-class SavedDraftMetric(DraftMetric):
-    channel: Id | None
-
-
 class AnalysisSpec(RegionModel):
     schema_version: Literal["1.0.0"] = "1.0.0"
     channel_assignment_version: int = Field(ge=0)
@@ -119,6 +132,8 @@ class AnalysisSpec(RegionModel):
     metrics: list[SavedDraftMetric] = Field(default_factory=list, max_length=8)
     selection: AnalysisSelectionDraft = Field(default_factory=AnalysisSelectionDraft)
     statistics: StatisticsDraft | None = None
+    additional_analyses: list[SavedDraftStatistics] = Field(default_factory=list, max_length=3)
+    figure_proposals: list[SavedDraftFigure] = Field(default_factory=list, max_length=8)
     figure: FigureDraft | None = None
 
     @model_validator(mode="after")

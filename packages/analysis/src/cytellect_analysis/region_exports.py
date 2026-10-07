@@ -306,9 +306,10 @@ def _recompute_statistics(report, config, result, dependencies=None):
         from .common_statistics_contracts import parse_common_statistics_request
 
         request = parse_common_statistics_request(result["spec"])
-        calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
-        calculated = (calculate(report, config, request, nuclear=nuclear) if request.mode == "region-association"
-                      else calculate(report, config, request, summaries=summaries, nuclear=nuclear))
+        if request.mode == "region-association":
+            calculated = analyze_region_association(report, config, request, nuclear=nuclear)
+        else:
+            calculated = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear)
     elif result["analysis_kind"] == "region-comparison":
         from .region_comparison import compare_regions
         from .region_comparison_contracts import RegionComparisonRequest

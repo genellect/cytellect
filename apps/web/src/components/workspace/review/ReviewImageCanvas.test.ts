@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {reviewImageFit, reviewImagePoint, reviewImageSelection, reviewImageZoom, reviewViewportCamera} from "./ReviewImageCanvas";
+import {reviewImageFit, reviewImagePoint, reviewImageReveal, reviewImageSelection, reviewImageZoom, reviewViewportCamera} from "./ReviewImageCanvas";
 
 describe("review image geometry", () => {
   it.each([[1920, 900, 2048, 2048], [1280, 440, 1024, 2048], [280, 300, 4096, 1024]])("fits %s×%s without distorting native coordinates", (vw, vh, width, height) => {
@@ -38,5 +38,15 @@ describe("review image geometry", () => {
     expect(reviewImageSelection(contours, 2, 1)).toBe(8);
     expect(reviewImageSelection(contours, 2, -1)).toBe(21);
     expect(reviewImageSelection([], 2, 1)).toBeUndefined();
+  });
+  it("reveals an offscreen source anchor at the same magnification",()=>{
+    const before={scale:2,x:-200,y:-300};
+    const after=reviewImageReveal(before,{x:800,y:700},{width:1024,height:1024},{width:400,height:400});
+    expect(after.scale).toBe(before.scale);
+    expect(reviewImagePoint(after,{x:200,y:200})).toEqual([800,700]);
+  });
+  it("preserves the camera when a selected source anchor is already visible",()=>{
+    const before={scale:2,x:-200,y:-300};
+    expect(reviewImageReveal(before,{x:200,y:250},{width:1024,height:1024},{width:400,height:400})).toBe(before);
   });
 });

@@ -4,7 +4,7 @@ import hashlib
 import json
 import time
 from copy import deepcopy
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from cytellect_analysis.regions import Id, RegionModel
 from fastapi import Depends, HTTPException
@@ -51,7 +51,7 @@ def request_fingerprint(body):
 
 
 def adopted_for(conn, wid, fid, selection):
-    entry = next((value for value in selection["entries"] if value.get("field_id") == fid), {})
+    entry: dict[str, Any] = next((value for value in selection["entries"] if value.get("field_id") == fid), {})
     targets = dict(entry.get("target_revisions", {}))
     if entry.get("revision_id"):
         rev = conn.execute(select(revisions).where(revisions.c.id == entry["revision_id"])).mappings().first()
@@ -73,13 +73,14 @@ def adopted_for(conn, wid, fid, selection):
 def same_recipe(a, b):
     # Defaults are normalized by the same scientific request model before comparing.
     from cytellect_analysis.region_contracts import RegionAnalysisRequest
+    from cytellect_analysis.region_policy import RawIntensityPolicy
 
     try:
         previous = RegionAnalysisRequest(
             recipe=a,
             field_ids=["comparison"],
             backgrounds={},
-            measurement={"version": "1.1.0", "mode": "raw_intensity"},
+            measurement=RawIntensityPolicy(version="1.1.0", mode="raw_intensity"),
         )
         return previous.recipe.model_dump(mode="json") == b.model_dump(mode="json")
     except ValueError:

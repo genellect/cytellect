@@ -25,6 +25,7 @@ class PublicationPackageRequest(StrictModel):
 def validated_plot(result, proposed):
     current = result.get("spec", {}).get("plot", {})
     kind = result.get("analysis_kind")
+    model: type[AssociationPlot] | type[CommonComparisonPlot] | type[PlotSpec] | type[DescriptivePlot]
     if kind == "region-association":
         model = AssociationPlot
     elif result.get("region_comparison_version") == "2.0.0":

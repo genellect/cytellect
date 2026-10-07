@@ -1,6 +1,7 @@
 """Presentation-only worker; never import or call statistical estimators."""
 from copy import deepcopy
 from pathlib import Path
+from typing import Any, Callable
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from cytellect_analysis.common_statistics_figures import render_common_statistics
@@ -22,6 +23,7 @@ def run_figure_render(store, job, output):
     result.pop("figure", None)
     result.pop("source_job_id", None)
     result["spec"]["plot"] = validated_plot(result, job["payload"]["plot"])
+    renderer: Callable[[Any, Path], Any]
     if result.get("analysis_kind") == "region-association" or result.get("region_comparison_version") == "2.0.0":
         renderer = render_common_statistics
     elif result.get("analysis_kind") == "region-comparison":
@@ -99,6 +101,7 @@ def run_publication_package(store, job, output):
 
 
 REPLAY_FIGURE = """from pathlib import Path
+from typing import Any, Callable
 import json
 import hashlib
 import sys

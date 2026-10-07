@@ -6,6 +6,9 @@ import time
 
 import numpy as np
 from cytellect_analysis.contracts import MaskEdit, Recipe, StatisticsRequest
+from cytellect_analysis.descriptive import describe_numeric
+from cytellect_analysis.descriptive_contracts import parse_descriptive_request
+from cytellect_analysis.descriptive_output import render_descriptive_output
 from cytellect_analysis.exports import build_export_bundle
 from cytellect_analysis.figures import render_figures
 from cytellect_analysis.masks import apply_edit, detect_nucleoli, polygon_mask
@@ -328,9 +331,11 @@ def run_table_statistics(store, job, output):
     if table is None or table["workspace_id"] != job["workspace_id"]:
         raise ValueError("table_not_found")
     data = read_json(store.safe_path("workspaces", job["workspace_id"], "tables", table["id"], "table.json"))
-    result = analyze_numeric(data["rows"], StatisticsRequest.model_validate(job["payload"]))
+    descriptive = job["payload"].get("mode") == "descriptive"
+    result = (describe_numeric(data["rows"], parse_descriptive_request(job["payload"])) if descriptive
+              else analyze_numeric(data["rows"], StatisticsRequest.model_validate(job["payload"])))
     result["table_id"] = table["id"]
-    result["figure"] = render_figures(result, output)
+    result["figure"] = (render_descriptive_output(result, output) if descriptive else render_figures(result, output))
     build_numeric_bundle(
         output,
         content=store.safe_path("workspaces", job["workspace_id"], "tables", table["id"], "input.csv").read_bytes(),

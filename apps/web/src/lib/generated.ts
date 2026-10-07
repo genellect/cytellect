@@ -412,6 +412,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/tables/{tid}/descriptive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Table Descriptive */
+        post: operations["table_descriptive_v1_tables__tid__descriptive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/jobs": {
         parameters: {
             query?: never;
@@ -1208,6 +1225,10 @@ export interface components {
             metrics?: components["schemas"]["SavedDraftMetric"][];
             selection?: components["schemas"]["AnalysisSelectionDraft"];
             statistics?: components["schemas"]["StatisticsDraft"] | null;
+            /** Additional Analyses */
+            additional_analyses?: components["schemas"]["SavedDraftStatistics"][];
+            /** Figure Proposals */
+            figure_proposals?: components["schemas"]["SavedDraftFigure"][];
             figure?: components["schemas"]["FigureDraft"] | null;
         };
         /** AnalysisSpecView */
@@ -1522,6 +1543,12 @@ export interface components {
         Body_import_table_v1_workspaces__wid__tables_post: {
             /** File */
             file: string;
+            /**
+             * Mode
+             * @default experimental-unit
+             * @enum {string}
+             */
+            mode: "experimental-unit" | "descriptive";
         };
         /** Body_upload_field_v1_workspaces__wid__fields_post */
         Body_upload_field_v1_workspaces__wid__fields_post: {
@@ -4666,8 +4693,13 @@ export interface components {
              */
             background: "raw" | "automatic" | "confirmed_roi";
         };
-        /** SavedDraftMetric */
-        SavedDraftMetric: {
+        /** SavedDraftFigure */
+        SavedDraftFigure: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "field-distribution" | "unit-comparison" | "paired" | "association-scatter";
             /**
              * Metric
              * @enum {string}
@@ -4677,6 +4709,36 @@ export interface components {
             channel: string | null;
             /** Region */
             region?: ("nucleus" | "nucleoli" | "nucleoplasm" | "supplied") | null;
+            /**
+             * Analysis Index
+             * @default 0
+             */
+            analysis_index: number;
+        };
+        /** SavedDraftMetric */
+        SavedDraftMetric: {
+            /** Metric */
+            metric: ("area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count") | ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release");
+            /** Channel */
+            channel: string | null;
+            /** Region */
+            region?: ("nucleus" | "nucleoli" | "nucleoplasm" | "supplied") | null;
+        };
+        /** SavedDraftStatistics */
+        SavedDraftStatistics: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "descriptive" | "comparison" | "association";
+            /** Test */
+            test: ("welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon") | null;
+            /** Omnibus */
+            omnibus: ("welch-anova" | "kruskal-wallis") | null;
+            /** Association */
+            association: ("pearson" | "spearman") | null;
+            x?: components["schemas"]["SavedDraftMetric"] | null;
+            y?: components["schemas"]["SavedDraftMetric"] | null;
         };
         /** SavedNuclearProcessing */
         SavedNuclearProcessing: {
@@ -4784,7 +4846,7 @@ export interface components {
         };
         /** StatisticsDraft */
         StatisticsDraft: {
-            method?: components["schemas"]["DraftStatistics"] | null;
+            method?: components["schemas"]["SavedDraftStatistics"] | null;
             /**
              * Metric
              * @default area_px
@@ -6207,6 +6269,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["StatisticsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    table_descriptive_v1_tables__tid__descriptive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DescriptiveRequest"] | components["schemas"]["PagedDescriptiveRequest"];
             };
         };
         responses: {

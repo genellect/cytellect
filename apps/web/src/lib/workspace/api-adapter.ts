@@ -58,12 +58,15 @@ export interface Recipe {
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
   detection_max_side_px?: number; detection_scale?: "nuclear-size/1.0.0";
 }
+export interface ProposalMetric {metric:string;channel:string|null;region?:string|null}
+export interface ProposalStatistics {kind:"descriptive"|"comparison"|"association";test:string|null;omnibus:string|null;association:string|null;x?:ProposalMetric|null;y?:ProposalMetric|null}
 export interface ProposalDraft {
   recipe: "nuclear-intensity" | "nuclear-ncl" | "supplied-regions" | "measured-table" | "none";
   channels: Array<{token: string; stain: string | null; role: "nuclear" | "measure" | "unused"; reason: string}>;
   metrics: Array<{metric: string; channel: string | null; region?: string | null}>;
-  statistics: {kind: "descriptive" | "comparison" | "association"; test: string | null; omnibus: string | null; association: string | null};
-  figures: Array<{kind: string; metric: string; channel: string | null}>;
+  statistics: ProposalStatistics;
+  additional_analyses?: ProposalStatistics[];
+  figures: Array<{kind: string; metric: string; channel: string | null;region?:string|null;analysis_index?:number}>;
   missing_information: string[]; reference_ids: string[]; rationale: string;
   processing?: ProposalProcessing | null;
   background?:{mode:"raw"|"automatic"|"confirmed_roi"}|null;

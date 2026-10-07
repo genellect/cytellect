@@ -288,7 +288,7 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
             cell_recipe = cell_record["config"].get("recipe", {}) if cell_record else {}
             if cell_record and cell_record["state"] == "succeeded" and cell_recipe.get("source") == "manual" and cell_recipe.get("region_set_id") == "cell":
                 adopted_cells.add(entry["field_id"])
-    image_metadata = []
+    image_metadata: list[dict] = []
     for row in region:
         info = row["image_info"]
         calibration = info.get("calibration") or {}
