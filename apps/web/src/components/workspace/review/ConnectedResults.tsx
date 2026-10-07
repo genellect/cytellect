@@ -23,7 +23,7 @@ export interface ConnectedResultsProps {
   onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
   gfp?:GfpSelectionChoice|null;
   initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals">;
-  onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown})=>Promise<unknown>;
+  onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]})=>Promise<unknown>;
   onMetricChange?:(metric:string,channel:string|null)=>void;
   onAnalysisTargetChange?:(target:ReviewTarget)=>void;
   onPrepareMissing?:()=>Promise<unknown>;
@@ -46,6 +46,10 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const [operation,setOperation]=useState<ResultOperation>("distribution");
   const [proposedIndex,setProposedIndex]=useState(0);
   const proposals=[initialSpec?.statistics?.method,...(initialSpec?.additional_analyses??[])].filter((value):value is NonNullable<typeof value>=>!!value);
+  const invalidMethod=(value:typeof proposals[number]|undefined)=>!!value&&value.kind==="association"&&!!(value.x||value.y)&&(!value.x?.region||!value.y?.region||value.x.region!==value.y.region);
+  const invalidSaved=proposals.some(invalidMethod);
+  const selectedProposal=proposals[proposedIndex];
+  const unsupportedAxes=operation==="association"&&invalidMethod(selectedProposal);
   const displayMetric=(value:string)=>({area:"area_px",mean_raw:"mean",integral_raw:"integrated",integral_corrected:"integrated_corrected",ncl_log2_nucleoplasm_over_nucleoli:"log2_nucleoplasm_over_nucleolus"}[value]??value);
   function selectProposal(index:number){const method=proposals[index];if(!method)return;setProposedIndex(index);setOperation(method.kind==="descriptive"?"distribution":method.kind);setRank(["mann-whitney-u","wilcoxon"].includes(method.test||"")||method.association==="spearman");setPaired(["paired-t","wilcoxon"].includes(method.test||""));setConfirmed(false);
     const figure=initialSpec?.figure_proposals?.find(value=>value.analysis_index===index),axis=method.y??figure;
@@ -99,14 +103,19 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed;
+  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&!unsupportedAxes;
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
   function openPoint(source:FigureSource){if(!saved)return;if(source.field_id){if(!resultSources(saved.result).some(field=>field.field_id===source.field_id))return;onSource(source.field_id,source.region_id??source.nucleus_id,saved.revision,saved.target,savedChannel);}else if(source.experimental_unit){setPointSource({job:saved.figureJob,source});}}
   const series=saved?.historical?(saved.operation==="distribution"?(saved.sources||[]).map(source=>source.field):saved.result.spec?.conditions||[]):operation==="distribution"?sources.map(source=>source.field):conditions;
   const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax},(saved?.historical?saved.operation:operation)==="association"),point_size:pointSize,group_order:order.length?[...order.filter(key=>series.includes(key)),...series.filter(key=>!order.includes(key))]:[],style:{version:"1.0.0",series_colors:colors,show_legend:legend}});
-  async function persist(){if(!onSaveDraft)return;const display={...plot(),kind:operation==="association"?"scatter" as const:figureKind};
+  async function repairUnsupported(){if(!onSaveDraft)return;const additional=initialSpec?.additional_analyses??[],indexes=new Map<number,number>();let next=1;indexes.set(0,0);additional.forEach((value,index)=>{if(!invalidMethod(value))indexes.set(index+1,next++);});
+    const primaryInvalid=invalidMethod(initialSpec?.statistics?.method??undefined);
+    const statistics=primaryInvalid?{...initialSpec?.statistics,method:{kind:"descriptive",test:null,omnibus:null,association:null,x:null,y:null},x_metric:null,x_channel_id:null}:initialSpec?.statistics;
+    await onSaveDraft({statistics,additional_analyses:additional.filter(value=>!invalidMethod(value)),figure_proposals:(initialSpec?.figure_proposals??[]).filter(value=>indexes.has(value.analysis_index)&&!(primaryInvalid&&value.analysis_index===0)).map(value=>({...value,analysis_index:indexes.get(value.analysis_index)!}))});setProposedIndex(0);if(primaryInvalid)setOperation("distribution");setError("");
+  }
+  async function persist(){if(unsupportedAxes)throw new Error("保存した相関案の横軸と縦軸には同じ測定領域を指定してください。解析案を作り直してください。");if(!onSaveDraft)return;const display={...plot(),kind:operation==="association"?"scatter" as const:figureKind};
     const canonicalMetric=metric==="log2_nucleoplasm_over_nucleolus"?"ncl_log2_nucleoplasm_over_nucleoli":metric;
     const value={statistics:{method:{kind:operation==="distribution"?"descriptive":operation,test:operation==="comparison"?(rank?(paired?"wilcoxon":"mann-whitney-u"):(paired?"paired-t":"welch-t")):null,omnibus:operation==="comparison"&&!paired&&conditions.length>=3?(rank?"kruskal-wallis":"welch-anova"):null,association:operation==="association"?(rank?"spearman":"pearson"):null,x:operation==="association"?{metric:xMetric,channel:xChannel,region:regionSet==="nuclei"?"nucleus":regionSet==="cell"?"supplied":regionSet}:null,y:operation==="association"?{metric:canonicalMetric,channel,region:regionSet==="nuclei"?"nucleus":regionSet==="cell"?"supplied":regionSet}:null},metric:canonicalMetric,channel_id:channel,design:paired?"paired":"independent",unit_definition:unit,pairing_basis:pairing,conditions,comparisons:contrasts,field_metadata:fields,x_metric:xMetric,x_channel_id:xChannel},figure:{metric:canonicalMetric,channel_id:channel,plot:display}};
     const key=JSON.stringify(value);if(savedDraft.current===key)return;skipOwnSpec.current=true;try{await onSaveDraft(value);savedDraft.current=key;}catch(cause){skipOwnSpec.current=false;throw cause;}
@@ -164,6 +173,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
       <p className={styles.current}>{shownTarget==="nuclei"?"核":shownTarget==="nucleoli"?"核小体":shownTarget==="nucleoplasm"?"核質":shownTarget==="cell"?"細胞ROI":"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
       {mode==="statistics"?<>
+        {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
+        {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
         <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution">分布</option><option value="comparison">群間比較</option><option value="association">相関</option></select></label>
         {operation!=="distribution"&&<>

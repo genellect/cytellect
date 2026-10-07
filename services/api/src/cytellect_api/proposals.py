@@ -408,6 +408,8 @@ def register_proposal_routes(api, store, settings, owner, workspace):
             raise HTTPException(error.status, error.code) from None
         except ProposalRejected as error:
             # Codes only: the draft text itself is never echoed into logs.
+            if "proposal_association_same_region_required" in error.codes:
+                raise HTTPException(502, "proposal_association_same_region_required") from None
             raise HTTPException(502, {"code": "proposal_rejected", "reasons": error.codes}) from None
         except ValueError:
             raise HTTPException(503, "proposal_service_misconfigured") from None

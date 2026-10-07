@@ -37,6 +37,11 @@ without rewriting historical requests. [Common statistics](common-statistics.md)
 defines the rank tests, multi-group omnibus, matched-unit associations,
 permutation policy and separately versioned Methods/figures. Their applicability
 depends on the recorded experimental design and acquisition review.
+Executable workspace association proposals require both axes to name the same
+explicit measurement region. Cross-region associations and implicit region
+axes are unsupported; use separate descriptive analyses until a dedicated
+source-matching contract is available. Saving or restoring a proposal must not
+silently substitute another region for either axis.
 
 References:
 - [StarDist](https://imagej.net/plugins/stardist)

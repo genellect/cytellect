@@ -28,7 +28,7 @@ test("workspace entry has real file controls; explicit public example progresses
   await page.route("**/v1/session", route => route.fulfill({contentType:"application/json", body:JSON.stringify({authenticated:true,retention_hours:24,demo:false})}));
   await page.goto("/workspace");
   // No workspace form or method choice precedes adding images.
-  await expect(page.getByRole("heading", { name: "画像解析", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "画像解析", exact: true, level: 1 })).toBeVisible();
   await expect(page.getByTestId("file-input")).toHaveAttribute("multiple", "");
   await expect(page.getByTestId("folder-input")).toHaveAttribute("webkitdirectory", "");
   await expect(page.locator("svg image, img")).toHaveCount(0);

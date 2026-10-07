@@ -198,6 +198,10 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
                 codes.append("proposal_association_axes_required")
             if statistics.x is not None and statistics.x == statistics.y:
                 codes.append("proposal_association_axes_identical")
+            if (statistics.x is not None and statistics.y is not None
+                    and (statistics.x.region is None or statistics.y.region is None
+                         or statistics.x.region != statistics.y.region)):
+                codes.append("proposal_association_same_region_required")
     for figure in draft.figures:
         if (figure.metric, figure.channel, figure.region) not in proposed:
             codes.append("proposal_figure_metric_not_proposed")

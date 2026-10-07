@@ -35,6 +35,7 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ proposal_association_same_region_required:"相関の横軸と縦軸には同じ測定領域を指定してください。核と核小体など、異なる領域を組み合わせた相関は現在実行できません。",
   signal_threshold_indeterminate: "画像内の輝度が一定のため、陽性領域を検出できません。別のチャンネルを指定してください。",
  proposal_service_disabled:"解析案の補助は現在無効です。管理者がサービス設定を確認してください。",
  proposal_service_unavailable:"提案サービスに接続できません。接続状態を確認してください。",

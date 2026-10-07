@@ -153,6 +153,18 @@ class AnalysisSpecWrite(RegionModel):
     version: int = Field(ge=0)
     spec: AnalysisSpec
 
+    @model_validator(mode="after")
+    def executable_association_axes(self):
+        methods = [*self.spec.additional_analyses]
+        if self.spec.statistics is not None and self.spec.statistics.method is not None:
+            methods.append(self.spec.statistics.method)
+        for method in methods:
+            if method.kind == "association" and (method.x is not None or method.y is not None):
+                if (method.x is None or method.y is None or method.x.region is None
+                        or method.y.region is None or method.x.region != method.y.region):
+                    raise ValueError("proposal_association_same_region_required")
+        return self
+
 
 class AnalysisSpecView(RegionModel):
     version: int = Field(ge=0)
