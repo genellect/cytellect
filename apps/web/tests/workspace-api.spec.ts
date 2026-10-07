@@ -65,7 +65,7 @@ test("saved structure edits preserve revision history and guard stale tabs",asyn
   await expect.poll(()=>fixture.selection().entries[0].target_revisions?.nuclei).toBe("r1");
   await other.getByRole("button",{name:"領域 2",exact:true}).click();
   await other.getByRole("button",{name:"選択領域を削除",exact:true}).click();
-  await expect(other.locator("main").getByRole("alert")).toContainText("別の画面で採用状態が変わりました");
+  await expect(other.locator("main").getByRole("alert").filter({hasText:"別の画面で採用状態が変わりました"})).toBeVisible();
   expect(fixture.selection().entries[0].target_revisions?.nuclei).toBe("r1");
   expect(fixture.writes.filter(value=>value.path.endsWith("/region-edits"))).toHaveLength(1);
   expect(fixture.writes.some(value=>/proposal|region-analyses|\/runs/.test(value.path))).toBe(false);
