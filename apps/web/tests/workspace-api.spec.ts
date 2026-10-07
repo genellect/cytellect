@@ -56,6 +56,37 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   await method.getByRole("button", {name: "c2 で核を検出", exact: true}).click();
   await expect(method).toContainText("1/1 視野");
   expect(analysisCount).toBe(1);
+  // The card is a general workspace: per-nucleus values by default, nucleolar steps only when chosen.
+  const choices = method.getByRole("group", {name: "測るもの"});
+  await expect(choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）"})).toBeChecked();
+  for (const name of ["陽性領域（GFP などの明るい領域）", "核小体と核質の分布（NCL など）", "手で囲んだ領域（細胞全体・核の外など）"]) await expect(choices.getByRole("radio", {name})).not.toBeChecked();
+  const step = (title: string) => method.getByRole("listitem").filter({has: page.getByText(title, {exact: true})});
+  await expect(step("核小体")).toHaveCount(0);
+  await expect(step("測る値")).toContainText("核ごとの面積と、各チャンネルの平均・中央値・積算輝度（元の値）");
+  await expect(method.getByRole("button", {name: "全視野に適用"})).toBeDisabled();
+  // Choosing what to measure and changing the detection scale only change the view; nothing runs or is adopted.
+  const selectionVersion = selection.version;
+  await choices.getByRole("radio", {name: "核小体と核質の分布（NCL など）"}).check();
+  await expect(method.getByText("DAPI の暗い部分を核小体とする")).toBeVisible();
+  await expect(step("核質")).toHaveCount(1);
+  await expect(step("測る値")).toContainText("核質/核小体 比（log2");
+  await choices.getByRole("radio", {name: "陽性領域（GFP などの明るい領域）"}).check();
+  await expect(method.getByText("DAPI の暗い部分を核小体とする")).toHaveCount(0);
+  await expect(step("陽性領域")).toContainText("チャンネルを選んでください");
+  await expect(step("核質")).toHaveCount(0);
+  await choices.getByRole("radio", {name: "手で囲んだ領域（細胞全体・核の外など）"}).check();
+  await expect(method.getByRole("button", {name: "画像で描く"})).toBeEnabled();
+  await choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）"}).check();
+  const scale = method.getByLabel("検出用画像の大きさ");
+  await expect(scale.locator("option:checked")).toHaveText("核の大きさに合わせる（自動）");
+  await scale.selectOption({label: "長辺 256 px"});
+  await expect(method.getByText("検出の大きさを変更しました（未反映）")).toBeVisible();
+  await expect(method.getByRole("button", {name: "この視野で試す"})).toBeVisible();
+  await expect(method.getByRole("button", {name: "全視野に適用"})).toBeEnabled();
+  await scale.selectOption({label: "核の大きさに合わせる（自動）"});
+  await expect(method.getByText("検出の大きさを変更しました（未反映）")).toHaveCount(0);
+  expect(analysisCount).toBe(1);
+  expect(selection.version).toBe(selectionVersion);
   await page.getByLabel("何を調べますか", {exact: true}).fill("核面積を確認");
   await page.getByRole("button", {name: "AI に方法を選ばせる", exact: true}).click();
   await expect.poll(() => proposalCount).toBe(1);
@@ -64,10 +95,14 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   await page.getByRole("button", {name: "再送信（追加料金が発生する場合があります）", exact: true}).click();
   await expect(page.getByText("公開テストの解析案", {exact: true})).toBeVisible();
   expect(proposalCount).toBe(2);
-  // The AI's nuclear channel matches the chosen one, so nothing is re-run.
+  // The AI's nuclear channel matches the chosen one, so nothing is re-run; its recipe selects the per-nucleus choice.
   expect(analysisCount).toBe(1);
+  await expect(choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）（AI が選択）"})).toBeChecked();
   const run = writes.find(value => value.path.endsWith("/region-analyses"))!;
-  expect(run.body).toMatchObject({recipe: {version: "1.2.0", nuclear_role_source: "user_selected_role"}, measurement: {mode: "raw_intensity"}});
+  // The default detection size is automatic: 1.7.0 sizes detection from the estimated nucleus size (1.2.0 before it existed).
+  expect(run.body).toMatchObject({recipe: {nuclear_role_source: "user_selected_role"}, measurement: {mode: "raw_intensity"}});
+  expect(["1.2.0", "1.7.0"]).toContain((run.body.recipe as {version: string}).version);
+  expect(run.body.recipe).not.toHaveProperty("detection_max_side_px");
   expect(JSON.stringify(writes)).not.toContain('"confirmed":true');
   // Figures are server-rendered from the adopted revision and carry an English legend.
   await page.getByRole("button", {name: "グラフ", exact: true}).click();

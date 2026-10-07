@@ -8,7 +8,7 @@ export type MethodStep = {
   details?: ReactNode;
 };
 
-/** One card per analysis: what each step does, its state, and one compact action. */
+/** One card per analysis: only the steps of the chosen measurement, each with its state and one compact action. */
 export function MethodPanel({goal, onGoal, onAi, aiBusy, aiDisabled, aiResponse, steps, onApply, applyLabel, applyDisabled, onMethodDetails}: {
   goal: string; onGoal: (value: string) => void; onAi: () => void; aiBusy: boolean; aiDisabled: boolean; aiResponse?: ReactNode;
   steps: MethodStep[]; onApply: () => void; applyLabel: string; applyDisabled: boolean; onMethodDetails: () => void;
@@ -17,7 +17,7 @@ export function MethodPanel({goal, onGoal, onAi, aiBusy, aiDisabled, aiResponse,
     <form className={styles.goalForm} onSubmit={event => {event.preventDefault(); onAi();}}>
       <label htmlFor="analysis-goal">何を調べますか</label>
       <textarea id="analysis-goal" value={goal} maxLength={1000} rows={3}
-        placeholder="例）処理群で NCL が核小体から核質へ移るかを比べたい" onChange={event => onGoal(event.target.value)}/>
+        placeholder="例）処理群と対照群で、核の GFP の明るさと核の大きさを比べたい" onChange={event => onGoal(event.target.value)}/>
       <div className={styles.goalActions}>
         <button type="submit" className={styles.primary} disabled={aiDisabled || aiBusy}>{aiBusy ? "AI が方法を選んでいます…" : "AI に方法を選ばせる"}</button>
       </div>
