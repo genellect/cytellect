@@ -21,10 +21,11 @@ function contractRuntime(detector:NonNullable<ProposalProcessing["nucleoli"]>["d
   const channels=[{id:"dna",label:"DAPI",stain:"DAPI",role:"nuclear" as const},{id:"marker",label:"NCL",stain:"NCL",role:"measure" as const}];
   const data:ReviewData={workspaceId:"w",title:"contract",channels,fields:[{id:"f",label:"field",width:1,height:1,channels,previews:{},results:{nuclei:record("n"),nucleoli:record("u")},nuclearChannelId:"dna"}]};
   const assignments={version:1,assignments:channels.map(value=>({channel_id:value.id,stain:value.stain,role:value.role}))};
-  const proposal={draft:{recipe:"ncl-compartments",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"",processing:configuredProcessing},needs_confirmation:[]} as unknown as ValidatedProposal;
+  const proposal={draft:{recipe:"nuclear-ncl",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"",processing:configuredProcessing},needs_confirmation:[]} as unknown as ValidatedProposal;
   const adapter={restore:vi.fn(async()=>({record:{id:"w"},fields:[{id:"f",workspace_id:"w",metadata:{},image_info:{shape:[1,1],channels:channels.map(value=>({channel_id:value.id,label:value.label,stain:value.stain}))}}],revisions:[{id:"n",config:{recipe:base}},{id:"u",config:{recipe:configuredChild}}],jobs:[]})),getChannelAssignments:vi.fn(async()=>assignments),isSelectionCurrent:vi.fn(async()=>true),draft:vi.fn(async()=>({proposal}))};
-  const runtime=createWorkspaceRuntime({adapter:adapter as unknown as ReturnType<typeof createApiAdapter>,loadPreview:async()=>structuredClone(data),releasePreview:vi.fn(),readSpecification:async()=>({version:0,spec:null}),writeSpecification:async(_id,value)=>({...value,version:value.version+1})});
-  return {runtime,adapter};
+  const writeSpecification=vi.fn(async(_id:string,value:import("./use-workspace-runtime").RuntimeSpecification)=>({...value,version:value.version+1}));
+  const runtime=createWorkspaceRuntime({adapter:adapter as unknown as ReturnType<typeof createApiAdapter>,loadPreview:async()=>structuredClone(data),releasePreview:vi.fn(),readSpecification:async()=>({version:0,spec:null}),writeSpecification});
+  return {runtime,adapter,writeSpecification};
 }
 describe("NCL settings contracts without images",()=>{
   it("restores exact saved NCL controls",async()=>{
@@ -33,8 +34,11 @@ describe("NCL settings contracts without images",()=>{
     runtime.dispose();
   });
   it("applies AI settings into the same visible controls",async()=>{
-    const {runtime}=contractRuntime();await runtime.load("w");runtime.setSettings(value=>({...value,nucleolarSigma:1,nucleolarMinimumArea:2,nucleolarMaximumArea:9}));
+    const {runtime,adapter,writeSpecification}=contractRuntime();await runtime.load("w");runtime.setSettings(value=>({...value,nucleolarSigma:1,nucleolarMinimumArea:2,nucleolarMaximumArea:9}));
     await runtime.requestProposal("set NCL settings","f");
+    expect(writeSpecification.mock.calls[0][1].spec?.settings).toMatchObject({nucleolarSigma:1,nucleolarMinimumArea:2,nucleolarMaximumArea:9});
+    expect(writeSpecification.mock.invocationCallOrder[0]).toBeLessThan(adapter.draft.mock.invocationCallOrder[0]);
+    expect(runtime.specification()?.spec?.settings).toMatchObject({nucleolarSigma:3,nucleolarMinimumArea:12,nucleolarMaximumArea:140});
     expect(runtime.getSnapshot().settings).toMatchObject({nucleolarSigma:3,nucleolarMinimumArea:12,nucleolarMaximumArea:140});
     runtime.dispose();
   });

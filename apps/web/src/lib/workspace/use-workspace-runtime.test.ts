@@ -110,7 +110,7 @@ describe("functional workspace runtime",()=>{
   });
   it("allows a text-only consultation in a new workspace without analysis",async()=>{
     const {runtime,adapter}=fixture();runtime.newWorkspace();adapter.getChannelAssignments.mockResolvedValue({version:0,assignments:[]});await runtime.requestProposal("Plan an experiment");
-    expect(adapter.create).toHaveBeenCalledTimes(1);expect(adapter.draft).toHaveBeenCalledTimes(1);expect(adapter.run).not.toHaveBeenCalled();expect(runtime.specification()).toMatchObject({version:1,spec:{processing:null,metrics:[],statistics:{method:{kind:"descriptive"}},channel_assignment_version:0}});expect(runtime.canUndoProposal()).toBe(true);
+    expect(adapter.create).toHaveBeenCalledTimes(1);expect(adapter.draft).toHaveBeenCalledTimes(1);expect(adapter.run).not.toHaveBeenCalled();expect(runtime.specification()).toMatchObject({version:2,spec:{processing:null,metrics:[],statistics:{method:{kind:"descriptive"}},channel_assignment_version:0}});expect(runtime.canUndoProposal()).toBe(true);
   });
   it("persists manual settings with channel identity and reloads the same specification",async()=>{
     const {runtime}=fixture();await runtime.load("w");runtime.setSettings(value=>({...value,nuclearProbability:.71}));
