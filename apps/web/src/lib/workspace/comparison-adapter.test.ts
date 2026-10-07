@@ -26,6 +26,18 @@ describe("workspace inference boundaries", () => {
     expect(() => comparisonRequest({...choices, metric: "nucleolar_area_fraction", sampling: false})).toThrow();
     expect(comparisonRequest(choices).selection).toEqual({source: "region", region_set_id: "nuclei", metric: "area_px", channel_id: null});
   });
+  it("adds the GFP nucleus filter only from an explicit channel and control-field decision", () => {
+    expect("gfp_gate" in comparisonRequest(choices).selection).toBe(false);
+    expect("gfp_gate" in comparisonRequest({...choices, gfp: null}).selection).toBe(false);
+    const gated = comparisonRequest({...choices, metric: "mean", channel: "ncl", gfp: {channel: "gfp", controls: ["f-control", "f-control"]}});
+    expect(gated.selection).toEqual({source: "region", region_set_id: "nuclei", metric: "mean", channel_id: "ncl",
+      gfp_gate: {version: "1.0.0", gate_protocol: "gfp-gate/2.0.0", gfp_channel_id: "gfp", percentile: 99, control_field_ids: ["f-control"], keep: "positive"}});
+    const ratio = comparisonRequest({...choices, metric: "log2_nucleoplasm_over_nucleolus", regionSet: "nucleoplasm", channel: "ncl", gfp: {channel: "gfp", controls: ["c"], keep: "negative", percentile: 95}});
+    expect(ratio.selection).toMatchObject({source: "compartment-summary", gfp_gate: {keep: "negative", percentile: 95, control_field_ids: ["c"]}});
+    expect(() => comparisonRequest({...choices, gfp: {channel: "gfp", controls: []}})).toThrow("陰性対照");
+    expect(() => comparisonRequest({...choices, gfp: {channel: "", controls: ["c"]}})).toThrow("GFP");
+    for (const percentile of [49, 100, Number.NaN]) expect(() => comparisonRequest({...choices, gfp: {channel: "gfp", controls: ["c"], percentile}})).toThrow("percentile");
+  });
   it("records the predeclared whole family and omnibus independently of obtained p-values", () => {
     const request = comparisonRequest({...choices, contrasts: [["A", "B"], ["A", "C"]]});
     expect(request.omnibus).toBe("kruskal-wallis"); expect(request.conditions).toEqual(["A", "B", "C"]);

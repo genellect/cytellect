@@ -15,6 +15,7 @@ from .descriptive_contracts import (
     RegionSelection,
     parse_descriptive_request,
 )
+from .gfp_selection import GATE_KEYS, finish_gated_description, gate_source_observations
 from .region_measurement_v2 import region_table_from_json, require_region_metric
 from .region_policy import MEASUREMENT_POLICY, measurement_protocol
 from .regions import CHANNEL_SPEC, Calibration2D
@@ -108,7 +109,7 @@ def _metric_unit(metric):
     return "a.u."
 
 
-def _finish(observations, fields, request, source_kind, observation_kind, unit, excluded_fields=()):
+def _finish(observations, fields, request, source_kind, observation_kind, unit, excluded_fields=(), record_keys=()):
     selected, missingness, selection_records = [], [], []
     totals: Counter[str] = Counter()
     per_field: dict[str, Counter] = defaultdict(Counter)
@@ -127,7 +128,7 @@ def _finish(observations, fields, request, source_kind, observation_kind, unit, 
         count["input_rows"] += 1
         selection_records.append({key: item.get(key) for key in (
             "observation_id", "field_id", "excluded", "exclusion_reason", "gate_selected",
-            "gfp_gate_method", "gfp_gate_threshold", "gfp_gate_maximum", "missing_reason")})
+            "gfp_gate_method", "gfp_gate_threshold", "gfp_gate_maximum", "missing_reason", *record_keys)})
         if item["excluded"]:
             count["excluded"] += 1
         elif not item["gate_selected"]:
@@ -354,10 +355,16 @@ def prepare_region_observations(report, field_snapshot, selector):
     return observations, fields, _metric_unit(selector.metric), excluded
 
 
-def describe_regions(report, field_snapshot, request):
+def describe_regions(report, field_snapshot, request, nuclear=None):
+    """``nuclear`` binds a GFP nucleus filter on a nucleoplasm revision to its adopted nuclei."""
     request = _request(request, "region")
     observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection)
-    return _finish(observations, fields, request, "region-2d", "regions", unit, excluded)
+    if request.selection.gfp_gate is None:
+        return _finish(observations, fields, request, "region-2d", "regions", unit, excluded)
+    observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,
+                                                    observations, excluded, nuclear=nuclear)
+    result = _finish(observations, fields, request, "region-2d", "regions", unit, excluded, GATE_KEYS)
+    return finish_gated_description(result, record)
 
 
 def describe_numeric(rows, request):
