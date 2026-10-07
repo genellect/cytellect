@@ -74,11 +74,20 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", {exact:true}).check();
   await panel.getByLabel("測定領域と採用する視野を確認した", {exact:true}).check();
   await panel.getByRole("button", {name:"計算", exact:true}).click();
-  await expect(panel.getByText("welch-t", {exact:true}).first()).toBeVisible({timeout:120000});
+  // Include operation errors rather than reporting only a missing-table timeout.
+  await expect.poll(async()=>{
+    const errors=await panel.getByRole("alert").allTextContents();
+    expect(errors).toEqual([]);
+    return panel.getByText("Welch t-test", {exact:true}).count();
+  },{timeout:120000}).toBeGreaterThan(0);
+  await expect(panel.getByText("Welch t-test", {exact:true}).first()).toBeVisible();
   const jobs = await (await page.request.get(`${api}/v1/workspaces/${workspace}/jobs`)).json();
   const job = jobs.find((value: {analysis_mode?: string; analysis_version?: string; state: string}) => value.analysis_mode === "region-experimental-unit" && value.analysis_version === "2.0.0" && value.state === "succeeded");
   expect(job).toBeTruthy();
   const result = await (await page.request.get(`${api}/v1/jobs/${job.id}/common-statistics`)).json();
+  expect(result.spec.test).toBe("welch-t");
+  expect(result.method_settings.test).toBe("welch-t");
+  expect(result.comparisons.map((row:{method:string})=>row.method)).toEqual(["Welch t-test"]);
   expect(result.counts.map((row: {experimental_units: number}) => row.experimental_units)).toEqual([2,2]);
   const report = await (await page.request.get(`${api}/v1/revisions/${job.revision_id}/region-measurements`)).json();
   for (const field of result.field_summary) {
@@ -127,7 +136,8 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     " assert all((bundle/name).resolve().is_relative_to(bundle.resolve()) for name in archive.namelist())",
     " archive.extractall(bundle)",
     "replay=replay_region_bundle(bundle,bundle/'raw',root/'replayed')",
-    "assert replay['matched_saved_measurements'] and replay['matched_saved_comparisons'] and replay['matched_saved_associations']",
+    "assert replay['matched_saved_measurements'] and replay['matched_saved_comparisons'] and replay['matched_saved_descriptions']",
+    "assert 'matched_saved_associations' not in replay  # This workflow requested comparison, not association.",
     "print(json.dumps(replay))"
   ].join("\n"),output],{encoding:"utf8",env:process.env,stdio:["ignore","pipe","ignore"]}));
 
