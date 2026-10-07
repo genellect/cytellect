@@ -155,9 +155,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   }
   async function exclusive<T>(operation:string,task:()=>Promise<T>){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");publish({busy:true,error:"",operation});try{return await task();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}}
   async function checkCurrent(){const id=workspace();if(!await adapter.isSelectionCurrent(id))throw new Error("別の画面で採用状態が変わりました。再読み込みしてください。");if((await adapter.getChannelAssignments(id)).version!==state.assignments.version)throw new Error("染色設定が変更されています。再読み込みしてください。");}
-  async function persistSpecification(target:ReviewTarget){
-    const spec={...specification.spec,channel_assignment_version:state.assignments.version,target,settings:state.settings,processing:state.processing,
+  function currentSpecification(target:ReviewTarget){
+    return {...specification.spec,channel_assignment_version:state.assignments.version,target,settings:state.settings,processing:state.processing,
       measurement:state.settings.background === "confirmed_roi" ? null : state.settings.background === "automatic" ? automaticBackground : rawMeasurement};
+  }
+  async function persistSpecification(target:ReviewTarget){
+    const spec=currentSpecification(target);
     if(!specificationDirty&&fingerprint(specification.spec)===fingerprint(spec))return;
     specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;
   }
@@ -298,7 +301,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     saveSettings(target:ReviewTarget=specification.spec?.target || "nuclei"){return exclusive("解析条件を保存中",async()=>{await checkCurrent();await persistSpecification(target);});},
     specification:()=>specification,
     ensureWorkspace(){return exclusive("ワークスペースを準備中",async()=>{if(state.data?.workspaceId)return state.data.workspaceId;const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});return created.id;});},
-    saveResultDraft(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]}){return exclusive("統計・図の条件を保存中",async()=>{await checkCurrent();await persistSpecification(specification.spec?.target??state.activeTarget);specification=await writeSpecification(workspace(),{...specification,spec:{...specification.spec!,...draft}});publish({});});},
+    saveResultDraft(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]}){return exclusive("統計・図の条件を保存中",async()=>{await checkCurrent();const spec={...currentSpecification(specification.spec?.target??state.activeTarget),...draft};specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;publish({});});},
     saveBackgrounds(backgrounds:Record<string,Record<string,{polygon:Point[];confirmed:true}>>,confirmed_channel_ids:string[]){return exclusive("背景領域を保存中",async()=>{await checkCurrent();publish({settings:{...state.settings,background:"confirmed_roi"}});specificationDirty=true;specification={...specification,spec:{...(specification.spec??{channel_assignment_version:state.assignments.version,target:state.activeTarget,settings:state.settings,processing:state.processing,measurement:null}),backgrounds,confirmed_channel_ids}};await persistSpecification(state.activeTarget);publish({});});},
     saveSelection(selection:unknown){return exclusive("対象選択を保存中",async()=>{await checkCurrent();await persistSpecification(specification.spec?.target??state.activeTarget);specification=await writeSpecification(workspace(),{...specification,spec:{...specification.spec!,selection}});publish({});});},
     resultRecipe(field:string,target:ReviewTarget){return currentTargets.get(field)?.[target]?.recipe;},canUndo(field:string,target:ReviewTarget){return history(field,target).undo.length>0;},canRedo(field:string,target:ReviewTarget){return history(field,target).redo.length>0;},stop(){stopped=true;if(activeRunId)void adapter.cancelWorkspaceRun(workspace(),activeRunId).catch(error=>publish({error:message(error)}));},

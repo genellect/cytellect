@@ -39,5 +39,19 @@ def load_compartment_summaries(store, rev, report):
         validate_label_array(labels)
         if list(labels.shape) != mask["shape"] or _array_hash(labels, "<u4") != mask["mask_sha256"]:
             raise ValueError("compartment_summary_mask_mismatch")
+        # A remeasurement may keep its own summary and label copy, but its report
+        # still names the adopted canonical mask. Bind both copies to that identity.
+        mask_origin = store.one(revisions, id=mask["mask_revision_id"])
+        if (mask_origin is None or mask_origin["workspace_id"] != rev["workspace_id"]
+                or mask_origin["state"] != "succeeded" or not mask_origin["result_dir"]):
+            raise ValueError("compartment_summary_unavailable")
+        canonical_path = store.safe_path(mask_origin["result_dir"], fid, "labels.npy")
+        if canonical_path.is_symlink() or not canonical_path.is_file():
+            raise ValueError("compartment_summary_unavailable")
+        if canonical_path != labels_path:
+            canonical = np.load(canonical_path, allow_pickle=False)
+            validate_label_array(canonical)
+            if list(canonical.shape) != mask["shape"] or _array_hash(canonical, "<u4") != mask["mask_sha256"]:
+                raise ValueError("compartment_summary_mask_mismatch")
         summaries[fid] = read_json(summary_path)
     return summaries

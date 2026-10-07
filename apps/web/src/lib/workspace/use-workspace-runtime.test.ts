@@ -5,7 +5,7 @@ import type {ReviewData, ReviewTarget} from "./review-preview";
 import type {ChannelDefinition} from "./grouping";
 const nuclear:ChannelDefinition={token:"c4",stain:"DAPI",role:"nuclear",evidence:"user"};
 function result(id:string,field="f1"):SavedResult{return {revision:id,field,rows:[],masks:{regions:[{id:17,points:[[1,1],[3,1],[3,3]]}],metadata:{mask_revision_id:id}},exclusions:[]};}
-function fixture(withResult=true){
+function fixture(withResult=true,initialSpecification:import("./use-workspace-runtime").RuntimeSpecification={version:0,spec:null}){
   const settings=defaultRuntimeSettings(),recipe=runtimeRecipe("nuclei",nuclear,settings,{},null);
   const input:ImportedField={id:"f1",workspace_id:"w",metadata:{},image_info:{shape:[10,10],channels:[{channel_id:"c4",label:"DAPI",stain:"DAPI"}]}};
   const revisions=new Map<string,Recipe>(),adopted=new Map<ReviewTarget,SavedResult>();
@@ -23,11 +23,24 @@ function fixture(withResult=true){
     draft:vi.fn(async()=>({proposal:{draft:{recipe:"nuclear-intensity",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"fixture",processing:{version:"1.0.0",nuclei:{channel:"c4",detection_max_side_px:null,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.65,nms:.3,percentile_low:1,percentile_high:99.8}},nucleoli:null,signal:null}},needs_confirmation:[]} as ValidatedProposal})),
     registerImport:vi.fn(),uploadOme:vi.fn(async()=>input),upload:vi.fn(async()=>input),create:vi.fn(async()=>({id:"w",title:"fixture"})),selection:()=>({version:1,entries:[]}),
   };
-  let spec:import("./use-workspace-runtime").RuntimeSpecification={version:0,spec:null};
-  const runtime=createWorkspaceRuntime({adapter:adapter as unknown as ReturnType<typeof createApiAdapter>,loadPreview,releasePreview:vi.fn(),readSpecification:async()=>spec,writeSpecification:async(_id,value)=>{spec={...value,version:spec.version+1};return spec;}});
-  return {runtime,adapter,adopted,recipe,revisions,assignments,loadPreview};
+  let spec=initialSpecification;
+  const writeSpecification=vi.fn(async(_id:string,value:import("./use-workspace-runtime").RuntimeSpecification)=>{spec={...value,version:spec.version+1};return spec;});
+  const runtime=createWorkspaceRuntime({adapter:adapter as unknown as ReturnType<typeof createApiAdapter>,loadPreview,releasePreview:vi.fn(),readSpecification:async()=>spec,writeSpecification});
+  return {runtime,adapter,adopted,recipe,revisions,assignments,loadPreview,writeSpecification};
 }
 describe("functional workspace runtime",()=>{
+  it("repairs historical result settings in one versioned write with current manual settings",async()=>{
+    const settings=defaultRuntimeSettings();
+    const invalid={method:{kind:"association",association:"spearman"},x_metric:"nucleolar_count",y_metric:"nuclear_area"};
+    const {runtime,writeSpecification,adapter}=fixture(true,{version:7,spec:{channel_assignment_version:1,target:"nuclei",settings,processing:null,measurement:{version:"1.1.0",mode:"raw_intensity"},statistics:invalid,selection:{revision_id:"corrected"},figure:{width_mm:89},additional_analyses:[invalid]}});
+    await runtime.load("w");expect(runtime.specification().spec?.statistics).toEqual(invalid);
+    runtime.setSettings(value=>({...value,nuclearProbability:.71}));
+    const repaired={method:{kind:"descriptive",test:null,omnibus:null,association:null},x_metric:null,y_metric:"nuclear_area"};
+    await runtime.saveResultDraft({statistics:repaired,additional_analyses:[]});
+    expect(writeSpecification).toHaveBeenCalledTimes(1);
+    expect(writeSpecification).toHaveBeenCalledWith("w",{version:7,spec:expect.objectContaining({settings:expect.objectContaining({nuclearProbability:.71}),statistics:repaired,additional_analyses:[],selection:{revision_id:"corrected"},figure:{width_mm:89}})});
+    expect(runtime.specification().version).toBe(8);expect(adapter.run).not.toHaveBeenCalled();expect(adapter.draft).not.toHaveBeenCalled();
+  });
   it("routes one OME container once through the API and takes channel metadata from its response",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");
     const xml=new TextEncoder().encode('<OME xmlns="http://www.openmicroscopy.org/Schemas/OME/2016-06"><Image/></OME>');

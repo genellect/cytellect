@@ -272,7 +272,7 @@ def test_non_compartment_revision_is_refused():
         analyze_region_comparison(report, config, request(), summaries=summaries)
 
 
-def test_per_field_description_figure_and_export_refusal(tmp_path):
+def test_per_field_description_figure_and_export_requires_bound_summary(tmp_path):
     report, config, summaries = compartment_fixture()
     described = describe_compartment_summary(report, config["field_snapshot"], {
         "mode": "descriptive", "selection": selection(), "plot": {"preset": "nature-double"}}, summaries)
@@ -290,7 +290,9 @@ def test_per_field_description_figure_and_export_refusal(tmp_path):
     common = render_common_statistics(compared, tmp_path / "common")
     methods = (tmp_path / "common" / "methods.md").read_text(encoding="utf-8")
     assert "compartment-summary value (selection 1.0.0)" in methods and "figure.svg" in common["source_files"]
-    with pytest.raises(ValueError, match="region_export_compartment_summary_unsupported"):
+    # Summary export is supported, but this call deliberately supplies no pinned
+    # parent dependencies. Export must not infer or omit its source summaries.
+    with pytest.raises(ValueError, match="compartment_summary_unavailable"):
         _recompute_statistics(report, config, {**compared, "figure": common})
 
 
