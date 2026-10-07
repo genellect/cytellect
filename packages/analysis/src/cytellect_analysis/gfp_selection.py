@@ -24,8 +24,15 @@ import math
 from collections import Counter, defaultdict
 from typing import Any
 
-from .descriptive_contracts import GfpGateFilter
-from .gfp_gate import MINIMUM_CONTROL_NUCLEI, PROTOCOL, apply_control_gate, control_thresholds
+from .descriptive_contracts import GFP_FILTER, ExploratoryGfpGateFilter, GfpFilter
+from .gfp_gate import (
+    MINIMUM_CONTROL_NUCLEI,
+    PROTOCOL,
+    apply_control_gate,
+    apply_exploratory_gate,
+    control_thresholds,
+    exploratory_thresholds,
+)
 from .region_measurement_v2 import region_table_from_json, require_region_metric
 
 FILTER_VERSION = "1.0.0"
@@ -41,7 +48,7 @@ SAFE_ERROR_CODES = frozenset({
 NUCLEAR_SOURCES = ("stardist_nuclear",)
 
 
-def gate_of(selection) -> GfpGateFilter | None:
+def gate_of(selection) -> GfpFilter | None:
     return getattr(selection, "gfp_gate", None)
 
 
@@ -57,6 +64,8 @@ def binding_kind(recipe) -> str:
     """How measured observations map to nuclei for this revision recipe, or refuse."""
     recipe = recipe if isinstance(recipe, dict) else {}
     if recipe.get("source") in NUCLEAR_SOURCES:
+        return "same_revision"
+    if recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell":
         return "same_revision"
     if recipe.get("source") == "fiji_nuclear_compartment" and recipe.get("compartment") == "nucleoplasm":
         # Nucleoplasm labels keep the parent nucleus ID (compartment engine
@@ -105,10 +114,12 @@ def _nuclear_rows(nuclear, snapshot, gate, measured_fields):
             raise ValueError("gfp_gate_nuclear_source_invalid") from None
         if (table.field_id != fid or table.region_set.mask_revision_id != entry.get("mask_revision_id")
                 or table.mask_sha256 != entry.get("mask_sha256") or entry.get("image_info") != snapshot[fid].get("image_info")
-                or table.region_set.source != "stardist_nuclear"):
+                or (table.region_set.source != "manual" or table.region_set.region_set_id != "cell"
+                    if getattr(gate, "unit", "nucleus") == "cell_roi" else table.region_set.source != "stardist_nuclear")):
             raise ValueError("gfp_gate_nuclear_identity_mismatch")
         try:
-            require_region_metric(getattr(table, "measurement", None), "mean")
+            require_region_metric(getattr(table, "measurement", None),
+                                  "mean_corrected" if getattr(gate, "values", "raw") == "corrected" else "mean")
         except ValueError:
             raise ValueError("gfp_gate_intensity_not_measured") from None
         declared = _channel(snapshot[fid].get("image_info"), gate.gfp_channel_id)
@@ -129,7 +140,7 @@ def _nuclear_rows(nuclear, snapshot, gate, measured_fields):
                 raise ValueError("gfp_gate_nuclear_identity_mismatch")
             if row.region_id in excluded:
                 continue
-            value = row.mean
+            value = row.mean_corrected if getattr(gate, "values", "raw") == "corrected" else row.mean
             saturated = (row.storage_limit_fraction or 0) > 0 or (row.acquisition_saturation_fraction or 0) > 0
             rows[fid, row.region_id] = {"field_id": fid, "region_id": row.region_id, "area_px": row.area_px,
                                         "gfp_mean": None if value is None or not math.isfinite(value) else float(value),
@@ -150,7 +161,8 @@ def apply_gfp_gate(observations, snapshot, gate, nuclear, *, failed_fields=(), f
     measured source (compartment summary); ``smaller_than_nucleus`` maps (field,
     nucleus) to a nucleoplasm region area that must be strictly inside its parent.
     """
-    gate = GfpGateFilter.model_validate(gate)
+    gate = GFP_FILTER.validate_python(gate)
+    exploratory = isinstance(gate, ExploratoryGfpGateFilter)
     controls = set(gate.control_field_ids)
     if controls - set(snapshot):
         raise ValueError("gfp_gate_unknown_control_field")
@@ -164,14 +176,15 @@ def apply_gfp_gate(observations, snapshot, gate, nuclear, *, failed_fields=(), f
     dates = {}
     for fid in measured:
         date = snapshot[fid].get("metadata", {}).get("acquisition_date")
-        if not isinstance(date, str) or not date.strip():
+        if (not isinstance(date, str) or not date.strip()) and not (exploratory and gate.method == "manual"):
             raise ValueError("gfp_gate_acquisition_date_required")
         dates[fid] = date
     eligible = measured - field_excluded - nuclear_excluded_fields
     gate_rows = [{**row, "acquisition_date": dates[row["field_id"]], "control": row["field_id"] in controls}
                  for _, row in sorted(rows.items()) if row["field_id"] in eligible]
-    thresholds = control_thresholds(gate_rows, gate.percentile)
-    gated = {(row["field_id"], row["region_id"]): row for row in apply_control_gate(gate_rows, thresholds)}
+    thresholds = exploratory_thresholds(gate_rows, gate.method, gate.threshold) if exploratory else control_thresholds(gate_rows, gate.percentile)
+    classified = apply_exploratory_gate(gate_rows, thresholds) if exploratory else apply_control_gate(gate_rows, thresholds)
+    gated = {(row["field_id"], row["region_id"]): row for row in classified}
     marked = []
     for item in observations:
         fid = item["field_id"]
@@ -196,7 +209,7 @@ def apply_gfp_gate(observations, snapshot, gate, nuclear, *, failed_fields=(), f
         else:
             values = {key: row[key] for key in ("gfp_mean", "gfp_gate_threshold", "gfp_gate_reason", "gfp_positive")}
         keep = (values["gfp_positive"] if gate.keep == "positive"
-                else values["gfp_gate_reason"] == "within_control_range")
+                else values["gfp_gate_reason"] in ("within_control_range", "at_or_below_exploratory_threshold"))
         marked.append({**item, **values, "gfp_control_field": control,
                        "gate_selected": bool(keep) and not control and row is not None})
     return marked, _record(gate, thresholds, gate_rows, gated, marked, dates, controls, nuclear["binding"],
@@ -204,6 +217,20 @@ def apply_gfp_gate(observations, snapshot, gate, nuclear, *, failed_fields=(), f
 
 
 def _record(gate, thresholds, gate_rows, gated, marked, dates, controls, binding, sources, snapshot):
+    if isinstance(gate, ExploratoryGfpGateFilter):
+        return {"filter_version": gate.version, "gate_protocol": gate.gate_protocol,
+                "filter": gate.model_dump(mode="json"), "values": gate.values,
+                "object_unit": gate.unit,
+                "statistic": f"arithmetic mean of {gate.values} GFP intensity within each adopted {'manual cell ROI' if gate.unit == 'cell_roi' else 'nucleus'}",
+                "threshold_rule": "nuclear mean strictly greater than recorded threshold; equality is negative",
+                "thresholds": thresholds, "nuclear_binding": binding, "nuclear_sources": sources,
+                "control_field_ids": [], "dates": thresholds["dates"],
+                "saturated_gfp_nuclei": sum(bool(row.get("gfp_saturated")) for row in gate_rows),
+                "nuclei": dict(sorted(Counter(row["gfp_gate_reason"] for row in gated.values()).items())),
+                "observations": len(marked), "kept_observations": sum(row["gate_selected"] for row in marked),
+                "by_field": [{"field_id": fid, "acquisition_date": dates[fid], "role": "measured",
+                              "kept_observations": sum(row["gate_selected"] for row in marked if row["field_id"] == fid)}
+                             for fid in sorted(dates)]}
     control_fields = defaultdict(list)
     for fid in sorted(controls):
         control_fields[dates[fid]].append(fid)
@@ -237,6 +264,9 @@ def _record(gate, thresholds, gate_rows, gated, marked, dates, controls, binding
 def gate_source_observations(report, recipe, snapshot, selection, observations, failed, summaries=None, nuclear=None):
     """Bind the measured selection to nuclei and apply its GFP filter."""
     binding = binding_kind(recipe)
+    cell = recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell"
+    if cell != (getattr(gate_of(selection), "unit", "nucleus") == "cell_roi"):
+        raise ValueError("gfp_gate_nuclear_source_invalid")
     if report.get("recipe") != recipe:
         raise ValueError("gfp_gate_nuclear_source_unbound")
     if nuclear is None:
@@ -273,6 +303,13 @@ def finish_gated_description(result, record):
 
 def gate_warnings(record):
     warnings = ["gfp_gated_subset_selected_by_expression_level_not_randomized"]
+    if record["filter_version"] == "1.1.0":
+        warnings.append("gfp_exploratory_threshold_without_negative_control")
+        if any(item.get("threshold") is None for item in record["dates"].values()):
+            warnings.append("gfp_gate_unclassified_nuclei_not_selected")
+        if record["saturated_gfp_nuclei"]:
+            warnings.append("gfp_gate_saturated_gfp_nuclei_present")
+        return warnings
     compared = {row["acquisition_date"] for row in record["by_field"] if row["role"] == "measured"}
     if any(record["dates"].get(date, {}).get("threshold") is None for date in compared):
         warnings.append("gfp_gate_dates_without_control_threshold_unselected")
@@ -290,6 +327,17 @@ def recorded_gate_lines(selection):
 def methods_sentences(record):
     """English Methods / caption text recorded from the saved gate."""
     gate = record["filter"]
+    if record["filter_version"] == "1.1.0":
+        objects = "manually drawn cell ROIs" if gate.get("unit") == "cell_roi" else "nuclei"
+        intensity_unit = "per-cell-ROI" if gate.get("unit") == "cell_roi" else "per-nucleus"
+        method = "a researcher-specified threshold" if gate["method"] == "manual" else "Otsu thresholding of object means per acquisition date (256 histogram bins)"
+        thresholds = "; ".join(f"{date or 'unknown date'}: {value['threshold'] if value['threshold'] is not None else value.get('missing_reason')}"
+                               for date, value in sorted(record["dates"].items()))
+        return [f"GFP gate filter 1.1.0 with protocol {record['gate_protocol']}; only GFP-{gate['keep']} {objects} were analysed.",
+                f"GFP was the {intensity_unit} arithmetic mean of {gate['values']} channel {gate['gfp_channel_id']} intensities within adopted masks, bound by exact object identity.",
+                f"This exploratory selection used {method}, without a negative-control reference. Thresholds: {thresholds}.",
+                "An object was positive only when its mean was strictly greater than the threshold; equality was negative. Missing intensities or thresholds remained unclassified and were not selected. Corrected intensities never fell back to raw values.",
+                f"Of {record['observations']} observations, {record['kept_observations']} were kept. GFP was a selection variable, not a denominator."]
     channel = record.get("gfp_channel") or {}
     kept = "GFP-positive" if gate["keep"] == "positive" else "GFP-negative (within the control range)"
     dates = "; ".join(

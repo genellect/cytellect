@@ -12,7 +12,15 @@ from .common_statistics_figures import COMPARTMENT_LABELS
 from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
-from .figures import LABELS, _validate_text_layout, apply_plot_controls, figure_settings, plt, select_font
+from .figures import (
+    LABELS,
+    _validate_text_layout,
+    apply_plot_controls,
+    figure_settings,
+    plt,
+    select_font,
+    series_color,
+)
 from .gfp_selection import recorded_gate_lines
 from .statistical_methods import methods_metadata, readable_descriptive_methods
 
@@ -205,7 +213,7 @@ def render_descriptive(result, output: Path, *, methods_template=None):
                     raise ValueError("descriptive_figure_source_mismatch")
                 if values:
                     axes.scatter(index + rng.uniform(-.15, .15, len(values)), values, s=9,
-                                 color="#526b78", alpha=.65, linewidths=0,
+                                 color=series_color(plot, fid, "#526b78"), alpha=.65, linewidths=0,
                                  label=("観測値" if ja else "Observation") if fid == first_observed else None)
                     axes.scatter(index + .23, summary["median"], s=17, marker="s", facecolors="none",
                                  edgecolors="#17292f", linewidths=.7,

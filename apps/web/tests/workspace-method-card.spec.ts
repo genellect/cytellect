@@ -28,9 +28,9 @@ test("nuclei are detected automatically and the method card reports each step", 
   page.on("request", request => {if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/selection")) selectionWrites.push(request.url());});
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer, index) => ({name: `a9_c${index + 1}.tif`, mimeType: "image/tiff", buffer})));
   const method = page.getByRole("region", {name: "解析方法"});
-  await expect(method.getByText("何を調べますか")).toBeVisible();
+  await expect(page.getByLabel("AIに指示", {exact: true})).toBeVisible();
   // A general workspace: per-nucleus values are the default; nucleolar steps appear only when chosen.
-  const choices = method.getByRole("group", {name: "測るもの"});
+  const choices = method.getByRole("group", {name: "解析対象"});
   await expect(choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）"})).toBeChecked();
   await expect(method.getByText("DAPI の暗い部分を核小体とする")).toHaveCount(0);
   // The only setup decision: which channel stains nuclei (no stain is inferred from c1/c2).
@@ -44,7 +44,7 @@ test("nuclei are detected automatically and the method card reports each step", 
   await method.getByRole("button", {name: "輪郭を見る"}).first().click();
   await page.waitForTimeout(500);
   expect(selectionWrites.length).toBe(before);
-  await method.getByRole("button", {name: "手法の詳細と文献"}).click();
+  await method.getByRole("button", {name: "手法・条件"}).click();
   const sheet = page.getByRole("dialog", {name: "手法の詳細と文献"});
   await expect(sheet.getByRole("link", {name: /Schmidt U et al/})).toBeVisible();
   // The sheet lists only the steps on the card.
@@ -53,7 +53,7 @@ test("nuclei are detected automatically and the method card reports each step", 
   await choices.getByRole("radio", {name: "核小体と核質の分布（NCL など）"}).check();
   await expect(method.getByText("DAPI の暗い部分を核小体とする")).toBeVisible();
   expect(selectionWrites.length).toBe(before);
-  await method.getByRole("button", {name: "手法の詳細と文献"}).click();
+  await method.getByRole("button", {name: "手法・条件"}).click();
   await expect(sheet.getByRole("link", {name: /Kodiha M et al/})).toHaveAttribute("href", "https://doi.org/10.1186/1471-2121-12-25");
   await expect(sheet.getByRole("link", {name: /Schmidt U et al/})).toBeVisible();
   await page.screenshot({path: path.join(output!, "method-sheet-desktop.png")});
@@ -68,7 +68,7 @@ test("nuclei are detected automatically and the method card reports each step", 
   expect(nucleoli.recipe).toMatchObject({defining_channel_id: "c2", detector: {source: "dapi_poor"}});
   expect(plasm.recipe.nucleolar_revision_id).toBeTruthy();
   // The comparison then offers the per-nucleus ratio of the measured (non-nuclear) channel.
-  await method.getByRole("listitem").filter({has: page.getByText("比較", {exact: true})}).getByRole("button", {name: "開く"}).click();
+  await page.getByRole("button", {name: "統計", exact: true}).click();
   const metric = page.getByRole("region", {name: "独立実験単位の比較"}).getByLabel("測定値");
   await expect(metric.locator("option", {hasText: "c1 核質/核小体 比（log2、核ごと）"})).toHaveCount(1);
   await expect(metric.locator("option", {hasText: "c2 核質/核小体 比"})).toHaveCount(0);

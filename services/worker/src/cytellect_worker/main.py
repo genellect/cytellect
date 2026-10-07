@@ -24,6 +24,7 @@ from cytellect_api.db import (
     revisions,
     sessions,
     tables,
+    workspace_channel_assignments,
     workspace_selections,
     workspaces,
 )
@@ -385,16 +386,20 @@ def run_export(store, job, output):
 
 
 def process_one(store, settings):
-    from .supervision import execute
+    from cytellect_api.workspace_runs import advance_workspace_runs
 
+    from .supervision import execute
+    advanced = advance_workspace_runs(store, settings)
     job = store.claim()
     if job is None:
-        return False
+        return advanced
     execute(store, settings, job)
+    advance_workspace_runs(store, settings)
     return True
 
 
 def cleanup(store):
+    from cytellect_api.db import workspace_analysis_runs, workspace_analysis_specs, workspace_field_links
     now = time.time()
     removed = 0
     with store.transaction() as conn:
@@ -437,7 +442,7 @@ def cleanup(store):
                 run = store.safe_path("runs", record["id"])
                 if run.exists():
                     shutil.rmtree(run)
-            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, workspace_selections):
+            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
                 conn.execute(delete(table).where(table.c.workspace_id == wid))
             conn.execute(
                 update(workspaces)

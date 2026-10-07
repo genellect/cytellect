@@ -46,6 +46,7 @@ from cytellect_analysis.region_policy import measurement_protocol
 from cytellect_analysis.regions import _array_hash
 from cytellect_analysis.signal_engine import detect_positive_regions
 from cytellect_api.db import fields, jobs, revisions
+from cytellect_api.mask_dependencies import can_rebind_compartment
 from cytellect_api.storage import read_json, write_json
 
 from .provenance import software_identity
@@ -230,6 +231,7 @@ def run_region_analysis(store, settings, job, output):
     if edit and (edit.field_id not in selected or edit.region_set_id != request.recipe.region_set_id):
         raise ValueError("region_edit_set_mismatch")
     parent = None
+    dependency_rebind = False
     previous_report, previous_provenance = {}, {}
     if config.get("reuse_revision"):
         parent = store.one(revisions, id=config["reuse_revision"])
@@ -237,15 +239,21 @@ def run_region_analysis(store, settings, job, output):
                 or parent["state"] != "succeeded" or not parent["result_dir"]
                 or parent["config"].get("analysis_kind") != "region-2d"):
             raise ValueError("parent_revision_unavailable")
-        validate_region_reuse(parent, config, request.recipe.model_dump(mode="json"))
+        dependency_rebind = can_rebind_compartment(
+            store, parent["config"]["recipe"], request.recipe.model_dump(mode="json"),
+            revision["workspace_id"], selected,
+        )
+        validate_region_reuse(parent, config, request.recipe.model_dump(mode="json"),
+                              verified_dependency_rebind=dependency_rebind)
         previous_report = read_json(store.safe_path(parent["result_dir"], "measurements.json"))
         validate_region_report_policy(region_report_from_json(json.dumps(previous_report)), parent["config"])
         previous_provenance = read_json(store.safe_path(parent["result_dir"], "provenance.json"))
     elif edit:
         raise ValueError("region_edit_requires_parent")
     cohort = config.get("cohort_sources") if not config.get("reuse_revision") else None
-    if cohort is not None and (config.get("cohort_version") != "1.0.0" or set(cohort) != set(selected)
-                               or config.get("measurement") != {"version": "1.1.0", "mode": "raw_intensity"}):
+    if cohort is not None and (config.get("cohort_version") not in ("1.0.0", "1.1.0") or set(cohort) != set(selected)
+                               or (config.get("cohort_version") == "1.0.0"
+                                   and config.get("measurement") != {"version": "1.1.0", "mode": "raw_intensity"})):
         raise ValueError("cohort_source_invalid")
     output.mkdir(parents=True, exist_ok=False)
     field_tables, field_masks, provenance_fields = {}, {}, {}
@@ -263,7 +271,8 @@ def run_region_analysis(store, settings, job, output):
                 parent = store.one(revisions, id=pin["revision_id"])
                 if (not parent or parent["workspace_id"] != revision["workspace_id"] or parent["state"] != "succeeded"
                         or not parent["result_dir"] or comparable_region_recipe(parent["config"].get("recipe", {})) != comparable_region_recipe(config["recipe"])
-                        or parent["config"].get("measurement") != config["measurement"]):
+                        or parent["config"].get("measurement") != config.get("measurement")
+                        or parent["config"].get("backgrounds", {}).get(fid) != config.get("backgrounds", {}).get(fid)):
                     raise ValueError("cohort_source_invalid")
                 root = store.safe_path(parent["result_dir"])
                 if (sha256(root / "measurements.json") != pin["report_sha256"]
@@ -329,8 +338,12 @@ def run_region_analysis(store, settings, job, output):
                 source_nuclei, background_exclusion, source_identity = _compartment_nuclei(
                     store, source_recipe, revision["workspace_id"], fid, image_info)
                 provenance_fields[fid]["nuclear_source"] = source_identity
-                if old_mask is not None and previous_provenance.get("fields", {}).get(fid, {}).get("nuclear_source") != source_identity:
-                    raise ValueError("compartment_nuclear_mask_mismatch")
+                if old_mask is not None:
+                    previous_identity = previous_provenance.get("fields", {}).get(fid, {}).get("nuclear_source")
+                    if dependency_rebind and isinstance(previous_identity, dict):
+                        previous_identity = {**previous_identity, "revision_id": source_identity["revision_id"]}
+                    if previous_identity != source_identity:
+                        raise ValueError("compartment_nuclear_mask_mismatch")
             destination = output / fid
             destination.mkdir()
             if old_mask is not None:
@@ -349,9 +362,16 @@ def run_region_analysis(store, settings, job, output):
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
                     pixel_hash = _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
+                    recorded_channel = detector.get("defining_channel") if isinstance(detector, dict) else None
+                    current_channel = channel.model_dump(mode="json")
+                    same_channel = recorded_channel == current_channel
+                    if not same_channel and isinstance(recorded_channel, dict) and current_channel.get("identity_confirmed") is True:
+                        # Explicit identity confirmation changes evidence only, never acquisition metadata.
+                        same_channel = ({key: value for key, value in recorded_channel.items() if key not in ("identity_source", "identity_confirmed")}
+                                        == {key: value for key, value in current_channel.items() if key not in ("identity_source", "identity_confirmed")})
                     if (not isinstance(detector, dict) or not detector.get("origin_revision_id")
                             or not isinstance(detector.get("engine"), dict)
-                            or detector.get("defining_channel") != channel.model_dump(mode="json")
+                            or not same_channel
                             or detector.get("input_sha256") != pixel_hash
                             or detector.get("parameters") != request.recipe.detector.model_dump(mode="json")):
                         raise ValueError("region_parent_detector_provenance_invalid")
@@ -474,6 +494,16 @@ def run_region_analysis(store, settings, job, output):
             automatic = request.measurement is not None and request.measurement.mode == "automatic_background"
             table = measure_regions_versioned(channels, labels, background_masks, specification,
                                               background_exclusion=background_exclusion if automatic else None)
+            if (summary_inputs is None and isinstance(request.recipe, RegionCompartmentRecipe)
+                    and source_recipe.nucleolar_revision_id is not None):
+                # Remeasuring an adopted nucleoplasm mask must also regenerate
+                # its compartment summaries from the same pinned parent masks.
+                # Never redetect or copy summary values from an older policy.
+                assert source_nuclei is not None
+                adopted, _, nucleolar_identity = _adopted_nucleoli(
+                    store, source_recipe, revision["workspace_id"], fid, image_info)
+                summary_inputs = (source_nuclei, adopted, nucleolar_identity)
+                provenance_fields[fid]["nucleolar_source"] = nucleolar_identity
             for cid, background in background_masks.items():
                 np.save(destination / f"background-{cid}.npy", background, allow_pickle=False)
             if summary_inputs is not None:
@@ -512,7 +542,7 @@ def run_region_analysis(store, settings, job, output):
         "software": software_identity(), "recipe": request.recipe.model_dump(mode="json"),
         "measurement_protocol": protocol, "detector_executed": detector_executed,
         "detector_attempted": detector_attempted,
-        **({"cohort_sources": cohort, "cohort_version": "1.0.0"} if cohort is not None else {}),
+        **({"cohort_sources": cohort, "cohort_version": config["cohort_version"]} if cohort is not None else {}),
         **policy,
     })
     return output
@@ -537,26 +567,20 @@ def run_region_export(store, job, output):
             for slot in snapshot["image_info"]["inputs"]:
                 raw.append((f"{fid}/{slot}.tif", store.safe_path("workspaces", revision["workspace_id"],
                                                                 "fields", fid, f"{slot}.tif")))
-    from cytellect_analysis.gfp_selection import uses_gfp_gate
-    from cytellect_analysis.region_exports import uses_compartment_summary
+    from .region_export_sources import collect_dependencies
 
     records = store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")
-    omitted = [{"job_id": record["id"], "reason": "region_export_compartment_summary_unsupported"
-                if uses_compartment_summary(record["payload"]) else "region_export_gfp_gate_unsupported"}
-               for record in records if uses_compartment_summary(record["payload"]) or uses_gfp_gate(record["payload"])]
-    records = [record for record in records
-               if not uses_compartment_summary(record["payload"]) and not uses_gfp_gate(record["payload"])]
+    provenance = read_json(root / "provenance.json")
+    dependencies = collect_dependencies(store, revision, report, provenance)
     statistics = [read_json(store.safe_path(record["result_dir"], "result.json")) for record in records]
     statistics_roots = [(index, store.safe_path(record["result_dir"])) for index, record in enumerate(records)]
     build_region_bundle(
         output, report=report, config={**config, "review_record": revision["review_record"] or {}},
-        provenance=read_json(root / "provenance.json"),
+        provenance=provenance,
         mask_files={fid: store.safe_path(root, fid, "labels.npy") for fid in report["field_masks"]},
         raw_files=raw, statistics_results=statistics, statistics_roots=statistics_roots, include_raw=include_raw,
-        omitted_statistics=omitted,
+        dependencies=dependencies,
     )
     summary = {"files": ["analysis.zip", "methods.md"], "raw_included": include_raw, "revision_id": revision["id"]}
-    if omitted:
-        summary["statistics_omitted"] = omitted
     write_json(output / "result.json", summary)
     return output

@@ -55,7 +55,7 @@ class RevisionView(BaseModel):
 class JobView(BaseModel):
     id: str
     revision_id: str
-    kind: Literal["analysis", "statistics", "table-statistics", "export"]
+    kind: Literal["analysis", "statistics", "table-statistics", "export", "figure-render", "publication-package"]
     state: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     created: float
     error: str | None

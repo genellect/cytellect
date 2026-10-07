@@ -1,9 +1,8 @@
 """Locate each field's saved compartment-summary.json for a reviewed nucleoplasm revision.
 
-The summary is written next to the nucleoplasm labels by the revision that derived
-the mask from adopted nucleoli. A child revision (metadata, background, review)
-reuses that mask, so the summary is read from the mask's origin revision and bound
-to it by the canonical mask hash recorded in this revision's report.
+The current measurement's summary is preferred: background remeasurement keeps
+the mask but changes corrected summaries and dependency references. Historical
+raw-only children may fall back to the mask origin after verifying mask identity.
 """
 import numpy as np
 from cytellect_analysis.compartment_observations import require_compartment_source
@@ -21,7 +20,11 @@ def load_compartment_summaries(store, rev, report):
         mask = report.get("field_masks", {}).get(fid)
         if not mask:
             raise ValueError("compartment_summary_unavailable")
-        origin = rev if mask["mask_revision_id"] == rev["id"] else store.one(revisions, id=mask["mask_revision_id"])
+        current_summary = store.safe_path(rev["result_dir"], fid, "compartment-summary.json")
+        origin = rev if current_summary.is_file() else store.one(revisions, id=mask["mask_revision_id"])
+        if (not current_summary.is_file()
+                and (rev["config"].get("measurement") or {}).get("mode") == "automatic_background"):
+            raise ValueError("compartment_summary_unavailable")
         if (origin is None or origin["workspace_id"] != rev["workspace_id"] or origin["state"] != "succeeded"
                 or not origin["result_dir"]):
             raise ValueError("compartment_summary_unavailable")

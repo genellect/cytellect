@@ -49,7 +49,7 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
     if context.field_count == 0 and (
         draft.recipe != "none" or draft.channels or draft.metrics or draft.figures
         or draft.additional_analyses or draft.statistics.kind != "descriptive"
-        or not draft.missing_information
+        or draft.background is not None or draft.gfp_selection is not None or not draft.missing_information
     ):
         codes.append("proposal_images_not_registered")
     known = {channel.token: channel for channel in context.channels}
@@ -83,6 +83,49 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         codes.append("proposal_supplied_regions_absent")
     if draft.recipe == "measured-table" and not context.measured_table:
         codes.append("proposal_measured_table_absent")
+    processing = draft.processing
+    if processing is not None:
+        if draft.recipe not in ("nuclear-intensity", "nuclear-ncl"):
+            codes.append("proposal_processing_recipe_invalid")
+        if processing.nuclei is None or processing.nuclei.channel not in nuclear:
+            codes.append("proposal_processing_nuclear_channel_invalid")
+        if processing.nucleoli is not None:
+            candidate = processing.nucleoli
+            source = getattr(candidate.detector, "source", "ncl")
+            actual = known.get(candidate.channel)
+            if draft.recipe != "nuclear-ncl":
+                codes.append("proposal_processing_nucleoli_recipe_invalid")
+            if source == "dapi_poor":
+                if candidate.channel not in nuclear:
+                    codes.append("proposal_processing_nucleoli_channel_invalid")
+            elif roles.get(candidate.channel) != "measure":
+                codes.append("proposal_processing_nucleoli_channel_invalid")
+            elif source == "ncl" and candidate.channel not in ncl:
+                codes.append("proposal_processing_ncl_channel_invalid")
+            elif source == "marker" and (actual is None or not actual.stain
+                    or actual.stain.casefold() not in {"ubf", "fbl", "fibrillarin"}):
+                codes.append("proposal_processing_marker_not_established")
+        if processing.signal is not None and roles.get(processing.signal.channel) != "measure":
+            codes.append("proposal_processing_signal_channel_invalid")
+    background_mode = draft.background.mode if draft.background else (context.current_background.mode if context.current_background else None)
+    background_ready = background_mode == "automatic" or (background_mode != "raw" and context.background_available)
+    if draft.background and draft.background.mode == "confirmed_roi" and not context.background_available:
+        codes.append("proposal_background_not_available")
+    gate = draft.gfp_selection
+    if gate is not None:
+        acquired = known.get(gate.channel)
+        if acquired is None or (acquired.stain or "").casefold() not in {"gfp", "egfp"}:
+            codes.append("proposal_gfp_channel_not_established")
+        if gate.unit == "nucleus" and len(nuclear) != 1:
+            codes.append("proposal_one_nuclear_channel_required")
+        if gate.unit == "cell_roi" and not context.supplied_regions:
+            codes.append("proposal_supplied_regions_absent")
+        if gate.method == "negative_control" and not context.negative_control_fields_known:
+            codes.append("proposal_gfp_controls_not_registered")
+        if gate.method == "batch_otsu" and not context.acquired_dates_known:
+            codes.append("proposal_acquisition_dates_required")
+        if gate.values == "corrected" and not background_ready:
+            codes.append("proposal_background_not_available")
     proposed = set()
     for metric in draft.metrics:
         identity = (metric.metric, metric.channel, metric.region)
@@ -101,12 +144,12 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         if metric.metric in INTENSITY_METRICS:
             if metric.channel is None or roles.get(metric.channel) != "measure":
                 codes.append("proposal_metric_channel_invalid")
-            if metric.metric.endswith("_corrected") and not context.background_available:
+            if metric.metric.endswith("_corrected") and not background_ready:
                 codes.append("proposal_background_not_available")
         elif metric.metric in NCL_METRICS:
             if draft.recipe != "nuclear-ncl" or metric.channel not in ncl:
                 codes.append("proposal_ncl_metric_invalid")
-            if metric.metric == "ncl_log2_nucleoplasm_over_nucleoli" and not context.background_available:
+            if metric.metric == "ncl_log2_nucleoplasm_over_nucleoli" and not background_ready:
                 codes.append("proposal_background_not_available")
         elif metric.channel is not None:
             codes.append("proposal_metric_channel_invalid")

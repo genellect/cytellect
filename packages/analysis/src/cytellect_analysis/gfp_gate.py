@@ -22,6 +22,7 @@ import numpy as np
 
 PROTOCOL = "gfp-gate/2.0.0"
 MINIMUM_CONTROL_NUCLEI = 20
+EXPLORATORY_PROTOCOL = "gfp-gate/3.0.0"
 
 
 def control_thresholds(rows: list[dict], percentile: float = 99.0) -> dict:
@@ -63,4 +64,59 @@ def apply_control_gate(rows: list[dict], thresholds: dict) -> list[dict]:
             reason = "above_control_threshold" if positive else "within_control_range"
         gated.append({**row, "gfp_positive": bool(positive), "gfp_gate_threshold": threshold,
                       "gfp_gate_reason": reason, "gfp_gate_protocol": PROTOCOL})
+    return gated
+
+
+def exploratory_thresholds(rows: list[dict], method: str, threshold: float | None = None) -> dict:
+    """Explicit manual threshold or batch Otsu of nuclear means (256 bins, first maximum).
+
+    Batch/date is required only for Otsu. Uniform or insufficient distributions
+    remain unclassified. Missing corrected means never fall back to raw values.
+    """
+    from skimage.filters import threshold_otsu
+
+    if method not in ("manual", "batch_otsu") or ((method == "manual") != (threshold is not None)):
+        raise ValueError("gfp_exploratory_threshold_invalid")
+    if threshold is not None and not math.isfinite(threshold):
+        raise ValueError("gfp_exploratory_threshold_invalid")
+    dates: dict[str, dict] = {}
+    if method == "manual":
+        dates = {"all": {"threshold": threshold, "control_nuclei": 0, "missing_reason": None}}
+    else:
+        by_date: dict[str, list[float]] = defaultdict(list)
+        for row in rows:
+            date = row.get("acquisition_date")
+            key = date if isinstance(date, str) and date.strip() else ""
+            values = by_date[key]
+            value = row.get("gfp_mean")
+            if value is not None and math.isfinite(value):
+                values.append(float(value))
+        dates = {}
+        for key, values in sorted(by_date.items()):
+            reason = "gfp_gate_acquisition_date_required" if not key else (
+                "gfp_too_few_nuclei" if len(values) < 2 else "gfp_uniform_distribution"
+                if min(values) == max(values) else None)
+            dates[key] = {"threshold": None if reason else float(threshold_otsu(np.asarray(values), nbins=256)),
+                          "control_nuclei": 0, "measured_nuclei": len(values), "missing_reason": reason}
+    return {"protocol": EXPLORATORY_PROTOCOL, "method": method, "dates": dates,
+            "exploratory": True, "threshold_population": "per-nucleus arithmetic means",
+            "histogram_bins": 256 if method == "batch_otsu" else None}
+
+
+def apply_exploratory_gate(rows: list[dict], thresholds: dict) -> list[dict]:
+    gated = []
+    for row in rows:
+        date = row.get("acquisition_date")
+        key = "all" if thresholds["method"] == "manual" else (date if isinstance(date, str) and date.strip() else "")
+        settings = thresholds["dates"].get(key, {})
+        threshold, value = settings.get("threshold"), row.get("gfp_mean")
+        if value is None or not math.isfinite(value):
+            positive, reason = None, "gfp_missing"
+        elif threshold is None:
+            positive, reason = None, settings.get("missing_reason") or "gfp_threshold_missing"
+        else:
+            positive = bool(value > threshold)
+            reason = "above_exploratory_threshold" if positive else "at_or_below_exploratory_threshold"
+        gated.append({**row, "gfp_positive": positive, "gfp_gate_threshold": threshold,
+                      "gfp_gate_reason": reason, "gfp_gate_protocol": EXPLORATORY_PROTOCOL})
     return gated

@@ -186,8 +186,49 @@ def figure_settings(plot):
             "line_width_pt": .6, "png_dpi": 300}
 
 
+def series_color(plot, key, fallback):
+    return (plot.get("style") or {}).get("series_colors", {}).get(str(key), fallback)
+
+
 def apply_plot_controls(axes, plot):
     """Presentation-only controls; omitted fields preserve historical rendering."""
+    display_axes = plot.get("axes") or {}
+    for axis, dimension in (("x", 0), ("y", 1)):
+        scale = display_axes.get(f"{axis}_scale", "linear")
+        if scale != "linear":
+            # Examine all plotted values, including intervals and connecting lines.
+            # Log display must never silently mask non-positive observations/intervals.
+            from matplotlib.collections import LineCollection, PathCollection, PolyCollection
+            values = []
+            for collection in axes.collections:
+                if isinstance(collection, PathCollection):
+                    values.extend(np.asarray(collection.get_offsets())[:, dimension].ravel())
+                elif isinstance(collection, LineCollection):
+                    for segment in collection.get_segments():
+                        values.extend(np.asarray(segment)[:, dimension].ravel())
+                elif isinstance(collection, PolyCollection):
+                    for path in collection.get_paths():
+                        values.extend(path.vertices[:, dimension].ravel())
+            for line in axes.lines:
+                values.extend(np.asarray(line.get_xdata() if axis == "x" else line.get_ydata(), dtype=float).ravel())
+            values = np.asarray(values, dtype=float)
+            if not len(values) or not np.isfinite(values).all() or np.any(values <= 0):
+                raise ValueError("figure_log_requires_positive_values")
+            getattr(axes, f"set_{axis}scale")("log", base=2 if scale == "log2" else 10)
+    if plot.get("kind") != "scatter" and any(display_axes.get(key) is not None for key in ("x_min", "x_max", "x_tick_step")):
+        raise ValueError("figure_numeric_x_requires_scatter")
+    xlow, xhigh = axes.get_xlim()
+    xlow = display_axes.get("x_min") if display_axes.get("x_min") is not None else xlow
+    xhigh = display_axes.get("x_max") if display_axes.get("x_max") is not None else xhigh
+    xstep = display_axes.get("x_tick_step")
+    if xstep is not None or display_axes.get("x_min") is not None or display_axes.get("x_max") is not None:
+        if not np.isfinite([xlow, xhigh]).all() or xlow >= xhigh:
+            raise ValueError("figure_x_range_invalid")
+        if xstep is not None:
+            if not np.isfinite(xstep) or xstep <= 0 or (xhigh - xlow) / xstep > 99:
+                raise ValueError("figure_tick_count_exceeded")
+            axes.set_xticks(xlow + np.arange(int(np.floor((xhigh-xlow)/xstep))+1)*xstep)
+        axes.set_xlim(xlow, xhigh)
     lower, upper = axes.get_ylim()
     lower = plot.get("y_min") if plot.get("y_min") is not None else lower
     upper = plot.get("y_max") if plot.get("y_max") is not None else upper
@@ -207,6 +248,11 @@ def apply_plot_controls(axes, plot):
         for collection in axes.collections:
             if isinstance(collection, PathCollection):
                 collection.set_sizes([plot["point_size"]])
+    if (plot.get("style") or {}).get("show_legend") is False:
+        if axes.get_legend() is not None:
+            axes.get_legend().remove()
+        for legend in list(axes.figure.legends):
+            legend.remove()
 
 
 def _validate_text_layout(figure, axes):
@@ -305,12 +351,12 @@ def render_figures(result, output: Path):
                     x, y = d[x_metric].to_numpy(dtype=float), d[metric].to_numpy(dtype=float)
                     valid = np.isfinite(x) & np.isfinite(y)
                     ax.scatter(x[valid], y[valid], s=9, alpha=.5, linewidths=0,
-                               marker=MARKERS[i % len(MARKERS)], color=COLORS[i % len(COLORS)], label=group)
+                               marker=MARKERS[i % len(MARKERS)], color=series_color(plot, group, COLORS[i % len(COLORS)]), label=group)
                     if exploratory:
                         prediction = predictions[predictions.condition == group].sort_values("gfp_centered")
-                        ax.plot(prediction.gfp_centered, prediction["mean"], color=COLORS[i % len(COLORS)])
+                        ax.plot(prediction.gfp_centered, prediction["mean"], color=series_color(plot, group, COLORS[i % len(COLORS)]))
                         ax.fill_between(prediction.gfp_centered, prediction.ci_low, prediction.ci_high,
-                                        color=COLORS[i % len(COLORS)], alpha=.15, linewidth=0)
+                                        color=series_color(plot, group, COLORS[i % len(COLORS)]), alpha=.15, linewidth=0)
                 ax.set_xlabel(plot["x_label"] or (
                     (("log2(max(GFP, 0) + 1)（撮影日内中心化）" if ja else "log2(max(GFP, 0) + 1)\n(centered within acquisition date)")
                      if spec.get("gfp_transform") == "legacy-log2p1" else
@@ -330,13 +376,13 @@ def render_figures(result, output: Path):
                 for i, group in enumerate(order):
                     values = cells.loc[cells.condition == group, metric].to_numpy()
                     ax.scatter(i + rng.uniform(-.18, .18, len(values)), values,
-                               s=5, color="#929292", alpha=.28, linewidths=0)
+                               s=5, color=series_color(plot, group, "#929292"), alpha=.28, linewidths=0)
                     fv = fields.loc[fields.condition == group, metric].to_numpy()
                     ax.scatter(i - .25 + np.zeros(len(fv)), fv, s=12, marker="s",
                                facecolors="none", edgecolors="#555555", linewidths=.5, alpha=.7)
                     for row in units[units.condition == group].to_dict("records"):
                         key = str(row.get("pair") if paired and row.get("pair") else row["experimental_unit"])
-                        ax.scatter(i, row[metric], s=20, color=glyphs[key]["color"],
+                        ax.scatter(i, row[metric], s=20, color=series_color(plot, group, glyphs[key]["color"]),
                                    marker=glyphs[key]["marker"], edgecolor="white", linewidth=.35, zorder=3)
                     mean = next(v for v in result["means"] if v["condition"] == group)
                     if mean["ci_low"] is not None:

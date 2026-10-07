@@ -1,4 +1,4 @@
-"""Nucleolar candidate detector protocol 2.0.0 (researcher-selected definition source).
+"""Nucleolar candidate detector protocols 2.0.0 and marker-only 2.1.0.
 
 NCL relocates out of nucleoli under nucleolar stress, so a mask defined by NCL
 itself fails exactly where the measurement matters. Protocol 2.0.0 therefore
@@ -16,6 +16,9 @@ defines nucleoli from a source the researcher selects:
   UBF marks fibrillar centres (rDNA), not the whole nucleolus; masks are not
   dilated and are reported as "FC/rDNA-defined".
 
+Protocol 2.1.0 keeps the marker operations but uses the recorded Gaussian sigma,
+with 0.7 px as its default. Protocol 2.0.0 marker replay remains fixed at 0.7 px.
+
 All filtering runs on detection copies; measurement always uses original pixels.
 Each parent nucleus receives a recorded state; a nucleus without a candidate is
 ``no_candidate``, a constant interior is ``indeterminate``.
@@ -25,7 +28,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from pydantic import Field, FiniteFloat, model_validator
+from pydantic import Field, FiniteFloat, TypeAdapter, model_validator
 from scipy import ndimage as ndi
 from skimage.measure import regionprops
 from skimage.restoration import rolling_ball
@@ -56,15 +59,30 @@ class NucleolarDetectorV20(RegionModel):
         return self
 
 
+class NucleolarDetectorV21(NucleolarDetectorV20):
+    """Marker-only revision: the recorded smoothing sigma is the effective value."""
+    protocol_version: Literal["2.1.0"] = "2.1.0"  # type: ignore[assignment]
+    source: Literal["marker"] = "marker"
+    smoothing_sigma_px: FiniteFloat = Field(default=0.7, ge=0, le=20)
+
+
+def effective_smoothing_sigma(parameters: NucleolarDetectorV20 | NucleolarDetectorV21) -> float:
+    # Historical marker records can contain an unused sigma (commonly 2).
+    # Replaying them must continue using the actual 2.0.0 operation, 0.7 px.
+    if parameters.protocol_version == "2.0.0" and parameters.source == "marker":
+        return 0.7
+    return float(parameters.smoothing_sigma_px)
+
+
 def _components(mask: np.ndarray) -> tuple[np.ndarray, int]:
     labels, count = ndi.label(mask, structure=np.ones((3, 3), bool))
     return labels, int(count)
 
 
 def detect_nucleoli_v2(nuclear: np.ndarray, marker: np.ndarray | None, nuclei: np.ndarray,
-                       parameters: NucleolarDetectorV20) -> tuple[np.ndarray, dict]:
+                       parameters: NucleolarDetectorV20 | NucleolarDetectorV21) -> tuple[np.ndarray, dict]:
     """Return original-coordinate nucleolar labels and per-parent states/thresholds."""
-    parameters = NucleolarDetectorV20.model_validate(parameters)
+    parameters = TypeAdapter(NucleolarDetectorV20 | NucleolarDetectorV21).validate_python(parameters)
     validate_label_array(nuclei)
     if nuclear.shape != nuclei.shape or (marker is not None and marker.shape != nuclei.shape):
         raise ValueError("compartment_source_shape_or_dtype_invalid")
@@ -78,7 +96,7 @@ def detect_nucleoli_v2(nuclear: np.ndarray, marker: np.ndarray | None, nuclei: n
         assert marker is not None
         raw = marker.astype(np.float64)
         detection = raw - rolling_ball(raw, radius=parameters.background_radius_px)
-        detection = ndi.gaussian_filter(detection, 0.7, mode="nearest")
+        detection = ndi.gaussian_filter(detection, effective_smoothing_sigma(parameters), mode="nearest")
     out = np.zeros(nuclei.shape, np.uint32)
     states: dict[int, str] = {}
     thresholds: dict[int, dict] = {}
@@ -86,7 +104,7 @@ def detect_nucleoli_v2(nuclear: np.ndarray, marker: np.ndarray | None, nuclei: n
     structure = np.ones((3, 3), bool)
     for parent in (int(value) for value in np.unique(nuclei) if value):
         inside = nuclei == parent
-        interior = ndi.binary_erosion(inside, structure, iterations=parameters.rim_exclusion_px) \
+        interior: np.ndarray = ndi.binary_erosion(inside, structure, iterations=parameters.rim_exclusion_px) \
             if parameters.rim_exclusion_px else inside
         values = detection[interior]
         if values.size == 0 or float(values.max()) == float(values.min()):
@@ -121,7 +139,7 @@ def detect_nucleoli_v2(nuclear: np.ndarray, marker: np.ndarray | None, nuclei: n
         thresholds[parent]["components_before_filters"] = count
         thresholds[parent]["candidates"] = kept
     info = {
-        "nucleolar_detector_protocol_version": PROTOCOL,
+        "nucleolar_detector_protocol_version": parameters.protocol_version,
         "operation": "nuclear-compartments",
         "engine": "cytellect_analysis (NumPy / SciPy / scikit-image)",
         "nucleolar_definition_source": parameters.source,

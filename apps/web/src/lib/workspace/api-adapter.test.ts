@@ -12,6 +12,35 @@ function fake(handler: (path: string, options?: RequestInit) => Promise<unknown>
   return {adapter: createApiAdapter({request, post, wait: async () => {}}), request, post};
 }
 describe("real workspace transport boundaries", () => {
+  it("uploads OME bytes once with an import identity and keeps existing adoption on deduplication",async()=>{
+    const file=new File([new Uint8Array([1,2,3])],"fixture.ome.tif");
+    const {adapter}=fake(async(path,options)=>{
+      expect(path).toBe("/v1/workspaces/w1/region-fields/ome");
+      const form=options?.body as FormData;
+      expect(form.get("client_upload_id")).toBe("ome-import");
+      expect(await (form.get("ome") as File).arrayBuffer()).toEqual(await file.arrayBuffer());
+      return {id:"f1",workspace_id:"w1",metadata:{},image_info:{shape:[2,2],channels:[{channel_id:"c1",label:"DAPI",stain:"DAPI"}]}};
+    });
+    await adapter.registerImport("w1","ome-import");
+    const saved=await adapter.uploadOme("w1",file,"ome-import");
+    expect(saved.image_info.channels[0].stain).toBe("DAPI");
+    expect(adapter.selection()?.entries).toEqual([{id:"f1",field_id:"f1",revision_id:"r1",exclusion_reason:null}]);
+  });
+  it("retains confirmed ROI policy and coordinates when excluding a measured region",async()=>{
+    const backgrounds={f1:{channel2:{polygon:[[0,0],[2,0],[2,2]] as Array<[number,number]>,confirmed:true as const}}};
+    const {adapter,post}=fake(async path=>path.endsWith("/jobs")?[{id:"j1",state:"succeeded"}]:path.includes("region-masks")?result.masks:path==="/v1/revisions/r1"?{config:{backgrounds,confirmed_channel_ids:["channel2"]}}:{revision_id:"r1",protocol_version:"1.0.0",field_tables:{f1:{rows:[]}},field_failures:[],exclusions:[]});
+    const saved=await adapter.readResult("r1","f1",nuclearRecipe(channel));
+    expect(saved.measurement).toBeNull();expect(saved.backgrounds).toEqual(backgrounds);
+    await adapter.correct("w1",saved,"exclude",17,nuclearRecipe(channel));
+    expect(post).toHaveBeenCalledWith("/v1/revisions/r1/region-reconfigure",expect.objectContaining({measurement:null,backgrounds,confirmed_channel_ids:["channel2"]}));
+  });
+  it("reads a preview candidate without changing the adoption ledger", async () => {
+    const {adapter,post}=fake(async path=>path.endsWith("/jobs")?[{id:"j1",state:"succeeded"}]:path.includes("region-masks")?result.masks:{revision_id:"r1",field_tables:{f1:{rows:[]}},field_failures:[],exclusions:[]});
+    const candidate=await adapter.run("w1","f1",nuclearRecipe(channel),undefined,undefined,{adopt:false});
+    expect(candidate.revision).toBe("r1");expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/region-analyses",expect.anything());
+    expect(post).not.toHaveBeenCalledWith("/v1/workspaces/w1/selection",expect.anything());
+  });
   it("sizes detection from the nuclei by default and versions an explicitly selected detection scale", () => {
     // Without an explicit size, the detection copy follows the estimated nucleus size.
     expect(nuclearRecipe(channel)).toMatchObject({version: "1.7.0", detection_scale: "nuclear-size/1.0.0"});
@@ -113,7 +142,7 @@ describe("real workspace transport boundaries", () => {
     expect(post).toHaveBeenCalledWith("/v1/revisions/r1/descriptive-preview", expect.objectContaining({selection: expect.objectContaining({region_set_id: "gfp_positive"})}));
   });
   it("sends only a goal and explicit scope consent for optional proposals", async () => {
-    const {adapter, post} = fake(async () => ({}));
+    const {adapter, post} = fake(async () => ({}), async () => ({proposal:{draft:{channels:[]},needs_confirmation:[]},channels:[]}));
     await adapter.draft("w1", "核面積を確認");
     expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true});
     await adapter.draft("w1", "核面積を確認", true);

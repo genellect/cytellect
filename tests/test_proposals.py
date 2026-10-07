@@ -125,12 +125,13 @@ def configured(tmp_path, monkeypatch, reply, *, upload=True):
     monkeypatch.setattr(proposals._OPENER, "open", urlopen)
     wid = client.post("/v1/workspaces", json={"title": "w"}, headers=HEADERS).json()["id"]
     if upload:
-        assert make_field(client, wid).status_code == 201
+        uploaded = make_field(client, wid)
+        assert uploaded.status_code == 201, uploaded.text
     return client, wid, calls
 
 
 def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_path, monkeypatch):
-    body = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.2"}).encode()
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-07.2"}).encode()
     client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
     first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
@@ -143,7 +144,12 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
     assert sent == {"protocol": "1.1.0", "goal": "細胞ごとのアクチン輝度", "channels": [{"token": "ch1", "stain": None, "role": None}],
                     "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
                     "supplied_regions": True, "measured_table": False, "background_available": False,
-                    "units_per_condition": [0], "complete_pair_count": 0}
+                    "units_per_condition": [0], "complete_pair_count": 0,
+                    "current_processing": None, "previous_goal": "", "previous_proposal": None,
+                    "current_background": None, "current_gfp": None,
+                    "negative_control_fields_known": False, "acquired_dates_known": False,
+                    "image_metadata": [{"width": 12, "height": 12, "axes": "YX", "input_mode": "native",
+                                        "pixel_size_x_um": None, "pixel_size_y_um": None}]}
     assert "Actin" not in json.dumps(calls) and "untrusted-original-name" not in json.dumps(calls)
     assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x", "field_count": 9, "transmission_confirmed": True},
                        headers=HEADERS).status_code == 422
@@ -152,7 +158,7 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
 
 
 def test_route_rejects_invalid_drafts_and_maps_service_failures(tmp_path, monkeypatch):
-    bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.2"}).encode()
+    bad = json.dumps({"draft": {**ACTIN_DRAFT, "rationale": "https://x"}, "model": "gpt-6.1-sol", "prompt_version": "2026-10-07.2"}).encode()
     client, wid, _ = configured(tmp_path, monkeypatch, lambda request: FakeResponse(bad))
     response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert response.status_code == 502

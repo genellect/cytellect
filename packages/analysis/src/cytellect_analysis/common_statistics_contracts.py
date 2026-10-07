@@ -60,7 +60,7 @@ class AssociationPlot(PlotSpec):
 
 class RegionAssociationRequest(RegionModel):
     mode: Literal["region-association"]
-    version: Literal["1.0.0"]
+    version: Literal["1.0.0", "1.1.0"]
     x_selection: RegionSelection
     y_selection: RegionSelection
     design: ComparisonDesign
@@ -83,8 +83,13 @@ class RegionAssociationRequest(RegionModel):
 
     @model_validator(mode="after")
     def explicit_association(self):
-        if self.x_selection.gfp_gate is not None or self.y_selection.gfp_gate is not None:
+        if self.version == "1.0.0" and (self.x_selection.gfp_gate is not None or self.y_selection.gfp_gate is not None):
             raise ValueError("gfp_gate_unsupported_request")
+        if self.x_selection.gfp_gate != self.y_selection.gfp_gate:
+            raise ValueError("common_statistics_matched_gfp_selection_required")
+        if self.version == "1.1.0" and not any(s.metric.startswith("area_") for s in (self.x_selection, self.y_selection)):
+            if self.x_selection.metric.endswith("_corrected") != self.y_selection.metric.endswith("_corrected"):
+                raise ValueError("common_statistics_matched_intensity_policy_required")
         if self.missingness_confirmed is not True or self.design.kind != "independent":
             raise ValueError("common_statistics_independent_association_required")
         if self.x_selection == self.y_selection:
@@ -107,7 +112,7 @@ class RegionAssociationRequest(RegionModel):
 class RegionAssociationResult(RegionModel):
     analysis_kind: Literal["region-association"] = "region-association"
     source_kind: Literal["region-2d"] = "region-2d"
-    region_association_version: Literal["1.0.0"] = "1.0.0"
+    region_association_version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     inference_version: str
     revision_id: str
     source_fingerprint: str

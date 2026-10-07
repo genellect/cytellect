@@ -43,6 +43,43 @@ workspace_selections = Table(
     Column("version", Integer, nullable=False),
     Column("entries", JSON, nullable=False),
 )
+workspace_channel_assignments = Table(
+    "workspace_channel_assignments", meta,
+    Column("workspace_id", String, primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("assignments", JSON, nullable=False),
+    Column("global_field_ids", JSON, nullable=False, default=list),
+    Column("groups", JSON, nullable=False, default=list),
+)
+workspace_analysis_specs = Table(
+    "workspace_analysis_specs", meta,
+    Column("workspace_id", String, primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("spec", JSON, nullable=False),
+)
+workspace_analysis_runs = Table(
+    "workspace_analysis_runs", meta,
+    Column("id", String, primary_key=True),
+    Column("workspace_id", String, nullable=False, index=True),
+    Column("request_id", String, nullable=False),
+    Column("request_fingerprint", String, nullable=False),
+    Column("spec_version", Integer, nullable=False),
+    Column("spec_snapshot", JSON, nullable=False),
+    Column("selection_snapshot", JSON, nullable=False),
+    Column("assignments_snapshot", JSON, nullable=False),
+    Column("target", String, nullable=False),
+    Column("state", String, nullable=False),
+    Column("steps", JSON, nullable=False),
+    Column("created", Float, nullable=False),
+    Column("updated", Float, nullable=False),
+    Index("uq_analysis_run_request", "workspace_id", "request_id", unique=True),
+)
+workspace_field_links = Table(
+    "workspace_field_links", meta,
+    Column("workspace_id", String, primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("entries", JSON, nullable=False),
+)
 invitations = Table(
     "invitations",
     meta,

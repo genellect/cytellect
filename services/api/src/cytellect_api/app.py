@@ -37,10 +37,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from sqlalchemy import func, select, update
 
+from .analysis_spec import register_analysis_spec_routes
+from .channel_assignments import register_channel_assignment_routes
 from .common_statistics import register_common_statistics_routes
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
+from .field_links import register_field_link_routes
+from .figure_render import register_figure_render_routes
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
 from .proposals import register_proposal_routes
@@ -50,6 +54,7 @@ from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
 from .views import FieldView, JobView, MasksView, RevisionView, WorkspaceView
+from .workspace_runs import register_workspace_run_routes
 from .workspace_selection import register_workspace_selection_routes
 
 
@@ -88,7 +93,7 @@ def create_app(settings: Settings | None = None):
         CORSMiddleware,
         allow_origins=[settings.app_origin],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Content-Type", "X-Cytellect-Request"],
         expose_headers=[PREVIEW_DISPLAY_HEADER],
     )
@@ -1022,9 +1027,9 @@ def create_app(settings: Settings | None = None):
         if j["state"] != "succeeded" or not j["result_dir"]:
             raise HTTPException(404, "artifact_not_found")
         root = store.safe_path(j["result_dir"])
-        if name == "figure.zip":
+        if name in ("figure.zip", "publication.zip"):
             path = root / name
-            record_path = root / "figure-archive.json"
+            record_path = root / ("publication-archive.json" if name == "publication.zip" else "figure-archive.json")
             if path.is_symlink() or not path.is_file() or not record_path.is_file():
                 raise HTTPException(404, "artifact_not_found")
             record = read_json(record_path)
@@ -1063,6 +1068,11 @@ def create_app(settings: Settings | None = None):
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace)
     register_workspace_selection_routes(api, store, owner, workspace, touch)
+    register_channel_assignment_routes(api, store, owner, workspace, touch)
+    register_analysis_spec_routes(api, store, owner, workspace, touch)
+    register_workspace_run_routes(api, store, owner, workspace, touch)
+    register_field_link_routes(api, store, owner, workspace, touch)
+    register_figure_render_routes(api, store, owner, job_record, queue)
     register_region_cohort_routes(api, store, owner, workspace, revision, result_root, queue)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

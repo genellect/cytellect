@@ -497,6 +497,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/region-fields/ome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Ome */
+        post: operations["upload_ome_v1_workspaces__wid__region_fields_ome_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/region-fields": {
         parameters: {
             query?: never;
@@ -577,7 +594,7 @@ export interface paths {
         put?: never;
         /**
          * Gfp Gate
-         * @description GFP-positive nuclei against designated negative-control fields (gfp-gate/2.0.0), per acquisition date.
+         * @description Classify saved nuclei by mean GFP intensity; no new pixel masks are created.
          */
         post: operations["gfp_gate_v1_workspaces__wid__gfp_gate_post"];
         delete?: never;
@@ -845,6 +862,180 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/channel-assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Assignments */
+        get: operations["get_assignments_v1_workspaces__wid__channel_assignments_get"];
+        /** Save Assignments */
+        put: operations["save_assignments_v1_workspaces__wid__channel_assignments_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/analysis-spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Spec */
+        get: operations["get_spec_v1_workspaces__wid__analysis_spec_get"];
+        /** Save Spec */
+        put: operations["save_spec_v1_workspaces__wid__analysis_spec_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Runs */
+        get: operations["list_runs_v1_workspaces__wid__runs_get"];
+        put?: never;
+        /** Start Run */
+        post: operations["start_run_v1_workspaces__wid__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["get_run_v1_workspaces__wid__runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/runs/{run_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept Run */
+        post: operations["accept_run_v1_workspaces__wid__runs__run_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Run */
+        post: operations["cancel_run_v1_workspaces__wid__runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/field-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Links */
+        get: operations["get_links_v1_workspaces__wid__field_links_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/field-links/{fid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Link */
+        put: operations["save_link_v1_workspaces__wid__field_links__fid__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{jid}/publication-package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publication Package */
+        post: operations["publication_package_v1_jobs__jid__publication_package_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{jid}/figure-render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rendered */
+        get: operations["rendered_v1_jobs__jid__figure_render_get"];
+        put?: never;
+        /** Render */
+        post: operations["render_v1_jobs__jid__figure_render_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/workspace-selection": {
         parameters: {
             query?: never;
@@ -978,6 +1169,59 @@ export interface components {
             exclusions?: components["schemas"]["Exclusion"][];
             plan_resolution?: components["schemas"]["PlanResolution"] | null;
         };
+        /** AnalysisSelectionDraft */
+        AnalysisSelectionDraft: {
+            /** Field Ids */
+            field_ids?: string[];
+            /** Gfp */
+            gfp?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+        };
+        /** AnalysisSpec */
+        AnalysisSpec: {
+            /**
+             * Schema Version
+             * @default 1.0.0
+             * @constant
+             */
+            schema_version: "1.0.0";
+            /** Channel Assignment Version */
+            channel_assignment_version: number;
+            /**
+             * Target
+             * @default nuclei
+             * @enum {string}
+             */
+            target: "nuclei" | "nucleoli" | "nucleoplasm" | "cell";
+            settings?: components["schemas"]["RuntimeSettingsDraft"];
+            processing?: components["schemas"]["SavedProcessing"] | null;
+            /** Measurement */
+            measurement?: components["schemas"]["RawIntensityPolicy"] | components["schemas"]["AutomaticBackgroundPolicy"] | null;
+            /** Backgrounds */
+            backgrounds?: {
+                [key: string]: {
+                    [key: string]: components["schemas"]["RegionBackground"];
+                };
+            };
+            /** Confirmed Channel Ids */
+            confirmed_channel_ids?: string[];
+            /** Metrics */
+            metrics?: components["schemas"]["SavedDraftMetric"][];
+            selection?: components["schemas"]["AnalysisSelectionDraft"];
+            statistics?: components["schemas"]["StatisticsDraft"] | null;
+            figure?: components["schemas"]["FigureDraft"] | null;
+        };
+        /** AnalysisSpecView */
+        AnalysisSpecView: {
+            /** Version */
+            version: number;
+            spec: components["schemas"]["AnalysisSpec"] | null;
+        };
+        /** AnalysisSpecWrite */
+        AnalysisSpecWrite: {
+            /** Version */
+            version: number;
+            spec: components["schemas"]["AnalysisSpec"];
+        };
         /** AreaBackgroundProvenance */
         AreaBackgroundProvenance: {
             /**
@@ -995,6 +1239,8 @@ export interface components {
         };
         /** AssociationPlot */
         AssociationPlot: {
+            style?: components["schemas"]["FigureStyle"] | null;
+            axes?: components["schemas"]["FigureAxes"] | null;
             /**
              * Preset
              * @default nature-single
@@ -1065,9 +1311,9 @@ export interface components {
             /**
              * Region Association Version
              * @default 1.0.0
-             * @constant
+             * @enum {string}
              */
-            region_association_version: "1.0.0";
+            region_association_version: "1.0.0" | "1.1.0";
             /** Inference Version */
             inference_version: string;
             /** Revision Id */
@@ -1305,6 +1551,13 @@ export interface components {
              */
             channel_roles: string;
         };
+        /** Body_upload_ome_v1_workspaces__wid__region_fields_ome_post */
+        Body_upload_ome_v1_workspaces__wid__region_fields_ome_post: {
+            /** Ome */
+            ome: string;
+            /** Client Upload Id */
+            client_upload_id?: string | null;
+        };
         /** Body_upload_region_field_v1_workspaces__wid__region_fields_post */
         Body_upload_region_field_v1_workspaces__wid__region_fields_post: {
             /** Specification */
@@ -1331,6 +1584,49 @@ export interface components {
              * @constant
              */
             confirmed: true;
+        };
+        /** ChannelAssignment */
+        ChannelAssignment: {
+            /** Channel Id */
+            channel_id: string;
+            /** Stain */
+            stain: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "nuclear" | "measure" | "unused";
+        };
+        /** ChannelAssignmentGroup */
+        ChannelAssignmentGroup: {
+            /** Id */
+            id: string;
+            /** Field Ids */
+            field_ids: string[];
+            /** Channel Ids */
+            channel_ids: string[];
+            /** Assignments */
+            assignments: components["schemas"]["ChannelAssignment"][];
+        };
+        /** ChannelAssignments */
+        ChannelAssignments: {
+            /** Version */
+            version: number;
+            /** Assignments */
+            assignments: components["schemas"]["ChannelAssignment"][];
+            /** Global Field Ids */
+            global_field_ids?: string[];
+            /** Groups */
+            groups?: components["schemas"]["ChannelAssignmentGroup"][];
+        };
+        /** ChannelAssignmentsWrite */
+        ChannelAssignmentsWrite: {
+            /** Version */
+            version: number;
+            /** Assignments */
+            assignments: components["schemas"]["ChannelAssignment"][];
+            /** Field Ids */
+            field_ids?: string[] | null;
         };
         /** ChannelProvenance */
         ChannelProvenance: {
@@ -1437,6 +1733,8 @@ export interface components {
         };
         /** CommonComparisonPlot */
         CommonComparisonPlot: {
+            style?: components["schemas"]["FigureStyle"] | null;
+            axes?: components["schemas"]["FigureAxes"] | null;
             /**
              * Preset
              * @default nature-single
@@ -1676,7 +1974,8 @@ export interface components {
              * @enum {string}
              */
             metric: "log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count";
-            gfp_gate?: components["schemas"]["GfpGateFilter"] | null;
+            /** Gfp Gate */
+            gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
         };
         /** ContourView */
         ContourView: {
@@ -1703,6 +2002,10 @@ export interface components {
         };
         /** DescriptivePlot */
         DescriptivePlot: {
+            /** @default null */
+            style: components["schemas"]["FigureStyle"] | null;
+            /** @default null */
+            axes: components["schemas"]["FigureAxes"] | null;
             /**
              * Preset
              * @default nature-single
@@ -1786,6 +2089,14 @@ export interface components {
             group_by: "field";
             plot?: components["schemas"]["DescriptivePlot"];
         };
+        /** DraftBackground */
+        DraftBackground: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "raw" | "automatic" | "confirmed_roi";
+        };
         /** DraftChannel */
         DraftChannel: {
             /** Token */
@@ -1822,6 +2133,41 @@ export interface components {
              */
             analysis_index: number;
         };
+        /** DraftGfpSelection */
+        DraftGfpSelection: {
+            /** Channel */
+            channel: string;
+            /**
+             * Unit
+             * @default nucleus
+             * @enum {string}
+             */
+            unit: "nucleus" | "cell_roi";
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "manual" | "batch_otsu" | "negative_control";
+            /** Threshold */
+            threshold?: number | null;
+            /**
+             * Values
+             * @default raw
+             * @enum {string}
+             */
+            values: "raw" | "corrected";
+            /**
+             * Keep
+             * @default positive
+             * @enum {string}
+             */
+            keep: "positive" | "negative";
+            /**
+             * Percentile
+             * @default 99
+             */
+            percentile: number;
+        };
         /** DraftMetric */
         DraftMetric: {
             /**
@@ -1833,6 +2179,42 @@ export interface components {
             channel: string | null;
             /** Region */
             region?: ("nucleus" | "nucleoli" | "nucleoplasm" | "supplied") | null;
+        };
+        /** DraftNuclearProcessing */
+        DraftNuclearProcessing: {
+            /** Channel */
+            channel: string;
+            /** Detection Max Side Px */
+            detection_max_side_px?: number | null;
+            detector?: components["schemas"]["NuclearDetectorSpec"];
+        };
+        /** DraftNucleolarProcessing */
+        DraftNucleolarProcessing: {
+            /** Channel */
+            channel: string;
+            /** Detector */
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"];
+        };
+        /**
+         * DraftProcessing
+         * @description Registered execution settings only; not code, masks or biological confirmations.
+         */
+        DraftProcessing: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            nuclei: components["schemas"]["DraftNuclearProcessing"] | null;
+            nucleoli: components["schemas"]["DraftNucleolarProcessing"] | null;
+            signal: components["schemas"]["DraftSignalProcessing"] | null;
+        };
+        /** DraftSignalProcessing */
+        DraftSignalProcessing: {
+            /** Channel */
+            channel: string;
+            detector: components["schemas"]["SignalDetectorSpec"];
         };
         /** DraftStatistics */
         DraftStatistics: {
@@ -1858,6 +2240,65 @@ export interface components {
             nucleus_id?: number | null;
             /** Reason */
             reason: string;
+        };
+        /**
+         * ExploratoryGfpGateFilter
+         * @description Nuclear-object mean gate; thresholds never classify individual image pixels.
+         */
+        ExploratoryGfpGateFilter: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.1.0";
+            /**
+             * Gate Protocol
+             * @constant
+             */
+            gate_protocol: "gfp-gate/3.0.0";
+            /** Gfp Channel Id */
+            gfp_channel_id: string;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "manual" | "batch_otsu";
+            /**
+             * Threshold
+             * @default null
+             */
+            threshold: number | null;
+            /**
+             * Values
+             * @default raw
+             * @enum {string}
+             */
+            values: "raw" | "corrected";
+            /**
+             * Unit
+             * @default nucleus
+             * @enum {string}
+             */
+            unit: "nucleus" | "cell_roi";
+            /**
+             * Keep
+             * @enum {string}
+             */
+            keep: "positive" | "negative";
+        };
+        /** FieldLinkWrite */
+        FieldLinkWrite: {
+            /** Version */
+            version: number;
+            /** Selection Version */
+            selection_version: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "analysis" | "reference";
+            /** Reference For Field Id */
+            reference_for_field_id?: string | null;
         };
         /** FieldMetadata */
         FieldMetadata: {
@@ -1886,6 +2327,85 @@ export interface components {
             image_info: components["schemas"]["ImageInfo"];
             /** Synthetic */
             synthetic: boolean;
+        };
+        /**
+         * FigureAxes
+         * @description Versioned display scales and scatter X bounds; never transform source values.
+         */
+        FigureAxes: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /**
+             * X Scale
+             * @default linear
+             * @enum {string}
+             */
+            x_scale: "linear" | "log10" | "log2";
+            /**
+             * Y Scale
+             * @default linear
+             * @enum {string}
+             */
+            y_scale: "linear" | "log10" | "log2";
+            /**
+             * X Min
+             * @default null
+             */
+            x_min: number | null;
+            /**
+             * X Max
+             * @default null
+             */
+            x_max: number | null;
+            /**
+             * X Tick Step
+             * @default null
+             */
+            x_tick_step: number | null;
+        };
+        /** FigureDraft */
+        FigureDraft: {
+            /**
+             * Metric
+             * @default area_px
+             */
+            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release");
+            /** Channel Id */
+            channel_id?: string | null;
+            /** Plot */
+            plot?: components["schemas"]["CommonComparisonPlot"] | components["schemas"]["AssociationPlot"];
+        };
+        /** FigureRenderRequest */
+        FigureRenderRequest: {
+            /** Plot */
+            plot: {
+                [key: string]: unknown;
+            };
+            /** Request Id */
+            request_id: string;
+        };
+        /**
+         * FigureStyle
+         * @description Presentation-only extension; omitted style retains historical rendering.
+         */
+        FigureStyle: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /** Series Colors */
+            series_colors?: {
+                [key: string]: string;
+            };
+            /**
+             * Show Legend
+             * @default true
+             */
+            show_legend: boolean;
         };
         /** GfpGateField */
         GfpGateField: {
@@ -1944,6 +2464,26 @@ export interface components {
             percentile: number;
             /** Fields */
             fields: components["schemas"]["GfpGateField"][];
+            /**
+             * Method
+             * @default negative_control
+             * @enum {string}
+             */
+            method: "negative_control" | "manual" | "batch_otsu";
+            /** Threshold */
+            threshold?: number | null;
+            /**
+             * Values
+             * @default raw
+             * @enum {string}
+             */
+            values: "raw" | "corrected";
+            /**
+             * Unit
+             * @default nucleus
+             * @enum {string}
+             */
+            unit: "nucleus" | "cell_roi";
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1990,7 +2530,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "analysis" | "statistics" | "table-statistics" | "export";
+            kind: "analysis" | "statistics" | "table-statistics" | "export" | "figure-render" | "publication-package";
             /**
              * State
              * @enum {string}
@@ -2136,6 +2676,27 @@ export interface components {
              */
             percentile_high: number;
         };
+        /** NucleolarDefinitionDraft */
+        NucleolarDefinitionDraft: {
+            /**
+             * Source
+             * @default dapi_poor
+             * @enum {string}
+             */
+            source: "dapi_poor" | "marker" | "ncl";
+            /**
+             * Marker
+             * @default
+             */
+            marker: string;
+            /** Pixelum */
+            pixelUm?: number | null;
+            /**
+             * Relative
+             * @default 0.7
+             */
+            relative: number;
+        };
         /** NucleolarDetectorSpec */
         NucleolarDetectorSpec: {
             /**
@@ -2229,6 +2790,66 @@ export interface components {
             /**
              * Smoothing Sigma Px
              * @default 2
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Rim Exclusion Px
+             * @default 4
+             */
+            rim_exclusion_px: number;
+            /**
+             * Relative Threshold
+             * @default 0.7
+             */
+            relative_threshold: number;
+            /**
+             * Marker Fraction
+             * @default 0.4
+             */
+            marker_fraction: number;
+            /**
+             * Background Radius Px
+             * @default 10
+             */
+            background_radius_px: number;
+            /**
+             * Minimum Area Px
+             * @default 4
+             */
+            minimum_area_px: number;
+            /** Maximum Area Px */
+            maximum_area_px?: number | null;
+            /**
+             * Minimum Solidity
+             * @default 0.6
+             */
+            minimum_solidity: number;
+        };
+        /**
+         * NucleolarDetectorV21
+         * @description Marker-only revision: the recorded smoothing sigma is the effective value.
+         */
+        NucleolarDetectorV21: {
+            /**
+             * Engine
+             * @default cytellect-nucleolar-v2
+             * @constant
+             */
+            engine: "cytellect-nucleolar-v2";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "2.1.0";
+            /**
+             * Source
+             * @default marker
+             * @constant
+             */
+            source: "marker";
+            /**
+             * Smoothing Sigma Px
+             * @default 0.7
              */
             smoothing_sigma_px: number;
             /**
@@ -2540,6 +3161,8 @@ export interface components {
         };
         /** PlotSpec */
         PlotSpec: {
+            style?: components["schemas"]["FigureStyle"] | null;
+            axes?: components["schemas"]["FigureAxes"] | null;
             /**
              * Preset
              * @default nature-single
@@ -2625,6 +3248,9 @@ export interface components {
             reference_ids: ("senft-2023" | "kodiha-2011" | "waters-2009" | "lazic-2018" | "lord-2020" | "schmied-2024")[];
             /** Rationale */
             rationale: string;
+            processing?: components["schemas"]["DraftProcessing"] | null;
+            background?: components["schemas"]["DraftBackground"] | null;
+            gfp_selection?: components["schemas"]["DraftGfpSelection"] | null;
         };
         /**
          * ProposalDraftRequest
@@ -2650,12 +3276,34 @@ export interface components {
              * @default false
              */
             retry_failed: boolean;
+            /** Field Id */
+            field_id?: string | null;
+            /** Current Processing */
+            current_processing?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Previous Goal
+             * @default
+             */
+            previous_goal: string;
+            /** Previous Proposal */
+            previous_proposal?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ProposalDraftResponse */
         ProposalDraftResponse: {
             proposal: components["schemas"]["ValidatedProposal"];
             /** Channels */
             channels: components["schemas"]["ProposalChannelLink"][];
+        };
+        /** PublicationPackageRequest */
+        PublicationPackageRequest: {
+            /** Analysis Job Id */
+            analysis_job_id: string;
+            /** Request Id */
+            request_id: string;
         };
         /** RawBackgroundProvenance */
         RawBackgroundProvenance: {
@@ -2788,6 +3436,8 @@ export interface components {
                     [key: string]: components["schemas"]["RegionBackground"];
                 };
             };
+            /** Confirmed Channel Ids */
+            confirmed_channel_ids?: string[];
             /** Exclusions */
             exclusions?: components["schemas"]["RegionExclusion"][];
         };
@@ -2800,9 +3450,9 @@ export interface components {
             mode: "region-association";
             /**
              * Version
-             * @constant
+             * @enum {string}
              */
-            version: "1.0.0";
+            version: "1.0.0" | "1.1.0";
             x_selection: components["schemas"]["RegionSelection"];
             y_selection: components["schemas"]["RegionSelection"];
             design: components["schemas"]["ComparisonDesign"];
@@ -2868,6 +3518,8 @@ export interface components {
         };
         /** RegionComparisonPlot */
         RegionComparisonPlot: {
+            style?: components["schemas"]["FigureStyle"] | null;
+            axes?: components["schemas"]["FigureAxes"] | null;
             /**
              * Preset
              * @default nature-single
@@ -3150,7 +3802,7 @@ export interface components {
             /** Defining Channel Id */
             defining_channel_id: string;
             /** Detector */
-            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"];
+            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"];
             /** Nucleolar Revision Id */
             nucleolar_revision_id?: string | null;
         };
@@ -3880,7 +4532,8 @@ export interface components {
              * @enum {string}
              */
             metric: "area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected";
-            gfp_gate?: components["schemas"]["GfpGateFilter"] | null;
+            /** Gfp Gate */
+            gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
         };
         /** RegionSetSpec */
         RegionSetSpec: {
@@ -3980,6 +4633,84 @@ export interface components {
             /** Created */
             created: number;
         };
+        /**
+         * RuntimeSettingsDraft
+         * @description Names deliberately match the workspace runtime; null keeps versioned detector defaults.
+         */
+        RuntimeSettingsDraft: {
+            /** Nuclearmaxside */
+            nuclearMaxSide?: number | null;
+            /**
+             * Nuclearprobability
+             * @default 0.5
+             */
+            nuclearProbability: number;
+            /**
+             * Nuclearnms
+             * @default 0.3
+             */
+            nuclearNms: number;
+            nucleolarDefinition?: components["schemas"]["NucleolarDefinitionDraft"];
+            /** Nucleolarsigma */
+            nucleolarSigma?: number | null;
+            /** Nucleolarrim */
+            nucleolarRim?: number | null;
+            /** Nucleolarminimumarea */
+            nucleolarMinimumArea?: number | null;
+            /** Nucleolarmaximumarea */
+            nucleolarMaximumArea?: number | null;
+            /**
+             * Background
+             * @default raw
+             * @enum {string}
+             */
+            background: "raw" | "automatic" | "confirmed_roi";
+        };
+        /** SavedDraftMetric */
+        SavedDraftMetric: {
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count";
+            /** Channel */
+            channel: string | null;
+            /** Region */
+            region?: ("nucleus" | "nucleoli" | "nucleoplasm" | "supplied") | null;
+        };
+        /** SavedNuclearProcessing */
+        SavedNuclearProcessing: {
+            /** Channel */
+            channel: string;
+            /** Detection Max Side Px */
+            detection_max_side_px?: number | null;
+            detector?: components["schemas"]["NuclearDetectorSpec"];
+        };
+        /** SavedNucleolarProcessing */
+        SavedNucleolarProcessing: {
+            /** Channel */
+            channel: string;
+            /** Detector */
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"];
+        };
+        /** SavedProcessing */
+        SavedProcessing: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            nuclei: components["schemas"]["SavedNuclearProcessing"] | null;
+            nucleoli: components["schemas"]["SavedNucleolarProcessing"] | null;
+            signal: components["schemas"]["SavedSignalProcessing"] | null;
+        };
+        /** SavedSignalProcessing */
+        SavedSignalProcessing: {
+            /** Channel */
+            channel: string;
+            detector: components["schemas"]["SignalDetectorSpec"];
+        };
         /** ScaledNuclearRecipe */
         ScaledNuclearRecipe: {
             /**
@@ -4050,6 +4781,41 @@ export interface components {
              * @default false
              */
             split_touching: boolean;
+        };
+        /** StatisticsDraft */
+        StatisticsDraft: {
+            method?: components["schemas"]["DraftStatistics"] | null;
+            /**
+             * Metric
+             * @default area_px
+             */
+            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release");
+            /** Channel Id */
+            channel_id?: string | null;
+            /** X Metric */
+            x_metric?: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | null;
+            /** X Channel Id */
+            x_channel_id?: string | null;
+            /** Design */
+            design?: ("independent" | "paired") | null;
+            /**
+             * Unit Definition
+             * @default
+             */
+            unit_definition: string;
+            /**
+             * Pairing Basis
+             * @default
+             */
+            pairing_basis: string;
+            /** Conditions */
+            conditions?: string[];
+            /** Comparisons */
+            comparisons?: string[][];
+            /** Field Metadata */
+            field_metadata?: {
+                [key: string]: components["schemas"]["RegionFieldMetadata"];
+            };
         };
         /** StatisticsRequest */
         StatisticsRequest: {
@@ -4160,6 +4926,26 @@ export interface components {
             plan?: components["schemas"]["PlanInput"] | null;
             /** Plan Candidate Id */
             plan_candidate_id?: ("regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl") | null;
+        };
+        /** WorkspaceRunRequest */
+        WorkspaceRunRequest: {
+            /** Request Id */
+            request_id: string;
+            /** Spec Version */
+            spec_version: number;
+            /**
+             * Target
+             * @enum {string}
+             */
+            target: "nuclei" | "nucleoli" | "nucleoplasm" | "cell";
+            /**
+             * Purpose
+             * @default measurement
+             * @enum {string}
+             */
+            purpose: "preview" | "measurement";
+            /** Field Ids */
+            field_ids: string[];
         };
         /** WorkspaceSelection */
         WorkspaceSelection: {
@@ -5600,6 +6386,41 @@ export interface operations {
             };
         };
     };
+    upload_ome_v1_workspaces__wid__region_fields_ome_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_ome_v1_workspaces__wid__region_fields_ome_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionFieldView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_region_fields_v1_workspaces__wid__region_fields_get: {
         parameters: {
             query?: never;
@@ -6332,6 +7153,468 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceSelection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_assignments_v1_workspaces__wid__channel_assignments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelAssignments"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_assignments_v1_workspaces__wid__channel_assignments_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChannelAssignmentsWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelAssignments"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spec_v1_workspaces__wid__analysis_spec_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisSpecView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_spec_v1_workspaces__wid__analysis_spec_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalysisSpecWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisSpecView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_v1_workspaces__wid__runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_run_v1_workspaces__wid__runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_v1_workspaces__wid__runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_run_v1_workspaces__wid__runs__run_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_run_v1_workspaces__wid__runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_links_v1_workspaces__wid__field_links_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_link_v1_workspaces__wid__field_links__fid__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                fid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldLinkWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publication_package_v1_jobs__jid__publication_package_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationPackageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rendered_v1_jobs__jid__figure_render_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    render_v1_jobs__jid__figure_render_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FigureRenderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

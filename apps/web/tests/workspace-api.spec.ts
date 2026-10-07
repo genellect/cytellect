@@ -57,10 +57,11 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   await expect(method).toContainText("1/1 視野");
   expect(analysisCount).toBe(1);
   // The card is a general workspace: per-nucleus values by default, nucleolar steps only when chosen.
-  const choices = method.getByRole("group", {name: "測るもの"});
+  const choices = method.getByRole("group", {name: "解析対象"});
   await expect(choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）"})).toBeChecked();
   for (const name of ["陽性領域（GFP などの明るい領域）", "核小体と核質の分布（NCL など）", "手で囲んだ領域（細胞全体・核の外など）"]) await expect(choices.getByRole("radio", {name})).not.toBeChecked();
   const step = (title: string) => method.getByRole("listitem").filter({has: page.getByText(title, {exact: true})});
+  await method.getByText("測定条件", {exact: true}).click();
   await expect(step("核小体")).toHaveCount(0);
   await expect(step("測る値")).toContainText("核ごとの面積と、各チャンネルの平均・中央値・積算輝度（元の値）");
   await expect(method.getByRole("button", {name: "全視野に適用"})).toBeDisabled();
@@ -77,6 +78,7 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   await choices.getByRole("radio", {name: "手で囲んだ領域（細胞全体・核の外など）"}).check();
   await expect(method.getByRole("button", {name: "画像で描く"})).toBeEnabled();
   await choices.getByRole("radio", {name: "核ごとの輝度と面積（各チャンネル）"}).check();
+  await method.getByText("検出設定", {exact: true}).click();
   const scale = method.getByLabel("検出用画像の大きさ");
   await expect(scale.locator("option:checked")).toHaveText("核の大きさに合わせる（自動）");
   await scale.selectOption({label: "長辺 256 px"});
@@ -87,8 +89,8 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   await expect(method.getByText("検出の大きさを変更しました（未反映）")).toHaveCount(0);
   expect(analysisCount).toBe(1);
   expect(selection.version).toBe(selectionVersion);
-  await page.getByLabel("何を調べますか", {exact: true}).fill("核面積を確認");
-  await page.getByRole("button", {name: "AI に方法を選ばせる", exact: true}).click();
+  await page.getByLabel("AIに指示", {exact: true}).fill("核面積を確認");
+  await page.getByRole("button", {name: "AIに送信", exact: true}).click();
   await expect.poll(() => proposalCount).toBe(1);
   await expect(page.getByText(/再送すると追加のAPI利用料/)).toBeVisible();
   expect(proposalCount).toBe(1);
@@ -110,7 +112,7 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   await expect(page.getByRole("img", {name: "保存するグラフ"})).toBeVisible();
   await expect(page.getByRole("figure", {name: /Figure legend/})).toBeVisible();
   expect([...figureRevisions.values()]).toEqual(["r1"]);
-  await page.getByRole("button", {name: "方法", exact: true}).click();
+  await page.getByRole("button", {name: "画像解析", exact: true}).click();
   await page.locator('[data-region="1"]').first().click();
   await page.getByRole("button", {name: "対象から除外", exact: true}).click();
   await expect.poll(() => selection.entries[0]?.revision_id).toBe("r2");
@@ -127,26 +129,26 @@ test("real workspace uses saved pixels/results, never legacy confirmation flags,
   expect(plot.language).toBe("en");
   expect(analysisCount).toBe(1);
   expect(writes.some(value => value.path.endsWith("/review"))).toBe(false);
-  await page.getByRole("button", {name: "方法", exact: true}).click();
+  await page.getByRole("button", {name: "画像解析", exact: true}).click();
   await page.getByRole("button", {name: "元に戻す", exact: true}).click();
   await expect.poll(() => selection.entries[0]?.revision_id).toBe("r1");
   const other = await context.newPage();
   await other.goto("/workspace?id=w1");
   await expect(other.getByRole("region", {name: "解析方法"})).toContainText("1/1 視野");
-  await other.getByRole("button", {name: /測定値 ·/}).click();
+  await other.getByRole("button", {name: "測定値", exact: true}).click();
   await expect(other.getByRole("cell", {name: "採用", exact: true})).toHaveCount(2);
   // A different tab adopts r2; the stale r1 tab must not overwrite it.
   await page.getByRole("button", {name: "やり直す", exact: true}).click();
   await expect.poll(() => selection.entries[0]?.revision_id).toBe("r2");
   await expect(other.getByText("別のタブで採用状態が更新されました。表示中の測定値・図は旧版です。", {exact: false})).toBeVisible();
   await other.getByRole("button", {name: "領域 1 を選択", exact: true}).click();
+  await expect(other.getByRole("img", {name:"視野 1の画像"})).toBeVisible();
   await other.getByRole("button", {name: "対象から除外", exact: true}).click();
   await expect(other.getByRole("button", {name: "最新の採用状態を読み込む"})).toBeVisible();
   expect(selection.entries[0].revision_id).toBe("r2");
   await other.close();
-  await page.getByRole("button", {name: "操作パネル"}).click();
   await page.setViewportSize({width: 390, height: 844});
-  await expect(page.getByRole("button", {name: "操作パネル"})).toBeInViewport();
+  await expect(page.getByRole("navigation", {name: "解析メニュー"})).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });
 

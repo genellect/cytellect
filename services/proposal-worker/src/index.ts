@@ -6,7 +6,7 @@
  * returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, LEGACY_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
@@ -193,8 +193,8 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const checked = body && checkRequest(body);
     if (!checked) return failure(400, "request_invalid");
     const promptVersion = body!.prompt_version ?? LEGACY_PROMPT_VERSION;
-    if (promptVersion !== PROMPT_VERSION && promptVersion !== LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
-    if (checked.context.field_count === 0 && promptVersion !== PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
+    if (typeof promptVersion !== "string" || ![PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
+    if (checked.context.field_count === 0 && promptVersion === LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
     const modelConfig = {...config, promptVersion};
     const requestId = request.headers.get("idempotency-key");
     if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return failure(400, "request_id_required");

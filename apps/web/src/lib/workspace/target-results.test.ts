@@ -33,6 +33,22 @@ describe("derived target validity", () => {
   it("rejects both compartments but retains the nucleus after NCL channel remapping", () => {
     expect(validTargetResults(cache(), undefined, {ncl: "c3"})).toEqual({nuclei: nuclear()});
   });
+  it.each(["dapi_poor", "marker"] as const)("keeps %s compartments when only the measurement NCL channel changes", source => {
+    const original = cache();
+    for (const target of ["nucleoli", "nucleoplasm"] as const) {
+      original[target]!.recipe = {...original[target]!.recipe, defining_channel_id:source === "dapi_poor" ? "c4" : "c2", detector:{engine:"cytellect-nucleolar-v2",protocol_version:"2.0.0",source,smoothing_sigma_px:1,rim_exclusion_px:2,relative_threshold:0.7,marker_fraction:0.4,background_radius_px:20,minimum_area_px:1,maximum_area_px:null,minimum_solidity:0.5}};
+    }
+    expect(validTargetResults(original, undefined, {nuclear:"c4",ncl:"c1"})).toEqual(original);
+    if (source === "dapi_poor") {
+      original.nucleoli!.recipe = {...original.nucleoli!.recipe,defining_channel_id:"c2"};
+      expect(validTargetResults(original, undefined, {nuclear:"c4",ncl:"c1"}).nucleoli).toBeUndefined();
+    }
+  });
+  it("does not relabel an unknown positive mask as a nuclear mask", () => {
+    const recipe: Recipe = {id:"region-2d",version:"1.3.0",source:"fiji_positive_regions",region_set_id:"signal_positive",label:"陽性領域",defining_channel_id:"c2"};
+    expect(() => targetOf(recipe)).toThrow("領域の種類を識別できません");
+    expect(() => validTargetResults(cache(), {recipe,result:result("signal")})).toThrow();
+  });
   it.each(["gfp", "ncl"] as const)("invalidates %s positive regions only on an explicit changed channel", target => {
     const saved: TargetResult = {result: result(target), recipe: {id: "region-2d", version: "1.3.0", source: "fiji_positive_regions", region_set_id: target + "_positive", label: target, defining_channel_id: "c3"}};
     const original = {...cache(), [target]: saved};

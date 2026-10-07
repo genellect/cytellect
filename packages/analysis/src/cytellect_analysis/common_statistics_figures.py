@@ -18,7 +18,15 @@ from matplotlib.ticker import MaxNLocator
 from .common_statistics_contracts import CommonStatisticsResult
 from .compartment_observations import DEFINITIONS as COMPARTMENT_DEFINITIONS
 from .exports_csv import write_csv
-from .figures import COLORS, MARKERS, _validate_text_layout, apply_plot_controls, figure_settings, select_font
+from .figures import (
+    COLORS,
+    MARKERS,
+    _validate_text_layout,
+    apply_plot_controls,
+    figure_settings,
+    select_font,
+    series_color,
+)
 from .gfp_selection import recorded_gate_lines
 from .regions import RegionModel
 
@@ -89,7 +97,9 @@ def common_statistics_methods(result):
         if source["metric"] in COMPARTMENT_DEFINITIONS:
             lines.append(compartment_methods_sentence(axis, source["metric"]))
         elif source["metric"].endswith("_corrected"):
-            lines.append(f"{axis} values use the saved confirmed background ROI median; signed corrected values were retained.")
+            automatic = any((item.get("measurement") or {}).get("mode") == "automatic_background" for item in source["source_fields"])
+            basis = "saved automatic background candidate median" if automatic else "saved confirmed background ROI median"
+            lines.append(f"{axis} values use the {basis}; signed corrected values were retained.")
         elif source["metric"].startswith("area_"):
             lines.append(f"{axis} counts original mask pixels" +
                          (" multiplied by confirmed XY pixel area." if source["metric"] == "area_um2" else "."))
@@ -101,6 +111,8 @@ def common_statistics_methods(result):
         lines.append(f"{axis} acquisition basis: {source['acquisition']['review']['basis']}; "
                      "comparability is researcher-confirmed, not established by the software.")
     if association:
+        if spec["version"] == "1.1.0":
+            lines.append("Both axes used the same explicit GFP selection and identical retained region identities before independent-unit aggregation.")
         lines += [f"Association scope: {spec['scope']}. X and Y were independently aggregated and matched by the "
                   "same condition and independent-unit identity, never by observation order. "
                   "Unmatched unexcluded units were rejected. Different retained region/field counts per axis remain in the ledgers.",
@@ -180,7 +192,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 for i, group in enumerate(order):
                     points = [r for r in rows if r["condition"] == group]
                     ax.scatter([r["x"] for r in points], [r["y"] for r in points], s=18,
-                               color=COLORS[i % len(COLORS)], marker=MARKERS[i % len(MARKERS)],
+                               color=series_color(plot, group, COLORS[i % len(COLORS)]), marker=MARKERS[i % len(MARKERS)],
                                linewidths=.35, edgecolors="white", label=f"{group} (n={len(points)})")
                     glyphs.extend({**r, "display_x": r["x"], "display_y": r["y"]} for r in points)
                 ax.set_xlabel(plot["x_label"] or _label(canonical["x_source"], ja))
@@ -193,8 +205,8 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                     points = [r for r in rows if r["condition"] == group]
                     histogram_values = [r["value"] for r in points]
                     counts, _ = np.histogram(histogram_values, bins=bins)
-                    ax.stairs(counts, bins, color=COLORS[i % len(COLORS)], label=f"{group} (n={len(points)})")
-                    ax.plot(histogram_values, np.full(len(histogram_values), -.1 - .12 * i), "|", color=COLORS[i % len(COLORS)], clip_on=False)
+                    ax.stairs(counts, bins, color=series_color(plot, group, COLORS[i % len(COLORS)]), label=f"{group} (n={len(points)})")
+                    ax.plot(histogram_values, np.full(len(histogram_values), -.1 - .12 * i), "|", color=series_color(plot, group, COLORS[i % len(COLORS)]), clip_on=False)
                     graphical_summary.extend({"condition": group, "bin_left": float(lo), "bin_right": float(hi),
                                               "count": int(n), "last_bin_includes_right": j == len(counts) - 1}
                                              for j, (lo, hi, n) in enumerate(zip(bins[:-1], bins[1:], counts, strict=True)))
@@ -227,12 +239,12 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                                               showmedians=True, points=100, bw_method="scott")
                         # Matplotlib's dictionary stub erases the list type for the bodies key.
                         for body in cast(list[PolyCollection], parts["bodies"]):
-                            body.set_facecolor(COLORS[i % len(COLORS)])
+                            body.set_facecolor(series_color(plot, group, COLORS[i % len(COLORS)]))
                             body.set_alpha(.2)
                         graphical_summary.append({"condition": group, "kde": "Gaussian", "bandwidth": "Scott",
                                                   "grid_points": 100, "min": float(values.min()), "max": float(values.max())})
                     jitter = np.zeros(len(points)) if plot["kind"] == "paired" else rng.uniform(-.12, .12, len(points))
-                    ax.scatter(i + jitter, values, s=18, color=COLORS[i % len(COLORS)],
+                    ax.scatter(i + jitter, values, s=18, color=series_color(plot, group, COLORS[i % len(COLORS)]),
                                marker=MARKERS[i % len(MARKERS)], edgecolor="white", linewidth=.35, zorder=3)
                     glyphs.extend({**r, "display_x": float(i + offset), "display_y": r["value"]}
                                   for r, offset in zip(points, jitter, strict=True))

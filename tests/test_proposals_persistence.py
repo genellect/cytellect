@@ -18,7 +18,7 @@ from test_proposals import ACTIN_DRAFT, CONTEXT, FakeResponse, codes, configured
 from test_region_api import make_field, region_request
 
 BODY = {"transmission_confirmed": True}
-REPLY = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-06.2"}).encode()
+REPLY = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-07.2"}).encode()
 
 
 def test_ratio_requires_background_and_paired_three_conditions_are_unsupported():

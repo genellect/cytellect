@@ -25,6 +25,16 @@ class DescriptivePresentationError(ValueError):
         self.code, self.page_index = code, page_index
 
 
+def _page_capacity(style):
+    if style["preset"] == "nature-single":
+        return 4
+    if style["preset"] == "nature-double":
+        return 8
+    # Custom pages reserve nine font-size units per field's two-line tick label.
+    # Keep the manifest's eight-field bound; rendering still validates text fit.
+    return max(1, min(8, math.floor(style["width_inches"] * 72 / (9 * style["font_size_pt"]))))
+
+
 def page_layout(result):
     """Validate full source coverage before any recoverable rendering operation."""
     request = parse_descriptive_request(result["spec"])
@@ -57,7 +67,7 @@ def page_layout(result):
     _source_measurement_policy(result)
     plot = request.plot.model_dump(mode="json")
     style, ja = figure_settings(plot), request.plot.language == "ja"
-    capacity = 4 if request.plot.preset == "nature-single" else 8
+    capacity = _page_capacity(style)
     plans = [{"page_index": index // capacity + 1, "field_ids": order[index:index + capacity],
               "field_numbers": list(range(index + 1, min(index + capacity, len(order)) + 1))}
              for index in range(0, len(order), capacity)]

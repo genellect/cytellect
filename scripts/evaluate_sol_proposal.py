@@ -6,7 +6,7 @@ validation codes. Used by services/proposal-worker/src/public-evaluation.test.ts
 import json
 import sys
 
-from cytellect_analysis.proposal_contracts import ProposalContext
+from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION, ProposalContext
 from cytellect_analysis.proposal_validation import ProposalRejected, validate_draft
 
 
@@ -17,7 +17,7 @@ def main() -> None:
     try:
         validated = validate_draft(
             ProposalContext.model_validate(request["context"]), request["draft"],
-            model="gpt-6.1-sol", prompt_version="2026-10-06.2",
+            model="gpt-6.1-sol", prompt_version=PROPOSAL_PROMPT_VERSION,
         )
         print(json.dumps({"valid": True, "codes": [], "needs_confirmation": validated.needs_confirmation}))
     except ProposalRejected as error:

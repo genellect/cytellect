@@ -319,3 +319,23 @@ matches SciPy, the exact Mann–Whitney U is 0 with p = 2/20, an explicitly
 excluded nucleus would change a field median and does not, and the missing nucleus
 stays in the missingness ledger. These tests establish arithmetic and source
 binding only, not nucleolar segmentation validity or biological interpretation.
+
+## Explicit channel identity corrections
+
+The workspace channel assignment ledger stores the researcher's current channel-to-stain
+and analysis-role choices, including an explicitly unknown stain or unused channel.
+Saving uses an ownership-checked version comparison; no channel number or display color
+establishes a stain. Original upload records and measurement pixels remain unchanged.
+New generic-region analyses copy the current confirmed identities and assignment ledger
+into their immutable configuration. Existing revisions retain their historical identities,
+and batch mask reuse rejects a changed channel identity. Further uploads compare their
+identity against the current mapping. Workspace retention removes the mapping with its
+other metadata. The optional proposal context uses the current explicit mapping; it does
+not rename saved scientific outputs.
+
+
+### Marker smoothing protocol compatibility
+
+`cytellect-nucleolar-v2/2.0.0` marker detection continues to use Gaussian sigma 0.7 px, including historical recipes whose `smoothing_sigma_px` records another value. Those records are not rewritten or reinterpreted. Its DAPI-poor path continues to use the recorded sigma as before.
+
+Marker-only protocol `2.1.0` uses the recorded `smoothing_sigma_px` (0–20 px), with 0.7 px as the new-request default. Rolling-ball subtraction, threshold definition, rim exclusion, component filtering, coordinates and original measurement pixels are unchanged. Opening an old result or editing an unrelated setting does not upgrade it. An explicit marker sigma edit, a new marker configuration or adoption of a 2.1.0 proposal creates the new protocol configuration; accepted masks remain unchanged until the usual preview/adoption operation. Fiji NCL protocol 1.1.0 is unaffected. This is parameter-semantic compatibility, not a claim of biological validation.
