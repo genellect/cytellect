@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from .proposal_contracts import (
     INTENSITY_METRICS,
+    MEASURES_BY_RECIPE,
     NCL_METRICS,
     ProposalContext,
     ProposalDraft,
@@ -19,6 +20,7 @@ from .proposal_contracts import (
 )
 
 NCL_STAINS = frozenset({"ncl", "nucleolin"})
+GFP_STAINS = frozenset({"gfp", "egfp"})
 # Text fields are explanations only; anything executable or remote is refused.
 FORBIDDEN_TEXT = re.compile(
     r"(https?://|www\.|```|<\s*script|\beval\s*\(|\bexec\s*\(|\bimport\s+\w|\bdef\s+\w+\s*\(|run\s*\(\s*\"|"
@@ -37,7 +39,67 @@ def context_sha256(context: ProposalContext) -> str:
 
 
 def _texts(draft: ProposalDraft) -> list[str]:
-    return [draft.rationale, *draft.missing_information, *(channel.reason for channel in draft.channels)]
+    reasons = [] if draft.processing is None else [
+        text for text in draft.processing.reasons.model_dump().values() if text is not None]
+    return [draft.rationale, *draft.missing_information, *(channel.reason for channel in draft.channels), *reasons]
+
+
+def _processing_codes(context: ProposalContext, draft: ProposalDraft, roles: dict[str, str],
+                      ncl: set[str], needs_confirmation: list[str]) -> list[str]:
+    """Method-card settings must match the recipe, the channel roles and recorded stains.
+
+    Numeric thresholds are never part of the draft; manual thresholds and GFP
+    control fields are left to the researcher and must be listed as missing.
+    """
+    processing = draft.processing
+    allowed = MEASURES_BY_RECIPE.get(draft.recipe)
+    if allowed is None:
+        return ["proposal_processing_unexpected"] if processing is not None else []
+    if processing is None:
+        return ["proposal_processing_required"]
+    codes: list[str] = []
+    known = {channel.token: channel for channel in context.channels}
+    nuclear = {token for token, role in roles.items() if role == "nuclear"}
+    stain = {token: (channel.stain or "").casefold() for token, channel in known.items()}
+    if processing.measure not in allowed:
+        codes.append("proposal_processing_measure_recipe_mismatch")
+    if processing.measure == "drawn" and processing.nuclear_detection_max_side is not None:
+        codes.append("proposal_detection_size_not_applicable")
+    if (processing.nuclear_detection_max_side is not None and context.image_long_side_px is not None
+            and processing.nuclear_detection_max_side > context.image_long_side_px):
+        # The detection copy is only ever downscaled; a larger size is out of range.
+        codes.append("proposal_detection_size_out_of_range")
+    positive = processing.positive
+    if (positive is not None) != (processing.measure == "positive"):
+        codes.append("proposal_positive_inconsistent")
+    if positive is not None and (positive.channel not in known or positive.channel in nuclear
+                                 or roles.get(positive.channel) != "measure"):
+        codes.append("proposal_positive_channel_invalid")
+    source = processing.nucleolar_source
+    if (source is not None) != (processing.measure == "nucleolar"):
+        codes.append("proposal_nucleolar_source_inconsistent")
+    if source is not None:
+        marker = source.marker_channel
+        if source.source == "marker":
+            if marker is None or marker not in known or marker in nuclear or marker in ncl:
+                # NCL itself is the legacy "ncl" source, not an independent marker.
+                codes.append("proposal_nucleolar_marker_invalid")
+            elif known[marker].stain is None and marker not in needs_confirmation:
+                needs_confirmation.append(marker)
+        elif marker is not None:
+            codes.append("proposal_nucleolar_marker_unexpected")
+        if source.source == "ncl" and not ncl:
+            codes.append("proposal_ncl_channel_not_acquired")
+    gate = processing.gfp_gate
+    if gate is not None:
+        if processing.measure == "drawn":
+            codes.append("proposal_gfp_gate_inconsistent")
+        if gate.channel not in known or gate.channel in nuclear or stain.get(gate.channel) not in GFP_STAINS:
+            codes.append("proposal_gfp_gate_channel_invalid")
+    if (gate is not None or (positive is not None and positive.threshold == "manual")) and not draft.missing_information:
+        # Control fields and manual threshold values are the researcher's, never invented.
+        codes.append("proposal_missing_information_required")
+    return codes
 
 
 def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_version: str) -> ValidatedProposal:
@@ -94,6 +156,8 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         if metric.region == "supplied" and draft.recipe != "supplied-regions":
             codes.append("proposal_metric_region_invalid")
         if metric.region == "nucleus" and draft.recipe not in ("nuclear-intensity", "nuclear-ncl"):
+            codes.append("proposal_metric_region_invalid")
+        if metric.region == "positive" and (draft.processing is None or draft.processing.measure != "positive"):
             codes.append("proposal_metric_region_invalid")
         if metric.metric in INTENSITY_METRICS or metric.metric == "area":
             if metric.region is None:
@@ -176,6 +240,7 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         codes.append("proposal_none_has_analysis")
     if draft.recipe != "none" and not draft.metrics:
         codes.append("proposal_measurements_required")
+    codes.extend(_processing_codes(context, draft, roles, ncl, needs_confirmation))
     if len(set(draft.reference_ids)) != len(draft.reference_ids):
         codes.append("proposal_reference_duplicate")
     if any(FORBIDDEN_TEXT.search(text) for text in _texts(draft)):
