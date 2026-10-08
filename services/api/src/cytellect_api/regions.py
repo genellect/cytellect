@@ -363,7 +363,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         for item in body.fields:
             rev = region_revision(item.revision_id, who)
             recipe = rev["config"].get("recipe", {})
-            expected_source = (recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell") if body.unit == "cell_roi" else recipe.get("source") == "stardist_nuclear"
+            expected_source = (recipe.get("source") in ("manual", "cellpose_cell") and recipe.get("region_set_id") == "cell") if body.unit == "cell_roi" else recipe.get("source") == "stardist_nuclear"
             if rev["workspace_id"] != wid or not expected_source or item.field_id not in rev["config"]["field_ids"]:
                 raise HTTPException(409, "gfp_gate_requires_nuclear_revision")
             report = read_json(result_root(rev) / "measurements.json")

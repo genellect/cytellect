@@ -9,7 +9,7 @@ from .compartment_sources import load_compartment_summaries
 
 
 def collect_dependencies(store, revision, report, provenance):
-    if revision["config"].get("recipe", {}).get("source") != "fiji_nuclear_compartment":
+    if revision["config"].get("recipe", {}).get("source") not in {"fiji_nuclear_compartment", "cellpose_cell"}:
         return {}
     recipe = revision["config"]["recipe"]
     summaries = (load_compartment_summaries(store, revision, report)

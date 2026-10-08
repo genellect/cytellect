@@ -1,5 +1,21 @@
 # Implementation and remaining gates
 
+## Cellpose invocation integration, 2026-10-08
+
+The optional fixed Cellpose-SAM adapter connects NCL candidates and separate cell
+ROI candidates to existing original-coordinate measurement, editing and replay.
+Nuclei continue to use Fiji/StarDist. New explicit NCL selections use protocol
+4.1.0 local-background removal; saved raw-input 4.0.0 and classical recipes retain
+their behavior. Manual and structured AI settings use the same validated detector.
+Changing channels after selecting the algorithm starts the pending preview only
+once the input is complete. A field failure retains its specific worker reason.
+
+The selected real-image trial has exact label-reproduction evidence stored
+privately. Other real images still show false candidates and missed nucleoli;
+parent containment is tested separately and does not establish capture accuracy.
+General private-data biological acceptance remains open. Installed Windows
+Cellpose, CUDA and persistent model loading also remain separate open gates.
+
 The active 2026-10-03 improvement sequence is recorded in [Researcher workflow](research-workflow.md): purpose-first LP/planning, generic 2D region/channel contracts, guided workspace, independent repeated review, then researcher acceptance. This work proceeds alongside the remaining private-data gates below. No historical release evidence is retrospectively relabeled.
 
 This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).

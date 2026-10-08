@@ -130,7 +130,13 @@ def advance_workspace_runs(store, settings):
                         if job["state"] == "succeeded":
                             report = read_json(store.safe_path(job["result_dir"], "measurements.json"))
                             if step["field_id"] not in report.get("field_tables", {}):
-                                step["state"], step["error"] = "failed", "analysis_run_field_failed"
+                                failure: dict[str, Any] = next(
+                                    (value for value in report.get("field_failures", [])
+                                     if value.get("field_id") == step["field_id"]), {}
+                                )
+                                step["state"], step["error"] = (
+                                    "failed", failure.get("reason") or "analysis_run_field_failed"
+                                )
                         changed = True
                 if step["state"] != "pending":
                     continue
@@ -279,8 +285,13 @@ def advance_workspace_runs(store, settings):
                         continue
                     step.update(state="failed", error=str(error.detail))
                     changed = True
-                except ValueError:
-                    step.update(state="failed", error="analysis_run_settings_invalid")
+                except ValueError as error:
+                    allowed = {"analysis_run_nuclear_parent_required", "analysis_run_nucleolar_marker_required",
+                               "analysis_run_nucleolar_marker_unknown", "analysis_run_nucleolar_parent_required",
+                               "analysis_run_background_confirmation_required"}
+                    allowed.update({"analysis_run_cell_channel_required", "analysis_run_cell_channel_unknown"})
+                    code = str(error)
+                    step.update(state="failed", error=code if code in allowed else "analysis_run_settings_invalid")
                     changed = True
             terminal = all(step["state"] in DONE for step in steps)
             state = (
@@ -355,6 +366,33 @@ def register_workspace_run_routes(api, store, owner, workspace, touch):
             entries = {value.get("field_id"): value for value in selection["entries"]}
             if any(fid not in entries or entries[fid].get("exclusion_reason") for fid in body.field_ids):
                 raise HTTPException(409, "analysis_run_unselected_field")
+            cell = spec["spec"]["settings"].get("cellDefinition", {})
+            if body.target == "cell" and cell.get("source") == "cellpose":
+                if not cell.get("channel"):
+                    raise HTTPException(422, "analysis_run_cell_channel_required")
+                if any(cell["channel"] not in {a["channel_id"] for a in effective_assignments(assignments, fid)["assignments"] if a["role"] != "unused"}
+                       for fid in body.field_ids):
+                    raise HTTPException(422, "analysis_run_cell_channel_unknown")
+            if body.target in ("nucleoli", "nucleoplasm"):
+                definition = spec["spec"]["settings"]["nucleolarDefinition"]
+                if definition["source"] != "dapi_poor" and not definition["marker"]:
+                    raise HTTPException(422, "analysis_run_nucleolar_marker_required")
+                for fid in body.field_ids:
+                    mapped = effective_assignments(assignments, fid)["assignments"]
+                    nuclear = [a["channel_id"] for a in mapped if a["role"] == "nuclear"]
+                    if len(nuclear) != 1:
+                        raise HTTPException(422, "analysis_run_nuclear_parent_required")
+                    if definition["source"] != "dapi_poor" and definition["marker"] not in {a["channel_id"] for a in mapped if a["role"] == "measure"}:
+                        raise HTTPException(422, "analysis_run_nucleolar_marker_unknown")
+                    if definition["source"] == "ncl" and ((spec["spec"].get("processing") or {}).get("nucleoli") or {}).get("detector", {}).get("engine") != "fiji-nucleolar-compartments":
+                        from .run_recipes import build_run_request
+                        parents = adopted_for(conn, wid, fid, selection)
+                        parent = parents.get("nuclei")
+                        if not parent:
+                            raise HTTPException(422, "analysis_run_nuclear_parent_required")
+                        requested = build_run_request(spec["spec"], "nuclei", fid, parents, effective_assignments(assignments, fid))
+                        if not same_recipe(parent["config"]["recipe"], requested.recipe):
+                            raise HTTPException(422, "analysis_run_nuclear_parent_required")
             order = (
                 ["cell"]
                 if body.target == "cell"

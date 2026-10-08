@@ -350,3 +350,101 @@ Marker-only protocol `2.1.0` uses the recorded `smoothing_sigma_px` (0–20 px),
 Explicit descriptive CSV import requires `field_id,value`; study metadata may remain unknown. The historical experimental-unit import remains strict. The descriptive route uses the existing per-field summaries without inferential tests or invented replicates. Comparison rejects incomplete study metadata before queuing. Numerical replay format 2 records the original CSV byte hash, normalized observations, saved descriptive settings, page artifacts and renderer Methods; replay checks the exact original CSV before recalculation.
 
 SVG observation marks carry identities already present in saved result rows. Nuclear or ROI observations return to the saved field, object, measured channel and mask revision. Experimental-unit marks expose their saved constituent observations. These annotations do not generate observations or change measurements, aggregation or statistical tests. The pagination contract remains 2.0.0; presentation renderer 2.0.1 honors saved point size, field color and legend settings. Figure files record their renderer and code identity. Reproduction of historical presentation requires its recorded code version.
+
+NCL object detector 3.0.0: see [the versioned compartment definition](nucleolar-compartments.md#ncl-object-protocol-300-2026-10-08). It uses local enrichment, complete compact-object envelopes and adopted-parent containment; historical recipes are not reinterpreted.
+
+### Optional Cellpose candidates, protocol 4.0.0
+
+The offline `cellpose-sam/4.0.0` adapter pins Cellpose 4.2.1.1 and the official
+`cpsam_v2` weights by immutable revision and SHA256, separately from Fiji and the
+application Python runtime. StarDist remains the nuclear detector. A researcher
+explicitly chooses the defining NCL or cell stain and the Cellpose algorithm.
+Changing an unrelated setting never upgrades a historical detector.
+
+Percentile normalization and optional diameter resampling operate on a detection
+copy only. Original-coordinate unsigned integer labels are authoritative;
+original pixels determine area, mean and integrated intensity. A nucleolar
+candidate must be wholly inside exactly one adopted nucleus. Crossing, exterior
+and boundary-truncated candidates remain in review provenance and do not become
+completed nucleoli by clipping. Nuclear labels and manual edits are preserved.
+Nucleoplasm is derived from the adopted nucleus minus adopted nucleolar unions.
+
+Cell recipe 1.8.0 saves separate cell ROI candidates. Optional nuclear association
+records every overlap; it does not impose one cell per nucleus, infer cell
+boundaries from DAPI, or establish a negative-cell denominator from GFP alone.
+The existing object-level GFP selection and original-pixel measurement paths
+consume these cell ROI masks. Saved masks, rather than a future model run,
+provide measurement replay.
+
+The model is a general segmentation model, not a trained nucleolus classifier.
+Applicability remains an image-review question; successful execution and nuclear
+containment do not prove biological identity. CPU inference currently reloads
+the model per image job. CUDA execution and persistent model pooling are not
+implemented. The [adapter record](../engines/cellpose/README.md) documents model,
+dependency and licence provenance. Model and runtime acquisition occurs only in
+explicit setup/build, with a reusable cache, never in image jobs.
+
+### NCL Cellpose detection copy, protocol 4.1.0
+
+New explicit NCL Cellpose selections use `cellpose-sam-ncl/4.1.0` with the same
+fixed model and dependencies. The selected NCL plane is converted to float32,
+Gaussian-smoothed (default sigma 0.9 original pixels), and subjected to grayscale
+opening with a Euclidean disk (default radius 10 original pixels, reflect boundary
+mode). The nonnegative difference from this local background is passed to the
+model through its official percentile normalization (default 1 and 99). No
+display LUT, color, nuclear zeroing, image-size scaling or thresholded label mask
+is supplied as the detection input. Parameters are saved with the detector.
+
+Original pixels still provide measurement values. Original-coordinate candidates
+are bound to adopted StarDist nuclei by the containment policy above. This new
+protocol does not reinterpret saved raw-input `cellpose-sam/4.0.0` results or the
+separate cell ROI recipe. A successful segmentation still requires researcher
+review; it does not independently establish nucleolar identity.
+
+
+### Parent-conditioned NCL Cellpose protocol 4.2.0
+
+New explicit NCL Cellpose selections use `cellpose-sam-ncl-parent/4.2.0`.
+The unchanged original plane is Gaussian-smoothed (0.9 original px) before any
+parent restriction. For each adopted StarDist nucleus, subtract its 75th
+intensity percentile, keep positive signal only within that parent, and normalize
+a padded (32 px) crop using the pinned official Cellpose 1/99 percentile transform.
+An explicit diameter overrides the default, which is 0.25 times that adopted
+nucleus's equivalent diameter. This is an empirical, recorded model scale prior;
+it is neither an image-dimension conversion nor a claim that nucleolar size is
+biologically fixed. Display colour, LUT and zoom cannot change these inputs.
+
+Original-minus-smoothed residuals in the lower nuclear intensity range provide
+a robust noise estimate (1.4826 MAD, floor half an input intensity code unit).
+Parent signal excess and individual candidate original-pixel enrichment must
+meet the recorded minimum signal/noise ratio (5). Local background is the mean
+of available pixels in an 8 px annulus inside the same parent and outside model
+candidates. Insufficient parent signal is indeterminate, not zero nucleoli.
+Disconnected model components receive distinct IDs and must each satisfy
+minimum area. Cross-parent and boundary-touching objects are rejected whole,
+never clipped. No nucleus-size, dark-hole or top-percentile mask replaces an
+absent candidate.
+
+Compartment protocol 1.1.0 retains valid individual candidates when another
+object requires boundary review. That parent's nucleoplasm/complement remains
+missing; it is not treated as a complete nucleolar union for ratios. Researcher
+adoption resolves the candidate set explicitly. Complete eligible parents use
+the union of adopted children and parent-minus-union, with original-pixel
+measurements. Per-parent crop, background, diameter, normalization and signal
+quality are retained alongside original and parent-mask hashes.
+
+Protocols 3.0.0, 4.0.0 and 4.1.0 keep their historical semantics and replay.
+Existing masks, including manual edits, are not silently upgraded. Private real
+image validation is outside Git/CI; runtime/contract checks are not a claim of
+general biological segmentation accuracy. Cellpose-SAM is not a nucleolus-specific
+classifier, and NCL redistribution can change marker-defined candidates.
+
+
+Protocol 4.2.1 preserves the 4.2.0 parent-conditioned inference settings and adds
+whole-instance nuclear rejection after inference. A candidate covering more
+than `maximum_nuclear_coverage` (default 0.5) of an adopted StarDist nucleus,
+with at least 0.9 parent purity, is removed as a nuclear-scale candidate. The
+original raw candidate artifact and rejection measurements are retained.
+Nuclear pixels are never subtracted from nucleolar masks. A parent containing
+only rejected nuclear-scale candidates is indeterminate, not a measured zero.
+Stored 4.2.0 recipes skip this filter and retain their original meaning.

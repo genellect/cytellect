@@ -2,7 +2,11 @@
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
 
-export const PROMPT_VERSION = "2026-10-08.1";
+export const PROMPT_VERSION = "2026-10-08.5";
+export const PARENT_PREVIOUS_PROMPT_VERSION = "2026-10-08.4";
+export const CELLPOSE_PREVIOUS_PROMPT_VERSION = "2026-10-08.3";
+export const OBJECT_PREVIOUS_PROMPT_VERSION = "2026-10-08.2";
+export const NCL_PREVIOUS_PROMPT_VERSION = "2026-10-08.1";
 export const PREVIOUS_PROMPT_VERSION = "2026-10-07.2";
 export const PROCESSING_PROMPT_VERSION = "2026-10-07.1";
 export const PREIMPORT_PROMPT_VERSION = "2026-10-06.2";
@@ -146,24 +150,78 @@ function outputText(body: { output?: { type: string; content?: { type: string; t
 
 /** Closed structural validation; the local API additionally checks scientific semantics. */
 export function hasDraftShape(value: unknown): boolean {
-  return matchesSchema(value, contract.draft_schema) || matchesSchema(value, contract.processing_draft_schema) || matchesSchema(value, contract.legacy_draft_schema);
+  const compatible = value && typeof value === "object" && !Array.isArray(value)
+    ? { ...value as Record<string, unknown> } : value;
+  if (compatible && typeof compatible === "object" && "processing" in compatible) {
+    const processing = compatible.processing;
+    if (processing && typeof processing === "object" && !Array.isArray(processing) && !("cells" in processing)) {
+      compatible.processing = { ...processing, cells: null };
+    }
+  }
+  return matchesSchema(compatible, contract.draft_schema) || matchesSchema(compatible, contract.processing_draft_schema) || matchesSchema(compatible, contract.legacy_draft_schema);
+}
+
+/** Older installed clients cannot read new Cellpose union members or cells. */
+function installedClientSchema(schema: unknown, allowObjects: boolean): unknown {
+  if (Array.isArray(schema)) return schema.map(item => installedClientSchema(item, allowObjects));
+  if (!schema || typeof schema !== "object") return schema;
+  const node = Object.fromEntries(Object.entries(schema).map(([key, value]) => [key, installedClientSchema(value, allowObjects)])) as Record<string, unknown>;
+  if (node.properties && typeof node.properties === "object" && "cells" in node.properties) {
+    delete (node.properties as Record<string, unknown>).cells;
+    if (Array.isArray(node.required)) node.required = node.required.filter(key => key !== "cells");
+  }
+  if (Array.isArray(node.anyOf)) node.anyOf = node.anyOf.filter(branch => {
+    const engine = branch?.properties?.engine?.enum?.[0];
+    return engine !== "cellpose-sam" && engine !== "cellpose-sam-ncl" && engine !== "cellpose-sam-ncl-parent" && (allowObjects || engine !== "cytellect-ncl-objects");
+  });
+  return node;
+}
+
+function parentReplayClientSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(parentReplayClientSchema);
+  if (!schema || typeof schema !== "object") return schema;
+  const node = Object.fromEntries(Object.entries(schema).map(([key,value])=>[key,parentReplayClientSchema(value)])) as Record<string,unknown>;
+  const props = node.properties as Record<string,unknown> | undefined;
+  if (props && "maximum_nuclear_coverage" in props) {
+    delete props.maximum_nuclear_coverage;
+    if (Array.isArray(node.required)) node.required=node.required.filter(key=>key!=="maximum_nuclear_coverage");
+    props.protocol_version={type:"string",enum:["4.2.0"]};
+  }
+  return node;
+}
+
+function parentlessClientSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(parentlessClientSchema);
+  if (!schema || typeof schema !== "object") return schema;
+  const node = Object.fromEntries(Object.entries(schema).map(([key,value])=>[key,parentlessClientSchema(value)])) as Record<string,unknown>;
+  if (Array.isArray(node.anyOf)) node.anyOf=node.anyOf.filter(branch=>branch?.properties?.engine?.enum?.[0]!=="cellpose-sam-ncl-parent");
+  return node;
 }
 
 export function requestPayload(settings: ModelSettings, context: unknown, previews: Preview[], repair?: string) {
   const version = settings.promptVersion ?? PROMPT_VERSION;
-  const current = version === PROMPT_VERSION || version === PREVIOUS_PROMPT_VERSION;
+  const current = version === PROMPT_VERSION || version === PARENT_PREVIOUS_PROMPT_VERSION || version === CELLPOSE_PREVIOUS_PROMPT_VERSION || version === OBJECT_PREVIOUS_PROMPT_VERSION || version === NCL_PREVIOUS_PROMPT_VERSION || version === PREVIOUS_PROMPT_VERSION;
   const processing = current || version === PROCESSING_PROMPT_VERSION;
   const methods = processing ? SYSTEM_PROMPT
     .replace("nucleolar candidates are defined from NCL itself, so region definition can follow NCL changes.", "nucleolar definition is selected in processing independently of the measured NCL channel.")
     .replace("Cytellect's NCL recipe uses the measured marker to define candidates, so NCL redistribution can also change their regions.", "When an NCL-defined legacy detector is explicitly selected, redistribution of NCL can also change the candidate regions. DNA-poor regions and acquired stable-marker regions have their own limitations and need image review.")
     : SYSTEM_PROMPT;
-  const prompt = (current ? methods.replace("Corrected intensity metrics and the NCL log2 ratio require background_available true; otherwise use raw metrics.", "Corrected metrics require a recorded confirmed background or an explicit automatic-background proposal; otherwise use raw metrics.") : methods) + (version !== LEGACY_PROMPT_VERSION ? "\n" + PREIMPORT_INSTRUCTION : "")
+  let prompt = (current ? methods.replace("Corrected intensity metrics and the NCL log2 ratio require background_available true; otherwise use raw metrics.", "Corrected metrics require a recorded confirmed background or an explicit automatic-background proposal; otherwise use raw metrics.") : methods) + (version !== LEGACY_PROMPT_VERSION ? "\n" + PREIMPORT_INSTRUCTION : "")
     + (processing ? "\n" + (current ? PROCESSING_INSTRUCTION.replace(
       "Prefer a recorded UBF/FBL/fibrillarin marker, otherwise use dapi_poor on the nuclear channel.",
       "Default to dapi_poor on the nuclear channel. Use a recorded UBF/FBL/fibrillarin marker only when the instruction or saved definition selects that marker. UBF defines the acquired marker region, not an inferred whole nucleolus."
     ) : PROCESSING_INSTRUCTION) : "")
     + (current ? "\n" + SELECTION_INSTRUCTION : "")
-    + (version === PROMPT_VERSION ? "\n- Association axes must name the same explicit region. Mixed or implicit/null axis regions are unsupported; propose separate descriptive analyses instead." : "");
+    + (version === OBJECT_PREVIOUS_PROMPT_VERSION ? "\n- When NCL-positive nucleoli are requested or current_processing uses cytellect-ncl-objects, use cytellect-ncl-objects/3.0.0 inside adopted nuclei, not legacy Otsu or generic pixel components. Preserve the recorded NCL channel. Return the full detector: smoothing_sigma_px 0.9, background_radius_px 10, coarse_sigma_px 1.5, core_contrast 36, core_coarse_contrast 27, minimum_core_area_px 6, local_crop_radius_px 24, background_inner_radius_px 12, background_outer_radius_px 22, background_signal_floor 15, minimum_background_pixels 40, peak_radius_px 2, minimum_peak_difference 30, minimum_peak_ratio 1.6, boundary_fraction 0.5, minimum_area_px 28, maximum_area_px 800, minimum_solidity 0.8, minimum_circularity 0.5, hole_fill_max_px 64, overlap_suppression_fraction 0.5. Units are original pixels and input intensity codes; never infer scale from image size, display LUT or TIFF print DPI. Existing legacy protocols are only for explicit replay. These NCL-derived candidates are not stress-independent nucleolar boundaries." : "")
+    + (version === PROMPT_VERSION ? "\n- For a new explicit NCL Cellpose selection, use cellpose-sam-ncl-parent/4.2.1 on the confirmed NCL channel and adopted StarDist nuclei: smooth the original plane (smoothing_sigma_px 0.9), then subtract parent_background_percentile 75 within independent parent crops (crop_padding_px 32). diameter_px null uses nuclear_diameter_fraction 0.25 of the adopted parent equivalent diameter, not image dimensions. minimum_contrast_snr 5 and local_background_radius_px 8 check original NCL enrichment; weak signal is indeterminate. maximum_nuclear_coverage 0.5 rejects whole candidates covering most of their StarDist parent, without subtracting nuclear pixels. Preserve stored parent protocol 4.2.0 without this filter. Preserve saved cellpose-sam-ncl/4.1.0 with its disk background and cellpose-sam/4.0.0 as its original raw-input protocol; never upgrade an existing result silently. For a new NCL-positive request without a recorded detector, default to the registered cellpose-sam-ncl-parent/4.2.1. Otherwise preserve the selected detector, including saved cytellect-ncl-objects/3.0.0 and classical protocols. Do not silently upgrade algorithms. Preserve existing selected algorithms on unrelated follow-ups; never replace classical replay settings silently. Model cpsam_v2 and SHA256 0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667 are fixed. Defaults: diameter_px null, normalization_percentile_low 1, normalization_percentile_high 99, flow_threshold 0.4, cellprob_threshold 0, minimum_area_px 15, maximum_size_fraction 1, iterations null, batch_size 1, compute_device cpu. No inference of target size from image dimensions, channel number, display LUT or TIFF DPI. Nucleolar output is a candidate, not a biological classifier. The app binds it to adopted StarDist nuclei.\n- Cell detection may use processing.cells {channel, detector} with cellpose-sam/4.0.0 (without NCL preprocessing) on an explicitly identified cell-boundary stain. For cell-only processing use supplied-regions, nuclei/nucleoli/signal null; this creates detected cell ROI candidates rather than requiring pre-existing masks. Never use GFP-only detection to claim a GFP-positive cell fraction with a complete negative-cell denominator. Supplied masks without Cellpose keep the existing behavior. processing.cells is null when unused. Do not turn GFP positivity into generic bright-pixel segmentation." : "")
+    + (version === PROMPT_VERSION || version === PARENT_PREVIOUS_PROMPT_VERSION || version === OBJECT_PREVIOUS_PROMPT_VERSION || version === NCL_PREVIOUS_PROMPT_VERSION ? "\n- Association axes must name the same explicit region. Mixed or implicit/null axis regions are unsupported; propose separate descriptive analyses instead." : "");
+  if (version === PARENT_PREVIOUS_PROMPT_VERSION) prompt += "\n- Preserve cellpose-sam-ncl-parent/4.2.0 for an NCL parent-conditioned detector. Defaults: smoothing_sigma_px 0.9, parent_background_percentile 75, nuclear_diameter_fraction 0.25, crop_padding_px 32, minimum_contrast_snr 5, local_background_radius_px 8, diameter_px null. Do not emit 4.2.1 or maximum_nuclear_coverage to this installed client.";
+  if (version === CELLPOSE_PREVIOUS_PROMPT_VERSION) prompt += "\n- Use cellpose-sam-ncl/4.1.0 for a new NCL Cellpose selection: smoothing_sigma_px 0.9, background_radius_px 10. Preserve raw-input cellpose-sam/4.0.0 and saved classical protocols. Never silently upgrade an existing detector. Registered processing.cells uses cellpose-sam/4.0.0 on an acquired cell-defining stain; otherwise cells is null.";
+  if (version === PROMPT_VERSION || version === PARENT_PREVIOUS_PROMPT_VERSION || version === CELLPOSE_PREVIOUS_PROMPT_VERSION) prompt = prompt
+    .replace("supplied-regions: only when the context says supplied_regions is true.", "supplied-regions: supplied_regions true, or an explicit registered processing.cells Cellpose proposal on an acquired cell-defining stain.")
+    .replace("For none, measured-table, supplied-regions and field_count 0, processing must be null.", "For none, measured-table and field_count 0, processing must be null. Supplied-regions may use processing.cells; other processing components remain null.")
+    .replace("cell_roi needs supplied_regions true and explicit manual cell ROIs.", "cell_roi requires explicit adopted cell ROIs or registered processing.cells on an acquired cell-defining stain; candidates must be reviewed before measurement.");
+  const schema = current ? contract.draft_schema : processing ? contract.processing_draft_schema : contract.legacy_draft_schema;
   return {
     model: settings.model, store: false, service_tier: "default",
     reasoning: { effort: settings.reasoningEffort ?? "medium" },
@@ -172,7 +230,7 @@ export function requestPayload(settings: ModelSettings, context: unknown, previe
       { role: "system", content: [{ type: "input_text", text: prompt }] },
       { role: "user", content: userContent(context, previews, repair) },
     ],
-    text: { format: { type: "json_schema", name: "cytellect_proposal", strict: true, schema: current ? contract.draft_schema : processing ? contract.processing_draft_schema : contract.legacy_draft_schema } },
+    text: { format: { type: "json_schema", name: "cytellect_proposal", strict: true, schema: version === PROMPT_VERSION ? schema : version === PARENT_PREVIOUS_PROMPT_VERSION ? parentReplayClientSchema(schema) as typeof schema : version === CELLPOSE_PREVIOUS_PROMPT_VERSION ? parentlessClientSchema(schema) as typeof schema : installedClientSchema(schema, version === OBJECT_PREVIOUS_PROMPT_VERSION) as typeof schema } },
   };
 }
 

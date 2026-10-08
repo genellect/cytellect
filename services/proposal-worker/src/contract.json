@@ -1,6 +1,124 @@
 {
   "context_schema": {
     "$defs": {
+      "CellposeDetectorSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_size": {
+            "default": 1,
+            "maximum": 8,
+            "minimum": 1,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "cellprob_threshold": {
+            "default": 0.0,
+            "maximum": 20,
+            "minimum": -20,
+            "title": "Cellprob Threshold",
+            "type": "number"
+          },
+          "compute_device": {
+            "default": "cpu",
+            "enum": [
+              "cpu",
+              "auto",
+              "cuda"
+            ],
+            "title": "Compute Device",
+            "type": "string"
+          },
+          "diameter_px": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 4096,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Diameter Px"
+          },
+          "engine": {
+            "const": "cellpose-sam",
+            "default": "cellpose-sam",
+            "title": "Engine",
+            "type": "string"
+          },
+          "flow_threshold": {
+            "default": 0.4,
+            "exclusiveMinimum": 0,
+            "maximum": 10,
+            "title": "Flow Threshold",
+            "type": "number"
+          },
+          "iterations": {
+            "anyOf": [
+              {
+                "maximum": 10000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Iterations"
+          },
+          "maximum_size_fraction": {
+            "default": 1.0,
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "title": "Maximum Size Fraction",
+            "type": "number"
+          },
+          "minimum_area_px": {
+            "default": 15,
+            "maximum": 16777216,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "model": {
+            "const": "cpsam_v2",
+            "default": "cpsam_v2",
+            "title": "Model",
+            "type": "string"
+          },
+          "model_sha256": {
+            "const": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+            "default": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+            "title": "Model Sha256",
+            "type": "string"
+          },
+          "normalization_percentile_high": {
+            "default": 99.0,
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "title": "Normalization Percentile High",
+            "type": "number"
+          },
+          "normalization_percentile_low": {
+            "default": 1.0,
+            "exclusiveMaximum": 100,
+            "minimum": 0,
+            "title": "Normalization Percentile Low",
+            "type": "number"
+          },
+          "protocol_version": {
+            "const": "4.0.0",
+            "default": "4.0.0",
+            "title": "Protocol Version",
+            "type": "string"
+          }
+        },
+        "title": "CellposeDetectorSpec",
+        "type": "object"
+      },
       "ContextChannel": {
         "additionalProperties": false,
         "properties": {
@@ -128,6 +246,24 @@
           "mode"
         ],
         "title": "DraftBackground",
+        "type": "object"
+      },
+      "DraftCellProcessing": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel",
+            "type": "string"
+          },
+          "detector": {
+            "$ref": "#/$defs/CellposeDetectorSpec"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "title": "DraftCellProcessing",
         "type": "object"
       },
       "DraftChannel": {
@@ -425,6 +561,18 @@
               },
               {
                 "$ref": "#/$defs/NucleolarDetectorV21"
+              },
+              {
+                "$ref": "#/$defs/NclObjectDetector"
+              },
+              {
+                "$ref": "#/$defs/CellposeDetectorSpec"
+              },
+              {
+                "$ref": "#/$defs/NclCellposeDetectorSpec"
+              },
+              {
+                "$ref": "#/$defs/NclParentCellposeDetectorSpec"
               }
             ],
             "title": "Detector"
@@ -441,6 +589,17 @@
         "additionalProperties": false,
         "description": "Registered execution settings only; not code, masks or biological confirmations.",
         "properties": {
+          "cells": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftCellProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "nuclei": {
             "anyOf": [
               {
@@ -594,6 +753,482 @@
           "association"
         ],
         "title": "DraftStatistics",
+        "type": "object"
+      },
+      "NclCellposeDetectorSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "background_radius_px": {
+            "default": 10,
+            "maximum": 128,
+            "minimum": 1,
+            "title": "Background Radius Px",
+            "type": "integer"
+          },
+          "batch_size": {
+            "default": 1,
+            "maximum": 8,
+            "minimum": 1,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "cellprob_threshold": {
+            "default": 0.0,
+            "maximum": 20,
+            "minimum": -20,
+            "title": "Cellprob Threshold",
+            "type": "number"
+          },
+          "compute_device": {
+            "default": "cpu",
+            "enum": [
+              "cpu",
+              "auto",
+              "cuda"
+            ],
+            "title": "Compute Device",
+            "type": "string"
+          },
+          "diameter_px": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 4096,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Diameter Px"
+          },
+          "engine": {
+            "const": "cellpose-sam-ncl",
+            "default": "cellpose-sam-ncl",
+            "title": "Engine",
+            "type": "string"
+          },
+          "flow_threshold": {
+            "default": 0.4,
+            "exclusiveMinimum": 0,
+            "maximum": 10,
+            "title": "Flow Threshold",
+            "type": "number"
+          },
+          "iterations": {
+            "anyOf": [
+              {
+                "maximum": 10000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Iterations"
+          },
+          "maximum_size_fraction": {
+            "default": 1.0,
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "title": "Maximum Size Fraction",
+            "type": "number"
+          },
+          "minimum_area_px": {
+            "default": 15,
+            "maximum": 16777216,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "model": {
+            "const": "cpsam_v2",
+            "default": "cpsam_v2",
+            "title": "Model",
+            "type": "string"
+          },
+          "model_sha256": {
+            "const": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+            "default": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+            "title": "Model Sha256",
+            "type": "string"
+          },
+          "normalization_percentile_high": {
+            "default": 99.0,
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "title": "Normalization Percentile High",
+            "type": "number"
+          },
+          "normalization_percentile_low": {
+            "default": 1.0,
+            "exclusiveMaximum": 100,
+            "minimum": 0,
+            "title": "Normalization Percentile Low",
+            "type": "number"
+          },
+          "protocol_version": {
+            "const": "4.1.0",
+            "default": "4.1.0",
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "smoothing_sigma_px": {
+            "default": 0.9,
+            "exclusiveMinimum": 0,
+            "maximum": 16,
+            "title": "Smoothing Sigma Px",
+            "type": "number"
+          }
+        },
+        "title": "NclCellposeDetectorSpec",
+        "type": "object"
+      },
+      "NclObjectDetector": {
+        "additionalProperties": false,
+        "properties": {
+          "background_inner_radius_px": {
+            "default": 12,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Background Inner Radius Px",
+            "type": "integer"
+          },
+          "background_outer_radius_px": {
+            "default": 22,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Background Outer Radius Px",
+            "type": "integer"
+          },
+          "background_radius_px": {
+            "default": 10,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Background Radius Px",
+            "type": "integer"
+          },
+          "background_signal_floor": {
+            "default": 15,
+            "maximum": 65535,
+            "minimum": 0,
+            "title": "Background Signal Floor",
+            "type": "number"
+          },
+          "boundary_fraction": {
+            "default": 0.5,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Boundary Fraction",
+            "type": "number"
+          },
+          "coarse_sigma_px": {
+            "default": 1.5,
+            "exclusiveMinimum": 0,
+            "maximum": 20,
+            "title": "Coarse Sigma Px",
+            "type": "number"
+          },
+          "core_coarse_contrast": {
+            "default": 27,
+            "maximum": 65535,
+            "minimum": 0,
+            "title": "Core Coarse Contrast",
+            "type": "number"
+          },
+          "core_contrast": {
+            "default": 36,
+            "maximum": 65535,
+            "minimum": 0,
+            "title": "Core Contrast",
+            "type": "number"
+          },
+          "engine": {
+            "const": "cytellect-ncl-objects",
+            "default": "cytellect-ncl-objects",
+            "title": "Engine",
+            "type": "string"
+          },
+          "hole_fill_max_px": {
+            "default": 64,
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Hole Fill Max Px",
+            "type": "integer"
+          },
+          "local_crop_radius_px": {
+            "default": 24,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Local Crop Radius Px",
+            "type": "integer"
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "maximum": 16777216,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 800,
+            "title": "Maximum Area Px"
+          },
+          "minimum_area_px": {
+            "default": 28,
+            "maximum": 100000,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "minimum_background_pixels": {
+            "default": 40,
+            "maximum": 160000,
+            "minimum": 1,
+            "title": "Minimum Background Pixels",
+            "type": "integer"
+          },
+          "minimum_circularity": {
+            "default": 0.5,
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Minimum Circularity",
+            "type": "number"
+          },
+          "minimum_core_area_px": {
+            "default": 6,
+            "maximum": 100000,
+            "minimum": 1,
+            "title": "Minimum Core Area Px",
+            "type": "integer"
+          },
+          "minimum_peak_difference": {
+            "default": 30,
+            "maximum": 65535,
+            "minimum": 0,
+            "title": "Minimum Peak Difference",
+            "type": "number"
+          },
+          "minimum_peak_ratio": {
+            "default": 1.6,
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Minimum Peak Ratio",
+            "type": "number"
+          },
+          "minimum_solidity": {
+            "default": 0.8,
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Minimum Solidity",
+            "type": "number"
+          },
+          "overlap_suppression_fraction": {
+            "default": 0.5,
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "title": "Overlap Suppression Fraction",
+            "type": "number"
+          },
+          "peak_radius_px": {
+            "default": 2,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Peak Radius Px",
+            "type": "integer"
+          },
+          "protocol_version": {
+            "const": "3.0.0",
+            "default": "3.0.0",
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "smoothing_sigma_px": {
+            "default": 0.9,
+            "maximum": 10,
+            "minimum": 0,
+            "title": "Smoothing Sigma Px",
+            "type": "number"
+          }
+        },
+        "title": "NclObjectDetector",
+        "type": "object"
+      },
+      "NclParentCellposeDetectorSpec": {
+        "additionalProperties": false,
+        "description": "Parent-conditioned NCL copy; 4.0/4.1 replay is deliberately unchanged.",
+        "properties": {
+          "batch_size": {
+            "default": 1,
+            "maximum": 8,
+            "minimum": 1,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "cellprob_threshold": {
+            "default": 0.0,
+            "maximum": 20,
+            "minimum": -20,
+            "title": "Cellprob Threshold",
+            "type": "number"
+          },
+          "compute_device": {
+            "default": "cpu",
+            "enum": [
+              "cpu",
+              "auto",
+              "cuda"
+            ],
+            "title": "Compute Device",
+            "type": "string"
+          },
+          "crop_padding_px": {
+            "default": 32,
+            "maximum": 256,
+            "minimum": 1,
+            "title": "Crop Padding Px",
+            "type": "integer"
+          },
+          "diameter_px": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 4096,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Diameter Px"
+          },
+          "engine": {
+            "const": "cellpose-sam-ncl-parent",
+            "default": "cellpose-sam-ncl-parent",
+            "title": "Engine",
+            "type": "string"
+          },
+          "flow_threshold": {
+            "default": 0.4,
+            "exclusiveMinimum": 0,
+            "maximum": 10,
+            "title": "Flow Threshold",
+            "type": "number"
+          },
+          "iterations": {
+            "anyOf": [
+              {
+                "maximum": 10000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Iterations"
+          },
+          "local_background_radius_px": {
+            "default": 8,
+            "maximum": 128,
+            "minimum": 1,
+            "title": "Local Background Radius Px",
+            "type": "integer"
+          },
+          "maximum_nuclear_coverage": {
+            "default": 0.5,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Maximum Nuclear Coverage",
+            "type": "number"
+          },
+          "maximum_size_fraction": {
+            "default": 1.0,
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "title": "Maximum Size Fraction",
+            "type": "number"
+          },
+          "minimum_area_px": {
+            "default": 15,
+            "maximum": 16777216,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "minimum_contrast_snr": {
+            "default": 5,
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "title": "Minimum Contrast Snr",
+            "type": "number"
+          },
+          "model": {
+            "const": "cpsam_v2",
+            "default": "cpsam_v2",
+            "title": "Model",
+            "type": "string"
+          },
+          "model_sha256": {
+            "const": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+            "default": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+            "title": "Model Sha256",
+            "type": "string"
+          },
+          "normalization_percentile_high": {
+            "default": 99.0,
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "title": "Normalization Percentile High",
+            "type": "number"
+          },
+          "normalization_percentile_low": {
+            "default": 1.0,
+            "exclusiveMaximum": 100,
+            "minimum": 0,
+            "title": "Normalization Percentile Low",
+            "type": "number"
+          },
+          "nuclear_diameter_fraction": {
+            "default": 0.25,
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "title": "Nuclear Diameter Fraction",
+            "type": "number"
+          },
+          "parent_background_percentile": {
+            "default": 75,
+            "exclusiveMaximum": 100,
+            "minimum": 0,
+            "title": "Parent Background Percentile",
+            "type": "number"
+          },
+          "protocol_version": {
+            "default": "4.2.1",
+            "enum": [
+              "4.2.0",
+              "4.2.1"
+            ],
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "smoothing_sigma_px": {
+            "default": 0.9,
+            "exclusiveMinimum": 0,
+            "maximum": 16,
+            "title": "Smoothing Sigma Px",
+            "type": "number"
+          }
+        },
+        "title": "NclParentCellposeDetectorSpec",
         "type": "object"
       },
       "NuclearDetectorSpec": {
@@ -1693,6 +2328,121 @@
           {
             "additionalProperties": false,
             "properties": {
+              "cells": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "batch_size": {
+                            "type": "integer"
+                          },
+                          "cellprob_threshold": {
+                            "type": "number"
+                          },
+                          "compute_device": {
+                            "enum": [
+                              "cpu",
+                              "auto",
+                              "cuda"
+                            ],
+                            "type": "string"
+                          },
+                          "diameter_px": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "engine": {
+                            "enum": [
+                              "cellpose-sam"
+                            ],
+                            "type": "string"
+                          },
+                          "flow_threshold": {
+                            "type": "number"
+                          },
+                          "iterations": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maximum_size_fraction": {
+                            "type": "number"
+                          },
+                          "minimum_area_px": {
+                            "type": "integer"
+                          },
+                          "model": {
+                            "enum": [
+                              "cpsam_v2"
+                            ],
+                            "type": "string"
+                          },
+                          "model_sha256": {
+                            "enum": [
+                              "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                            ],
+                            "type": "string"
+                          },
+                          "normalization_percentile_high": {
+                            "type": "number"
+                          },
+                          "normalization_percentile_low": {
+                            "type": "number"
+                          },
+                          "protocol_version": {
+                            "enum": [
+                              "4.0.0"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "model",
+                          "model_sha256",
+                          "diameter_px",
+                          "normalization_percentile_low",
+                          "normalization_percentile_high",
+                          "flow_threshold",
+                          "cellprob_threshold",
+                          "minimum_area_px",
+                          "maximum_size_fraction",
+                          "iterations",
+                          "batch_size",
+                          "compute_device",
+                          "engine",
+                          "protocol_version"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "nuclei": {
                 "anyOf": [
                   {
@@ -1972,6 +2722,441 @@
                               "minimum_solidity"
                             ],
                             "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_inner_radius_px": {
+                                "type": "integer"
+                              },
+                              "background_outer_radius_px": {
+                                "type": "integer"
+                              },
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "background_signal_floor": {
+                                "type": "number"
+                              },
+                              "boundary_fraction": {
+                                "type": "number"
+                              },
+                              "coarse_sigma_px": {
+                                "type": "number"
+                              },
+                              "core_coarse_contrast": {
+                                "type": "number"
+                              },
+                              "core_contrast": {
+                                "type": "number"
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cytellect-ncl-objects"
+                                ],
+                                "type": "string"
+                              },
+                              "hole_fill_max_px": {
+                                "type": "integer"
+                              },
+                              "local_crop_radius_px": {
+                                "type": "integer"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_background_pixels": {
+                                "type": "integer"
+                              },
+                              "minimum_circularity": {
+                                "type": "number"
+                              },
+                              "minimum_core_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_peak_difference": {
+                                "type": "number"
+                              },
+                              "minimum_peak_ratio": {
+                                "type": "number"
+                              },
+                              "minimum_solidity": {
+                                "type": "number"
+                              },
+                              "overlap_suppression_fraction": {
+                                "type": "number"
+                              },
+                              "peak_radius_px": {
+                                "type": "integer"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "3.0.0"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "smoothing_sigma_px",
+                              "background_radius_px",
+                              "coarse_sigma_px",
+                              "core_contrast",
+                              "core_coarse_contrast",
+                              "minimum_core_area_px",
+                              "local_crop_radius_px",
+                              "background_inner_radius_px",
+                              "background_outer_radius_px",
+                              "background_signal_floor",
+                              "minimum_background_pixels",
+                              "peak_radius_px",
+                              "minimum_peak_difference",
+                              "minimum_peak_ratio",
+                              "boundary_fraction",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "minimum_solidity",
+                              "minimum_circularity",
+                              "hole_fill_max_px",
+                              "overlap_suppression_fraction"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "batch_size": {
+                                "type": "integer"
+                              },
+                              "cellprob_threshold": {
+                                "type": "number"
+                              },
+                              "compute_device": {
+                                "enum": [
+                                  "cpu",
+                                  "auto",
+                                  "cuda"
+                                ],
+                                "type": "string"
+                              },
+                              "diameter_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cellpose-sam"
+                                ],
+                                "type": "string"
+                              },
+                              "flow_threshold": {
+                                "type": "number"
+                              },
+                              "iterations": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maximum_size_fraction": {
+                                "type": "number"
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "model": {
+                                "enum": [
+                                  "cpsam_v2"
+                                ],
+                                "type": "string"
+                              },
+                              "model_sha256": {
+                                "enum": [
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                ],
+                                "type": "string"
+                              },
+                              "normalization_percentile_high": {
+                                "type": "number"
+                              },
+                              "normalization_percentile_low": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "4.0.0"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "model_sha256",
+                              "diameter_px",
+                              "normalization_percentile_low",
+                              "normalization_percentile_high",
+                              "flow_threshold",
+                              "cellprob_threshold",
+                              "minimum_area_px",
+                              "maximum_size_fraction",
+                              "iterations",
+                              "batch_size",
+                              "compute_device",
+                              "engine",
+                              "protocol_version"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "batch_size": {
+                                "type": "integer"
+                              },
+                              "cellprob_threshold": {
+                                "type": "number"
+                              },
+                              "compute_device": {
+                                "enum": [
+                                  "cpu",
+                                  "auto",
+                                  "cuda"
+                                ],
+                                "type": "string"
+                              },
+                              "diameter_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cellpose-sam-ncl"
+                                ],
+                                "type": "string"
+                              },
+                              "flow_threshold": {
+                                "type": "number"
+                              },
+                              "iterations": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maximum_size_fraction": {
+                                "type": "number"
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "model": {
+                                "enum": [
+                                  "cpsam_v2"
+                                ],
+                                "type": "string"
+                              },
+                              "model_sha256": {
+                                "enum": [
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                ],
+                                "type": "string"
+                              },
+                              "normalization_percentile_high": {
+                                "type": "number"
+                              },
+                              "normalization_percentile_low": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "4.1.0"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "model_sha256",
+                              "diameter_px",
+                              "normalization_percentile_low",
+                              "normalization_percentile_high",
+                              "flow_threshold",
+                              "cellprob_threshold",
+                              "minimum_area_px",
+                              "maximum_size_fraction",
+                              "iterations",
+                              "batch_size",
+                              "compute_device",
+                              "engine",
+                              "protocol_version",
+                              "smoothing_sigma_px",
+                              "background_radius_px"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "batch_size": {
+                                "type": "integer"
+                              },
+                              "cellprob_threshold": {
+                                "type": "number"
+                              },
+                              "compute_device": {
+                                "enum": [
+                                  "cpu",
+                                  "auto",
+                                  "cuda"
+                                ],
+                                "type": "string"
+                              },
+                              "crop_padding_px": {
+                                "type": "integer"
+                              },
+                              "diameter_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cellpose-sam-ncl-parent"
+                                ],
+                                "type": "string"
+                              },
+                              "flow_threshold": {
+                                "type": "number"
+                              },
+                              "iterations": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "local_background_radius_px": {
+                                "type": "integer"
+                              },
+                              "maximum_nuclear_coverage": {
+                                "type": "number"
+                              },
+                              "maximum_size_fraction": {
+                                "type": "number"
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_contrast_snr": {
+                                "type": "number"
+                              },
+                              "model": {
+                                "enum": [
+                                  "cpsam_v2"
+                                ],
+                                "type": "string"
+                              },
+                              "model_sha256": {
+                                "enum": [
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                ],
+                                "type": "string"
+                              },
+                              "normalization_percentile_high": {
+                                "type": "number"
+                              },
+                              "normalization_percentile_low": {
+                                "type": "number"
+                              },
+                              "nuclear_diameter_fraction": {
+                                "type": "number"
+                              },
+                              "parent_background_percentile": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "4.2.0",
+                                  "4.2.1"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "model_sha256",
+                              "diameter_px",
+                              "normalization_percentile_low",
+                              "normalization_percentile_high",
+                              "flow_threshold",
+                              "cellprob_threshold",
+                              "minimum_area_px",
+                              "maximum_size_fraction",
+                              "iterations",
+                              "batch_size",
+                              "compute_device",
+                              "engine",
+                              "protocol_version",
+                              "smoothing_sigma_px",
+                              "parent_background_percentile",
+                              "nuclear_diameter_fraction",
+                              "crop_padding_px",
+                              "minimum_contrast_snr",
+                              "local_background_radius_px",
+                              "maximum_nuclear_coverage"
+                            ],
+                            "type": "object"
                           }
                         ]
                       }
@@ -2071,7 +3256,8 @@
               "version",
               "nuclei",
               "nucleoli",
-              "signal"
+              "signal",
+              "cells"
             ],
             "type": "object"
           },
@@ -3232,6 +4418,121 @@
           {
             "additionalProperties": false,
             "properties": {
+              "cells": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "batch_size": {
+                            "type": "integer"
+                          },
+                          "cellprob_threshold": {
+                            "type": "number"
+                          },
+                          "compute_device": {
+                            "enum": [
+                              "cpu",
+                              "auto",
+                              "cuda"
+                            ],
+                            "type": "string"
+                          },
+                          "diameter_px": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "engine": {
+                            "enum": [
+                              "cellpose-sam"
+                            ],
+                            "type": "string"
+                          },
+                          "flow_threshold": {
+                            "type": "number"
+                          },
+                          "iterations": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maximum_size_fraction": {
+                            "type": "number"
+                          },
+                          "minimum_area_px": {
+                            "type": "integer"
+                          },
+                          "model": {
+                            "enum": [
+                              "cpsam_v2"
+                            ],
+                            "type": "string"
+                          },
+                          "model_sha256": {
+                            "enum": [
+                              "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                            ],
+                            "type": "string"
+                          },
+                          "normalization_percentile_high": {
+                            "type": "number"
+                          },
+                          "normalization_percentile_low": {
+                            "type": "number"
+                          },
+                          "protocol_version": {
+                            "enum": [
+                              "4.0.0"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "model",
+                          "model_sha256",
+                          "diameter_px",
+                          "normalization_percentile_low",
+                          "normalization_percentile_high",
+                          "flow_threshold",
+                          "cellprob_threshold",
+                          "minimum_area_px",
+                          "maximum_size_fraction",
+                          "iterations",
+                          "batch_size",
+                          "compute_device",
+                          "engine",
+                          "protocol_version"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "nuclei": {
                 "anyOf": [
                   {
@@ -3511,6 +4812,441 @@
                               "minimum_solidity"
                             ],
                             "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_inner_radius_px": {
+                                "type": "integer"
+                              },
+                              "background_outer_radius_px": {
+                                "type": "integer"
+                              },
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "background_signal_floor": {
+                                "type": "number"
+                              },
+                              "boundary_fraction": {
+                                "type": "number"
+                              },
+                              "coarse_sigma_px": {
+                                "type": "number"
+                              },
+                              "core_coarse_contrast": {
+                                "type": "number"
+                              },
+                              "core_contrast": {
+                                "type": "number"
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cytellect-ncl-objects"
+                                ],
+                                "type": "string"
+                              },
+                              "hole_fill_max_px": {
+                                "type": "integer"
+                              },
+                              "local_crop_radius_px": {
+                                "type": "integer"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_background_pixels": {
+                                "type": "integer"
+                              },
+                              "minimum_circularity": {
+                                "type": "number"
+                              },
+                              "minimum_core_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_peak_difference": {
+                                "type": "number"
+                              },
+                              "minimum_peak_ratio": {
+                                "type": "number"
+                              },
+                              "minimum_solidity": {
+                                "type": "number"
+                              },
+                              "overlap_suppression_fraction": {
+                                "type": "number"
+                              },
+                              "peak_radius_px": {
+                                "type": "integer"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "3.0.0"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "smoothing_sigma_px",
+                              "background_radius_px",
+                              "coarse_sigma_px",
+                              "core_contrast",
+                              "core_coarse_contrast",
+                              "minimum_core_area_px",
+                              "local_crop_radius_px",
+                              "background_inner_radius_px",
+                              "background_outer_radius_px",
+                              "background_signal_floor",
+                              "minimum_background_pixels",
+                              "peak_radius_px",
+                              "minimum_peak_difference",
+                              "minimum_peak_ratio",
+                              "boundary_fraction",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "minimum_solidity",
+                              "minimum_circularity",
+                              "hole_fill_max_px",
+                              "overlap_suppression_fraction"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "batch_size": {
+                                "type": "integer"
+                              },
+                              "cellprob_threshold": {
+                                "type": "number"
+                              },
+                              "compute_device": {
+                                "enum": [
+                                  "cpu",
+                                  "auto",
+                                  "cuda"
+                                ],
+                                "type": "string"
+                              },
+                              "diameter_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cellpose-sam"
+                                ],
+                                "type": "string"
+                              },
+                              "flow_threshold": {
+                                "type": "number"
+                              },
+                              "iterations": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maximum_size_fraction": {
+                                "type": "number"
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "model": {
+                                "enum": [
+                                  "cpsam_v2"
+                                ],
+                                "type": "string"
+                              },
+                              "model_sha256": {
+                                "enum": [
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                ],
+                                "type": "string"
+                              },
+                              "normalization_percentile_high": {
+                                "type": "number"
+                              },
+                              "normalization_percentile_low": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "4.0.0"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "model_sha256",
+                              "diameter_px",
+                              "normalization_percentile_low",
+                              "normalization_percentile_high",
+                              "flow_threshold",
+                              "cellprob_threshold",
+                              "minimum_area_px",
+                              "maximum_size_fraction",
+                              "iterations",
+                              "batch_size",
+                              "compute_device",
+                              "engine",
+                              "protocol_version"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "batch_size": {
+                                "type": "integer"
+                              },
+                              "cellprob_threshold": {
+                                "type": "number"
+                              },
+                              "compute_device": {
+                                "enum": [
+                                  "cpu",
+                                  "auto",
+                                  "cuda"
+                                ],
+                                "type": "string"
+                              },
+                              "diameter_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cellpose-sam-ncl"
+                                ],
+                                "type": "string"
+                              },
+                              "flow_threshold": {
+                                "type": "number"
+                              },
+                              "iterations": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maximum_size_fraction": {
+                                "type": "number"
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "model": {
+                                "enum": [
+                                  "cpsam_v2"
+                                ],
+                                "type": "string"
+                              },
+                              "model_sha256": {
+                                "enum": [
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                ],
+                                "type": "string"
+                              },
+                              "normalization_percentile_high": {
+                                "type": "number"
+                              },
+                              "normalization_percentile_low": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "4.1.0"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "model_sha256",
+                              "diameter_px",
+                              "normalization_percentile_low",
+                              "normalization_percentile_high",
+                              "flow_threshold",
+                              "cellprob_threshold",
+                              "minimum_area_px",
+                              "maximum_size_fraction",
+                              "iterations",
+                              "batch_size",
+                              "compute_device",
+                              "engine",
+                              "protocol_version",
+                              "smoothing_sigma_px",
+                              "background_radius_px"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "batch_size": {
+                                "type": "integer"
+                              },
+                              "cellprob_threshold": {
+                                "type": "number"
+                              },
+                              "compute_device": {
+                                "enum": [
+                                  "cpu",
+                                  "auto",
+                                  "cuda"
+                                ],
+                                "type": "string"
+                              },
+                              "crop_padding_px": {
+                                "type": "integer"
+                              },
+                              "diameter_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cellpose-sam-ncl-parent"
+                                ],
+                                "type": "string"
+                              },
+                              "flow_threshold": {
+                                "type": "number"
+                              },
+                              "iterations": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "local_background_radius_px": {
+                                "type": "integer"
+                              },
+                              "maximum_nuclear_coverage": {
+                                "type": "number"
+                              },
+                              "maximum_size_fraction": {
+                                "type": "number"
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_contrast_snr": {
+                                "type": "number"
+                              },
+                              "model": {
+                                "enum": [
+                                  "cpsam_v2"
+                                ],
+                                "type": "string"
+                              },
+                              "model_sha256": {
+                                "enum": [
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                ],
+                                "type": "string"
+                              },
+                              "normalization_percentile_high": {
+                                "type": "number"
+                              },
+                              "normalization_percentile_low": {
+                                "type": "number"
+                              },
+                              "nuclear_diameter_fraction": {
+                                "type": "number"
+                              },
+                              "parent_background_percentile": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "4.2.0",
+                                  "4.2.1"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "model_sha256",
+                              "diameter_px",
+                              "normalization_percentile_low",
+                              "normalization_percentile_high",
+                              "flow_threshold",
+                              "cellprob_threshold",
+                              "minimum_area_px",
+                              "maximum_size_fraction",
+                              "iterations",
+                              "batch_size",
+                              "compute_device",
+                              "engine",
+                              "protocol_version",
+                              "smoothing_sigma_px",
+                              "parent_background_percentile",
+                              "nuclear_diameter_fraction",
+                              "crop_padding_px",
+                              "minimum_contrast_snr",
+                              "local_background_radius_px",
+                              "maximum_nuclear_coverage"
+                            ],
+                            "type": "object"
                           }
                         ]
                       }
@@ -3610,7 +5346,8 @@
               "version",
               "nuclei",
               "nucleoli",
-              "signal"
+              "signal",
+              "cells"
             ],
             "type": "object"
           },

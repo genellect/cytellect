@@ -8,9 +8,16 @@ from typing import Annotated, Literal
 import numpy as np
 from pydantic import Field, FiniteFloat, TypeAdapter, model_validator
 
+from .cellpose_engine import (
+    CellposeDetectorSpec,
+    NclCellposeDetectorSpec,
+    NclParentCellposeDetectorSpec,
+    detect_cellpose,
+)
 from .contracts import Recipe
 from .masks import validate_label_array, validate_labels
 from .measurement import normalize_nucleolar_states
+from .ncl_objects import NclObjectDetector, detect_ncl_objects
 from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21, detect_nucleoli_v2
 from .regions import RegionModel, _array_hash
 
@@ -43,7 +50,7 @@ class NucleolarDetectorV11(RegionModel):
         return self
 
 
-NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21,
+NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21 | NclObjectDetector | CellposeDetectorSpec | NclCellposeDetectorSpec | NclParentCellposeDetectorSpec,
                               Field(discriminator="protocol_version")]
 
 
@@ -55,7 +62,7 @@ class _ControlledCompartmentRecipe(Recipe):
 
 
 def derive_compartment_masks(
-    nuclei: np.ndarray, nucleoli: np.ndarray, states: dict,
+    nuclei: np.ndarray, nucleoli: np.ndarray, states: dict, *, retain_review_candidates: bool = False,
 ) -> tuple[dict[str, np.ndarray], dict]:
     """Require a classified candidate before deriving its complementary region.
 
@@ -77,12 +84,17 @@ def derive_compartment_masks(
         raise ValueError("compartment_candidate_mask_missing")
     omitted = {parent: state for parent, state in outcomes.items() if parent not in eligible}
     valid_nuclei = np.isin(nuclei, sorted(eligible))
-    nucleolar_labels = np.where(valid_nuclei, nucleoli, 0).astype(np.uint32)
+    # A truncated sibling does not erase a valid, fully contained candidate.
+    # In 1.1.0 its individual mask remains inspectable/measurable, but the parent
+    # complement and aggregate are missing until researcher adoption resolves it.
+    visible_parents = eligible | ({parent for parent, state in outcomes.items() if state == "review_required"}
+                                  if retain_review_candidates else set())
+    nucleolar_labels = np.where(np.isin(nuclei, sorted(visible_parents)), nucleoli, 0).astype(np.uint32)
     nucleoplasm_labels = np.where(valid_nuclei & (nucleolar_labels == 0), nuclei, 0).astype(np.uint32)
-    kept_parents = {child: parent for child, parent in parents.items() if parent in eligible}
+    kept_parents = {child: parent for child, parent in parents.items() if parent in visible_parents}
     missing_nucleoplasm = sorted(eligible - {int(value) for value in np.unique(nucleoplasm_labels) if value})
     return {"nucleoli": nucleolar_labels, "nucleoplasm": nucleoplasm_labels}, {
-        "compartment_protocol_version": "1.0.1",
+        "compartment_protocol_version": "1.1.0" if retain_review_candidates else "1.0.1",
         "compartment_status": "incomplete" if omitted or missing_nucleoplasm else "complete" if nucleus_ids else "no_nuclei",
         "nucleolar_states": outcomes, "parent_ids": kept_parents,
         "nuclear_count": len(nucleus_ids), "eligible_nucleus_ids": sorted(eligible),
@@ -92,6 +104,8 @@ def derive_compartment_masks(
                                              "nucleoplasm": len(omitted) + len(missing_nucleoplasm)},
         "nucleoplasm_missing_reasons": {parent: "empty_after_subtraction" for parent in missing_nucleoplasm},
         "candidate_free_policy": "omit_both_compartments_retain_parent_state",
+        **({"review_parent_policy": "retain_valid_individual_candidates_omit_parent_complement",
+            "incomplete_nucleolar_parent_ids": sorted(visible_parents - eligible)} if retain_review_candidates else {}),
         "nucleoplasm_definition": "eligible parent nuclear pixels minus union of its NCL candidates",
         "nucleoplasm_label_identity": "parent_nucleus_id",
     }
@@ -147,12 +161,18 @@ def detect_compartments(
     source_hashes = {role: _array_hash(image, "|u1" if image.dtype.itemsize == 1 else "<u2")
                      for role, image in channels.items()}
     nuclear_hash = _array_hash(nuclei, "<u4")
-    if isinstance(parameters, NucleolarDetectorV20):
+    if isinstance(parameters, (NucleolarDetectorV20, NclObjectDetector, CellposeDetectorSpec, NclCellposeDetectorSpec, NclParentCellposeDetectorSpec)):
         # Protocol 2.0.0 defines nucleoli from DNA-poor holes or a stable marker,
         # never from the NCL signal being measured. No Fiji call is needed.
-        marker = channels["ncl"] if parameters.source == "marker" else None
-        nucleoli, info = detect_nucleoli_v2(channels["dapi"], marker, nuclei, parameters)
-        masks, details = derive_compartment_masks(nuclei, nucleoli, normalize_nucleolar_states(info))
+        if isinstance(parameters, (CellposeDetectorSpec, NclCellposeDetectorSpec, NclParentCellposeDetectorSpec)):
+            nucleoli, info = detect_cellpose(channels["ncl"], parameters, output_dir, nuclei=nuclei)
+        elif isinstance(parameters, NclObjectDetector):
+            nucleoli, info = detect_ncl_objects(channels["ncl"], parameters, nuclei=nuclei)
+        else:
+            marker = channels["ncl"] if parameters.source == "marker" else None
+            nucleoli, info = detect_nucleoli_v2(channels["dapi"], marker, nuclei, parameters)
+        masks, details = derive_compartment_masks(nuclei, nucleoli, normalize_nucleolar_states(info),
+                                                retain_review_candidates=isinstance(parameters, NclParentCellposeDetectorSpec))
         info.update(details)
         info.update({"input_sha256": source_hashes, "parent_nuclear_mask_sha256": nuclear_hash,
                      "canonical_mask_sha256": {name: _array_hash(mask, "<u4") for name, mask in masks.items()},

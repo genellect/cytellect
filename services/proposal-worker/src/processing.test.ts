@@ -1,16 +1,21 @@
 import {expect,it} from "vitest";
-import {PROMPT_VERSION,PREVIOUS_PROMPT_VERSION,PREIMPORT_PROMPT_VERSION,requestPayload,hasDraftShape,inputTokenCeiling} from "./openai";
+import {PROMPT_VERSION,PARENT_PREVIOUS_PROMPT_VERSION,PREVIOUS_PROMPT_VERSION,PREIMPORT_PROMPT_VERSION,requestPayload,hasDraftShape,inputTokenCeiling} from "./openai";
 import {checkRequest} from "./index";
 
 it("uses executable settings only for the new prompt while preserving old clients", () => {
   const options = {apiKey:"test",model:"gpt-6.1-sol",maxOutputTokens:8000};
   const current = requestPayload(options,{},[]);
   const previous = requestPayload({...options,promptVersion:PREVIOUS_PROMPT_VERSION},{},[]);
-  expect(previous.text.format.schema).toEqual(current.text.format.schema);
+  expect(JSON.stringify(previous.text.format.schema)).not.toContain("cellpose-sam");
+  expect(JSON.stringify(current.text.format.schema)).toContain("cellpose-sam");
+  expect(JSON.stringify(current.text.format.schema)).toContain("cellpose-sam-ncl");
+  expect(current.input[0].content[0].text).toContain("cellpose-sam-ncl/4.1.0");
+  expect(current.input[0].content[0].text).toContain("background_radius_px 10");
+  expect(current.input[0].content[0].text).toContain("cellpose-sam/4.0.0 (without NCL preprocessing)");
   expect(current.input[0].content[0].text).toContain("Mixed or implicit/null axis regions are unsupported");
   expect(previous.input[0].content[0].text).not.toContain("Mixed or implicit/null axis regions are unsupported");
   const old = requestPayload({...options,promptVersion:PREIMPORT_PROMPT_VERSION},{},[]);
-  expect(PROMPT_VERSION).toBe("2026-10-08.1");
+  expect(PROMPT_VERSION).toBe("2026-10-08.5");
   expect(current.text.format.schema.required).toContain("processing");
   expect(old.text.format.schema.required).not.toContain("processing");
   expect(current.input[0].content[0].text).toContain("dapi_poor");
@@ -32,4 +37,10 @@ it("bounds and budgets the full continuation rather than losing follow-up contex
   expect(checkRequest({context:{...followUp,previous_goal:"x".repeat(2001)}})).toBeNull();
   expect(checkRequest({context:{...followUp,current_processing:{...followUp.current_processing,
     nuclei:{...followUp.current_processing.nuclei,detector:{...followUp.current_processing.nuclei.detector,probability:1}}}}})).toBeNull();
+});
+
+it("keeps the parent protocol readable by the previous installed client",()=>{
+ const settings={apiKey:"test",model:"gpt-6.1-sol",maxOutputTokens:8000,promptVersion:PARENT_PREVIOUS_PROMPT_VERSION};
+ const serialized=JSON.stringify(requestPayload(settings,{},[]).text.format.schema);
+ expect(serialized).toContain("4.2.0"); expect(serialized).not.toContain("4.2.1"); expect(serialized).not.toContain("maximum_nuclear_coverage");
 });

@@ -1612,6 +1612,91 @@ export interface components {
              */
             confirmed: true;
         };
+        /** CellDefinitionDraft */
+        CellDefinitionDraft: {
+            /**
+             * Source
+             * @default manual
+             * @enum {string}
+             */
+            source: "manual" | "cellpose";
+            /**
+             * Channel
+             * @default
+             */
+            channel: string;
+        };
+        /** CellposeDetectorSpec */
+        CellposeDetectorSpec: {
+            /**
+             * Model
+             * @default cpsam_v2
+             * @constant
+             */
+            model: "cpsam_v2";
+            /**
+             * Model Sha256
+             * @default 0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667
+             * @constant
+             */
+            model_sha256: "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667";
+            /** Diameter Px */
+            diameter_px?: number | null;
+            /**
+             * Normalization Percentile Low
+             * @default 1
+             */
+            normalization_percentile_low: number;
+            /**
+             * Normalization Percentile High
+             * @default 99
+             */
+            normalization_percentile_high: number;
+            /**
+             * Flow Threshold
+             * @default 0.4
+             */
+            flow_threshold: number;
+            /**
+             * Cellprob Threshold
+             * @default 0
+             */
+            cellprob_threshold: number;
+            /**
+             * Minimum Area Px
+             * @default 15
+             */
+            minimum_area_px: number;
+            /**
+             * Maximum Size Fraction
+             * @default 1
+             */
+            maximum_size_fraction: number;
+            /** Iterations */
+            iterations?: number | null;
+            /**
+             * Batch Size
+             * @default 1
+             */
+            batch_size: number;
+            /**
+             * Compute Device
+             * @default cpu
+             * @enum {string}
+             */
+            compute_device: "cpu" | "auto" | "cuda";
+            /**
+             * Engine
+             * @default cellpose-sam
+             * @constant
+             */
+            engine: "cellpose-sam";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "4.0.0";
+        };
         /** ChannelAssignment */
         ChannelAssignment: {
             /** Channel Id */
@@ -2124,6 +2209,12 @@ export interface components {
              */
             mode: "raw" | "automatic" | "confirmed_roi";
         };
+        /** DraftCellProcessing */
+        DraftCellProcessing: {
+            /** Channel */
+            channel: string;
+            detector?: components["schemas"]["CellposeDetectorSpec"];
+        };
         /** DraftChannel */
         DraftChannel: {
             /** Token */
@@ -2220,7 +2311,7 @@ export interface components {
             /** Channel */
             channel: string;
             /** Detector */
-            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"];
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
         };
         /**
          * DraftProcessing
@@ -2236,6 +2327,7 @@ export interface components {
             nuclei: components["schemas"]["DraftNuclearProcessing"] | null;
             nucleoli: components["schemas"]["DraftNucleolarProcessing"] | null;
             signal: components["schemas"]["DraftSignalProcessing"] | null;
+            cells?: components["schemas"]["DraftCellProcessing"] | null;
         };
         /** DraftSignalProcessing */
         DraftSignalProcessing: {
@@ -2665,6 +2757,315 @@ export interface components {
             /** Manual */
             manual: components["schemas"]["ContourView"][];
         };
+        /** NclCellposeDetectorSpec */
+        NclCellposeDetectorSpec: {
+            /**
+             * Model
+             * @default cpsam_v2
+             * @constant
+             */
+            model: "cpsam_v2";
+            /**
+             * Model Sha256
+             * @default 0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667
+             * @constant
+             */
+            model_sha256: "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667";
+            /** Diameter Px */
+            diameter_px?: number | null;
+            /**
+             * Normalization Percentile Low
+             * @default 1
+             */
+            normalization_percentile_low: number;
+            /**
+             * Normalization Percentile High
+             * @default 99
+             */
+            normalization_percentile_high: number;
+            /**
+             * Flow Threshold
+             * @default 0.4
+             */
+            flow_threshold: number;
+            /**
+             * Cellprob Threshold
+             * @default 0
+             */
+            cellprob_threshold: number;
+            /**
+             * Minimum Area Px
+             * @default 15
+             */
+            minimum_area_px: number;
+            /**
+             * Maximum Size Fraction
+             * @default 1
+             */
+            maximum_size_fraction: number;
+            /** Iterations */
+            iterations?: number | null;
+            /**
+             * Batch Size
+             * @default 1
+             */
+            batch_size: number;
+            /**
+             * Compute Device
+             * @default cpu
+             * @enum {string}
+             */
+            compute_device: "cpu" | "auto" | "cuda";
+            /**
+             * Engine
+             * @default cellpose-sam-ncl
+             * @constant
+             */
+            engine: "cellpose-sam-ncl";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "4.1.0";
+            /**
+             * Smoothing Sigma Px
+             * @default 0.9
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Background Radius Px
+             * @default 10
+             */
+            background_radius_px: number;
+        };
+        /** NclObjectDetector */
+        NclObjectDetector: {
+            /**
+             * Engine
+             * @default cytellect-ncl-objects
+             * @constant
+             */
+            engine: "cytellect-ncl-objects";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "3.0.0";
+            /**
+             * Smoothing Sigma Px
+             * @default 0.9
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Background Radius Px
+             * @default 10
+             */
+            background_radius_px: number;
+            /**
+             * Coarse Sigma Px
+             * @default 1.5
+             */
+            coarse_sigma_px: number;
+            /**
+             * Core Contrast
+             * @default 36
+             */
+            core_contrast: number;
+            /**
+             * Core Coarse Contrast
+             * @default 27
+             */
+            core_coarse_contrast: number;
+            /**
+             * Minimum Core Area Px
+             * @default 6
+             */
+            minimum_core_area_px: number;
+            /**
+             * Local Crop Radius Px
+             * @default 24
+             */
+            local_crop_radius_px: number;
+            /**
+             * Background Inner Radius Px
+             * @default 12
+             */
+            background_inner_radius_px: number;
+            /**
+             * Background Outer Radius Px
+             * @default 22
+             */
+            background_outer_radius_px: number;
+            /**
+             * Background Signal Floor
+             * @default 15
+             */
+            background_signal_floor: number;
+            /**
+             * Minimum Background Pixels
+             * @default 40
+             */
+            minimum_background_pixels: number;
+            /**
+             * Peak Radius Px
+             * @default 2
+             */
+            peak_radius_px: number;
+            /**
+             * Minimum Peak Difference
+             * @default 30
+             */
+            minimum_peak_difference: number;
+            /**
+             * Minimum Peak Ratio
+             * @default 1.6
+             */
+            minimum_peak_ratio: number;
+            /**
+             * Boundary Fraction
+             * @default 0.5
+             */
+            boundary_fraction: number;
+            /**
+             * Minimum Area Px
+             * @default 28
+             */
+            minimum_area_px: number;
+            /**
+             * Maximum Area Px
+             * @default 800
+             */
+            maximum_area_px: number | null;
+            /**
+             * Minimum Solidity
+             * @default 0.8
+             */
+            minimum_solidity: number;
+            /**
+             * Minimum Circularity
+             * @default 0.5
+             */
+            minimum_circularity: number;
+            /**
+             * Hole Fill Max Px
+             * @default 64
+             */
+            hole_fill_max_px: number;
+            /**
+             * Overlap Suppression Fraction
+             * @default 0.5
+             */
+            overlap_suppression_fraction: number;
+        };
+        /**
+         * NclParentCellposeDetectorSpec
+         * @description Parent-conditioned NCL copy; 4.0/4.1 replay is deliberately unchanged.
+         */
+        NclParentCellposeDetectorSpec: {
+            /**
+             * Model
+             * @default cpsam_v2
+             * @constant
+             */
+            model: "cpsam_v2";
+            /**
+             * Model Sha256
+             * @default 0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667
+             * @constant
+             */
+            model_sha256: "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667";
+            /** Diameter Px */
+            diameter_px?: number | null;
+            /**
+             * Normalization Percentile Low
+             * @default 1
+             */
+            normalization_percentile_low: number;
+            /**
+             * Normalization Percentile High
+             * @default 99
+             */
+            normalization_percentile_high: number;
+            /**
+             * Flow Threshold
+             * @default 0.4
+             */
+            flow_threshold: number;
+            /**
+             * Cellprob Threshold
+             * @default 0
+             */
+            cellprob_threshold: number;
+            /**
+             * Minimum Area Px
+             * @default 15
+             */
+            minimum_area_px: number;
+            /**
+             * Maximum Size Fraction
+             * @default 1
+             */
+            maximum_size_fraction: number;
+            /** Iterations */
+            iterations?: number | null;
+            /**
+             * Batch Size
+             * @default 1
+             */
+            batch_size: number;
+            /**
+             * Compute Device
+             * @default cpu
+             * @enum {string}
+             */
+            compute_device: "cpu" | "auto" | "cuda";
+            /**
+             * Engine
+             * @default cellpose-sam-ncl-parent
+             * @constant
+             */
+            engine: "cellpose-sam-ncl-parent";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "4.2.0" | "4.2.1";
+            /**
+             * Smoothing Sigma Px
+             * @default 0.9
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Parent Background Percentile
+             * @default 75
+             */
+            parent_background_percentile: number;
+            /**
+             * Nuclear Diameter Fraction
+             * @default 0.25
+             */
+            nuclear_diameter_fraction: number;
+            /**
+             * Crop Padding Px
+             * @default 32
+             */
+            crop_padding_px: number;
+            /**
+             * Minimum Contrast Snr
+             * @default 5
+             */
+            minimum_contrast_snr: number;
+            /**
+             * Local Background Radius Px
+             * @default 8
+             */
+            local_background_radius_px: number;
+            /**
+             * Maximum Nuclear Coverage
+             * @default 0.5
+             */
+            maximum_nuclear_coverage: number;
+        };
         /**
          * NuclearDetectorSpec
          * @description Allowlisted, offline nucleus model; never an arbitrary image classifier.
@@ -2723,6 +3124,8 @@ export interface components {
              * @default 0.7
              */
             relative: number;
+            /** Algorithm */
+            algorithm?: ("cellpose" | "objects" | "legacy") | null;
         };
         /** NucleolarDetectorSpec */
         NucleolarDetectorSpec: {
@@ -3456,7 +3859,7 @@ export interface components {
             /** Measurement */
             measurement?: components["schemas"]["RegionMeasurementPolicy"] | components["schemas"]["RawIntensityPolicy"] | components["schemas"]["AutomaticBackgroundPolicy"] | null;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"] | components["schemas"]["RegionCellposeRecipe"];
             /** Backgrounds */
             backgrounds?: {
                 [key: string]: {
@@ -3530,6 +3933,44 @@ export interface components {
              * @constant
              */
             confirmed: true;
+        };
+        /** RegionCellposeRecipe */
+        RegionCellposeRecipe: {
+            /**
+             * Id
+             * @default region-2d
+             * @constant
+             */
+            id: "region-2d";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            version: "1.8.0";
+            /**
+             * Region Set Id
+             * @default cell
+             * @constant
+             */
+            region_set_id: "cell";
+            /**
+             * Label
+             * @default 細胞
+             */
+            label: string;
+            /**
+             * Source
+             * @default cellpose_cell
+             * @constant
+             */
+            source: "cellpose_cell";
+            /** Defining Channel Id */
+            defining_channel_id: string;
+            detector?: components["schemas"]["CellposeDetectorSpec"];
+            /** Nuclear Revision Id */
+            nuclear_revision_id?: string | null;
+            /** Nuclear Channel Id */
+            nuclear_channel_id?: string | null;
         };
         /** RegionCohortRequest */
         RegionCohortRequest: {
@@ -3829,7 +4270,7 @@ export interface components {
             /** Defining Channel Id */
             defining_channel_id: string;
             /** Detector */
-            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"];
+            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
             /** Nucleolar Revision Id */
             nucleolar_revision_id?: string | null;
         };
@@ -3870,7 +4311,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment" | "cellpose_cell";
             /** Shape */
             shape: number[];
             file: components["schemas"]["RegionStoredFile"];
@@ -4403,7 +4844,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"] | components["schemas"]["RegionCellposeRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTable"];
@@ -4443,7 +4884,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"] | components["schemas"]["RegionCellposeRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV2"];
@@ -4480,7 +4921,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"] | components["schemas"]["RegionCellposeRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV3"];
@@ -4520,7 +4961,7 @@ export interface components {
             /** Revision Id */
             revision_id: string;
             /** Recipe */
-            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"];
+            recipe: components["schemas"]["RegionRecipe"] | components["schemas"]["RegionNuclearRecipe"] | components["schemas"]["AdoptedNuclearRecipe"] | components["schemas"]["ScaledNuclearRecipe"] | components["schemas"]["AutoScaledNuclearRecipe"] | components["schemas"]["RegionSignalRecipe"] | components["schemas"]["RegionCompartmentRecipe"] | components["schemas"]["RegionCellposeRecipe"];
             /** Field Tables */
             field_tables: {
                 [key: string]: components["schemas"]["RegionMeasurementTableV4"];
@@ -4574,7 +5015,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment";
+            source: "manual" | "imported" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment" | "cellpose_cell";
             /** Defining Channel Id */
             defining_channel_id?: string | null;
         };
@@ -4678,6 +5119,7 @@ export interface components {
              */
             nuclearNms: number;
             nucleolarDefinition?: components["schemas"]["NucleolarDefinitionDraft"];
+            cellDefinition?: components["schemas"]["CellDefinitionDraft"];
             /** Nucleolarsigma */
             nucleolarSigma?: number | null;
             /** Nucleolarrim */
@@ -4692,6 +5134,12 @@ export interface components {
              * @enum {string}
              */
             background: "raw" | "automatic" | "confirmed_roi";
+        };
+        /** SavedCellProcessing */
+        SavedCellProcessing: {
+            /** Channel */
+            channel: string;
+            detector?: components["schemas"]["CellposeDetectorSpec"];
         };
         /** SavedDraftFigure */
         SavedDraftFigure: {
@@ -4753,7 +5201,7 @@ export interface components {
             /** Channel */
             channel: string;
             /** Detector */
-            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"];
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
         };
         /** SavedProcessing */
         SavedProcessing: {
@@ -4766,6 +5214,7 @@ export interface components {
             nuclei: components["schemas"]["SavedNuclearProcessing"] | null;
             nucleoli: components["schemas"]["SavedNucleolarProcessing"] | null;
             signal: components["schemas"]["SavedSignalProcessing"] | null;
+            cells?: components["schemas"]["SavedCellProcessing"] | null;
         };
         /** SavedSignalProcessing */
         SavedSignalProcessing: {

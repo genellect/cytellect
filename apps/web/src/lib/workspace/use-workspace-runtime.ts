@@ -5,7 +5,8 @@ import type {Point} from "../types";
 import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {effectiveChannelAssignments} from "./channel-assignments";
 import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, type Grouping} from "./grouping";
-import {nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
+import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
+import {cellposeDetector,nclCellposeDetector,isCellposeDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
 import {applicableProcessing, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
 import {loadReviewPreview, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
@@ -14,11 +15,14 @@ import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
 export interface RuntimeSettings {
   nuclearMaxSide: number | null; nuclearProbability: number; nuclearNms: number;
   nucleolarDefinition: NucleolarDefinition;
+  cellDefinition?: {source:"manual"|"cellpose";channel:string};
   nucleolarSigma: number | null; nucleolarRim: number | null; nucleolarMinimumArea: number | null; nucleolarMaximumArea: number | null;
   background: "raw" | "automatic" | "confirmed_roi";
 }
 export const defaultRuntimeSettings = (): RuntimeSettings => ({nuclearMaxSide:null,nuclearProbability:.5,nuclearNms:.3,
-  nucleolarDefinition:{source:"dapi_poor",marker:"",pixelUm:null,relative:.7},nucleolarSigma:null,nucleolarRim:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null,background:"raw"});
+  nucleolarDefinition:{source:"dapi_poor",marker:"",pixelUm:null,relative:.7,algorithm:null},cellDefinition:{source:"manual",channel:""},nucleolarSigma:null,nucleolarRim:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null,background:"raw"});
+const normalizedRuntimeSettings=(settings:RuntimeSettings):RuntimeSettings=>({...defaultRuntimeSettings(),...settings,
+  nucleolarDefinition:{...defaultRuntimeSettings().nucleolarDefinition,...settings.nucleolarDefinition},cellDefinition:settings.cellDefinition??{source:"manual",channel:""}});
 export interface RuntimeSnapshot {
   data: ReviewData | null; busy: boolean; operation: string; error: string; assignments: ChannelAssignments;
   activeTarget: ReviewTarget; settings: RuntimeSettings; proposal: ValidatedProposal | null; processing: ProposalProcessing | null; importIssues: Grouping["issues"];
@@ -43,9 +47,20 @@ function visibleNucleolarSettings(settings:RuntimeSettings,processing:ProposalPr
     ? {...settings,nucleolarSigma:.7}:settings;
 }
 
-/** Existing explicit recipes only; a cell ROI is manual and never a GFP pixel component. */
+/** Cell detection and GFP classification are separate; nuclei stay pinned to StarDist. */
 export function runtimeRecipe(target:ReviewTarget,channel:ChannelDefinition,settings:RuntimeSettings,targets:RuntimeTargets,processing:ProposalProcessing|null):Recipe {
-  if(target === "cell") return {id:"region-2d",version:"1.0.0",source:"manual",region_set_id:"cell",label:"細胞ROI",defining_channel_id:channel.token};
+  if(target === "cell") {
+    const definition=settings.cellDefinition;
+    const defining=definition?.source==="cellpose"?definition.channel:channel.token;
+    if(definition?.source==="cellpose") {
+      if(!definition.channel)throw new Error("analysis_run_cell_channel_required");
+      const detector=processing?.cells?.channel===defining?processing.cells.detector:cellposeDetector();
+      const parent=targets.nuclei;
+      return {id:"region-2d",version:"1.8.0",source:"cellpose_cell",region_set_id:"cell",label:"細胞",defining_channel_id:defining,detector,
+        ...(parent?{nuclear_revision_id:parent.result.revision,nuclear_channel_id:parent.recipe.defining_channel_id}:{})};
+    }
+    return {id:"region-2d",version:"1.0.0",source:"manual",region_set_id:"cell",label:"細胞ROI",defining_channel_id:defining};
+  }
   if(target === "nuclei") {
     const base=nuclearRecipe(channel,settings.nuclearMaxSide);
     const saved=targets.nuclei?.recipe;
@@ -73,13 +88,19 @@ function runtimeNucleolarRecipe(channel:ChannelDefinition,settings:RuntimeSettin
     processing={...(processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:defining,detector:historical.detector}};
   }
   const previous=processing?.nucleoli?.channel === defining ? processing.nucleoli.detector : undefined;
-  const detector=definition.source === "ncl" ? previous?.engine === "fiji-nucleolar-compartments" ? previous : {engine:"fiji-nucleolar-compartments" as const,protocol_version:"1.1.0" as const,threshold_method:"otsu" as const,threshold:null,smoothing_sigma_px:0,minimum_area_px:1,maximum_area_px:null,split_touching:false}
+  const detector=definition.source === "ncl" ? definition.algorithm==="cellpose" ? isCellposeDetector(previous)?previous:nclCellposeDetector()
+    : definition.algorithm==="legacy" ? previous?.engine==="fiji-nucleolar-compartments"?previous:{engine:"fiji-nucleolar-compartments" as const,protocol_version:"1.1.0" as const,threshold_method:"otsu" as const,threshold:null,smoothing_sigma_px:0,minimum_area_px:1,maximum_area_px:null,split_touching:false}
+    : previous?.engine === "fiji-nucleolar-compartments" || previous?.engine === "cytellect-ncl-objects" || (!definition.algorithm&&isCellposeDetector(previous)) ? previous : nclObjectDetector()
     : {...nucleolarDetectorV2(definition),...(settings.nucleolarSigma !== null ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),...(settings.nucleolarRim !== null ? {rim_exclusion_px:settings.nucleolarRim}:{}),...(settings.nucleolarMinimumArea !== null ? {minimum_area_px:settings.nucleolarMinimumArea}:{}),maximum_area_px:settings.nucleolarMaximumArea};
   const recipe:Recipe={id:"region-2d",version:"1.4.0",source:"fiji_nuclear_compartment",region_set_id:"nucleoli",label:labels.nucleoli,compartment:"nucleoli",defining_channel_id:defining,detector};
   const proposed=withProcessingSettings(recipe,processing);
   if(proposed.detector?.engine === "cytellect-nucleolar-v2") return {...proposed,detector:{...proposed.detector,relative_threshold:definition.relative,
     ...(settings.nucleolarSigma !== null && !(proposed.detector.source==="marker" && proposed.detector.protocol_version==="2.0.0") ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),...(settings.nucleolarRim !== null ? {rim_exclusion_px:settings.nucleolarRim}:{}),
     ...(settings.nucleolarMinimumArea !== null ? {minimum_area_px:settings.nucleolarMinimumArea}:{}),maximum_area_px:settings.nucleolarMaximumArea}};
+  if(proposed.detector?.engine === "cytellect-ncl-objects") return {...proposed,detector:{...proposed.detector,
+    ...(settings.nucleolarSigma !== null ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),
+    ...(settings.nucleolarMinimumArea !== null ? {minimum_area_px:settings.nucleolarMinimumArea}:{}),
+    ...(settings.nucleolarMaximumArea !== null ? {maximum_area_px:settings.nucleolarMaximumArea}:{})}};
   if(proposed.detector?.engine === "fiji-nucleolar-compartments") return {...proposed,detector:{...proposed.detector,
     ...(settings.nucleolarSigma !== null ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),
     ...(settings.nucleolarMinimumArea !== null ? {minimum_area_px:settings.nucleolarMinimumArea}:{}),maximum_area_px:settings.nucleolarMaximumArea}};
@@ -90,7 +111,8 @@ function runtimeNucleolarRecipe(channel:ChannelDefinition,settings:RuntimeSettin
 export function runtimeProposalProcessing(channel:ChannelDefinition,settings:RuntimeSettings,targets:RuntimeTargets,processing:ProposalProcessing|null):ProposalProcessing {
   const nucleus=runtimeRecipe("nuclei",channel,settings,targets,processing);
   const child=settings.nucleolarDefinition.source==="dapi_poor"||settings.nucleolarDefinition.marker?runtimeNucleolarRecipe(channel,settings,targets,processing):undefined;
-  return savedProcessing(nucleus,child)!;
+  const cell=settings.cellDefinition?.source==="cellpose"&&settings.cellDefinition.channel?runtimeRecipe("cell",channel,settings,targets,processing):undefined;
+  return savedProcessing(nucleus,child,undefined,cell)!;
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
@@ -137,17 +159,22 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         targets.set(field.id,valid);
       }
       currentTargets=targets;let settings=state.settings,processing=state.processing;
-      if(restoreSettings){histories.clear();const first=[...targets.values()].find(value=>value.nuclei);processing=savedProcessing(first?.nuclei?.recipe,first?.nucleoli?.recipe);if(processing?.nuclei)settings={...settings,nuclearMaxSide:processing.nuclei.detection_max_side_px,nuclearProbability:processing.nuclei.detector.probability,nuclearNms:processing.nuclei.detector.nms};const child=processing?.nucleoli;if(child?.detector.engine==="cytellect-nucleolar-v2")settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:child.detector.source,marker:child.detector.source==="marker"?child.channel:"",relative:child.detector.relative_threshold},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarRim:child.detector.rim_exclusion_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};}
-      if(restoreSettings && processing?.nucleoli?.detector.engine==="fiji-nucleolar-compartments")settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:processing.nucleoli.channel},nucleolarSigma:processing.nucleoli.detector.smoothing_sigma_px,nucleolarMinimumArea:processing.nucleoli.detector.minimum_area_px,nucleolarMaximumArea:processing.nucleoli.detector.maximum_area_px};
+      if(restoreSettings){histories.clear();const first=[...targets.values()].find(value=>value.nuclei||value.cell);processing=savedProcessing(first?.nuclei?.recipe,first?.nucleoli?.recipe,undefined,first?.cell?.recipe);if(processing?.nuclei)settings={...settings,nuclearMaxSide:processing.nuclei.detection_max_side_px,nuclearProbability:processing.nuclei.detector.probability,nuclearNms:processing.nuclei.detector.nms};const child=processing?.nucleoli;if(child?.detector.engine==="cytellect-nucleolar-v2")settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:child.detector.source,marker:child.detector.source==="marker"?child.channel:"",relative:child.detector.relative_threshold},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarRim:child.detector.rim_exclusion_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};}
+      if(restoreSettings && (processing?.nucleoli?.detector.engine==="fiji-nucleolar-compartments"||processing?.nucleoli?.detector.engine==="cytellect-ncl-objects"))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:processing.nucleoli.channel},nucleolarSigma:processing.nucleoli.detector.smoothing_sigma_px,nucleolarMinimumArea:processing.nucleoli.detector.minimum_area_px,nucleolarMaximumArea:processing.nucleoli.detector.maximum_area_px};
+      if(restoreSettings && processing?.nucleoli && isCellposeDetector(processing.nucleoli.detector))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:processing.nucleoli.channel,algorithm:"cellpose"},nucleolarSigma:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null};
+      if(restoreSettings && processing?.cells)settings={...settings,cellDefinition:{source:"cellpose",channel:processing.cells.channel}};
       if(restoreSettings && [...targets.values()].some(value=>value.nucleoplasm?.result.protocol==="4.0.0"))settings={...settings,background:"automatic"};
       specification=recordedSpecification;specificationDirty=false;
       if(restoreSettings && specification.spec){
-        settings=specification.spec.settings;
+        settings=normalizedRuntimeSettings(specification.spec.settings);
         const historical=processing?.nucleoli;
         const preserveLegacyMarker=!specification.spec.processing && settings.nucleolarDefinition.source==="marker"
           && historical?.channel===settings.nucleolarDefinition.marker && historical.detector.engine==="cytellect-nucleolar-v2"
           && historical.detector.source==="marker" && historical.detector.protocol_version==="2.0.0";
-        processing=preserveLegacyMarker?processing:specification.spec.processing;
+        const preserveHistoricalCellpose=!specification.spec.processing&&settings.nucleolarDefinition.source==="ncl"
+          &&historical?.channel===settings.nucleolarDefinition.marker&&isCellposeDetector(historical.detector)
+          &&(!settings.nucleolarDefinition.algorithm||settings.nucleolarDefinition.algorithm==="cellpose");
+        processing=preserveLegacyMarker||preserveHistoricalCellpose?processing:specification.spec.processing;
       }
       settings=visibleNucleolarSettings(settings,processing);
       publish({assignments,settings,processing,activeTarget:recordedSpecification.spec?.target??state.activeTarget});replaceData(next);
@@ -156,7 +183,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function exclusive<T>(operation:string,task:()=>Promise<T>){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");publish({busy:true,error:"",operation});try{return await task();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}}
   async function checkCurrent(){const id=workspace();if(!await adapter.isSelectionCurrent(id))throw new Error("別の画面で採用状態が変わりました。再読み込みしてください。");if((await adapter.getChannelAssignments(id)).version!==state.assignments.version)throw new Error("染色設定が変更されています。再読み込みしてください。");}
   function currentSpecification(target:ReviewTarget){
-    return {...specification.spec,channel_assignment_version:state.assignments.version,target,settings:state.settings,processing:state.processing,
+    return {...specification.spec,channel_assignment_version:state.assignments.version,target,settings:state.settings,processing:state.processing?{...state.processing,cells:state.processing.cells??null}:null,
       measurement:state.settings.background === "confirmed_roi" ? null : state.settings.background === "automatic" ? automaticBackground : rawMeasurement};
   }
   async function persistSpecification(target:ReviewTarget){
@@ -178,7 +205,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function runField(field:string,target:ReviewTarget,preview=false){
     if(!preview && await acceptPrepared(field,target))return;
     const input=registered.get(field);if(!input)throw new Error("登録した画像が見つかりません。");
-    const channel=target==="cell"?definitions(field).find(value=>input.image_info.channels.some(plane=>plane.channel_id===value.token)):nuclearChannel(field);
+    const channel=target==="cell"?definitions(field).find(value=>state.settings.cellDefinition?.source==="cellpose"?value.token===state.settings.cellDefinition.channel:value.role!==null&&input.image_info.channels.some(plane=>plane.channel_id===value.token)):nuclearChannel(field);
     if(!channel)throw new Error("画像のチャンネルを選択してください。");
     const signature=candidateSignature(field),targets={...currentTargets.get(field)};
     if(preview)for(const key of ["nuclei","nucleoli","nucleoplasm","cell"] as const){const value=candidate(field,key);if(value)targets[key]={result:value.result,recipe:value.recipe};}
@@ -190,7 +217,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       else {const previous=currentTargets.get(field)?.[kind];if(previous){history(field,kind).undo.push(previous);history(field,kind).redo=[];}adopted(field,kind,result,recipe);}
       if(kind==="nuclei"){delete targets.nucleoli;delete targets.nucleoplasm;}if(kind==="nucleoli")delete targets.nucleoplasm;targets[kind]={result,recipe};
     }
-    if(target==="cell"){if(!targets.cell)await perform("cell",runtimeRecipe("cell",channel,state.settings,targets,null));return;}
+    if(target==="cell"){const recipe=runtimeRecipe("cell",channel,state.settings,targets,state.processing);if(!targets.cell||!sameRuntimeRecipe(targets.cell.recipe,recipe))await perform("cell",recipe);return;}
     const parentRecipe=runtimeRecipe("nuclei",channel,state.settings,targets,state.processing);
     if(!targets.nuclei||!sameRuntimeRecipe(targets.nuclei.recipe,parentRecipe))await perform("nuclei",parentRecipe);
     if(target==="nuclei")return;
@@ -200,14 +227,14 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     await perform(target,recipe);
   }
   function rememberRunAdoption(run:WorkspaceRun){for(const step of run.steps){const previous=currentTargets.get(step.field_id)?.[step.target];if(previous&&previous.result.revision!==step.revision_id){history(step.field_id,step.target).undo.push(previous);history(step.field_id,step.target).redo=[];}}}
-  async function readCandidates(run:WorkspaceRun){
+  async function readCandidates(run:WorkspaceRun,signatures?:Map<string,string>){
     for(const step of run.steps){if(!step.revision_id||!step.recipe||!["succeeded","reused"].includes(step.state))continue;
       const result=await adapter.readResult(step.revision_id,step.field_id,step.recipe),values={...candidateStore.get(step.field_id)};
-      values[step.target]={result,recipe:step.recipe,settingsFingerprint:candidateSignature(step.field_id),runId:run.id,runState:run.state,backgroundPending:step.background_pending};candidateStore.set(step.field_id,values);
+      values[step.target]={result,recipe:step.recipe,settingsFingerprint:signatures?.get(step.field_id)??candidateSignature(step.field_id),runId:run.id,runState:run.state,backgroundPending:step.background_pending};candidateStore.set(step.field_id,values);
     }
     if(state.data){const included=new Set(run.steps.map(step=>step.field_id));publish({data:{...state.data,fields:state.data.fields.map(field=>{
       if(!included.has(field.id))return field;
-      const failures=run.steps.filter(step=>step.field_id===field.id&&(step.state==="failed"||step.state==="blocked")).map(step=>`解析処理：${labels[step.target]} — ${step.error||"依存する領域の処理が完了しませんでした。"}`);
+      const failures=run.steps.filter(step=>step.field_id===field.id&&(step.state==="failed"||step.state==="blocked")).map(step=>`解析処理：${labels[step.target]} — ${step.error?errorCodeMessage(step.error):"依存する領域の処理が完了しませんでした。"}`);
       const existing=field.error?.split("\n").filter(value=>!value.startsWith("解析処理："))??[];
       return {...field,error:[...new Set([...existing,...failures])].join("\n")||undefined};
     })}});}else publish({});
@@ -228,16 +255,37 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const key=fingerprint({workspace:workspace(),version:specification.version,target,purpose:preview?"preview":"measurement",fields:chosen.map(field=>({id:field.id,signature:candidateSignature(field.id)}))});
     if(!runRequests.has(key))runRequests.set(key,crypto.randomUUID());
     const created=await adapter.startWorkspaceRun(workspace(),{request_id:runRequests.get(key)!,spec_version:specification.version,target,field_ids:chosen.map(field=>field.id),purpose:preview?"preview":"measurement"});
+    const signatures=new Map(chosen.map(field=>[field.id,candidateSignature(field.id)]));
     activeRunId=created.id;
     try{const run=await adapter.waitWorkspaceRun(workspace(),created.id,value=>publish({operation:`${value.steps.filter(step=>step.state==="succeeded"||step.state==="reused").length}/${value.steps.length}：検出・測定中`}));
-      await readCandidates(run);
+      await readCandidates(run,signatures);
       if(run.state==="cancelled"){runRequests.delete(key);throw new Error("処理を中止しました。採用済みの領域は保持されています。");}
-      if(run.state==="failed"){runRequests.delete(key);throw new Error(run.steps.filter(step=>step.error).map(step=>`${state.data?.fields.find(field=>field.id===step.field_id)?.label||"視野"}：${step.error}`).join("\n"));}
+      if(run.state==="failed"){runRequests.delete(key);throw new Error(run.steps.filter(step=>step.error).map(step=>`${state.data?.fields.find(field=>field.id===step.field_id)?.label||"視野"}：${errorCodeMessage(step.error!)} 実行条件を確認してください。`).join("\n"));}
       if(!preview){await adapter.acceptWorkspaceRun(workspace(),run.id);rememberRunAdoption(run);for(const field of chosen)candidateStore.delete(field.id);await refresh(workspace());}
     }finally{activeRunId=null;}
   }
   async function runInternal(target:ReviewTarget,fieldId?:string,preview=false){
     await checkCurrent();
+    if(target==="cell"&&state.settings.cellDefinition?.source==="cellpose"){
+      const defining=state.settings.cellDefinition.channel;if(!defining)throw new Error("analysis_run_cell_channel_required");
+      if(state.data!.fields.filter(field=>!field.exclusionReason&&(!fieldId||field.id===fieldId)).some(field=>!field.channels.some(ch=>ch.id===defining&&ch.role!=="unused")))throw new Error("analysis_run_cell_channel_unknown");
+    }
+    if(target==="nucleoli"||target==="nucleoplasm"){
+      const chosen=state.data!.fields.filter(field=>!field.exclusionReason&&(!fieldId||field.id===fieldId));
+      for(const field of chosen){
+        const definition=state.settings.nucleolarDefinition;
+        const channel=nuclearChannel(field.id);
+        if(!channel)throw new Error("analysis_run_nuclear_parent_required");
+        if(definition.source==="ncl"&&state.processing?.nucleoli?.detector.engine!=="fiji-nucleolar-compartments"){
+          const parents=currentTargets.get(field.id)??{},parent=parents.nuclei;
+          if(!parent||!sameRuntimeRecipe(parent.recipe,runtimeRecipe("nuclei",channel,state.settings,parents,state.processing)))throw new Error("analysis_run_nuclear_parent_required");
+        }
+        if(definition.source!=="dapi_poor"){
+          if(!definition.marker)throw new Error("analysis_run_nucleolar_marker_required");
+          if(definition.marker===channel.token||!field.channels.some(ch=>ch.id===definition.marker&&ch.role!=="unused"))throw new Error("analysis_run_nucleolar_marker_unknown");
+        }
+      }
+    }
     if("startWorkspaceRun" in adapter){await runServer(target,fieldId,preview);return;}
     await persistSpecification(target);if(!preview)publish({activeTarget:target});stopped=false;
     const fields=state.data!.fields.filter(field=>!field.exclusionReason&&(!fieldId||field.id===fieldId));if(!fields.length)throw new Error("解析する画像を選択してください。");
@@ -246,10 +294,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   }
   function applyProposal(fieldId?:string){
     if(!state.proposal)throw new Error("解析案がありません。");const channels=definitions(fieldId);try{const nucleus=nuclearChannel(fieldId),index=channels.findIndex(value=>value.token===nucleus.token);if(index>=0)channels[index]=nucleus;}catch{}
-    const hasImages=!!state.data?.fields.length,automatic=hasImages&&["nuclear-intensity","nuclear-ncl"].includes(state.proposal.draft.recipe),processing=automatic?applicableProcessing(state.proposal,channels):null;if(automatic&&!processing?.nuclei)throw new Error("核のチャンネルを確認してから解析案を適用してください。");
-    if(hasImages&&state.proposal.draft.recipe==="supplied-regions"){const cell=fieldId?currentTargets.get(fieldId)?.cell:undefined;if(cell?.recipe.source!=="manual"||cell.recipe.region_set_id!=="cell"||!cell.result.masks.regions.length)throw new Error("選択視野の採用済み細胞ROIを確認してください。");}
+    const hasImages=!!state.data?.fields.length,automatic=hasImages&&(["nuclear-intensity","nuclear-ncl"].includes(state.proposal.draft.recipe)||!!state.proposal.draft.processing?.cells),processing=automatic?applicableProcessing(state.proposal,channels):null;if(automatic&&!processing?.nuclei&&!processing?.cells)throw new Error("核のチャンネルを確認してから解析案を適用してください。");
+    if(hasImages&&state.proposal.draft.recipe==="supplied-regions"&&!processing?.cells){const cell=fieldId?currentTargets.get(fieldId)?.cell:undefined;if(!["manual","cellpose_cell"].includes(cell?.recipe.source??"")||cell?.recipe.region_set_id!=="cell"||!cell.result.masks.regions.length)throw new Error("選択視野の採用済み細胞ROIを確認してください。");}
     let settings=processing?.nuclei?{...state.settings,nuclearMaxSide:processing.nuclei.detection_max_side_px,nuclearProbability:processing.nuclei.detector.probability,nuclearNms:processing.nuclei.detector.nms}:{...state.settings};
-    const child=processing?.nucleoli;if(child?.detector.engine==="cytellect-nucleolar-v2")settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:child.detector.source,marker:child.detector.source==="marker"?child.channel:"",relative:child.detector.relative_threshold},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarRim:child.detector.rim_exclusion_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};else if(child)settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:child.channel},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};
+    const child=processing?.nucleoli;if(child?.detector.engine==="cytellect-nucleolar-v2")settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:child.detector.source,marker:child.detector.source==="marker"?child.channel:"",relative:child.detector.relative_threshold},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarRim:child.detector.rim_exclusion_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};else if(child&&isCellposeDetector(child.detector))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:child.channel,algorithm:"cellpose"},nucleolarSigma:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null};else if(child&&(child.detector.engine==="cytellect-ncl-objects"||child.detector.engine==="fiji-nucleolar-compartments"))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:child.channel,algorithm:child.detector.engine==="cytellect-ncl-objects"?"objects":"legacy"},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};
+    if(processing?.cells)settings={...settings,cellDefinition:{source:"cellpose",channel:processing.cells.channel}};
     settings=visibleNucleolarSettings(settings,processing);
     beforeProposal={settings:state.settings,processing:state.processing,specification:structuredClone(specification)};
     const draft=state.proposal.draft as ValidatedProposal["draft"] & {background?:{mode:RuntimeSettings["background"]}|null;gfp_selection?:{channel:string;unit:"nucleus"|"cell_roi";method:"manual"|"batch_otsu"|"negative_control";threshold:number|null;values:"raw"|"corrected";keep:"positive"|"negative";percentile:number}|null}, metrics=hasImages?draft.metrics:draft.metrics.filter(value=>value.channel===null), first=metrics[0], firstFigure=draft.figures.find(value=>hasImages||value.channel===null);
@@ -269,7 +318,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     }
     const statistical=prior?.statistics&&typeof prior.statistics==="object"?prior.statistics:{};
     const figure=prior?.figure&&typeof prior.figure==="object"?prior.figure:{};
-    const target:ReviewTarget=draft.recipe==="supplied-regions"?"cell":draft.recipe==="none"?(prior?.target??state.activeTarget):first?.region==="nucleoplasm"||["ncl_log2_nucleoplasm_over_nucleoli","nucleolar_area_fraction","nucleolar_count"].includes(first?.metric??"")?"nucleoplasm":first?.region==="nucleoli"?"nucleoli":processing?.nucleoli?"nucleoli":"nuclei";
+    const target:ReviewTarget=processing?.cells&&!processing.nucleoli?"cell":draft.recipe==="supplied-regions"?"cell":draft.recipe==="none"?(prior?.target??state.activeTarget):first?.region==="nucleoplasm"||["ncl_log2_nucleoplasm_over_nucleoli","nucleolar_area_fraction","nucleolar_count"].includes(first?.metric??"")?"nucleoplasm":first?.region==="nucleoli"?"nucleoli":processing?.nucleoli?"nucleoli":"nuclei";
     specificationDirty=true;specification={...specification,spec:{...prior,channel_assignment_version:state.assignments.version,target,settings,processing:automatic?processing?{...processing,signal:null}:null:state.processing,measurement:settings.background==="confirmed_roi"?null:settings.background==="automatic"?automaticBackground:rawMeasurement,
       metrics,selection,additional_analyses:draft.additional_analyses??[],figure_proposals:draft.figures,
       statistics:{...statistical,method:draft.statistics,...(metric?{metric,channel_id:first.channel}: {}),...(draft.statistics.y?{metric:metricMap[draft.statistics.y.metric]??draft.statistics.y.metric,channel_id:draft.statistics.y.channel}:{}),...(draft.statistics.x?{x_metric:metricMap[draft.statistics.x.metric]??draft.statistics.x.metric,x_channel_id:draft.statistics.x.channel}:{x_metric:null,x_channel_id:null})},
@@ -285,7 +334,54 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
     newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[]});replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
-    setSettings(value:RuntimeSettings|((previous:RuntimeSettings)=>RuntimeSettings)){if(!state.busy)publish({settings:typeof value==="function"?value(state.settings):value});},
+    nclDetector(field:string){
+      try {const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);return recipe.detector?.engine==="cytellect-ncl-objects"?recipe.detector:undefined;}catch{return undefined;}
+    },
+    cellposeSettings(field:string,target:"cell"|"nucleoli"):AnyCellposeProcessingDetector {
+      const defining=target==="cell"?state.settings.cellDefinition?.channel:state.settings.nucleolarDefinition.marker;
+      const saved=target==="cell"?state.processing?.cells:state.processing?.nucleoli;
+      if(saved&&saved.channel===defining&&isCellposeDetector(saved.detector))return saved.detector;
+      return target==="cell"?cellposeDetector():nclCellposeDetector();
+    },
+    setCellposeParameter(field:string,target:"cell"|"nucleoli",key:"diameter_px"|"flow_threshold"|"cellprob_threshold"|"minimum_area_px"|"normalization_percentile_low"|"normalization_percentile_high"|"smoothing_sigma_px"|"background_radius_px"|"parent_background_percentile"|"nuclear_diameter_fraction"|"minimum_contrast_snr",value:number|null){
+      if(state.busy)return;
+      const defining=target==="cell"?state.settings.cellDefinition?.channel:state.settings.nucleolarDefinition.marker;
+      if(!defining)return;
+      const previous=target==="cell"?state.processing?.cells:state.processing?.nucleoli;
+      const base=previous&&previous.channel===defining&&isCellposeDetector(previous.detector)?previous.detector:target==="cell"?cellposeDetector():nclCellposeDetector();
+      if(key==="smoothing_sigma_px"&&base.engine==="cellpose-sam")return;
+      if(key==="background_radius_px"&&base.engine!=="cellpose-sam-ncl")return;
+      if((key==="parent_background_percentile"||key==="nuclear_diameter_fraction"||key==="minimum_contrast_snr")&&base.engine!=="cellpose-sam-ncl-parent")return;
+      const detector={...base,[key]:value};
+      publish({processing:{...(state.processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),[target==="cell"?"cells":"nucleoli"]:{channel:defining,detector}}});
+    },
+    setNclParameter(field:string,key:keyof ReturnType<typeof nclObjectDetector>,value:number|null){
+      if(state.busy||state.settings.nucleolarDefinition.source!=="ncl"||!state.settings.nucleolarDefinition.marker)return;
+      const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);
+      if(recipe.detector?.engine!=="cytellect-ncl-objects")return;
+      const detector={...recipe.detector,[key]:value};
+      const settings={...state.settings,...(key==="smoothing_sigma_px"?{nucleolarSigma:value}:{}),...(key==="minimum_area_px"?{nucleolarMinimumArea:value}:{}),...(key==="maximum_area_px"?{nucleolarMaximumArea:value}:{})};
+      publish({settings,processing:{...(state.processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:recipe.defining_channel_id,detector}}});
+    },
+    selectNucleolarSource(source:NucleolarDefinition["source"],marker:string,algorithm:NucleolarDefinition["algorithm"]=source==="ncl"?"cellpose":null){
+      if(state.busy)return;
+      const settings={...state.settings,nucleolarDefinition:{...state.settings.nucleolarDefinition,source,marker,algorithm},nucleolarSigma:null,nucleolarRim:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null};
+      const processing=source==="ncl"&&algorithm==="cellpose"&&marker
+        ?{...(state.processing??{version:"1.0.0" as const,nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:marker,detector:nclCellposeDetector()}}
+        :state.processing?{...state.processing,nucleoli:null}:null;
+      publish({settings,processing});
+    },
+    setSettings(value:RuntimeSettings|((previous:RuntimeSettings)=>RuntimeSettings)){
+      if(state.busy)return;
+      const settings=normalizedRuntimeSettings(typeof value==="function"?value(state.settings):value),definition=settings.nucleolarDefinition;
+      let processing=state.processing;
+      if(definition.source==="ncl"&&definition.algorithm==="cellpose"){
+        const previous=processing?.nucleoli;
+        processing={...(processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:definition.marker
+          ?{channel:definition.marker,detector:previous&&isCellposeDetector(previous.detector)?previous.detector:nclCellposeDetector()}:null};
+      }
+      publish({settings,processing});
+    },
     setNucleolarSigma(value:number|null){
       if(state.busy)return;
       const settings={...state.settings,nucleolarSigma:value},definition=settings.nucleolarDefinition;
@@ -329,6 +425,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       await adapter.saveChannelAssignments(workspace(),{version:state.assignments.version,assignments,...(field_ids?{field_ids}:{})});histories.clear();publish({proposal:null,processing:null});await refresh(workspace());
     });},
     saveFieldLink(fieldId:string,kind:"analysis"|"reference",referenceFor:string|null=null){return exclusive("画像の対応を保存中",async()=>{await checkCurrent();const links=await adapter.getFieldLinks(workspace());await adapter.saveFieldLink(workspace(),fieldId,{version:links.version,selection_version:adapter.selection()?.version??0,kind,reference_for_field_id:referenceFor});await refresh(workspace());});},
+    currentResult(field:string,target:ReviewTarget){
+      const saved=currentTargets.get(field)?.[target];
+      if(!saved)return undefined;
+      if(target!=="nucleoli"&&target!=="nucleoplasm"&&target!=="cell")return saved.result;
+      try {const channel=target==="cell"?definitions(field).find(ch=>ch.token===(state.settings.cellDefinition?.source==="cellpose"?state.settings.cellDefinition.channel:saved.recipe.defining_channel_id)):nuclearChannel(field);if(!channel)return undefined;const recipe=runtimeRecipe(target,channel,state.settings,currentTargets.get(field)??{},state.processing);return sameRuntimeRecipe(saved.recipe,recipe)?saved.result:undefined;} catch{return undefined;}
+    },
     candidates:candidate, candidateResult(field:string,target:ReviewTarget){return candidate(field,target)?.result;},
     preview(field:string,target:ReviewTarget){return exclusive("候補をプレビュー中",()=>runInternal(target,field,true));},
     acceptCandidates(field:string,target:ReviewTarget){return exclusive("候補を採用中",async()=>{await checkCurrent();if(!await acceptPrepared(field,target))throw new Error("現在の条件に一致する候補がありません。");await refresh(workspace());});},
@@ -339,7 +441,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     excludeField(field:string,reason:string|null){return exclusive("解析対象を更新中",async()=>{await checkCurrent();const entry=adapter.selection()?.entries.find(value=>value.field_id===field);if(!entry)throw new Error("保存した視野の登録状態を確認できません。");await adapter.excludeField(workspace(),entry.id,reason);await refresh(workspace());});},
     applyProposal,canUndoProposal:()=>beforeProposal!==null,
     undoProposal(){return exclusive("AI適用前の条件に戻しています",async()=>{await checkCurrent();if(!beforeProposal)return;const previous=beforeProposal;publish({settings:previous.settings,processing:previous.processing,activeTarget:previous.specification.spec?.target??"nuclei"});specificationDirty=true;specification={...specification,spec:previous.specification.spec};await persistSpecification(state.activeTarget);beforeProposal=null;candidateStore.clear();publish({});});},
-    requestProposal(goal:string,selectedFieldId?:string){return exclusive("AIが解析条件を確認中",async()=>{if(!state.data?.fields.length&&!goal.trim())throw new Error("画像を追加するか、解析したいことを入力してください。");if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}await checkCurrent();await persistSpecification(state.activeTarget);const field=selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;let currentProcessing:ProposalProcessing|null=null;if(field){try{currentProcessing=runtimeProposalProcessing(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);}catch{currentProcessing=null;}}const response=await adapter.draft(workspace(),goal,false,{current_processing:currentProcessing,previous_goal:"",previous_proposal:state.proposal?.draft??null,...(selectedFieldId?{field_id:selectedFieldId}:{})});publish({proposal:response.proposal});if(!state.data?.fields.length||response.proposal.draft.recipe==="none"){applyProposal(field);await persistSpecification(state.activeTarget);return response.proposal;}if(!field)throw new Error("プレビューする画像を選択してください。");applyProposal(field);await runInternal(state.activeTarget,field,true);return response.proposal;});},
+    requestProposal(goal:string,selectedFieldId?:string){return exclusive("AIが解析条件を確認中",async()=>{if(!state.data?.fields.length&&!goal.trim())throw new Error("画像を追加するか、解析したいことを入力してください。");if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}await checkCurrent();await persistSpecification(state.activeTarget);const field=selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;let currentProcessing:ProposalProcessing|null=null;if(field){try{currentProcessing=runtimeProposalProcessing(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);}catch{const cell=state.settings.cellDefinition?.channel;const channel=definitions(field).find(ch=>ch.token===cell);currentProcessing=channel&&state.settings.cellDefinition?.source==="cellpose"?savedProcessing(undefined,undefined,undefined,runtimeRecipe("cell",channel,state.settings,currentTargets.get(field)??{},state.processing)):null;}}const response=await adapter.draft(workspace(),goal,false,{current_processing:currentProcessing,previous_goal:"",previous_proposal:state.proposal?.draft??null,...(selectedFieldId?{field_id:selectedFieldId}:{})});publish({proposal:response.proposal});if(!state.data?.fields.length||response.proposal.draft.recipe==="none"){applyProposal(field);await persistSpecification(state.activeTarget);return response.proposal;}if(!field)throw new Error("プレビューする画像を選択してください。");applyProposal(field);await runInternal(state.activeTarget,field,true);return response.proposal;});},
   };
 }
 

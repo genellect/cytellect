@@ -6,6 +6,7 @@ from copy import deepcopy
 from cytellect_analysis.engine import nuclear_detection_shape
 from cytellect_analysis.masks import polygon_mask
 from cytellect_analysis.region_contracts import (
+    RegionCellposeRecipe,
     RegionCompartmentRecipe,
     RegionImageInfo,
     region_request_config,
@@ -56,7 +57,7 @@ def validate_region_request(store, body, selected, reused_masks=()):
             raise HTTPException(422, "region_labels_required")
         if body.recipe.source == "manual" and info.labels_array is not None:
             raise HTTPException(422, "manual_region_source_requires_no_imported_labels")
-        if isinstance(body.recipe, RegionCompartmentRecipe):
+        if isinstance(body.recipe, RegionCompartmentRecipe) or (isinstance(body.recipe, RegionCellposeRecipe) and body.recipe.nuclear_revision_id is not None):
             source = store.one(revisions, id=body.recipe.nuclear_revision_id)
             if (not source or source["workspace_id"] != f["workspace_id"] or source["state"] != "succeeded"
                     or not source["result_dir"] or source["config"].get("analysis_kind") != "region-2d"
@@ -71,6 +72,8 @@ def validate_region_request(store, body, selected, reused_masks=()):
                 raise HTTPException(422, "compartment_nuclear_source_invalid")
         if body.recipe.source == "fiji_positive_regions" and info.labels_array is not None:
             raise HTTPException(422, "signal_source_requires_no_imported_labels")
+        if body.recipe.source == "cellpose_cell" and info.labels_array is not None:
+            raise HTTPException(422, "cellpose_source_requires_no_imported_labels")
         if body.recipe.source == "stardist_nuclear":
             if info.labels_array is not None:
                 raise HTTPException(422, "nuclear_source_requires_no_imported_labels")

@@ -11,14 +11,16 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictBool, model_validator
 
+from .cellpose_engine import CellposeDetectorSpec, NclCellposeDetectorSpec, NclParentCellposeDetectorSpec
 from .compartment_engine import NucleolarDetectorV11
+from .ncl_objects import NclObjectDetector
 from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21
 from .planning import ReferenceId
 from .region_contracts import NuclearDetectorSpec
 from .signal_engine import SignalDetectorSpec
 
 PROPOSAL_PROTOCOL = "1.1.0"
-PROPOSAL_PROMPT_VERSION = "2026-10-08.1"
+PROPOSAL_PROMPT_VERSION = "2026-10-08.5"
 PROPOSAL_MODEL = "gpt-6.1-sol"
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]
@@ -157,7 +159,12 @@ class DraftNuclearProcessing(ProposalModel):
 
 class DraftNucleolarProcessing(ProposalModel):
     channel: Token
-    detector: NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21
+    detector: NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21 | NclObjectDetector | CellposeDetectorSpec | NclCellposeDetectorSpec | NclParentCellposeDetectorSpec
+
+
+class DraftCellProcessing(ProposalModel):
+    channel: Token
+    detector: CellposeDetectorSpec = Field(default_factory=CellposeDetectorSpec)
 
 
 class DraftSignalProcessing(ProposalModel):
@@ -171,6 +178,7 @@ class DraftProcessing(ProposalModel):
     nuclei: DraftNuclearProcessing | None
     nucleoli: DraftNucleolarProcessing | None
     signal: DraftSignalProcessing | None
+    cells: DraftCellProcessing | None = None
 
 
 class ProposalDraft(ProposalModel):
