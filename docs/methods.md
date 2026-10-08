@@ -386,7 +386,7 @@ explicit setup/build, with a reusable cache, never in image jobs.
 
 ### NCL Cellpose detection copy, protocol 4.1.0
 
-New explicit NCL Cellpose selections use `cellpose-sam-ncl/4.1.0` with the same
+Saved `cellpose-sam-ncl/4.1.0` selections use the same
 fixed model and dependencies. The selected NCL plane is converted to float32,
 Gaussian-smoothed (default sigma 0.9 original pixels), and subjected to grayscale
 opening with a Euclidean disk (default radius 10 original pixels, reflect boundary
@@ -404,7 +404,7 @@ review; it does not independently establish nucleolar identity.
 
 ### Parent-conditioned NCL Cellpose protocol 4.2.0
 
-New explicit NCL Cellpose selections use `cellpose-sam-ncl-parent/4.2.0`.
+The `cellpose-sam-ncl-parent/4.2.0` protocol introduced parent-conditioned inference.
 The unchanged original plane is Gaussian-smoothed (0.9 original px) before any
 parent restriction. For each adopted StarDist nucleus, subtract its 75th
 intensity percentile, keep positive signal only within that parent, and normalize
@@ -440,7 +440,8 @@ general biological segmentation accuracy. Cellpose-SAM is not a nucleolus-specif
 classifier, and NCL redistribution can change marker-defined candidates.
 
 
-Protocol 4.2.1 preserves the 4.2.0 parent-conditioned inference settings and adds
+New explicit NCL Cellpose selections use protocol 4.2.1. It preserves the 4.2.0
+parent-conditioned inference settings and adds
 whole-instance nuclear rejection after inference. A candidate covering more
 than `maximum_nuclear_coverage` (default 0.5) of an adopted StarDist nucleus,
 with at least 0.9 parent purity, is removed as a nuclear-scale candidate. The

@@ -134,3 +134,29 @@ attempt used an excessively long Windows scratch path and failed image intake;
 the same tests passed from a short isolated scratch root without changing image
 handling. These checks do not resolve the remaining biological acceptance gate.
 CI must be checked on the repair commit; the previously failed run is not a pass.
+
+### Resumed Docker verification
+
+The first offline rebuild reused an older base whose model file had the expected
+size but a different SHA-256. The byte-level integrity check rejected it.
+The recorded expected hash was not changed or bypassed: the already provisioned,
+verified pinned model was copied into the rebuilt Worker, and its build-time and
+running-container capability probes passed. The research volume and existing
+ownership/retention settings were preserved.
+
+A fresh protocol 4.2.1 preview on the owner's previously supplied paired real
+input completed with its adopted StarDist parent reused. Saved labels matched
+the accepted trial, every candidate had one parent, no candidate pixels lay
+outside the adopted parent, and NCL area/mean/median/integrated measurements
+matched an independent calculation from unchanged original pixels. The adopted
+selection ledger remained unchanged. Private specimens, labels, numerical
+results and browser evidence remain outside Git and CI. This verifies the
+accepted baseline and data path, not the still-open general biological accuracy
+gate. Edge was refreshed to the new candidate result.
+
+The exported Methods now states protocol 4.2.1 whole-instance nuclear rejection,
+and the current default in the requirements/roadmap was corrected without
+reinterpreting historical 4.1.0/4.2.0 recipes. Documentation links passed and
+21 export regression tests passed. CI on `cad0b607` had passed Python, Web,
+Fiji/browser and local Windows; the Windows 3.14 job was still running at the
+time of this record. Check the latest PR head independently.

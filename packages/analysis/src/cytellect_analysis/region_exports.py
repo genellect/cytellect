@@ -132,6 +132,11 @@ def _cellpose_initial(detector, *, nucleolar=False) -> str:
                          "Robust original-pixel noise and local NCL enrichment reject weak/unenriched candidates. "
                          "Valid individual candidates remain visible when a truncated sibling requires review; "
                          "that parent's complement/aggregate is missing until adoption. ")
+        if detector.protocol_version == "4.2.1":
+            preprocessing += (f"Whole candidate instances covering more than {detector.maximum_nuclear_coverage:g} "
+                              "of an adopted nucleus with at least 0.9 parent purity are rejected as nuclear-scale "
+                              "objects; raw labels and rejection measurements are retained. "
+                              "A parent containing only these rejected objects is indeterminate, not a measured zero. ")
     definition = ("Candidate masks wholly contained by exactly one adopted StarDist nucleus; "
                   "cross-parent and boundary-truncated candidates are retained for review, not measured as nucleoli."
                   if nucleolar else "Cell ROI candidates on the explicitly selected defining stain.")

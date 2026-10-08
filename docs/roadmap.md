@@ -5,8 +5,9 @@
 The optional fixed Cellpose-SAM adapter connects NCL candidates and separate cell
 ROI candidates to existing original-coordinate measurement, editing and replay.
 Nuclei continue to use Fiji/StarDist. New explicit NCL selections use protocol
-4.1.0 local-background removal; saved raw-input 4.0.0 and classical recipes retain
-their behavior. Manual and structured AI settings use the same validated detector.
+4.2.1 parent-conditioned local-background removal and whole-instance nuclear
+rejection; saved 4.0.0, 4.1.0, 4.2.0 and classical recipes retain their behavior.
+Manual and structured AI settings use the same validated detector.
 Changing channels after selecting the algorithm starts the pending preview only
 once the input is complete. A field failure retains its specific worker reason.
 
