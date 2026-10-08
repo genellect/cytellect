@@ -112,3 +112,25 @@ not establish biological segmentation accuracy.
 Docker remains running for the owner's local review while agent work and the
 goal are paused. Read this record and inspect the Git branch before restarting
 implementation; do not infer completion from the presence of an API or button.
+
+## Owner-requested resumption, 2026-10-08
+
+The owner subsequently requested resumption. PR #50 was checked at its saved
+head: Web and local Windows checks passed; Python, Windows 3.14 and Fiji/browser
+checks failed. The failures were traced to missing optional-array type narrowing,
+an obsolete proposal-response prompt constant, an obsolete browser control
+name, and metadata-only hash caching missing same-size model rewrites on Windows.
+
+The repair preserves protocol 4.2.1 detection parameters and stored-mask meaning.
+Model/adapter integrity now hashes actual file bytes before use rather than
+reusing a size/timestamp cache. The mutation test preserves the original mtime
+explicitly so that the regression is deterministic. Proposal persistence mocks
+follow the declared current prompt version; real mismatches remain rejected.
+The browser regression selects the existing `核小体の定義` control.
+
+Local repair verification: 78 focused Python tests passed; mypy reported no
+issues in 116 files; Ruff and documentation links passed. The first local test
+attempt used an excessively long Windows scratch path and failed image intake;
+the same tests passed from a short isolated scratch root without changing image
+handling. These checks do not resolve the remaining biological acceptance gate.
+CI must be checked on the repair commit; the previously failed run is not a pass.

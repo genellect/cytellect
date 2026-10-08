@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -187,9 +188,11 @@ def test_ncl_delegates_normalization_and_legacy_arithmetic_stays_unchanged(monke
 def test_model_mutation_rejected(tmp_path):
     path = tmp_path / "model"
     path.write_bytes(b"fixed model")
+    original_stat = path.stat()
     expected = hashlib.sha256(path.read_bytes()).hexdigest()
     engine._verify_file(path, expected, path.stat().st_size, "cellpose_model_integrity_failed")
     path.write_bytes(b"other model")
+    os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
     with pytest.raises(ValueError, match="cellpose_model_integrity_failed"):
         engine._verify_file(path, expected, path.stat().st_size, "cellpose_model_integrity_failed")
 

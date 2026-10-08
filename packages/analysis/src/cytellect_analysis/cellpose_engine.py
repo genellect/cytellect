@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import subprocess
-from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -85,19 +84,17 @@ def _assets() -> Path:
     raise ValueError("cellpose_adapter_missing")
 
 
-@lru_cache(maxsize=8)
-def _verified_hash(path: str, _size: int, _mtime: int, _ctime: int) -> str:
-    with Path(path).open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
-
-
 def _verify_file(path: Path, expected: str, size: int | None, error: str):
     if not path.is_file():
         raise ValueError(error)
     stat = path.stat()
     if size is not None and stat.st_size != size:
         raise ValueError(error)
-    if _verified_hash(str(path.resolve()), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns) != expected:
+    # Windows timestamps can stay unchanged across a same-size rewrite. Hash
+    # the bytes before use instead of treating metadata as an integrity check.
+    with path.open("rb") as stream:
+        actual = hashlib.file_digest(stream, "sha256").hexdigest()
+    if actual != expected:
         raise ValueError(error)
 
 
@@ -267,6 +264,7 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
                                                          "cpsam_v2").resolve()),
                                       "parameters": detector.model_dump(mode="json")}
     if isinstance(detector, NclParentCellposeDetectorSpec):
+        assert nuclei is not None
         np.save(parent_path, nuclei, allow_pickle=False)
         request["parent_path"] = str(parent_path.resolve())
     request_path.write_text(json.dumps(request), encoding="utf-8")
@@ -290,8 +288,10 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
             raise ValueError("cellpose_output_invalid") from error
         if raw.shape != image.shape:
             raise ValueError("cellpose_output_shape_invalid")
-        binding_input, nuclear_exclusions = raw, []
+        binding_input = raw
+        nuclear_exclusions: list[dict] = []
         if isinstance(detector, NclParentCellposeDetectorSpec) and detector.protocol_version == "4.2.1":
+            assert nuclei is not None
             binding_input, nuclear_exclusions = exclude_nuclear_scale_candidates(raw, nuclei, detector.maximum_nuclear_coverage)
         labels, binding = bind_nucleolar_candidates(binding_input, nuclei) if nuclei is not None else (raw.astype(np.uint32), {})
         if isinstance(detector, NclParentCellposeDetectorSpec) and detector.protocol_version == "4.2.1":
