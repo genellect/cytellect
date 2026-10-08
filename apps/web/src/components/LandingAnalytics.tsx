@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { API_CONFIGURED, LOCAL_MODE } from "@/lib/api";
 
 const origin = "https://cytellect.vercel.app";
-const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch", "workspace"]);
+const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch", "workspace", "story"]);
 /** Public pages without research content. The analysis workspace is never measured. */
 export type MeasuredPage = "/" | "/demo" | "/plan";
 
@@ -39,11 +39,17 @@ export function LandingAnalytics({ page }: { page: MeasuredPage }) {
       if (event.data?.type === "cytellect-lp-sent") pending.get(event.data.sequence)?.();
     };
     const click = (event: MouseEvent) => {
-      const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[data-lp-event]") : null;
-      const id = anchor?.dataset.lpEvent;
-      if (!anchor || !id || !events.has(id)) return;
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>("a[data-lp-event],button[data-lp-event]") : null;
+      const id = target?.dataset.lpEvent;
+      if (!target || !id || !events.has(id)) return;
       if (!ready) { if (queued.length < 20) queued.push(id); return; }
       const serial = ++sequence;
+      // An in-page control (the story toggle) never navigates.
+      if (!(target instanceof HTMLAnchorElement)) {
+        frame.contentWindow?.postMessage({ type: "cytellect-lp-event", id, sequence: serial }, origin);
+        return;
+      }
+      const anchor = target;
       const url = new URL(anchor.href);
       // Preserve normal modified-click, hash navigation and new-tab behavior.
       const navigating = !event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
