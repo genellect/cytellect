@@ -5,6 +5,7 @@ import { EditorialHeading } from "./EditorialHeading";
 import { PublicationStage } from "./PublicationStage";
 import { ProductMenu } from "./ProductMenu";
 import { CellHero } from "./CellHero";
+import { LandingStory } from "./LandingStory";
 import { EvidenceExample, ProductWalkthrough } from "./MarketingMotion";
 import styles from "./product.module.css";
 
@@ -22,6 +23,8 @@ export default function PublicLanding() {
         <CellHero /><div className={styles.heroShade} />
         <div className={styles.heroCopy}><h1 id="hero-title" lang="en"><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-ready.</span></h1><div className={styles.heroActions}><a data-lp-event="download_section" href="#download" className={styles.primary}>ダウンロード <Arrow /></a><Link data-lp-event="example" href="/demo" className={styles.heroSecondary}>解析例を見る <Arrow /></Link></div></div>
       </section>
+
+      <LandingStory />
 
       <section id="workflow" className={styles.overview} aria-labelledby="workflow-title">
         <div className={styles.sectionShell}>
@@ -49,7 +52,7 @@ export default function PublicLanding() {
 
       <figure className={styles.instrumentPhoto}><img src="/marketing/photo-microscope.webp" alt="白い実験台に置かれた顕微鏡" width={1108} height={1477} loading="lazy" /></figure><section id="download" className={styles.download} aria-labelledby="download-title"><div className={styles.sectionShell}><div className={styles.downloadIntro}><EditorialHeading id="download-title" title={<><span className={styles.headingPhrase}>次の論文に、</span><span className={styles.headingPhrase}>Cytellectを。</span></>} /><div><p>Windows PCで動作します。初回セットアップ後は、ブラウザから画像を登録して解析できます。</p>{WINDOWS_RELEASE_URL?<><a className={styles.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL&&<a className={styles.release} href={`https://github.com/genellect/cytellect/releases/tag/v${PUBLISHED_RELEASE.version}`}>v{PUBLISHED_RELEASE.version} · リリース情報 <Arrow /></a>}</>:<Link data-lp-event="example" href="/demo" className={styles.primary}>公開画像を見る <Arrow /></Link>}</div></div>
         <div id="launch" className={styles.installed}><h3>インストール済みの方</h3><p>デスクトップの「Cytellect」を開くと、解析画面がブラウザに表示されます。起動済みの場合は、Cytellectの起動画面で「ブラウザで開く」を選択してください。</p><p>再ダウンロード・再インストールは不要です。</p></div>
-        <div id="scope" className={styles.conditions}><details><summary>対応する画像と解析</summary><p>汎用の領域解析は8／16-bitグレースケールのチャンネル別2D TIFFを扱います。核・核小体・GFPの専用レシピでは、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）も読み込めます。手動・整数ラベル・確認した核染色からの検出領域で、面積・輝度を測定できます。</p><p>3D、時系列、自動細胞境界検出、任意の構造の自動検出は対象外です。通常の核自動検出は1辺2,048 px・270万画素以内です。</p></details><details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。この公開サイトへ研究画像をアップロードする機能はありません。</p><a data-lp-event="setup" href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details><details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details></div>
+        <div id="scope" className={styles.conditions}><details><summary>対応する画像と解析</summary><p>汎用の領域解析は8／16-bitグレースケールのチャンネル別2D TIFFを扱います。核・核小体・GFPの専用レシピでは、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）も読み込めます。手動・整数ラベル・確認した核染色からの検出領域で、面積・輝度を測定できます。</p><p>3D、時系列、自動細胞境界検出、任意の構造の自動検出は対象外です。大きな画像では、検出用に縮小した複製で核を検出し、測定は元の画素で行います。</p></details><details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。アップロードした研究画像が、この公開サイトに送られることはありません。</p><a data-lp-event="setup" href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details><details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details></div>
       </div></section>
     </main>
     <footer className={styles.footer}><div className={styles.sectionShell}><Link href="/" className={styles.footerBrand}>cytellect</Link><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={styles.copyright}>&copy; 2026 Yuto Matsui. All rights reserved.</p></div></footer>

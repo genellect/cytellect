@@ -99,3 +99,18 @@ test("product walkthrough is explicitly started and returns to the real still im
  await expect(clip).toHaveCount(0);
  await expect(page.getByAltText(/^公開蛍光画像を読み込んだCytellect/)).toBeVisible();
 });
+
+test("the story for general readers opens in place and keeps its text", async ({page}) => {
+ await page.goto("/");
+ const story = page.getByRole("region", { name: "Cytellectが生まれた理由" });
+ await expect(story).toContainText("私たちの体は、約30兆個もの細胞から成り立っている。");
+ const toggle = story.getByRole("button", { name: "続きを読む" });
+ await expect(toggle).toHaveAttribute("aria-expanded", "false");
+ await expect(story.getByText("次世代の研究者のためのアプリケーションである。")).not.toBeInViewport();
+ await toggle.click();
+ await expect(story.getByRole("button", { name: "閉じる" })).toHaveAttribute("aria-expanded", "true");
+ const closing = story.getByText("次世代の研究者のためのアプリケーションである。");
+ await closing.scrollIntoViewIfNeeded();
+ await expect(closing).toBeInViewport();
+ expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

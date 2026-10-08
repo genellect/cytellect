@@ -43,6 +43,14 @@ test("LP sends only fixed page identity and allowlisted actions; exit destroys t
   await page.locator('[data-lp-event="download_section"]').first().click();
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"download_section_click"');
   expect((await commands(page)).filter(row => row[1] === "page_view")).toHaveLength(1);
+  // Opening the story is measured once; closing it is not an event and never navigates.
+  const story = page.getByRole("region", { name: "Cytellectが生まれた理由" });
+  const before = page.url();
+  await story.getByRole("button", { name: "続きを読む" }).click();
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"story_open"');
+  await story.getByRole("button", { name: "閉じる" }).click();
+  await expect(page).toHaveURL(before);
+  expect((await commands(page)).filter(row => row[1] === "story_open")).toHaveLength(1);
   // Unknown messages and content never become events.
   await page.evaluate(() => document.querySelector("iframe")?.contentWindow?.postMessage({ type:"cytellect-lp-event", id:"private-file.tif", sequence:8 }, location.origin));
   expect(JSON.stringify(await commands(page))).not.toContain("private-file");
