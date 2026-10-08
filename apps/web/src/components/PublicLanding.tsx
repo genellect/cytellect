@@ -40,7 +40,7 @@ export default function PublicLanding() {
           <figure className={styles.researchPortrait}><img src="/marketing/photo-pipetting.webp" alt="手袋を着けてピペットで試料を扱う手元" width={1920} height={2658} loading="lazy" /></figure>
           <div><EditorialHeading id="comparison-title" title={<><span className={styles.headingPhrase}>コードを書かずに、</span><span className={styles.headingPhrase}>統計まで。</span></>} /><div className={styles.story}><p>画像解析や統計が専門でなくても、必要な設定を画面で確認しながら進められます。測定方法から、実験の組み方に合った比較まで。解析の根拠を理解しながら、自分の研究に取り組めます。</p><Link data-lp-event="planning" href="/plan" className={styles.textLink}>解析設定を見る <Arrow /></Link></div></div>
         </div>
-        <figure className={styles.planningFigure}><a href="/marketing/planning-public.png" aria-label="解析設定の画面を拡大"><img src="/marketing/planning-public.png" alt="測定の目的に対応する解析方法と必要な入力を確認する画面" width={1440} height={1252} loading="lazy" /></a></figure>
+        <figure className={styles.planningFigure}><a href="/marketing/planning-public.png" aria-label="統計画面を拡大"><img src="/marketing/planning-public.png" alt="公開画像3視野の核の平均輝度を、視野ごとの分布と集計表で示した統計画面" width={1440} height={950} loading="lazy" /></a></figure>
       </div></section>
 
       <section className={styles.figures} aria-labelledby="figures-title"><div className={styles.sectionShell}><div className={styles.figureGrid}>

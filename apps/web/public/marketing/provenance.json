@@ -19,52 +19,13 @@
     }
   },
   "capture": {
-    "method": "Actual Cytellect browser interactions through CUA, public fixtures only. No generated cells, fabricated UI, artificial numerical fixtures or private research.",
-    "source_revision": "6a0fdf20c2b6a074bcde3d577e099e076eb5ec7f",
-    "source_tree": "877d02ef9c029d84802ea9e01e2d34e16e290c8a",
-    "planning": "Actual API-connected planning 2.1.0 form with hypothetical mean-intensity/nuclear-region/descriptive purpose. No image upload or experimentally confirmed plan; separate from area-only workspace example.",
-    "ui_source_files": {
-      "apps/web/src/components/AnalysisPlanner.tsx": "2e4805721b52c1b705820b7753aa7ccb2c59d68e18a3d96013aa83cea5c5e0ec",
-      "apps/web/src/components/comparison-hierarchy.module.css": "400e6e9a85425d00fd2a4d54df1042e0eb5cd2cc23b41c89baa3eb75d5ac2984",
-      "apps/web/src/components/DemoWorkspace.tsx": "9b3cad8c18488d3aafd42674a82519e1771fca50dcd45673fe9a937e97b7483c",
-      "apps/web/src/components/DescriptivePanel.tsx": "01d2be20a7a17c3e5099061f0f1e174d0cb3f0d9520104ea06d4a8e5138c801f",
-      "apps/web/src/components/display-scale.module.css": "53de4137d560380716b61c826509fdb14a9f61c140c9afb369e7b5d671faa897",
-      "apps/web/src/components/DisplayScaleInfo.tsx": "bf053982e312983d594f7ee9de28dc42a09060f13bf8d399efab99cf2a35dbe8",
-      "apps/web/src/components/draft-navigation.module.css": "b470fdc66e92386d17a3820224cefe7a289707b04e52967b05729b18b504f415",
-      "apps/web/src/components/DraftNavigationDialog.tsx": "d44e7d155d6fd01e106793182af2f4cc89a86659d4657d5c5d08821a33d5d1c1",
-      "apps/web/src/components/EditorialHeading.tsx": "e79e90647eafdd98aa656436b8cf7879493d001bd991d995b2cae90e352624bb",
-      "apps/web/src/components/FieldCanvas.tsx": "606390f2156ee9daab2d9a29710dd1fdc46ae8892fd4845a1e665e558e98e84e",
-      "apps/web/src/components/GenericWorkbench.tsx": "24adf8f210c77092c1c01f770001e093e1c24791772cd864449e34ec1648b030",
-      "apps/web/src/components/landing.module.css": "7d94bbfc6790918aa47558f328abea7701940d99e6e8743e8ea6b10fadf3eaab",
-      "apps/web/src/components/LinkedImageFigure.tsx": "e84ba3be5cb6f01114465cb6b8be2462e07cdac975aa9a13f55bb134ad62a4bf",
-      "apps/web/src/components/MarketingMotion.tsx": "884056c8be3f0cee824c17afe30fa82f2f7a58e0b0d27594e62fcb9791ce1186",
-      "apps/web/src/components/PlanAdoptionCard.tsx": "3340cd7618c506e83d345928fca0b02507826c0e69841f7b4ece3b030a222695",
-      "apps/web/src/components/PlanMemory.tsx": "8d69786aba7c87153a58dd327bb3090e1c4242acc33ed4f4f3667e59417a8406",
-      "apps/web/src/components/planner.module.css": "a0147c58d912904edc598001ed7ea05bbbd0397550eb152d50aedef71c521da4",
-      "apps/web/src/components/PlanResolutionPanel.tsx": "eb673d3ab2f264a697952d2e1fecb932381892e3bc3d326ebd251076ac07c2f1",
-      "apps/web/src/components/product.module.css": "c6b0c1efac5ca55fe1d03d52b4403e2ef62f6d27b43668e70ff216795f1feba5",
-      "apps/web/src/components/ProductMenu.tsx": "b2fc8ff940fa24896183c6e21b53350ff042c6682e068ab7cd4a9e77de615a31",
-      "apps/web/src/components/PublicationStage.tsx": "ae395d251a11650faa65f4f9abfd3d03e94f931f86fc4726e2e7150fa6525e18",
-      "apps/web/src/components/PublicLanding.tsx": "e9456acc631723bd56760409c96200da498b538d6ae56b4d5cd8e1b044e765ae",
-      "apps/web/src/components/region-quality.module.css": "0f09b0afb2e2c6efb1c37d4ba14b2336680289a359343d7f0ad21adc48ff05ba",
-      "apps/web/src/components/RegionBatchUploadPanel.tsx": "69a7ecdecbd2e5d4eb7ab8807a96a26a7579c491cd554fa871fa61362fb7f3f5",
-      "apps/web/src/components/RegionComparisonHierarchy.tsx": "0453b417ff0e8c8125eb192380683964b1d08bb2ee988d759e8ee4f373a76dcf",
-      "apps/web/src/components/RegionComparisonPanel.tsx": "6669310e3447cbf6da912e3f23dca83c2ccc5ae72bbbd24ecec8a3686419ae76",
-      "apps/web/src/components/RegionQualityOverview.tsx": "1d021ddac6659d8539ba59f50f5be34a1724a0d9aaa0994ad21e64b69c0cc6d3",
-      "apps/web/src/components/RegionTraceTable.tsx": "ad64bc921d9786e586afcd5dc4aad5400ce40d41fd33a1f69555e0178c83cf7d",
-      "apps/web/src/components/RegionUploadPanel.tsx": "087b87f3c3b65573fcd47a97c0c2502a210d95c91b9351f6fd7079fb5ef2e3c5",
-      "apps/web/src/components/StatisticalResults.tsx": "b03804928d042639b5d1c81ded7459aee5675ba3ad6a0538087213abb5678725",
-      "apps/web/src/components/StatisticsPanel.tsx": "4eba652e4987e59bf6b8655f094a29783df9a2aa38ac8cbad0d4d4c3fb3333e4",
-      "apps/web/src/components/UploadPanel.tsx": "1e605f2ebf8253e91116154d891eac4c943ebe9567db76a39c07296c2c477d7e",
-      "apps/web/src/components/WindowsDownload.tsx": "109f849995c37b18e7c8796f2e332c077fb027387be4067a8ec55924071ecac1",
-      "apps/web/src/components/Workbench.tsx": "6c99de62fc4af9710c55f30d185c8281b20c4564e804f49d6238f931c06cdb5b",
-      "apps/web/src/components/workspace.module.css": "92a7316cf1b1b7557ae91e4277dc3d602559a557639bcbcb5b277283e96ec204",
-      "apps/web/src/components/WorkspaceApp.tsx": "e37e505845a082242a7c5acfd17b68f2eb655df75eded096e1a57bd5f549271a",
-      "apps/web/src/components/WorkspaceEntry.tsx": "bc6be5fb9f22d9c4ffd373d814776ae39acede4a328f01f3c73428e8d7976fda",
-      "apps/web/src/lib/planning-display.ts": "10103be950641072077957f06f8162f4467f5c5f37e2bc3e495f705066515e38"
-    },
-    "ui_revision_scope": "Uncommitted current UI redesign, recorded by exact source hashes; underlying saved measurements retain the original analysis source identity.",
-    "scope": "Application screenshots, operation recording, public microscopy and measured figure assets only; the authored 3D hero has its own current_hero provenance record."
+    "method": "Actual Cytellect browser interactions recorded with Playwright against the local loopback build of draft PR #50 (head a8cddcef4f58e3faea9a8d0e4408d0c6ce30b7f9), public BBBC013 fixtures only. No generated cells, fabricated UI, artificial numerical fixtures or private research.",
+    "source_revision": "a8cddcef4f58e3faea9a8d0e4408d0c6ce30b7f9",
+    "source_note": "Draft PR #50 was run unmodified from a separate worktree at the source revision above, which identifies every interface file; the capture does not merge or approve it.",
+    "inputs": "BBBC013 wells A01, A06 and A12. The DNA image files were renamed from -dapi to -draq before import so the recorded stain reads DRAQ, the actual stain; pixel samples unchanged.",
+    "nuclear_detection": "Fiji StarDist 2D (locked runtime), DRAQ channel selected by the operator, all three fields; 350, 242 and 225 nuclei.",
+    "statistics": "Descriptive distribution only (no groups, no inference); the fields are not independent experimental units.",
+    "captured": "2026-10-08"
   },
   "hero": {
     "source": "4dn",
@@ -74,26 +35,13 @@
   },
   "workspace_operation": {
     "source": "bbbc013",
-    "method": "Edited sequence of actual browser operations through saved representative-field revision, saved three-field batch revision, saved descriptive figure and measurement table. This new UI capture navigates existing results; it does not show new computation or processing speed. Navigation waits are omitted. No generated cursor, synthetic UI, or invented values.",
-    "duration_seconds": 14,
-    "steps": [
-      {
-        "capture_sha256": "c3731b93ca41aedd85be01b49f6520446a8f734c6774330d906b6ff3a2dbe271",
-        "duration_seconds": 3
-      },
-      {
-        "capture_sha256": "cf7284b6a493ab4cd85fcf16fc5c7532b3aa8913d697ada2c9c07a08e00d6361",
-        "duration_seconds": 3
-      },
-      {
-        "capture_sha256": "3e4e16be601a93858f61cd692d74849f9dfd787df8aa4fc823b61f2c96af1d6c",
-        "duration_seconds": 4
-      },
-      {
-        "capture_sha256": "a40dfc1413bf2789cc2335adf254e98d8d6de2d84965e58fcdbf171dc3294838",
-        "duration_seconds": 4
-      }
-    ]
+    "method": "Continuous browser recording of one session: start, import of six TIFF files, nuclear channel selection, measurement of all fields, outlines and measurement table, field switching. The detection wait between pressing 測定 and the first result (about 34 s) is cut; nothing else is accelerated or re-ordered. No generated cursor, synthetic UI, or invented values.",
+    "duration_seconds": 45.4,
+    "cut": {
+      "from_seconds": 36.0,
+      "to_seconds": 70.2
+    },
+    "recording_sha256": "b7ec40b340888a3836c3f6579aab4b7fbab2066f591b479a6988d984d8f78ef1"
   },
   "figure": {
     "source": "bbbc013",
@@ -106,52 +54,43 @@
   },
   "screenshots": {
     "workspace-public.png": {
-      "capture_sha256": "d2178225aa4e26b4541822e2f4673a997b0521dc1ccc28647f050b03188f38d0",
-      "crop": [
-        25,
-        345,
+      "capture_sha256": "5eec64100c488f695a021784e3631707d792be91928e88464dbd50a0ae3448e3",
+      "viewport": [
         1520,
         744
       ],
       "source": "bbbc013",
-      "capture_ui": "2026-10-04 revised operational UI, actual production build",
-      "shows": "Actual image, stored outlines, field list and analysis settings"
+      "capture_ui": "Draft PR #50 workspace",
+      "shows": "Field list, DRAQ image with StarDist nuclear outlines, per-nucleus measurement table, analysis settings"
     },
     "workspace-public-mobile.png": {
-      "capture_sha256": "b914d2d8b9fc2606b6f05a9257cd90eb78bc26f27ddf73110c4b28b5b9d55863",
-      "crop": [
-        10,
-        212,
-        340,
-        600
+      "capture_sha256": "2d3438dbbe85e3f0a06eb10a5dd1dfba4b6dc190ecb56341f17722de3fc060d9",
+      "crop_css_px": [
+        192,
+        52,
+        548,
+        692
       ],
+      "scale": "2x capture cropped and resized to 680 px wide",
       "source": "bbbc013",
-      "capture_ui": "2026-10-04 revised operational UI, actual production build",
-      "shows": "Actual image, stored outlines, field list and analysis settings"
+      "capture_ui": "Draft PR #50 workspace",
+      "shows": "DRAQ image with nuclear outlines for narrow screens (crop of the desktop view, not a separate mobile layout)"
     },
     "planning-public.png": {
-      "capture_sha256": "bc7711663f140db91fc4f5a57e2c2e2596d02de048d53b936b4625ec4d5af4d5",
-      "crop": [
-        158,
-        90,
-        1256,
-        910
+      "capture_sha256": "bbd98c54f741527889270e113cd50da1bc36d3f8123599b9ab6b43c24466246a",
+      "viewport": [
+        1440,
+        1252
       ],
-      "source": "planning",
-      "capture_ui": "2026-10-04 revised operational UI, actual production build",
-      "shows": "Actual measurement inputs and candidate, or mobile candidate panel; hypothetical setup, no experimental confirmation"
-    },
-    "planning-public-mobile.png": {
-      "capture_sha256": "3eb102ca5c2ad5b1b3496504cf6dd3e082e1b687e4792c90532a467a93cea013",
+      "source": "bbbc013",
+      "capture_ui": "Draft PR #50 statistics tab",
+      "shows": "Descriptive per-field distribution of nuclear DRAQ mean intensity and its summary table",
       "crop": [
-        17,
-        365,
-        326,
-        470
-      ],
-      "source": "planning",
-      "capture_ui": "2026-10-04 revised operational UI, actual production build",
-      "shows": "Actual measurement inputs and candidate, or mobile candidate panel; hypothetical setup, no experimental confirmation"
+        0,
+        0,
+        1440,
+        950
+      ]
     }
   },
   "fonts": {
@@ -199,28 +138,25 @@
       "sha256": "0757d235736968f1dedff2276375764653eb2620fbe858fce841e50ff89ca083",
       "bytes": 595517
     },
-    "planning-public-mobile.png": {
-      "sha256": "b52a3c5f102591370b7ac20e6f46a36677f9778c33e16939fb9935514fdc0aef",
-      "bytes": 66441
-    },
     "planning-public.png": {
-      "sha256": "93ad95d044f88bea63defc345d0c2493c9c016f3f75d091ea23d3773b041c204",
-      "bytes": 192867,
+      "sha256": "5ec6dabd6210b872c46283022a17c3839557e623b8f4c2926b83c5e77292099e",
+      "bytes": 134489,
       "width": 1440,
-      "height": 1252,
-      "capture": "Complete actual Cytellect planning 2.0.0 browser form, descriptive mean-intensity nuclear-region example; no crop. Recaptured from f6b131582d53b58588b1e6c904a4f7b2703c0e59 public build."
+      "height": 950
     },
     "workspace-public-mobile.png": {
-      "sha256": "63beadb68ce28bd493dfeb576c77a35e4d25bd56b4f6c34d4df500b2b6cf0807",
-      "bytes": 167234
+      "sha256": "efad3c4ced45bec5d19454d359dcecbdd2e6820a39a3767da26344335636dbb7",
+      "bytes": 502971,
+      "width": 680,
+      "height": 858
     },
     "workspace-public.mp4": {
-      "sha256": "44421bee420768e00df97872b92f4ed2bc1efc68b6305e2162361d357e0dd749",
-      "bytes": 407582
+      "sha256": "4dae1d449d32740eea360d3fca9a05472f7f0d81af581f6ae8541334a5dcc238",
+      "bytes": 792548
     },
     "workspace-public.png": {
-      "sha256": "d666aa0cebcaea48c0f073b3f65df65c0325b61c225965b6393c24e84bfef587",
-      "bytes": 686530
+      "sha256": "425335df95a364f1f0b095f3f6f75d9d0e786511042eda69df7740ba756dbcb6",
+      "bytes": 439904
     }
   },
   "illustrative_photography": {

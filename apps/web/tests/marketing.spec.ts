@@ -109,6 +109,8 @@ test("the story for general readers opens in place and keeps its text", async ({
  await expect(story.getByText("次世代の研究者のためのアプリケーションである。")).not.toBeInViewport();
  await toggle.click();
  await expect(story.getByRole("button", { name: "閉じる" })).toHaveAttribute("aria-expanded", "true");
+ // The expansion animates to the measured height; read the text once it has settled.
+ await expect.poll(() => page.locator("#story-more").evaluate(element => (element as HTMLElement).style.height)).toBe("auto");
  const closing = story.getByText("次世代の研究者のためのアプリケーションである。");
  await closing.scrollIntoViewIfNeeded();
  await expect(closing).toBeInViewport();

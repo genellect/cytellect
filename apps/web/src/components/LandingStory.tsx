@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import styles from "./product.module.css";
 
 const lead = "私たちの体は、約30兆個もの細胞から成り立っている。これらの細胞に生じる変異は、ときにがんや神経変性疾患といった病気の引き金となり、私たちの健康を脅かす。こうした病気の原因を突き止め、がんや認知症などの克服につなげるため、研究者たちは顕微鏡を通して、細胞の内部で何が起きているのかを解き明かそうとしてきた。";
@@ -21,11 +21,31 @@ const closing = "Cytellectは、これまで煩雑な手作業や研究者個人
 /** The owner's account of why Cytellect exists, for readers outside the life sciences. */
 export function LandingStory() {
   const [open, setOpen] = useState(false);
+  const more = useRef<HTMLDivElement>(null);
+  const settle = useRef<number | undefined>(undefined);
+  // Animate between the measured heights instead of relying on browser support for `height: auto` transitions.
+  const toggle = () => {
+    const element = more.current;
+    const next = !open;
+    window.clearTimeout(settle.current);
+    if (element) {
+      element.style.height = `${element.scrollHeight}px`;
+      if (next) {
+        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        const done = () => { if (element.style.height !== "") { element.style.height = "auto"; element.scrollTop = 0; } };
+        if (reduced) done(); else settle.current = window.setTimeout(done, 1150);
+      } else {
+        void element.offsetHeight;
+        element.style.height = "";
+      }
+    }
+    setOpen(next);
+  };
   return <section className={styles.essay} data-open={open || undefined} aria-label="Cytellectが生まれた理由">
     <div className={styles.essayShell}>
       <p className={styles.essayLead}>{lead}</p>
       <div className={styles.essayColumn}>
-      <div id="story-more" className={styles.essayMore} inert={!open}>
+      <div id="story-more" ref={more} className={styles.essayMore} inert={!open}>
         <div>
           {body.map(text => <p key={text.slice(0, 12)}>{text}</p>)}
           <p className={styles.essayTurn}>こうした課題を解決するために開発したのが、<span>「Cytellect」</span>である。</p>
@@ -34,7 +54,7 @@ export function LandingStory() {
         </div>
       </div>
       <button type="button" className={styles.essayToggle} aria-expanded={open} aria-controls="story-more"
-        data-lp-event={open ? undefined : "story"} onClick={() => setOpen(value => !value)}>
+        data-lp-event={open ? undefined : "story"} onClick={toggle}>
         <span>{open ? "閉じる" : "続きを読む"}</span><span aria-hidden="true" className={styles.essayIcon} />
       </button>
       </div>
