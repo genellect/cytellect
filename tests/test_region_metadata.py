@@ -31,6 +31,42 @@ def test_metadata_changes_are_explicit_and_cannot_modify_other_snapshot_keys():
         with pytest.raises(ValueError):
             validate_region_reuse(parent, invalid, parent["config"]["recipe"])
 
+def test_channel_annotation_edit_preserves_source_identity_and_requires_a_record():
+    # Stored metadata only: this regression creates no microscopy/test image.
+    parent = {"id": "r0", "config": {"recipe": {"source": "manual"}, "field_snapshot": {
+        "f": {"id": "f", "metadata": {}, "image_info": {
+            "channels": [{"channel_id": "c4", "label": "c4", "stain": None,
+                          "acquisition_saturation_value": None}],
+            "channel_arrays": {"c4": {"sha256": "unchanged-pixel-hash"}}, "shape": [1024, 1024]}}}}}
+    before = deepcopy(parent)
+    child = deepcopy(parent["config"])
+    channel = child["field_snapshot"]["f"]["image_info"]["channels"][0]
+    channel.update(label="DAPI", stain="DAPI", identity_source="user_entered")
+    child["channel_annotation_edit"] = {"version": "1.0.0", "source_revision_id": "r0",
+                                        "fields": {"f": [deepcopy(channel)]}}
+    validate_region_reuse(parent, child, parent["config"]["recipe"])
+    assert parent == before
+    for mutation in ("unrecorded", "channel-id", "pixels", "acquisition", "wrong-parent"):
+        invalid = deepcopy(child)
+        if mutation == "unrecorded":
+            invalid.pop("channel_annotation_edit")
+        elif mutation == "channel-id":
+            invalid["channel_annotation_edit"]["fields"]["f"][0]["channel_id"] = "c3"
+        elif mutation == "pixels":
+            invalid["field_snapshot"]["f"]["image_info"]["channel_arrays"]["c4"]["sha256"] = "different"
+        elif mutation == "acquisition":
+            invalid["channel_annotation_edit"]["fields"]["f"][0]["acquisition_saturation_value"] = 200
+        else:
+            invalid["channel_annotation_edit"]["source_revision_id"] = "other"
+        with pytest.raises(ValueError):
+            validate_region_reuse(parent, invalid, parent["config"]["recipe"])
+
+    annotated_parent = {"id": "r1", "config": child}
+    metadata_edit = RegionMetadataEdit.model_validate({"fields": {"f": {"condition": "A"}}})
+    next_child = region_metadata_child_config(annotated_parent, metadata_edit)
+    assert "channel_annotation_edit" not in next_child
+    validate_region_reuse(annotated_parent, next_child, parent["config"]["recipe"])
+
 
 def test_metadata_child_preserves_masks_review_and_batch_design(tmp_path):
     client, app, settings = authenticated(tmp_path)

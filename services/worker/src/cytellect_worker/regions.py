@@ -43,7 +43,7 @@ from cytellect_analysis.region_contracts import (
     validate_region_report_policy,
 )
 from cytellect_analysis.region_measurement_v2 import measure_regions_versioned
-from cytellect_analysis.region_metadata import validate_region_reuse
+from cytellect_analysis.region_metadata import channel_pixel_identity, validate_region_reuse
 from cytellect_analysis.region_policy import measurement_protocol
 from cytellect_analysis.regions import _array_hash
 from cytellect_analysis.signal_engine import detect_positive_regions
@@ -331,6 +331,10 @@ def run_region_analysis(store, settings, job, output):
             if fid in config.get("region_metadata_edit", {}).get("fields", {}):
                 history.append({"revision_id": revision["id"], "operation": "metadata",
                                 "metadata_edit_version": "1.0.0"})
+            if fid in config.get("channel_annotation_edit", {}).get("fields", {}):
+                assert parent is not None
+                history.append({"revision_id": revision["id"], "operation": "channel_annotation",
+                                "source_revision_id": parent["id"], "annotation_version": "1.0.0"})
             provenance_fields[fid] = {"history": history, "inputs": image_info.model_dump(mode="json")["inputs"],
                                       "source_channels": [c.model_dump(mode="json") for c in image_info.channels]}
             source_nuclei = None
@@ -371,6 +375,12 @@ def run_region_analysis(store, settings, job, output):
                     recorded_channel = detector.get("defining_channel") if isinstance(detector, dict) else None
                     current_channel = channel.model_dump(mode="json")
                     same_channel = recorded_channel == current_channel
+                    if (not same_channel and isinstance(recorded_channel, dict)
+                            and fid in config.get("channel_annotation_edit", {}).get("fields", {})
+                            and channel_pixel_identity(recorded_channel) == channel_pixel_identity(current_channel)):
+                        same_channel = True
+                        detector.setdefault("defining_channel_at_detection", deepcopy(recorded_channel))
+                        detector["defining_channel"] = current_channel
                     if not same_channel and isinstance(recorded_channel, dict) and current_channel.get("identity_confirmed") is True:
                         # Explicit identity confirmation changes evidence only, never acquisition metadata.
                         same_channel = ({key: value for key, value in recorded_channel.items() if key not in ("identity_source", "identity_confirmed")}

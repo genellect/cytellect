@@ -445,7 +445,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             metadata = read_json(root / "measurements.json").get("field_masks", {}).get(body.field_id, {})
             if metadata.get("mask_revision_id") != body.expected_mask_revision_id:
                 raise HTTPException(409, "stale_region_mask")
-        config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit")}
+        config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit", "channel_annotation_edit")}
         config.update(reuse_revision=rid, region_edit=body.model_dump(mode="json"))
         return child_revision(parent, config)
 
@@ -459,7 +459,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             raise HTTPException(409, "field_selection_requires_new_analysis")
         selected = list(parent["config"]["field_snapshot"].values())
         validate_request(body, selected, read_json(root / "measurements.json").get("field_masks", {}))
-        config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit")}
+        config = {k: v for k, v in parent["config"].items() if k not in ("region_edit", "region_metadata_edit", "channel_annotation_edit")}
         # Returning to v1 removes the v2 policy instead of retaining it through
         # an update of the old revision dictionary. Other v1 defaults stay exact.
         config.pop("measurement", None)

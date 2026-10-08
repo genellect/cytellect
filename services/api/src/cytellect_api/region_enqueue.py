@@ -12,6 +12,7 @@ from cytellect_analysis.region_contracts import (
     region_request_config,
     validate_nuclear_role_evidence,
 )
+from cytellect_analysis.region_metadata import channel_pixel_identity
 from fastapi import HTTPException
 from sqlalchemy import func, select, update
 
@@ -111,6 +112,7 @@ def enqueue_region(store, settings, wid, body, *, conn=None, activate=True):
     selected = apply_channel_assignments(store, wid, selected, assignment_snapshot=assignment_snapshot)
     parent = None
     reused_masks = ()
+    annotation_updates = {}
     if body.reuse_revision:
         parent = store.one(revisions, id=body.reuse_revision)
         if not parent or parent["state"] != "succeeded" or not parent["result_dir"]:
@@ -130,6 +132,8 @@ def enqueue_region(store, settings, wid, body, *, conn=None, activate=True):
         def same_channels(current, prior):
             if current == prior:
                 return True
+            if [channel_pixel_identity(channel) for channel in current] == [channel_pixel_identity(channel) for channel in prior]:
+                return True
             if not body.confirmed_channel_ids and not all(channel.get("identity_confirmed") is True for channel in prior):
                 return False
             # A deliberate background save confirms identity evidence, not different pixels/stains.
@@ -138,7 +142,17 @@ def enqueue_region(store, settings, wid, body, *, conn=None, activate=True):
             return identity(current) == identity(prior)
         if any(f["id"] in previous and not same_channels(f["image_info"]["channels"], previous[f["id"]]["image_info"]["channels"]) for f in selected):
             raise HTTPException(409, "batch_reuse_channel_assignments_changed")
-        selected = [deepcopy(previous[f["id"]]) if f["id"] in previous else f for f in selected]
+        revised_fields = []
+        for field in selected:
+            if field["id"] in previous:
+                saved = deepcopy(previous[field["id"]])
+                if saved["image_info"]["channels"] != field["image_info"]["channels"]:
+                    saved["image_info"]["channels"] = deepcopy(field["image_info"]["channels"])
+                    annotation_updates[field["id"]] = saved["image_info"]["channels"]
+                revised_fields.append(saved)
+            else:
+                revised_fields.append(field)
+        selected = revised_fields
         reused_masks = read_json(root / "measurements.json").get("field_masks", {})
     if body.confirmed_channel_ids:
         for field in selected:
@@ -162,6 +176,10 @@ def enqueue_region(store, settings, wid, body, *, conn=None, activate=True):
               "field_ids": [f["id"] for f in selected], "field_snapshot": {f["id"]: f for f in selected}}
     if assignment_snapshot["version"]:
         config["channel_assignments"] = assignment_snapshot
+    if annotation_updates:
+        assert parent is not None
+        config["channel_annotation_edit"] = {"version": "1.0.0", "source_revision_id": parent["id"],
+                                              "fields": annotation_updates}
     if parent is not None and "plan_resolution" not in body.model_fields_set:
         inherit_plan_resolution(config, parent["config"])
     bind_revision_plan(config, workspace_record.get("analysis_plan"),

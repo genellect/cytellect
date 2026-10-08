@@ -244,11 +244,6 @@ def advance_workspace_runs(store, settings):
                     if (
                         existing
                         and reusable_recipe(existing)
-                        and effective_assignments(
-                            existing["config"].get("channel_assignments", {"version": 0, "assignments": []}),
-                            step["field_id"],
-                        )["assignments"]
-                        == effective_assignments(run["assignments_snapshot"], step["field_id"])["assignments"]
                     ):
                         old_policy = existing["config"].get("measurement")
                         requested_policy = (
@@ -259,6 +254,11 @@ def advance_workspace_runs(store, settings):
                             and old_policy == requested_policy
                             and existing["config"].get("backgrounds", {})
                             == request.model_dump(mode="json")["backgrounds"]
+                            and effective_assignments(
+                                existing["config"].get("channel_assignments", {"version": 0, "assignments": []}),
+                                step["field_id"],
+                            )["assignments"]
+                            == effective_assignments(run["assignments_snapshot"], step["field_id"])["assignments"]
                         ):
                             step.update(
                                 state="reused",
