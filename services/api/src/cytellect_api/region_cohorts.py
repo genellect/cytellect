@@ -19,6 +19,7 @@ from fastapi import Depends, HTTPException
 from pydantic import Field, model_validator
 from sqlalchemy import select, update
 
+from .channel_assignments import apply_channel_assignments, effective_assignments
 from .db import fields, jobs, revisions, uid, workspace_selections, workspaces
 from .regions import is_region
 from .storage import read_json
@@ -42,6 +43,23 @@ class RegionCohortRequest(RegionModel):
         if len(set(ids)) != len(ids) or set(ids) != set(self.metadata):
             raise ValueError("cohort_field_metadata_mismatch")
         return self
+
+
+def image_identity(info):
+    """Confirmation evidence may evolve; pixels and acquisition identity may not."""
+    return {**info, "channels": [{key: value for key, value in channel.items()
+                                  if key not in ("identity_source", "identity_confirmed")}
+                                 for channel in info["channels"]]}
+
+
+def channel_meanings(config, fid):
+    info = config["field_snapshot"][fid]["image_info"]
+    assignment = config.get("channel_assignments", {"version": 0, "assignments": []})
+    roles = {item["channel_id"]: item["role"] for item in effective_assignments(assignment, fid)["assignments"]}
+    channels = {channel["channel_id"]: {**{key: value for key, value in channel.items()
+                if key not in ("label", "identity_source", "identity_confirmed")},
+                "role": roles.get(channel["channel_id"])} for channel in info["channels"]}
+    return {"input_mode": info.get("input_mode", "native"), "channels": channels}
 
 
 def register_region_cohort_routes(api, store, owner, workspace, revision, result_root, queue):
@@ -68,9 +86,9 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                 raise HTTPException(409, "workspace_selection_incomplete")
         if ids | excluded_ids != set(registered) or ids & excluded_ids or any(not is_region(row) for row in registered.values()):
             raise HTTPException(409, "cohort_all_workspace_fields_required")
-        snapshot, pins, source_records = {}, {}, {}
+        snapshot, pins, source_records, backgrounds = {}, {}, {}, {}
         exclusions: list[dict] = []
-        recipe = policy = None
+        recipe = policy = meanings = None
         for source in sorted(body.sources, key=lambda item: item.field_id):
             saved = revision(source.revision_id, who)
             if saved["workspace_id"] != wid or not is_region(saved):
@@ -80,11 +98,13 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
             fid = source.field_id
             if fid not in config.get("field_snapshot", {}):
                 raise HTTPException(409, "cohort_source_field_missing")
-            if config.get("measurement") != {"version": "1.1.0", "mode": "raw_intensity"} or config.get("backgrounds"):
-                raise HTTPException(409, "cohort_raw_measurement_required")
-            if recipe is not None and (comparable_region_recipe(config["recipe"]) != comparable_region_recipe(recipe) or config["measurement"] != policy):
+            if recipe is not None and (comparable_region_recipe(config["recipe"]) != comparable_region_recipe(recipe) or config.get("measurement") != policy):
                 raise HTTPException(409, "cohort_recipe_mismatch")
-            recipe, policy = config["recipe"], config["measurement"]
+            recipe, policy = config["recipe"], config.get("measurement")
+            current_meanings = channel_meanings(config, fid)
+            if meanings is not None and current_meanings != meanings:
+                raise HTTPException(409, "cohort_channel_identity_mismatch")
+            meanings = current_meanings
             try:
                 report = read_json(root / "measurements.json")
                 validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
@@ -95,7 +115,9 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
             if fid not in report["field_tables"] or fid not in report["field_masks"]:
                 raise HTTPException(409, "cohort_source_field_not_measured")
             original = config["field_snapshot"][fid]
-            if original["image_info"] != registered[fid]["image_info"]:
+            registered_source = apply_channel_assignments(store, wid, [registered[fid]],
+                assignment_snapshot=config.get("channel_assignments", {"version": 0, "assignments": []}))[0]
+            if image_identity(original["image_info"]) != image_identity(registered_source["image_info"]):
                 raise HTTPException(409, "cohort_source_image_changed")
             mask = report["field_masks"][fid]
             pins[fid] = {"revision_id": saved["id"], "mask_revision_id": mask["mask_revision_id"],
@@ -104,10 +126,13 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
             source_records[saved["id"]] = saved
             snapshot[fid] = {**deepcopy(original), "metadata": body.metadata[fid].model_dump(mode="json")}
             exclusions.extend(item for item in config.get("exclusions", []) if item["field_id"] == fid)
+            if fid in config.get("backgrounds", {}):
+                backgrounds[fid] = deepcopy(config["backgrounds"][fid])
         request = RegionAnalysisRequest.model_validate({"field_ids": sorted(ids), "recipe": recipe, "measurement": policy,
-                                                       "backgrounds": {}, "exclusions": exclusions})
+                                                       "backgrounds": backgrounds, "exclusions": exclusions})
         config = {**region_request_config(request), "analysis_kind": "region-2d",
-                  "field_snapshot": snapshot, "cohort_sources": pins, "cohort_version": "1.0.0"}
+                  "field_snapshot": snapshot, "cohort_sources": pins,
+                  "cohort_version": "1.0.0" if policy == {"version": "1.1.0", "mode": "raw_intensity"} else "1.1.0"}
         if adoption:
             config["workspace_selection"] = adoption
         fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

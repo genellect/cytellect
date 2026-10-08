@@ -5,14 +5,20 @@ statistics and figures. It never produces measurements, masks or p-values.
 `ProposalContext` is what leaves the PC; `ProposalDraft` is what the model may
 return. Both are validated locally before anything is shown or adopted.
 """
+from __future__ import annotations
+
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictBool, model_validator
 
+from .compartment_engine import NucleolarDetectorV11
+from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21
 from .planning import ReferenceId
+from .region_contracts import NuclearDetectorSpec
+from .signal_engine import SignalDetectorSpec
 
 PROPOSAL_PROTOCOL = "1.1.0"
-PROPOSAL_PROMPT_VERSION = "2026-10-06.2"
+PROPOSAL_PROMPT_VERSION = "2026-10-08.1"
 PROPOSAL_MODEL = "gpt-6.1-sol"
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]
@@ -40,7 +46,38 @@ class ProposalModel(BaseModel):
 class ContextChannel(ProposalModel):
     token: Token
     stain: Stain | None = None
-    role: Literal["nuclear", "measure"] | None = None
+    role: Literal["nuclear", "measure", "unused"] | None = None
+
+
+class DraftBackground(ProposalModel):
+    mode: Literal["raw", "automatic", "confirmed_roi"]
+
+
+class DraftGfpSelection(ProposalModel):
+    channel: Token
+    unit: Literal["nucleus", "cell_roi"] = "nucleus"
+    method: Literal["manual", "batch_otsu", "negative_control"]
+    threshold: FiniteFloat | None = None
+    values: Literal["raw", "corrected"] = "raw"
+    keep: Literal["positive", "negative"] = "positive"
+    percentile: Annotated[FiniteFloat, Field(ge=50, lt=100)] = 99.0
+
+    @model_validator(mode="after")
+    def explicit_threshold(self):
+        if (self.method == "manual") != (self.threshold is not None):
+            raise ValueError("proposal_gfp_threshold_invalid")
+        if self.method == "negative_control" and self.values != "raw":
+            raise ValueError("proposal_control_gate_uses_raw_values")
+        return self
+
+
+class ContextImage(ProposalModel):
+    width: Annotated[int, Field(ge=1, le=4096)]
+    height: Annotated[int, Field(ge=1, le=4096)]
+    axes: Literal["YX"] = "YX"
+    input_mode: Literal["native", "display-rgb"]
+    pixel_size_x_um: Annotated[FiniteFloat, Field(gt=0)] | None = None
+    pixel_size_y_um: Annotated[FiniteFloat, Field(gt=0)] | None = None
 
 
 class ProposalContext(ProposalModel):
@@ -57,13 +94,21 @@ class ProposalContext(ProposalModel):
     supplied_regions: StrictBool = False
     measured_table: StrictBool = False
     background_available: StrictBool = False
+    current_processing: DraftProcessing | None = None
+    current_background: DraftBackground | None = None
+    current_gfp: DraftGfpSelection | None = None
+    negative_control_fields_known: StrictBool = False
+    acquired_dates_known: StrictBool = False
+    image_metadata: list[ContextImage] = Field(default_factory=list, max_length=8)
+    previous_goal: Annotated[str, Field(max_length=2000)] = ""
+    previous_proposal: ProposalDraft | None = None
 
     @model_validator(mode="after")
     def unique_channels(self):
         if self.field_count == 0:
             if (self.channels or self.condition_count or self.units_known or self.pairing_known
                     or self.units_per_condition or self.complete_pair_count or self.supplied_regions
-                    or self.measured_table or self.background_available or not self.goal.strip()):
+                    or self.measured_table or self.background_available or self.image_metadata or not self.goal.strip()):
                 raise ValueError("proposal_empty_workspace_facts_invalid")
         elif not self.channels:
             raise ValueError("proposal_acquired_channels_required")
@@ -104,6 +149,30 @@ class DraftFigure(ProposalModel):
     analysis_index: Annotated[int, Field(ge=0, le=3)] = 0
 
 
+class DraftNuclearProcessing(ProposalModel):
+    channel: Token
+    detection_max_side_px: Annotated[int, Field(strict=True, ge=64, le=2048)] | None = None
+    detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
+
+
+class DraftNucleolarProcessing(ProposalModel):
+    channel: Token
+    detector: NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21
+
+
+class DraftSignalProcessing(ProposalModel):
+    channel: Token
+    detector: SignalDetectorSpec
+
+
+class DraftProcessing(ProposalModel):
+    """Registered execution settings only; not code, masks or biological confirmations."""
+    version: Literal["1.0.0"] = "1.0.0"
+    nuclei: DraftNuclearProcessing | None
+    nucleoli: DraftNucleolarProcessing | None
+    signal: DraftSignalProcessing | None
+
+
 class ProposalDraft(ProposalModel):
     recipe: RecipeId
     channels: Annotated[list[DraftChannel], Field(max_length=6)]
@@ -114,6 +183,10 @@ class ProposalDraft(ProposalModel):
     missing_information: Annotated[list[ShortText], Field(max_length=6)]
     reference_ids: Annotated[list[ReferenceId], Field(max_length=6)]
     rationale: Annotated[str, Field(max_length=600)]
+    # Old saved drafts and old clients retain their historical meaning.
+    processing: DraftProcessing | None = None
+    background: DraftBackground | None = None
+    gfp_selection: DraftGfpSelection | None = None
 
 
 class ValidatedProposal(ProposalModel):
@@ -140,7 +213,25 @@ def _enum(values: Any) -> dict[str, Any]:
     return {"type": "string", "enum": list(values.__args__)}
 
 
-def draft_json_schema() -> dict[str, Any]:
+def _strict_model_schema(model) -> dict[str, Any]:
+    schema = model.model_json_schema()
+    definitions = schema.get("$defs", {})
+
+    def convert(value):
+        if "$ref" in value:
+            return convert(definitions[value["$ref"].split("/")[-1]])
+        if "anyOf" in value:
+            return {"anyOf": [convert(branch) for branch in value["anyOf"]]}
+        if value.get("type") == "object":
+            return _object({key: convert(prop) for key, prop in value["properties"].items()})
+        if "const" in value:
+            return {"type": value["type"], "enum": [value["const"]]}
+        return {key: value[key] for key in ("type", "enum") if key in value}
+
+    return convert(schema)
+
+
+def draft_json_schema(*, legacy: bool = False, processing_only: bool = False) -> dict[str, Any]:
     """Strict Structured Outputs schema for ProposalDraft.
 
     Length and pattern limits are enforced by local validation; the strict
@@ -151,7 +242,7 @@ def draft_json_schema() -> dict[str, Any]:
     statistics = _object({"kind": {"type": "string", "enum": ["descriptive", "comparison", "association"]},
                           "test": _nullable(_enum(TestId)), "omnibus": _nullable(_enum(OmnibusId)),
                           "association": _nullable(_enum(AssociationId)), "x": _nullable(metric), "y": _nullable(metric)})
-    return _object({
+    schema = _object({
         "recipe": _enum(RecipeId),
         "channels": {"type": "array", "items": _object({
             "token": token, "stain": _nullable({"type": "string"}), "role": _enum(Role), "reason": {"type": "string"}})},
@@ -165,3 +256,14 @@ def draft_json_schema() -> dict[str, Any]:
         "reference_ids": {"type": "array", "items": _enum(ReferenceId)},
         "rationale": {"type": "string"},
     })
+    if not legacy:
+        schema["properties"]["processing"] = _nullable(_strict_model_schema(DraftProcessing))
+        schema["required"].append("processing")
+        if not processing_only:
+            schema["properties"]["background"] = _nullable(_strict_model_schema(DraftBackground))
+            schema["properties"]["gfp_selection"] = _nullable(_strict_model_schema(DraftGfpSelection))
+            schema["required"].extend(["background", "gfp_selection"])
+    return schema
+
+
+ProposalContext.model_rebuild()

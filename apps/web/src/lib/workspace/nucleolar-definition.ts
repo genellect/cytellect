@@ -1,4 +1,4 @@
-/** Researcher-selected nucleolar definition (detector protocol 2.0.0, see docs/nucleolar-compartments.md). */
+/** Researcher-selected nucleolar definition (DAPI protocol 2.0.0 / marker protocol 2.1.0, see docs/nucleolar-compartments.md). */
 export type NucleolarSource = "dapi_poor" | "marker" | "ncl";
 export type NucleolarDefinition = {source: NucleolarSource; marker: string; pixelUm: number | null; relative: number};
 
@@ -13,9 +13,9 @@ export function nucleolarDetectorV2(definition: NucleolarDefinition) {
   const um = definition.pixelUm && definition.pixelUm > 0 ? definition.pixelUm : null;
   const px = (micrometres: number, fallback: number, max: number) => um ? Math.min(max, Math.max(1, Math.round(micrometres / um))) : fallback;
   return {
-    engine: "cytellect-nucleolar-v2" as const, protocol_version: "2.0.0" as const,
+    engine: "cytellect-nucleolar-v2" as const, protocol_version: definition.source === "marker" ? "2.1.0" as const : "2.0.0" as const,
     source: definition.source === "marker" ? "marker" as const : "dapi_poor" as const,
-    smoothing_sigma_px: um ? Math.min(20, Math.round(0.35 / um * 10) / 10) : 2,
+    smoothing_sigma_px: definition.source === "marker" ? 0.7 : (um ? Math.min(20, Math.round(0.35 / um * 10) / 10) : 2),
     rim_exclusion_px: px(0.6, 4, 100),
     relative_threshold: definition.relative,
     marker_fraction: 0.4,

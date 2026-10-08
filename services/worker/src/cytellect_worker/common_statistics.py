@@ -55,6 +55,10 @@ def run_common_statistics(store, job, output):
                      if request.selection.source == "compartment-summary" else None)
         nuclear = load_gfp_nuclear_source(store, rev, report) if request.selection.gfp_gate is not None else None
         value = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear)
+    elif isinstance(request, RegionAssociationRequest) and request.x_selection.gfp_gate is not None:
+        from .gfp_sources import load_gfp_nuclear_source
+        nuclear = load_gfp_nuclear_source(store, rev, report)
+        value = analyze_region_association(report, config, request, nuclear=nuclear)
     else:
         calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
         value = calculate(report, config, request)

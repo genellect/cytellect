@@ -4,13 +4,37 @@ import json
 
 import numpy as np
 import pytest
-from cytellect_api.db import jobs, revisions
+from cytellect_api.db import fields, jobs, revisions
+from cytellect_api.region_cohorts import channel_meanings, image_identity
 from cytellect_api.storage import read_json
 from cytellect_worker.regions import run_region_analysis
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 from test_api_worker import HEADERS, authenticated
 from test_region_api import make_field, region_request, tiff_bytes
+
+
+def test_cohort_channel_identity_does_not_equate_same_slot_with_same_stain():
+    base = {"field_snapshot": {"f": {"image_info": {"input_mode": "native", "channels": [
+        {"channel_id": "c1", "label": "First", "stain": "GFP", "identity_source": "filename"}]}}}}
+    changed = copy.deepcopy(base)
+    changed["field_snapshot"]["f"]["image_info"]["channels"][0]["stain"] = "NCL"
+    assert channel_meanings(base, "f") != channel_meanings(changed, "f")
+    changed = copy.deepcopy(base)
+    changed["channel_assignments"] = {"version": 1, "assignments": [{"channel_id": "c1", "stain": "GFP", "role": "unused"}]}
+    assert channel_meanings(base, "f") != channel_meanings(changed, "f")
+    changed = copy.deepcopy(base)
+    changed["field_snapshot"]["f"]["image_info"]["input_mode"] = "display-rgb"
+    assert channel_meanings(base, "f") != channel_meanings(changed, "f")
+
+
+def test_confirmation_evidence_changes_do_not_change_raw_identity():
+    info = {"inputs": {"ch0": {"sha256": "original"}}, "channels": [{"channel_id": "c1", "stain": "DAPI", "identity_source": "filename"}]}
+    confirmed = copy.deepcopy(info)
+    confirmed["channels"][0].update(identity_source="user_entered", identity_confirmed=True)
+    assert image_identity(info) == image_identity(confirmed)
+    confirmed["inputs"]["ch0"]["sha256"] = "different"
+    assert image_identity(info) != image_identity(confirmed)
 
 
 def finish_analysis(app, settings):
@@ -23,7 +47,7 @@ def finish_analysis(app, settings):
     return read_json(output / "measurements.json")
 
 
-def setup_cohort(tmp_path, *, nuclear=False, monkeypatch=None):
+def setup_cohort(tmp_path, *, nuclear=False, monkeypatch=None, mode="raw"):
     client, app, settings = authenticated(tmp_path)
     wid = client.post("/v1/workspaces", json={"title": "cohort"}, headers=HEADERS).json()["id"]
     sources, originals, metadata = [], {}, {}
@@ -44,7 +68,10 @@ def setup_cohort(tmp_path, *, nuclear=False, monkeypatch=None):
         else:
             fid = make_field(client, wid).json()["id"]
             request = region_request(fid)
-        request.update(measurement={"version": "1.1.0", "mode": "raw_intensity"}, backgrounds={})
+        if mode == "raw":
+            request.update(measurement={"version": "1.1.0", "mode": "raw_intensity"}, backgrounds={})
+        elif mode == "automatic":
+            request.update(measurement={"version": "1.2.0", "mode": "automatic_background"}, backgrounds={})
         if index == 0:
             request["exclusions"] = [{"field_id": fid, "region_id": 17, "reason": "manual quality exclusion"}]
         queued = client.post(f"/v1/workspaces/{wid}/region-analyses", json=request, headers=HEADERS)
@@ -57,6 +84,21 @@ def setup_cohort(tmp_path, *, nuclear=False, monkeypatch=None):
                          "sample": None, "acquisition_date": None, "pair": None}
     body = {"sources": sources, "metadata": metadata, "expected_active_revision_id": sources[-1]["revision_id"]}
     return client, app, settings, wid, body, originals
+
+
+@pytest.mark.parametrize("mode", ["automatic", "confirmed"])
+def test_cohort_preserves_nonraw_measurement_policy_and_backgrounds(tmp_path, mode):
+    client, app, settings, wid, body, originals = setup_cohort(tmp_path, mode=mode)
+    queued = client.post(f"/v1/workspaces/{wid}/region-cohorts", json=body, headers=HEADERS)
+    assert queued.status_code == 202, queued.text
+    report = finish_analysis(app, settings)
+    assert report["field_failures"] == []
+    saved = app.state.store.one(revisions, id=queued.json()["revision_id"])
+    assert saved["config"]["cohort_version"] == "1.1.0"
+    for fid, original in originals.items():
+        for current, previous in zip(report["field_tables"][fid]["rows"], original["field_tables"][fid]["rows"], strict=True):
+            assert current == {**previous, "analysis_revision_id": saved["id"]}
+    assert bool(saved["config"]["backgrounds"]) == (mode == "confirmed")
 
 
 def test_cohort_preserves_masks_exclusions_and_values_but_never_auto_reviews(tmp_path, monkeypatch):
@@ -114,6 +156,20 @@ def test_cohort_refuses_mismatched_source_recipes(tmp_path):
         conn.execute(update(revisions).where(revisions.c.id == source["id"]).values(config=config))
     response = client.post(f"/v1/workspaces/{wid}/region-cohorts", json=body, headers=HEADERS)
     assert response.status_code == 409 and response.json()["detail"] == "cohort_recipe_mismatch"
+
+
+def test_cohort_refuses_different_stains_even_when_channel_ids_match(tmp_path):
+    client, app, _, wid, body, _ = setup_cohort(tmp_path)
+    entry = body["sources"][0]
+    source = app.state.store.one(revisions, id=entry["revision_id"])
+    config = copy.deepcopy(source["config"])
+    info = config["field_snapshot"][entry["field_id"]]["image_info"]
+    info["channels"][0]["stain"] = "Different marker"
+    with app.state.store.transaction() as conn:
+        conn.execute(update(revisions).where(revisions.c.id == source["id"]).values(config=config))
+        conn.execute(update(fields).where(fields.c.id == entry["field_id"]).values(image_info=info))
+    response = client.post(f"/v1/workspaces/{wid}/region-cohorts", json=body, headers=HEADERS)
+    assert response.status_code == 409 and response.json()["detail"] == "cohort_channel_identity_mismatch"
 
 
 def test_cohort_source_change_after_queue_is_visible_failure_and_blocks_review(tmp_path):

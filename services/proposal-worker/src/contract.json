@@ -9,7 +9,8 @@
               {
                 "enum": [
                   "nuclear",
-                  "measure"
+                  "measure",
+                  "unused"
                 ],
                 "type": "string"
               },
@@ -45,11 +46,1059 @@
         ],
         "title": "ContextChannel",
         "type": "object"
+      },
+      "ContextImage": {
+        "additionalProperties": false,
+        "properties": {
+          "axes": {
+            "const": "YX",
+            "default": "YX",
+            "title": "Axes",
+            "type": "string"
+          },
+          "height": {
+            "maximum": 4096,
+            "minimum": 1,
+            "title": "Height",
+            "type": "integer"
+          },
+          "input_mode": {
+            "enum": [
+              "native",
+              "display-rgb"
+            ],
+            "title": "Input Mode",
+            "type": "string"
+          },
+          "pixel_size_x_um": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pixel Size X Um"
+          },
+          "pixel_size_y_um": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pixel Size Y Um"
+          },
+          "width": {
+            "maximum": 4096,
+            "minimum": 1,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "width",
+          "height",
+          "input_mode"
+        ],
+        "title": "ContextImage",
+        "type": "object"
+      },
+      "DraftBackground": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "raw",
+              "automatic",
+              "confirmed_roi"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "DraftBackground",
+        "type": "object"
+      },
+      "DraftChannel": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "nuclear",
+              "measure",
+              "unused"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
+          },
+          "token": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "stain",
+          "role",
+          "reason"
+        ],
+        "title": "DraftChannel",
+        "type": "object"
+      },
+      "DraftFigure": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis_index": {
+            "default": 0,
+            "maximum": 3,
+            "minimum": 0,
+            "title": "Analysis Index",
+            "type": "integer"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "kind": {
+            "enum": [
+              "field-distribution",
+              "unit-comparison",
+              "paired",
+              "association-scatter"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "metric": {
+            "enum": [
+              "area",
+              "mean_raw",
+              "integral_raw",
+              "mean_corrected",
+              "integral_corrected",
+              "ncl_log2_nucleoplasm_over_nucleoli",
+              "nucleolar_area_fraction",
+              "nucleolar_count"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nucleus",
+                  "nucleoli",
+                  "nucleoplasm",
+                  "supplied"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Region"
+          }
+        },
+        "required": [
+          "kind",
+          "metric",
+          "channel"
+        ],
+        "title": "DraftFigure",
+        "type": "object"
+      },
+      "DraftGfpSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel",
+            "type": "string"
+          },
+          "keep": {
+            "default": "positive",
+            "enum": [
+              "positive",
+              "negative"
+            ],
+            "title": "Keep",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "manual",
+              "batch_otsu",
+              "negative_control"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "percentile": {
+            "default": 99.0,
+            "exclusiveMaximum": 100,
+            "minimum": 50,
+            "title": "Percentile",
+            "type": "number"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Threshold"
+          },
+          "unit": {
+            "default": "nucleus",
+            "enum": [
+              "nucleus",
+              "cell_roi"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "values": {
+            "default": "raw",
+            "enum": [
+              "raw",
+              "corrected"
+            ],
+            "title": "Values",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "method"
+        ],
+        "title": "DraftGfpSelection",
+        "type": "object"
+      },
+      "DraftMetric": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "metric": {
+            "enum": [
+              "area",
+              "mean_raw",
+              "integral_raw",
+              "mean_corrected",
+              "integral_corrected",
+              "ncl_log2_nucleoplasm_over_nucleoli",
+              "nucleolar_area_fraction",
+              "nucleolar_count"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nucleus",
+                  "nucleoli",
+                  "nucleoplasm",
+                  "supplied"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Region"
+          }
+        },
+        "required": [
+          "metric",
+          "channel"
+        ],
+        "title": "DraftMetric",
+        "type": "object"
+      },
+      "DraftNuclearProcessing": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel",
+            "type": "string"
+          },
+          "detection_max_side_px": {
+            "anyOf": [
+              {
+                "maximum": 2048,
+                "minimum": 64,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detection Max Side Px"
+          },
+          "detector": {
+            "$ref": "#/$defs/NuclearDetectorSpec"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "title": "DraftNuclearProcessing",
+        "type": "object"
+      },
+      "DraftNucleolarProcessing": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel",
+            "type": "string"
+          },
+          "detector": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/NucleolarDetectorV11"
+              },
+              {
+                "$ref": "#/$defs/NucleolarDetectorV20"
+              },
+              {
+                "$ref": "#/$defs/NucleolarDetectorV21"
+              }
+            ],
+            "title": "Detector"
+          }
+        },
+        "required": [
+          "channel",
+          "detector"
+        ],
+        "title": "DraftNucleolarProcessing",
+        "type": "object"
+      },
+      "DraftProcessing": {
+        "additionalProperties": false,
+        "description": "Registered execution settings only; not code, masks or biological confirmations.",
+        "properties": {
+          "nuclei": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftNuclearProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nucleoli": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftNucleolarProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftSignalProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nuclei",
+          "nucleoli",
+          "signal"
+        ],
+        "title": "DraftProcessing",
+        "type": "object"
+      },
+      "DraftSignalProcessing": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "title": "Channel",
+            "type": "string"
+          },
+          "detector": {
+            "$ref": "#/$defs/SignalDetectorSpec"
+          }
+        },
+        "required": [
+          "channel",
+          "detector"
+        ],
+        "title": "DraftSignalProcessing",
+        "type": "object"
+      },
+      "DraftStatistics": {
+        "additionalProperties": false,
+        "properties": {
+          "association": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pearson",
+                  "spearman"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Association"
+          },
+          "kind": {
+            "enum": [
+              "descriptive",
+              "comparison",
+              "association"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Omnibus"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-t",
+                  "paired-t",
+                  "mann-whitney-u",
+                  "wilcoxon"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "y": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "kind",
+          "test",
+          "omnibus",
+          "association"
+        ],
+        "title": "DraftStatistics",
+        "type": "object"
+      },
+      "NuclearDetectorSpec": {
+        "additionalProperties": false,
+        "description": "Allowlisted, offline nucleus model; never an arbitrary image classifier.",
+        "properties": {
+          "engine": {
+            "const": "fiji-stardist-2d",
+            "default": "fiji-stardist-2d",
+            "title": "Engine",
+            "type": "string"
+          },
+          "model": {
+            "const": "Versatile (fluorescent nuclei)",
+            "default": "Versatile (fluorescent nuclei)",
+            "title": "Model",
+            "type": "string"
+          },
+          "nms": {
+            "default": 0.3,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Nms",
+            "type": "number"
+          },
+          "percentile_high": {
+            "default": 99.8,
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "title": "Percentile High",
+            "type": "number"
+          },
+          "percentile_low": {
+            "default": 1.0,
+            "exclusiveMaximum": 100,
+            "minimum": 0,
+            "title": "Percentile Low",
+            "type": "number"
+          },
+          "probability": {
+            "default": 0.5,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Probability",
+            "type": "number"
+          }
+        },
+        "title": "NuclearDetectorSpec",
+        "type": "object"
+      },
+      "NucleolarDetectorV11": {
+        "additionalProperties": false,
+        "description": "Opt-in threshold/area controls; the saved 1.0 detector remains unchanged.",
+        "properties": {
+          "engine": {
+            "const": "fiji-nucleolar-compartments",
+            "default": "fiji-nucleolar-compartments",
+            "title": "Engine",
+            "type": "string"
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "maximum": 16777216,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Maximum Area Px"
+          },
+          "minimum_area_px": {
+            "default": 1,
+            "maximum": 100000,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "protocol_version": {
+            "const": "1.1.0",
+            "default": "1.1.0",
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "smoothing_sigma_px": {
+            "default": 0.0,
+            "maximum": 10,
+            "minimum": 0,
+            "title": "Smoothing Sigma Px",
+            "type": "number"
+          },
+          "split_touching": {
+            "default": false,
+            "title": "Split Touching",
+            "type": "boolean"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Threshold"
+          },
+          "threshold_method": {
+            "default": "otsu",
+            "enum": [
+              "otsu",
+              "manual"
+            ],
+            "title": "Threshold Method",
+            "type": "string"
+          }
+        },
+        "title": "NucleolarDetectorV11",
+        "type": "object"
+      },
+      "NucleolarDetectorV20": {
+        "additionalProperties": false,
+        "properties": {
+          "background_radius_px": {
+            "default": 10,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Background Radius Px",
+            "type": "integer"
+          },
+          "engine": {
+            "const": "cytellect-nucleolar-v2",
+            "default": "cytellect-nucleolar-v2",
+            "title": "Engine",
+            "type": "string"
+          },
+          "marker_fraction": {
+            "default": 0.4,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Marker Fraction",
+            "type": "number"
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "maximum": 16777216,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Maximum Area Px"
+          },
+          "minimum_area_px": {
+            "default": 4,
+            "maximum": 100000,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "minimum_solidity": {
+            "default": 0.6,
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Minimum Solidity",
+            "type": "number"
+          },
+          "protocol_version": {
+            "const": "2.0.0",
+            "default": "2.0.0",
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "relative_threshold": {
+            "default": 0.7,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Relative Threshold",
+            "type": "number"
+          },
+          "rim_exclusion_px": {
+            "default": 4,
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Rim Exclusion Px",
+            "type": "integer"
+          },
+          "smoothing_sigma_px": {
+            "default": 2.0,
+            "maximum": 20,
+            "minimum": 0,
+            "title": "Smoothing Sigma Px",
+            "type": "number"
+          },
+          "source": {
+            "default": "dapi_poor",
+            "enum": [
+              "dapi_poor",
+              "marker"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "NucleolarDetectorV20",
+        "type": "object"
+      },
+      "NucleolarDetectorV21": {
+        "additionalProperties": false,
+        "description": "Marker-only revision: the recorded smoothing sigma is the effective value.",
+        "properties": {
+          "background_radius_px": {
+            "default": 10,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Background Radius Px",
+            "type": "integer"
+          },
+          "engine": {
+            "const": "cytellect-nucleolar-v2",
+            "default": "cytellect-nucleolar-v2",
+            "title": "Engine",
+            "type": "string"
+          },
+          "marker_fraction": {
+            "default": 0.4,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Marker Fraction",
+            "type": "number"
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "maximum": 16777216,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Maximum Area Px"
+          },
+          "minimum_area_px": {
+            "default": 4,
+            "maximum": 100000,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "minimum_solidity": {
+            "default": 0.6,
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Minimum Solidity",
+            "type": "number"
+          },
+          "protocol_version": {
+            "const": "2.1.0",
+            "default": "2.1.0",
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "relative_threshold": {
+            "default": 0.7,
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "title": "Relative Threshold",
+            "type": "number"
+          },
+          "rim_exclusion_px": {
+            "default": 4,
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Rim Exclusion Px",
+            "type": "integer"
+          },
+          "smoothing_sigma_px": {
+            "default": 0.7,
+            "maximum": 20,
+            "minimum": 0,
+            "title": "Smoothing Sigma Px",
+            "type": "number"
+          },
+          "source": {
+            "const": "marker",
+            "default": "marker",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "NucleolarDetectorV21",
+        "type": "object"
+      },
+      "ProposalDraft": {
+        "additionalProperties": false,
+        "properties": {
+          "additional_analyses": {
+            "items": {
+              "$ref": "#/$defs/DraftStatistics"
+            },
+            "maxItems": 3,
+            "title": "Additional Analyses",
+            "type": "array"
+          },
+          "background": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftBackground"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/$defs/DraftChannel"
+            },
+            "maxItems": 6,
+            "title": "Channels",
+            "type": "array"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/$defs/DraftFigure"
+            },
+            "maxItems": 6,
+            "title": "Figures",
+            "type": "array"
+          },
+          "gfp_selection": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftGfpSelection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/$defs/DraftMetric"
+            },
+            "maxItems": 8,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "missing_information": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Missing Information",
+            "type": "array"
+          },
+          "processing": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DraftProcessing"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "rationale": {
+            "maxLength": 600,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "recipe": {
+            "enum": [
+              "nuclear-intensity",
+              "nuclear-ncl",
+              "supplied-regions",
+              "measured-table",
+              "none"
+            ],
+            "title": "Recipe",
+            "type": "string"
+          },
+          "reference_ids": {
+            "items": {
+              "enum": [
+                "senft-2023",
+                "kodiha-2011",
+                "waters-2009",
+                "lazic-2018",
+                "lord-2020",
+                "schmied-2024"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Reference Ids",
+            "type": "array"
+          },
+          "statistics": {
+            "$ref": "#/$defs/DraftStatistics"
+          }
+        },
+        "required": [
+          "recipe",
+          "channels",
+          "metrics",
+          "statistics",
+          "figures",
+          "missing_information",
+          "reference_ids",
+          "rationale"
+        ],
+        "title": "ProposalDraft",
+        "type": "object"
+      },
+      "SignalDetectorSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "const": "fiji-positive-regions",
+            "default": "fiji-positive-regions",
+            "title": "Engine",
+            "type": "string"
+          },
+          "minimum_area_px": {
+            "default": 1,
+            "maximum": 100000,
+            "minimum": 1,
+            "title": "Minimum Area Px",
+            "type": "integer"
+          },
+          "protocol_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "smoothing_sigma_px": {
+            "default": 0.0,
+            "maximum": 10,
+            "minimum": 0,
+            "title": "Smoothing Sigma Px",
+            "type": "number"
+          },
+          "split_touching": {
+            "default": false,
+            "title": "Split Touching",
+            "type": "boolean"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Threshold"
+          },
+          "threshold_method": {
+            "enum": [
+              "otsu",
+              "manual"
+            ],
+            "title": "Threshold Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threshold_method"
+        ],
+        "title": "SignalDetectorSpec",
+        "type": "object"
       }
     },
     "additionalProperties": false,
     "description": "Normalized metadata sent to the proposal service; no paths, names or values.",
     "properties": {
+      "acquired_dates_known": {
+        "default": false,
+        "title": "Acquired Dates Known",
+        "type": "boolean"
+      },
       "background_available": {
         "default": false,
         "title": "Background Available",
@@ -78,6 +1127,39 @@
         "title": "Condition Count",
         "type": "integer"
       },
+      "current_background": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DraftBackground"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "current_gfp": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DraftGfpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "current_processing": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DraftProcessing"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
       "field_count": {
         "maximum": 10000,
         "minimum": 0,
@@ -90,15 +1172,45 @@
         "title": "Goal",
         "type": "string"
       },
+      "image_metadata": {
+        "items": {
+          "$ref": "#/$defs/ContextImage"
+        },
+        "maxItems": 8,
+        "title": "Image Metadata",
+        "type": "array"
+      },
       "measured_table": {
         "default": false,
         "title": "Measured Table",
+        "type": "boolean"
+      },
+      "negative_control_fields_known": {
+        "default": false,
+        "title": "Negative Control Fields Known",
         "type": "boolean"
       },
       "pairing_known": {
         "default": false,
         "title": "Pairing Known",
         "type": "boolean"
+      },
+      "previous_goal": {
+        "default": "",
+        "maxLength": 2000,
+        "title": "Previous Goal",
+        "type": "string"
+      },
+      "previous_proposal": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ProposalDraft"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
       },
       "protocol": {
         "const": "1.1.0",
@@ -135,6 +1247,1064 @@
     "type": "object"
   },
   "draft_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "additional_analyses": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "association": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pearson",
+                    "spearman"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "enum": [
+                "descriptive",
+                "comparison",
+                "association"
+              ],
+              "type": "string"
+            },
+            "omnibus": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "welch-anova",
+                    "kruskal-wallis"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "test": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "welch-t",
+                    "paired-t",
+                    "mann-whitney-u",
+                    "wilcoxon"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "x": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "channel": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "metric": {
+                      "enum": [
+                        "area",
+                        "mean_raw",
+                        "integral_raw",
+                        "mean_corrected",
+                        "integral_corrected",
+                        "ncl_log2_nucleoplasm_over_nucleoli",
+                        "nucleolar_area_fraction",
+                        "nucleolar_count"
+                      ],
+                      "type": "string"
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "nucleus",
+                            "nucleoli",
+                            "nucleoplasm",
+                            "supplied"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "channel",
+                    "region"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "y": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "channel": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "metric": {
+                      "enum": [
+                        "area",
+                        "mean_raw",
+                        "integral_raw",
+                        "mean_corrected",
+                        "integral_corrected",
+                        "ncl_log2_nucleoplasm_over_nucleoli",
+                        "nucleolar_area_fraction",
+                        "nucleolar_count"
+                      ],
+                      "type": "string"
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "nucleus",
+                            "nucleoli",
+                            "nucleoplasm",
+                            "supplied"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "channel",
+                    "region"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "test",
+            "omnibus",
+            "association",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "background": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "enum": [
+                  "raw",
+                  "automatic",
+                  "confirmed_roi"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "channels": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "role": {
+              "enum": [
+                "nuclear",
+                "measure",
+                "unused"
+              ],
+              "type": "string"
+            },
+            "stain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "token": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "token",
+            "stain",
+            "role",
+            "reason"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "figures": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "analysis_index": {
+              "type": "integer"
+            },
+            "channel": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "enum": [
+                "field-distribution",
+                "unit-comparison",
+                "paired",
+                "association-scatter"
+              ],
+              "type": "string"
+            },
+            "metric": {
+              "enum": [
+                "area",
+                "mean_raw",
+                "integral_raw",
+                "mean_corrected",
+                "integral_corrected",
+                "ncl_log2_nucleoplasm_over_nucleoli",
+                "nucleolar_area_fraction",
+                "nucleolar_count"
+              ],
+              "type": "string"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "nucleus",
+                    "nucleoli",
+                    "nucleoplasm",
+                    "supplied"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "metric",
+            "channel",
+            "region",
+            "analysis_index"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "gfp_selection": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "channel": {
+                "type": "string"
+              },
+              "keep": {
+                "enum": [
+                  "positive",
+                  "negative"
+                ],
+                "type": "string"
+              },
+              "method": {
+                "enum": [
+                  "manual",
+                  "batch_otsu",
+                  "negative_control"
+                ],
+                "type": "string"
+              },
+              "percentile": {
+                "type": "number"
+              },
+              "threshold": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "unit": {
+                "enum": [
+                  "nucleus",
+                  "cell_roi"
+                ],
+                "type": "string"
+              },
+              "values": {
+                "enum": [
+                  "raw",
+                  "corrected"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "channel",
+              "unit",
+              "method",
+              "threshold",
+              "values",
+              "keep",
+              "percentile"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "metrics": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metric": {
+              "enum": [
+                "area",
+                "mean_raw",
+                "integral_raw",
+                "mean_corrected",
+                "integral_corrected",
+                "ncl_log2_nucleoplasm_over_nucleoli",
+                "nucleolar_area_fraction",
+                "nucleolar_count"
+              ],
+              "type": "string"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "nucleus",
+                    "nucleoli",
+                    "nucleoplasm",
+                    "supplied"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "metric",
+            "channel",
+            "region"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "missing_information": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "processing": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "nuclei": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detection_max_side_px": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "detector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "engine": {
+                            "enum": [
+                              "fiji-stardist-2d"
+                            ],
+                            "type": "string"
+                          },
+                          "model": {
+                            "enum": [
+                              "Versatile (fluorescent nuclei)"
+                            ],
+                            "type": "string"
+                          },
+                          "nms": {
+                            "type": "number"
+                          },
+                          "percentile_high": {
+                            "type": "number"
+                          },
+                          "percentile_low": {
+                            "type": "number"
+                          },
+                          "probability": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "engine",
+                          "model",
+                          "probability",
+                          "nms",
+                          "percentile_low",
+                          "percentile_high"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detection_max_side_px",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nucleoli": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detector": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "engine": {
+                                "enum": [
+                                  "fiji-nucleolar-compartments"
+                                ],
+                                "type": "string"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "1.1.0"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              },
+                              "split_touching": {
+                                "type": "boolean"
+                              },
+                              "threshold": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "threshold_method": {
+                                "enum": [
+                                  "otsu",
+                                  "manual"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "threshold_method",
+                              "threshold",
+                              "smoothing_sigma_px",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "split_touching"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cytellect-nucleolar-v2"
+                                ],
+                                "type": "string"
+                              },
+                              "marker_fraction": {
+                                "type": "number"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_solidity": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "2.0.0"
+                                ],
+                                "type": "string"
+                              },
+                              "relative_threshold": {
+                                "type": "number"
+                              },
+                              "rim_exclusion_px": {
+                                "type": "integer"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              },
+                              "source": {
+                                "enum": [
+                                  "dapi_poor",
+                                  "marker"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "source",
+                              "smoothing_sigma_px",
+                              "rim_exclusion_px",
+                              "relative_threshold",
+                              "marker_fraction",
+                              "background_radius_px",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "minimum_solidity"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cytellect-nucleolar-v2"
+                                ],
+                                "type": "string"
+                              },
+                              "marker_fraction": {
+                                "type": "number"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_solidity": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "2.1.0"
+                                ],
+                                "type": "string"
+                              },
+                              "relative_threshold": {
+                                "type": "number"
+                              },
+                              "rim_exclusion_px": {
+                                "type": "integer"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              },
+                              "source": {
+                                "enum": [
+                                  "marker"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "source",
+                              "smoothing_sigma_px",
+                              "rim_exclusion_px",
+                              "relative_threshold",
+                              "marker_fraction",
+                              "background_radius_px",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "minimum_solidity"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "signal": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "engine": {
+                            "enum": [
+                              "fiji-positive-regions"
+                            ],
+                            "type": "string"
+                          },
+                          "minimum_area_px": {
+                            "type": "integer"
+                          },
+                          "protocol_version": {
+                            "enum": [
+                              "1.0.0"
+                            ],
+                            "type": "string"
+                          },
+                          "smoothing_sigma_px": {
+                            "type": "number"
+                          },
+                          "split_touching": {
+                            "type": "boolean"
+                          },
+                          "threshold": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "threshold_method": {
+                            "enum": [
+                              "otsu",
+                              "manual"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "engine",
+                          "protocol_version",
+                          "threshold_method",
+                          "threshold",
+                          "smoothing_sigma_px",
+                          "minimum_area_px",
+                          "split_touching"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "version": {
+                "enum": [
+                  "1.0.0"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "nuclei",
+              "nucleoli",
+              "signal"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "rationale": {
+        "type": "string"
+      },
+      "recipe": {
+        "enum": [
+          "nuclear-intensity",
+          "nuclear-ncl",
+          "supplied-regions",
+          "measured-table",
+          "none"
+        ],
+        "type": "string"
+      },
+      "reference_ids": {
+        "items": {
+          "enum": [
+            "senft-2023",
+            "kodiha-2011",
+            "waters-2009",
+            "lazic-2018",
+            "lord-2020",
+            "schmied-2024"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "statistics": {
+        "additionalProperties": false,
+        "properties": {
+          "association": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pearson",
+                  "spearman"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "descriptive",
+              "comparison",
+              "association"
+            ],
+            "type": "string"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-t",
+                  "paired-t",
+                  "mann-whitney-u",
+                  "wilcoxon"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "x": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "channel": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "enum": [
+                      "area",
+                      "mean_raw",
+                      "integral_raw",
+                      "mean_corrected",
+                      "integral_corrected",
+                      "ncl_log2_nucleoplasm_over_nucleoli",
+                      "nucleolar_area_fraction",
+                      "nucleolar_count"
+                    ],
+                    "type": "string"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "nucleus",
+                          "nucleoli",
+                          "nucleoplasm",
+                          "supplied"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "metric",
+                  "channel",
+                  "region"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "y": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "channel": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "enum": [
+                      "area",
+                      "mean_raw",
+                      "integral_raw",
+                      "mean_corrected",
+                      "integral_corrected",
+                      "ncl_log2_nucleoplasm_over_nucleoli",
+                      "nucleolar_area_fraction",
+                      "nucleolar_count"
+                    ],
+                    "type": "string"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "nucleus",
+                          "nucleoli",
+                          "nucleoplasm",
+                          "supplied"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "metric",
+                  "channel",
+                  "region"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "test",
+          "omnibus",
+          "association",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "recipe",
+      "channels",
+      "metrics",
+      "statistics",
+      "additional_analyses",
+      "figures",
+      "missing_information",
+      "reference_ids",
+      "rationale",
+      "processing",
+      "background",
+      "gfp_selection"
+    ],
+    "type": "object"
+  },
+  "legacy_draft_schema": {
     "additionalProperties": false,
     "properties": {
       "additional_analyses": {
@@ -703,6 +2873,971 @@
       "missing_information",
       "reference_ids",
       "rationale"
+    ],
+    "type": "object"
+  },
+  "processing_draft_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "additional_analyses": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "association": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pearson",
+                    "spearman"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "enum": [
+                "descriptive",
+                "comparison",
+                "association"
+              ],
+              "type": "string"
+            },
+            "omnibus": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "welch-anova",
+                    "kruskal-wallis"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "test": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "welch-t",
+                    "paired-t",
+                    "mann-whitney-u",
+                    "wilcoxon"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "x": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "channel": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "metric": {
+                      "enum": [
+                        "area",
+                        "mean_raw",
+                        "integral_raw",
+                        "mean_corrected",
+                        "integral_corrected",
+                        "ncl_log2_nucleoplasm_over_nucleoli",
+                        "nucleolar_area_fraction",
+                        "nucleolar_count"
+                      ],
+                      "type": "string"
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "nucleus",
+                            "nucleoli",
+                            "nucleoplasm",
+                            "supplied"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "channel",
+                    "region"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "y": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "channel": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "metric": {
+                      "enum": [
+                        "area",
+                        "mean_raw",
+                        "integral_raw",
+                        "mean_corrected",
+                        "integral_corrected",
+                        "ncl_log2_nucleoplasm_over_nucleoli",
+                        "nucleolar_area_fraction",
+                        "nucleolar_count"
+                      ],
+                      "type": "string"
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "nucleus",
+                            "nucleoli",
+                            "nucleoplasm",
+                            "supplied"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "channel",
+                    "region"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "test",
+            "omnibus",
+            "association",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "channels": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "role": {
+              "enum": [
+                "nuclear",
+                "measure",
+                "unused"
+              ],
+              "type": "string"
+            },
+            "stain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "token": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "token",
+            "stain",
+            "role",
+            "reason"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "figures": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "analysis_index": {
+              "type": "integer"
+            },
+            "channel": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "enum": [
+                "field-distribution",
+                "unit-comparison",
+                "paired",
+                "association-scatter"
+              ],
+              "type": "string"
+            },
+            "metric": {
+              "enum": [
+                "area",
+                "mean_raw",
+                "integral_raw",
+                "mean_corrected",
+                "integral_corrected",
+                "ncl_log2_nucleoplasm_over_nucleoli",
+                "nucleolar_area_fraction",
+                "nucleolar_count"
+              ],
+              "type": "string"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "nucleus",
+                    "nucleoli",
+                    "nucleoplasm",
+                    "supplied"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "metric",
+            "channel",
+            "region",
+            "analysis_index"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "metrics": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metric": {
+              "enum": [
+                "area",
+                "mean_raw",
+                "integral_raw",
+                "mean_corrected",
+                "integral_corrected",
+                "ncl_log2_nucleoplasm_over_nucleoli",
+                "nucleolar_area_fraction",
+                "nucleolar_count"
+              ],
+              "type": "string"
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "nucleus",
+                    "nucleoli",
+                    "nucleoplasm",
+                    "supplied"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "metric",
+            "channel",
+            "region"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "missing_information": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "processing": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "nuclei": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detection_max_side_px": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "detector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "engine": {
+                            "enum": [
+                              "fiji-stardist-2d"
+                            ],
+                            "type": "string"
+                          },
+                          "model": {
+                            "enum": [
+                              "Versatile (fluorescent nuclei)"
+                            ],
+                            "type": "string"
+                          },
+                          "nms": {
+                            "type": "number"
+                          },
+                          "percentile_high": {
+                            "type": "number"
+                          },
+                          "percentile_low": {
+                            "type": "number"
+                          },
+                          "probability": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "engine",
+                          "model",
+                          "probability",
+                          "nms",
+                          "percentile_low",
+                          "percentile_high"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detection_max_side_px",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nucleoli": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detector": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "engine": {
+                                "enum": [
+                                  "fiji-nucleolar-compartments"
+                                ],
+                                "type": "string"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "1.1.0"
+                                ],
+                                "type": "string"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              },
+                              "split_touching": {
+                                "type": "boolean"
+                              },
+                              "threshold": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "threshold_method": {
+                                "enum": [
+                                  "otsu",
+                                  "manual"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "threshold_method",
+                              "threshold",
+                              "smoothing_sigma_px",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "split_touching"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cytellect-nucleolar-v2"
+                                ],
+                                "type": "string"
+                              },
+                              "marker_fraction": {
+                                "type": "number"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_solidity": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "2.0.0"
+                                ],
+                                "type": "string"
+                              },
+                              "relative_threshold": {
+                                "type": "number"
+                              },
+                              "rim_exclusion_px": {
+                                "type": "integer"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              },
+                              "source": {
+                                "enum": [
+                                  "dapi_poor",
+                                  "marker"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "source",
+                              "smoothing_sigma_px",
+                              "rim_exclusion_px",
+                              "relative_threshold",
+                              "marker_fraction",
+                              "background_radius_px",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "minimum_solidity"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "background_radius_px": {
+                                "type": "integer"
+                              },
+                              "engine": {
+                                "enum": [
+                                  "cytellect-nucleolar-v2"
+                                ],
+                                "type": "string"
+                              },
+                              "marker_fraction": {
+                                "type": "number"
+                              },
+                              "maximum_area_px": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minimum_area_px": {
+                                "type": "integer"
+                              },
+                              "minimum_solidity": {
+                                "type": "number"
+                              },
+                              "protocol_version": {
+                                "enum": [
+                                  "2.1.0"
+                                ],
+                                "type": "string"
+                              },
+                              "relative_threshold": {
+                                "type": "number"
+                              },
+                              "rim_exclusion_px": {
+                                "type": "integer"
+                              },
+                              "smoothing_sigma_px": {
+                                "type": "number"
+                              },
+                              "source": {
+                                "enum": [
+                                  "marker"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "engine",
+                              "protocol_version",
+                              "source",
+                              "smoothing_sigma_px",
+                              "rim_exclusion_px",
+                              "relative_threshold",
+                              "marker_fraction",
+                              "background_radius_px",
+                              "minimum_area_px",
+                              "maximum_area_px",
+                              "minimum_solidity"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "signal": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "detector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "engine": {
+                            "enum": [
+                              "fiji-positive-regions"
+                            ],
+                            "type": "string"
+                          },
+                          "minimum_area_px": {
+                            "type": "integer"
+                          },
+                          "protocol_version": {
+                            "enum": [
+                              "1.0.0"
+                            ],
+                            "type": "string"
+                          },
+                          "smoothing_sigma_px": {
+                            "type": "number"
+                          },
+                          "split_touching": {
+                            "type": "boolean"
+                          },
+                          "threshold": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "threshold_method": {
+                            "enum": [
+                              "otsu",
+                              "manual"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "engine",
+                          "protocol_version",
+                          "threshold_method",
+                          "threshold",
+                          "smoothing_sigma_px",
+                          "minimum_area_px",
+                          "split_touching"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "detector"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "version": {
+                "enum": [
+                  "1.0.0"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "nuclei",
+              "nucleoli",
+              "signal"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "rationale": {
+        "type": "string"
+      },
+      "recipe": {
+        "enum": [
+          "nuclear-intensity",
+          "nuclear-ncl",
+          "supplied-regions",
+          "measured-table",
+          "none"
+        ],
+        "type": "string"
+      },
+      "reference_ids": {
+        "items": {
+          "enum": [
+            "senft-2023",
+            "kodiha-2011",
+            "waters-2009",
+            "lazic-2018",
+            "lord-2020",
+            "schmied-2024"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "statistics": {
+        "additionalProperties": false,
+        "properties": {
+          "association": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pearson",
+                  "spearman"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "descriptive",
+              "comparison",
+              "association"
+            ],
+            "type": "string"
+          },
+          "omnibus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-anova",
+                  "kruskal-wallis"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test": {
+            "anyOf": [
+              {
+                "enum": [
+                  "welch-t",
+                  "paired-t",
+                  "mann-whitney-u",
+                  "wilcoxon"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "x": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "channel": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "enum": [
+                      "area",
+                      "mean_raw",
+                      "integral_raw",
+                      "mean_corrected",
+                      "integral_corrected",
+                      "ncl_log2_nucleoplasm_over_nucleoli",
+                      "nucleolar_area_fraction",
+                      "nucleolar_count"
+                    ],
+                    "type": "string"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "nucleus",
+                          "nucleoli",
+                          "nucleoplasm",
+                          "supplied"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "metric",
+                  "channel",
+                  "region"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "y": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "channel": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "enum": [
+                      "area",
+                      "mean_raw",
+                      "integral_raw",
+                      "mean_corrected",
+                      "integral_corrected",
+                      "ncl_log2_nucleoplasm_over_nucleoli",
+                      "nucleolar_area_fraction",
+                      "nucleolar_count"
+                    ],
+                    "type": "string"
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "nucleus",
+                          "nucleoli",
+                          "nucleoplasm",
+                          "supplied"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "metric",
+                  "channel",
+                  "region"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "test",
+          "omnibus",
+          "association",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "recipe",
+      "channels",
+      "metrics",
+      "statistics",
+      "additional_analyses",
+      "figures",
+      "missing_information",
+      "reference_ids",
+      "rationale",
+      "processing"
     ],
     "type": "object"
   }

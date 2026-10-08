@@ -118,7 +118,7 @@ class RegionImageInfo(RegionModel):
         slots = {f"ch{index}" for index in range(len(ids))}
         if self.labels_array is not None:
             slots.add("labels")
-        if set(self.inputs) != slots:
+        if set(self.inputs) != slots and not (set(self.inputs) == {"ome"} and self.labels_array is None and self.input_mode == "native"):
             raise ValueError("region_stored_input_slots_invalid")
         return self
 
@@ -318,6 +318,7 @@ class RegionAnalysisRequest(RegionModel):
     measurement: MeasurementPolicy | None = None
     recipe: RegionRecipeType
     backgrounds: dict[Id, dict[Id, RegionBackground]] = Field(default_factory=dict)
+    confirmed_channel_ids: Annotated[list[Id], Field(max_length=6)] = Field(default_factory=list)
     exclusions: Annotated[list[RegionExclusion], Field(max_length=10000)] = Field(default_factory=list)
 
     @field_validator("recipe", mode="before")
@@ -331,6 +332,10 @@ class RegionAnalysisRequest(RegionModel):
 
     @model_validator(mode="after")
     def unique_field_and_exclusion_ids(self):
+        if len(set(self.confirmed_channel_ids)) != len(self.confirmed_channel_ids):
+            raise ValueError("duplicate_confirmed_channel")
+        if self.confirmed_channel_ids and self.measurement is not None:
+            raise ValueError("confirmed_channels_require_roi_measurement")
         validate_area_backgrounds(self.measurement, self.backgrounds)
         if self.field_ids is not None and len(self.field_ids) != len(set(self.field_ids)):
             raise ValueError("duplicate_region_fields")
@@ -345,6 +350,8 @@ def region_request_config(request: RegionAnalysisRequest) -> dict:
     value = request.model_dump(mode="json")
     if request.measurement is None:
         value.pop("measurement")
+    if not request.confirmed_channel_ids:
+        value.pop("confirmed_channel_ids")
     return value
 
 

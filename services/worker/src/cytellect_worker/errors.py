@@ -147,6 +147,9 @@ SAFE_ERRORS = frozenset(
         "sans_serif_font_not_installed",
         "figure_font_glyphs_unavailable",
         "figure_labels_overlap",
+        "figure_log_requires_positive_values",
+        "figure_x_range_invalid",
+        "figure_numeric_x_requires_scatter",
         "figure_text_outside_canvas",
     }
 ) | DESCRIPTIVE_ERRORS | REGION_COMPARISON_ERRORS | PLAN_ADOPTION_ERRORS | PLANNING_ERRORS | COMMON_STATISTICS_ERRORS

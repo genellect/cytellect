@@ -205,7 +205,7 @@ def test_one_field_descriptive_export_replay_and_ownership(tmp_path):
     assert client.get(f"/v1/jobs/{export}/files/analysis.zip").status_code == 404
 
 
-def test_same_workspace_rejects_changed_channel_identity(tmp_path):
+def test_same_workspace_preserves_separate_acquisition_channel_identities(tmp_path):
     client, _, _ = authenticated(tmp_path)
     wid = client.post("/v1/workspaces", headers=HEADERS, json={"title": "identity"}).json()["id"]
     assert make_field(client, wid).status_code == 201
@@ -213,8 +213,10 @@ def test_same_workspace_rejects_changed_channel_identity(tmp_path):
     response = client.post(f"/v1/workspaces/{wid}/region-fields", headers=HEADERS,
                            data={"specification": json.dumps(changed)}, files={
                                "ch0": ("image.tif", tiff_bytes(np.ones((12, 12), np.uint16)), "image/tiff")})
-    assert response.status_code == 409 and response.json()["detail"] == "region_workspace_channel_identity_mismatch"
-    assert len(client.get(f"/v1/workspaces/{wid}/region-fields").json()) == 1
+    assert response.status_code == 201
+    imported = client.get(f"/v1/workspaces/{wid}/region-fields").json()
+    assert len(imported) == 2
+    assert {field["image_info"]["channels"][0]["label"] for field in imported} == {"Actin", "DNA"}
 
 
 @pytest.mark.parametrize("order", [(1, 4), (4, 1)])
@@ -235,8 +237,9 @@ def test_workspace_accepts_channel_subsets_without_discarding_or_renaming(tmp_pa
     assert sorted(len(f["image_info"]["channels"]) for f in stored) == [1, 4]
     changed = {"channels": [{"channel_id": "c0", "label": "Unchanged", "stain": "different",
                              "identity_confirmed": True}]}
-    rejected = client.post(f"/v1/workspaces/{wid}/region-fields", headers=HEADERS,
+    separate = client.post(f"/v1/workspaces/{wid}/region-fields", headers=HEADERS,
                            data={"specification": json.dumps(changed)},
                            files={"ch0": ("x.tif", tiff_bytes(np.ones((12, 12), np.uint16)), "image/tiff")})
-    assert rejected.status_code == 409
-    assert len(client.get(f"/v1/workspaces/{wid}/region-fields").json()) == 2
+    assert separate.status_code == 201
+    assert separate.json()["image_info"]["channels"][0]["stain"] == "different"
+    assert len(client.get(f"/v1/workspaces/{wid}/region-fields").json()) == 3

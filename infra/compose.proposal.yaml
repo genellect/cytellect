@@ -8,7 +8,7 @@ services:
       CYTELLECT_PROPOSAL_TOKEN_FILE: /run/secrets/proposal_device_token
       CYTELLECT_PROPOSAL_TIMEOUT_SECONDS: ${CYTELLECT_PROPOSAL_TIMEOUT_SECONDS:-300}
       CYTELLECT_PROPOSAL_MODEL: gpt-6.1-sol
-      CYTELLECT_PROPOSAL_PROMPT_VERSION: "2026-10-06.2"
+      CYTELLECT_PROPOSAL_PROMPT_VERSION: "2026-10-08.1"
     secrets:
       - source: proposal_device_token
         target: /run/secrets/proposal_device_token

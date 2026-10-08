@@ -71,7 +71,7 @@ Requires the operator's Cloudflare and OpenAI accounts. No paid contract is impl
 7. On the PC, set `CYTELLECT_PROPOSAL_URL=https://…` and `CYTELLECT_PROPOSAL_TOKEN=<device token>` for the local API. HTTPS is required except for `127.0.0.1`/`localhost` testing.
 
 Local `CYTELLECT_PROPOSAL_MODEL` and `CYTELLECT_PROPOSAL_PROMPT_VERSION` default
-to the selected Sol model and `2026-10-06.1` and must match the deployed Worker.
+to the selected Sol model and `2026-10-07.1` and must match the deployed Worker.
 `CYTELLECT_PROPOSAL_TIMEOUT_SECONDS` defaults to 300: this is an upper deadline,
 not a predicted wait, and covers at most two 120-second provider requests. An
 incomplete model answer is classified separately and never automatically repeated
@@ -112,6 +112,40 @@ Ask only what cannot be derived, only when it is needed, once for the whole set,
 ## Status and limits
 
 - Implemented and tested locally: contract, validation, durable local route, Worker logic, offline public-case checks and actual D1 SQL via SQLite. Live Sol evaluation and remote Worker/D1 checks remain release gates.
-- Not yet connected: the workspace UI (after the prototype review), preview transmission with its user setting, the first-use transmission notice, and device-token registration from the application.
-- Draft reuse is persisted privately across restarts. Adoption into a scientific revision remains a separate explicit action; a stored draft is not an adopted analysis.
+- The workspace connects explicit AI requests to validated processing settings and a representative-field trial. Preview transmission and device-token registration from the application remain separate work; the configured local service currently sends metadata and the bounded continuation described below.
+- Draft reuse is persisted privately across restarts. Only an executed recipe produces a scientific revision; reading a stored draft does not restart analysis.
 - `store: false` is not zero data retention; see [security](security.md#analysis-proposal-service).
+# Structured execution settings (2026-10-07)
+
+Prompt `2026-10-07.1` adds optional `processing` version `1.0.0` to the
+validated draft. This is a settings contract, not a new segmentation algorithm.
+It uses the actual registered StarDist, nucleolar and positive-pixel detector
+models and their bounds. The local validator checks channels, roles, nuclear
+parent requirements and marker identity. Unknown channel numbers do not establish
+DAPI, GFP, NCL or a nucleolar marker.
+
+Following an explicit AI request, the UI applies validated settings and runs one
+representative-field trial, retaining the existing workspace behavior. Unknown
+nuclear channel roles wait for the researcher to select the channel. The trial
+resolves the adopted parent nucleus and stores the exact detector settings in
+the immutable recipe. Applying the method to all fields remains an explicit action. Visible manual thresholds take
+precedence; changing the nucleolar source or pixel calibration drops incompatible
+hidden detector overrides. Image-only explicit requests remain supported; image
+registration itself does not invoke the paid provider.
+
+The worker accepts old prompt versions `2026-10-06.1` and `2026-10-06.2` with
+their old output schema. Stored drafts lacking `processing` remain readable;
+they do not acquire fabricated detector settings. Deploy the worker before
+enabling the new local API prompt version.
+
+The ordinary local proposal route transmits metadata, the stated goal, current
+structured detector settings and at most one previous goal/proposal, **not image
+previews**. The local API maps channel IDs back to opaque service tokens and
+validates the closed settings contract before transmission. The browser maps
+every channel reference in the response back to the acquired image IDs, including
+detector settings, statistics axes, figures and pending nuclear-role selections.
+The provider request-size reservation includes this entire bounded continuation.
+Suggested thresholds are starting settings, not
+image-validated segmentation. Positive-pixel segmentation is not classification
+of GFP-positive nuclei. Nuclear selection from GFP still uses the separate
+registered gate and its control/threshold requirements.

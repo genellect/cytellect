@@ -15,7 +15,7 @@ MAX_SIDE = 4096
 MAX_PIXELS = MAX_SIDE * MAX_SIDE
 
 
-def _validate_ome_planes(tif, root):
+def _validate_ome_planes(tif, root, *, max_channels=3):
     """Reject incomplete acquisitions before tifffile can synthesize zero planes.
 
     This deliberately supports only one grayscale 2D image, with one IFD per
@@ -32,7 +32,7 @@ def _validate_ome_planes(tif, root):
         raise ValueError("invalid_ome_metadata") from exc
     if dims["Z"] != 1 or dims["T"] != 1:
         raise ValueError("only_2d_supported")
-    if (not 1 <= dims["C"] <= 3 or not 1 <= dims["X"] <= MAX_SIDE
+    if (not 1 <= dims["C"] <= max_channels or not 1 <= dims["X"] <= MAX_SIDE
             or not 1 <= dims["Y"] <= MAX_SIDE):
         raise ValueError("invalid_dimensions")
     if pixel.attrib.get("Type") not in ("uint8", "uint16"):
@@ -87,7 +87,7 @@ def sha256(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
+def read_tiff(path: Path, *, legacy=False, channel_indices=None, max_channels=3) -> np.ndarray:
     # Do not follow references to other files from untrusted OME metadata.
     with tifffile.TiffFile(path, _multifile=False) as tif:
         if tif.is_ome:
@@ -106,7 +106,7 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
             # OME may name its own original file. Exact UUID identity, never
             # the user-supplied FileName, establishes this self reference.
             # _multifile=False still prohibits resolving another filesystem path.
-            ome_mapping = _validate_ome_planes(tif, root)
+            ome_mapping = _validate_ome_planes(tif, root, max_channels=max_channels)
         if len(tif.series) != 1:
             raise ValueError("single_series_required")
         series = tif.series[0]
@@ -120,7 +120,7 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
             raise ValueError("only_2d_supported")
         if "Y" not in dims or "X" not in dims or max(dims["Y"], dims["X"]) > MAX_SIDE:
             raise ValueError("invalid_dimensions")
-        if dims["Y"] * dims["X"] > MAX_PIXELS or math.prod(shape) > MAX_PIXELS * (4 if legacy else 3):
+        if dims["Y"] * dims["X"] > MAX_PIXELS or math.prod(shape) > MAX_PIXELS * (4 if legacy else max_channels):
             raise ValueError("pixel_limit")
         if legacy and axes in ("YXS", "SYX") and dims["S"] in (3, 4) and series.dtype == np.uint8:
             if channel_indices is not None:
@@ -130,7 +130,7 @@ def read_tiff(path: Path, *, legacy=False, channel_indices=None) -> np.ndarray:
             raise ValueError("grayscale_axes_required")
         if channel_indices is not None:
             count = dims.get("C", 0)
-            if (not tif.is_ome or count not in (2, 3) or
+            if (not tif.is_ome or count not in range(2, max_channels + 1) or
                     not isinstance(channel_indices, (tuple, list)) or
                     any(type(i) is not int for i in channel_indices) or
                     sorted(channel_indices) != list(range(count))):

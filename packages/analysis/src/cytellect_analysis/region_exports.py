@@ -40,9 +40,12 @@ METHODS_VERSION = "1.1.0"
 AREA_FORMAT = "cytellect-region-reproducibility/2"
 AREA_METHODS_VERSION = "1.2.0"
 RAW_FORMAT = "cytellect-region-reproducibility/3"
+DEPENDENT_FORMAT = "cytellect-region-reproducibility/4"
 
 
 def bundle_format(policy):
+    if policy is not None and policy.mode == "automatic_background":
+        return DEPENDENT_FORMAT
     return FORMAT if policy is None else (AREA_FORMAT if policy.mode == "area_only" else RAW_FORMAT)
 
 
@@ -70,9 +73,6 @@ def _request(config):
     request = RegionAnalysisRequest.model_validate({
         key: config[key] for key in ("field_ids", "recipe", "backgrounds", "exclusions", "measurement") if key in config
     })
-    if request.measurement is not None and request.measurement.mode == "automatic_background":
-        # No bundle format or Methods template describes protocol 4.0.0 yet.
-        raise ValueError("region_export_protocol_unsupported")
     if not request.field_ids or set(config.get("field_snapshot", {})) != set(request.field_ids):
         raise ValueError("region_bundle_snapshot_invalid")
     return request
@@ -149,6 +149,10 @@ def region_methods(config, report, provenance):
         lines[4] = "Methods template 1.3.0; region measurement protocol 3.0.0."
         lines = [line for line in lines if not line.startswith("For each channel, a user-confirmed ROI")]
         lines.append("Raw mean, midpoint median and pixel sum use unchanged source pixels. No background has been established; corrected values remain null (background_not_established).")
+    if request.measurement is not None and request.measurement.mode == "automatic_background":
+        lines[4] = "Methods template 1.4.0; region measurement protocol 4.0.0."
+        lines = [line for line in lines if not line.startswith("For each channel, a user-confirmed ROI")]
+        lines.append("An automatic background candidate is calculated by the recorded protocol, excluding measured regions and all source nuclei when applicable. Its median is subtracted from raw means and medians; area times the median is subtracted from integrated intensity. Negative values remain signed. Unavailable candidates retain raw values and explicit missing corrected values. This candidate is not a researcher-confirmed background ROI.")
     display_fields = [fid for fid in request.field_ids
                       if config["field_snapshot"][fid]["image_info"].get("input_mode") == "display-rgb"]
     if display_fields:
@@ -278,17 +282,11 @@ def _statistics_methods_template(result):
     return saved_methods_template(result)
 
 
-def _recompute_statistics(report, config, result):
+def _recompute_statistics(report, config, result, dependencies=None):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
-    if uses_compartment_summary(result.get("spec")):
-        # Replay would need the nuclear and adopted-nucleolar source masks, which this bundle does not carry.
-        raise ValueError("region_export_compartment_summary_unsupported")
-    from .gfp_selection import uses_gfp_gate
-
-    if uses_gfp_gate(result.get("spec")):
-        # Replay would need the bound nuclear revision and control designation, which this bundle does not carry.
-        raise ValueError("region_export_gfp_gate_unsupported")
+    from .region_export_dependencies import inputs
+    nuclear, summaries, _ = inputs(dependencies or {}, report, config)
     _statistics_methods_template(result)
     if result.get("analysis_kind") not in ("descriptive", "region-comparison", "region-association") or result.get("source_kind") != "region-2d":
         raise ValueError("region_export_statistics_unsupported")
@@ -308,15 +306,22 @@ def _recompute_statistics(report, config, result):
         from .common_statistics_contracts import parse_common_statistics_request
 
         request = parse_common_statistics_request(result["spec"])
-        calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
-        calculated = calculate(report, config, request)
+        if request.mode == "region-association":
+            calculated = analyze_region_association(report, config, request, nuclear=nuclear)
+        else:
+            calculated = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear)
     elif result["analysis_kind"] == "region-comparison":
         from .region_comparison import compare_regions
         from .region_comparison_contracts import RegionComparisonRequest
 
         calculated = compare_regions(report, config, RegionComparisonRequest.model_validate(result["spec"]))
     else:
-        calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
+        if uses_compartment_summary(result.get("spec")):
+            from .compartment_observations import describe_compartment_summary
+            calculated = describe_compartment_summary(report, config["field_snapshot"],
+                parse_descriptive_request(result["spec"]), summaries, nuclear=nuclear)
+        else:
+            calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
     calculated["revision_id"] = report["revision_id"]
     if result.get("source_review") == "automatic_unreviewed":
         if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0") or result["spec"].get("mode") != "descriptive":
@@ -345,7 +350,7 @@ def _render_statistics(calculated, folder, *, methods_template=None, saved_figur
 
 def build_region_bundle(destination: Path, *, report, config, provenance, mask_files,
                         raw_files=(), statistics_results=(), statistics_roots=(), include_raw=False,
-                        omitted_statistics=()):
+                        omitted_statistics=(), dependencies=None):
     """Bundle owned server paths only; public URL/access checks belong to the API."""
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
@@ -356,9 +361,24 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
         raise ValueError("region_bundle_masks_incomplete")
     statistics_results = list(statistics_results)
     statistics_roots = dict(statistics_roots)
+    dependencies = dependencies or {}
+    for fid, entry in dependencies.items():
+        if entry.get("nuclear", {}).get("identity") != provenance.get("fields", {}).get(fid, {}).get("nuclear_source"):
+            raise ValueError("region_bundle_parent_identity_mismatch")
+    from .region_export_dependencies import inputs
+    _, _, background_exclusions = inputs(dependencies, report, config)
+    for fid, table in report["field_tables"].items():
+        if table["protocol_version"] == "4.0.0":
+            labels = np.load(mask_files[fid], allow_pickle=False)
+            extra = background_exclusions.get(fid)
+            exclusion = (labels != 0) | (extra != 0) if extra is not None else labels != 0
+            for channel in table["channel_provenance"]:
+                bg = channel["background"]
+                if bg["additional_exclusion"] != (extra is not None) or bg["exclusion_mask_sha256"] != _array_hash(exclusion, "|u1"):
+                    raise ValueError("region_bundle_background_exclusion_mismatch")
     descriptions = []
     for result in statistics_results:
-        calculated = _recompute_statistics(report, config, result)
+        calculated = _recompute_statistics(report, config, result, dependencies)
         if any(result.get(key) != value for key, value in calculated.items()):
             raise ValueError("region_export_statistics_source_mismatch")
         descriptions.append(calculated)
@@ -369,6 +389,14 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
     _json(content / "revision.json", {"id": report["revision_id"], "config": config})
     _json(content / "provenance.json", provenance)
     _json(content / "environment.json", environment())
+    if dependencies:
+        for fid, entry in dependencies.items():
+            folder = _safe_path(content, f"dependencies/{fid}")
+            folder.mkdir(parents=True)
+            _json(folder / "sources.json", {key: value for key, value in entry.items() if not key.endswith("_labels")})
+            for kind in ("nuclear", "nucleolar"):
+                if kind in entry:
+                    np.save(folder / f"{kind}.npy", entry[kind + "_labels"], allow_pickle=False)
     write_csv(content / "regions.csv", _long_rows(report, config))
     write_csv(content / "field-outcomes.csv", [{"field_id": fid, "outcome": status}
                                                 for fid, status in report["field_outcomes"].items()])
@@ -441,7 +469,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
         "It does not confirm biological annotation correctness. Keep input and output directories private.\n", encoding="utf-8")
     members = sorted(path for path in content.rglob("*") if path.is_file())
     _json(content / "manifest.json", {
-        "format": bundle_format(request.measurement),
+        "format": DEPENDENT_FORMAT if dependencies else bundle_format(request.measurement),
         "revision_id": report["revision_id"], "raw_included": include_raw, "raw_files": raw_manifest,
         "replay_scope": "saved masks of measured fields -> measurements -> recorded statistics and figures; failures preserved",
         "files": {path.relative_to(content).as_posix(): sha256(path) for path in members},
@@ -460,7 +488,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
 def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     """Recompute successful fields with saved masks; retain failure diagnostics."""
     manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("format") not in (FORMAT, AREA_FORMAT, RAW_FORMAT):
+    if manifest.get("format") not in (FORMAT, AREA_FORMAT, RAW_FORMAT, DEPENDENT_FORMAT):
         raise ValueError("region_bundle_format_unsupported")
     for relative, expected_hash in manifest["files"].items():
         path = _safe_path(bundle_dir, relative)
@@ -471,7 +499,27 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     request = _request(config)
     report = json.loads((bundle_dir / "measurements.json").read_text(encoding="utf-8"))
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
-    expected_format = bundle_format(request.measurement)
+    dependencies = {}
+    for fid in report["field_tables"]:
+        folder = _safe_path(bundle_dir, f"dependencies/{fid}")
+        if (folder / "sources.json").is_file():
+            required = f"dependencies/{fid}/sources.json"
+            if required not in manifest["files"]:
+                raise ValueError("region_bundle_file_hash_mismatch")
+            entry = json.loads((folder / "sources.json").read_text(encoding="utf-8"))
+            for kind in ("nuclear", "nucleolar"):
+                if kind in entry:
+                    if f"dependencies/{fid}/{kind}.npy" not in manifest["files"]:
+                        raise ValueError("region_bundle_file_hash_mismatch")
+                    entry[kind + "_labels"] = np.load(folder / f"{kind}.npy", allow_pickle=False)
+            dependencies[fid] = entry
+    from .region_export_dependencies import inputs, replay_field
+    provenance = json.loads((bundle_dir / "provenance.json").read_text(encoding="utf-8"))
+    for fid, entry in dependencies.items():
+        if entry.get("nuclear", {}).get("identity") != provenance.get("fields", {}).get(fid, {}).get("nuclear_source"):
+            raise ValueError("region_bundle_parent_identity_mismatch")
+    _, _, background_exclusions = inputs(dependencies, report, config)
+    expected_format = DEPENDENT_FORMAT if dependencies else bundle_format(request.measurement)
     if manifest["format"] != expected_format:
         raise ValueError("region_measurement_protocol_mismatch")
     if request.measurement is not None and (
@@ -505,8 +553,11 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         table = measure_regions_versioned(channels, labels, backgrounds, scientific_specification(
             field_id=fid, revision_id=report["revision_id"], mask_revision_id=mask_record["mask_revision_id"],
             recipe=request.recipe, image_info=info, measurement=request.measurement,
-        ))
+        ), background_exclusion=background_exclusions.get(fid)
+           if request.measurement is not None and request.measurement.mode == "automatic_background" else None)
         tables[fid] = table.model_dump(mode="json")
+        if fid in dependencies:
+            dependencies[fid] = replay_field(dependencies[fid], fid, channels, labels, table)
     reproduced = {**report, "field_tables": tables}
     _json(output_dir / "measurements.json", reproduced)
     write_csv(output_dir / "regions.csv", _long_rows(reproduced, config))
@@ -518,7 +569,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     paged_outputs = []
     for path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         result = json.loads(path.read_text(encoding="utf-8"))
-        replayed = _recompute_statistics(reproduced, config, result)
+        replayed = _recompute_statistics(reproduced, config, result, dependencies)
         matches = all(result.get(key) == value for key, value in replayed.items())
         if result["analysis_kind"] == "region-comparison":
             has_comparisons = True

@@ -12,7 +12,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    text = json.dumps({"draft_schema": draft_json_schema(), "context_schema": ProposalContext.model_json_schema()},
+    text = json.dumps({"draft_schema": draft_json_schema(), "processing_draft_schema": draft_json_schema(processing_only=True), "legacy_draft_schema": draft_json_schema(legacy=True), "context_schema": ProposalContext.model_json_schema()},
                       indent=2, ensure_ascii=False, sort_keys=True) + "\n"
     if args.check:
         if not TARGET.exists() or TARGET.read_text(encoding="utf-8") != text:

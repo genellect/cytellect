@@ -250,9 +250,11 @@ def region_report_measurement_policy(report):
     protocol = report.get("protocol_version", "1.0.0")
     if protocol == "1.0.0" and report.get("measurement") is None:
         return None
-    if protocol in ("2.0.0", "3.0.0"):
+    if protocol in ("2.0.0", "3.0.0", "4.0.0"):
         try:
-            return MEASUREMENT_POLICY.validate_python(report.get("measurement"))
+            policy = MEASUREMENT_POLICY.validate_python(report.get("measurement"))
+            if measurement_protocol(policy) == protocol:
+                return policy
         except ValueError:
             pass
     raise ValueError("region_measurement_protocol_mismatch")

@@ -89,6 +89,7 @@ export function NuclearChoice({ grouping, preview, onChoose }: {
 }
 
 const ISSUE_TEXT: Record<GroupingIssue["kind"], { title: string; detail: string }> = {
+  channel_range_reference: {title:"チャンネルをまとめた画像", detail:"対応するチャンネル別画像を解析に使います。この画像を別の視野として重複解析しません。"},
   channel_unidentified: {
     title: "チャンネルを判別できないファイル",
     detail: "ファイル名に染色名（DAPI、GFP など）もチャンネル番号（c1、w2 など）もないため、追加していません。名前を変えて追加し直してください。",
@@ -107,6 +108,7 @@ const ISSUE_TEXT: Record<GroupingIssue["kind"], { title: string; detail: string 
 
 function issueLine(issue: GroupingIssue): string {
   switch (issue.kind) {
+    case "channel_range_reference":
     case "channel_unidentified":
     case "channels_pending":
       return issue.path;

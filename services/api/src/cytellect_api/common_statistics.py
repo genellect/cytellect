@@ -43,6 +43,8 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
         if getattr(getattr(body, "selection", None), "source", None) == "compartment-summary":
             require_compartment_revision(rev)
         require_gfp_gate_source(rev, getattr(body, "selection", None))
+        require_gfp_gate_source(rev, getattr(body, "x_selection", None))
+        require_gfp_gate_source(rev, getattr(body, "y_selection", None))
         report = read_json(result_root(rev) / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "review_required")
@@ -71,7 +73,7 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
         job = job_record(jid, who)
         payload = job["payload"]
         supported = (
-            payload.get("mode") == "region-association" and payload.get("version") == "1.0.0"
+            payload.get("mode") == "region-association" and payload.get("version") in ("1.0.0", "1.1.0")
         ) or (
             payload.get("mode") == "region-experimental-unit" and payload.get("version") == "2.0.0"
         )

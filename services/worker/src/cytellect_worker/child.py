@@ -80,7 +80,10 @@ def main():
     threading.Thread(target=watchdog, daemon=True).start()
     output = descriptor.parent / "output"
     try:
+        from .figure_render import run_figure_render, run_publication_package
         handlers = {
+            "figure-render": lambda: run_figure_render(store, job, output),
+            "publication-package": lambda: run_publication_package(store, job, output),
             "analysis": lambda: run_analysis(store, settings, job, output),
             "statistics": lambda: run_statistics(store, job, output),
             "export": lambda: run_export(store, job, output),

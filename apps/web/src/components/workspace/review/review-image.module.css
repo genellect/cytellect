@@ -1,0 +1,24 @@
+.frame{position:relative;display:flex;flex:1;min-width:0;min-height:0;width:100%;height:100%;overflow:hidden;background:#111315;border-radius:5px;isolation:isolate}
+.viewport{position:relative;flex:1;min-width:0;min-height:0;overflow:hidden;touch-action:none;user-select:none;cursor:grab}
+.viewport[data-dragging=true]{cursor:grabbing}
+.viewport[data-drawing=true],.viewport[data-drawing=true] .outline,.viewport[data-drawing=true] .selected{cursor:crosshair}
+.viewport:focus-visible{outline:2px solid #9bcaff;outline-offset:-2px}
+.image{display:block;position:absolute;inset:0;overflow:hidden}
+.outline,.selected{fill:transparent;stroke:#9aceff;stroke-width:1.15;cursor:pointer;outline:none}
+.selected{fill:#ffda4220;stroke:#ffe16c;stroke-width:1.8}
+.outline:focus-visible,.selected:focus-visible{stroke:#fff;stroke-width:2.5}
+.number{fill:#fff;stroke:#111;paint-order:stroke;pointer-events:none;font-family:Arial,sans-serif;font-weight:600}
+.draft{fill:#ffda4225;stroke:#ffe16c;stroke-width:1.6;pointer-events:none}
+.toolbar{position:absolute;z-index:2;top:8px;right:8px;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid #ffffff30;border-radius:7px;background:#24272bef;color:#f7f8fa;box-shadow:0 2px 8px #0003}
+.toolbar button{display:grid;place-items:center;flex:none;width:30px;height:30px;padding:0;border:0;border-radius:4px;color:inherit;background:transparent;font:inherit;font-size:19px;line-height:1;cursor:pointer}
+.toolbar button:hover{background:#ffffff1c}
+.toolbar button[aria-pressed=true]{background:#ffffff22}
+.toolbar button:disabled{color:#8c9094;cursor:default}
+.toolbar button:focus-visible{outline:2px solid #9bcaff;outline-offset:1px}
+.zoom{min-width:38px;text-align:center;font:12px/1.2 ui-monospace,SFMono-Regular,monospace;font-variant-numeric:tabular-nums}
+.editToolbar{top:auto;right:auto;bottom:8px;left:8px;max-width:calc(100% - 16px);flex-wrap:wrap}
+.mode{font-size:12px;padding:0 5px;line-height:1.4;color:#fff}
+.error{position:absolute;left:12px;right:12px;bottom:52px;margin:0;padding:8px;background:#24272bed;border-radius:4px;color:#fff;font-size:13px}
+@media(max-width:600px){.toolbar{top:5px;right:5px}.toolbar button{width:28px;height:28px}}
+
+.outline[data-classification=positive]{stroke:#68ed9e;fill:#68ed9e18}.outline[data-classification=negative]{stroke:#b4bdc9;stroke-dasharray:3 3}.outline[data-classification=unknown]{stroke:#f4bb58;stroke-dasharray:2 4}

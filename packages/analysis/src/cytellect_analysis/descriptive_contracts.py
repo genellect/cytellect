@@ -1,7 +1,16 @@
 """Explicit descriptive-only contracts; existing inferential requests are unchanged."""
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictInt, model_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    StrictInt,
+    TypeAdapter,
+    model_serializer,
+    model_validator,
+)
 from pydantic.json_schema import SkipJsonSchema
 
 from .contracts import PlotSpec, StrictModel
@@ -48,6 +57,39 @@ class GfpGateFilter(StrictModel):
         return self
 
 
+class ExploratoryGfpGateFilter(StrictModel):
+    """Nuclear-object mean gate; thresholds never classify individual image pixels."""
+    version: Literal["1.1.0"]
+    gate_protocol: Literal["gfp-gate/3.0.0"]
+    gfp_channel_id: Id
+    method: Literal["manual", "batch_otsu"]
+    threshold: FiniteFloat | None = None
+    values: Literal["raw", "corrected"] = "raw"
+    unit: Literal["nucleus", "cell_roi"] = "nucleus"
+    keep: Literal["positive", "negative"]
+
+    @property
+    def control_field_ids(self) -> list[str]:
+        return []
+
+    @model_validator(mode="after")
+    def manual_threshold_only(self):
+        if (self.method == "manual") != (self.threshold is not None):
+            raise ValueError("gfp_exploratory_threshold_invalid")
+        return self
+
+    @model_serializer(mode="wrap")
+    def omit_default_unit(self, handler):
+        result = handler(self)
+        if self.unit == "nucleus":
+            result.pop("unit", None)
+        return result
+
+
+GfpFilter = GfpGateFilter | ExploratoryGfpGateFilter
+GFP_FILTER: TypeAdapter[GfpFilter] = TypeAdapter(GfpFilter)
+
+
 def _omit_default(schema: dict[str, Any]) -> None:
     # An absent filter is optional in generated clients and omitted from saved bytes.
     schema.pop("default", None)
@@ -78,7 +120,7 @@ class RegionSelection(_OptionalGate):
     region_set_id: Id
     channel_id: Id | None = None
     metric: RegionMetric
-    gfp_gate: GfpGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
+    gfp_gate: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def channel_for_intensity_only(self):
@@ -105,7 +147,7 @@ class CompartmentSummarySelection(_OptionalGate):
     region_set_id: Id
     channel_id: Id | None = None
     metric: CompartmentSummaryMetric
-    gfp_gate: GfpGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
+    gfp_gate: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def channel_for_intensity_ratio_only(self):
@@ -140,7 +182,7 @@ class PagedDescriptiveRequest(DescriptiveRequest):
 
     @model_validator(mode="after")
     def supported_page_width(self):
-        if self.plot.preset not in ("nature-single", "nature-double"):
+        if self.plot.preset not in ("nature-single", "nature-double", "custom"):
             raise ValueError("descriptive_page_preset_unsupported")
         return self
 

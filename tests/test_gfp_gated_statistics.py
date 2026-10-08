@@ -9,7 +9,7 @@ import json
 
 import numpy as np
 import pytest
-from cytellect_analysis.common_statistics import analyze_region_comparison
+from cytellect_analysis.common_statistics import analyze_region_association, analyze_region_comparison
 from cytellect_analysis.common_statistics_contracts import RegionAssociationRequest, RegionComparisonRequestV2
 from cytellect_analysis.common_statistics_figures import render_common_statistics
 from cytellect_analysis.compartment_observations import describe_compartment_summary
@@ -281,8 +281,37 @@ def test_filter_is_refused_where_it_is_not_defined():
             "missingness_confirmed": True, "method": "spearman"})
 
 
+def test_gfp_association_v11_uses_identical_nuclei_for_both_axes_and_replays(tmp_path):
+    report, config = nuclear_fixture()
+    raw = request(filter_=gate()).model_dump(mode="json")
+    association = {"mode": "region-association", "version": "1.1.0", "x_selection": {**raw["selection"], "channel_id": "gfp"},
+        "y_selection": raw["selection"], "design": raw["design"], "conditions": ["A", "B"],
+        "acquisition_review": raw["acquisition_review"], "missingness_confirmed": True, "method": "spearman"}
+    result = analyze_region_association(report, config, association)
+    assert result["region_association_version"] == "1.1.0"
+    expected_gfp = {"a1": 300., "a2": 400., "a3": 359.5, "b1": 300., "b2": 250., "b3": 300.}
+    assert {r["experimental_unit"]: (r["x"], r["y"]) for r in result["unit_summary"]} == {
+        key: (expected_gfp[key], value) for key, value in POSITIVE_UNITS.items()}
+    x_ids = {(r["field_id"], r["region_id"]) for r in result["x_source"]["plot_data"]}
+    y_ids = {(r["field_id"], r["region_id"]) for r in result["y_source"]["plot_data"]}
+    assert x_ids == y_ids and len(x_ids) == 11
+    for row in result["associations"]:
+        keys = sorted(key for key in POSITIVE_UNITS if key.startswith(row["scope"].lower()))
+        expected = stats.spearmanr([expected_gfp[key] for key in keys], [POSITIVE_UNITS[key] for key in keys])
+        assert row["coefficient"] == pytest.approx(expected.statistic)
+        # n=3: the exact permutation two-sided p is 1 for both correlations.
+        assert row["p_value"] == pytest.approx(1.0)
+    result["figure"] = render_common_statistics(result, tmp_path)
+    assert _recompute_statistics(report, config, result) == {key: value for key, value in result.items() if key != "figure"}
+    with pytest.raises(ValidationError, match="matched_gfp_selection"):
+        RegionAssociationRequest.model_validate({**association, "y_selection": {**raw["selection"], "gfp_gate": gate(keep="negative")}})
+    with pytest.raises(ValidationError, match="matched_intensity_policy"):
+        RegionAssociationRequest.model_validate({**association, "y_selection": {**raw["selection"], "metric": "mean_corrected"}})
+
+
 def test_methods_caption_and_export_record_the_gate(tmp_path):
     report, config = nuclear_fixture()
+    config = {**config, "review_record": {"confirmed_at": 1.0}}
     result = analyze_region_comparison(report, config, request(filter_=gate()))
     result["revision_id"] = report["revision_id"]
     manifest = render_common_statistics(result, tmp_path)
@@ -296,8 +325,9 @@ def test_methods_caption_and_export_record_the_gate(tmp_path):
         assert "99th percentile" in text and "c1, c2, c3" in text
     assert "observations.csv" in manifest["source_files"]
     assert "gfp_gate_reason" in (tmp_path / "observations.csv").read_text(encoding="utf-8")
-    with pytest.raises(ValueError, match="region_export_gfp_gate_unsupported"):
-        _recompute_statistics(report, config, result)
+    result["figure"] = manifest
+    regenerated = _recompute_statistics(report, config, result)
+    assert regenerated == {key: value for key, value in result.items() if key != "figure"}
 
 
 def test_gated_per_field_description_labels_controls_and_records_thresholds(tmp_path):

@@ -99,7 +99,26 @@ class MaskEdit(StrictModel):
     polygon: list[Point] = Field(default_factory=list, max_length=10000)
     parent_id: int | None = Field(default=None, ge=1)
 
+class FigureStyle(StrictModel):
+    """Presentation-only extension; omitted style retains historical rendering."""
+    version: Literal["1.0.0"]
+    series_colors: dict[Annotated[str, Field(min_length=1, max_length=80)], Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]] = Field(default_factory=dict, max_length=100)
+    show_legend: bool = True
+
+
+class FigureAxes(StrictModel):
+    """Versioned display scales and scatter X bounds; never transform source values."""
+    version: Literal["1.0.0"]
+    x_scale: Literal["linear", "log10", "log2"] = "linear"
+    y_scale: Literal["linear", "log10", "log2"] = "linear"
+    x_min: Annotated[FiniteFloat, Field(ge=-1e15, le=1e15)] | None = None
+    x_max: Annotated[FiniteFloat, Field(ge=-1e15, le=1e15)] | None = None
+    x_tick_step: Annotated[FiniteFloat, Field(gt=0, le=1e15)] | None = None
+
+
 class PlotSpec(StrictModel):
+    style: FigureStyle | None = Field(default=None, exclude_if=lambda value: value is None)
+    axes: FigureAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     preset: Literal["custom", "nature-single", "nature-double"] = "nature-single"
     kind: Literal["distribution", "scatter", "paired"] = "distribution"
     language: Literal["en", "ja"] = "en"
@@ -116,6 +135,18 @@ class PlotSpec(StrictModel):
 
     @model_validator(mode="after")
     def valid_axis_controls(self):
+        if self.axes:
+            a = self.axes
+            if self.kind != "scatter" and (a.x_scale != "linear" or any(v is not None for v in (a.x_min, a.x_max, a.x_tick_step))):
+                raise ValueError("figure_numeric_x_requires_scatter")
+            if a.x_min is not None and a.x_max is not None:
+                if a.x_min >= a.x_max:
+                    raise ValueError("figure_x_range_invalid")
+                if a.x_tick_step is not None and (a.x_max - a.x_min) / a.x_tick_step > 99:
+                    raise ValueError("figure_tick_count_exceeded")
+            for scale, bounds in ((a.x_scale, (a.x_min, a.x_max)), (a.y_scale, (self.y_min, self.y_max))):
+                if scale != "linear" and any(value is not None and value <= 0 for value in bounds):
+                    raise ValueError("figure_log_requires_positive_values")
         if self.y_min is not None and self.y_max is not None:
             if self.y_min >= self.y_max:
                 raise ValueError("figure_y_range_invalid")
