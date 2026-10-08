@@ -160,3 +160,35 @@ reinterpreting historical 4.1.0/4.2.0 recipes. Documentation links passed and
 21 export regression tests passed. CI on `cad0b607` had passed Python, Web,
 Fiji/browser and local Windows; the Windows 3.14 job was still running at the
 time of this record. Check the latest PR head independently.
+
+### Channel annotation reuse repair
+
+Correcting stain names in the real-input workspace exposed a separate reuse
+defect: unchanged detection parameters could still start fresh StarDist
+detection because the reuse gate compared the entire channel assignment record.
+The gate now distinguishes channel annotations from physical image identity.
+An annotation-only update creates a new measurement revision with the current
+stain information while retaining the saved labels, mask revision, exclusions
+and original detector provenance. A versioned annotation record is validated
+against the source revision. Changes to pixels, channel IDs, acquisition facts
+or detector settings still fail the reuse checks. Child edits clear the source
+revision's annotation operation rather than replaying it against another parent.
+
+On the owner's paired real input after stain correction, the rebuilt Docker
+Worker recorded no StarDist execution. Nuclear labels were identical to the
+adopted parent, NCL labels matched the accepted trial, parent containment and
+original-pixel measurements passed again, and the adopted selection ledger was
+unchanged. Current source annotations and measurement metadata agree. No masks
+were automatically adopted. Private inputs and result evidence remain local.
+Detection parameters and protocol 4.2.1 were not changed by this repair.
+
+The focused metadata/run/compartment/cohort suite passed 27 tests; mypy passed
+116 source files; Ruff, documentation links and whitespace checks passed. The
+initial restricted local test invocation stalled and was stopped; it is not
+reported as a pass. The explicitly authorized local invocation completed.
+
+The preceding Python CI job completed all test steps (1704 passed) but reached
+its twenty-minute overall limit after font provisioning consumed almost twelve
+minutes. The job limit is now thirty minutes; this does not skip checks or turn
+the cancelled job into a pass. New CI must be assessed on the latest PR head.
+The Docker application revision for this verified repair is `22c60eb`.
