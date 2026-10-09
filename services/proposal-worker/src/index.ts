@@ -6,7 +6,7 @@
  * returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
@@ -193,7 +193,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const checked = body && checkRequest(body);
     if (!checked) return failure(400, "request_invalid");
     const promptVersion = body!.prompt_version ?? LEGACY_PROMPT_VERSION;
-    if (typeof promptVersion !== "string" || ![PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
+    if (typeof promptVersion !== "string" || ![PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
     if (checked.context.field_count === 0 && promptVersion === LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
     const modelConfig = {...config, promptVersion};
     const requestId = request.headers.get("idempotency-key");

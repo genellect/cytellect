@@ -104,7 +104,7 @@ not establish nucleolar identity or segmentation quality.
 
 ### Parent-conditioned NCL Cellpose protocol 4.2.0
 
-New explicit NCL Cellpose selections use `cellpose-sam-ncl-parent/4.2.0`.
+Historical `cellpose-sam-ncl-parent/4.2.0` selections use the following inference.
 The unchanged original plane is Gaussian-smoothed (0.9 original px) before any
 parent restriction. For each adopted StarDist nucleus, subtract its 75th
 intensity percentile, keep positive signal only within that parent, and normalize
@@ -148,3 +148,19 @@ original raw candidate artifact and rejection measurements are retained.
 Nuclear pixels are never subtracted from nucleolar masks. A parent containing
 only rejected nuclear-scale candidates is indeterminate, not a measured zero.
 Stored 4.2.0 recipes skip this filter and retain their original meaning.
+
+### Conservative signal-supported boundaries, protocol 4.3.0
+
+New explicit selections use 4.3.0 with the unchanged 4.2.1 model invocation and
+nuclear-scale rejection, followed by refinement 1.0.0 in the shared analysis
+package. Model instances anchor cohesive within-parent NCL support. Three-class
+Multi-Otsu, closing/hole filling and distance watershed extend supported bodies
+and separate neighboring objects. Unmatched model candidates are retained, and
+support without a model anchor never creates an object. Raw labels, bound anchors,
+support masks, hashes, settings and source-object lineage are retained. Parent
+uncertainty/review states survive refinement; adoption is a separate researcher
+operation. See [the complete protocol](../../docs/methods.md#conservative-ncl-signal-support-protocol-430).
+
+This protocol changes final candidate boundaries, not adopted StarDist nuclei,
+measurement pixels, display coordinates or saved older recipe behavior. Existing
+4.2.1 masks and manually corrected/adopted results are not silently upgraded.

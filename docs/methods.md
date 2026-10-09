@@ -440,7 +440,7 @@ general biological segmentation accuracy. Cellpose-SAM is not a nucleolus-specif
 classifier, and NCL redistribution can change marker-defined candidates.
 
 
-New explicit NCL Cellpose selections use protocol 4.2.1. It preserves the 4.2.0
+Protocol 4.2.1 preserves the 4.2.0
 parent-conditioned inference settings and adds
 whole-instance nuclear rejection after inference. A candidate covering more
 than `maximum_nuclear_coverage` (default 0.5) of an adopted StarDist nucleus,
@@ -449,3 +449,35 @@ original raw candidate artifact and rejection measurements are retained.
 Nuclear pixels are never subtracted from nucleolar masks. A parent containing
 only rejected nuclear-scale candidates is indeterminate, not a measured zero.
 Stored 4.2.0 recipes skip this filter and retain their original meaning.
+
+### Conservative NCL signal support, protocol 4.3.0
+
+New explicit NCL Cellpose selections use 4.3.0. The pinned model, parent-conditioned
+inference and whole-instance rejection from 4.2.1 are unchanged. After binding
+model candidates to adopted StarDist nuclei, refinement 1.0.0 smooths the full
+original NCL plane with Gaussian sigma 0.9 px before restricting to a parent.
+Within each parent, the upper threshold of three-class Multi-Otsu defines signal
+support; disk closing (radius 2 px) and hole filling operate within that parent.
+Eight-connected components are divided by negative-distance watershed with
+h-maxima markers at max(1 px, 0.15 times the component's maximum distance).
+
+A support segment must overlap at least half of an existing model anchor, avoid
+the parent boundary (four-connected erosion), occupy no more than half the parent
+and have a greater original-pixel mean than the local background ring. The ring
+is eight iterations of four-connected dilation, excluding support and nuclear
+exterior. The parent crop has 24 px padding. These are versioned original-pixel
+operations, independent of image dimensions, display zoom or LUT.
+
+Matching segments join/extend the original anchors conservatively. Unmatched
+anchors retain their original pixels; support alone cannot introduce a new object.
+Connected supported fragments share one object, while disconnected final pieces
+receive separate IDs. Raw model labels, bound anchors, support labels, parent
+identity and source-object lineage are retained with hashes. Parent review,
+no-candidate and indeterminate evidence is preserved. Unsupported parents are
+not made into whole-nucleus nucleolar masks or measured zeros.
+
+Measurements use unchanged original pixels and the final integer labels. Existing
+4.0.0, 4.1.0, 4.2.0 and 4.2.1 recipes replay unchanged; new candidates do not
+replace researcher-adopted or corrected masks. Local private real-image acceptance
+compares complete label regions with the approved trial, independently checks
+original-pixel measurements, and is distinct from general biological validation.

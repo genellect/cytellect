@@ -3029,7 +3029,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            protocol_version: "4.2.0" | "4.2.1";
+            protocol_version: "4.2.0" | "4.2.1" | "4.3.0";
             /**
              * Smoothing Sigma Px
              * @default 0.9

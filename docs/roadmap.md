@@ -5,15 +5,16 @@
 The optional fixed Cellpose-SAM adapter connects NCL candidates and separate cell
 ROI candidates to existing original-coordinate measurement, editing and replay.
 Nuclei continue to use Fiji/StarDist. New explicit NCL selections use protocol
-4.2.1 parent-conditioned local-background removal and whole-instance nuclear
-rejection; saved 4.0.0, 4.1.0, 4.2.0 and classical recipes retain their behavior.
+4.3.0 parent-conditioned inference, whole-instance nuclear rejection and conservative
+signal-supported boundaries; saved 4.0.0, 4.1.0, 4.2.0, 4.2.1 and classical recipes
+retain their behavior.
 Manual and structured AI settings use the same validated detector.
 Changing channels after selecting the algorithm starts the pending preview only
 once the input is complete. A field failure retains its specific worker reason.
 
-The selected real-image trial has exact label-reproduction evidence stored
-privately. Other real images still show false candidates and missed nucleoli;
-parent containment is tested separately and does not establish capture accuracy.
+The accepted real-image refinement has exact label-reproduction evidence stored
+privately. This is bounded evidence on the reviewed specimens, not full ground
+truth or general recall. Parent containment alone does not establish capture accuracy.
 General private-data biological acceptance remains open. Installed Windows
 Cellpose, CUDA and persistent model loading also remain separate open gates.
 

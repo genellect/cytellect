@@ -18,9 +18,10 @@ export const legacyNclCellposeDetector = ():NclCellposeProcessingDetector => ({
   ...cellposeDetector(),engine:"cellpose-sam-ncl",protocol_version:"4.1.0",smoothing_sigma_px:.9,background_radius_px:10,
 });
 
-/** Parent-conditioned copy. Saved 4.0/4.1 settings are never implicitly upgraded. */
+/** Parent-conditioned candidates with versioned signal-support refinement.
+ * Saved protocols, including 4.2.1, are never implicitly upgraded. */
 export const nclCellposeDetector = ():NclParentCellposeProcessingDetector => ({
-  ...cellposeDetector(),engine:"cellpose-sam-ncl-parent",protocol_version:"4.2.1",smoothing_sigma_px:.9,
+  ...cellposeDetector(),engine:"cellpose-sam-ncl-parent",protocol_version:"4.3.0",smoothing_sigma_px:.9,
   parent_background_percentile:75,nuclear_diameter_fraction:.25,crop_padding_px:32,
   minimum_contrast_snr:5,local_background_radius_px:8,maximum_nuclear_coverage:.5,
 });

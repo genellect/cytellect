@@ -1212,10 +1212,11 @@
             "type": "number"
           },
           "protocol_version": {
-            "default": "4.2.1",
+            "default": "4.3.0",
             "enum": [
               "4.2.0",
-              "4.2.1"
+              "4.2.1",
+              "4.3.0"
             ],
             "title": "Protocol Version",
             "type": "string"
@@ -3125,7 +3126,8 @@
                               "protocol_version": {
                                 "enum": [
                                   "4.2.0",
-                                  "4.2.1"
+                                  "4.2.1",
+                                  "4.3.0"
                                 ],
                                 "type": "string"
                               },
@@ -5215,7 +5217,8 @@
                               "protocol_version": {
                                 "enum": [
                                   "4.2.0",
-                                  "4.2.1"
+                                  "4.2.1",
+                                  "4.3.0"
                                 ],
                                 "type": "string"
                               },

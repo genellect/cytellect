@@ -20,7 +20,7 @@ from .region_contracts import NuclearDetectorSpec
 from .signal_engine import SignalDetectorSpec
 
 PROPOSAL_PROTOCOL = "1.1.0"
-PROPOSAL_PROMPT_VERSION = "2026-10-08.5"
+PROPOSAL_PROMPT_VERSION = "2026-10-09.1"
 PROPOSAL_MODEL = "gpt-6.1-sol"
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]

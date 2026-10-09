@@ -132,11 +132,21 @@ def _cellpose_initial(detector, *, nucleolar=False) -> str:
                          "Robust original-pixel noise and local NCL enrichment reject weak/unenriched candidates. "
                          "Valid individual candidates remain visible when a truncated sibling requires review; "
                          "that parent's complement/aggregate is missing until adoption. ")
-        if detector.protocol_version == "4.2.1":
+        if detector.protocol_version in ("4.2.1", "4.3.0"):
             preprocessing += (f"Whole candidate instances covering more than {detector.maximum_nuclear_coverage:g} "
                               "of an adopted nucleus with at least 0.9 parent purity are rejected as nuclear-scale "
                               "objects; raw labels and rejection measurements are retained. "
                               "A parent containing only these rejected objects is indeterminate, not a measured zero. ")
+        if detector.protocol_version == "4.3.0":
+            preprocessing += ("Signal-support refinement 1.0.0 smooths the original plane (sigma 0.9 px), uses each parent's "
+                              "upper three-class Multi-Otsu threshold, disk closing (radius 2 px) and hole filling. "
+                              "Distance watershed with h-maxima (max(1 px, 0.15 times component maximum distance)) "
+                              "separates adjacent bodies. Support must overlap at least half a model anchor, avoid the "
+                              "parent boundary, occupy at most half the parent and exceed the original mean of its "
+                              "within-parent eight-iteration dilation ring outside signal support. Matching support "
+                              "is unioned with model anchors, merging supported fragments, retaining unmatched anchors "
+                              "and splitting disconnected outputs. Review/indeterminate states are preserved. "
+                              "Original model labels, anchors, support labels and lineage are retained. ")
     definition = ("Candidate masks wholly contained by exactly one adopted StarDist nucleus; "
                   "cross-parent and boundary-truncated candidates are retained for review, not measured as nucleoli."
                   if nucleolar else "Cell ROI candidates on the explicitly selected defining stain.")

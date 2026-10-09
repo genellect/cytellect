@@ -1,5 +1,5 @@
 import {expect,it} from "vitest";
-import {PROMPT_VERSION,PARENT_PREVIOUS_PROMPT_VERSION,PREVIOUS_PROMPT_VERSION,PREIMPORT_PROMPT_VERSION,requestPayload,hasDraftShape,inputTokenCeiling} from "./openai";
+import {PROMPT_VERSION,NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION,PARENT_PREVIOUS_PROMPT_VERSION,PREVIOUS_PROMPT_VERSION,PREIMPORT_PROMPT_VERSION,requestPayload,hasDraftShape,inputTokenCeiling} from "./openai";
 import {checkRequest} from "./index";
 
 it("uses executable settings only for the new prompt while preserving old clients", () => {
@@ -13,9 +13,11 @@ it("uses executable settings only for the new prompt while preserving old client
   expect(current.input[0].content[0].text).toContain("background_radius_px 10");
   expect(current.input[0].content[0].text).toContain("cellpose-sam/4.0.0 (without NCL preprocessing)");
   expect(current.input[0].content[0].text).toContain("Mixed or implicit/null axis regions are unsupported");
+  expect(current.input[0].content[0].text).toContain("cellpose-sam-ncl-parent/4.3.0");
+  expect(current.input[0].content[0].text).toContain("Only existing model candidates can anchor a supported region");
   expect(previous.input[0].content[0].text).not.toContain("Mixed or implicit/null axis regions are unsupported");
   const old = requestPayload({...options,promptVersion:PREIMPORT_PROMPT_VERSION},{},[]);
-  expect(PROMPT_VERSION).toBe("2026-10-08.5");
+  expect(PROMPT_VERSION).toBe("2026-10-09.1");
   expect(current.text.format.schema.required).toContain("processing");
   expect(old.text.format.schema.required).not.toContain("processing");
   expect(current.input[0].content[0].text).toContain("dapi_poor");
@@ -42,5 +44,31 @@ it("bounds and budgets the full continuation rather than losing follow-up contex
 it("keeps the parent protocol readable by the previous installed client",()=>{
  const settings={apiKey:"test",model:"gpt-6.1-sol",maxOutputTokens:8000,promptVersion:PARENT_PREVIOUS_PROMPT_VERSION};
  const serialized=JSON.stringify(requestPayload(settings,{},[]).text.format.schema);
- expect(serialized).toContain("4.2.0"); expect(serialized).not.toContain("4.2.1"); expect(serialized).not.toContain("maximum_nuclear_coverage");
+ expect(serialized).toContain("4.2.0"); expect(serialized).not.toContain("4.2.1"); expect(serialized).not.toContain("4.3.0"); expect(serialized).not.toContain("maximum_nuclear_coverage");
+});
+
+it("keeps 4.2.1 installed clients on their original schema and inference prompt",()=>{
+ const settings={apiKey:"test",model:"gpt-6.1-sol",maxOutputTokens:8000,promptVersion:NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION};
+ const payload=requestPayload(settings,{},[]),serialized=JSON.stringify(payload.text.format.schema);
+ expect(serialized).toContain("4.2.0");expect(serialized).toContain("4.2.1");expect(serialized).not.toContain("4.3.0");
+ expect(serialized).toContain("maximum_nuclear_coverage");
+ expect(payload.input[0].content[0].text).toContain("cellpose-sam-ncl-parent/4.2.1");
+ expect(payload.input[0].content[0].text).not.toContain("4.3.0");
+ expect(payload.input[0].content[0].text).not.toContain("signal-supported boundary refinement");
+});
+
+it("validates returned detector protocols against the installed client's capabilities",()=>{
+ const detector={engine:"cellpose-sam-ncl-parent",protocol_version:"4.3.0",model:"cpsam_v2",
+  model_sha256:"0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+  diameter_px:null,normalization_percentile_low:1,normalization_percentile_high:99,flow_threshold:.4,
+  cellprob_threshold:0,minimum_area_px:15,maximum_size_fraction:1,iterations:null,batch_size:1,compute_device:"cpu",
+  smoothing_sigma_px:.9,parent_background_percentile:75,nuclear_diameter_fraction:.25,crop_padding_px:32,
+  minimum_contrast_snr:5,local_background_radius_px:8,maximum_nuclear_coverage:.5};
+ const draft={recipe:"nuclear-ncl",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null,x:null,y:null},
+  additional_analyses:[],figures:[],missing_information:[],reference_ids:[],rationale:"",background:null,gfp_selection:null,
+  processing:{version:"1.0.0",nuclei:null,nucleoli:{channel:"ncl",detector},signal:null,cells:null}};
+ expect(hasDraftShape(draft,PROMPT_VERSION)).toBe(true);
+ expect(hasDraftShape(draft,NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION)).toBe(false);
+ expect(hasDraftShape({...draft,processing:{...draft.processing,nucleoli:{channel:"ncl",detector:{...detector,protocol_version:"4.2.1"}}}},NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION)).toBe(true);
+ expect(hasDraftShape({...draft,processing:{...draft.processing,nucleoli:{channel:"ncl",detector:{...detector,protocol_version:"4.2.1"}}}},PARENT_PREVIOUS_PROMPT_VERSION)).toBe(false);
 });

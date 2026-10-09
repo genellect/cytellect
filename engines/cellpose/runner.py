@@ -222,7 +222,7 @@ def run(request_path: Path) -> dict:
     network = models.CellposeModel(pretrained_model=str(model_path),
                                   device=torch.device(device), gpu=device == "cuda",
                                   use_bfloat16=device == "cuda")
-    if p["engine"] == "cellpose-sam-ncl-parent" and p["protocol_version"] in ("4.2.0", "4.2.1"):
+    if p["engine"] == "cellpose-sam-ncl-parent" and p["protocol_version"] in ("4.2.0", "4.2.1", "4.3.0"):
         if "parent_path" not in request:
             raise RuntimeError("cellpose_adopted_nuclei_required")
         nuclei = np.load(request["parent_path"], allow_pickle=False)

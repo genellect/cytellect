@@ -5,7 +5,7 @@ import type {ReviewData} from "./review-preview";
 import type {ProposalProcessing} from "./proposal-processing";
 import type {ChannelDefinition} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2} from "./nucleolar-definition";
-import {cellposeDetector,nclCellposeDetector} from "./cellpose-settings";
+import {cellposeDetector,legacyNclCellposeDetector,nclCellposeDetector} from "./cellpose-settings";
 
 // Contract-only records: no image pixels, decoding, detector execution or image fixtures.
 const nuclear:ChannelDefinition={token:"dna",stain:"DAPI",role:"nuclear",evidence:"user"};
@@ -138,7 +138,7 @@ describe("Cellpose runtime contracts without images",()=>{
     expect(runtime.getSnapshot().data?.fields[0].results.nucleoli?.revision).toBe("u");
     runtime.dispose();
   });
-  it("uses the parent-conditioned 4.2 NCL workflow only after an explicit new selection",async()=>{
+  it("uses the refined parent-conditioned 4.3 NCL workflow only after an explicit new selection",async()=>{
     const {runtime,adapter}=contractRuntime(cellposeDetector());await runtime.load("w");
     expect(runtime.cellposeSettings("f","nucleoli").engine).toBe("cellpose-sam");
     expect(runtime.currentResult("f","nucleoli")?.revision).toBe("u");
@@ -150,7 +150,7 @@ describe("Cellpose runtime contracts without images",()=>{
     expect(runtime.getSnapshot().data?.fields[0].results.nucleoli?.revision).toBe("u");
     expect(adapter.run).not.toHaveBeenCalled();expect(adapter.draft).not.toHaveBeenCalled();
     runtime.setCellposeParameter("f","nucleoli","parent_background_percentile",70);
-    expect(runtime.cellposeSettings("f","nucleoli")).toMatchObject({engine:"cellpose-sam-ncl-parent",protocol_version:"4.2.1",parent_background_percentile:70,smoothing_sigma_px:.9});
+    expect(runtime.cellposeSettings("f","nucleoli")).toMatchObject({engine:"cellpose-sam-ncl-parent",protocol_version:"4.3.0",parent_background_percentile:70,smoothing_sigma_px:.9});
     runtime.dispose();
   });
   it("completes an algorithm-first manual selection and starts the selected durable preview",async()=>{
@@ -183,8 +183,22 @@ describe("Cellpose runtime contracts without images",()=>{
     expect(runtime.getSnapshot().processing?.nucleoli).toEqual({channel:"other-ncl",detector});
     runtime.dispose();
   });
+  it("retains saved 4.2.1 settings and masks until a new algorithm is explicitly selected",async()=>{
+    const detector={...nclCellposeDetector(),protocol_version:"4.2.1" as const,parent_background_percentile:70};
+    const {runtime,adapter}=contractRuntime(detector);await runtime.load("w");
+    expect(runtime.cellposeSettings("f","nucleoli")).toEqual(detector);
+    expect(runtime.currentResult("f","nucleoli")?.revision).toBe("u");
+    runtime.setSettings(previous=>({...previous,nucleolarDefinition:{...previous.nucleolarDefinition,marker:"other-ncl"}}));
+    expect(runtime.getSnapshot().processing?.nucleoli).toEqual({channel:"other-ncl",detector});
+    expect(adapter.run).not.toHaveBeenCalled();expect(adapter.draft).not.toHaveBeenCalled();
+    runtime.selectNucleolarSource("ncl","marker","cellpose");
+    expect(runtime.getSnapshot().processing?.nucleoli).toEqual({channel:"marker",detector:nclCellposeDetector()});
+    expect(runtime.currentResult("f","nucleoli")).toBeUndefined();
+    expect(runtime.getSnapshot().data?.fields[0].results.nucleoli?.revision).toBe("u");
+    runtime.dispose();
+  });
   it("restores an AI NCL 4.1 proposal without converting it to generic Cellpose",async()=>{
-    const detector={...nclCellposeDetector(),background_radius_px:14};
+    const detector={...legacyNclCellposeDetector(),background_radius_px:14};
     const {runtime}=contractRuntime(detector);await runtime.load("w");
     expect(runtime.cellposeSettings("f","nucleoli")).toEqual(detector);
     await runtime.requestProposal("NCLを検出","f");

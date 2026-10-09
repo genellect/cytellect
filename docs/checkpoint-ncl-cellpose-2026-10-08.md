@@ -192,3 +192,36 @@ its twenty-minute overall limit after font provisioning consumed almost twelve
 minutes. The job limit is now thirty minutes; this does not skip checks or turn
 the cancelled job into a pass. New CI must be assessed on the latest PR head.
 The Docker application revision for this verified repair is `22c60eb`.
+
+### Accepted boundary refinement, 2026-10-09
+
+The researcher accepted the conservative model-anchored NCL signal-support
+partition and authorized Docker, Git and production reflection. New explicit NCL
+selections now use protocol 4.3.0 with refinement 1.0.0. Parent-conditioned model
+inference and 4.2.1 nuclear-scale rejection are retained; matched cohesive support
+extends/joins model fragments while distance watershed separates adjacent bodies.
+Unmatched anchors remain, and unsupported signal cannot create an object. The
+complete fixed policy, artifacts and lineage are recorded in Methods/provenance.
+Historical protocols and researcher-adopted/corrected masks are not upgraded.
+
+The private supplied-specimen comparison reproduced the approved trial's complete
+integer-label regions exactly in the product package and fresh Docker execution.
+Independent original-pixel area, mean, median and integrated-value calculations
+matched the saved measurements. Adopted nuclear labels, parent review states and
+the selection ledger were unchanged. Edge displayed the new masks and table.
+Private inputs, labels, values and screenshots remain outside Git/CI. This is
+acceptance of the reviewed specimen/partition, not a claim of general biological
+recall or ground-truth validation.
+
+Structured AI prompt 2026-10-09.1 supports 4.3.0 through the same validated contract.
+Older installed clients receive only their supported detector schema; returned
+JSON is also checked against that client's schema. The Docker relay overlay now
+requests the new prompt. Provider budget, authentication and retention are unchanged.
+
+Local Web tests passed 485 cases; Worker tests passed 79 cases with the paid
+evaluation intentionally not executed. Mypy, Ruff, documentation links and public
+tree checks passed. Windows Application Control blocked a local SQLAlchemy DLL
+and newly generated build Python; this was not treated as a pass or disabled.
+The wheel was built using the existing interpreter and pinned build dependency;
+API contracts were generated in the existing Linux container. Linux integration
+and fresh exact-head CI remain separate release checks.

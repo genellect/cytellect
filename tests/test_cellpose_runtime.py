@@ -63,7 +63,7 @@ def test_parent_protocol_is_separate_and_requires_an_adopted_mask(tmp_path):
 
     detector = NclParentCellposeDetectorSpec()
     assert TypeAdapter(NucleolarDetector).validate_python(detector.model_dump()) == detector
-    assert detector.protocol_version == "4.2.1" and detector.diameter_px is None
+    assert detector.protocol_version == "4.3.0" and detector.diameter_px is None
     assert NclParentCellposeDetectorSpec(protocol_version="4.2.0").protocol_version == "4.2.0"
     assert detector.parent_background_percentile == 75 and detector.nuclear_diameter_fraction == .25
     with pytest.raises(ValidationError):
@@ -317,6 +317,75 @@ def test_specific_runner_error_preserved(monkeypatch, tmp_path):
     monkeypatch.setattr(engine.subprocess, "run", execute)
     with pytest.raises(ValueError, match="cellpose_gpu_unavailable"):
         detect_cellpose(np.ones((3, 4), np.uint8), CellposeDetectorSpec(), tmp_path / "attempt")
+
+
+@pytest.mark.parametrize("version", ["4.2.0", "4.2.1", "4.3.0"])
+def test_refinement_dispatch_retains_parent_evidence_and_legacy_replay(monkeypatch, tmp_path, version):
+    # Integer membership/call-contract only. Biological acceptance uses private
+    # supplied specimens separately, never these tiny algebraic arrays.
+    from cytellect_analysis import ncl_signal_support
+
+    image = np.arange(100, dtype=np.uint8).reshape(10, 10)
+    nuclei = np.ones((10, 10), np.uint32)
+    raw = np.zeros_like(nuclei)
+    raw[3:5, 3:5] = 8
+    raw[0, 2] = 9  # truncated sibling keeps the parent incomplete
+    calls = []
+    monkeypatch.setattr(engine, "runtime_status", lambda: {"available": True})
+    monkeypatch.setenv("CYTELLECT_CELLPOSE_PYTHON", "isolated-python")
+    monkeypatch.setenv("CYTELLECT_CELLPOSE_MODEL_DIR", str(tmp_path / "models"))
+
+    def execute(command, **kwargs):
+        request = json.loads(Path(command[-2]).read_text())
+        assert request["parameters"]["protocol_version"] == version
+        np.save(request["output_path"], raw)
+        Path(command[-1]).write_text(json.dumps({"status": "succeeded", "coordinate_transform": {"scale_x": 1}}))
+        return subprocess.CompletedProcess(command, 0)
+
+    def refine(original, anchors, parents):
+        assert np.array_equal(original, image) and np.array_equal(parents, nuclei)
+        assert set(np.unique(anchors)) == {0, 1}
+        calls.append("refine")
+        labels = anchors.copy()
+        labels[5, 3] = 1
+        return labels, labels.copy(), {"parent_ids": {1: 1}, "objects": {
+            1: {"parent_id": 1, "source_anchor_ids": [1], "support_ids": [1]}},
+            "signal_support_policy": {"protocol_version": "1.0.0"}}
+
+    monkeypatch.setattr(engine.subprocess, "run", execute)
+    monkeypatch.setattr(ncl_signal_support, "refine_ncl_signal_support", refine)
+    destination = tmp_path / version
+    labels, info = detect_cellpose(image, NclParentCellposeDetectorSpec(protocol_version=version), destination, nuclei)
+    assert info["nucleolar_states"] == {1: "review_required"}
+    assert info["review_candidate_count"] == 1
+    assert np.array_equal(np.load(destination / "cellpose-raw-labels.npy"), raw)
+    assert info["parent_ids"] == {1: 1}
+    if version == "4.3.0":
+        assert calls == ["refine"] and labels[5, 3] == 1
+        assert info["objects"][1]["source_model_objects"][0]["source_label_id"] == 8
+        assert np.load(destination / info["anchor_mask_artifact"])[5, 3] == 0
+        assert np.load(destination / info["signal_support_artifact"])[5, 3] == 1
+    else:
+        assert not calls and labels[5, 3] == 0
+        assert "signal_support_policy" not in info
+
+
+def test_signal_support_never_creates_anchorless_objects_or_changes_constant_anchors():
+    from cytellect_analysis.ncl_signal_support import refine_ncl_signal_support
+
+    # Undefined-class and empty-set arithmetic, not model/image acceptance.
+    image = np.full((5, 5), 3, np.uint8)
+    parents = np.ones((5, 5), np.uint32)
+    anchors = np.zeros((5, 5), np.uint32)
+    labels, support, info = refine_ncl_signal_support(image, anchors, parents)
+    assert not labels.any() and not support.any() and info["objects"] == {}
+    anchors[2, 2] = 7
+    labels, support, info = refine_ncl_signal_support(image, anchors, parents)
+    assert np.array_equal(labels > 0, anchors > 0) and not support.any()
+    assert info["signal_support_parents"][0]["status"] == "insufficient_signal_classes"
+    parents[2, 2] = 0
+    with pytest.raises(ValueError, match="cellpose_refinement_anchor_parent_invalid"):
+        refine_ncl_signal_support(image, anchors, parents)
 
 
 def test_missing_python_dependency_has_runtime_error(monkeypatch, tmp_path):

@@ -55,7 +55,7 @@ class NclCellposeDetectorSpec(CellposeParameters):
 class NclParentCellposeDetectorSpec(CellposeParameters):
     """Parent-conditioned NCL copy; 4.0/4.1 replay is deliberately unchanged."""
     engine: Literal["cellpose-sam-ncl-parent"] = "cellpose-sam-ncl-parent"
-    protocol_version: Literal["4.2.0", "4.2.1"] = "4.2.1"
+    protocol_version: Literal["4.2.0", "4.2.1", "4.3.0"] = "4.3.0"
     smoothing_sigma_px: FiniteFloat = Field(default=0.9, gt=0, le=16)
     parent_background_percentile: FiniteFloat = Field(default=75, ge=0, lt=100)
     nuclear_diameter_fraction: FiniteFloat = Field(default=0.25, gt=0, le=1)
@@ -290,11 +290,11 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
             raise ValueError("cellpose_output_shape_invalid")
         binding_input = raw
         nuclear_exclusions: list[dict] = []
-        if isinstance(detector, NclParentCellposeDetectorSpec) and detector.protocol_version == "4.2.1":
+        if isinstance(detector, NclParentCellposeDetectorSpec) and detector.protocol_version in ("4.2.1", "4.3.0"):
             assert nuclei is not None
             binding_input, nuclear_exclusions = exclude_nuclear_scale_candidates(raw, nuclei, detector.maximum_nuclear_coverage)
         labels, binding = bind_nucleolar_candidates(binding_input, nuclei) if nuclei is not None else (raw.astype(np.uint32), {})
-        if isinstance(detector, NclParentCellposeDetectorSpec) and detector.protocol_version == "4.2.1":
+        if isinstance(detector, NclParentCellposeDetectorSpec) and detector.protocol_version in ("4.2.1", "4.3.0"):
             binding["nuclear_candidate_filter"] = {"protocol_version": "1.0.0", "maximum_nuclear_coverage": detector.maximum_nuclear_coverage,
                                                   "minimum_parent_purity": 0.9, "policy": "reject_whole_instance_keep_raw_artifact"}
             binding["nuclear_candidate_exclusions"] = nuclear_exclusions
@@ -313,6 +313,22 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
         if nuclei is not None and receipt.get("normalization", {}).get("constant_signal"):
             binding["nucleolar_states"] = {parent: "indeterminate" for parent in binding["nucleolar_states"]}
             binding["indeterminate_reason"] = "constant_detection_signal"
+        if isinstance(detector, NclParentCellposeDetectorSpec) and detector.protocol_version == "4.3.0":
+            from .ncl_signal_support import refine_ncl_signal_support
+
+            assert nuclei is not None
+            anchors = labels.copy()
+            np.save(output_dir / "cellpose-anchor-labels.npy", anchors, allow_pickle=False)
+            labels, support, refined = refine_ncl_signal_support(image, anchors, nuclei)
+            # Preserve source model identity, parent evidence and review states.
+            for item in refined["objects"].values():
+                item["source_model_objects"] = [binding["objects"][ident] for ident in item["source_anchor_ids"]]
+            binding.update(refined)
+            np.save(output_dir / "cellpose-signal-support-labels.npy", support, allow_pickle=False)
+            binding.update({"anchor_mask_artifact": "cellpose-anchor-labels.npy",
+                            "anchor_mask_sha256": _array_hash(anchors, "<u4"),
+                            "signal_support_artifact": "cellpose-signal-support-labels.npy",
+                            "signal_support_sha256": _array_hash(support, "<u4")})
         np.save(output_dir / "cellpose-labels.npy", labels, allow_pickle=False)
         info = {"engine": detector.engine, "nucleolar_detector_protocol_version": detector.protocol_version,
                 "model": detector.model, "model_sha256": MODEL_SHA256,
