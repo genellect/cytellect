@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import lp from "./lp-sections.module.css";
+import { Reveal } from "./Reveal";
 
 const lead = "私たちの体は、約30兆個もの細胞から成り立っている。これらの細胞に生じる変異は、ときにがんや神経変性疾患といった病気の引き金となり、私たちの健康を脅かす。こうした病気の原因を突き止め、がんや認知症などの克服につなげるため、研究者たちは顕微鏡を通して、細胞の内部で何が起きているのかを解き明かそうとしてきた。";
 
@@ -41,27 +42,22 @@ export function LandingStory() {
     }
     setOpen(next);
   };
-  return <section className={lp.section} aria-label="Cytellectが生まれた理由">
-    <div className={[lp.container, lp.head].join(" ")}>
-      <div className={[lp.title, lp.sticky].join(" ")}>
-        <p className={lp.eyebrow}>Why Cytellect</p>
-        <h2 id="story-title" className={lp.h2}><span className={lp.phrase}>Cytellectが</span><span className={lp.phrase}>生まれた理由</span></h2>
-      </div>
-      <div className={[lp.text, lp.body].join(" ")}>
-        <p>{lead}</p>
-        <div id="story-more" ref={more} className={lp.more} inert={!open}>
-          <div>
-            {body.map(text => <p key={text.slice(0, 12)}>{text}</p>)}
-            <p>こうした課題を解決するために開発したのが、「Cytellect」である。</p>
-            {answer.map(text => <p key={text.slice(0, 12)}>{text}</p>)}
-            <p>{closing}</p>
-          </div>
+  const paragraph = (text: string) => <p key={text.slice(0, 12)} className={lp.reveal}><Reveal text={text} /></p>;
+  return <section className={[lp.section, lp.story].join(" ")} aria-label="Cytellectが生まれた理由">
+    <div className={lp.column}><div className={lp.prose}>
+      {paragraph(lead)}
+      <div id="story-more" ref={more} className={lp.more} inert={!open}>
+        <div>
+          {body.map(paragraph)}
+          {paragraph("こうした課題を解決するために開発したのが、「Cytellect」である。")}
+          {answer.map(paragraph)}
+          {paragraph(closing)}
         </div>
-        <button type="button" className={lp.toggle} aria-expanded={open} aria-controls="story-more"
-          data-lp-event={open ? undefined : "story"} onClick={toggle}>
-          <span>{open ? "閉じる" : "続きを読む"}</span><span aria-hidden="true" className={lp.toggleIcon} />
-        </button>
       </div>
-    </div>
+      <button type="button" className={lp.button} aria-expanded={open} aria-controls="story-more"
+        data-lp-event={open ? undefined : "story"} onClick={toggle}>
+        <span>{open ? "閉じる" : "続きを読む"}</span><span aria-hidden="true" className={lp.toggleIcon} />
+      </button>
+    </div></div>
   </section>;
 }

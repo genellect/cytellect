@@ -34,13 +34,15 @@ landing-page copy and repeated feature-card layouts.
   the intended visual quality rather than remove the requested art direction.
 - Use the actual photography, composition, whitespace and typography to carry
   the visual identity. Do not explain the intended atmosphere in the copy.
-- Below the hero, every section uses one system (`lp-sections.module.css`): a
-  single 12-column container; an English label and the Japanese heading on
-  columns 1-6; running text on columns 7-12; media under the head on the same
-  container. Four type sizes (label, heading, body, small) and two text
-  colours. Running Japanese text is justified with strict line breaking
-  (left-aligned on narrow screens). Emphasis comes from hierarchy, not from
-  coloured or glowing words inside running text.
+- Below the hero, take Lila's design and emotional pull, not its grid
+  (`lp-sections.module.css`): no section titles or English labels. Each
+  section opens with its own first sentence set large (weight 400), followed
+  by quiet body text in the same single column; pictures use wide rounded
+  panels, and a pale panel marks the exported figure and the download. The
+  owner's story has no title and is set in one size throughout. Large
+  sentences and the story brighten phrase by phrase as they scroll in
+  (CSS scroll timeline; static under reduced motion). Japanese lines break
+  at phrase boundaries; no coloured or glowing words inside running text.
 - Primary action: **ダウンロード**. Product examples and setup information have
   separate, direct links.
 - Alternate full-width photography, portrait compositions, readable product
