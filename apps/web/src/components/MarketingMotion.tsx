@@ -15,7 +15,7 @@ export function ProductWalkthrough() {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   return <div className={styles.screenFrame}>
-    {open && !failed ? <video className={styles.walkthroughVideo} controls autoPlay muted playsInline preload="none" poster="/marketing/workspace-public.png" aria-label="解析の操作例" onError={() => { setFailed(true); setOpen(false); }}><source src="/marketing/workspace-public.mp4" type="video/mp4" onError={() => { setFailed(true); setOpen(false); }} /></video> : <picture><source media="(max-width: 760px)" srcSet="/marketing/workspace-public-mobile.png" width={340} height={600} /><img src="/marketing/workspace-public.png" alt="公開蛍光画像を読み込んだCytellectの解析画面。視野一覧と検出領域、測定条件を確認できる。" width={1520} height={744} loading="lazy" /></picture>}
+    {open && !failed ? <video className={styles.walkthroughVideo} controls autoPlay muted playsInline preload="none" poster="/marketing/workspace-public.png" aria-label="解析の操作例" onError={() => { setFailed(true); setOpen(false); }}><source src="/marketing/workspace-public.mp4" type="video/mp4" onError={() => { setFailed(true); setOpen(false); }} /></video> : <picture><source media="(max-width: 760px)" srcSet="/marketing/workspace-public-mobile.png" width={680} height={858} /><img src="/marketing/workspace-public.png" alt="公開蛍光画像を読み込んだCytellectの解析画面。3視野で検出した核の輪郭と、核ごとの測定値を確認できる。" width={1520} height={744} loading="lazy" /></picture>}
     <div className={styles.walkthroughBar}>{failed ? <span role="status">映像を読み込めませんでした。画面例をご確認ください。</span> : <button type="button" onClick={() => setOpen(!open)}>{open ? "画面例に戻る" : "操作例を見る"} <span aria-hidden="true">{open ? "×" : "▷"}</span></button>}</div>
   </div>;
 }

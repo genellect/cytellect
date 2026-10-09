@@ -42,6 +42,24 @@
       "path": "apps/web/public/fonts/subset-manifest.json",
       "sha256": "bc641f9a3bdd0730f6c6464699c6688489c30c7e8015109d26ce8d217fd3269c",
       "reason": "Font subset input SHA-256 independently matched to public apps/web/src/lib/api.ts at 80c87e2a2743295a99426f3b28984fd1ffee869d. API in the filename triggers the generic rule. Exact checksum and manifest path only."
+    },
+    {
+      "rule_id": "generic-api-key",
+      "path": "apps/web/public/fonts/subset-manifest.json",
+      "sha256": "2735d471e23818febfd028c89c39ccc1c9a2668504df2d4f51a803dcbd5ecd42",
+      "reason": "Font subset input SHA-256 independently matched to public apps/web/src/components/workspace/ApiWorkspace.tsx at aadc2b47914d54ca83d7c26739ec5b581bf7cc19. API in the filename triggers the generic rule. Exact checksum and manifest path only."
+    },
+    {
+      "rule_id": "generic-api-key",
+      "path": "apps/web/public/fonts/subset-manifest.json",
+      "sha256": "dee121c5281fcbaf4fa645b653b31348a44066c14c5c04995da7a30d9ef6aa96",
+      "reason": "Font subset input SHA-256 independently matched to public apps/web/src/components/workspace/WorkspaceAccess.tsx at aadc2b47914d54ca83d7c26739ec5b581bf7cc19. Access in the filename triggers the generic rule. Exact checksum and manifest path only."
+    },
+    {
+      "rule_id": "generic-api-key",
+      "path": "apps/web/public/fonts/subset-manifest.json",
+      "sha256": "7295f921cf4dde3973161929a5e5fb7305b3753d7e3ef47fbbb3663fb0fe1de7",
+      "reason": "Font subset input SHA-256 independently matched to public apps/web/src/lib/api.ts at aadc2b47914d54ca83d7c26739ec5b581bf7cc19. API in the filename triggers the generic rule. Exact checksum and manifest path only."
     }
   ],
   "gitleaks": {
