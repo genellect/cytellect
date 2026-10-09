@@ -20,6 +20,7 @@ test("the configured analysis screen requires a session and enters the workspace
     const method = route.request().method(), path = new URL(route.request().url()).pathname;
     if (method === "OPTIONS") return route.fulfill({status:204, headers});
     if (path === "/v1/session") return route.fulfill({status: authenticated ? 200 : 401, headers, contentType:"application/json", body:JSON.stringify(authenticated ? {authenticated:true,retention_hours:24,demo:false} : {detail:"session_required"})});
+    if (path === "/v1/workspaces" && method === "GET") return route.fulfill({status:authenticated ? 200 : 401,headers,contentType:"application/json",body:authenticated ? "[]" : '{"detail":"session_required"}'});
     if (path === "/v1/invitations/redeem") {expect(route.request().postDataJSON()).toEqual({token}); authenticated = true;return route.fulfill({headers,contentType:"application/json",body:"{}"});}
     return route.fulfill({status:404, headers,contentType:"application/json",body:'{"detail":"not_found"}'});
   });

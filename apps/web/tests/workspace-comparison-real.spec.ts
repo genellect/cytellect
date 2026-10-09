@@ -34,6 +34,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   const files = [1,2,3,4].flatMap(i => [1,2].map(c => path.join(output, "inputs", `f${i}_c${c}.tif`)));
   await page.goto(resume ? `/workspace?id=${resume}` : "/workspace");
   if (!resume) {
+    await expect(page.getByTestId("file-input")).toBeEnabled();
     await page.getByTestId("file-input").setInputFiles(files);
     await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/未測定/})).toHaveCount(4, {timeout:120000});
     await page.getByRole("button", {name:"染色対応", exact:true}).click();
