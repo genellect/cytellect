@@ -4,6 +4,8 @@ import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-vi
 import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
 import type {DistributionPoint, FieldSummary} from "./adapter";
+import type {NclObjectProcessingDetector} from "./nucleolar-definition";
+import type {AnyCellposeProcessingDetector} from "./cellpose-settings";
 import type { ProposalProcessing, NuclearProcessingDetector, SignalProcessingDetector } from "./proposal-processing";
 import {localProposal, type ProposalChannelLink} from "./proposal-mapping";
 
@@ -49,10 +51,10 @@ interface Report {
 export interface FigureChoice {metric: string; channel: string | null; width: number; height: number; label: string; xLabel?: string; fontSize?: number; language?: "ja" | "en"; yMin?: number | null; yMax?: number | null; yTickStep?: number | null; pointSize?: number | null}
 export interface SavedFigure {job: string; revision: string; choice: FigureChoice; result: DescriptiveResult}
 export interface Recipe {
-  id: "region-2d"; version: "1.0.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.7.0"; region_set_id: string; label: string;
-  source: "manual" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment"; defining_channel_id: string;
+  id: "region-2d"; version: "1.0.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.7.0" | "1.8.0"; region_set_id: string; label: string;
+  source: "manual" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment" | "cellpose_cell"; defining_channel_id: string;
   compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
-  detector?: NuclearProcessingDetector | SignalProcessingDetector | {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
+  detector?: AnyCellposeProcessingDetector | NclObjectProcessingDetector | NuclearProcessingDetector | SignalProcessingDetector | {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
     | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number};
   nucleolar_revision_id?: string;
   nuclear_role_source?: "recorded_stain" | "user_selected_role";

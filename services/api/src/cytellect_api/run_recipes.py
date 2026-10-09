@@ -2,6 +2,8 @@
 from copy import deepcopy
 from math import floor
 
+from cytellect_analysis.cellpose_engine import CellposeDetectorSpec, NclParentCellposeDetectorSpec
+from cytellect_analysis.ncl_objects import NclObjectDetector
 from cytellect_analysis.region_contracts import RegionAnalysisRequest
 
 from .analysis_spec import AnalysisSpec
@@ -50,8 +52,24 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
     # stain identities remain unknown; the registered images are still measured.
     channel = choices[0] if choices else None
     if target == "cell":
-        recipe = {"id": "region-2d", "version": "1.0.0", "source": "manual", "region_set_id": "cell",
-                  "label": "細胞ROI", "defining_channel_id": channel}
+        cell = settings["cellDefinition"]
+        proposed = processing.get("cells")
+        if cell["source"] == "cellpose":
+            channel = cell["channel"]
+            known = {item["channel_id"] for item in channel_assignments["assignments"] if item["role"] != "unused"}
+            if not channel:
+                raise ValueError("analysis_run_cell_channel_required")
+            if channel_assignments["version"] and channel not in known:
+                raise ValueError("analysis_run_cell_channel_unknown")
+            detector = (deepcopy(proposed["detector"]) if proposed and proposed["channel"] == channel
+                        else CellposeDetectorSpec().model_dump(mode="json"))
+            recipe = {"id": "region-2d", "version": "1.8.0", "source": "cellpose_cell", "region_set_id": "cell",
+                      "label": "細胞", "defining_channel_id": channel, "detector": detector}
+            if parent and parent_recipe.get("source") == "stardist_nuclear":
+                recipe.update(nuclear_revision_id=parent["id"], nuclear_channel_id=parent_recipe["defining_channel_id"])
+        else:
+            recipe = {"id": "region-2d", "version": "1.0.0", "source": "manual", "region_set_id": "cell",
+                      "label": "細胞ROI", "defining_channel_id": channel}
     elif target == "nuclei":
         side = settings["nuclearMaxSide"]
         proposed = processing.get("nuclei")
@@ -84,16 +102,26 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
                 and historical_detector.get("protocol_version") == "2.0.0"):
             proposed_detector = historical_detector
         if definition["source"] == "ncl":
-            detector = deepcopy(proposed_detector) if proposed_detector and proposed_detector["engine"] == "fiji-nucleolar-compartments" else {
-                "engine": "fiji-nucleolar-compartments", "protocol_version": "1.1.0", "threshold_method": "otsu",
-                "threshold": None, "smoothing_sigma_px": 0, "minimum_area_px": 1, "maximum_area_px": None, "split_touching": False}
+            algorithm = definition["algorithm"]
+            engine = {"cellpose": "cellpose-sam-ncl-parent", "objects": "cytellect-ncl-objects", "legacy": "fiji-nucleolar-compartments"}.get(algorithm)
+            compatible = ("cellpose-sam", "cellpose-sam-ncl", "cellpose-sam-ncl-parent") if algorithm == "cellpose" else (engine,)
+            if proposed_detector and (engine is None or proposed_detector["engine"] in compatible):
+                detector = deepcopy(proposed_detector)
+            elif algorithm == "cellpose":
+                detector = NclParentCellposeDetectorSpec().model_dump(mode="json")
+            elif algorithm == "legacy":
+                detector = {"engine": "fiji-nucleolar-compartments", "protocol_version": "1.1.0", "threshold_method": "otsu", "threshold": None,
+                            "smoothing_sigma_px": 0, "minimum_area_px": 1, "maximum_area_px": None, "split_touching": False}
+            else:
+                detector = NclObjectDetector().model_dump(mode="json")
             # Visible explicit settings override the compatible saved/AI detector.
             # Null sigma/minimum retain its setting (or the established default);
             # null maximum explicitly removes the upper area bound.
-            for source, destination in (("nucleolarSigma", "smoothing_sigma_px"), ("nucleolarMinimumArea", "minimum_area_px")):
+            for source, destination in (() if detector["engine"] in ("cellpose-sam", "cellpose-sam-ncl", "cellpose-sam-ncl-parent") else (("nucleolarSigma", "smoothing_sigma_px"), ("nucleolarMinimumArea", "minimum_area_px"))):
                 if settings[source] is not None:
                     detector[destination] = settings[source]
-            detector["maximum_area_px"] = settings["nucleolarMaximumArea"]
+            if detector["engine"] not in ("cellpose-sam", "cellpose-sam-ncl", "cellpose-sam-ncl-parent") and (detector["engine"] == "fiji-nucleolar-compartments" or settings["nucleolarMaximumArea"] is not None):
+                detector["maximum_area_px"] = settings["nucleolarMaximumArea"]
         else:
             detector = _nucleolar_defaults(definition)
             if proposed_detector and proposed_detector["engine"] == "cytellect-nucleolar-v2" and proposed_detector["source"] == detector["source"]:

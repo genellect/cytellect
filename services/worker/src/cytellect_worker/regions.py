@@ -10,6 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
+from cytellect_analysis.cellpose_engine import detect_cellpose
 from cytellect_analysis.compartment_engine import detect_compartments, nucleoplasm_from_adopted_nucleoli
 from cytellect_analysis.compartment_review import comparable_region_recipe
 from cytellect_analysis.compartment_summary import compartment_summary
@@ -27,6 +28,7 @@ from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
     AutoScaledNuclearRecipe,
     RegionAnalysisRequest,
+    RegionCellposeRecipe,
     RegionCompartmentRecipe,
     RegionFieldMetadata,
     RegionImageInfo,
@@ -41,7 +43,7 @@ from cytellect_analysis.region_contracts import (
     validate_region_report_policy,
 )
 from cytellect_analysis.region_measurement_v2 import measure_regions_versioned
-from cytellect_analysis.region_metadata import validate_region_reuse
+from cytellect_analysis.region_metadata import channel_pixel_identity, validate_region_reuse
 from cytellect_analysis.region_policy import measurement_protocol
 from cytellect_analysis.regions import _array_hash
 from cytellect_analysis.signal_engine import detect_positive_regions
@@ -52,6 +54,10 @@ from cytellect_api.storage import read_json, write_json
 from .provenance import software_identity
 
 REGION_FIELD_ERRORS = {
+    "cellpose_adapter_missing", "cellpose_runtime_missing", "cellpose_model_missing",
+    "cellpose_adapter_integrity_failed", "cellpose_model_integrity_failed", "cellpose_input_invalid",
+    "cellpose_inference_failed", "cellpose_inference_timeout", "cellpose_output_shape_invalid",
+    "cellpose_gpu_unavailable", "cellpose_runtime_version_mismatch", "cellpose_memory_exhausted",
     "region_input_file_missing", "region_input_file_size_mismatch", "region_input_file_hash_mismatch",
     "region_source_array_invalid", "region_source_shape_or_dtype_invalid",
     "region_source_snapshot_missing", "region_source_snapshot_mismatch", "region_field_kind_mismatch",
@@ -312,7 +318,7 @@ def run_region_analysis(store, settings, job, output):
                 raise ValueError("region_source_shape_or_dtype_invalid")
             if request.recipe.defining_channel_id is not None and request.recipe.defining_channel_id not in channels:
                 raise ValueError("region_unknown_defining_channel")
-            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe))
+            nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe, RegionCellposeRecipe))
             if nuclear and image_info.labels_array is not None:
                 raise ValueError("region_automatic_source_has_imported_labels")
             previously_selected = parent is not None and fid in parent["config"]["field_snapshot"]
@@ -325,6 +331,10 @@ def run_region_analysis(store, settings, job, output):
             if fid in config.get("region_metadata_edit", {}).get("fields", {}):
                 history.append({"revision_id": revision["id"], "operation": "metadata",
                                 "metadata_edit_version": "1.0.0"})
+            if fid in config.get("channel_annotation_edit", {}).get("fields", {}):
+                assert parent is not None
+                history.append({"revision_id": revision["id"], "operation": "channel_annotation",
+                                "source_revision_id": parent["id"], "annotation_version": "1.0.0"})
             provenance_fields[fid] = {"history": history, "inputs": image_info.model_dump(mode="json")["inputs"],
                                       "source_channels": [c.model_dump(mode="json") for c in image_info.channels]}
             source_nuclei = None
@@ -332,8 +342,8 @@ def run_region_analysis(store, settings, job, output):
             # Every source nucleus, including excluded ones, is kept out of an
             # automatic background candidate; it is never used for measurement.
             background_exclusion = None
-            if isinstance(request.recipe, RegionCompartmentRecipe):
-                source_recipe = (RegionCompartmentRecipe.model_validate(parent["config"]["recipe"])
+            if isinstance(request.recipe, RegionCompartmentRecipe) or (isinstance(request.recipe, RegionCellposeRecipe) and request.recipe.nuclear_revision_id is not None):
+                source_recipe = (type(request.recipe).model_validate(parent["config"]["recipe"])
                                  if cohort is not None and parent is not None else request.recipe)
                 source_nuclei, background_exclusion, source_identity = _compartment_nuclei(
                     store, source_recipe, revision["workspace_id"], fid, image_info)
@@ -357,7 +367,7 @@ def run_region_analysis(store, settings, job, output):
                         or _array_hash(labels, "<u4") != old_mask["mask_sha256"]):
                     raise ValueError("region_parent_mask_mismatch")
                 mask_revision_id = old_mask["mask_revision_id"]
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe, RegionCellposeRecipe)):
                     detector = deepcopy(previous_provenance.get("fields", {}).get(fid, {}).get("detector"))
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
@@ -365,6 +375,12 @@ def run_region_analysis(store, settings, job, output):
                     recorded_channel = detector.get("defining_channel") if isinstance(detector, dict) else None
                     current_channel = channel.model_dump(mode="json")
                     same_channel = recorded_channel == current_channel
+                    if (not same_channel and isinstance(recorded_channel, dict)
+                            and fid in config.get("channel_annotation_edit", {}).get("fields", {})
+                            and channel_pixel_identity(recorded_channel) == channel_pixel_identity(current_channel)):
+                        same_channel = True
+                        detector.setdefault("defining_channel_at_detection", deepcopy(recorded_channel))
+                        detector["defining_channel"] = current_channel
                     if not same_channel and isinstance(recorded_channel, dict) and current_channel.get("identity_confirmed") is True:
                         # Explicit identity confirmation changes evidence only, never acquisition metadata.
                         same_channel = ({key: value for key, value in recorded_channel.items() if key not in ("identity_source", "identity_confirmed")}
@@ -386,7 +402,7 @@ def run_region_analysis(store, settings, job, output):
             else:
                 if (edit and edit.field_id == fid) or (previously_selected and fid in previous_report.get("field_tables", {})):
                     raise ValueError("region_parent_mask_missing")
-                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe)):
+                if isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe, RegionCellposeRecipe)):
                     channel = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
                     image = channels[channel.channel_id]
                     detection_started = True
@@ -410,6 +426,15 @@ def run_region_analysis(store, settings, job, output):
                             scratch_root=output.parent,
                         )
                         labels = masks[request.recipe.compartment]
+                    elif isinstance(request.recipe, RegionCellposeRecipe):
+                        labels, engine_info = detect_cellpose(image, request.recipe.detector, destination / "engine")
+                        if source_nuclei is not None:
+                            pairs = {}
+                            for nucleus_id in (int(v) for v in np.unique(source_nuclei) if v):
+                                values, counts = np.unique(labels[source_nuclei == nucleus_id], return_counts=True)
+                                pairs[nucleus_id] = {int(v): int(n) for v, n in zip(values, counts, strict=True)}
+                            engine_info["nuclear_cell_overlap_pixels"] = pairs
+                            engine_info["nuclear_association_policy"] = "record_all_overlaps_no_forced_one_to_one"
                     elif isinstance(request.recipe, RegionSignalRecipe):
                         labels, engine_info = detect_positive_regions(
                             image, request.recipe.detector, destination / "engine", settings.fiji_executable or "",
@@ -495,6 +520,7 @@ def run_region_analysis(store, settings, job, output):
             table = measure_regions_versioned(channels, labels, background_masks, specification,
                                               background_exclusion=background_exclusion if automatic else None)
             if (summary_inputs is None and isinstance(request.recipe, RegionCompartmentRecipe)
+                    and isinstance(source_recipe, RegionCompartmentRecipe)
                     and source_recipe.nucleolar_revision_id is not None):
                 # Remeasuring an adopted nucleoplasm mask must also regenerate
                 # its compartment summaries from the same pinned parent masks.

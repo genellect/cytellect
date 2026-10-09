@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { checkRequest, handle, readConfig, worstCaseUsd, type Env } from "./index";
-import { hasDraftShape, observedCost } from "./openai";
+import { hasDraftShape, observedCost, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION } from "./openai";
 import { MemoryStore } from "./store";
 
 const DRAFT = {
@@ -42,6 +42,16 @@ async function device(store: MemoryStore, env = ENV) {
 }
 
 describe("proposal service", () => {
+  it.each([PROMPT_VERSION,NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION])("negotiates the requested refinement generation: %s",async promptVersion=>{
+    const store=new MemoryStore(),token=await device(store);
+    const fetcher=vi.fn(async()=>modelReply(JSON.stringify(DRAFT)));
+    const response=await handle(post("/v1/proposals",{context:CONTEXT,prompt_version:promptVersion},token),ENV,store,{fetcher});
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({draft:DRAFT,model:ENV.OPENAI_MODEL,prompt_version:promptVersion});
+    const payload=JSON.parse((fetcher.mock.calls[0] as unknown as [string,RequestInit])[1].body as string);
+    expect(payload.input[0].content[0].text).toContain(promptVersion===PROMPT_VERSION?"cellpose-sam-ncl-parent/4.3.0":"cellpose-sam-ncl-parent/4.2.1");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it.each(["invalid_json_schema", "insufficient_quota", "private-unknown-code"])("returns only sanitized authenticated provider diagnostics: %s", async providerCode => {
     const store = new MemoryStore(), token = await device(store);
     const fetcher = vi.fn(async () => Response.json({ error: { code: providerCode, message: "private-key private-research-context", param: "private-field" } },

@@ -3,6 +3,7 @@ import importlib.util
 import json
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -24,7 +25,8 @@ def test_source_allowlist_denies_research_and_runtime(name):
 
 
 def fixture_tree(root):
-    names = bundle.ROOT_FILES | bundle.SCRIPTS | bundle.RUNTIME_RECORDS | {"scripts/windows/Cytellect Setup.cmd"}
+    names = bundle.ROOT_FILES | bundle.SCRIPTS | bundle.RUNTIME_RECORDS | bundle.CELLPOSE_ASSETS | {
+        "scripts/windows/Cytellect Setup.cmd"}
     for name in names:
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -51,6 +53,37 @@ def test_manifest_has_exact_hashes_and_protects_existing_release(tmp_path):
     assert digest == hashlib.sha256(output.read_bytes()).hexdigest()
     with pytest.raises(FileExistsError):
         bundle.write_bundle(output, files, "0.1.0-local.1", "a" * 40)
+
+
+def test_cellpose_code_locks_and_setup_are_required_in_bundle(tmp_path):
+    names, web = fixture_tree(tmp_path)
+    files = bundle.collect_files(tmp_path, names, web)
+    assert bundle.CELLPOSE_ASSETS <= files.keys()
+    assert {"scripts/cellpose_setup.py", "scripts/cellpose_setup.ps1"} <= files.keys()
+    assert bundle.source_allowed("packages/analysis/src/cytellect_analysis/cellpose_engine.py")
+    assert not bundle.source_allowed("engines/cellpose/cpsam_v2")
+    assert not bundle.source_allowed("engines/cellpose/private.npy")
+    assert not bundle.source_allowed("engines/cellpose/private-settings.json")
+    names.remove("engines/cellpose/runner.py")
+    with pytest.raises(ValueError, match="bundle_required_source_missing"):
+        bundle.collect_files(tmp_path, names, web)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows optional setup requires Windows PowerShell")
+def test_cellpose_optional_setup_missing_python_preserves_settings(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    existing = tmp_path / "installation/settings/cellpose.json"
+    existing.parent.mkdir(parents=True)
+    existing.write_text("existing accepted configuration", encoding="utf-8")
+    missing = tmp_path / "missing-python.exe"
+    result = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                             str(root / "scripts/cellpose_setup.ps1"),
+                             "-Python312", str(missing), "-InstallRoot", str(tmp_path / "installation")],
+                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+    assert result.returncode == 1
+    assert "https://www.python.org/downloads/windows/" in result.stdout
+    assert str(missing) not in result.stdout + result.stderr
+    assert existing.read_text(encoding="utf-8") == "existing accepted configuration"
 
 
 def test_unexpected_static_file_is_not_silently_distributed(tmp_path):

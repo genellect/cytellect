@@ -5,6 +5,19 @@ from copy import deepcopy
 
 from .region_contracts import RegionMetadataChange, RegionMetadataEdit
 
+CHANNEL_ANNOTATIONS = frozenset({"label", "stain", "identity_source", "identity_confirmed"})
+
+
+def channel_pixel_identity(channel: dict) -> dict:
+    """Names/evidence can be corrected; channel IDs and acquisition facts cannot."""
+    return {key: value for key, value in channel.items() if key not in CHANNEL_ANNOTATIONS}
+
+
+def image_pixel_identity(info: dict) -> dict:
+    value = deepcopy(info)
+    value["channels"] = [channel_pixel_identity(channel) for channel in value.get("channels", [])]
+    return value
+
 
 def region_metadata_child_config(parent, edit: RegionMetadataEdit) -> dict:
     """Change only recorded metadata; the source revision and pixels stay intact."""
@@ -12,7 +25,7 @@ def region_metadata_child_config(parent, edit: RegionMetadataEdit) -> dict:
     snapshot = config["field_snapshot"]
     if not set(edit.fields).issubset(snapshot):
         raise ValueError("unknown_region_metadata_field")
-    for key in ("region_edit", "region_metadata_edit", "review_record"):
+    for key in ("region_edit", "region_metadata_edit", "channel_annotation_edit", "review_record"):
         config.pop(key, None)
     updates = edit.model_dump(mode="json")["fields"]
     for fid, metadata in updates.items():
@@ -39,8 +52,23 @@ def validate_region_reuse(parent, config: dict, recipe: dict, *, verified_depend
         if edit.source_revision_id != parent["id"] or not set(edit.fields).issubset(previous):
             raise ValueError("region_metadata_source_mismatch")
         updates = edit.model_dump(mode="json")["fields"]
+    annotations = config.get("channel_annotation_edit")
+    if annotations is not None:
+        if (not isinstance(annotations, dict) or annotations.get("version") != "1.0.0"
+                or annotations.get("source_revision_id") != parent["id"]
+                or not isinstance(annotations.get("fields"), dict)
+                or set(annotations["fields"]) - set(previous)
+                or any(not isinstance(channels, list) or not all(isinstance(channel, dict) for channel in channels)
+                       for channels in annotations["fields"].values())):
+            raise ValueError("region_metadata_source_mismatch")
     for fid, source in previous.items():
         expected = {**source, "metadata": updates[fid]} if fid in updates else source
+        if annotations is not None and fid in annotations["fields"]:
+            expected = deepcopy(expected)
+            revised = {**expected["image_info"], "channels": annotations["fields"][fid]}
+            if image_pixel_identity(expected["image_info"]) != image_pixel_identity(revised):
+                raise ValueError("region_parent_definition_changed")
+            expected["image_info"] = revised
         if config.get("confirmed_channel_ids"):
             if config.get("measurement") is not None:
                 raise ValueError("region_parent_definition_changed")

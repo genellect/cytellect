@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, FiniteFloat, StrictInt, TypeAdapter, field_validator, model_validator
 
+from .cellpose_engine import CellposeDetectorSpec
 from .compartment_engine import NucleolarDetector, NucleolarDetectorSpec
 from .plan_adoption import PlanResolution
 from .region_measurement_v2 import (
@@ -270,7 +271,25 @@ class RegionCompartmentRecipe(RegionModel):
         return self
 
 
-RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | ScaledNuclearRecipe | AutoScaledNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe, Field(discriminator="version")]
+class RegionCellposeRecipe(RegionModel):
+    id: Literal["region-2d"] = "region-2d"
+    version: Literal["1.8.0"] = "1.8.0"
+    region_set_id: Literal["cell"] = "cell"
+    label: Label = "細胞"
+    source: Literal["cellpose_cell"] = "cellpose_cell"
+    defining_channel_id: Id
+    detector: CellposeDetectorSpec = Field(default_factory=CellposeDetectorSpec)
+    nuclear_revision_id: Id | None = None
+    nuclear_channel_id: Id | None = None
+
+    @model_validator(mode="after")
+    def nuclear_binding(self):
+        if (self.nuclear_revision_id is None) != (self.nuclear_channel_id is None):
+            raise ValueError("cellpose_nuclear_binding_incomplete")
+        return self
+
+
+RegionRecipeType = Annotated[RegionRecipe | RegionNuclearRecipe | AdoptedNuclearRecipe | ScaledNuclearRecipe | AutoScaledNuclearRecipe | RegionSignalRecipe | RegionCompartmentRecipe | RegionCellposeRecipe, Field(discriminator="version")]
 
 
 RECORDED_NUCLEAR_STAINS = frozenset({"dapi", "hoechst", "hoechst33258", "hoechst33342", "draq", "draq5", "draq7"})
@@ -414,7 +433,7 @@ class RegionFieldMask(RegionModel):
     mask_revision_id: Id
     mask_sha256: Digest
     region_set_id: Id
-    source: Literal["manual", "imported", "stardist_nuclear", "fiji_positive_regions", "fiji_nuclear_compartment"]
+    source: Literal["manual", "imported", "stardist_nuclear", "fiji_positive_regions", "fiji_nuclear_compartment", "cellpose_cell"]
     shape: Annotated[list[Annotated[int, Field(ge=1, le=4096)]], Field(min_length=2, max_length=2)]
     file: RegionStoredFile
 

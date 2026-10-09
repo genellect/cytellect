@@ -1,6 +1,8 @@
 /** Apply only locally validated, registered settings. This module never starts a job. */
 import { nuclearRecipe, type Recipe, type ValidatedProposal } from "./api-adapter";
 import type { ChannelDefinition } from "./grouping";
+import type {NclObjectProcessingDetector} from "./nucleolar-definition";
+import {isCellposeDetector,type CellposeProcessingDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
 
 export interface NuclearProcessingDetector {
   engine: "fiji-stardist-2d"; model: "Versatile (fluorescent nuclei)";
@@ -24,7 +26,8 @@ export interface NucleolarProcessingDetector {
 export interface ProposalProcessing {
   version: "1.0.0";
   nuclei: {channel: string; detection_max_side_px: number | null; detector: NuclearProcessingDetector} | null;
-  nucleoli: {channel: string; detector: LegacyNucleolarProcessingDetector | NucleolarProcessingDetector} | null;
+  nucleoli: {channel: string; detector: LegacyNucleolarProcessingDetector | NucleolarProcessingDetector | NclObjectProcessingDetector | AnyCellposeProcessingDetector} | null;
+  cells?: {channel: string; detector: CellposeProcessingDetector} | null;
   signal: {channel: string; detector: SignalProcessingDetector} | null;
 }
 
@@ -32,7 +35,7 @@ export interface ProposalProcessing {
 export function applicableProcessing(proposal: ValidatedProposal, channels: ChannelDefinition[]): ProposalProcessing | null {
   const processing = proposal.draft.processing;
   if (!processing || processing.version !== "1.0.0") return null;
-  for (const operation of [processing.nuclei, processing.nucleoli, processing.signal]) {
+  for (const operation of [processing.nuclei, processing.nucleoli, processing.signal, processing.cells]) {
     if (operation && (!channels.some(channel => channel.token === operation.channel)
       || proposal.needs_confirmation.includes(operation.channel))) return null;
   }
@@ -63,15 +66,18 @@ export function proposalSignalRecipe(processing: ProposalProcessing, target: "gf
 }
 
 /** Restore settings from adopted revisions without resurrecting an old conversation or starting a job. */
-export function savedProcessing(nuclear?: Recipe, nucleolar?: Recipe, signal?: Recipe): ProposalProcessing | null {
-  if (!nuclear || nuclear.source !== "stardist_nuclear") return null;
-  const nucleus = nuclear.detector;
+export function savedProcessing(nuclear?: Recipe, nucleolar?: Recipe, signal?: Recipe, cell?: Recipe): ProposalProcessing | null {
+  const validNucleus = nuclear?.source === "stardist_nuclear" ? nuclear : undefined;
+  const validCell = cell?.source === "cellpose_cell" && cell.detector?.engine === "cellpose-sam" ? cell : undefined;
+  if (!validNucleus && !validCell) return null;
+  const nucleus = validNucleus?.detector;
   const child = nucleolar?.source === "fiji_nuclear_compartment" ? nucleolar.detector : null;
   const positive = signal?.source === "fiji_positive_regions" ? signal.detector : null;
-  return {version:"1.0.0",nuclei:{channel:nuclear.defining_channel_id,detection_max_side_px:nuclear.detection_max_side_px ?? null,
-    detector:nucleus?.engine === "fiji-stardist-2d" ? nucleus : {engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:0.5,nms:0.3,percentile_low:1,percentile_high:99.8}},
-    nucleoli:nucleolar && (child?.engine === "cytellect-nucleolar-v2" || (child?.engine === "fiji-nucleolar-compartments" && child.protocol_version === "1.1.0"))
-      ? {channel:nucleolar.defining_channel_id,detector:child as NucleolarProcessingDetector | LegacyNucleolarProcessingDetector} : null,
+  return {version:"1.0.0",nuclei:validNucleus ? {channel:validNucleus.defining_channel_id,detection_max_side_px:validNucleus.detection_max_side_px ?? null,
+    detector:nucleus?.engine === "fiji-stardist-2d" ? nucleus : {engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:0.5,nms:0.3,percentile_low:1,percentile_high:99.8}} : null,
+    nucleoli:nucleolar && (isCellposeDetector(child) || child?.engine === "cytellect-ncl-objects" || child?.engine === "cytellect-nucleolar-v2" || (child?.engine === "fiji-nucleolar-compartments" && child.protocol_version === "1.1.0"))
+      ? {channel:nucleolar.defining_channel_id,detector:child as NonNullable<ProposalProcessing["nucleoli"]>["detector"]} : null,
+    ...(validCell ? {cells:{channel:validCell.defining_channel_id,detector:validCell.detector as CellposeProcessingDetector}} : {}),
     signal:signal && positive?.engine === "fiji-positive-regions" ? {channel:signal.defining_channel_id,detector:positive} : null};
 }
 
@@ -96,6 +102,13 @@ export function withProcessingSettings(recipe: Recipe, processing: ProposalProce
     if (current.engine === "fiji-nucleolar-compartments" && proposed.engine === "fiji-nucleolar-compartments") {
       return {...recipe, detector: {...proposed, ...current}};
     }
+    if (current.engine === "cytellect-ncl-objects" && proposed.engine === "cytellect-ncl-objects") {
+      return {...recipe,detector:{...proposed,...current}};
+    }
+    if (isCellposeDetector(current) && isCellposeDetector(proposed) && current.engine === proposed.engine) return {...recipe,detector:{...proposed,...current}};
+  }
+  if (recipe.source === "cellpose_cell" && processing.cells?.channel === recipe.defining_channel_id && recipe.detector?.engine === "cellpose-sam") {
+    return {...recipe,detector:{...processing.cells.detector,...recipe.detector}};
   }
   return recipe;
 }
