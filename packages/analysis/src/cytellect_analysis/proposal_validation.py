@@ -79,15 +79,17 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         codes.append("proposal_one_nuclear_channel_required")
     if draft.recipe == "nuclear-ncl" and not any(roles.get(token) == "measure" for token in ncl):
         codes.append("proposal_ncl_channel_not_acquired")
-    if draft.recipe == "supplied-regions" and not context.supplied_regions:
+    cell_processing = bool(draft.processing and draft.processing.cells)
+    if draft.recipe == "supplied-regions" and not context.supplied_regions and not cell_processing:
         codes.append("proposal_supplied_regions_absent")
     if draft.recipe == "measured-table" and not context.measured_table:
         codes.append("proposal_measured_table_absent")
     processing = draft.processing
     if processing is not None:
-        if draft.recipe not in ("nuclear-intensity", "nuclear-ncl"):
+        if draft.recipe not in ("nuclear-intensity", "nuclear-ncl") and not (draft.recipe == "supplied-regions" and cell_processing):
             codes.append("proposal_processing_recipe_invalid")
-        if processing.nuclei is None or processing.nuclei.channel not in nuclear:
+        if ((draft.recipe in ("nuclear-intensity", "nuclear-ncl") and processing.nuclei is None)
+                or (processing.nuclei is not None and processing.nuclei.channel not in nuclear)):
             codes.append("proposal_processing_nuclear_channel_invalid")
         if processing.nucleoli is not None:
             candidate = processing.nucleoli
@@ -107,6 +109,8 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
                 codes.append("proposal_processing_marker_not_established")
         if processing.signal is not None and roles.get(processing.signal.channel) != "measure":
             codes.append("proposal_processing_signal_channel_invalid")
+        if processing.cells is not None and roles.get(processing.cells.channel) != "measure":
+            codes.append("proposal_processing_cell_channel_invalid")
     background_mode = draft.background.mode if draft.background else (context.current_background.mode if context.current_background else None)
     background_ready = background_mode == "automatic" or (background_mode != "raw" and context.background_available)
     if draft.background and draft.background.mode == "confirmed_roi" and not context.background_available:
@@ -118,7 +122,7 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
             codes.append("proposal_gfp_channel_not_established")
         if gate.unit == "nucleus" and len(nuclear) != 1:
             codes.append("proposal_one_nuclear_channel_required")
-        if gate.unit == "cell_roi" and not context.supplied_regions:
+        if gate.unit == "cell_roi" and not context.supplied_regions and not cell_processing:
             codes.append("proposal_supplied_regions_absent")
         if gate.method == "negative_control" and not context.negative_control_fields_known:
             codes.append("proposal_gfp_controls_not_registered")

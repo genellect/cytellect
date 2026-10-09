@@ -25,7 +25,30 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
   const origin = process.env.CYTELLECT_WEB_URL!;
   const redeemed = await page.request.post(`${api}/v1/invitations/redeem`, {headers: {Origin: origin, "X-Cytellect-Request": "1"}, data: {token}});
   expect(redeemed.ok()).toBeTruthy();
-  await page.goto("/workspace");
+  // Keep the first actual initial workspace read pending, without replacing its
+  // response. File intake must stay disabled until hydration and loading finish.
+  let releaseInitialization!: () => void;
+  const heldInitialization = new Promise<void>(resolve => {releaseInitialization = resolve;});
+  let initializationPending = false;
+  await page.route(url => url.pathname === "/v1/workspaces", async route => {
+    if (route.request().method() !== "GET" || initializationPending) {
+      await route.continue();
+      return;
+    }
+    initializationPending = true;
+    await heldInitialization;
+    await route.continue();
+  });
+  try {
+    // Waiting for load here could depend on the deliberately held request.
+    await page.goto("/workspace", {waitUntil: "domcontentloaded"});
+    await expect.poll(() => initializationPending).toBe(true);
+    await expect(page.getByTestId("file-input")).toBeDisabled();
+    await expect(page.getByTestId("folder-input")).toBeDisabled();
+  } finally {
+    releaseInitialization();
+  }
+  await expect(page.getByTestId("file-input")).toBeEnabled();
   const uploaded = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/region-fields") && response.request().method() === "POST");
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer, index) => ({name: `a9_c${index + 1}.tif`, mimeType: "image/tiff", buffer})));
   const upload = await uploaded; expect(upload.status()).toBe(201); const field = await upload.json();

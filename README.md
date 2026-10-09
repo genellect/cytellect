@@ -18,6 +18,7 @@ flowchart LR
     Worker["worker"] -->|CAS lease| DB
     Worker --> Child["child process"]
     Child --> Fiji["Fiji · StarDist<br/>(Java bridge)"]
+    Child --> Cellpose["Cellpose-SAM<br/>(optional offline runtime)"]
     Child --> Files
     API -. opt-in .-> Relay["Cloudflare Worker · D1"] --> OpenAI["OpenAI Responses"]
 ```
@@ -29,6 +30,7 @@ flowchart LR
 | `services/worker` | ジョブを CAS lease で取得し、1ジョブ1子プロセスで実行。時間・メモリ超過時はプロセスグループごと停止 |
 | `packages/analysis` | 測定・統計・作図・書き出し・replay（45 モジュール）。API とワーカーで共有 |
 | `engines/fiji` | Fiji / StarDist 2D / MorphoLibJ の lock と Java ブリッジ |
+| `engines/cellpose` | Cellpose-SAM の固定モデル・独立実行環境。NCL候補と細胞ROIに使用し、核検出は StarDist を維持 |
 | `services/proposal-worker` | 解析計画提案の中継（Cloudflare Workers + D1）。既定で無効 |
 
 ## 技術スタック
@@ -50,6 +52,8 @@ flowchart LR
 画像の読み込みでは、OME-XML と TIFF の IFD を突き合わせ、軸、dtype、plane 数、ストリップの位置まで検証しています。欠けた plane を補ったり、外部ファイルを参照する OME を読んだりはしません。
 
 Fiji はリポジトリに同梱していません。Fiji 本体、StarDist のモデル、プラグインを SHA-256 で lock し、実行前に毎回照合しています。実行時に依存を取得することはありません。Python からは Java ブリッジ（`engines/fiji/CytellectEngine.java`）をヘッドレスで起動し、正規化は画像の複製にだけかけ、ラベル画像は元画像と同じ座標で受け取ります。
+
+Cellpose-SAM は、固定した独立実行環境とモデルをセットアップ時に取得し、解析中はネットワークを使いません。NCL検出の局所背景除去は検出用コピーに限定し、測定は原画像から行います。保存済みの旧方式は変更しません。選択した試験画像で再現を確認していますが、別画像には誤検出と取りこぼしが残り、核小体の捕捉精度を全体として検証済みとはしていません。[設定と制限](engines/cellpose/README.md)
 
 ### ジョブと revision
 

@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from cytellect_analysis.common_statistics_contracts import AssociationPlot, CommonComparisonPlot
 from cytellect_analysis.descriptive_contracts import GfpFilter, LegacyMetric, RegionMetric
 from cytellect_analysis.proposal_contracts import (
+    DraftCellProcessing,
     DraftFigure,
     DraftMetric,
     DraftNuclearProcessing,
@@ -28,6 +29,12 @@ class NucleolarDefinitionDraft(RegionModel):
     marker: Annotated[str, Field(max_length=80, pattern=r"^[A-Za-z0-9_-]*$")] = ""
     pixelUm: Annotated[FiniteFloat, Field(gt=0)] | None = None
     relative: Annotated[FiniteFloat, Field(gt=0, lt=1)] = 0.7
+    algorithm: Literal["cellpose", "objects", "legacy"] | None = None
+
+
+class CellDefinitionDraft(RegionModel):
+    source: Literal["manual", "cellpose"] = "manual"
+    channel: Annotated[str, Field(max_length=80, pattern=r"^[A-Za-z0-9_-]*$")] = ""
 
 
 class RuntimeSettingsDraft(RegionModel):
@@ -36,6 +43,7 @@ class RuntimeSettingsDraft(RegionModel):
     nuclearProbability: Annotated[FiniteFloat, Field(ge=0, le=1)] = 0.5
     nuclearNms: Annotated[FiniteFloat, Field(ge=0, le=1)] = 0.3
     nucleolarDefinition: NucleolarDefinitionDraft = Field(default_factory=NucleolarDefinitionDraft)
+    cellDefinition: CellDefinitionDraft = Field(default_factory=CellDefinitionDraft)
     nucleolarSigma: Annotated[FiniteFloat, Field(ge=0, le=20)] | None = None
     nucleolarRim: Annotated[int, Field(ge=0, le=100)] | None = None
     nucleolarMinimumArea: Annotated[int, Field(ge=1, le=100000)] | None = None
@@ -113,11 +121,16 @@ class SavedSignalProcessing(DraftSignalProcessing):
     channel: Id
 
 
+class SavedCellProcessing(DraftCellProcessing):
+    channel: Id
+
+
 class SavedProcessing(RegionModel):
     version: Literal["1.0.0"] = "1.0.0"
     nuclei: SavedNuclearProcessing | None
     nucleoli: SavedNucleolarProcessing | None
     signal: SavedSignalProcessing | None
+    cells: SavedCellProcessing | None = None
 
 
 class AnalysisSpec(RegionModel):

@@ -224,6 +224,28 @@ def bind_loopback(port: int) -> socket.socket:
         raise
 
 
+def local_cellpose_environment(data_dir: Path) -> dict[str, str]:
+    """Load an explicit local setup receipt without executing setup or downloading."""
+    root = data_dir.resolve().parent
+    path = root / "settings" / "cellpose.json"
+    try:
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 16_384:
+            return {}
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+        if (not isinstance(value, dict) or set(value) != {"schema", "python", "model_dir"}
+                or value["schema"] != "cytellect-cellpose-local/1"):
+            return {}
+        python, models = Path(value["python"]), Path(value["model_dir"])
+        if (not python.is_absolute() or not models.is_absolute()
+                or not python.resolve().is_relative_to(root) or not models.resolve().is_relative_to(root)
+                or not python.is_file() or not models.is_dir()):
+            return {}
+        return {"CYTELLECT_CELLPOSE_PYTHON": str(python), "CYTELLECT_CELLPOSE_MODEL_DIR": str(models)}
+    except (OSError, ValueError, TypeError):
+        # A damaged optional setup must not disable Fiji or the whole workspace.
+        return {}
+
+
 class WorkerSupervisor:
     def __init__(self, settings: Settings, stop_server):
         self.settings = settings
@@ -236,6 +258,8 @@ class WorkerSupervisor:
 
     def _spawn(self):
         env = os.environ.copy()
+        for key, value in local_cellpose_environment(self.settings.data_dir).items():
+            env.setdefault(key, value)
         if sys.dont_write_bytecode:
             env["PYTHONDONTWRITEBYTECODE"] = "1"
         env.update(CYTELLECT_DATA_DIR=str(self.settings.data_dir),

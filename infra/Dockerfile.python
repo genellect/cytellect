@@ -21,9 +21,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY engines/fiji/runtime.lock.json /app/engines/fiji/runtime.lock.json
 COPY scripts/fiji_setup.py /app/scripts/fiji_setup.py
 RUN python /app/scripts/fiji_setup.py /opt/fiji --platform linux-x64
+FROM python:3.12.14-slim-bookworm AS cellpose-build
+# This fixed layer is cached across application updates. API images do not carry
+# the 1.23 GB model or Torch; only the offline scientific worker receives them.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir uv==0.12.2
+COPY engines/cellpose/provisioning.lock.json engines/cellpose/requirements.lock /app/engines/cellpose/
+COPY scripts/cellpose_setup.py /app/scripts/cellpose_setup.py
+RUN python /app/scripts/cellpose_setup.py /opt/cellpose-runtime --model-cache /opt/cellpose-models --runtime-only
 FROM base AS worker
 COPY --from=fiji-build /opt/fiji /opt/fiji
+COPY --from=cellpose-build /opt/cellpose-runtime /opt/cellpose-runtime
+COPY --from=cellpose-build /opt/cellpose-models /opt/cellpose-models
 COPY engines/fiji /app/engines/fiji
+COPY engines/cellpose /app/engines/cellpose
 COPY scripts/container_smoke.py /app/scripts/container_smoke.py
 ENV CYTELLECT_FIJI_EXECUTABLE=/opt/fiji CYTELLECT_ENGINE_ASSETS=/app/engines/fiji
+ENV CYTELLECT_CELLPOSE_PYTHON=/opt/cellpose-runtime/bin/python CYTELLECT_CELLPOSE_MODEL_DIR=/opt/cellpose-models CYTELLECT_CELLPOSE_ASSETS=/app/engines/cellpose
+RUN /opt/venv/bin/python -c "from cytellect_analysis.cellpose_engine import runtime_status; status=runtime_status(); assert status.get('available'), status"
 CMD ["cytellect-worker"]

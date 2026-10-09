@@ -20,7 +20,11 @@ UV_VERSION = "0.12.2"
 PRODUCTION_EXPORT = ("export", "--locked", "--no-dev", "--no-emit-project", "--no-header")
 ROOT_FILES = {"pyproject.toml", "uv.lock", "README.md", "README.en.md", "LICENSE", "NOTICE"}
 SOURCE_TREES = ("packages/analysis/src/", "services/api/src/", "services/worker/src/")
-SCRIPTS = {"scripts/fiji_setup.py", "scripts/local_setup.ps1", "scripts/windows_runtime.ps1"}
+SCRIPTS = {"scripts/fiji_setup.py", "scripts/local_setup.ps1", "scripts/windows_runtime.ps1",
+           "scripts/cellpose_setup.py", "scripts/cellpose_setup.ps1"}
+CELLPOSE_ASSETS = {f"engines/cellpose/{name}" for name in (
+    "runner.py", "runtime.lock.json", "requirements.in", "requirements.lock", "LICENSE.cellpose.txt", "README.md",
+)}
 RUNTIME_RECORDS = {"engines/python/windows-runtime.lock.json", "engines/python/windows-tcltk-members.json"}
 RUNTIME_DATA = "engines/python/windows-tcltk-9.0.4-data.zip"
 INSTALL_REQUIREMENTS = "engines/python/windows-requirements.txt"
@@ -36,7 +40,7 @@ def source_allowed(name: str) -> bool:
     path = Path(name)
     if any(part.startswith(".") or part in {"__pycache__", "node_modules"} for part in path.parts):
         return False
-    return (name in ROOT_FILES | SCRIPTS | DOCS | DATA_NOTICES | RUNTIME_RECORDS
+    return (name in ROOT_FILES | SCRIPTS | DOCS | DATA_NOTICES | RUNTIME_RECORDS | CELLPOSE_ASSETS
             or (name.startswith(SOURCE_TREES) and path.suffix == ".py")
             or (name.startswith("engines/fiji/") and path.suffix in {".java", ".json"})
             or (name.startswith("scripts/windows/") and path.suffix == ".cmd"))
@@ -54,7 +58,7 @@ def verify_file(root: Path, path: Path) -> None:
 
 def collect_files(root: Path, tracked: list[str], web_dir: Path) -> dict[str, Path]:
     files = {name: root / name for name in tracked if source_allowed(name)}
-    required = ROOT_FILES | SCRIPTS | RUNTIME_RECORDS | {"scripts/windows/Cytellect Setup.cmd"}
+    required = ROOT_FILES | SCRIPTS | RUNTIME_RECORDS | CELLPOSE_ASSETS | {"scripts/windows/Cytellect Setup.cmd"}
     if required - files.keys():
         raise ValueError("bundle_required_source_missing")
     for path in files.values():

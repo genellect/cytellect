@@ -6,7 +6,7 @@ import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from cytellect_analysis.proposal_contracts import ProposalContext
+from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION, ProposalContext
 from cytellect_analysis.proposal_validation import validate_draft
 from cytellect_api import proposals
 from cytellect_api.app import create_app
@@ -18,7 +18,7 @@ from test_proposals import ACTIN_DRAFT, CONTEXT, FakeResponse, codes, configured
 from test_region_api import make_field, region_request
 
 BODY = {"transmission_confirmed": True}
-REPLY = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": "2026-10-08.1"}).encode()
+REPLY = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()
 
 
 def test_ratio_requires_background_and_paired_three_conditions_are_unsupported():

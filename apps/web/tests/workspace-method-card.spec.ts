@@ -63,7 +63,7 @@ test("nuclear and nucleolar candidates retain source identity and explicit adopt
   const inspector=page.getByRole("complementary",{name:"画像解析",exact:true});
   await inspector.getByRole("combobox",{name:"領域",exact:true}).selectOption("nucleoli");
   const adoptedCount=selectionWrites.length;
-  await inspector.getByRole("combobox",{name:"定義に使う画像",exact:true}).selectOption("dapi_poor");
+  await inspector.getByRole("combobox",{name:"核小体の定義",exact:true}).selectOption("dapi_poor");
   await expect(page.getByText("核小体 · 検出候補",{exact:true})).toBeVisible({timeout:300000});
   expect(selectionWrites.length).toBe(adoptedCount);
   const runsResponse=await page.request.get(`${api}/v1/workspaces/${wid}/runs`);expect(runsResponse.ok()).toBeTruthy();

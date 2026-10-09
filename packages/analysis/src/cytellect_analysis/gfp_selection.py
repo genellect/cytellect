@@ -65,7 +65,7 @@ def binding_kind(recipe) -> str:
     recipe = recipe if isinstance(recipe, dict) else {}
     if recipe.get("source") in NUCLEAR_SOURCES:
         return "same_revision"
-    if recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell":
+    if recipe.get("source") in ("manual", "cellpose_cell") and recipe.get("region_set_id") == "cell":
         return "same_revision"
     if recipe.get("source") == "fiji_nuclear_compartment" and recipe.get("compartment") == "nucleoplasm":
         # Nucleoplasm labels keep the parent nucleus ID (compartment engine
@@ -114,7 +114,7 @@ def _nuclear_rows(nuclear, snapshot, gate, measured_fields):
             raise ValueError("gfp_gate_nuclear_source_invalid") from None
         if (table.field_id != fid or table.region_set.mask_revision_id != entry.get("mask_revision_id")
                 or table.mask_sha256 != entry.get("mask_sha256") or entry.get("image_info") != snapshot[fid].get("image_info")
-                or (table.region_set.source != "manual" or table.region_set.region_set_id != "cell"
+                or (table.region_set.source not in ("manual", "cellpose_cell") or table.region_set.region_set_id != "cell"
                     if getattr(gate, "unit", "nucleus") == "cell_roi" else table.region_set.source != "stardist_nuclear")):
             raise ValueError("gfp_gate_nuclear_identity_mismatch")
         try:
@@ -221,7 +221,7 @@ def _record(gate, thresholds, gate_rows, gated, marked, dates, controls, binding
         return {"filter_version": gate.version, "gate_protocol": gate.gate_protocol,
                 "filter": gate.model_dump(mode="json"), "values": gate.values,
                 "object_unit": gate.unit,
-                "statistic": f"arithmetic mean of {gate.values} GFP intensity within each adopted {'manual cell ROI' if gate.unit == 'cell_roi' else 'nucleus'}",
+                "statistic": f"arithmetic mean of {gate.values} GFP intensity within each adopted {'cell ROI' if gate.unit == 'cell_roi' else 'nucleus'}",
                 "threshold_rule": "nuclear mean strictly greater than recorded threshold; equality is negative",
                 "thresholds": thresholds, "nuclear_binding": binding, "nuclear_sources": sources,
                 "control_field_ids": [], "dates": thresholds["dates"],
@@ -328,7 +328,7 @@ def methods_sentences(record):
     """English Methods / caption text recorded from the saved gate."""
     gate = record["filter"]
     if record["filter_version"] == "1.1.0":
-        objects = "manually drawn cell ROIs" if gate.get("unit") == "cell_roi" else "nuclei"
+        objects = "adopted cell ROIs" if gate.get("unit") == "cell_roi" else "nuclei"
         intensity_unit = "per-cell-ROI" if gate.get("unit") == "cell_roi" else "per-nucleus"
         method = "a researcher-specified threshold" if gate["method"] == "manual" else "Otsu thresholding of object means per acquisition date (256 histogram bins)"
         thresholds = "; ".join(f"{date or 'unknown date'}: {value['threshold'] if value['threshold'] is not None else value.get('missing_reason')}"

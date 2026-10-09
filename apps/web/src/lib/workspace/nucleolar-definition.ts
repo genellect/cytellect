@@ -1,11 +1,22 @@
 /** Researcher-selected nucleolar definition (DAPI protocol 2.0.0 / marker protocol 2.1.0, see docs/nucleolar-compartments.md). */
+import type {components} from "../generated";
+export type NclObjectProcessingDetector = Required<components["schemas"]["NclObjectDetector"]>;
+export const nclObjectDetector = ():NclObjectProcessingDetector => ({
+  engine:"cytellect-ncl-objects",protocol_version:"3.0.0",smoothing_sigma_px:.9,
+  background_radius_px:10,coarse_sigma_px:1.5,core_contrast:36,core_coarse_contrast:27,
+  minimum_core_area_px:6,local_crop_radius_px:24,background_inner_radius_px:12,background_outer_radius_px:22,
+  background_signal_floor:15,minimum_background_pixels:40,peak_radius_px:2,
+  minimum_peak_difference:30,minimum_peak_ratio:1.6,boundary_fraction:.5,
+  minimum_area_px:28,maximum_area_px:800,minimum_solidity:.8,minimum_circularity:.5,
+  hole_fill_max_px:64,overlap_suppression_fraction:.5,
+});
 export type NucleolarSource = "dapi_poor" | "marker" | "ncl";
-export type NucleolarDefinition = {source: NucleolarSource; marker: string; pixelUm: number | null; relative: number};
+export type NucleolarDefinition = {source: NucleolarSource; marker: string; pixelUm: number | null; relative: number; algorithm?: "cellpose" | "objects" | "legacy" | null};
 
 export const nucleolarSourceText: Record<NucleolarSource, {label: string; description: string}> = {
   dapi_poor: {label: "DAPI の暗い部分", description: "核小体は DNA が少ないため核染色で暗く写ります。NCL が移動しても使えます。"},
   marker: {label: "核小体マーカー（UBF／FBL など）", description: "核小体の中心部を示すマーカーで決めます。マーカーの染色を確認したうえで使います。"},
-  ncl: {label: "NCL の明るい部分（旧方式）", description: "以前の解析の再現用です。NCL がストレスで移動すると核小体を誤ります。"},
+  ncl: {label: "NCL陽性領域", description: "NCL画像から核内の核小体候補を検出します。"},
 };
 
 /** Physical defaults (µm) follow the cited protocols; without a pixel size the pixel defaults apply. */

@@ -592,7 +592,13 @@ function WorkspaceSession({initialWorkspace, onCreated}: {initialWorkspace: stri
         const detector = child.detector;
         setNucleolarDefinition(previous => ({...previous, source:detector.source,
           marker:detector.source === "marker" ? child.channel : "", relative:detector.relative_threshold}));
-      } else {
+      } else if(child.detector.engine === "cytellect-ncl-objects") {
+        const detector=child.detector;
+        setNucleolarDefinition(previous=>({...previous,source:"ncl",marker:child.channel}));
+        setCompartmentSettings({smoothing:detector.smoothing_sigma_px,minimumArea:detector.minimum_area_px,maximumArea:detector.maximum_area_px,split:false});
+      } else if((child.detector.engine === "cellpose-sam" || child.detector.engine === "cellpose-sam-ncl" || child.detector.engine === "cellpose-sam-ncl-parent")) {
+        setNucleolarDefinition(previous=>({...previous,source:"ncl",marker:child.channel,algorithm:"cellpose"}));
+      } else if(child.detector.engine === "fiji-nucleolar-compartments") {
         const detector = child.detector;
         setNucleolarDefinition(previous => ({...previous, source:"ncl"}));
         setSignalChannels(previous => ({...previous, ncl:child.channel}));

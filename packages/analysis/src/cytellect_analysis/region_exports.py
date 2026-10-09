@@ -22,6 +22,7 @@ from .region_contracts import (
     AdoptedNuclearRecipe,
     AutoScaledNuclearRecipe,
     RegionAnalysisRequest,
+    RegionCellposeRecipe,
     RegionCompartmentRecipe,
     RegionImageInfo,
     RegionNuclearRecipe,
@@ -88,6 +89,18 @@ def _compartment_initial(recipe) -> str | None:
                 "(White et al., Mol Cell 2019, doi:10.1016/j.molcel.2019.03.019), with integrated values and the "
                 "nucleolar area fraction (Potapova et al., eLife 2023, doi:10.7554/eLife.88799).")
     detector = recipe.detector
+    if getattr(detector, "engine", None) in ("cellpose-sam", "cellpose-sam-ncl", "cellpose-sam-ncl-parent"):
+        return _cellpose_initial(detector, nucleolar=True)
+    if getattr(detector, "protocol_version", None) == "3.0.0":
+        return ("Initial masks: compact locally enriched NCL candidates (cytellect-ncl-objects 3.0.0). "
+                "Gaussian smoothing and morphological-opening background estimate locate contrast cores; "
+                "local annular background and seed intensity determine an adaptive boundary. "
+                "Growth, background sampling and hole filling are confined to each adopted nucleus. "
+                "Area, solidity and circularity filters reject fragments; clipped nuclear-boundary objects "
+                "and ambiguous overlaps are not counted. No image-size or display-LUT normalization is used. "
+                "All recorded detector parameters use original-coordinate pixels and input intensity code units. "
+                "Measurements use unchanged original pixels, including the filled object envelope. "
+                "NCL-defined candidates depend on the measured marker and do not establish stress-independent nucleoli.")
     if getattr(detector, "protocol_version", None) != "2.0.0":
         return None
     size = (f"8-connected components of {detector.minimum_area_px}"
@@ -108,6 +121,42 @@ def _compartment_initial(recipe) -> str | None:
             "sub-compartments; candidates are marker-defined.")
 
 
+def _cellpose_initial(detector, *, nucleolar=False) -> str:
+    preprocessing = ("Detection copy: Gaussian smoothing followed by disk-shaped grayscale opening and "
+                     "nonnegative local-background subtraction, then recorded percentile normalization. "
+                     if detector.engine == "cellpose-sam-ncl" else "")
+    if detector.engine == "cellpose-sam-ncl-parent":
+        preprocessing = ("Detection copy: smooth the original NCL plane before masking, subtract each adopted nucleus's "
+                         "recorded intensity percentile, then normalize independent padded parent crops. "
+                         "Diameter is explicit or a recorded fraction of the parent's equivalent diameter. "
+                         "Robust original-pixel noise and local NCL enrichment reject weak/unenriched candidates. "
+                         "Valid individual candidates remain visible when a truncated sibling requires review; "
+                         "that parent's complement/aggregate is missing until adoption. ")
+        if detector.protocol_version in ("4.2.1", "4.3.0"):
+            preprocessing += (f"Whole candidate instances covering more than {detector.maximum_nuclear_coverage:g} "
+                              "of an adopted nucleus with at least 0.9 parent purity are rejected as nuclear-scale "
+                              "objects; raw labels and rejection measurements are retained. "
+                              "A parent containing only these rejected objects is indeterminate, not a measured zero. ")
+        if detector.protocol_version == "4.3.0":
+            preprocessing += ("Signal-support refinement 1.0.0 smooths the original plane (sigma 0.9 px), uses each parent's "
+                              "upper three-class Multi-Otsu threshold, disk closing (radius 2 px) and hole filling. "
+                              "Distance watershed with h-maxima (max(1 px, 0.15 times component maximum distance)) "
+                              "separates adjacent bodies. Support must overlap at least half a model anchor, avoid the "
+                              "parent boundary, occupy at most half the parent and exceed the original mean of its "
+                              "within-parent eight-iteration dilation ring outside signal support. Matching support "
+                              "is unioned with model anchors, merging supported fragments, retaining unmatched anchors "
+                              "and splitting disconnected outputs. Review/indeterminate states are preserved. "
+                              "Original model labels, anchors, support labels and lineage are retained. ")
+    definition = ("Candidate masks wholly contained by exactly one adopted StarDist nucleus; "
+                  "cross-parent and boundary-truncated candidates are retained for review, not measured as nucleoli."
+                  if nucleolar else "Cell ROI candidates on the explicitly selected defining stain.")
+    return (f"Initial masks: offline Cellpose-SAM {detector.protocol_version}, model {detector.model}, "
+            f"SHA256 {detector.model_sha256}. {definition} The model is not a nucleolus-specific biological classifier. "
+            + preprocessing + "Detection-only normalization and any diameter resampling leave original measurement pixels unchanged. "
+            "Saved original-coordinate integer labels define measured regions. Detector settings: "
+            + json.dumps(detector.model_dump(mode="json"), sort_keys=True) + ".")
+
+
 def region_methods(config, report, provenance):
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
@@ -118,6 +167,8 @@ def region_methods(config, report, provenance):
                "Versatile (fluorescent nuclei) model. This model defines nuclei, not whole cells or nucleoli."
                if nuclear else f"Initial masks: {request.recipe.source}; no automatic detector was executed in this recipe.")
     signal = isinstance(request.recipe, RegionSignalRecipe)
+    if isinstance(request.recipe, RegionCellposeRecipe):
+        initial = _cellpose_initial(request.recipe.detector)
     if signal:
         initial = ("Initial masks: Fiji/ImageJ thresholding and connected components on the defining channel. "
                    "These exploratory signal-positive areas do not establish biological positivity, nuclei or nucleoli.")

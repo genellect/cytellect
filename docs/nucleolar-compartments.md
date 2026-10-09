@@ -154,3 +154,62 @@ values are not substituted. The workspace uses raw values by default; corrected
 values are opt-in and displayed per nucleus. Comparisons and figures use the
 raw `channels` only (corrected summaries are refused), and exports refuse
 protocol 4.0.0, until their own Methods text is versioned.
+
+
+## NCL object protocol 3.0.0 (2026-10-08)
+
+The earlier explicit **NCL陽性領域** selection used `cytellect-ncl-objects/3.0.0` inside the adopted nuclear mask. It remains available as a saved recipe and explicit classical method. Following the later accepted real-image invocation on 2026-10-08, new NCL selections default to `cellpose-sam-ncl/4.1.0`, documented in [Methods](methods.md#ncl-cellpose-detection-copy-protocol-410). Saved Fiji NCL protocols 1.0/1.1 and marker/DAPI protocols 2.0/2.1 retain their original meaning and replay paths. Neither new detector runs without a parent nuclear revision.
+
+Detection copies use input code units and original coordinates, without resizing or display normalization. Gaussian sigma 0.9 and opening radius 10 estimate local contrast; additional Gaussian sigma 1.5 selects cores at contrast 36/coarse contrast 27, with opening radius 1 and core area >=6. Each core supplies its coarse maximum seed. Within a crop of radius 24, the local background is the median of >=40 same-parent pixels at radius 12–22 with smoothed intensity >15. The seed peak is the median at radius <=2. It must exceed background by >=30 and by a factor >=1.6. Growth uses `background + 0.5*(peak-background)`, closing radius 1, the seed-containing 8-connected component and holes smaller than 64 pixels. Candidate area is 28–800 px², solidity >=0.8 and Crofton circularity >=0.5. Crop/image/nuclear-boundary truncation is rejected. Overlap greater than half the smaller object's area suppresses duplicate seeds; other overlaps are ambiguous and rejected. No disconnected islands receive the same ID.
+
+Candidate cores, background, peak sampling, growth and filled holes stay inside the same adopted nucleus. Smoothing never zeros the nuclear exterior. Insufficient background is indeterminate; no retained candidate is not a demonstrated biological absence. Nucleoplasm continues to use the adopted nucleolar union and the existing missing-state policy. Raw intensities remain immutable. Input RGB compatibility uses max(R,G,B), separate from native fluorescence measurement.
+
+These starting values are calibrated to the development sample's pixel/code units; image size, TIFF print DPI and display LUT do not supply calibration. Shape filtering and NCL enrichment do not establish stress-independent nucleolar identity. Private empirical acceptance is recorded outside Git, with no private images, filenames or counts in public fixtures. The trial core is reproduced pixel-for-pixel separately from the parent-constrained product pathway.
+
+
+### Parent-conditioned NCL Cellpose protocol 4.2.0
+
+New explicit NCL Cellpose selections use `cellpose-sam-ncl-parent/4.2.0`.
+The unchanged original plane is Gaussian-smoothed (0.9 original px) before any
+parent restriction. For each adopted StarDist nucleus, subtract its 75th
+intensity percentile, keep positive signal only within that parent, and normalize
+a padded (32 px) crop using the pinned official Cellpose 1/99 percentile transform.
+An explicit diameter overrides the default, which is 0.25 times that adopted
+nucleus's equivalent diameter. This is an empirical, recorded model scale prior;
+it is neither an image-dimension conversion nor a claim that nucleolar size is
+biologically fixed. Display colour, LUT and zoom cannot change these inputs.
+
+Original-minus-smoothed residuals in the lower nuclear intensity range provide
+a robust noise estimate (1.4826 MAD, floor half an input intensity code unit).
+Parent signal excess and individual candidate original-pixel enrichment must
+meet the recorded minimum signal/noise ratio (5). Local background is the mean
+of available pixels in an 8 px annulus inside the same parent and outside model
+candidates. Insufficient parent signal is indeterminate, not zero nucleoli.
+Disconnected model components receive distinct IDs and must each satisfy
+minimum area. Cross-parent and boundary-touching objects are rejected whole,
+never clipped. No nucleus-size, dark-hole or top-percentile mask replaces an
+absent candidate.
+
+Compartment protocol 1.1.0 retains valid individual candidates when another
+object requires boundary review. That parent's nucleoplasm/complement remains
+missing; it is not treated as a complete nucleolar union for ratios. Researcher
+adoption resolves the candidate set explicitly. Complete eligible parents use
+the union of adopted children and parent-minus-union, with original-pixel
+measurements. Per-parent crop, background, diameter, normalization and signal
+quality are retained alongside original and parent-mask hashes.
+
+Protocols 3.0.0, 4.0.0 and 4.1.0 keep their historical semantics and replay.
+Existing masks, including manual edits, are not silently upgraded. Private real
+image validation is outside Git/CI; runtime/contract checks are not a claim of
+general biological segmentation accuracy. Cellpose-SAM is not a nucleolus-specific
+classifier, and NCL redistribution can change marker-defined candidates.
+
+
+Protocol 4.2.1 preserves the 4.2.0 parent-conditioned inference settings and adds
+whole-instance nuclear rejection after inference. A candidate covering more
+than `maximum_nuclear_coverage` (default 0.5) of an adopted StarDist nucleus,
+with at least 0.9 parent purity, is removed as a nuclear-scale candidate. The
+original raw candidate artifact and rejection measurements are retained.
+Nuclear pixels are never subtracted from nucleolar masks. A parent containing
+only rejected nuclear-scale candidates is indeterminate, not a measured zero.
+Stored 4.2.0 recipes skip this filter and retain their original meaning.

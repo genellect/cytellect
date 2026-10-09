@@ -1,17 +1,12 @@
 """Rebind measurement revisions only when their adopted detection masks are identical."""
-from copy import deepcopy
+from cytellect_analysis.region_metadata import image_pixel_identity
 
 from .db import revisions
 from .storage import read_json
 
 
 def _inputs(info):
-    value = deepcopy(info)
-    for channel in value.get("channels", []):
-        # Confirming an existing background/channel association does not change pixels.
-        channel.pop("identity_confirmed", None)
-        channel.pop("identity_source", None)
-    return value
+    return image_pixel_identity(info)
 
 
 def same_mask_dependency(store, before_id, after_id, workspace_id, field_ids, expected_target):

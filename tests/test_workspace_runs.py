@@ -105,6 +105,26 @@ def test_repeated_coordinator_does_not_duplicate_jobs(tmp_path):
     assert client.get(f"{path}/{run['id']}").json()["steps"][0]["state"] == "queued"
 
 
+def test_successful_job_with_failed_field_keeps_specific_reason(tmp_path):
+    from cytellect_api.storage import write_json
+
+    client, app, settings, _, fid, path, body = setup(tmp_path)
+    run = client.post(path, headers=HEADERS, json=body).json()
+    advance_workspace_runs(app.state.store, settings)
+    claimed = app.state.store.claim()
+    output = app.state.store.safe_path("results", claimed["id"])
+    write_json(output / "measurements.json", {
+        "field_tables": {},
+        "field_failures": [{"field_id": fid, "reason": "cellpose_model_integrity_failed"}],
+    })
+    assert app.state.store.finish(claimed, app.state.store.relative_path(output))
+    advance_workspace_runs(app.state.store, settings)
+    saved = client.get(f"{path}/{run['id']}").json()
+    assert saved["state"] == "failed"
+    assert saved["steps"][0]["error"] == "cellpose_model_integrity_failed"
+    assert client.post(f"{path}/{run['id']}/accept", headers=HEADERS).status_code == 409
+
+
 def test_changed_spec_or_adoption_refuses_candidate_adoption(tmp_path):
     client, app, settings, wid, fid, path, body = setup(tmp_path)
     run = client.post(path, headers=HEADERS, json=body).json()
