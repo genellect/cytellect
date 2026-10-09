@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { LandingAnalytics } from "./LandingAnalytics";
 import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL } from "@/lib/release";
-import { PublicationStage } from "./PublicationStage";
 import { ProductMenu } from "./ProductMenu";
 import { CellHero } from "./CellHero";
 import { LandingStory } from "./LandingStory";
-import { Reveal } from "./Reveal";
 import { EvidenceExample, ProductWalkthrough } from "./MarketingMotion";
 import styles from "./product.module.css";
 import lp from "./lp-sections.module.css";
@@ -14,7 +12,7 @@ const docs = "https://github.com/genellect/cytellect/blob/main/docs/";
 const Arrow = () => <span aria-hidden="true">↗</span>;
 /** No titles: a section opens with its own first sentence, set large. */
 function Display({ id, text }: { id: string; text: string }) {
-  return <h2 id={id} className={[lp.display, lp.reveal].join(" ")}><Reveal text={text} /></h2>;
+  return <h2 id={id} className={lp.display}>{text}</h2>;
 }
 function NavigationLinks(){return <><a href="#workflow">プロダクト</a><Link data-lp-event="example" href="/demo">解析例</Link><Link data-lp-event="workspace" href="/workspace">解析画面</Link><a data-lp-event="guide" href="#guide">ガイド</a><a data-lp-event="download_section" href="#download" className={styles.navDownload}>ダウンロード <Arrow /></a><a data-lp-event="launch" href="#launch">インストール済みの方</a></>;}
 
@@ -22,7 +20,7 @@ export default function PublicLanding() {
   return <div className={[styles.page, lp.page].join(" ")} data-cytellect-public-page="/">
     <LandingAnalytics page="/" />
     <a className={styles.skipLink} href="#main">本文へ</a>
-    <header className={styles.header}><Link href="/" aria-label="Cytellect ホーム" className={styles.wordmark}>cytellect</Link><nav className={styles.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
+    <header className={styles.header}><a href="#top" aria-label="Cytellect ホーム" className={styles.wordmark}>cytellect</a><nav className={styles.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <main id="main">
       <section className={styles.hero} aria-labelledby="hero-title">
         <CellHero /><div className={styles.heroShade} />
@@ -64,7 +62,7 @@ export default function PublicLanding() {
         </div>
         <div className={[lp.wide, lp.media].join(" ")}>
           <div className={[lp.light, lp.figureStage].join(" ")}>
-            <PublicationStage><figure className={styles.paperFigure}><a className={styles.paper} href="/marketing/figure-public.svg" aria-label="グラフを拡大"><picture><source media="(max-width: 760px)" srcSet="/marketing/figure-public-mobile.svg" /><img src="/marketing/figure-public.svg" alt="公開画像の817領域の面積分布を示すCytellectの出力図" width={518.74} height={216} loading="lazy" /></picture></a></figure></PublicationStage>
+            <figure className={styles.paperFigure}><a className={styles.paper} href="/marketing/figure-public.svg" aria-label="グラフを拡大"><picture><source media="(max-width: 760px)" srcSet="/marketing/figure-public-mobile.svg" /><img src="/marketing/figure-public.svg" alt="公開画像の817領域の面積分布を示すCytellectの出力図" width={518.74} height={216} loading="lazy" /></picture></a></figure>
           </div>
           <div className={lp.caption}><span>公開画像の測定値から出力した図</span><nav aria-label="図の元データ"><a href="/marketing/figure-public.svg">図を拡大</a><a href="/marketing/figure-public.csv">測定値 CSV</a><a href="/marketing/figure-source.json">作図条件</a><a href="/marketing/provenance.json">出典</a></nav></div>
         </div>
@@ -99,6 +97,6 @@ export default function PublicLanding() {
         </div>
       </section>
     </main>
-    <footer className={styles.footer}><div className={styles.sectionShell}><Link href="/" className={styles.footerBrand}>cytellect</Link><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={styles.copyright}>&copy; 2026 Yuto Matsui. All rights reserved.</p></div></footer>
+    <footer className={styles.footer}><div className={styles.sectionShell}><a href="#top" className={styles.footerBrand}>cytellect</a><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={styles.copyright}>&copy; 2026 Yuto Matsui. All rights reserved.</p></div></footer>
   </div>;
 }

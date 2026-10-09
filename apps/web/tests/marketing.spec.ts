@@ -84,8 +84,7 @@ test("a researcher can stop the real 3D rendering and keep it stopped after navi
  await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(count));
  const figure=page.getByAltText(/^公開画像の817領域/);await figure.scrollIntoViewIfNeeded();
  await page.waitForTimeout(180);const offscreen=await rendered.getAttribute("data-render-count");await page.waitForTimeout(180);await expect(rendered).toHaveAttribute("data-render-count",offscreen!);
- const stage=figure.locator("xpath=ancestor::figure/parent::div");await expect.poll(()=>stage.evaluate(node=>node.style.getPropertyValue("--paper-angle"))).not.toBe("");
- await page.emulateMedia({reducedMotion:"reduce"});await expect.poll(()=>stage.evaluate(node=>node.style.getPropertyValue("--paper-angle"))).toBe("");await expect(scene.locator("canvas")).toHaveCount(0);
+ await page.emulateMedia({reducedMotion:"reduce"});await expect(scene.locator("canvas")).toHaveCount(0);
  expect(errors).toEqual([]);
 });
 test("product walkthrough is explicitly started and returns to the real still image",async({page})=>{
@@ -115,4 +114,13 @@ test("the story for general readers opens in place and keeps its text", async ({
  await closing.scrollIntoViewIfNeeded();
  await expect(closing).toBeInViewport();
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("the wordmark returns to the hero from anywhere on the page", async ({page}) => {
+ await page.emulateMedia({reducedMotion:"reduce"});await page.goto("/");
+ await page.locator("#download").scrollIntoViewIfNeeded();
+ await expect.poll(()=>page.evaluate(()=>scrollY)).toBeGreaterThan(0);
+ await page.getByRole("link",{name:"Cytellect ホーム",exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
+ await expect(page.getByRole("heading",{level:1})).toBeInViewport();
 });

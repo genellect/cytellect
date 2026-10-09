@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import lp from "./lp-sections.module.css";
-import { Reveal } from "./Reveal";
 
 const lead = "私たちの体は、約30兆個もの細胞から成り立っている。これらの細胞に生じる変異は、ときにがんや神経変性疾患といった病気の引き金となり、私たちの健康を脅かす。こうした病気の原因を突き止め、がんや認知症などの克服につなげるため、研究者たちは顕微鏡を通して、細胞の内部で何が起きているのかを解き明かそうとしてきた。";
 
@@ -42,7 +41,7 @@ export function LandingStory() {
     }
     setOpen(next);
   };
-  const paragraph = (text: string) => <p key={text.slice(0, 12)} className={lp.reveal}><Reveal text={text} /></p>;
+  const paragraph = (text: string) => <p key={text.slice(0, 12)}>{text}</p>;
   return <section className={[lp.section, lp.story].join(" ")} aria-label="Cytellectが生まれた理由">
     <div className={lp.column}><div className={lp.prose}>
       {paragraph(lead)}
