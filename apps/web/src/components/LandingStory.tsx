@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import styles from "./product.module.css";
+import lp from "./lp-sections.module.css";
 
 const lead = "私たちの体は、約30兆個もの細胞から成り立っている。これらの細胞に生じる変異は、ときにがんや神経変性疾患といった病気の引き金となり、私たちの健康を脅かす。こうした病気の原因を突き止め、がんや認知症などの克服につなげるため、研究者たちは顕微鏡を通して、細胞の内部で何が起きているのかを解き明かそうとしてきた。";
 
@@ -23,7 +23,7 @@ export function LandingStory() {
   const [open, setOpen] = useState(false);
   const more = useRef<HTMLDivElement>(null);
   const settle = useRef<number | undefined>(undefined);
-  // Animate between the measured heights instead of relying on browser support for `height: auto` transitions.
+  // Animate between measured heights; `height: auto` transitions are not supported everywhere.
   const toggle = () => {
     const element = more.current;
     const next = !open;
@@ -33,7 +33,7 @@ export function LandingStory() {
       if (next) {
         const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
         const done = () => { if (element.style.height !== "") { element.style.height = "auto"; element.scrollTop = 0; } };
-        if (reduced) done(); else settle.current = window.setTimeout(done, 1150);
+        if (reduced) done(); else settle.current = window.setTimeout(done, 950);
       } else {
         void element.offsetHeight;
         element.style.height = "";
@@ -41,22 +41,26 @@ export function LandingStory() {
     }
     setOpen(next);
   };
-  return <section className={styles.essay} data-open={open || undefined} aria-label="Cytellectが生まれた理由">
-    <div className={styles.essayShell}>
-      <p className={styles.essayLead}>{lead}</p>
-      <div className={styles.essayColumn}>
-      <div id="story-more" ref={more} className={styles.essayMore} inert={!open}>
-        <div>
-          {body.map(text => <p key={text.slice(0, 12)}>{text}</p>)}
-          <p className={styles.essayTurn}>こうした課題を解決するために開発したのが、<span>「Cytellect」</span>である。</p>
-          {answer.map(text => <p key={text.slice(0, 12)}>{text}</p>)}
-          <p className={styles.essayClosing}>{closing}</p>
-        </div>
+  return <section className={lp.section} aria-label="Cytellectが生まれた理由">
+    <div className={[lp.container, lp.head].join(" ")}>
+      <div className={[lp.title, lp.sticky].join(" ")}>
+        <p className={lp.eyebrow}>Why Cytellect</p>
+        <h2 id="story-title" className={lp.h2}><span className={lp.phrase}>Cytellectが</span><span className={lp.phrase}>生まれた理由</span></h2>
       </div>
-      <button type="button" className={styles.essayToggle} aria-expanded={open} aria-controls="story-more"
-        data-lp-event={open ? undefined : "story"} onClick={toggle}>
-        <span>{open ? "閉じる" : "続きを読む"}</span><span aria-hidden="true" className={styles.essayIcon} />
-      </button>
+      <div className={[lp.text, lp.body].join(" ")}>
+        <p>{lead}</p>
+        <div id="story-more" ref={more} className={lp.more} inert={!open}>
+          <div>
+            {body.map(text => <p key={text.slice(0, 12)}>{text}</p>)}
+            <p>こうした課題を解決するために開発したのが、「Cytellect」である。</p>
+            {answer.map(text => <p key={text.slice(0, 12)}>{text}</p>)}
+            <p>{closing}</p>
+          </div>
+        </div>
+        <button type="button" className={lp.toggle} aria-expanded={open} aria-controls="story-more"
+          data-lp-event={open ? undefined : "story"} onClick={toggle}>
+          <span>{open ? "閉じる" : "続きを読む"}</span><span aria-hidden="true" className={lp.toggleIcon} />
+        </button>
       </div>
     </div>
   </section>;

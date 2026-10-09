@@ -34,6 +34,13 @@ landing-page copy and repeated feature-card layouts.
   the intended visual quality rather than remove the requested art direction.
 - Use the actual photography, composition, whitespace and typography to carry
   the visual identity. Do not explain the intended atmosphere in the copy.
+- Below the hero, every section uses one system (`lp-sections.module.css`): a
+  single 12-column container; an English label and the Japanese heading on
+  columns 1-6; running text on columns 7-12; media under the head on the same
+  container. Four type sizes (label, heading, body, small) and two text
+  colours. Running Japanese text is justified with strict line breaking
+  (left-aligned on narrow screens). Emphasis comes from hierarchy, not from
+  coloured or glowing words inside running text.
 - Primary action: **ダウンロード**. Product examples and setup information have
   separate, direct links.
 - Alternate full-width photography, portrait compositions, readable product

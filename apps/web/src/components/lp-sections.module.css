@@ -1,0 +1,439 @@
+/* One layout and type system for every landing section below the hero.
+ * Grid: a single 12-column container; headings always start on column 1,
+ * running text always occupies columns 7-12. Type: four sizes, two text colours.
+ */
+.page {
+  --fg: #f3f3ef;
+  --fg-2: rgb(243 243 239 / 72%);
+  --fg-3: rgb(243 243 239 / 50%);
+  --rule: rgb(243 243 239 / 12%);
+  --panel: #0a1428;
+  --accent: #5d8dff;
+  --gutter: clamp(20px, 5vw, 72px);
+  --gap: clamp(20px, 2.5vw, 32px);
+  --section: clamp(104px, 11vw, 176px);
+  --t-eyebrow: 13px;
+  --t-body: clamp(16.5px, 1.2vw, 18px);
+  --t-h2: clamp(30px, 3.2vw, 46px);
+  --t-small: 14px;
+}
+
+.container {
+  width: 100%;
+  max-width: calc(1296px + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  padding-block: var(--section) 0;
+}
+.section:last-of-type {
+  padding-bottom: var(--section);
+}
+
+/* Section head: label and heading on the left half, text on the right half. */
+.head {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gap);
+  row-gap: 32px;
+  align-items: start;
+}
+.title {
+  grid-column: 1 / span 6;
+}
+.text {
+  grid-column: 7 / span 6;
+}
+.sticky {
+  position: sticky;
+  top: 128px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 22px !important;
+  color: var(--fg-2);
+  font-family: Inter, "Noto Sans JP", sans-serif;
+  font-size: var(--t-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.h2 {
+  margin: 0;
+  color: var(--fg);
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: var(--t-h2);
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+.phrase {
+  display: inline-block;
+}
+
+/* Running Japanese text: one size, one colour, justified, strict line breaking. */
+.body p,
+.body li {
+  margin: 0 0 1.6em !important;
+  color: var(--fg-2);
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: var(--t-body);
+  font-weight: 400;
+  line-height: 1.95;
+  letter-spacing: 0.03em;
+  text-align: justify;
+  text-justify: inter-character;
+  line-break: strict;
+  word-break: normal;
+  overflow-wrap: break-word;
+  text-autospace: normal;
+  hanging-punctuation: allow-end;
+}
+.body p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--fg) !important;
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-decoration: none !important;
+  transition: border-color 0.2s;
+}
+.link:hover {
+  border-color: var(--fg);
+}
+
+/* Media sits on the same container, under the section head. */
+.media {
+  margin-top: clamp(56px, 6vw, 88px);
+}
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--panel);
+}
+.panel img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.band {
+  margin-top: var(--section);
+  height: clamp(300px, 36vw, 560px);
+  overflow: hidden;
+}
+.band img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gap);
+  row-gap: var(--gap);
+  align-items: stretch;
+}
+.split > :first-child {
+  grid-column: 1 / span 4;
+}
+.split > :last-child {
+  grid-column: 5 / span 8;
+}
+.split .photo {
+  height: 100%;
+}
+.split .photo img {
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The exported figure keeps a print-like width: columns 1-8, notes on 9-12. */
+.figureRow {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gap);
+  align-items: end;
+}
+.figureRow > :first-child {
+  grid-column: 1 / span 8;
+}
+.figureRow > .caption {
+  grid-column: 9 / span 4;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-top: 0;
+}
+.figureRow > .caption nav {
+  flex-wrap: wrap;
+  gap: 10px 22px;
+}
+
+.caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 28px;
+  margin-top: 18px;
+  color: var(--fg-3);
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: var(--t-small);
+  line-height: 1.6;
+}
+.caption a {
+  color: var(--fg-2);
+}
+.caption nav {
+  display: flex;
+  gap: 22px;
+}
+
+/* Story: collapsed to its first paragraph; the rest expands in the same column. */
+.more {
+  height: 0;
+  overflow: hidden;
+  transition: height 0.9s cubic-bezier(0.22, 0.7, 0.12, 1);
+}
+.more > div {
+  padding-top: 1.6em;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  padding: 0 0 6px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: var(--fg);
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.toggle:hover {
+  border-color: var(--fg);
+}
+.toggleIcon {
+  position: relative;
+  width: 11px;
+  height: 11px;
+}
+.toggleIcon::before,
+.toggleIcon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 11px;
+  height: 1.5px;
+  margin-top: -0.75px;
+  background: currentColor;
+  transition: transform 0.3s;
+}
+.toggleIcon::after {
+  transform: rotate(90deg);
+}
+[aria-expanded="true"] > .toggleIcon::after {
+  transform: rotate(0);
+}
+
+/* Guide links: three equal panels on the shared grid. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 188px;
+  padding: 28px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--fg) !important;
+  text-decoration: none !important;
+  transition: border-color 0.2s, background 0.2s;
+}
+.card:hover {
+  border-color: rgb(243 243 239 / 32%);
+  background: #0e1a33;
+}
+.card b {
+  display: block;
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.card small {
+  display: block;
+  margin-top: 10px;
+  color: var(--fg-2);
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.card > span:last-child {
+  align-self: flex-end;
+  color: var(--fg-2);
+}
+
+/* Download: actions under the text; practical details in two columns below. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin-top: 32px;
+}
+.details {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gap);
+  row-gap: 40px;
+  margin-top: clamp(64px, 7vw, 104px);
+  padding-top: 40px;
+  border-top: 1px solid var(--rule);
+}
+.details > :first-child {
+  grid-column: 1 / span 5;
+}
+.details > :last-child {
+  grid-column: 7 / span 6;
+}
+.details h3 {
+  margin: 0 0 18px;
+  color: var(--fg);
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.details details {
+  border-bottom: 1px solid var(--rule);
+}
+.details details:first-child {
+  border-top: 1px solid var(--rule);
+}
+.details summary {
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 0;
+  color: var(--fg);
+  font-family: "Noto Sans JP", Inter, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  list-style: none;
+}
+.details summary::-webkit-details-marker {
+  display: none;
+}
+.details summary::after {
+  content: "+";
+  color: var(--fg-2);
+}
+.details details[open] summary::after {
+  content: "−";
+}
+.details details > :not(summary) {
+  margin-bottom: 18px !important;
+}
+.details details > a {
+  display: inline-block;
+  color: var(--fg);
+  font-size: 15px;
+}
+
+@media (max-width: 1000px) {
+  .title,
+  .text {
+    grid-column: 1 / -1;
+  }
+  .sticky {
+    position: static;
+  }
+  .split > :first-child,
+  .split > :last-child {
+    grid-column: 1 / -1;
+  }
+  .split .photo {
+    height: auto;
+    aspect-ratio: 16 / 10;
+  }
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    min-height: 0;
+  }
+  .details > :first-child,
+  .details > :last-child,
+  .figureRow > :first-child,
+  .figureRow > .caption {
+    grid-column: 1 / -1;
+  }
+  .figureRow > .caption {
+    margin-top: 18px;
+  }
+}
+
+@media (max-width: 760px) {
+  .head {
+    row-gap: 24px;
+  }
+  .eyebrow {
+    margin-bottom: 18px !important;
+  }
+  .body p,
+  .body li {
+    line-height: 1.9;
+    letter-spacing: 0.02em;
+    /* Narrow measures with Latin words stretch badly when justified. */
+    text-align: start;
+  }
+  .panel {
+    border-radius: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more,
+  .toggleIcon::before,
+  .toggleIcon::after,
+  .link,
+  .toggle,
+  .card {
+    transition: none;
+  }
+}
