@@ -93,9 +93,12 @@ export async function mountCellScene(host: HTMLDivElement, isPaused: () => boole
     renderer.render(scene, camera);
     host.dataset.renderCount = String(++renders);
   };
+  // IntersectionObserver reports a frame or more late under load; never draw once the hero has left the viewport.
+  const onScreen = () => { const { top, bottom } = host.getBoundingClientRect(); return bottom > 0 && top < innerHeight; };
   const animate = (time: number) => {
     frame = 0;
     if (disposed || contextUnavailable || !visible || document.hidden || isPaused()) { lastTime = 0; return; }
+    if (!onScreen()) { visible = false; lastTime = 0; return; }
     if (lastTime) elapsed += Math.min((time - lastTime) / 1000, 0.1);
     lastTime = time;
     if (time - lastRender >= 32) { render(); lastRender = time; }
