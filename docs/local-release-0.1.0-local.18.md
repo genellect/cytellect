@@ -21,7 +21,10 @@ Vercel does not supply a hosted scientific image API.
 | Installed browser | 26 passed; 0 failed, skipped or flaky |
 | Independent numerical replay and launcher shutdown | Passed |
 | Archive verification | Every manifest payload size/hash, source, tag and acceptance/harness identity verified |
-| Public asset and optional Cellpose acceptance | Pending; the release remains a draft; work paused at the owner's request |
+| PC ordinary setup | Passed on 2026-10-10 with the exact immutable ZIP's script, signed Python/Fiji and storage checks |
+| Optional Windows Cellpose setup | Failed: Windows application control rejects `fill_voids.cp312-win_amd64.pyd` |
+| Optional installed identity, real-image inference, repeat reuse and launcher | Not run after the optional setup failure; not counted as passes |
+| Public asset | Not published; the release remains a draft and the public download remains local.17 |
 
 ## Delivered behavior
 
@@ -64,7 +67,30 @@ then passed; the owner requested a pause during `install_dependencies`, before
 ordinary setup completed. Its task-owned process
 and children were stopped, and cached downloads/partial installation were
 preserved. Optional provisioning, installed identity/inference, repeat reuse
-and launcher acceptance have not started. They are not counted as passes.
+and launcher acceptance had not started at the pause. They were not counted as
+passes.
+
+### Resumed PC verification, 2026-10-10
+
+The exact short-location ordinary setup resumed and completed successfully,
+including its storage result with a readable process inventory and one retained
+installation. The fixed Cellpose model and package provisioning completed, but
+the optional script's final import check failed. An isolated import reproduced
+the failure, and Windows Code Integrity event 3077 identified
+`fill_voids.cp312-win_amd64.pyd`. This is an actual application-control rejection,
+separate from the earlier long-path extraction failure.
+
+The optional configuration was not committed by the setup script. Installed
+Cellpose identity, private real-image inference, repeat reuse and optional
+launcher checks remain unexecuted. No protection policy, file-origin flag,
+signature trust or exclusion was changed to make the dependency execute. The
+immutable archive/tag was not modified and is not published as a validated
+optional Windows runtime.
+
+Docker scientific execution remains available with the accepted protocol. Native
+Windows compatibility requires separately versioned source and a new immutable
+package, followed by the same real-image/full-region and installed gates; it
+must not be introduced by silently modifying this draft ZIP.
 
 ## Retained failure and correction
 

@@ -1,10 +1,30 @@
 # NCL 4.3.0 deployment checkpoint, 2026-10-09
 
-Work is paused at the owner's explicit request before the PC leaves its network.
-The accepted detector and scientific settings are fixed; resumption is delivery
-verification, not another detector redesign.
+The owner resumed delivery on 2026-10-10. The accepted detector and scientific
+settings are fixed; resumption is delivery verification, not another detector
+redesign. The following checkpoint retains the state of the 2026-10-09 pause.
 
-## Completed delivery
+## Resumption
+
+The immutable ZIP hash was rechecked and is unchanged. The intervening main
+update (#52) changes the landing page only; its changes were preserved. The
+short-location ordinary Windows setup resumed and completed with the exact
+bundled script. Optional model/package provisioning completed, but Windows
+application control rejected the dependency `fill_voids.cp312-win_amd64.pyd`
+during its final import check. The isolated reproduction and Code Integrity
+event 3077 identify the same DLL. The remaining optional-runtime gates and public
+asset are blocked; no later gate is counted as passed. The existing native
+package and tag remain immutable. See the updated
+[acceptance record](local-release-0.1.0-local.18.md).
+
+Docker Desktop failed to start because of stale IPC sockets. Only its stopped
+temporary socket directories were retired before restarting Desktop. The existing
+Web/API/worker containers resumed, the loopback Web returned HTTP 200, and the
+research volume and offline scientific worker were retained. No factory reset,
+data-volume deletion or OS-policy change was performed. Edge opened the local
+workspace.
+
+## Completed delivery at the original pause
 
 - PR50 and PR53 are merged. Scientific code was tested at
   `7aa3cb7201cf651447a5457cf7a9b26032becf91`; the delivery source is
@@ -48,7 +68,16 @@ The original and short-location local acceptance drivers/checkpoints are retaine
 in task-private storage on this PC. They are intentionally not published, because
 their input references and resulting evidence include private research material.
 
-## Resume in order
+## Original resume procedure and current gate
+
+Step 1 completed on 2026-10-10. Step 2 failed at the actual Windows import gate.
+Do not repeat it unchanged, weaken OS protections, or publish the pending package.
+A Windows compatibility change must preserve the accepted detector/model/conditions
+and pass full-region real-image verification in a new immutable release. The owner
+has been asked whether to continue that separate compatibility/release work or
+use the already running Docker delivery for the current operational boundary.
+
+The original verification order remains below for traceability.
 
 1. Verify the preserved ZIP/source/hashes and task-owned process state. Continue
    ordinary setup at the short dedicated location using the exact ZIP's script;
