@@ -34,6 +34,16 @@ landing-page copy and repeated feature-card layouts.
   the intended visual quality rather than remove the requested art direction.
 - Use the actual photography, composition, whitespace and typography to carry
   the visual identity. Do not explain the intended atmosphere in the copy.
+- Below the hero, take Lila's design and emotional pull, not its grid
+  (`lp-sections.module.css`): no section titles or English labels. Each
+  section opens with its own first sentence set large (weight 400), followed
+  by body text in the same single column; pictures use wide rounded panels,
+  and a pale panel marks the exported figure and the download. The owner's
+  story has no title and is set in one size throughout. All text uses one
+  colour (one on dark, one on light): no faded or translucent text, no
+  scroll-linked dimming, no tilted or animated figures. Japanese lines break
+  at phrase boundaries; no coloured or glowing words inside running text.
+- The header wordmark returns to the hero (`#top`) on the landing page.
 - Primary action: **ダウンロード**. Product examples and setup information have
   separate, direct links.
 - Alternate full-width photography, portrait compositions, readable product
