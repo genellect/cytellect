@@ -129,9 +129,11 @@ test("the wordmark returns to the hero from anywhere on the page", async ({page}
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
  await expect(page.getByRole("heading",{level:1})).toBeInViewport();
  expect(page.url()).toBe(previousUrl); expect(navigations).toBe(0);
+ // This case verifies the wordmark's animated scroll, not GPU throughput.
+ // Real WebGL start/stop is exercised separately above.
+ await page.route("**/marketing/optical-assembly.glb",route=>route.abort());
  await page.emulateMedia({reducedMotion:"no-preference"});
- await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","ready");
- await page.getByRole("button",{name:"背景映像を停止",exact:true}).click();
+ await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
  await page.locator("#download").scrollIntoViewIfNeeded();
  await page.getByRole("link",{name:"Cytellect ホーム",exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
