@@ -2,104 +2,101 @@
 
 **Get your microscopy publication-ready.**
 
-[解析例を見る](https://cytellect.vercel.app/workspace?demo=bbbc013) · [Windows版をダウンロード](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) · [解析機能の説明](docs/implementation-overview.ja.md)
+[Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/common-statistics.md)
 
-Cytellect は、2D 蛍光顕微鏡画像から核と核小体を検出・定量し、実験単位の統計解析と論文用の図の作成までを一つのワークスペースで行う解析アプリケーションです。Web、Windows ローカル版、Docker の3つの形態を、同じ解析コードで提供しています。現在は開発中のプロトタイプです。
-
-![核の検出結果を重ねた解析画面](apps/web/public/marketing/workspace-public.png)
+Cytellect は、顕微鏡画像の解析から統計処理、グラフ編集までをブラウザで行うアプリケーションです。画像認識には StarDist と Cellpose-SAM、測定・統計には Python を採用しています。
 
 ## アーキテクチャ
 
+構成は Next.js のフロントエンド、FastAPI の解析 API、計算ワーカーが中心です。ブラウザから解析要求を受けると、API が設定とジョブを DB に保存し、ワーカーが推論・測定・統計・作図を実行します。ブラウザは API から進捗と結果を取得し、画像や図の編集を受け持ちます。
+
+LLM は Cloudflare Workers 上の AI サービスから呼び出します。生成した解析設定は API で検証し、手動設定と同じジョブ処理へ渡す構成です。Windows 版と Docker 版にも、共通の API と計算コードを使用しています。
+
 ```mermaid
-flowchart LR
-    Web["Next.js"] -->|Cookie session| API["FastAPI"]
-    API --> DB[("SQLite")]
-    API --> Files[("private volume")]
-    Worker["worker"] -->|CAS lease| DB
-    Worker --> Child["child process"]
-    Child --> Fiji["Fiji · StarDist<br/>(Java bridge)"]
-    Child --> Cellpose["Cellpose-SAM<br/>(optional offline runtime)"]
-    Child --> Files
-    API -. opt-in .-> Relay["Cloudflare Worker · D1"] --> OpenAI["OpenAI Responses"]
+flowchart TB
+    Web["Web ワークスペース<br/>Next.js · React · TypeScript"]
+    API["解析 API<br/>FastAPI · Pydantic"]
+    State[("解析設定・変更履歴・ジョブ<br/>SQLite · SQLAlchemy")]
+    Files[("原画像・マスク・出力ファイル<br/>非公開データ領域")]
+    Worker["計算ワーカー<br/>ジョブごとにプロセスを分離"]
+    Models["画像認識<br/>Fiji / StarDist · Cellpose-SAM"]
+    Python["測定・統計・作図<br/>NumPy · SciPy · Matplotlib"]
+    Relay["AI サービス<br/>Cloudflare Workers · D1"]
+    LLM["OpenAI Responses API<br/>Structured Outputs"]
+
+    Web <-->|設定・編集・結果| API
+    API <--> State
+    API <--> Files
+    Worker <-->|実行権・進捗| State
+    Worker --> Models
+    Worker --> Python
+    Models <--> Files
+    Python <--> Files
+    API <-->|指示・構造化設定| Relay
+    Relay <--> LLM
 ```
 
-| | |
-|---|---|
-| `apps/web` | Next.js 16 / React 19。数値計算は持たず、API に保存された値だけを描画。型は OpenAPI から生成 |
-| `services/api` | FastAPI（54 エンドポイント）、SQLite + Alembic。認証、入力検証、revision とジョブの管理 |
-| `services/worker` | ジョブを CAS lease で取得し、1ジョブ1子プロセスで実行。時間・メモリ超過時はプロセスグループごと停止 |
-| `packages/analysis` | 測定・統計・作図・書き出し・replay（45 モジュール）。API とワーカーで共有 |
-| `engines/fiji` | Fiji / StarDist 2D / MorphoLibJ の lock と Java ブリッジ |
-| `engines/cellpose` | Cellpose-SAM の固定モデル・独立実行環境。NCL候補と細胞ROIに使用し、核検出は StarDist を維持 |
-| `services/proposal-worker` | 解析計画提案の中継（Cloudflare Workers + D1）。既定で無効 |
+API のデータ型は Pydantic で定義し、OpenAPI からフロントエンドの TypeScript 型を生成しています。解析設定、マスク、測定値、統計結果、図はバージョンで関連付けられ、モデルや設定を変更した後も、以前の結果とその計算条件が残ります。
 
-## 技術スタック
+## 画像認識と測定
 
-| | |
-|---|---|
-| Web | Next.js 16 · React 19 · TypeScript 6 |
-| API | Python 3.12 · FastAPI · Pydantic 2 · SQLAlchemy 2 · Alembic · SQLite |
-| 解析 | NumPy · SciPy · statsmodels · pandas · scikit-image · tifffile · Matplotlib |
-| 画像処理 | Fiji · StarDist 2D 0.3.0 · TensorFlow 1.15 (Java) · MorphoLibJ 1.6.5 |
-| LLM | Cloudflare Workers · D1 · OpenAI Responses API (Structured Outputs) |
-| 配布 | Vercel · GitHub Releases · Docker Compose |
-| 検証 | Pytest · Vitest · Playwright · Ruff · mypy · Gitleaks · pip-audit · CycloneDX |
+核の検出には Fiji 上の StarDist、核小体・細胞領域には PyTorch 上の Cellpose-SAM を使っています。Cellpose-SAM は SAM ViT-L を基盤とし、フロー場と前景確率から個々の対象を分割するモデルです。
 
-## 実装
+NCL 染色画像では、核ごとに背景を推定・正規化した画像を Cellpose-SAM に入力します。推論後に核全体を拾った候補を取り除き、Multi-Otsu、距離変換、Watershed で境界を補正します。モデルの出力と補正後のマスクは、別の結果として保存されます。
 
-### 画像入力と Fiji 連携
+検出マスクの保存形式は、原画像と同じ座標系の整数ラベルです。核小体には親核の ID があり、輪郭表示、手動修正、面積・輝度の計算がこのラベルを参照します。検出用画像と表示用画像は測定用の原画素から分けてあるため、背景除去や正規化を検出用コピーに適用しても、測定の入力は変わりません。
 
-画像の読み込みでは、OME-XML と TIFF の IFD を突き合わせ、軸、dtype、plane 数、ストリップの位置まで検証しています。欠けた plane を補ったり、外部ファイルを参照する OME を読んだりはしません。
+推論環境は Fiji／TensorFlow Java と Cellpose-SAM／PyTorch で独立しています。それぞれ依存パッケージとモデルを固定し、実行時にハッシュを照合する方式です。
 
-Fiji はリポジトリに同梱していません。Fiji 本体、StarDist のモデル、プラグインを SHA-256 で lock し、実行前に毎回照合しています。実行時に依存を取得することはありません。Python からは Java ブリッジ（`engines/fiji/CytellectEngine.java`）をヘッドレスで起動し、正規化は画像の複製にだけかけ、ラベル画像は元画像と同じ座標で受け取ります。
+**追加学習**には、染色画像と修正済みのインスタンスマスクを使う方針です。Cellpose-SAM を核小体・細胞質ごとに調整し、試料・撮影バッチを分けて輪郭精度、過分割、結合誤りを評価します。学習データ、重み、推論条件を一組としてバージョン管理する設計です。
 
-Cellpose-SAM は、固定した独立実行環境とモデルをセットアップ時に取得し、解析中はネットワークを使いません。NCL検出の局所背景除去は検出用コピーに限定し、測定は原画像から行います。保存済みの旧方式は変更しません。選択した試験画像で再現を確認していますが、別画像には誤検出と取りこぼしが残り、核小体の捕捉精度を全体として検証済みとはしていません。[設定と制限](engines/cellpose/README.md)
+## Web ワークスペース
 
-### ジョブと revision
+画像編集は SVG 上で行い、ズームやパンを含めて原画像の座標系を使います。輪郭の描画・分割・結合、Undo／Redo の結果はマスクに保存され、測定表の選択と画像上の領域が連動します。統計や図からも、計算に使った画像・領域を開けます。
 
-検出、修正、除外、背景の変更は、すべて immutable な revision として記録しています。核を変更すると、その子である核小体と、そこから作った統計・図を無効にします。
+グラフエディタは Matplotlib の SVG を取り込み、軸や系列の選択を編集パネルに対応付けたものです。色や軸の変更で実行するのは再描画だけで、測定や検定をやり直すことはありません。取り込む SVG は実行可能要素と外部参照を除去し、複数の図で衝突しないよう要素 ID を分けています。
 
-ジョブは SQLite 上の compare-and-swap で lease を取得します。lease が切れたワーカーは結果を確定できないため、古いワーカーによる上書きは起きません。API は要求を `202` で受け付け、取り消しと再試行に対応しています。ワーカーは psutil で子プロセスツリーの経過時間とメモリ使用量を監視しています。
+非同期応答は、解析対象と設定バージョンが現在の画面に一致したものだけを表示します。設定変更前の計算が遅れて完了しても、編集中の結果を上書きしません。
 
-### 決定的な出力と replay
+公開サイトには Three.js／WebGL を使用しています。描画コードを遅延読み込みし、非表示時には描画を停止、破棄時には GPU リソースを解放します。
 
-Matplotlib（Agg）の jitter の seed、SVG の hashsalt、メタデータを固定し、zip のタイムスタンプもそろえています。そのため、同じ入力からは同じバイト列が生成されます。PDF にはフォントを埋め込み、使用したフォントの SHA-256 も記録しています。
+## LLM と解析設定
 
-書き出しには、SHA-256 の manifest と `replay.py` を同梱しています。受け取った側で測定・統計・図を再計算し、元の出力と一致するかを確かめられます。
+LLM に渡すのは、指示文、染色とチャンネルの対応、画像寸法、現在の設定などです。通常のアプリ経路に原画像と測定値は含まれません。
 
-### 認証とデータ境界
+応答は、検出条件、測定項目、GFP による選別、統計、図の設定を持つ構造化データとして受け取ります。API 側で型・数値範囲・登録チャンネルとの対応を検証した後、手動設定と同じ処理で保存し、選択画像のプレビューを実行します。
 
-認証は、招待トークンを `HttpOnly`・`SameSite=Strict` の Cookie に交換する方式です。トークン自体は保存せず、SHA-256 のダイジェストだけを保存します。状態を変える要求では Origin と `X-Cytellect-Request` ヘッダーを検証し、他人のリソースには 404 を返します。
+外部 API の利用額は、中継する Cloudflare Worker と D1 で管理しています。呼び出し前に費用を予約し、完了後に精算する方式で、どちらの処理も原子的に実行します。未精算の予約も利用上限の計算に含まれます。
 
-データはリポジトリ外の非公開ボリュームに置き、最終操作から24時間で削除します。Docker では、UID 10001、読み取り専用ルート、`cap_drop: ALL`、`no-new-privileges` で各コンテナを動かし、ワーカーは `network_mode: none` でネットワークから切り離しています。
+## 統計・出力
 
-### LLM 連携
+測定と統計計算は NumPy、SciPy、pandas、statsmodels による処理です。細胞・視野・試料・独立実験単位を区別して集計し、群間比較、対応あり比較、相関解析へ進みます。対象の選別、除外、欠測、比較条件は結果とともに記録されます。
 
-Pydantic の契約から strict な JSON Schema を生成し、Worker 側の定義と一致しているかを CI で検査しています。モデルは閉じた enum の中から選ぶだけで、返答はローカルの意味検査を通してから表示します。番号だけのチャンネルに染色名を付ける案や、実験単位がないのに検定する案はここで除外します。数値の計算に LLM は使いません。
+図は乱数シードと出力メタデータを固定して生成します。SVG は文字を編集可能な状態で保存し、PDF はフォントを埋め込みます。書き出しには入力ハッシュ、解析に使ったマスク、設定・環境情報、再計算スクリプトを含めています。
 
-送信は、利用者が機能を有効にし、毎回同意した場合に限ります（同意がなければ `428`）。送るのはチャンネルの記号、件数、目的の文だけです。リダイレクトは拒否し、`store: false` で送信し、本文はログに残しません。費用は呼び出しの前に最悪の金額を D1 に1つの SQL 文で予約し、精算はトリガーで原子的かつ冪等に行います。精算されない予約も、上限の計算に含め続けます。
+## ジョブとデータ管理
 
-### Windows 配布
+ジョブは DB に永続化し、要求 ID で重複実行を防いでいます。ワーカーは依存関係に沿って処理を進め、条件が一致する既存結果を再利用します。実行権は compare-and-swap で取得し、結果の確定時にも検証するため、古いワーカーの結果で上書きされることはありません。
 
-実行環境は、PSF 公式の Python 3.14.8 と Tcl/Tk 9.0.4 から組み立て、venv ランチャーの Authenticode 署名を検証しています。実行ファイルの書き換えや再署名はしていません。依存は `uv export --locked` で出力したハッシュ付きの要件から導入し、システムの Python、PATH、既存の Fiji には触れません。
+計算は実行ごとの作業ディレクトリと子プロセスで行います。キャンセルや時間・メモリ上限の超過時に停止するのは、その実行のプロセス群です。
 
-更新時は、新しい版の起動確認と Fiji の数値確認が通るまで旧版を残し、記録と一致する旧版だけを削除します。研究データは削除の対象にしません。ランチャーは `127.0.0.1` だけで待ち受け、ローカル専用の手順でセッションを確立するため、トークンの入力は不要です。
+設定更新は要求側のバージョンと照合し、競合時は `409` を返します。マスクの修正も新しいバージョンとして保存され、そのマスクに依存する測定・統計・図が更新対象になります。
 
-## CI
+認証は `HttpOnly`・`SameSite=Strict` Cookie を使用し、トークンはハッシュで保存しています。API ではリソースの所有権を確認し、更新要求には Origin の検証を行います。
 
-| ジョブ | 内容 |
-|---|---|
-| `python` | Ruff、mypy、1,300 件を超える非 Fiji テスト（統計は閉形式解・全列挙と照合）、全履歴の秘密情報スキャン、依存監査、SBOM |
-| `web` | OpenAPI → TypeScript 型の再生成差分、型検査、単体テスト、ビルド、Playwright |
-| `fiji-browser` | 実 Fiji で公開画像を解析して ImageJ の独立計算と照合、実 API に対する E2E、network none・読み取り専用コンテナでの Fiji 実行 |
-| `local-windows` | Windows でのセットアップと起動・終了の境界試験 |
-| `python-windows-314` | Windows / Python 3.14 での全テスト |
+研究データの保存先はコードと別の非公開領域です。最終操作から24時間を保存期限とし、期限切れのデータはワーカーが削除します。停止中に期限を迎えた場合は、次回起動後の削除になります。
 
-Windows 版は、配布する ZIP をクリーンな環境に導入し、ブラウザ試験26件と replay の照合を通過した版だけを公開しています。
+## 配布
 
-## 開発環境
+Web UI の公開先は Vercel、AI サービスは Cloudflare Workers です。解析 API と計算環境は別に構築し、Docker と Windows ランチャーで配布しています。
 
-Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。
+Docker 版は Web、API、計算ワーカーを別コンテナで動かす構成です。非 root ユーザー、読み取り専用のルートファイルシステム、権限の削減を適用し、計算ワーカーにはネットワークを持たせていません。
+
+Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物のハッシュを検証します。ランチャーは `127.0.0.1` で待ち受け、所有者のセッションを確立します。更新時も研究データはそのまま保持し、新版の起動確認が終わるまで旧版を残す方式です。
+
+## 開発・検証
+
+Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。Linux での起動手順は次のとおりです。
 
 ```bash
 uv sync --locked --dev
@@ -111,8 +108,15 @@ uv run cytellect invite --hours 24
 uv run cytellect serve & uv run cytellect-worker & pnpm dev
 ```
 
-テストは `uv run pytest` と `pnpm test` で実行します。
+CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
+
+```bash
+uv run pytest
+uv run ruff check .
+pnpm check
+pnpm test
+```
 
 ## ライセンス
 
-Apache License 2.0 で公開しています。Fiji、モデルの重み、公開データセットには、それぞれのライセンスが適用されます。
+Apache License 2.0。Fiji、モデルの重み、データセットには、それぞれのライセンスが適用されます。
