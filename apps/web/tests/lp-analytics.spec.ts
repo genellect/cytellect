@@ -113,7 +113,7 @@ test("the LP and the analysis screen are separate, and /product moves to the LP"
   await isolatedSite(page, baseURL!);
   await page.goto(origin + "/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("publication-ready");
-  await page.getByRole("navigation", { name: "メインナビゲーション" }).getByRole("link", { name: "解析画面" }).click();
+  await page.getByRole("link", { name: "解析画面を開く" }).click();
   await expect(page).toHaveURL(`${origin}/workspace`);
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
 });
@@ -124,7 +124,8 @@ test("installed-user guidance is visible without contacting a local service", as
   const localRequests: string[] = [];
   page.on("request", request => { if (/^http:\/\/(127\.0\.0\.1|localhost):8765/.test(request.url())) localRequests.push(request.url()); });
   await page.goto(origin + "/");
-  await page.getByRole("navigation", { name:"メインナビゲーション" }).getByRole("link", {name:"インストール済みの方"}).click();
+  await page.getByRole("navigation", { name:"メインナビゲーション" }).getByRole("link", {name:"ダウンロード"}).click();
+  await page.locator("#launch").scrollIntoViewIfNeeded();
   await expect(page.locator("#launch")).toBeInViewport();
   await expect(page.locator("#launch")).toContainText("ブラウザで開く");
   await expect(page.locator("#launch")).toContainText("再ダウンロード・再インストールは不要です。");

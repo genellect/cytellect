@@ -115,6 +115,12 @@
   .pair{grid-template-columns:minmax(0,2fr) minmax(0,8fr);gap:16px}
   .card{padding:24px 18px}.card b{font-size:18px}
 }
+@media(min-width:1024px) and (max-width:1200px){
+  .header{padding-inline:20px;gap:18px}
+  .navigation{display:flex;gap:14px}
+  .header>div{display:none}
+  .navDownload{gap:12px;padding-inline:12px}
+}
 @media(max-width:760px){
   .page{--gutter:22px;--section-space:72px;--t-body:17px}
   .header{top:10px;left:12px;right:12px;height:58px;padding:0 16px}.wordmark{font-size:27px}

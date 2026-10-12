@@ -16,14 +16,14 @@ const Forward = () => <span aria-hidden="true">→</span>;
 function Display({ id, text }: { id: string; text: string }) {
   return <h2 id={id} className={lp.display}>{text}</h2>;
 }
-function NavigationLinks(){return <><a href="#workflow">プロダクト</a><Link data-lp-event="example" href="/demo">解析例</Link><Link data-lp-event="workspace" href="/workspace">解析画面</Link><a data-lp-event="guide" href="#guide">ガイド</a><a data-lp-event="download_section" href="#download" className={lp.navDownload}>ダウンロード <span aria-hidden="true">↓</span></a><a data-lp-event="launch" href="#launch">インストール済みの方</a></>;}
+function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a data-lp-event="guide" href="#guide">ガイド</a><a href="https://yuto-matsui.com/">About the Developer</a><a data-lp-event="download_section" href="#download" className={lp.navDownload}>ダウンロード <span aria-hidden="true">↓</span></a></>;}
 
 export default function PublicLanding() {
   return <div className={lp.page} data-cytellect-public-page="/">
     <OpticalHero />
     <LandingAnalytics page="/" />
     <a className={styles.skipLink} href="#main">本文へ</a>
-    <header className={lp.header}><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /><a href="https://yuto-matsui.com/">About Developer</a></ProductMenu></header>
+    <header className={lp.header}><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <main id="main">
       <section id="top" className={lp.hero} aria-labelledby="hero-title">
         <div className={lp.heroShade} />
@@ -39,6 +39,7 @@ export default function PublicLanding() {
           <Display id="workflow-title" text="Cytellectは、顕微鏡画像の解析から統計、論文用グラフの作成までをつなぐ、研究者のためのソフトウェアです。" />
           <div className={lp.prose}><p>一枚ずつの測定や、ソフトを移るたびのデータ整理。Cytellectは、画像の定量から集計までを一つのワークスペースでつなぎます。代表画像で確認した条件をまとめて適用し、気になる値は元の画像に戻って確認できます。</p></div>
         </div>
+        <div className={lp.column}><Link data-lp-event="workspace" href="/workspace" className={lp.button}>解析画面を開く <Forward /></Link></div>
         <div className={[lp.wide, lp.media].join(" ")}>
           <figure className={lp.panel}><ProductWalkthrough /></figure>
           <EvidenceExample />
@@ -63,6 +64,7 @@ export default function PublicLanding() {
           <div className={lp.prose}><p>測定結果から図を作り、誌面に合わせたサイズで出力できます。編集可能なSVG・PDFと元データを書き出し、論文の仕上げへ進めます。</p></div>
           <a data-lp-event="figures" href={docs+"figures.md"} className={lp.button}>出力できる図と形式 <Arrow /></a>
         </div>
+
         <div className={[lp.wide, lp.media].join(" ")}>
           <div className={[lp.light, lp.figureStage].join(" ")}>
             <figure><a className={lp.paper} href="/marketing/figure-public.svg" aria-label="グラフを拡大"><picture><source media="(max-width: 760px)" srcSet="/marketing/figure-public-mobile.svg" /><img src="/marketing/figure-public.svg" alt="公開画像の817領域の面積分布を示すCytellectの出力図" width={518.74} height={216} loading="lazy" /></picture></a></figure>
