@@ -80,7 +80,11 @@ test("a researcher can stop the real 3D rendering and keep it stopped after navi
  await expect(scene).toHaveAttribute("data-paused","true");
  await page.getByRole("button",{name:"背景映像を再生",exact:true}).click();
  await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(count));
+ // Pause while scrolling on software WebGL runners; then verify live rendering
+ // below the hero independently of the scroll action.
+ await page.getByRole("button",{name:"背景映像を停止",exact:true}).click();
  const figure=page.getByAltText(/^公開画像の817領域/);await figure.scrollIntoViewIfNeeded();
+ await page.getByRole("button",{name:"背景映像を再生",exact:true}).click();
  const belowHero=await rendered.getAttribute("data-render-count");await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(belowHero));
  await page.emulateMedia({reducedMotion:"reduce"});await expect(scene.locator("canvas")).toHaveCount(0);
  expect(errors).toEqual([]);
@@ -98,6 +102,7 @@ test("product walkthrough is explicitly started and returns to the real still im
 });
 
 test("the story for general readers opens in place and keeps its text", async ({page}) => {
+ await page.emulateMedia({reducedMotion:"reduce"});
  await page.goto("/");
  const story = page.getByRole("region", { name: "Cytellectが生まれた理由" });
  await expect(story).toContainText("私たちの体は、約30兆個もの細胞から成り立っている。");
@@ -125,6 +130,8 @@ test("the wordmark returns to the hero from anywhere on the page", async ({page}
  await expect(page.getByRole("heading",{level:1})).toBeInViewport();
  expect(page.url()).toBe(previousUrl); expect(navigations).toBe(0);
  await page.emulateMedia({reducedMotion:"no-preference"});
+ await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","ready");
+ await page.getByRole("button",{name:"背景映像を停止",exact:true}).click();
  await page.locator("#download").scrollIntoViewIfNeeded();
  await page.getByRole("link",{name:"Cytellect ホーム",exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);

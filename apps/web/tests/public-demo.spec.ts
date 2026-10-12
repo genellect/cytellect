@@ -42,6 +42,7 @@ test("public real-image viewer: selection, channels, measurements, mobile",async
 });
 
 test("unconfigured public build makes no analysis connection",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");
  const connections:string[]=[];page.on("request",r=>{if(r.url().includes(":8000")||r.url().includes("/v1/"))connections.push(r.url());});
  await page.goto("/");
@@ -70,6 +71,7 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
 });
 
 test("public landing links saved measurements to their exact image regions",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Public landing only");
  const errors:string[]=[];const analysisRequests:string[]=[];
  page.on("pageerror",e=>errors.push(e.message));page.on("console",m=>{if(m.type()==="error")errors.push(m.text());});
