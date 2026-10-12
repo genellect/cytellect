@@ -23,7 +23,7 @@ export default function PublicLanding() {
     <OpticalHero />
     <LandingAnalytics page="/" />
     <a className={styles.skipLink} href="#main">本文へ</a>
-    <header className={lp.header}><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
+    <header className={lp.header}><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /><a href="https://yuto-matsui.com/">About Developer</a></ProductMenu></header>
     <main id="main">
       <section id="top" className={lp.hero} aria-labelledby="hero-title">
         <div className={lp.heroShade} />
