@@ -150,7 +150,7 @@
     "license": "Apache-2.0"
   },
   "apps/web/public/marketing/provenance.json": {
-    "sha256": "2610692543a36b35da51016d0a38687a7b208773c004fc635c1a0996c8e6952d",
+    "sha256": "3c190bf5ad0566a6500249713aae281f92dcbd6824f533fd4ea581628febc377",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -258,5 +258,25 @@
     "sha256": "b9702e157a57c9303c00bcb3533584bef424ab4407c7d2673c9087811ea0e2e6",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "CC-BY-3.0"
+  },
+  "apps/web/public/marketing/optical-assembly.glb": {
+    "sha256": "982e1809f9fec399d4b97ff0fe95ee2b60a3d8ad23e6b9c1326c2b3a6fdfcb63",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/optical-mobile-poster.webp": {
+    "sha256": "3d50874d38f26a6f4735d8de1e2fb0d3161e75e5cc76df92e90deb915dfc129f",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/optical-poster.webp": {
+    "sha256": "56c556fa2eeac403d52e8c37513f7615099a222726d071c609765cb2b61a569c",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/optical-provenance.json": {
+    "sha256": "047060a6136cf0d739e2e7b7ab00599b1979990f69072ade5ac189c7d3496f2d",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
   }
 }

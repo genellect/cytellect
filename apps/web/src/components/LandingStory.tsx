@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import lp from "./lp-sections.module.css";
+import { useState } from "react";
+import lp from "./optical-landing.module.css";
 
 const lead = "私たちの体は、約30兆個もの細胞から成り立っている。これらの細胞に生じる変異は、ときにがんや神経変性疾患といった病気の引き金となり、私たちの健康を脅かす。こうした病気の原因を突き止め、がんや認知症などの克服につなげるため、研究者たちは顕微鏡を通して、細胞の内部で何が起きているのかを解き明かそうとしてきた。";
 
@@ -21,40 +21,20 @@ const closing = "Cytellectは、これまで煩雑な手作業や研究者個人
 /** The owner's account of why Cytellect exists, for readers outside the life sciences. */
 export function LandingStory() {
   const [open, setOpen] = useState(false);
-  const more = useRef<HTMLDivElement>(null);
-  const settle = useRef<number | undefined>(undefined);
-  // Animate between measured heights; `height: auto` transitions are not supported everywhere.
-  const toggle = () => {
-    const element = more.current;
-    const next = !open;
-    window.clearTimeout(settle.current);
-    if (element) {
-      element.style.height = `${element.scrollHeight}px`;
-      if (next) {
-        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-        const done = () => { if (element.style.height !== "") { element.style.height = "auto"; element.scrollTop = 0; } };
-        if (reduced) done(); else settle.current = window.setTimeout(done, 950);
-      } else {
-        void element.offsetHeight;
-        element.style.height = "";
-      }
-    }
-    setOpen(next);
-  };
   const paragraph = (text: string) => <p key={text.slice(0, 12)}>{text}</p>;
   return <section className={[lp.section, lp.story].join(" ")} aria-label="Cytellectが生まれた理由">
     <div className={lp.column}><div className={lp.prose}>
       {paragraph(lead)}
-      <div id="story-more" ref={more} className={lp.more} inert={!open}>
-        <div>
+      <div id="story-more" className={lp.more} data-open={open} inert={!open}>
+        <div><div>
           {body.map(paragraph)}
           {paragraph("こうした課題を解決するために開発したのが、「Cytellect」である。")}
           {answer.map(paragraph)}
           {paragraph(closing)}
-        </div>
+        </div></div>
       </div>
       <button type="button" className={lp.button} aria-expanded={open} aria-controls="story-more"
-        data-lp-event={open ? undefined : "story"} onClick={toggle}>
+        data-lp-event={open ? undefined : "story"} onClick={() => setOpen(value => !value)}>
         <span>{open ? "閉じる" : "続きを読む"}</span><span aria-hidden="true" className={lp.toggleIcon} />
       </button>
     </div></div>

@@ -2,29 +2,32 @@ import Link from "next/link";
 import { LandingAnalytics } from "./LandingAnalytics";
 import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL } from "@/lib/release";
 import { ProductMenu } from "./ProductMenu";
-import { CellHero } from "./CellHero";
+import { OpticalHero } from "./OpticalHero";
 import { LandingStory } from "./LandingStory";
+import { LandingHomeLink } from "./LandingHomeLink";
 import { EvidenceExample, ProductWalkthrough } from "./MarketingMotion";
 import styles from "./product.module.css";
-import lp from "./lp-sections.module.css";
+import lp from "./optical-landing.module.css";
 
 const docs = "https://github.com/genellect/cytellect/blob/main/docs/";
 const Arrow = () => <span aria-hidden="true">↗</span>;
+const Forward = () => <span aria-hidden="true">→</span>;
 /** No titles: a section opens with its own first sentence, set large. */
 function Display({ id, text }: { id: string; text: string }) {
   return <h2 id={id} className={lp.display}>{text}</h2>;
 }
-function NavigationLinks(){return <><a href="#workflow">プロダクト</a><Link data-lp-event="example" href="/demo">解析例</Link><Link data-lp-event="workspace" href="/workspace">解析画面</Link><a data-lp-event="guide" href="#guide">ガイド</a><a data-lp-event="download_section" href="#download" className={styles.navDownload}>ダウンロード <Arrow /></a><a data-lp-event="launch" href="#launch">インストール済みの方</a></>;}
+function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a data-lp-event="guide" href="#guide">ガイド</a><a href="https://yuto-matsui.com/">About the Developer</a><a data-lp-event="download_section" href="#download" className={lp.navDownload}>ダウンロード <span aria-hidden="true">↓</span></a></>;}
 
 export default function PublicLanding() {
-  return <div className={[styles.page, lp.page].join(" ")} data-cytellect-public-page="/">
+  return <div className={lp.page} data-cytellect-public-page="/">
+    <OpticalHero />
     <LandingAnalytics page="/" />
     <a className={styles.skipLink} href="#main">本文へ</a>
-    <header className={styles.header}><a href="#top" aria-label="Cytellect ホーム" className={styles.wordmark}>cytellect</a><nav className={styles.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
+    <header className={lp.header}><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <main id="main">
-      <section className={styles.hero} aria-labelledby="hero-title">
-        <CellHero /><div className={styles.heroShade} />
-        <div className={styles.heroCopy}><h1 id="hero-title" lang="en"><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-ready.</span></h1><div className={styles.heroActions}><a data-lp-event="download_section" href="#download" className={styles.primary}>ダウンロード <Arrow /></a><Link data-lp-event="example" href="/demo" className={styles.heroSecondary}>解析例を見る <Arrow /></Link></div></div>
+      <section id="top" className={lp.hero} aria-labelledby="hero-title">
+        <div className={lp.heroShade} />
+        <div className={lp.heroCopy}><h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1><div className={lp.heroActions}><a data-lp-event="download_section" href="#download" className={lp.primary}>ダウンロード <span aria-hidden="true">↓</span></a><Link data-lp-event="example" href="/demo" className={lp.heroSecondary}>解析例を見る <Forward /></Link></div></div>
       </section>
 
       <LandingStory />
@@ -36,6 +39,7 @@ export default function PublicLanding() {
           <Display id="workflow-title" text="Cytellectは、顕微鏡画像の解析から統計、論文用グラフの作成までをつなぐ、研究者のためのソフトウェアです。" />
           <div className={lp.prose}><p>一枚ずつの測定や、ソフトを移るたびのデータ整理。Cytellectは、画像の定量から集計までを一つのワークスペースでつなぎます。代表画像で確認した条件をまとめて適用し、気になる値は元の画像に戻って確認できます。</p></div>
         </div>
+        <div className={lp.column}><Link data-lp-event="workspace" href="/workspace" className={lp.button}>解析画面を開く <Forward /></Link></div>
         <div className={[lp.wide, lp.media].join(" ")}>
           <figure className={lp.panel}><ProductWalkthrough /></figure>
           <EvidenceExample />
@@ -46,7 +50,7 @@ export default function PublicLanding() {
         <div className={lp.column}>
           <Display id="comparison-title" text="画像解析や統計が専門でなくても、必要な設定を画面で確認しながら進められます。" />
           <div className={lp.prose}><p>測定方法から、実験の組み方に合った比較まで。解析の根拠を理解しながら、自分の研究に取り組めます。</p></div>
-          <Link data-lp-event="planning" href="/plan" className={lp.button}>解析設定を見る <Arrow /></Link>
+          <Link data-lp-event="planning" href="/plan" className={lp.button}>解析設定を見る <Forward /></Link>
         </div>
         <div className={[lp.wide, lp.media, lp.pair].join(" ")}>
           <figure className={[lp.panel, lp.photo].join(" ")}><img src="/marketing/photo-pipetting.webp" alt="手袋を着けてピペットで試料を扱う手元" width={1920} height={2658} loading="lazy" /></figure>
@@ -60,15 +64,16 @@ export default function PublicLanding() {
           <div className={lp.prose}><p>測定結果から図を作り、誌面に合わせたサイズで出力できます。編集可能なSVG・PDFと元データを書き出し、論文の仕上げへ進めます。</p></div>
           <a data-lp-event="figures" href={docs+"figures.md"} className={lp.button}>出力できる図と形式 <Arrow /></a>
         </div>
+
         <div className={[lp.wide, lp.media].join(" ")}>
           <div className={[lp.light, lp.figureStage].join(" ")}>
-            <figure className={styles.paperFigure}><a className={styles.paper} href="/marketing/figure-public.svg" aria-label="グラフを拡大"><picture><source media="(max-width: 760px)" srcSet="/marketing/figure-public-mobile.svg" /><img src="/marketing/figure-public.svg" alt="公開画像の817領域の面積分布を示すCytellectの出力図" width={518.74} height={216} loading="lazy" /></picture></a></figure>
+            <figure><a className={lp.paper} href="/marketing/figure-public.svg" aria-label="グラフを拡大"><picture><source media="(max-width: 760px)" srcSet="/marketing/figure-public-mobile.svg" /><img src="/marketing/figure-public.svg" alt="公開画像の817領域の面積分布を示すCytellectの出力図" width={518.74} height={216} loading="lazy" /></picture></a></figure>
           </div>
           <div className={lp.caption}><span>公開画像の測定値から出力した図</span><nav aria-label="図の元データ"><a href="/marketing/figure-public.svg">図を拡大</a><a href="/marketing/figure-public.csv">測定値 CSV</a><a href="/marketing/figure-source.json">作図条件</a><a href="/marketing/provenance.json">出典</a></nav></div>
         </div>
       </section>
 
-      <section id="guide" className={lp.section} aria-labelledby="guide-title">
+      <section id="guide" className={[lp.section, lp.guide].join(" ")} aria-labelledby="guide-title">
         <div className={lp.wide}>
           <h2 id="guide-title" className={lp.label}>使い方と解析方法</h2>
           <div className={lp.cards}>
@@ -79,12 +84,12 @@ export default function PublicLanding() {
         </div>
       </section>
 
-      <section id="download" className={lp.section} aria-labelledby="download-title">
+      <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
           <div className={[lp.light, lp.cta].join(" ")}>
             <Display id="download-title" text="Cytellectは、Windows PCで動作します。" />
             <div className={lp.prose}><p>初回セットアップ後は、ブラウザから画像を登録して解析できます。</p></div>
-            <div className={lp.actions}>{WINDOWS_RELEASE_URL?<><a className={styles.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL&&<a className={lp.release} href={`https://github.com/genellect/cytellect/releases/tag/v${PUBLISHED_RELEASE.version}`}>v{PUBLISHED_RELEASE.version} · リリース情報 <Arrow /></a>}</>:<Link data-lp-event="example" href="/demo" className={styles.primary}>公開画像を見る <Arrow /></Link>}</div>
+            <div className={lp.actions}>{WINDOWS_RELEASE_URL?<><a className={lp.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL&&<a className={lp.release} href={`https://github.com/genellect/cytellect/releases/tag/v${PUBLISHED_RELEASE.version}`}>v{PUBLISHED_RELEASE.version} · リリース情報 <Arrow /></a>}</>:<Link data-lp-event="example" href="/demo" className={lp.primary}>公開画像を見る <Arrow /></Link>}</div>
           </div>
         </div>
         <div className={[lp.column, lp.details].join(" ")}>
@@ -97,6 +102,6 @@ export default function PublicLanding() {
         </div>
       </section>
     </main>
-    <footer className={styles.footer}><div className={styles.sectionShell}><a href="#top" className={styles.footerBrand}>cytellect</a><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={styles.copyright}>&copy; 2026 Yuto Matsui. All rights reserved.</p></div></footer>
+    <footer className={lp.footer}><div className={lp.sectionShell}><a href="#top" className={lp.footerBrand}>cytellect</a><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={lp.copyright}>&copy; 2026 Yuto Matsui. All rights reserved.</p></div></footer>
   </div>;
 }

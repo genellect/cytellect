@@ -1,0 +1,25 @@
+{
+  "blender": "4.5.9 LTS",
+  "source": "scripts/create_optical_hero.py",
+  "textures": "none",
+  "model": "optical-assembly.glb",
+  "samples": 32,
+  "artwork": "Original light-and-material architecture; no depiction of product hardware.",
+  "assets": {
+    "optical-assembly.glb": {
+      "sha256": "982e1809f9fec399d4b97ff0fe95ee2b60a3d8ad23e6b9c1326c2b3a6fdfcb63",
+      "bytes": 82676
+    },
+    "optical-poster.webp": {
+      "sha256": "56c556fa2eeac403d52e8c37513f7615099a222726d071c609765cb2b61a569c",
+      "bytes": 28744
+    },
+    "optical-mobile-poster.webp": {
+      "sha256": "3d50874d38f26a6f4735d8de1e2fb0d3161e75e5cc76df92e90deb915dfc129f",
+      "bytes": 25306
+    }
+  },
+  "source_sha256": "b545a9ce736789f5f97138ad6730f142da91a2a1a1e58700fdf50b22ea06270a",
+  "license": "Original artwork by Cytellect; repository Apache-2.0 license.",
+  "content": "A continuous light-and-material environment. No cell photographs, image textures or product hardware depiction."
+}
