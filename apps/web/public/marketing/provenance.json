@@ -27,12 +27,6 @@
     "statistics": "Descriptive distribution only (no groups, no inference); the fields are not independent experimental units.",
     "captured": "2026-10-08"
   },
-  "hero": {
-    "source": "4dn",
-    "registered_preview_sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
-    "transform": "Crop and gentle looping viewport zoom of one static real image; not time-lapse or cell motion. 1600x900, 24 fps, 12 seconds, no audio. Scientific inputs and values unchanged.",
-    "build_tool": "scripts/build_marketing_media.py"
-  },
   "workspace_operation": {
     "source": "bbbc013",
     "method": "Continuous browser recording of one session: start, import of six TIFF files, nuclear channel selection, measurement of all fields, outlines and measurement table, field switching. The detection wait between pressing 測定 and the first result (about 34 s) is cut; nothing else is accelerated or re-ordered. No generated cursor, synthetic UI, or invented values.",
@@ -196,5 +190,17 @@
     "model": "/marketing/cell-sculpture.glb",
     "poster": "/marketing/cell-sculpture-poster.webp",
     "license": "Apache-2.0"
+  },
+  "archived_microscopy_hero": {
+    "source": "4dn",
+    "registered_preview_sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
+    "transform": "Crop and gentle looping viewport zoom of one static real image; not time-lapse or cell motion. 1600x900, 24 fps, 12 seconds, no audio. Scientific inputs and values unchanged.",
+    "build_tool": "scripts/build_marketing_media.py"
+  },
+  "hero": {
+    "source": "Original Blender optical architecture",
+    "manifest": "optical-provenance.json",
+    "authoring": "scripts/create_optical_hero.py",
+    "note": "No cell photograph or microscopy texture is used in the page background. Existing real product captures remain within product demonstrations."
   }
 }

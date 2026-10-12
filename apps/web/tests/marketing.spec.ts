@@ -29,7 +29,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));
  const toggle=page.getByRole("button",{name:"メニューを開く",exact:true});await toggle.click();
  const nav=page.getByRole("navigation",{name:"モバイルナビゲーション"});
- await expect(nav.getByRole("link")).toHaveText(["プロダクト","解析例","解析画面","ガイド","ダウンロード ↗","インストール済みの方"]);
+ await expect(nav.getByRole("link")).toHaveText(["プロダクト","解析例","解析画面","ガイド","ダウンロード ↓","インストール済みの方"]);
  await page.keyboard.press("Escape");await expect(toggle).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await toggle.click();await nav.getByRole("link",{name:"ガイド",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await expect(page.getByRole("heading",{name:"使い方と解析方法",exact:true})).toBeVisible();
@@ -41,21 +41,18 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
 
 test("failed 3D asset leaves the poster and primary action available",async({page})=>{
  await page.emulateMedia({reducedMotion:"no-preference"});
- await page.route("**/marketing/cell-sculpture.glb",route=>route.abort());
+ await page.route("**/marketing/optical-assembly.glb",route=>route.abort());
  await page.goto("/");
  await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
- const poster=page.getByAltText("青く照らされた細胞構造",{exact:true});
+ const poster=page.getByAltText("光と透明な構造が広がる3D空間",{exact:true});
  await expect(poster).toBeVisible();
  await expect.poll(()=>poster.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);
  await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).getByRole("link",{name:"ダウンロード",exact:true})).toBeVisible();
  await expect(page.locator("canvas")).toHaveCount(0);
- await page.unroute("**/marketing/cell-sculpture.glb");
- await page.route("**/marketing/cell-sculpture.glb",async route=>{
-  const response=await route.fetch();const body=await response.body();
-  const jsonLength=body.readUInt32LE(12);const json=body.subarray(20,20+jsonLength).toString("utf8");
-  // Equal-length unknown keys simulate a valid model with missing surface maps.
-  const missingNormal=json.replaceAll('"normalTexture"','"unusedTexture"');expect(missingNormal).not.toBe(json);
-  body.write(missingNormal,20,"utf8");await route.fulfill({response,body});
+ await page.unroute("**/marketing/optical-assembly.glb");
+ await page.route("**/marketing/optical-assembly.glb",async route=>{
+  // Truncated GLB must keep the same usable fallback as an offline request.
+  await route.fulfill({status:200,contentType:"model/gltf-binary",body:Buffer.from("glTF")});
  });
  await page.reload();await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
  await expect(poster).toBeVisible();await expect(page.locator("canvas")).toHaveCount(0);
@@ -83,7 +80,7 @@ test("a researcher can stop the real 3D rendering and keep it stopped after navi
  await page.getByRole("button",{name:"背景映像を再生",exact:true}).click();
  await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(count));
  const figure=page.getByAltText(/^公開画像の817領域/);await figure.scrollIntoViewIfNeeded();
- await page.waitForTimeout(180);const offscreen=await rendered.getAttribute("data-render-count");await page.waitForTimeout(180);await expect(rendered).toHaveAttribute("data-render-count",offscreen!);
+ const belowHero=await rendered.getAttribute("data-render-count");await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(belowHero));
  await page.emulateMedia({reducedMotion:"reduce"});await expect(scene.locator("canvas")).toHaveCount(0);
  expect(errors).toEqual([]);
 });
@@ -108,8 +105,8 @@ test("the story for general readers opens in place and keeps its text", async ({
  await expect(story.getByText("次世代の研究者のためのアプリケーションである。")).not.toBeInViewport();
  await toggle.click();
  await expect(story.getByRole("button", { name: "閉じる" })).toHaveAttribute("aria-expanded", "true");
- // The expansion animates to the measured height; read the text once it has settled.
- await expect.poll(() => page.locator("#story-more").evaluate(element => (element as HTMLElement).style.height)).toBe("auto");
+ // The complete text must become visible after the expansion, without a timer-owned inline height.
+ await expect.poll(() => page.locator("#story-more").evaluate(element => element.clientHeight >= element.scrollHeight)).toBe(true);
  const closing = story.getByText("次世代の研究者のためのアプリケーションである。");
  await closing.scrollIntoViewIfNeeded();
  await expect(closing).toBeInViewport();
@@ -120,7 +117,15 @@ test("the wordmark returns to the hero from anywhere on the page", async ({page}
  await page.emulateMedia({reducedMotion:"reduce"});await page.goto("/");
  await page.locator("#download").scrollIntoViewIfNeeded();
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBeGreaterThan(0);
+ const previousUrl = page.url();
+ let navigations = 0; page.on("framenavigated", () => navigations++);
  await page.getByRole("link",{name:"Cytellect ホーム",exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
  await expect(page.getByRole("heading",{level:1})).toBeInViewport();
+ expect(page.url()).toBe(previousUrl); expect(navigations).toBe(0);
+ await page.emulateMedia({reducedMotion:"no-preference"});
+ await page.locator("#download").scrollIntoViewIfNeeded();
+ await page.getByRole("link",{name:"Cytellect ホーム",exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
+ expect(page.url()).toBe(previousUrl); expect(navigations).toBe(0);
 });
