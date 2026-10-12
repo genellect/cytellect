@@ -2,7 +2,7 @@
 
 **Get your microscopy publication-ready.**
 
-[Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/common-statistics.md)
+[Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析)
 
 Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のためのWebアプリケーションです。画像処理には学習済深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用しています。
 
