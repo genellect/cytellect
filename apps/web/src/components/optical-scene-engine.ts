@@ -101,6 +101,7 @@ export async function mountOpticalScene(host: HTMLDivElement, isPaused: () => bo
   let progress = 0;
   let desiredProgress = 0;
   let portrait = false;
+  let narrow = false;
   const look = new THREE.Vector3();
   const onScroll = () => {
     desiredProgress = Math.min(1, Math.max(0, window.scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight)));
@@ -123,7 +124,7 @@ export async function mountOpticalScene(host: HTMLDivElement, isPaused: () => bo
     look.lerpVectors(targets[index], targets[index + 1], mix);
     if (portrait && progress < 0.16) {
       const weight = 1 - progress / 0.16;
-      look.x += 2.3 * weight;
+      look.x += (narrow ? 0.9 : 2.3) * weight;
       look.y += 2.1 * weight;
       camera.position.z += 5 * weight;
     }
@@ -160,6 +161,7 @@ export async function mountOpticalScene(host: HTMLDivElement, isPaused: () => bo
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     portrait = width < 761 || height > width;
+    narrow = width < 761;
     camera.updateProjectionMatrix();
     render();
   };

@@ -27,7 +27,7 @@ export default function PublicLanding() {
     <main id="main">
       <section id="top" className={lp.hero} aria-labelledby="hero-title">
         <div className={lp.heroShade} />
-        <div className={lp.heroCopy}><h1 id="hero-title" lang="en"><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-ready.</span></h1><div className={lp.heroActions}><a data-lp-event="download_section" href="#download" className={lp.primary}>ダウンロード <span aria-hidden="true">↓</span></a><Link data-lp-event="example" href="/demo" className={lp.heroSecondary}>解析例を見る <Forward /></Link></div></div>
+        <div className={lp.heroCopy}><h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1><div className={lp.heroActions}><a data-lp-event="download_section" href="#download" className={lp.primary}>ダウンロード <span aria-hidden="true">↓</span></a><Link data-lp-event="example" href="/demo" className={lp.heroSecondary}>解析例を見る <Forward /></Link></div></div>
       </section>
 
       <LandingStory />

@@ -19,6 +19,7 @@
 .heroCopy{position:relative;z-index:2;width:100%;max-width:1500px;margin-inline:auto;pointer-events:none}
 .hero h1{margin:0;font-size:clamp(58px,min(6.2vw,10svh),104px);font-weight:450;line-height:1.075;letter-spacing:-.055em}
 .hero h1 span{display:block}
+.mobileBreak{display:none}
 .heroActions{display:flex;align-items:center;flex-wrap:wrap;gap:30px;margin-top:36px;pointer-events:auto}
 .primary{display:inline-flex;align-items:center;justify-content:space-between;gap:32px;min-height:52px;padding:14px 22px;border:1px solid #cbd2da;border-radius:4px;background:#203e35;color:#fff!important;font-size:15px;font-weight:550;line-height:1.4;transition:background 180ms}
 .primary:hover{background:#305b4d;text-decoration:none!important}
@@ -117,14 +118,14 @@
 @media(max-width:760px){
   .page{--gutter:22px;--section-space:72px;--t-body:17px}
   .header{top:10px;left:12px;right:12px;height:58px;padding:0 16px}.wordmark{font-size:27px}
-  .hero{height:100svh;min-height:600px;max-height:940px;align-items:flex-end;padding-top:100px;padding-bottom:clamp(44px,10svh,88px)}
+  .hero{height:100svh;min-height:600px;max-height:940px;align-items:flex-start;padding-top:clamp(152px,21svh,202px);padding-bottom:48px}
   .heroCopy{max-width:520px}
-  .hero h1{font-size:clamp(42px,11.4vw,64px);letter-spacing:-.055em;line-height:1.04}
-  .hero h1 span:last-child{max-width:8.5em}
+  .hero h1{font-size:clamp(44px,13.8vw,68px);letter-spacing:-.055em;line-height:1.025}
+  .mobileBreak{display:initial}
   .heroActions{margin-top:28px;gap:16px;align-items:center}
   .primary{min-height:52px;font-size:15px;padding:14px 20px;gap:24px}.heroSecondary{min-height:44px;font-size:15px;gap:12px}
-  .poster img{object-fit:cover;object-position:center center}
-  .heroShade{background:linear-gradient(180deg,transparent 20%,#e8e5de33 38%,#e8e5dedb 76%,#e8e5def0 100%)}
+  .poster img{object-fit:cover;object-position:20% center}
+  .heroShade{background:linear-gradient(105deg,#e8e5deeb 0%,#e8e5de99 38%,transparent 78%)}
   .motionToggle{bottom:22px}.story{padding-top:56px}.story .prose p{font-size:18px;line-height:1.9}
   .display{font-size:clamp(26px,6.7vw,32px);line-height:1.55;letter-spacing:0}.display+.prose{margin-top:22px}.prose p{line-height:1.85}
   .page .band{margin:40px 0 0;height:300px;border-radius:0}.media{margin-top:28px}
