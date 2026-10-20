@@ -50,7 +50,7 @@ Measurement protocol 1.1.1, GFP selection protocol 1.1.1 and figure rendering pr
 
 ## Historical evidence and remaining acceptance
 
-Preserve the [local.8 acceptance record](local-release-0.1.0-local.8.md) without rewriting its results. Public NCL/ImageJ and GFP reference comparisons remain separately documented in [validation](validation.md); earlier reference measurements do not become a new installed-copy acceptance result merely because the engine is unchanged.
+Preserve the [local.8 acceptance record](local-release-0.1.0-local.8.md) without rewriting its results. Public NCL/ImageJ and GFP reference comparisons remain separately documented in [validation](../validation.md); earlier reference measurements do not become a new installed-copy acceptance result merely because the engine is unchanged.
 
 - **M4:** user-provided original images and reviewed annotations in a private environment, field/sample-separated tuning and evaluation, corrected-mask reference measurements and legacy reconciliation.
 - **M5:** operator acceptance on the intended machine and researcher evaluation of completion, correction time, experimental-unit understanding and reuse. Automated browser tests do not substitute for participant evaluation.
@@ -58,4 +58,4 @@ Preserve the [local.8 acceptance record](local-release-0.1.0-local.8.md) without
 
 Native automatic nuclear detection retains the standard-2g admission limit: each edge at most 2048 px and no more than 2,700,000 pixels. Excess inputs fail explicitly without silently rescaling measurement pixels. NCL-defined candidates still require biological review because redistribution of NCL can change their boundaries.
 
-The documented Bio-Formats conversion mechanics preserved 5,751,808 pixels in public grayscale TIFF→OME-TIFF roundtrips. This does not validate proprietary CZI decoding or the complete GUI procedure without suitable originals. See [offline conversion](converting-czi.md), [signal semantics](methods.md), [statistics](statistics.md), [data protection](security.md) and [local operation](local.md). Private research data must not be attached to public issues or release evidence.
+The documented Bio-Formats conversion mechanics preserved 5,751,808 pixels in public grayscale TIFF→OME-TIFF roundtrips. This does not validate proprietary CZI decoding or the complete GUI procedure without suitable originals. See [offline conversion](../converting-czi.md), [signal semantics](../methods.md), [statistics](../statistics.md), [data protection](../security.md) and [local operation](../local.md). Private research data must not be attached to public issues or release evidence.

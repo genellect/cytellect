@@ -36,7 +36,7 @@ The setup archive includes redistribution-cleared public demo derivatives, attri
 - Export identity matched this release source; all **17 manifest file hashes** verified and original images were excluded. Desktop/mobile checks verified the actual preview image, all 350 table rows, scrolling, no page overflow, no application/CSP errors and no external requests. Browser local/session storage remained empty.
 - Stopping the launcher left no local application listener or local launcher/worker processes. Native Windows execution still does not provide an OS-enforced worker egress block.
 
-The updated public 16-bit NCL reference comparison is recorded in [published NCL validation](public-nucleolar-validation.md): 100 nuclei and 182 candidates, pixel-identical masks to the prior reference, and ImageJ comparisons for 482 compartment/object measurements. That comparison was run on the scientific source in PR #4 before packaging; its engine bridge/model match this installation. It is distinct from the installed numerical tests above and does not establish nucleolar ground-truth accuracy.
+The updated public 16-bit NCL reference comparison is recorded in [published NCL validation](../public-nucleolar-validation.md): 100 nuclei and 182 candidates, pixel-identical masks to the prior reference, and ImageJ comparisons for 482 compartment/object measurements. That comparison was run on the scientific source in PR #4 before packaging; its engine bridge/model match this installation. It is distinct from the installed numerical tests above and does not establish nucleolar ground-truth accuracy.
 
 ## Remaining acceptance
 
@@ -46,4 +46,4 @@ The updated public 16-bit NCL reference comparison is recorded in [published NCL
 
 Native automatic nuclear detection currently requires both image sides at most 2048 px and at most 2,700,000 pixels under the standard-2g profile. Excess inputs are rejected without silently resizing measurement pixels. NCL-defined candidates need biological review because NCL redistribution can change the segmented region.
 
-Local work expires 24 hours after explicit activity; cleanup while the launcher or PC is off resumes at next launch. Read [local operation](local.md), [data protection](security.md), [figure semantics](figures.md) and the [roadmap](roadmap.md). Private research material does not belong in GitHub issues or public verification artifacts.
+Local work expires 24 hours after explicit activity; cleanup while the launcher or PC is off resumes at next launch. Read [local operation](../local.md), [data protection](../security.md), [figure semantics](../figures.md) and the [roadmap](../roadmap.md). Private research material does not belong in GitHub issues or public verification artifacts.

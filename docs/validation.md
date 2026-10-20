@@ -19,7 +19,7 @@ Private acceptance remains open until raw images are supplied and evaluated. Pro
 - [BBBC039](public-validation.md): fixed published nuclear test subset; retain field-level errors and training-overlap limitations.
 - [Published NCL image](public-nucleolar-validation.md): real 16-bit image and explicit channel metadata discrepancy; no nucleolar ground-truth accuracy claim.
 - [BBBC013 GFP](public-gfp-validation.md): 817 ImageJ/Python object comparisons on published 8-bit exports; native FRM intensities remain unvalidated.
-- [Statistical audit](scientific-audit-2026-10-02.md): closed-form t references, explicit CRV1 matrix calculation, selection/missingness/pairing checks.
+- [Statistical audit](archive/scientific-audit-2026-10-02.md): closed-form t references, explicit CRV1 matrix calculation, selection/missingness/pairing checks.
 - [Figures](figures.md): physical/vector/font/source checks.
 - [Browser evidence](web.md), [Fiji installation evidence](fiji.md), and [release path](deployment.md).
 
@@ -27,7 +27,7 @@ Private acceptance remains open until raw images are supplied and evaluated. Pro
 
 The post-local.6 audit follows the researcher workflow against requirements, including combinations
 that individual module tests did not exercise. A source fix is not evidence that an already
-downloaded release contains it; see the exact release source in [local delivery](local-release-0.1.0.md).
+downloaded release contains it; see the exact release source in [local delivery](archive/local-release-0.1.0.md).
 
 - Incomplete OME plane mappings are rejected before tifffile can create zero-filled missing channels.
   Valid explicitly reordered channels and self-referencing UUID metadata remain covered.

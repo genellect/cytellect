@@ -43,7 +43,7 @@ Use app.<controlled-domain> for Vercel and api.<same-controlled-domain> for the 
 6. Verify denied worker egress, memory/time cancellation, restart recovery, cross-session artifact denial, secure cookies/CORS/CSRF, quota, 24-hour expiry and physical deletion. Confirm no raw images in logs/backups/CDN.
 7. Issue one-use invitations privately. Only then permit private research uploads. Run M4 scientific and M5 usability acceptance separately.
 
-See security.md for retention and recovery. Server deployment is pending host selection; UI publication is not reported as full hosted-MVP completion.
+See security.md for retention and recovery. Server deployment is pending host selection; UI publication is not reported as hosted-analysis acceptance.
 
 ## Research-workflow publication checkpoints
 
@@ -69,7 +69,7 @@ passed. Vercel automatically published that source as
 `dpl_BQMM7JgbSCFKaf6CTfj36ydzrL6S`. Separate canonical LP/planning checks at
 1440px and 390px passed, with four reviewed screenshots and no browser errors.
 
-The [local.11 release](local-release-0.1.0.md) was separately built, installed,
+The [local.11 release](archive/local-release-0.1.0.md) was separately built, installed,
 accepted and published from that source. Its six public assets were retrieved
 without authentication and byte-compared to the reviewed files. Updating the
 site's download metadata and guide links follows another normal PR/CI/main

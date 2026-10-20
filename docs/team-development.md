@@ -21,7 +21,7 @@ Cytellect の開発に参加するメンバーのためのルールです。開�
 3. **変更する。** 1 つの PR では 1 つの目的だけを扱います。仕様・テスト・文書は、コードと同じ PR で更新します。
 4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)に沿って、変更内容、科学的な影響、検証、残る制約を書きます。作業途中の共有には Draft PR を使います。
 5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしません。
-6. **マージする。** オーナーが squash merge で `main` に取り込みます。PR のタイトルがそのままコミットの件名になるため、変更の内容が分かるタイトルにします。
+6. **マージする。** オーナーが squash merge で `main` に取り込みます。PR のタイトルがそのままコミットの件名になるため、変更の内容が分かるタイトルにします。`main` はルールセットで更新を制限しており、PR をマージできるのはバイパス権限を持つオーナーだけです。オーナーはマージ画面でルールのバイパスを選ぶか、`gh pr merge <番号> --squash --admin` を実行します。このバイパスでも必須 CI は省略されません。
 
 ### 3. Git の運用
 
@@ -99,7 +99,7 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 3. **Make the change.** Keep each PR to one purpose. Update specifications, tests and documentation in the same PR as the code.
 4. **Open a PR** following the [PR template](../.github/pull_request_template.md): change, scientific impact, validation and remaining limits. Use a draft PR to share work in progress.
 5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete.
-6. **Merge.** The owner squash-merges into `main`. The PR title becomes the commit subject, so make it describe the change.
+6. **Merge.** The owner squash-merges into `main`. The PR title becomes the commit subject, so make it describe the change. A ruleset restricts updates to `main`, so only the owner, who holds bypass permission, can merge PRs. The owner selects the rule bypass on the merge screen or runs `gh pr merge <number> --squash --admin`. The bypass does not skip required CI.
 
 ### 3. Git
 

@@ -6,4 +6,4 @@
 
 - クラウド環境のセットアップには [.claude/cloud-setup.sh](.claude/cloud-setup.sh) を使用します。検証コマンドは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 - コミットには、Claude Code が付ける `Co-Authored-By` 行を残します。
-- [以前の引き継ぎ](docs/claude-code-handoff.md)と [2026-10-06 の記録](docs/claude-handoff-2026-10-06.md)は、経緯を確認するための資料です。記載されたブランチや公開手順を、現在の依頼と照合せずに実行してはいけません。
+- Claude への以前の引き継ぎ文書は [docs/archive](docs/archive/README.md) にある経緯の記録です。記載されたブランチや公開手順を、現在の依頼と照合せずに実行してはいけません。
