@@ -102,7 +102,7 @@ not a demonstrated usability or biological-validity improvement. M4/M5 remain op
 
 Each cycle records: question → primary source → testable expectation → independent reference → result (including failures) → correction → targeted retest → reviewer → release evidence. Do not optimize against a desired biological conclusion or use an evaluation set to tune thresholds. Published data from another task establishes a bounded integration check, not universal accuracy.
 
-Only the coordinator commits/pushes/merges. Agents share explicit file ownership and send findings before cross-boundary edits. Reassign roles when dependencies make parallel work wasteful. CI is the reproducible test executor; it is not an autonomous scientist or a substitute for researcher review. No background paid agents are introduced.
+Branches, reviews and merges follow the [team development rules](team-development.md). Agents share explicit file ownership and send findings before cross-boundary edits. Reassign roles when dependencies make parallel work wasteful. CI is the reproducible test executor; it is not an autonomous scientist or a substitute for researcher review. No background paid agents are introduced.
 
 ## Completion evidence
 

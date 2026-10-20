@@ -28,6 +28,8 @@ The same scientific code and contracts support the later hosted edition. No clou
 
 ## Local development
 
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling.
+
 Use Python3.12, Node.js24 and pnpm11.19.0.
 
 ```sh

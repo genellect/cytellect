@@ -96,6 +96,8 @@ Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物の
 
 ## 開発・検証
 
+開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。
+
 Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。Linux での起動手順は次のとおりです。
 
 ```bash

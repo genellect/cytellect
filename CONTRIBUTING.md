@@ -1,6 +1,6 @@
 # Contributing
 
-Read [AGENTS.md](AGENTS.md) and [requirements](docs/requirements.md). Keep all unpublished research data outside the checkout and CI. Public published data must have a source, accurate channel metadata and a documented use scope. Publicly redistributed assets additionally require a verified redistribution basis and SHA-256 entry.
+Read the [team development rules](docs/team-development.md) and [requirements](docs/requirements.md). AI agents also follow [AGENTS.md](AGENTS.md). Keep all unpublished research data outside the checkout and CI. Public published data must have a source, accurate channel metadata and a documented use scope. Publicly redistributed assets additionally require a verified redistribution basis and SHA-256 entry.
 
 Install Python 3.12 / Node.js 24, then `uv sync --locked --dev` and `pnpm install --frozen-lockfile`. Run `uv run pytest -m "not fiji"`, `uv run ruff check .`, `uv run mypy packages/analysis/src services`, `pnpm check`, `pnpm test`, and `pnpm build`. Engine changes also require `CYTELLECT_FIJI_EXECUTABLE` and `uv run pytest -m fiji`.
 
