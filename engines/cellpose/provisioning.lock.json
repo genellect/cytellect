@@ -20,5 +20,22 @@
     "license_source": "https://huggingface.co/mouseland/cellpose-sam/blob/7c61431b5fbb078f3296754bd15d9f51b320f837/README.md"
   },
   "runtime_downloads": false,
-  "requirements_sha256": "58e95d4056a9ff6d225e4a90c43a5a35dd3a867d959d48f1074b3d4f7f548f53"
+  "requirements_sha256": "58e95d4056a9ff6d225e4a90c43a5a35dd3a867d959d48f1074b3d4f7f548f53",
+  "ncl_candidates": {
+    "ncl-r1-step0375": {
+      "id": "ncl-r1-step0375",
+      "repository": "Genellect/cytellect-ncl-pilot",
+      "revision": "6326cf8aa16b63f9ced9e11e8717a366d5b2bf10",
+      "path": "ncl/r1-step0375.pt",
+      "url": "https://huggingface.co/Genellect/cytellect-ncl-pilot/resolve/6326cf8aa16b63f9ced9e11e8717a366d5b2bf10/ncl/r1-step0375.pt",
+      "sha256": "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+      "size": 1233577155,
+      "base_model_sha256": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+      "engine": "cellpose-sam-ncl-parent",
+      "protocol_version": "4.3.0",
+      "training_stain": "NCL",
+      "status": "experimental_development_candidate",
+      "evaluation_scope": "NCL development images only; generalization, NPM1 accuracy, native fluorescence and correction burden not established"
+    }
+  }
 }

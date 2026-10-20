@@ -56,6 +56,7 @@ from .provenance import software_identity
 REGION_FIELD_ERRORS = {
     "cellpose_adapter_missing", "cellpose_runtime_missing", "cellpose_model_missing",
     "cellpose_adapter_integrity_failed", "cellpose_model_integrity_failed", "cellpose_input_invalid",
+    "cellpose_model_identity_mismatch", "cellpose_model_protocol_mismatch",
     "cellpose_inference_failed", "cellpose_inference_timeout", "cellpose_output_shape_invalid",
     "cellpose_gpu_unavailable", "cellpose_runtime_version_mismatch", "cellpose_memory_exhausted",
     "region_input_file_missing", "region_input_file_size_mismatch", "region_input_file_hash_mismatch",

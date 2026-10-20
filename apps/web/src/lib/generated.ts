@@ -2965,15 +2965,15 @@ export interface components {
             /**
              * Model
              * @default cpsam_v2
-             * @constant
+             * @enum {string}
              */
-            model: "cpsam_v2";
+            model: "cpsam_v2" | "ncl-r1-step0375";
             /**
              * Model Sha256
              * @default 0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667
-             * @constant
+             * @enum {string}
              */
-            model_sha256: "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667";
+            model_sha256: "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667" | "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906";
             /** Diameter Px */
             diameter_px?: number | null;
             /**

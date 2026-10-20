@@ -223,6 +223,13 @@ function NumberSetting({label,value,onChange,min,max,step=1}:{label:string;value
 function CellposeSettings({runtime:r,field,target,disabled,onChanged}:{runtime:Runtime;field:string;target:"cell"|"nucleoli";disabled:boolean;onChanged:()=>void}){
   const settings=r.cellposeSettings(field,target);
   return <details><summary>検出条件</summary><fieldset className={styles.detectorSettings} disabled={disabled}>
+    {target==="nucleoli"&&settings.engine==="cellpose-sam-ncl-parent"&&settings.protocol_version==="4.3.0"&&<>
+    <label>核小体の検出モデル<select value={settings.model} onChange={event=>{const model=event.target.value;if(model==="cpsam_v2"||model==="ncl-r1-step0375"){r.selectNclModel(field,model);onChanged();}}}>
+      <option value="cpsam_v2">既存モデル（cpsam_v2）</option>
+      <option value="ncl-r1-step0375">NCL追加学習候補 R1 / 375（実験用）</option>
+    </select></label>
+    {settings.model!=="cpsam_v2"&&<p>NCL染色で学習した候補です。NPM1を含む他の条件での精度と定量・修正負担は未検証です。導入済みの重みを使用します。元に戻すには「既存モデル」を選択してください。</p>}
+    </>}
     {target==="nucleoli"&&settings.engine==="cellpose-sam-ncl"&&<>
     <NumberSetting label="平滑化 σ / 原画像px" value={settings.smoothing_sigma_px} min={.1} max={16} step={.1} onChange={value=>{if(value!==null){r.setCellposeParameter(field,target,"smoothing_sigma_px",value);onChanged();}}}/>
     <NumberSetting label="背景推定の半径 / 原画像px" value={settings.background_radius_px} min={1} max={128} onChange={value=>{if(value!==null){r.setCellposeParameter(field,target,"background_radius_px",value);onChanged();}}}/>

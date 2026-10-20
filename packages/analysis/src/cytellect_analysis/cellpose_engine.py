@@ -17,11 +17,17 @@ from .regions import RegionModel, _array_hash
 
 MODEL_SHA256: Literal["0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"] = "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
 MODEL_SIZE = 1233586851
+NCL_MODEL_ID = "ncl-r1-step0375"
+NCL_MODEL_SHA256 = "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906"
+NCL_MODEL_SIZE = 1233577155
 
 
 class CellposeParameters(RegionModel):
-    model: Literal["cpsam_v2"] = "cpsam_v2"
-    model_sha256: Literal["0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"] = MODEL_SHA256
+    model: Literal["cpsam_v2", "ncl-r1-step0375"] = "cpsam_v2"
+    model_sha256: Literal[
+        "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+        "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+    ] = MODEL_SHA256
     diameter_px: FiniteFloat | None = Field(default=None, gt=0, le=4096)
     normalization_percentile_low: FiniteFloat = Field(default=1.0, ge=0, lt=100)
     normalization_percentile_high: FiniteFloat = Field(default=99.0, gt=0, le=100)
@@ -41,11 +47,15 @@ class CellposeParameters(RegionModel):
 
 
 class CellposeDetectorSpec(CellposeParameters):
+    model: Literal["cpsam_v2"] = "cpsam_v2"
+    model_sha256: Literal["0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"] = MODEL_SHA256
     engine: Literal["cellpose-sam"] = "cellpose-sam"
     protocol_version: Literal["4.0.0"] = "4.0.0"
 
 
 class NclCellposeDetectorSpec(CellposeParameters):
+    model: Literal["cpsam_v2"] = "cpsam_v2"
+    model_sha256: Literal["0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"] = MODEL_SHA256
     engine: Literal["cellpose-sam-ncl"] = "cellpose-sam-ncl"
     protocol_version: Literal["4.1.0"] = "4.1.0"
     smoothing_sigma_px: FiniteFloat = Field(default=0.9, gt=0, le=16)
@@ -63,6 +73,31 @@ class NclParentCellposeDetectorSpec(CellposeParameters):
     minimum_contrast_snr: FiniteFloat = Field(default=5, gt=0, le=100)
     local_background_radius_px: int = Field(default=8, ge=1, le=128)
     maximum_nuclear_coverage: FiniteFloat = Field(default=0.5, gt=0, lt=1)
+
+    @model_validator(mode="after")
+    def pinned_model_selection(self):
+        expected = MODEL_SHA256 if self.model == "cpsam_v2" else NCL_MODEL_SHA256
+        if self.model_sha256 != expected:
+            raise ValueError("cellpose_model_identity_mismatch")
+        if self.model != "cpsam_v2" and self.protocol_version != "4.3.0":
+            raise ValueError("cellpose_model_protocol_mismatch")
+        return self
+
+
+def model_profile(lock: dict, model_id: str = "cpsam_v2") -> dict:
+    """Resolve only the two registered identities, never a job-supplied URL."""
+    expected_sha: str
+    if model_id == "cpsam_v2":
+        profile, expected_sha, expected_size = lock["model"], MODEL_SHA256, MODEL_SIZE
+    elif model_id == NCL_MODEL_ID:
+        profile = lock.get("ncl_candidates", {}).get(model_id)
+        expected_sha, expected_size = NCL_MODEL_SHA256, NCL_MODEL_SIZE
+    else:
+        raise ValueError("cellpose_model_identity_mismatch")
+    if (not isinstance(profile, dict) or profile.get("id") != model_id
+            or profile.get("sha256") != expected_sha or profile.get("size") != expected_size):
+        raise ValueError("cellpose_model_identity_mismatch")
+    return profile
 
 
 def _assets() -> Path:
@@ -129,7 +164,7 @@ def _verify_release_assets(root: Path, assets: Path):
         raise ValueError(error) from exception
 
 
-def runtime_status() -> dict:
+def runtime_status(model_id: str = "cpsam_v2") -> dict:
     """Sanitized capability probe, without loading Torch or making requests."""
     try:
         assets = _assets()
@@ -141,11 +176,13 @@ def runtime_status() -> dict:
         if not model_dir:
             raise ValueError("cellpose_model_missing")
         _verify_file(assets / "runner.py", lock["runner_sha256"], None, "cellpose_adapter_integrity_failed")
-        model = Path(model_dir) / "cpsam_v2"
+        profile = model_profile(lock, model_id)
+        model = Path(model_dir) / profile["id"]
         if not model.is_file():
             raise ValueError("cellpose_model_missing")
-        _verify_file(model, MODEL_SHA256, MODEL_SIZE, "cellpose_model_integrity_failed")
-        return {"available": True, "model": "cpsam_v2", "model_sha256": MODEL_SHA256,
+        _verify_file(model, profile["sha256"], profile["size"], "cellpose_model_integrity_failed")
+        return {"available": True, "model": profile["id"], "model_sha256": profile["sha256"],
+                "model_identity": profile,
                 "packages": lock["packages"], "python": "3.12", "runtime_downloads": False}
     except (ValueError, OSError, KeyError, json.JSONDecodeError) as error:
         message = str(error)
@@ -248,10 +285,12 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
             raise ValueError("cellpose_parent_shape_invalid")
     if isinstance(detector, NclParentCellposeDetectorSpec) and nuclei is None:
         raise ValueError("cellpose_adopted_nuclei_required")
-    capability = runtime_status()
+    capability = runtime_status() if detector.model == "cpsam_v2" else runtime_status(detector.model)
     if not capability["available"]:
         raise ValueError(capability["error"])
     assets = _assets()
+    lock = json.loads((assets / "runtime.lock.json").read_text(encoding="utf-8"))
+    profile = model_profile(lock, detector.model)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     source, raw_path = output_dir / "cellpose-input.npy", output_dir / "cellpose-raw-labels.npy"
@@ -261,7 +300,7 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
     request = {"input_path": str(source.resolve()),
                                       "output_path": str(raw_path.resolve()),
                                       "model_path": str((Path(os.environ["CYTELLECT_CELLPOSE_MODEL_DIR"]) /
-                                                         "cpsam_v2").resolve()),
+                                                         profile["id"]).resolve()),
                                       "parameters": detector.model_dump(mode="json")}
     if isinstance(detector, NclParentCellposeDetectorSpec):
         assert nuclei is not None
@@ -271,6 +310,8 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
     environment = os.environ.copy()
     environment.update({"HF_HUB_OFFLINE": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1"})
     environment.pop("PYTHONPATH", None)
+    environment.pop("HF_TOKEN", None)
+    environment.pop("HUGGING_FACE_HUB_TOKEN", None)
     try:
         result = subprocess.run([os.environ["CYTELLECT_CELLPOSE_PYTHON"], "-I", str(assets / "runner.py"),
                                  str(request_path.resolve()), str(receipt_path.resolve())],
@@ -281,6 +322,8 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
         if result.returncode or receipt.get("status") != "succeeded":
             code = receipt.get("error", "cellpose_inference_failed")
             raise ValueError(code if code.startswith("cellpose_") and len(code) < 80 else "cellpose_inference_failed")
+        if receipt.get("model_identity") != profile:
+            raise ValueError("cellpose_model_identity_mismatch")
         raw = np.load(raw_path, allow_pickle=False)
         try:
             validate_label_array(raw)
@@ -331,7 +374,10 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
                             "signal_support_sha256": _array_hash(support, "<u4")})
         np.save(output_dir / "cellpose-labels.npy", labels, allow_pickle=False)
         info = {"engine": detector.engine, "nucleolar_detector_protocol_version": detector.protocol_version,
-                "model": detector.model, "model_sha256": MODEL_SHA256,
+                "model": detector.model, "model_sha256": profile["sha256"],
+                "model_identity": profile,
+                "runtime_manifest_sha256": hashlib.sha256((assets / "runtime.lock.json").read_bytes()).hexdigest(),
+                "runner_sha256": lock["runner_sha256"],
                 "parameters": detector.model_dump(mode="json"), "runtime": receipt,
                 "detection_preprocessing": receipt.get("preprocessing", {"algorithm": "none"}),
                 "source_sha256": _array_hash(image, image.dtype.newbyteorder("<").str),

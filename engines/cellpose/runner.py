@@ -27,6 +27,24 @@ def verify_assets(lock: dict):
                 raise RuntimeError("cellpose_adapter_integrity_failed")
 
 
+def selected_model(lock: dict, parameters: dict) -> dict:
+    model_id = parameters.get("model", "cpsam_v2")
+    if model_id == "cpsam_v2":
+        model = lock["model"]
+    elif model_id == "ncl-r1-step0375":
+        if parameters.get("engine") != "cellpose-sam-ncl-parent" or parameters.get("protocol_version") != "4.3.0":
+            raise RuntimeError("cellpose_model_protocol_mismatch")
+        model = lock.get("ncl_candidates", {}).get(model_id)
+        if (not isinstance(model, dict) or model.get("id") != model_id or model.get("size") != 1233577155
+                or model.get("sha256") != "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906"):
+            raise RuntimeError("cellpose_model_identity_mismatch")
+    else:
+        raise RuntimeError("cellpose_model_identity_mismatch")
+    if parameters.get("model_sha256") != model["sha256"]:
+        raise RuntimeError("cellpose_model_identity_mismatch")
+    return model
+
+
 def prepare_detection_input(image, parameters: dict):
     """Detection-copy transform; never receive or modify the adopted nuclei."""
     if parameters["engine"] == "cellpose-sam" and parameters["protocol_version"] == "4.0.0":
@@ -187,7 +205,8 @@ def run(request_path: Path) -> dict:
     if versions != lock["packages"]:
         raise RuntimeError("cellpose_runtime_version_mismatch")
     model_path = Path(request["model_path"])
-    model = lock["model"]
+    p = request["parameters"]
+    model = selected_model(lock, p)
     if not model_path.is_file():
         raise RuntimeError("cellpose_model_missing")
     if model_path.stat().st_size != model["size"]:
@@ -208,7 +227,6 @@ def run(request_path: Path) -> dict:
 
     utils.download_url_to_file = offline_socket
     models.cache_model_path = offline_socket
-    p = request["parameters"]
     image = np.load(request["input_path"], allow_pickle=False)
     if image.ndim != 2 or image.dtype not in (np.uint8, np.uint16):
         raise RuntimeError("cellpose_input_invalid")
@@ -222,6 +240,13 @@ def run(request_path: Path) -> dict:
     network = models.CellposeModel(pretrained_model=str(model_path),
                                   device=torch.device(device), gpu=device == "cuda",
                                   use_bfloat16=device == "cuda")
+    if model["id"] != "cpsam_v2":
+        # Do not rely on Cellpose's permissive loader for fine-tuned weights.
+        # Strictly load the verified state into the actual inference network;
+        # a missing/unexpected tensor fails instead of retaining base weights.
+        state = torch.load(model_path, map_location="cpu", weights_only=True)
+        network.net.load_state_dict(state, strict=True)
+        del state
     if p["engine"] == "cellpose-sam-ncl-parent" and p["protocol_version"] in ("4.2.0", "4.2.1", "4.3.0"):
         if "parent_path" not in request:
             raise RuntimeError("cellpose_adopted_nuclei_required")
@@ -229,8 +254,11 @@ def run(request_path: Path) -> dict:
         labels, details = parent_conditioned_inference(image, nuclei, p, network)
         np.save(request["output_path"], labels, allow_pickle=False)
         return {"status": "succeeded", "runtime_packages": versions, "device": device,
+                "model_identity": model, "model_load": "strict_state_dict" if model["id"] != "cpsam_v2" else "pinned_cellpose_loader",
                 "precision": "bfloat16" if device == "cuda" else "float32", **details,
-                "input_channels": "one NCL plane conditioned within each adopted nucleus plus two zero planes",
+                "input_channels": ("one explicitly selected marker plane conditioned within each adopted nucleus plus two zero planes"
+                                   if model["id"] != "cpsam_v2" else
+                                   "one NCL plane conditioned within each adopted nucleus plus two zero planes"),
                 "coordinate_transform": {"scale_x": 1, "scale_y": 1, "resample": True,
                                          "dynamics_grid": "original image", "crop_offsets_restored": True}}
     detection, preprocessing = prepare_detection_input(image, p)
@@ -255,6 +283,7 @@ def run(request_path: Path) -> dict:
         raise RuntimeError("cellpose_output_invalid")
     np.save(request["output_path"], labels.astype(np.uint32), allow_pickle=False)
     return {"status": "succeeded", "runtime_packages": versions, "device": device,
+            "model_identity": model, "model_load": "pinned_cellpose_loader",
             "precision": "bfloat16" if device == "cuda" else "float32",
             "normalization": normalization, "preprocessing": preprocessing,
             "input_channels": "one explicitly selected plane plus two zero planes",

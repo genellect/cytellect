@@ -35,6 +35,8 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ proposal_experimental_model_not_selected:"AI提案には未選択の実験モデルが含まれています。モデルを試す場合は検出条件から明示的に選択してください。",
+ proposal_model_selection_changed:"AI提案が選択済みのモデルを変更しようとしたため適用しませんでした。モデルの変更は検出条件から行ってください。",
  proposal_association_same_region_required:"相関の横軸と縦軸には同じ測定領域を指定してください。核と核小体など、異なる領域を組み合わせた相関は現在実行できません。",
   signal_threshold_indeterminate: "画像内の輝度が一定のため、陽性領域を検出できません。別のチャンネルを指定してください。",
  proposal_service_disabled:"解析案の補助は現在無効です。管理者がサービス設定を確認してください。",
@@ -173,7 +175,9 @@ const messages:Record<string,string> = {
  analysis_run_cell_channel_required:"細胞を検出する画像を選択してください。",
  analysis_run_cell_channel_unknown:"細胞検出に選択した画像と染色対応を確認してください。",
  cellpose_runtime_missing:"Cellposeの実行環境がありません。Cellpose用セットアップを実行してください。",
- cellpose_model_missing:"Cellposeのモデルがありません。Cellpose用セットアップを実行してください。",
+ cellpose_model_missing:"選択したCellposeモデルがありません。モデルを導入するか、導入済みの既存モデルに戻してください。",
+ cellpose_model_identity_mismatch:"選択モデルと重みの版が一致しません。解析を停止しました。モデルの導入状態を確認してください。",
+ cellpose_model_protocol_mismatch:"このモデルは選択した検出方式に対応していません。",
  cellpose_model_integrity_failed:"Cellposeモデルの整合性を確認できません。セットアップを再実行してください。",
  cellpose_inference_failed:"Cellposeで検出できませんでした。入力画像と検出条件を確認してください。",
  cellpose_inference_timeout:"Cellposeの処理時間が上限に達しました。対象の直径を指定して再実行してください。",

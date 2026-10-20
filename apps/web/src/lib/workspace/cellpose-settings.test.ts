@@ -1,7 +1,7 @@
 import {describe,expect,it} from "vitest";
-import {cellposeDetector,nclCellposeDetector,legacyNclCellposeDetector} from "./cellpose-settings";
+import {cellposeDetector,nclCellposeDetector,legacyNclCellposeDetector,selectNclModel} from "./cellpose-settings";
 import {defaultRuntimeSettings,runtimeRecipe} from "./use-workspace-runtime";
-import {applicableProcessing,savedProcessing,type ProposalProcessing} from "./proposal-processing";
+import {applicableProcessing,preserveNclModelSelection,savedProcessing,type ProposalProcessing} from "./proposal-processing";
 import type {ChannelDefinition} from "./grouping";
 import type {SavedResult,ValidatedProposal} from "./api-adapter";
 
@@ -14,6 +14,33 @@ const base=runtimeRecipe("nuclei",nuclear,defaultRuntimeSettings(),{},null);
 const parent={nuclei:{recipe:base,result}};
 
 describe("Cellpose manual/saved/AI contracts",()=>{
+  it("keeps explicit model selection across AI followups",()=>{
+    const baseline:ProposalProcessing={version:"1.0.0",nuclei:null,nucleoli:{channel:"marker",detector:nclCellposeDetector()},signal:null};
+    const candidate:ProposalProcessing={...baseline,nucleoli:{channel:"marker",detector:selectNclModel(nclCellposeDetector(),"ncl-r1-step0375")}};
+    expect(()=>preserveNclModelSelection(candidate,null)).toThrow("proposal_experimental_model_not_selected");
+    expect(()=>preserveNclModelSelection(candidate,baseline)).toThrow("proposal_experimental_model_not_selected");
+    expect(()=>preserveNclModelSelection(candidate,{...candidate,nucleoli:{...candidate.nucleoli!,channel:"other"}})).toThrow("proposal_experimental_model_not_selected");
+    const wrongSha:ProposalProcessing={...candidate,nucleoli:{channel:"marker",detector:{...selectNclModel(nclCellposeDetector(),"ncl-r1-step0375"),model_sha256:nclCellposeDetector().model_sha256}}};
+    expect(()=>preserveNclModelSelection(wrongSha,candidate)).toThrow("proposal_experimental_model_not_selected");
+    expect(()=>preserveNclModelSelection(candidate,candidate)).not.toThrow();
+    expect(()=>preserveNclModelSelection(baseline,candidate)).toThrow("proposal_model_selection_changed");
+    expect(()=>preserveNclModelSelection(baseline,null)).not.toThrow();
+    expect(()=>preserveNclModelSelection({...baseline,nucleoli:{channel:"marker",detector:legacyNclCellposeDetector()}},candidate)).not.toThrow();
+  });
+  it("selects and replays experimental NCL weights without changing processing or the baseline",()=>{
+    const baseline={...nclCellposeDetector(),diameter_px:90};
+    const candidate=selectNclModel(baseline,"ncl-r1-step0375");
+    expect(candidate).toEqual({...baseline,model:"ncl-r1-step0375",model_sha256:"bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906"});
+    expect(selectNclModel(candidate,"cpsam_v2")).toEqual(baseline);
+    expect(nclCellposeDetector().model).toBe("cpsam_v2");
+    expect(cellposeDetector().model).toBe("cpsam_v2");
+    expect(()=>selectNclModel({...baseline,protocol_version:"4.2.1"},"ncl-r1-step0375")).toThrow("cellpose_model_protocol_mismatch");
+    const processing:ProposalProcessing={version:"1.0.0",nuclei:null,nucleoli:{channel:"marker",detector:candidate},signal:null};
+    const settings={...defaultRuntimeSettings(),nucleolarDefinition:{source:"ncl" as const,marker:"marker",pixelUm:null,relative:.7,algorithm:"cellpose" as const}};
+    const recipe=runtimeRecipe("nucleoli",nuclear,settings,parent,processing);
+    expect(recipe.detector).toEqual(candidate);
+    expect(savedProcessing(base,recipe)?.nucleoli).toEqual(processing.nucleoli);
+  });
   it("keeps nuclear detection fixed and binds NCL to its exact adopted parent",()=>{
     const settings={...defaultRuntimeSettings(),nucleolarDefinition:{source:"ncl" as const,marker:"marker",pixelUm:null,relative:.7,algorithm:"cellpose" as const},nucleolarMinimumArea:800,nucleolarMaximumArea:1000,nucleolarSigma:5};
     const recipe=runtimeRecipe("nucleoli",nuclear,settings,parent,null);

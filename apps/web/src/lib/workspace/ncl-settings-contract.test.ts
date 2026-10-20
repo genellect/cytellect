@@ -5,7 +5,7 @@ import type {ReviewData} from "./review-preview";
 import type {ProposalProcessing} from "./proposal-processing";
 import type {ChannelDefinition} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2} from "./nucleolar-definition";
-import {cellposeDetector,legacyNclCellposeDetector,nclCellposeDetector} from "./cellpose-settings";
+import {cellposeDetector,legacyNclCellposeDetector,nclCellposeDetector,selectNclModel} from "./cellpose-settings";
 
 // Contract-only records: no image pixels, decoding, detector execution or image fixtures.
 const nuclear:ChannelDefinition={token:"dna",stain:"DAPI",role:"nuclear",evidence:"user"};
@@ -29,6 +29,16 @@ function contractRuntime(detector:NonNullable<ProposalProcessing["nucleoli"]>["d
   return {runtime,adapter,writeSpecification};
 }
 describe("NCL settings contracts without images",()=>{
+  it("rejects an AI-only candidate selection before applying settings or running preview",async()=>{
+    const {runtime,adapter}=contractRuntime(nclCellposeDetector());await runtime.load("w");
+    const response=await adapter.draft();
+    response.proposal.draft.processing!.nucleoli!.detector=selectNclModel(nclCellposeDetector(),"ncl-r1-step0375");
+    adapter.draft.mockResolvedValueOnce(response);
+    await expect(runtime.requestProposal("adjust detection settings","f")).rejects.toThrow("proposal_experimental_model_not_selected");
+    expect(adapter.run).not.toHaveBeenCalled();
+    expect(runtime.cellposeSettings("f","nucleoli").model).toBe("cpsam_v2");
+    runtime.dispose();
+  });
   it("restores exact saved NCL controls",async()=>{
     const {runtime}=contractRuntime();await runtime.load("w");
     expect(runtime.getSnapshot().settings).toMatchObject({nucleolarDefinition:{source:"ncl",marker:"marker"},nucleolarSigma:3,nucleolarMinimumArea:12,nucleolarMaximumArea:140});

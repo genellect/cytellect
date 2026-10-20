@@ -85,6 +85,39 @@ The Web components call the same versioned API contracts. Local delivery adds a 
 
 The local launcher uses the same pinned Fiji/Java/model and Python lockfiles. Installation downloads are separate from analysis. The worker must not fetch dependencies/models during a job. A later cloud deployment can replace database, file storage and dispatch adapters without changing scientific definitions or the browser editing workflow.
 
+### Optional NCL development candidate
+
+The NCL detection settings expose the existing `cpsam_v2` and the explicitly
+experimental `ncl-r1-step0375` profile under protocol 4.3.0. The existing model
+remains the default. This source change does not activate a production PoC or
+claim that the candidate has passed installed-copy or biological acceptance.
+
+After review, provision the optional model into the same external model cache
+used by the local Cellpose runtime:
+
+```powershell
+python scripts/cellpose_setup.py <external-runtime> --model-cache <external-model-cache> --model ncl-r1-step0375 --model-only
+```
+
+Setup retrieves only the manifest's immutable HF revision, checks size and
+SHA-256, and atomically installs a separate `ncl-r1-step0375` file. For a private
+HF repository, supply `HF_TOKEN` through the operator's secret environment;
+never put it in a recipe or command argument. Authorization is not forwarded
+to signed storage redirects. A public repository requires no token. Alternatively
+add `--model-file <existing-checkpoint>` to copy verified local bytes into this
+cache. Neither path replaces `cpsam_v2`. Acquisition and any large copy must be
+scheduled outside active learning, with enough space for the temporary file
+and retained working checkpoints.
+
+Inference performs no downloads. A missing, corrupt or mismatched model is an
+error. Select the existing model to return to it; unchanged saved recipes still
+identify their original weights. Both profiles retain the existing preprocessing
+and postprocessing, and each new analysis records its actual model identity.
+Preserve local originals until retrieval from the pinned HF revision and local
+restoration have actually been verified. Remote metadata alone is not a restore
+test. The source PR requires separate private real-image comparison and installed
+local acceptance before the owner starts a bounded PoC.
+
 The Windows launcher does not install a firewall rule or inherit Compose's `network_mode: none`. Its worker is not isolated from the network at the operating-system level. The application accepts only registered recipes, verifies installed plugin/model hashes and invokes fixed local Java/Python entry points; it does not accept submitted code, model URLs or remote image URLs. Browser same-origin checks and a no-external-request browser test are separate evidence from OS-level egress denial. The offline Linux container remains the verified egress-isolated deployment option.
 
 ## Local security and retention

@@ -295,6 +295,7 @@ def test_subprocess_roundtrip_preserves_original_pixels(monkeypatch, tmp_path, d
         labels = np.zeros(image.shape, np.uint32)
         np.save(request["output_path"], labels)
         Path(command[-1]).write_text(json.dumps({"status": "succeeded", "coordinate_transform": {"scale_x": 1},
+                                               "model_identity": json.loads((engine._assets() / "runtime.lock.json").read_text())["model"],
                                                "preprocessing": {"protocol_version": detector.protocol_version}}))
         return subprocess.CompletedProcess(command, 0)
     monkeypatch.setattr(engine.subprocess, "run", execute)
@@ -339,7 +340,8 @@ def test_refinement_dispatch_retains_parent_evidence_and_legacy_replay(monkeypat
         request = json.loads(Path(command[-2]).read_text())
         assert request["parameters"]["protocol_version"] == version
         np.save(request["output_path"], raw)
-        Path(command[-1]).write_text(json.dumps({"status": "succeeded", "coordinate_transform": {"scale_x": 1}}))
+        Path(command[-1]).write_text(json.dumps({"status": "succeeded", "coordinate_transform": {"scale_x": 1},
+                                               "model_identity": json.loads((engine._assets() / "runtime.lock.json").read_text())["model"]}))
         return subprocess.CompletedProcess(command, 0)
 
     def refine(original, anchors, parents):
