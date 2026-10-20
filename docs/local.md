@@ -2,7 +2,7 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
-The accepted [0.1.0-local.17 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) is available for Windows x86-64, with the connected image/statistics/graph workspace, stain roles, adopted mask editing, object-level GFP selection, editable vector figures and reproducibility export. See its [acceptance record](local-release-0.1.0-local.17.md) for the exact source, checksums, all 26 installed browser cases, numerical replay and retained failed attempts. Start with the [public-image guide](quickstart.ja.md). The [local.11 record](local-release-0.1.0.md) remains historical evidence for that immutable package.
+The accepted [0.1.0-local.17 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) is available for Windows x86-64, with the connected image/statistics/graph workspace, stain roles, adopted mask editing, object-level GFP selection, editable vector figures and reproducibility export. See its [acceptance record](local-release-0.1.0-local.17.md) for the exact source, checksums, all 26 installed browser cases, numerical replay and retained failed attempts. Start with the [public-image guide](quickstart.ja.md). The [local.11 record](archive/local-release-0.1.0.md) remains historical evidence for that immutable package.
 
 ## Researcher flow
 

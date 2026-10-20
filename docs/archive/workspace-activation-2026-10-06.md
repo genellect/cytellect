@@ -16,7 +16,7 @@ Its source, deployment and archive acceptance are separate gates.
   the corrected case passed with real Fiji/API and vector/data exports.
 - Accounting incidents block later production model calls across devices and
   months. A valid paid draft is retained; unknown costs and other reservations
-  are not cleared. See [budget reconciliation](proposal-deployment.md).
+  are not cleared. See [budget reconciliation](../proposal-deployment.md).
 - Measurement equations, recipes and statistical methods are unchanged.
 
 ## Live proposal service

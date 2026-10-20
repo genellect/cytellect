@@ -1,34 +1,32 @@
-# Working on Cytellect
+# Cytellect エージェント向け指示
 
-Read docs/requirements.md, docs/methods.md and docs/security.md before changing behavior.
-Inspect Git status. Preserve user work and original research outputs.
+この文書は、Cytellect で作業する AI エージェントへの指示です。チームの運用ルールの正本は [チーム開発ルール](docs/team-development.md) で、この文書はその内容をエージェントの作業手順として具体化したものです。両者が食い違う場合は作業を止め、依頼者に確認してください。
 
-## Research data boundary
-- Synthetic data is for deterministic numerical tests. Published real microscopy is required for image integration and public demos; public assets need recorded source, accurate stain metadata, redistribution terms and hashes. Never substitute another stain for NCL/GFP.
-- Never copy unpublished/private research images, research PDFs, source paths, study-specific results, participant identifiers, credentials, or invitation/session tokens into code, logs, issues, PRs, screenshots, or external AI services. The only exception is the product's own analysis proposal request defined in docs/workspace-redesign.md, sent by the running application under the user's explicit settings; development agents and CI never receive private research content. Registered public fixtures follow the source and redistribution requirements above.
-- Keep runtime data outside the checkout. Never use production credentials for development.
-- Run private validation separately; publish only an explicitly approved sanitized report.
+## プロダクト
 
-## Scientific behavior
-- Original pixel values are immutable. Detection preprocessing and display LUTs must never change measurement values.
-- Label masks in original image coordinates are canonical. Changing nuclei invalidates their dependent nucleoli; changing masks or exclusions invalidates derived statistics/figures.
-- Changes to thresholds, background, gating, equations or statistics require a recipe/version change, methods documentation and numerical tests.
-- Missing/undefined is not zero. Never tune parameters to obtain significance or silently discard failed fields.
-- Keep nuclei, nucleoli, fields, samples and independent experimental units distinct.
-- The API and analysis package own numeric results; never calculate authoritative measurements in the browser.
+Cytellect は、顕微鏡画像の解析から統計、論文用グラフの作成までを一つのワークスペースでつなぐ、研究者のためのソフトウェアです。研究目的から解析条件を組み立て、検出・測定・統計・作図を進め、結果はいつでも元の画像に戻って確認・修正できるようにします。
 
-## Development
-- Conserve tokens without weakening quality: use focused reads and concise tool output, give agents non-overlapping ownership, and reuse recorded passing checks unless changed code or new evidence justifies rerunning them. Preserve required CI, exact-package numerical acceptance and canonical-browser verification.
-- Keep marketing and application writing distinct. The landing page relies on photography, typography, composition and actual product output; do not add stock-photo disclaimers, development badges or defensive copy. Keep provenance and release evidence in the relevant records. Application text uses clear operation names and concise instructions, without advertising slogans. Do not invent product capabilities, endorsements or usage claims.
-- Follow docs/interface-design.md for the accepted visual direction: Lila-inspired Dark and Blue, Blender-authored hero artwork rendered with Three.js, and GraphPad-style researcher-benefit hierarchy. Do not substitute charcoal-only styling or CSS perspective for those requirements. The analysis workspace follows docs/workspace-redesign.md: one workspace from image addition to figures, without per-field confirmation chains.
-- Follow docs/research-workflow.md for the active product goal, agent ownership and review loop. Start from a researcher decision, not a parameter or fashionable technology. Do not claim Fiji lacks a capability without checking its actual tools.
-- Distinguish literature-informed need hypotheses from observed Cytellect user needs. Independent review must report evidence scope, failures and missingness; a green build or matching p-value never establishes biological validity.
-- Codex Cloud is the default code environment. Use synthetic numerical fixtures and registered public datasets only. Local execution is permitted for setup and verification, especially the private validation boundary.
-- Pin dependencies and model hashes. Review licenses separately for code, weights and data.
-- No runtime package/model downloads, arbitrary submitted code/macros or remote image URLs.
-- Run `uv run pytest`, `uv run ruff check .`, `pnpm check`, `pnpm test`, and relevant integration tests. Do not mark skipped Fiji/private-data checks as passed.
-- Record purpose, scientific impact, validation evidence and limitations in PRs.
-- Distinguish source implementation, CI, deployment, hosted behavior and scientific validation.
-- Follow the user's current authorization for publishing, external transmission, settings changes and deployment. Do not install paid services or Supabase dependencies to the MVP. The LLM analysis proposal service follows docs/workspace-redesign.md: off by default, structured and locally validated, never the source of measurements or statistics, and billable calls only with an operator-configured budget.
-- Keep README status truthful. An unfinished requirement remains open in docs/roadmap.md.
-- Local browser delivery is an execution adapter. Keep one shared measurement/statistics implementation and preserve the future hosted API boundary. Read docs/local.md before changing local bootstrap, installer, session or retention behavior.
+現在の重点は、核小体・細胞質の検出モデルの追加学習と評価、自然言語による解析設定の支援、研究室の実画像での実証です。解析コードは Apache-2.0 で公開を続け、クラウド実行・共同利用・運用支援を商用提供の候補としています。そのため、測定・統計の実装を一つに保ち、ローカル版と将来のホスト型 API の境界を崩さない設計にしてください。
+
+## 常に守ること
+
+- 非公開の研究画像・正解の輪郭・論文・ファイルパス・研究結果・参加者情報と、認証情報・トークンを、コード・ログ・Issue・PR・スクリーンショット・CI に含めない。作業中にこれらを見つけた場合は、内容を引用せずに依頼者へ知らせる。
+- 原画像の画素値を変更しない。測定値と統計は、API と解析パッケージの共通実装だけが生成する。
+- 有意差を得るための調整、評価データを使った閾値・モデルの調整、失敗した視野の無断除外を行わない。
+- 未実施・失敗した検証を、合格として報告しない。
+- `main` へのマージ、本番公開、配布、有料サービスの利用は、オーナー（`genellect`）がその対象について明示的に指示した場合に限る。実装・コミット・push・PR 作成の依頼には、これらの許可は含まれない。
+
+## 作業の手順
+
+1. この文書、[CLAUDE.md](CLAUDE.md) などツール固有の指示、対象ディレクトリの指示を読む。動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[データ保護](docs/security.md)と、[Development standards](docs/development-standards.md) の該当する節も読む。
+2. `git status` で未コミットの作業を確認し、`git fetch origin main` を実行する。新しいブランチは最新の `origin/main` から作成し、名前は `<種類>/<内容>`（種類は `feat`、`fix`、`docs`、`test`、`chore`）とする。継続中のブランチには merge または安全な rebase で `main` を取り込む。他者の変更や未コミットの作業は保持する。
+3. タスクごとの worktree または独立した checkout で作業し、他の人やエージェントが使用中の checkout は編集しない。並行作業では、割り当てられたファイルの範囲だけを変更する。
+4. 1 つの目的に絞って変更し、関連する仕様・テスト・文書を同じ PR で更新する。無関係な修正は混ぜない。
+5. 変更に対応する検証を [CONTRIBUTING.md](CONTRIBUTING.md) のコマンドで実行する。同じコミット・同じ条件で記録した合格結果は、その後の変更で無効にならない限り再利用してよい。
+6. PR は日本語または英語で、[PR テンプレート](.github/pull_request_template.md)の項目（変更内容、科学的な影響、検証、残る制約）と本番への影響を書く。実行したコマンドと結果を示し、未実施・失敗・残る制約を区別する。
+7. オーナーからマージを指示された場合は、必須 CI の成功を確認してから `gh pr merge <番号> --squash --admin` を実行する。CI が失敗・未完了のときは実行せず、その状況を報告する。
+8. 作業の引き継ぎは PR の説明と [roadmap](docs/roadmap.md) に記録する。セッションごとの引き継ぎ文書は作らない。
+
+## 報告
+
+実装、CI の通過、配布・公開、実環境での動作、科学的な検証は、それぞれ確認した事実として分けて報告します。現在の計画と未完了の受入条件は [roadmap](docs/roadmap.md) にあります。[docs/archive](docs/archive/README.md) の文書は MVP 期の経緯の記録です。現在の依頼と照合せずに、そこに書かれた作業指示や公開許可に従わないでください。

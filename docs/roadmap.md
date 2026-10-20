@@ -1,126 +1,47 @@
-# Implementation and remaining gates
+# ロードマップ
 
-## Cellpose invocation integration, 2026-10-08
+MVP（画像の登録から検出・修正・測定・統計・作図までの一連の機能、Windows 版、公開デモ）は完了しました。この文書は、これからの開発計画と、まだ満たしていない受入条件を管理します。MVP 期の実装記録とマイルストーン（M0–M5）は [MVP 期のロードマップ](archive/roadmap-mvp.md)に残しています。
 
-The optional fixed Cellpose-SAM adapter connects NCL candidates and separate cell
-ROI candidates to existing original-coordinate measurement, editing and replay.
-Nuclei continue to use Fiji/StarDist. New explicit NCL selections use protocol
-4.3.0 parent-conditioned inference, whole-instance nuclear rejection and conservative
-signal-supported boundaries; saved 4.0.0, 4.1.0, 4.2.0, 4.2.1 and classical recipes
-retain their behavior.
-Manual and structured AI settings use the same validated detector.
-Changing channels after selecting the algorithm starts the pending preview only
-once the input is complete. A field failure retains its specific worker reason.
+## 現在の提供状況
 
-The accepted real-image refinement has exact label-reproduction evidence stored
-privately. This is bounded evidence on the reviewed specimens, not full ground
-truth or general recall. Parent containment alone does not establish capture accuracy.
-General private-data biological acceptance remains open. Installed Windows
-Cellpose, CUDA and persistent model loading also remain separate open gates.
+| 対象 | 状況 |
+|---|---|
+| 公開サイト | [cytellect.vercel.app](https://cytellect.vercel.app/)。公開画像による解析例のみを扱い、研究画像は受け付けない。`main` へのマージで自動デプロイ |
+| Windows 版 | [0.1.0-local.17](local-release-0.1.0-local.17.md)。画像・統計・グラフを一つにつないだワークスペース |
+| Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
+| 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
+| 核小体検出 | NCL の protocol 4.3.0（追加学習した Cellpose-SAM と境界補正）。[計算仕様](methods.md) |
 
-The active 2026-10-03 improvement sequence is recorded in [Researcher workflow](research-workflow.md): purpose-first LP/planning, generic 2D region/channel contracts, guided workspace, independent repeated review, then researcher acceptance. This work proceeds alongside the remaining private-data gates below. No historical release evidence is retrospectively relabeled.
+## 今後の計画
 
-This is a running implementation record, not a declaration of scientific readiness. See [validation layers](validation.md).
+### 1. 自研究室での実証
 
-The connected image/statistics/graph workspace is delivered in [local.17](local-release-0.1.0-local.17.md). The [integration record](workspace-integration-release-2026-10-08.md) separates source CI, private-image Edge checks, Docker delivery, Worker, Vercel and installed-package acceptance. Biological accuracy, independent researcher evaluation and a hosted private-analysis backend remain separate gates.
+研究室の実画像で、検出精度・操作性・解析時間を評価し、核小体・細胞質のモデルを改良します。
 
-PR #11 added manual/imported generic regions, source-linked descriptive figures and trial-mask reuse. Its four required CI checks passed, it merged as dd64f26db0e4ea15970828aaa6dbcae3f9365696, and Vercel automatically published that source. Canonical public-page desktop/mobile/browser checks passed separately from private API execution.
+- **独立したテストデータを最初に構築する。** 学習・条件調整に使わない実験回の画像を、評価専用として分けておきます。これがないと、精度の比較も実証も成り立ちません。
+- 正解には研究者が描いた輪郭を使い、2 名が独立に描いて正解自体の一致度も測ります。
+- 指標は、再現率・適合率・F1（IoU ≥ 0.5）、融合・過分割の数、面積・輝度の誤差とし、実験回ごとに集計して信頼区間を付けます。
 
-PR #12 connects confirmed nuclear-stain initialization, immutable experimental-metadata edits and explicit generic-channel experimental-unit comparisons. All four required CI checks passed on 136eab8ff41af0fd0ee5d0b0936525013f6c5569. Main c9766f8da61defe5f4fa000e03b7706678140dde was automatically published as Vercel production dpl_Cx8VzAfHtPhgs3tWzaV9Uhff3Nw5; canonical desktop/mobile browser checks passed separately. Real-Fiji equivalence, corrected-mask batch reuse, comparisons, vector downloads and replay have bounded recorded evidence; this does not establish new biological accuracy.
+### 2. 北里大学の他研究室での実証
 
-PR #13 connects [explicit planning adoption](analysis-planning.md), reviewed file mapping and retry-safe batch registration. Main c21f9057dd130b87ba55b113d40a0396dcb79e74 passed the four required checks and reached the canonical public site. The [local.11 package](local-release-0.1.0.md) carries these source features into the installed application; its actual CI package passed nine browser cases, independent numerical/replay checks and shutdown. The initial failed browser attempt and a separate local application-control block remain recorded. [Public-image guide](quickstart.ja.md) · [Human evaluation tasks](usability-tasks.ja.md).
+研究対象や撮影条件の異なる画像で検証します。あわせて、解析基盤を AWS などのクラウドへ移します。移行先の選定と費用はオーナーが判断します（[比較資料](hosting-costs.ja.md)）。
 
-The [requirement coverage audit](completion-audit.md) maps the implemented workflow, regression corrections and remaining private/human/hosted acceptance. Later source fixes do not retroactively change accepted release evidence.
+### 3. 他の研究機関への公開
 
-PR #15 passed its four required checks and merged as
-`c215e70a563797d07181b6febbd5cdb04b9e39ba`. The same source reached Vercel production
-READY as `dpl_FyfBb2jvarcWBFf8PEeVJjxrTguc`; canonical home/planning checks at
-1440/390 px passed separately. It adds source inspection for saved individual
-region measurements, preserves per-field metadata during common-field edits,
-and improves installer diagnosis. These later changes are not included in the
-immutable local.11 package. Comparison aggregation inspection is the next
-source increment at that checkpoint; background-free area measurement was a design task.
+解析コードは誰でも使える形で公開を続けます。クラウド実行・共同利用・運用支援を、有料提供の候補とします。
 
-PR #16 then added saved unit → sample → field inspection and historical source
-navigation. Its four required checks passed before main
-`636bbc9c73e60f26e6ae3310354f85494f84dedd` reached Vercel production
-`dpl_C4voNA4qdQkWGHmGSqz1cpEUy5nP`. Canonical public home/planning checks passed
-at 1440/390 px. The source-only API/browser evidence and public-page evidence are
-distinct; this increment is not in local.11. The next delivery priority is the
-intended-PC installation blocker. Signed-runtime candidate checks must precede
-any dependency-support or public-package change; area-only was queued at that checkpoint.
+### 評価する項目
 
-### Area-only development checkpoint — not yet released
+モデルの検出精度、面積・輝度の測定誤差、手補正にかかる時間。
 
-The separate area worktree now implements explicit measurement policy 1.0.0,
-region measurement/report 2.0.0, bundle `/2` and Methods 1.2.0. Manual/imported or
-confirmed nuclear regions can provide area without a background ROI. Fluorescence
-values and saturation fractions remain unmeasured with explicit reasons. Existing
-v1, GFP/NCL recipes and inference rules retain their versions and behavior.
-[Protocol details and focused evidence](generic-regions.md).
+## 未完了の受入条件
 
-Guide 2.1.0 and resolution 1.1.0 connect that choice to actual reviewed inputs;
-old 2.0.0 plans remain reproducible. Canonical public planning stays 2.0.0; the
-new local/API-configured source selects 2.1.0. This area increment is not yet
-merged, deployed or accepted in a Windows package. PR #17 runtime-only candidates
-do not include these area changes. Once both source increments are accepted on
-main, build one combined `local.12` package and verify its fifteen installed
-browser cases before publication. Required CI,
-actual browser/figure inspection and installed acceptance are separate gates;
-running checks are not recorded as passed. M4 private-image validation and M5
-human researcher evaluation remain open. Reducing background gestures for area
-is a usability hypothesis, not an observed reduction in researcher effort.
+| 項目 | 内容 |
+|---|---|
+| 非公開データでの検証 | 研究室の実画像による、検出と測定の生物学的な妥当性の確認 |
+| 研究者による評価 | 複数の研究室の研究者による、作業の完了・時間・修正の負担・理解・再利用の評価（[評価タスク](usability-tasks.ja.md)） |
+| Windows 版 | 導入後の Cellpose・CUDA・モデルの常駐読み込みの確認。別の PC で起きた Smart App Control によるブロックへの対応 |
+| ホスト型の解析 | 公開 TLS とドメイン、利用者が不在の間の継続的な削除、運用サーバーの分離。研究画像をクラウドで受け付ける前に満たす |
+| 今後の機能 | アカウント、チーム、長期保存、決済 |
 
-### Subsequent source acceptance — PR18
-
-PR17's runtime corrections and PR18's area-only/readiness changes are now merged.
-PR18 head `5ef6d41092746ac4f519bfa580fa089cdaf3b393` passed all five required
-checks in [run 37159139324](https://github.com/genellect/cytellect/actions/runs/37159139324)
-and merged as `d385eb0722a9df9068683fbc89a474c60b6e88af`. Canonical public
-home/planning verification at 1440/390 px confirmed that exact source in Vercel
-deployment `dpl_GgrBy3dVy42tUdxMm9sxBdU8rMrL`; the unchanged local.11 links and
-planning2.0 remain intentional until a matching package is accepted. This
-supersedes the earlier unmerged-source checkpoint above, not its retained tests
-or failed attempts. The combined local.12 installation gate is still separate.
-
-The following source increments address recorded display ranges, paginated
-descriptive figures, readable versioned Methods and native recipe compatibility
-guidance. They do not retroactively update local.11 or the frozen local.12 source.
-Actual browser, installed-package, private-image and human acceptance retain
-their own evidence.
-
-| Stage | Implemented | Remaining acceptance |
-|---|---|---|
-| M0 | Public monorepo, bilingual docs, agent guidance, locked Python/Web/Fiji, actual Java21 CPU detection, Alembic, CI and container definitions | Linux Fiji/browser and actual isolated worker container passed in PR #1; complete hosted stack acceptance remains open |
-| M1 | Bounded TIFF/OME, native and generalized legacy recipe, true Fiji adapter, compartment/GFP measurements, replay exports | Reference comparison on user's raw data remains M4 |
-| M2 | Japanese Konva editor, immutable edits, Undo/Redo, background/exclusion/review, supervised durable jobs and retry | Local and Linux browser regression passed; actual hosted analysis acceptance remains open |
-| M3 | Independent/paired/exploratory statistics, sensitivity, numerical CSV, plots, Methods, pixel-exact ROI and replay | Nature-sized vector export and independent math references tested; private scientific suitability remains M4 |
-| M4 | Published real-image integration adds external examples | User-provided private raw images, field/sample-separated evaluation and legacy reconciliation |
-| M5 | Invite/session/ownership/retention implementation, automated protection tests and accepted Windows local.11 CI installation/browser workflow | Operator acceptance on the intended research machine and researcher usability evaluation; private hosted acceptance remains separate |
-
-Public Vercel UI publication is authorized. It may expose only cleared published image samples until the private analysis API is configured and host checks pass. It must not point to localhost in production or accept research uploads without a backend.
-
-Supabase/accounts, teams, long-term storage and payments remain later work. The [single workspace and optional LLM proposal service](workspace-redesign.md) is connected to the shared settings and selected-field preview. The Cytellect-only Worker is enabled with the approved monthly USD5 limit; explicit-send public-image evaluation is recorded separately from private-image analysis. Upload, navigation and editing do not initiate paid requests. See the [integration record](workspace-integration-release-2026-10-08.md) for the current source and service identities.
-
-The 2026-10-06 workspace specification ([ja](workspace-spec-2026-10-06.ja.md)) and the later [approved plan](workspace-approved-plan-traceability.md) now connect researcher-selected nucleolar definitions, parent-contained editing, nucleoplasm subtraction, object-level GFP selection, background-corrected measurements, comparisons, editable figures and reproducibility export. Manual edits and adopted revisions are preserved. The previous source gaps listed here are superseded by the integration and exact-package records; private full-dataset biological validation and unassisted researcher evaluation are still open.
-
-Normal publication follows [PR → required CI → main → Vercel](deployment.md). [Figure formatting and statistical meaning](figures.md) are versioned separately.
-
-## Local delivery, then hosted analysis
-
-Local delivery implements automated setup, same-origin browser operation and supervised local API/worker startup. Shared analysis, immutable revisions, statistics and export contracts remain unchanged. Each package must install fixed dependencies in an isolated directory, open the browser, execute a real published-image workflow and stop cleanly before publication. The public Vercel sample viewer remains available independently of local package validation.
-
-[Windows preview 0.1.0-local.10](local-release-0.1.0-local.10.md) passed exact-source CI, installation, the public GFP browser/export workflow and checks of corrected Methods in both actual exports. It changes only Methods wording/template identification and the auxiliary method's UI label. The first scratch runtime path exceeded the existing Windows Fiji limit; that failed attempt is retained, and the unchanged package passed with a shorter private test data directory. The [local.9 record](local-release-0.1.0-local.9.md) preserves its 114 installed scientific checks,22 figure tests and12 renderings as historical evidence for unchanged code, not new local.10 test executions. Those two suites share four cases. This completes the local package delivery gate; it does not complete M4 or the researcher evaluation in M5.
-
-The user's local-first delivery decision changes the initial operating environment, not M4/M5 scientific and usability acceptance. A paid server is not required for the local PoC. Hosted-only acceptance (public TLS/domain routing, continuous deletion while clients are offline, operator server isolation) remains a separate gate before future cloud uploads. Windows local mode explicitly discloses its trusted OS-user boundary and cleanup on next launch.
-
-The local.11 package adds the reviewed planning and general-region workflow.
-Its accepted CI installation does not resolve the observed Smart App Control
-block on another PC. Next delivery work should investigate a policy-compatible
-distribution and classify that installer failure accurately, without disabling
-workstation protections or purchasing a signing service without authorization.
-Researcher task completion and correction burden take priority over adding more
-automatic models. The supplied guide teaches the workflow; reading it before an
-unassisted usability task changes what that task measures.
-
-Later cloud delivery must preserve the same UI and scientific contracts while replacing storage, database and job execution where necessary. Low-volume scale-to-zero hosting is under review; price alone does not satisfy 24-hour deletion and isolation. The [comparison](hosting-costs.ja.md) records costs, limits and unresolved provider conditions. No paid deployment is currently selected.
+検証の層と記録の方法は [validation.md](validation.md) に従います。CI の成功や公開した事実は、科学的な妥当性の証明にはなりません。

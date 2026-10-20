@@ -32,7 +32,7 @@ The accepted archive's size, checksum and all 138 payload hashes were also check
 - **Separate descriptive and inferential outputs:** per-field distributions work without known independent replication. Experimental-unit comparisons require the design, units/pairs, acquisition review, full coverage and a declared Holm family. Exclusions and missingness remain visible; repeated channel rows do not multiply area observations.
 - **Calculation and figure corrections:** shared statistics 1.2.3 calculates paired effects from paired differences, improving numerical stability with large offsets. Common figure rendering 1.1.3 checks actual font glyphs for mixed-language labels and uses portable generated `log2` labels without changing values. Figure selections start from the saved adopted metric/channel; unavailable selections do not silently fall back to another measure.
 
-Existing native NCL/GFP and compatibility workflows remain separate recipes. The fixed Fiji nuclear model is reused; this release does not establish a new segmentation-accuracy claim. See [planning](analysis-planning.md), [generic regions](generic-regions.md), [descriptive outputs](descriptive.md) and [region comparisons](region-comparisons.md).
+Existing native NCL/GFP and compatibility workflows remain separate recipes. The fixed Fiji nuclear model is reused; this release does not establish a new segmentation-accuracy claim. See [planning](../analysis-planning.md), [generic regions](../generic-regions.md), [descriptive outputs](../descriptive.md) and [region comparisons](../region-comparisons.md).
 
 ## Accepted installed checks
 
@@ -74,7 +74,7 @@ Verify the canonical site's local.11 version, download button and downloaded arc
 - Editable, traceable and reproducible figures do not guarantee biological validity or journal acceptance. Final labels and layout need review. The native standard-2g nuclear admission limit remains: each edge at most 2048 px and at most 2,700,000 pixels. Larger inputs fail rather than resizing measurement pixels. Arbitrary whole-cell detection, 3D and time series remain outside scope.
 - Private originals and results stay outside source/CI/public assets. Retention is 24 hours after explicit activity; physical deletion while the PC or launcher is off resumes at next launch. Windows local mode trusts the local OS user/process boundary and does not install an OS-enforced worker egress firewall. Future hosted private analysis still requires separate TLS/domain, isolation, retention and recovery acceptance.
 
-See [validation](validation.md), [statistics](statistics.md), [figure conventions](figures.md), [local operation](local.md) and [data protection](security.md). Do not attach private images or research details to public issues or release evidence.
+See [validation](../validation.md), [statistics](../statistics.md), [figure conventions](../figures.md), [local operation](../local.md) and [data protection](../security.md). Do not attach private images or research details to public issues or release evidence.
 
 ## local.15 — installed archive accepted in Windows CI
 

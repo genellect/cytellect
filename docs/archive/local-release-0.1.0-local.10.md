@@ -50,8 +50,8 @@ That attempt remains failed in the evidence. A new evidence directory and a shor
 
 The [local.9 record](local-release-0.1.0-local.9.md) retains114 installed scientific tests,22 figure tests and12 inspected PDF renderings. Four test cases overlap between those suites. They support unchanged numerical/rendering code historically and were **not rerun or counted as new local.10 tests**. This wording-only release adds targeted Methods regressions in source CI and direct checks of the installed export.
 
-[Public-image comparisons and independent statistical references](validation.md) remain separate evidence. Original-image validation for the user's experiment (M4) and human operator/researcher evaluation (M5) are open. A future hosted private service also requires actual domain/TLS, access, retention, recovery and worker-isolation acceptance.
+[Public-image comparisons and independent statistical references](../validation.md) remain separate evidence. Original-image validation for the user's experiment (M4) and human operator/researcher evaluation (M5) are open. A future hosted private service also requires actual domain/TLS, access, retention, recovery and worker-isolation acceptance.
 
 Native automatic nuclear detection retains the standard-2g limit: each edge at most2048px and at most2,700,000pixels. Larger inputs fail explicitly without rescaling measurement pixels. NCL-defined candidates require biological review because NCL redistribution can change their boundaries.
 
-See [methods](methods.md), [statistics](statistics.md), [local operation](local.md), [data protection](security.md) and [offline CZI conversion](converting-czi.md). Private images or research details must not be attached to public issues or release evidence.
+See [methods](../methods.md), [statistics](../statistics.md), [local operation](../local.md), [data protection](../security.md) and [offline CZI conversion](../converting-czi.md). Private images or research details must not be attached to public issues or release evidence.

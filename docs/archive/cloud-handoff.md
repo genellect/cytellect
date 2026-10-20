@@ -1,6 +1,6 @@
 # Cloud continuation
 
-Use the dedicated genellect/cytellect repository and a new branch from current main. Do not reuse another project's environment or secrets. Read AGENTS.md, requirements, methods, security, and the [current roadmap](roadmap.md) before changing behavior.
+Use the dedicated genellect/cytellect repository and a new branch from current main. Do not reuse another project's environment or secrets. Read AGENTS.md, requirements, methods, security, and the [current roadmap](../roadmap.md) before changing behavior.
 
 The Web/API/worker, pinned Fiji engine, editor, measurements, statistics, figures and replay workflow are implemented. The [current Windows release](local-release-0.1.0.md) has passed its versioned installation and browser acceptance and is published. Do not restart M0-M3 or infer remaining implementation from the original Cloud checkpoint. Current tests establish their recorded scope, not scientific readiness for the user's experiment.
 
@@ -21,4 +21,4 @@ Follow the user's current authorization for merges, releases, deployments, accou
 
 ## Historical record
 
-[Original Cloud validation, 2026-10-02](validation-2026-10-02.ja.md) records the early narrow worker checkpoint. Its unfinished-feature list and six-test result are historical, not the current implementation status. Use the [roadmap](roadmap.md), [validation layers](validation.md) and accepted release evidence for current continuation.
+[Original Cloud validation, 2026-10-02](validation-2026-10-02.ja.md) records the early narrow worker checkpoint. Its unfinished-feature list and six-test result are historical, not the current implementation status. Use the [roadmap](../roadmap.md), [validation layers](../validation.md) and accepted release evidence for current continuation.

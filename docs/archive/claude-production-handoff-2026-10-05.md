@@ -50,17 +50,17 @@ ClaudeにOpenAI dashboardへの再ログインや別キーの作成を要求す�
 
 ## 2. 最初に読む文書と変更対象
 
-`CLAUDE.md` → [AGENTS](../AGENTS.md) → [要件](requirements.md)、
-[解析法](methods.md)、[情報保護](security.md)を読みます。その後、
-[UX仕様](workspace-redesign.md)、[今回の接続](sol-workspace-integration.md)、
-[API仕様](proposal-service.md)、[Workerレビュー](sol-worker-review.md)、
-[公開手順](proposal-deployment.md)、[ローカル配布](local.md)を必要な箇所だけ確認します。
+`CLAUDE.md` → [AGENTS](../../AGENTS.md) → [要件](../requirements.md)、
+[解析法](../methods.md)、[情報保護](../security.md)を読みます。その後、
+[UX仕様](../workspace-redesign.md)、[今回の接続](sol-workspace-integration.md)、
+[API仕様](../proposal-service.md)、[Workerレビュー](sol-worker-review.md)、
+[公開手順](../proposal-deployment.md)、[ローカル配布](../local.md)を必要な箇所だけ確認します。
 
 | 責務 | 主な実装 |
 |---|---|
 | 実データの新ワークスペース | `apps/web/src/components/workspace/ApiWorkspace.tsx`、`apps/web/src/lib/workspace/api-adapter.ts` |
 | 比較の操作と接続 | `WorkspaceComparison.tsx`、`apps/web/src/lib/workspace/comparison-adapter.ts` |
-| 不変の比較対象作成 | `services/api/src/cytellect_api/region_cohorts.py`、[cohort契約](region-cohorts.md) |
+| 不変の比較対象作成 | `services/api/src/cytellect_api/region_cohorts.py`、[cohort契約](../region-cohorts.md) |
 | ローカル提案・同意・保存 | `services/api/src/cytellect_api/proposals.py`、schema0003 |
 | モデル呼出し・予算・評価 | `services/proposal-worker/src/openai.ts`、`index.ts`、`evaluation-ledger.ts`、`public-evaluation.test.ts` |
 | 統計・図・再実行 | `packages/analysis/src/cytellect_analysis/common_statistics*.py`、`region_exports.py` |
@@ -195,7 +195,7 @@ main更新 → 自動production deploy。配信SHA、READY、canonical `/`、`/p
 
 ### C. Worker/D1
 
-[配置手順](proposal-deployment.md)の順で、既存Cloudflare accountを`whoami`で
+[配置手順](../proposal-deployment.md)の順で、既存Cloudflare accountを`whoami`で
 確認し、専用DBを選ぶ。ログイン済みという過去の記録だけで権限を確定しない。
 `0001_init.sql`と`0002_usage_integrity.sql`の両migration、invitation/device権限、
 idempotency、未知請求hold、月額・端末上限を確認する。
@@ -207,7 +207,7 @@ APIからrelayへpublic contextを送り、返却・ローカル意味検証・�
 
 ### D. Windows配布
 
-最新mainの5check成功後、[local-release workflow](../.github/workflows/local-release.yml)
+最新mainの5check成功後、[local-release workflow](../../.github/workflows/local-release.yml)
 をuniqueな未使用`0.1.0-local.N`でdispatchする。既存版を上書きしない。
 fresh/repeat install、Fiji重複保存の抑制、起動/終了、installed numerical/replay、
 24既定browser casesを実物ZIPで確認する。**現在の24件だけでは新/workspaceの
@@ -237,7 +237,7 @@ volume、offline worker、APIだけのopt-in relay secretを確認する。
 source commit、PR、5check、Web production SHA/URL、Worker version/DB migrations、
 Windows version/hash/installed receipts、Docker source/receiptを一つの記録にまとめる。
 各項目を実際の証拠からpassed/failed/not-runで記載する。
-[completion audit](completion-audit.md)と[roadmap](roadmap.md)の未達要件も照合する。
+[completion audit](completion-audit.md)と[roadmap](../roadmap.md)の未達要件も照合する。
 
 公開データの測定一致は検出F1や生物学的妥当性の証明ではありません。
 M4の非公開画像による参照比較、M5の研究者による操作評価は引き続き別の未完了項目。

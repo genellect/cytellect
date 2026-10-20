@@ -8,8 +8,8 @@ Claude Code built the redesign increment in three stacked PRs. The owner assigns
 
 ## 1. Read first (in this order)
 
-1. [AGENTS.md](../AGENTS.md), [requirements](requirements.md) (U01–U06, L01–L06), [security](security.md), [methods](methods.md).
-2. [Workspace redesign](workspace-redesign.md): goal, interaction model, automation rules, API outline and proposal service.
+1. [AGENTS.md](../../AGENTS.md), [requirements](../requirements.md) (U01–U06, L01–L06), [security](../security.md), [methods](../methods.md).
+2. [Workspace redesign](../workspace-redesign.md): goal, interaction model, automation rules, API outline and proposal service.
 3. `docs/workspace-prototype.md` (added by #30): what `/workspace` does now, data boundaries and the review checklist.
 4. `docs/proposal-service.md` (added by #31): contract, validation, local route, Worker, deployment steps, model evaluation.
 5. The code of each PR, on its head branch:
@@ -52,7 +52,7 @@ The owner chose GPT6.1Sol for the proposal service.
 
 Publish every part and verify each separately.
 
-1. **Web (Vercel):** PR → required checks → `main` → Vercel production, as in [deployment](deployment.md). Verify `/`, `/plan`, `/demo` and `/workspace` (and `/workspace?demo=bbbc013`) on the canonical domain at desktop and mobile widths.
+1. **Web (Vercel):** PR → required checks → `main` → Vercel production, as in [deployment](../deployment.md). Verify `/`, `/plan`, `/demo` and `/workspace` (and `/workspace?demo=bbbc013`) on the canonical domain at desktop and mobile widths.
 2. **Proposal Worker (Cloudflare Workers + D1):** follow "Operator deployment" in `docs/proposal-service.md`:
    - create the D1 database;
    - apply `migrations/0001_init.sql`;
@@ -63,7 +63,7 @@ Publish every part and verify each separately.
    - smoke-test: invitation → device token → `proposal-drafts` from a local API with public-image metadata.
 
    Accounts, payment methods and budget amounts are the owner's decisions; ask for them and never commit secrets, IDs of private resources or tokens.
-3. **Local/Windows package and Docker:** a Vercel deployment does not update installed copies. Build and accept a new package only through its own installed-copy gates ([local delivery](local.md)); report Docker separately.
+3. **Local/Windows package and Docker:** a Vercel deployment does not update installed copies. Build and accept a new package only through its own installed-copy gates ([local delivery](../local.md)); report Docker separately.
 
 Report source, CI, Web deployment, Worker deployment, installed package and scientific validation as separate results, with failures and skipped checks named.
 

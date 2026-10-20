@@ -11,7 +11,7 @@ The checkpoints below are historical; they do not override the delivery record.
 
 ## Start here
 
-1. Read [AGENTS.md](../AGENTS.md), [requirements](requirements.md), [methods](methods.md), [security](security.md), [local delivery](local.md) and the relevant feature document. Read narrowly; do not import every document into every session.
+1. Read [AGENTS.md](../../AGENTS.md), [requirements](../requirements.md), [methods](../methods.md), [security](../security.md), [local delivery](../local.md) and the relevant feature document. Read narrowly; do not import every document into every session.
 2. Check Git status, origin/main, open PRs and current production/release identities. Use a fresh clone or a separate worktree. Existing agent worktrees and pending Windows publication drafts must not be overwritten.
 3. Use the lockfiles and documented setup/CI. Do not upgrade scientific dependencies or regenerate an accepted release merely to get a test passing. Never disable OS protection to execute refused binaries.
 4. Before a change, identify its acceptance evidence. Afterward distinguish source tests, CI, installed-package checks, production behavior and biological/user validation.
@@ -29,7 +29,7 @@ Claude Code can load the root CLAUDE.md, which imports the same AGENTS.md used b
 | Candidate archive | 12,523,192 bytes; SHA-256 `cc33c3792d06cecbc4879cc398d1abd9e0b66ae3fe22827ef0e97308cd51da4b`. Never overwrite this asset with different bytes. |
 | LP analytics/installed-user guidance | PR [#27](https://github.com/genellect/cytellect/pull/27). Read its current merge/check/deployment state; a source change or this document alone is not proof of publication. |
 
-PR26 includes generic comparisons/associations, editable SVG/PDF figures and source data, versioned replay, and managed application retention. Read [common statistics](common-statistics.md), [figures](figures.md) and their tests before changing formulas or inference. Keep the existing nuclear/NCL/GFP recipes, original measurement pixels, region dependencies and experimental-unit distinctions.
+PR26 includes generic comparisons/associations, editable SVG/PDF figures and source data, versioned replay, and managed application retention. Read [common statistics](../common-statistics.md), [figures](../figures.md) and their tests before changing formulas or inference. Keep the existing nuclear/NCL/GFP recipes, original measurement pixels, region dependencies and experimental-unit distinctions.
 
 ## Remaining Windows release gate
 
@@ -47,7 +47,7 @@ Current local delivery starts from the Cytellect desktop shortcut. The launcher 
 
 ## LP analytics boundary
 
-Only production LP measurement uses COMPASS official `G-EHKJ8B8N0Y`. See [security](security.md#public-landing-page-analytics) for fixed events, exclusions and lifecycle. Preserve no analytics on application/local/API/preview routes. No private research content may be sent to GA4, an LLM, an error tracker, a public Issue or CI attachment. Tests must intercept production analytics rather than pollute reports.
+Only production LP measurement uses COMPASS official `G-EHKJ8B8N0Y`. See [security](../security.md#public-landing-page-analytics) for fixed events, exclusions and lifecycle. Preserve no analytics on application/local/API/preview routes. No private research content may be sent to GA4, an LLM, an error tracker, a public Issue or CI attachment. Tests must intercept production analytics rather than pollute reports.
 
 ## Working arrangement
 
@@ -59,6 +59,6 @@ No automatic transfer of Codex goals, quota monitors, approvals, credentials, un
 
 The next phase (review and minimal fixes, the GPT6.1Sol proposal API and production publication of all parts including the Worker) is assigned to Codex: start from [Codex handoff](codex-handoff-2026-10-05.md).
 
-The owner's human end-to-end review rejected the multi-panel workspace UX. The active increment is the [single workspace and analysis proposal service](workspace-redesign.md), delivered as small PRs from `claude/cool-feynman-spwegw` (policy), `claude/cool-feynman-spwegw-ux` (operable prototype with a simulated adapter) and `claude/cool-feynman-spwegw-llm` (proposal contract, validator, relay client and Cloudflare Worker source, disabled by default). Deploying the Worker, creating its D1 database and setting its secret and budget require the operator's accounts and are not done by these PRs.
+The owner's human end-to-end review rejected the multi-panel workspace UX. The active increment is the [single workspace and analysis proposal service](../workspace-redesign.md), delivered as small PRs from `claude/cool-feynman-spwegw` (policy), `claude/cool-feynman-spwegw-ux` (operable prototype with a simulated adapter) and `claude/cool-feynman-spwegw-llm` (proposal contract, validator, relay client and Cloudflare Worker source, disabled by default). Deploying the Worker, creating its D1 database and setting its secret and budget require the operator's accounts and are not done by these PRs.
 
 PR [#28](https://github.com/genellect/cytellect/pull/28) (Docker Desktop browser setup) is handled independently. Its recorded real-Fiji browser run had one failure: after changing conditions, the confirmation button for re-detection did not appear. The cause is not established; do not delete the test or only lengthen waits.

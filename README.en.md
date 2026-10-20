@@ -1,63 +1,124 @@
 # Cytellect
 
-From 2D fluorescence images to reviewed measurements, statistics and publication-ready figures.
+**Get your microscopy publication-ready.**
 
-[日本語（main README）](README.md) · [Requirements](docs/requirements.md) · [Methods](docs/methods.md) · [Validation](docs/validation.md)
+[日本語](README.md) · [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
 
-[Analysis planning](https://cytellect.vercel.app/plan) · [Public sample viewer](https://cytellect.vercel.app/demo) · [Local browser delivery](docs/local.md) · [Hosting costs and trade-offs](docs/hosting-costs.ja.md)
+Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
 
-**Early research prototype.** The Web/API/worker workflow is implemented and tested with published microscopy and independent numerical references. Suitability for the user's experiment and researcher PoC remain unvalidated. The public sample viewer uses published microscopy; a UI deployment does not imply an available analysis server.
+## Architecture
 
-Cytellect connects the measurement question, region review, fluorescence quantification and experimental-unit comparisons in one Japanese browser workspace. Researchers can inspect and correct regions, then produce editable figures linked to their source measurements and analysis conditions. Fiji + StarDist/ImageJ/MorphoLibJ supplies the initial image-analysis engine; original measurement pixels, display settings and detection preprocessing remain separate. Existing nuclear, nucleolar, NCL and GFP recipes are retained alongside generic 2D region measurements.
+The frontend is built mainly with Next.js and the server side mainly with FastAPI. When the browser requests an analysis, the API stores the settings and job in a database, and a worker runs inference, measurement, statistics and figure generation. The browser retrieves progress and results from the API and handles image and figure editing.
 
-## Current improvement cycle
+The LLM (currently GPT-6.1 Sol) is called through an AI service on Cloudflare Workers. The API validates the generated analysis settings and passes them to the same job pipeline as manual settings. The Windows and Docker editions use the same API and calculation code.
 
-The product is expanding toward purpose-first 2D fluorescence region measurement. [Researcher workflow](docs/research-workflow.md) records the evidence-led design, role split and release gates. The [planning guide](docs/analysis-planning.md) explains applicable recipes and unresolved conditions without uploading images; a supported choice can be explicitly adopted into a workspace and resolved against actual channels. The source includes [named channels, reviewed batch registration, manual/imported regions and confirmed nuclear-stain detection](docs/generic-regions.md), optional experimental metadata, original-pixel area/intensity measurements, [per-field descriptive figures](docs/descriptive.md) and explicit [experimental-unit comparisons](docs/region-comparisons.md). Arbitrary-object detection and automatic cell boundaries remain outside this slice. [Independent review](docs/scientific-review.md) separates numerical checks, public-image execution and biological/human acceptance.
+```mermaid
+flowchart TB
+    Web["Web workspace<br/>Next.js · React · TypeScript"]
+    API["Analysis API<br/>FastAPI · Pydantic"]
+    State[("Settings, revision history, jobs<br/>SQLite · SQLAlchemy")]
+    Files[("Original images, masks, outputs<br/>Private data area")]
+    Worker["Calculation worker<br/>One process per job"]
+    Models["Image recognition<br/>Fiji / StarDist · Cellpose-SAM"]
+    Python["Measurement, statistics, figures<br/>NumPy · SciPy · Matplotlib"]
+    Relay["AI service<br/>Cloudflare Workers · D1"]
+    LLM["OpenAI Responses API<br/>Structured Outputs"]
 
-The published Windows package is 0.1.0-local.15. It passed fresh/repeat installation, 26 installed browser cases including the new `/workspace`, and independent numerical replay. Smart App Control acceptance on the intended PC remains open. See the [delivery record](docs/production-delivery-2026-10-06.md). A deployed public UI does not update an installed local package.
-
-The development source additionally supports area-only measurement2.0.0 without background ROIs and planning2.1.0. Intensity remains explicitly unmeasured in this mode; changing modes retains corrected masks in a new unreviewed revision. A combined Windows package is pending exact-source installation and browser acceptance. The public planning guide stays on2.0.0 until that package is available.
-
-## Windows preview
-
-The local edition uses the browser workspace with a private API and Fiji worker on the same PC. Published setup packages appear on the [releases page](https://github.com/genellect/cytellect/releases) only after their installation and browser checks pass. Extract the ZIP, open **Cytellect Setup.cmd**, then start Cytellect from its shortcut. Setup provisions pinned dependencies without changing system Python, PATH or an existing Fiji. Research images remain on the PC;24-hour expiry cleanup while the application is off resumes at next launch. See [local delivery](docs/local.md) for limits and verification.
-
-The same scientific code and contracts support the later hosted edition. No cloud analysis server or paid plan is included in this preview.
-
-[Download Windows preview 0.1.0-local.15](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.15) · [Checksum and acceptance record](docs/local-release-0.1.0.md) · [First analysis with public images (Japanese)](docs/quickstart.ja.md)
-
-## Local development
-
-Use Python3.12, Node.js24 and pnpm11.19.0.
-
-```sh
-uv sync --locked --dev
-pnpm install --frozen-lockfile
-# Set an absolute private directory outside this checkout:
-export CYTELLECT_DATA_DIR=/absolute/private/cytellect
-export CYTELLECT_APP_ORIGIN=http://localhost:3000
-export CYTELLECT_SECURE_COOKIES=false
-uv run python scripts/fiji_setup.py /absolute/private/fiji --platform linux-x64
-export CYTELLECT_FIJI_EXECUTABLE=/absolute/private/fiji
-uv run cytellect invite --hours 24
+    Web <-->|settings, edits, results| API
+    API <--> State
+    API <--> Files
+    Worker <-->|lease, progress| State
+    Worker --> Models
+    Worker --> Python
+    Models <--> Files
+    Python <--> Files
+    API <-->|instructions, structured settings| Relay
+    Relay <--> LLM
 ```
 
-Run `uv run cytellect serve`, `uv run cytellect-worker`, and `pnpm dev` in separate terminals with the same environment. On Windows use PowerShell environment variables and `--platform windows-x64`. The invite is private: never paste it into logs/issues. Nuclear detection requires pinned Fiji. Manual/imported generic region measurements do not run a detector. An unavailable detector produces an explicit failure, never a fallback to another model.
+API data types are defined with Pydantic, and the frontend TypeScript types are generated from OpenAPI. Analysis settings, masks, measurements, statistics and figures are linked by version, so earlier results and their calculation conditions remain available after a model or setting changes.
 
-For containers, set `CYTELLECT_RUNTIME_DIR` to a private Linux directory owned by UID10001, outside the checkout, then `docker compose up --build -d`. See [operations](docs/security.md) and [Fiji](docs/fiji.md) for host verification and TLS.
+## Image recognition and measurement
 
-## Scope and evidence
+Nuclei are detected with StarDist in Fiji; nucleoli and cell regions with Cellpose-SAM in PyTorch. Cellpose-SAM is built on SAM ViT-L and separates individual objects from a flow field and a foreground probability.
 
-- Native8/16-bit 2D TIFF and verified2/3-channel OME-TIFF; separate legacy RGB recipe. Explicit channel mapping/backgrounds and immutable revisions.
-- CZI conversion stays offline in Fiji/Bio-Formats; follow the [pixel-preserving conversion procedure](docs/converting-czi.md) before import.
-- Nuclear/nucleolar/manual ROI editing; GFP/NCL measurements; paired/Welch and exploratory clustered regression; CSV, editable SVG/PDF, ROI/masks, Methods and replay package.
-- Published real microscopy for image integration/public samples; synthetic pixels only for exact numerical tests. Dataset identity, stains and provenance are recorded.
-- No registration, Supabase, payments, 3D/time series, UBF or automatic cell-boundary inference. An optional LLM analysis proposal is under development, disabled by default and never computes measurements ([design](docs/workspace-redesign.md)).
+For NCL-stained images, a background-estimated and normalized image is prepared for each nucleus and passed to Cellpose-SAM. After inference, candidates that capture the whole nucleus are removed, and boundaries are refined with Multi-Otsu, a distance transform and Watershed.
 
-“Publication-ready” means editable figures, explicit conditions, traceable measurements and replayable outputs. It is not scientific certification. See [roadmap](docs/roadmap.md) for remaining gates.
+Detection masks are stored as integer labels in the same coordinate system as the original image. Each nucleolus carries its parent nucleus ID, and outline display, manual correction and area/intensity calculations all refer to these labels. Detection and display images are kept separate from the original measurement pixels, so background removal or normalization applied to the detection copy does not change the measurement input.
 
-## Research information
+The Fiji/TensorFlow Java and Cellpose-SAM/PyTorch inference environments are independent. Each pins its dependencies and models and verifies their hashes at run time.
 
-Private research images, source names, conditions and derived results never belong in GitHub, CI, external AI or public demos. Runtime data is private and expires24hours after explicit activity. Public deployment must pass ownership, TLS, deletion and worker isolation checks before accepting private research data. [Data protection](docs/security.md)
+**Fine-tuning** uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
 
-Own source is Apache-2.0; third-party code, Fiji, model weights and public datasets retain their own licenses. [OSS inventory](docs/oss.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+## Web workspace
+
+Image editing runs on SVG and uses the original image coordinates, including during zoom and pan. Drawn, split and merged outlines and Undo/Redo results are saved to the mask, and selections in the measurement table are linked to regions on the image. Statistics and figures can also open the images and regions used in their calculation.
+
+The graph editor imports Matplotlib SVG and maps axis and series selections to an editing panel. Changing colors or axes only redraws the figure; it does not rerun measurements or tests. Imported SVG is stripped of executable elements and external references, and element IDs are separated so that multiple figures do not collide.
+
+Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
+
+The public site uses Three.js/WebGL. The rendering code is loaded lazily, stops rendering while hidden and releases GPU resources when disposed.
+
+## LLM and analysis settings
+
+The LLM receives the instruction text, the mapping between stains and channels, image dimensions and the current settings. The normal application path does not send original images or measurements.
+
+The response is structured data containing detection conditions, measurement items, GFP-based selection, statistics and figure settings. The API validates types, numeric ranges and correspondence with registered channels, saves the result through the same path as manual settings and runs a preview on the selected image.
+
+External API spending is managed by the relaying Cloudflare Worker and D1. Costs are reserved before each call and settled afterwards, both atomically. Unsettled reservations count toward the usage limit.
+
+## Statistics and output
+
+Measurement and statistics use NumPy, SciPy, pandas and statsmodels. Cells, fields, specimens and independent experimental units are aggregated separately before group comparisons, paired comparisons and correlation analysis. Object selection, exclusions, missing values and comparison conditions are recorded with the results.
+
+Figures are generated with a fixed random seed and fixed output metadata. SVG keeps text editable and PDF embeds fonts. Exports include input hashes, the masks used, settings and environment information, and a recalculation script.
+
+## Jobs and data management
+
+Jobs are persisted in the database, and request IDs prevent duplicate execution. The worker follows dependencies and reuses existing results whose conditions match. Leases are acquired with compare-and-swap and verified again when results are committed, so a stale worker cannot overwrite newer results.
+
+Each run uses its own working directory and child processes. Cancellation or exceeding time or memory limits stops only that run's process group.
+
+Settings updates are checked against the requester's version and return `409` on conflict. Mask corrections are saved as new versions, and the measurements, statistics and figures that depend on that mask are marked for update.
+
+Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
+
+Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start.
+
+## Distribution
+
+The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The analysis API and calculation environment are deployed separately and distributed with Docker and a Windows launcher.
+
+The Docker edition runs the web UI, API and calculation worker in separate containers, with a non-root user, a read-only root filesystem and reduced privileges. The calculation worker has no network access.
+
+The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
+
+## Development and validation
+
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling.
+
+Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. To start on Linux:
+
+```bash
+uv sync --locked --dev
+pnpm install --frozen-lockfile
+uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
+
+export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
+uv run cytellect invite --hours 24
+uv run cytellect serve & uv run cytellect-worker & pnpm dev
+```
+
+CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
+
+```bash
+uv run pytest
+uv run ruff check .
+pnpm check
+pnpm test
+```
+
+## License
+
+The code is open source under the Apache License 2.0. Fiji, model weights and datasets are subject to their own licenses.
