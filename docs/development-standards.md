@@ -1,5 +1,8 @@
 # Development standards
 
+日本語版と英語版は同じ内容です。変更する場合は、同じ PR で両方を更新してください。
+The Japanese and English sections are equivalent. Update both in the same PR.
+
 ## 日本語
 
 [AGENTS.md](../AGENTS.md) の開発ルールに加え、変更する領域に以下の基準を適用します。セットアップと検証コマンドは [CONTRIBUTING.md](../CONTRIBUTING.md) を参照してください。
@@ -36,7 +39,7 @@ Lila を参照した Dark and Blue、Blender の造形と Three.js の描画、G
 
 ### 開発環境とリリース
 
-通常の開発は Codex Cloud を使い、合成の数値データと登録済みの公開データで検証します。環境構築や実機確認、非公開データの検証は、データの境界を守ってローカルで行えます。調査は対象を絞り、複数人・複数エージェントで作業する場合は編集範囲を分けます。影響のない検証を繰り返さず、必須 CI は維持します。
+通常の開発はクラウドのエージェント環境（Codex Cloud、Claude Code など）で行い、合成の数値データと登録済みの公開データで検証します。環境構築や実機確認、非公開データの検証は、データの境界を守ってローカルで行えます。調査は対象を絞り、複数人・複数エージェントで作業する場合は編集範囲を分けます。影響のない検証を繰り返さず、必須 CI は維持します。
 
 ローカル版は共通の解析基盤を動かす実行環境です。起動、インストーラー、セッション、保存期限の変更では [local.md](local.md) を確認し、将来のホスト型 API との境界を保ちます。配布には対象パッケージの数値検証と導入後の受入確認、公開には正規 URL 上での動作確認が必要です。Fiji や非公開データの検証を省略した場合は、未実施と記録します。
 
@@ -78,7 +81,7 @@ Preserve the Lila-inspired Dark and Blue direction, Blender-authored forms, Thre
 
 ### Development environments and releases
 
-Codex Cloud is the default development environment. Use synthetic numerical fixtures and registered public data. Local setup, installed-copy checks and private validation are permitted within the data boundary. Keep investigations focused and assign separate editing scopes when people or agents work concurrently. Reuse unaffected validation evidence while retaining mandatory CI.
+Routine development runs in cloud agent environments such as Codex Cloud or Claude Code, using synthetic numerical fixtures and registered public data. Local setup, installed-copy checks and private validation are permitted within the data boundary. Keep investigations focused and assign separate editing scopes when people or agents work concurrently. Reuse unaffected validation evidence while retaining mandatory CI.
 
 Local delivery runs the shared analysis implementation. Read [local.md](local.md) before changing startup, installers, sessions or retention, and preserve the future hosted API boundary. Distribution requires numerical checks on the exact package and installed-copy acceptance; publication requires verification at the canonical URL. Record skipped Fiji or private-data checks as unrun.
 

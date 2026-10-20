@@ -4,7 +4,7 @@
 
 ## 日本語
 
-変更前に必ず [AGENTS.md](AGENTS.md) とこのファイルを読みます。プロダクト方針、作業手順、検証、公開権限は `AGENTS.md` に従い、Claude 固有の規則で上書きしません。
+[AGENTS.md](AGENTS.md) は冒頭の `@AGENTS.md` で読み込まれます。プロダクト方針、作業手順、検証、公開権限は `AGENTS.md` に従い、Claude 固有の規則で上書きしません。
 
 クラウド環境のセットアップには [.claude/cloud-setup.sh](.claude/cloud-setup.sh) を使用します。検証コマンドは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
@@ -12,7 +12,7 @@
 
 ## English
 
-Before any change, read [AGENTS.md](AGENTS.md) and this file. `AGENTS.md` governs product direction, workflow, validation and release authority. Claude-specific guidance does not override it.
+The `@AGENTS.md` line above loads [AGENTS.md](AGENTS.md). It governs product direction, workflow, validation and release authority. Claude-specific guidance does not override it.
 
 Use [.claude/cloud-setup.sh](.claude/cloud-setup.sh) for cloud environment setup. See [CONTRIBUTING.md](CONTRIBUTING.md) for validation commands.
 
