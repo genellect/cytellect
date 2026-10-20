@@ -1,0 +1,33 @@
+# Development standards
+
+These existing research, security and quality rules supplement [AGENTS.md](../AGENTS.md). Read the sections relevant to the change before editing. Dated design and delivery records describe their own checkpoints; verify current scope against the user's instructions and the repository.
+
+## Research data boundary
+- Synthetic data is for deterministic numerical tests. Published real microscopy is required for image integration and public demos; public assets need recorded source, accurate stain metadata, redistribution terms and hashes. Never substitute another stain for NCL/GFP.
+- Never copy unpublished/private research images, research PDFs, source paths, study-specific results, participant identifiers, credentials, or invitation/session tokens into code, logs, issues, PRs, screenshots, or external AI services. The only exception is the product's own analysis proposal request defined in [workspace-redesign.md](workspace-redesign.md), sent by the running application under the user's explicit settings; development agents and CI never receive private research content. Registered public fixtures follow the source and redistribution requirements above.
+- Keep runtime data outside the checkout. Never use production credentials for development.
+- Run private validation separately; publish only an explicitly approved sanitized report.
+
+## Scientific behavior
+- Original pixel values are immutable. Detection preprocessing and display LUTs must never change measurement values.
+- Label masks in original image coordinates are canonical. Changing nuclei invalidates their dependent nucleoli; changing masks or exclusions invalidates derived statistics/figures.
+- Changes to thresholds, background, gating, equations or statistics require a recipe/version change, methods documentation and numerical tests.
+- Missing/undefined is not zero. Never tune parameters to obtain significance or silently discard failed fields.
+- Keep nuclei, nucleoli, fields, samples and independent experimental units distinct.
+- The API and analysis package own numeric results; never calculate authoritative measurements in the browser.
+
+## Development
+- Conserve tokens without weakening quality: use focused reads and concise tool output, give agents non-overlapping ownership, and reuse recorded passing checks unless changed code or new evidence justifies rerunning them. Preserve required CI, exact-package numerical acceptance and canonical-browser verification.
+- Keep marketing and application writing distinct. The landing page relies on photography, typography, composition and actual product output; do not add stock-photo disclaimers, development badges or defensive copy. Keep provenance and release evidence in the relevant records. Application text uses clear operation names and concise instructions, without advertising slogans. Do not invent product capabilities, endorsements or usage claims.
+- Follow [interface-design.md](interface-design.md) for the accepted visual direction: Lila-inspired Dark and Blue, Blender-authored hero artwork rendered with Three.js, and GraphPad-style researcher-benefit hierarchy. Do not substitute charcoal-only styling or CSS perspective for those requirements. The analysis workspace follows [workspace-redesign.md](workspace-redesign.md): one workspace from image addition to figures, without per-field confirmation chains.
+- Use [research-workflow.md](research-workflow.md) for workflow rationale, ownership and the review loop; current product direction is in [AGENTS.md](../AGENTS.md) and the user's latest instructions. Start from a researcher decision, not a parameter or fashionable technology. Do not claim Fiji lacks a capability without checking its actual tools.
+- Distinguish literature-informed need hypotheses from observed Cytellect user needs. Independent review must report evidence scope, failures and missingness; a green build or matching p-value never establishes biological validity.
+- Codex Cloud is the default code environment. Use synthetic numerical fixtures and registered public datasets only. Local execution is permitted for setup and verification, especially the private validation boundary.
+- Pin dependencies and model hashes. Review licenses separately for code, weights and data.
+- No runtime package/model downloads, arbitrary submitted code/macros or remote image URLs.
+- Select local checks using [CONTRIBUTING.md](../CONTRIBUTING.md#ci-scope) and the existing CI path rules. Run affected numerical, API, Web and integration checks; preserve mandatory CI, exact-package acceptance and hosted verification for releases. Do not mark skipped Fiji/private-data checks as passed.
+- Record purpose, scientific impact, validation evidence and limitations in PRs.
+- Distinguish source implementation, CI, deployment, hosted behavior and scientific validation.
+- Follow the user's current authorization for publishing, external transmission, settings changes and deployment. Do not install paid services or Supabase dependencies to the MVP. The LLM analysis proposal service follows [workspace-redesign.md](workspace-redesign.md): off by default, structured and locally validated, never the source of measurements or statistics, and billable calls only with an operator-configured budget.
+- Keep README status truthful. An unfinished requirement remains open in [roadmap.md](roadmap.md).
+- Local browser delivery is an execution adapter. Keep one shared measurement/statistics implementation and preserve the future hosted API boundary. Read [local.md](local.md) before changing local bootstrap, installer, session or retention behavior. Windows package publication also requires acceptance of the installed package.
