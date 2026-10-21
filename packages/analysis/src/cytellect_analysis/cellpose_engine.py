@@ -12,7 +12,7 @@ import numpy as np
 from pydantic import Field, FiniteFloat, model_validator
 from scipy import ndimage as ndi
 
-from .masks import validate_label_array
+from .masks import contours, validate_label_array
 from .regions import RegionModel, _array_hash
 
 MODEL_SHA256: Literal["0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"] = "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
@@ -260,7 +260,9 @@ def bind_nucleolar_candidates(raw: np.ndarray, nuclei: np.ndarray) -> tuple[np.n
                 reason = "touches_nuclear_boundary"
             if reason:
                 review.append({"source_label_id": source_id, "component": piece,
-                               "reason": reason, "parent_ids": nonzero})
+                               "reason": reason, "parent_ids": nonzero,
+                               "area_px": int(mask.sum()),
+                               "contours": [entry["points"] for entry in contours(mask.astype(np.uint8))]})
                 for parent in nonzero:
                     states[parent] = "review_required"
                 continue
