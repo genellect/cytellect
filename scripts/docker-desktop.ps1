@@ -1,8 +1,18 @@
 param(
     [ValidateSet('Start', 'Open', 'Stop', 'Status', 'Invite', 'Build')][string]$Action = 'Start',
-    [string]$ProposalConfig = $env:CYTELLECT_PROPOSAL_OPERATOR_CONFIG
+    [string]$ProposalConfig = $env:CYTELLECT_PROPOSAL_OPERATOR_CONFIG,
+    [string]$ReleaseManifest,
+    [string]$ManifestSha256,
+    [string]$InstallationDirectory
 )
 $ErrorActionPreference = 'Stop'
+if (@('ReleaseManifest', 'ManifestSha256', 'InstallationDirectory') | Where-Object { $PSBoundParameters.ContainsKey($_) }) {
+    # Even an explicitly empty/partial release argument must never build developer images.
+    if (-not $ReleaseManifest -or -not $ManifestSha256 -or -not $InstallationDirectory) { throw 'Supply all three release arguments.' }
+    if ($ProposalConfig) { throw 'Proposal configuration is not supported by the fixed lab release.' }
+    & (Join-Path $PSScriptRoot 'docker-lab-release.ps1') -Action $Action -ReleaseManifest $ReleaseManifest -ManifestSha256 $ManifestSha256 -InstallationDirectory $InstallationDirectory
+    return
+}
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
 $dockerExe = if ($dockerCommand) { $dockerCommand.Source } else { Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin\docker.exe' }
