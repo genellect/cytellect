@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -22,7 +23,16 @@ def digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def provision_model(model_cache: Path, artifact: dict) -> Path:
+class ModelRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None:
+            # HF redirects to signed storage URLs. Never forward its token.
+            redirected.remove_header("Authorization")
+        return redirected
+
+
+def provision_model(model_cache: Path, artifact: dict, source: Path | None = None) -> Path:
     model_cache.mkdir(parents=True, exist_ok=True)
     target = model_cache / artifact["id"]
     if target.exists():
@@ -31,11 +41,30 @@ def provision_model(model_cache: Path, artifact: dict) -> Path:
         return target
     # Fixed URL supplied by the repository manifest, never by a submitted job.
     partial = model_cache / (artifact["id"] + ".partial")
+    # This cleanup path owns the staging file, never an operator's source.
+    # Reject both the same spelling and aliases/hardlinks before entering it.
+    if source is not None and (
+        source.resolve() == partial.resolve()
+        or (source.exists() and partial.exists() and source.samefile(partial))
+    ):
+        raise RuntimeError("cellpose_source_is_staging_file")
     try:
+        if source is not None:
+            if not source.is_file() or source.stat().st_size != artifact["size"] or digest(source) != artifact["sha256"]:
+                raise RuntimeError("cellpose_source_model_integrity_failed")
+            shutil.copyfile(source, partial)
+            if partial.stat().st_size != artifact["size"] or digest(partial) != artifact["sha256"]:
+                raise RuntimeError("cellpose_download_integrity_failed")
+            os.replace(partial, target)
+            return target
         for _attempt in range(4):
             offset = partial.stat().st_size if partial.exists() else 0
-            request = urllib.request.Request(artifact["url"], headers={"Range": f"bytes={offset}-"} if offset else {})
-            with urllib.request.urlopen(request, timeout=120) as response:
+            headers = {"Range": f"bytes={offset}-"} if offset else {}
+            token = os.environ.get("HF_TOKEN")
+            if token and artifact["url"].startswith("https://huggingface.co/"):
+                headers["Authorization"] = f"Bearer {token}"
+            request = urllib.request.Request(artifact["url"], headers=headers)
+            with urllib.request.build_opener(ModelRedirectHandler()).open(request, timeout=120) as response:
                 append = offset > 0 and response.status == 206
                 with partial.open("ab" if append else "wb") as stream:
                     shutil.copyfileobj(response, stream, 1024 * 1024)
@@ -45,6 +74,9 @@ def provision_model(model_cache: Path, artifact: dict) -> Path:
             if partial.stat().st_size >= artifact["size"]:
                 partial.unlink()
         raise RuntimeError("cellpose_download_integrity_failed")
+    except urllib.error.URLError:
+        # Never emit tokens, signed redirect URLs, or private source paths.
+        raise RuntimeError("cellpose_model_download_failed") from None
     finally:
         partial.unlink(missing_ok=True)
 
@@ -56,6 +88,10 @@ def main():
     parser.add_argument("--python", default=sys.executable, help="Python 3.12 interpreter, already installed")
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--model-only", action="store_true")
+    parser.add_argument("--model", choices=("cpsam_v2", "ncl-r1-step0375", "ncl-r1-step0750"), default="cpsam_v2",
+                        help="Explicit optional model; the baseline is never replaced")
+    parser.add_argument("--model-file", type=Path,
+                        help="Reuse an existing checkpoint after exact size/SHA verification")
     parser.add_argument("--runtime-only", action="store_true",
                         help="Docker build: provision fixed packages/model independently of the job adapter")
     args = parser.parse_args()
@@ -76,7 +112,10 @@ def main():
         raise RuntimeError("cellpose_adapter_integrity_failed")
     if digest(assets / "requirements.lock") != lock["requirements_sha256"]:
         raise RuntimeError("cellpose_package_lock_integrity_failed")
-    model = provision_model(cache, lock["model"])
+    artifact = lock["model"] if args.model == "cpsam_v2" else lock.get("ncl_candidates", {}).get(args.model)
+    if not isinstance(artifact, dict) or artifact.get("id") != args.model:
+        raise RuntimeError("cellpose_model_identity_mismatch")
+    model = provision_model(cache, artifact, args.model_file)
     if args.model_only:
         print("Pinned Cellpose model verified", flush=True)
         return
@@ -104,7 +143,8 @@ def main():
         if json.loads(installed.stdout) != lock["packages"]:
             raise RuntimeError("cellpose_runtime_version_mismatch")
     receipt = {"schema": lock["schema"], "python": lock["python"], "packages": lock["packages"],
-               "model_sha256": lock["model"]["sha256"], "model_size": model.stat().st_size,
+               "model_sha256": artifact["sha256"], "model_size": model.stat().st_size,
+               "model_identity": artifact,
                "requirements_sha256": lock["requirements_sha256"]}
     if not args.runtime_only:
         receipt["runner_sha256"] = lock["runner_sha256"]

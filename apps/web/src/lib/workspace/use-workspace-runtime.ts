@@ -6,8 +6,8 @@ import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, ty
 import {effectiveChannelAssignments} from "./channel-assignments";
 import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, type Grouping} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
-import {cellposeDetector,nclCellposeDetector,isCellposeDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
-import {applicableProcessing, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
+import {cellposeDetector,nclCellposeDetector,isCellposeDetector,selectNclModel,type AnyCellposeProcessingDetector,type NclParentCellposeProcessingDetector} from "./cellpose-settings";
+import {applicableProcessing, preserveNclModelSelection, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
 import {loadReviewPreview, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
@@ -295,6 +295,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   function applyProposal(fieldId?:string){
     if(!state.proposal)throw new Error("解析案がありません。");const channels=definitions(fieldId);try{const nucleus=nuclearChannel(fieldId),index=channels.findIndex(value=>value.token===nucleus.token);if(index>=0)channels[index]=nucleus;}catch{}
     const hasImages=!!state.data?.fields.length,automatic=hasImages&&(["nuclear-intensity","nuclear-ncl"].includes(state.proposal.draft.recipe)||!!state.proposal.draft.processing?.cells),processing=automatic?applicableProcessing(state.proposal,channels):null;if(automatic&&!processing?.nuclei&&!processing?.cells)throw new Error("核のチャンネルを確認してから解析案を適用してください。");
+    let selectedProcessing:ProposalProcessing|null=null;
+    const selectedField=fieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;
+    if(selectedField){try{selectedProcessing=runtimeProposalProcessing(nuclearChannel(selectedField),state.settings,currentTargets.get(selectedField)??{},state.processing);}catch{/* Missing live selection cannot authorize an experimental model. */}}
+    preserveNclModelSelection(processing,selectedProcessing);
     if(hasImages&&state.proposal.draft.recipe==="supplied-regions"&&!processing?.cells){const cell=fieldId?currentTargets.get(fieldId)?.cell:undefined;if(!["manual","cellpose_cell"].includes(cell?.recipe.source??"")||cell?.recipe.region_set_id!=="cell"||!cell.result.masks.regions.length)throw new Error("選択視野の採用済み細胞ROIを確認してください。");}
     let settings=processing?.nuclei?{...state.settings,nuclearMaxSide:processing.nuclei.detection_max_side_px,nuclearProbability:processing.nuclei.detector.probability,nuclearNms:processing.nuclei.detector.nms}:{...state.settings};
     const child=processing?.nucleoli;if(child?.detector.engine==="cytellect-nucleolar-v2")settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:child.detector.source,marker:child.detector.source==="marker"?child.channel:"",relative:child.detector.relative_threshold},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarRim:child.detector.rim_exclusion_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};else if(child&&isCellposeDetector(child.detector))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:child.channel,algorithm:"cellpose"},nucleolarSigma:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null};else if(child&&(child.detector.engine==="cytellect-ncl-objects"||child.detector.engine==="fiji-nucleolar-compartments"))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:child.channel,algorithm:child.detector.engine==="cytellect-ncl-objects"?"objects":"legacy"},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};
@@ -342,6 +346,16 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       const saved=target==="cell"?state.processing?.cells:state.processing?.nucleoli;
       if(saved&&saved.channel===defining&&isCellposeDetector(saved.detector))return saved.detector;
       return target==="cell"?cellposeDetector():nclCellposeDetector();
+    },
+    selectNclModel(field:string,model:NclParentCellposeProcessingDetector["model"]){
+      if(state.busy||state.settings.nucleolarDefinition.source!=="ncl")return;
+      const defining=state.settings.nucleolarDefinition.marker;
+      if(!defining)return;
+      const previous=state.processing?.nucleoli;
+      const base=previous?.channel===defining?previous.detector:nclCellposeDetector();
+      if(base?.engine!=="cellpose-sam-ncl-parent"||base.protocol_version!=="4.3.0")return;
+      const detector=selectNclModel(base,model);
+      publish({processing:{...(state.processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:defining,detector}}});
     },
     setCellposeParameter(field:string,target:"cell"|"nucleoli",key:"diameter_px"|"flow_threshold"|"cellprob_threshold"|"minimum_area_px"|"normalization_percentile_low"|"normalization_percentile_high"|"smoothing_sigma_px"|"background_radius_px"|"parent_background_percentile"|"nuclear_diameter_fraction"|"minimum_contrast_snr",value:number|null){
       if(state.busy)return;

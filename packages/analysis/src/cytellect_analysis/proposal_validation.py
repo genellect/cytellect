@@ -93,6 +93,23 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
             codes.append("proposal_processing_nuclear_channel_invalid")
         if processing.nucleoli is not None:
             candidate = processing.nucleoli
+            current = context.current_processing.nucleoli if context.current_processing else None
+            same_scope = current is not None and (
+                current.channel == candidate.channel
+                and current.detector.engine == candidate.detector.engine
+                and current.detector.protocol_version == candidate.detector.protocol_version
+            )
+            same_model = current is not None and (
+                getattr(current.detector, "model", None) == getattr(candidate.detector, "model", None)
+                and getattr(current.detector, "model_sha256", None) == getattr(candidate.detector, "model_sha256", None)
+            )
+            # A follow-up may retain an explicitly selected experimental model,
+            # but cannot select one, move it to another channel/protocol, or
+            # silently change weights within the same detection method.
+            if getattr(candidate.detector, "model", None) in ("ncl-r1-step0375", "ncl-r1-step0750") and not (same_scope and same_model):
+                codes.append("proposal_experimental_model_not_selected")
+            elif same_scope and not same_model:
+                codes.append("proposal_model_selection_changed")
             source = getattr(candidate.detector, "source", "ncl")
             actual = known.get(candidate.channel)
             if draft.recipe != "nuclear-ncl":

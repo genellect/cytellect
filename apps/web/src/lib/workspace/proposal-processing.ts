@@ -31,6 +31,20 @@ export interface ProposalProcessing {
   signal: {channel: string; detector: SignalProcessingDetector} | null;
 }
 
+/** Recheck live selection before automatic preview or a stale proposal applies. */
+export function preserveNclModelSelection(proposed:ProposalProcessing|null,current:ProposalProcessing|null):void {
+  const candidate=proposed?.nucleoli,selected=current?.nucleoli;
+  if(!candidate)return;
+  const sameScope=!!selected&&selected.channel===candidate.channel&&selected.detector.engine===candidate.detector.engine&&selected.detector.protocol_version===candidate.detector.protocol_version;
+  const candidateModel="model" in candidate.detector?candidate.detector.model:null;
+  const selectedModel=selected&&"model" in selected.detector?selected.detector.model:null;
+  const candidateSha="model_sha256" in candidate.detector?candidate.detector.model_sha256:null;
+  const selectedSha=selected&&"model_sha256" in selected.detector?selected.detector.model_sha256:null;
+  const sameModel=candidateModel===selectedModel&&candidateSha===selectedSha;
+  if((candidateModel==="ncl-r1-step0375"||candidateModel==="ncl-r1-step0750")&&!(sameScope&&sameModel))throw new Error("proposal_experimental_model_not_selected");
+  if(sameScope&&!sameModel)throw new Error("proposal_model_selection_changed");
+}
+
 /** Unknown roles stay pending; accepting a proposal is not acquisition confirmation. */
 export function applicableProcessing(proposal: ValidatedProposal, channels: ChannelDefinition[]): ProposalProcessing | null {
   const processing = proposal.draft.processing;

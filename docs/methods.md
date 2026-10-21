@@ -452,6 +452,28 @@ Stored 4.2.0 recipes skip this filter and retain their original meaning.
 
 ### Conservative NCL signal support, protocol 4.3.0
 
+#### Explicit experimental weight selection
+
+The default remains the original `cpsam_v2`. Optional `ncl-r1-step0375` and
+`ncl-r1-step0750` profiles identify distinct NCL-trained development candidates by immutable Hugging Face
+revision, path, byte count, SHA-256 and base-weight SHA in the runtime manifest.
+Each is accepted only with `cellpose-sam-ncl-parent/4.3.0`; the model ID and SHA
+must match. Selecting this profile changes the weights, not the preprocessing,
+parent nuclei, coordinate mapping or postprocessing described below.
+
+Before candidate inference the runner verifies the actual cached bytes and
+strictly loads their state dictionary into the inference network. Results retain
+the effective model identity, runtime manifest and runner hashes. Missing or
+corrupt candidates fail explicitly; they do not fall back to the baseline.
+Changing a selection produces a new analysis revision through the existing
+workflow, without replacing adopted masks, corrections or historical results.
+
+These profiles are experimental, not a default adoption or evidence of general
+accuracy. NCL/NPM1 colocalization does not establish identical boundaries or
+performance across stains. Native fluorescence accuracy, final independent
+evaluation and human correction burden remain separate acceptance evidence.
+Candidate selection and bounded local-product PoC require review before activation.
+
 New explicit NCL Cellpose selections use 4.3.0. The pinned model, parent-conditioned
 inference and whole-instance rejection from 4.2.1 are unchanged. After binding
 model candidates to adopted StarDist nuclei, refinement 1.0.0 smooths the full
