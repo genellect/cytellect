@@ -264,7 +264,7 @@ function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,
         {!single&&<div className={styles.tileCaption}>{plane.field.label} · {plane.channel.stain||plane.channel.id}</div>}
         {plane.field.previews[plane.channel.id]?<ReviewImageCanvas
           src={plane.field.previews[plane.channel.id]} width={plane.field.width} height={plane.field.height}
-          contours={value?.masks.regions||[]} classification={Object.fromEntries((classification||[]).filter(item=>item.field_id===plane.field.id).map(item=>[item.region_id,item.gfp_positive]))} selected={plane.field.id===fieldId?region:undefined}
+          contours={value?.masks.regions||[]} candidateHistory={value?.masks.candidate_history} classification={Object.fromEntries((classification||[]).filter(item=>item.field_id===plane.field.id).map(item=>[item.region_id,item.gfp_positive]))} selected={plane.field.id===fieldId?region:undefined}
           label={`${plane.field.label} ${plane.channel.stain||plane.channel.id}`}
           onSelect={n=>onSelect(plane.field.id,plane.channel.id,n)} onOpen={!single?()=>onOpen(plane.field.id,plane.channel.id):undefined}
           editingKey={`${plane.field.id}:${target}:${value?.revision||"none"}`} editDisabled={r.busy||!editable}

@@ -19,6 +19,8 @@
 .editToolbar{top:auto;right:auto;bottom:8px;left:8px;max-width:calc(100% - 16px);flex-wrap:wrap}
 .mode{font-size:12px;padding:0 5px;line-height:1.4;color:#fff}
 .error{position:absolute;left:12px;right:12px;bottom:52px;margin:0;padding:8px;background:#24272bed;border-radius:4px;color:#fff;font-size:13px}
+.candidateHistory{position:absolute;z-index:2;left:8px;bottom:52px;max-width:min(340px,calc(100% - 16px));max-height:calc(100% - 110px);overflow:auto;padding:7px 9px;border:1px solid #ffb34788;border-radius:5px;background:#24272bf5;color:#fff;font:12px/1.5 system-ui;box-sizing:border-box}
+.candidateHistory summary{cursor:pointer;color:#ffcc80}.candidateHistory p{margin:7px 0}.candidateHistory ul{margin:6px 0;padding-left:18px}
 @media(max-width:600px){.toolbar{top:5px;right:5px}.toolbar button{width:28px;height:28px}}
 
 .outline[data-classification=positive]{stroke:#68ed9e;fill:#68ed9e18}.outline[data-classification=negative]{stroke:#b4bdc9;stroke-dasharray:3 3}.outline[data-classification=unknown]{stroke:#f4bb58;stroke-dasharray:2 4}

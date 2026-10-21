@@ -26,9 +26,14 @@ export interface MeasurementRow {
   mean_corrected?: number | null; median_corrected?: number | null; integrated_corrected?: number | null;
   area_missing_reason?: string | null; intensity_missing_reason?: string | null; correction_missing_reason?: string | null;
 }
+export interface NucleolarCandidateHistory {
+  origin_revision_id: string | null;
+  parent_nuclear_mask_sha256: string | null;
+  candidates: Array<{source_label_id:number;component:number;reason:string;parent_ids:number[];area_px?:number;contours?:Point[][]}>;
+}
 export interface SavedResult {
   regionSet?: string; revision: string; field: string; rows: MeasurementRow[];
-  masks: {regions: Array<{id: number; points: Point[]}>; metadata: {mask_revision_id: string}};
+  masks: {regions: Array<{id: number; points: Point[]}>; metadata: {mask_revision_id: string}; candidate_history?:NucleolarCandidateHistory|null};
   exclusions: Array<{field_id: string; region_id: number | null; reason: string}>;
   /** Measurement protocol of the saved table; "4.0.0" carries automatic-background corrections. */
   protocol?: string;

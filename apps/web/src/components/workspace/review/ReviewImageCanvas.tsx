@@ -2,7 +2,7 @@
 
 import {useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent} from "react";
 import type {Point} from "@/lib/types";
-import type {MaskOperation} from "@/lib/workspace/api-adapter";
+import type {MaskOperation, NucleolarCandidateHistory} from "@/lib/workspace/api-adapter";
 import {compoundOutlines} from "../../../lib/workspace/compound-outlines";
 import {regionAnnotations} from "../../../lib/workspace/image-viewport";
 import styles from "./review-image.module.css";
@@ -12,6 +12,7 @@ export interface ReviewImageCanvasProps {
   width: number;
   height: number;
   contours: Array<{id: number; points: Point[]}>;
+  candidateHistory?: NucleolarCandidateHistory | null;
   selected?: number;
   classification?: Record<number,boolean|null>;
   onSelect: (id: number) => void;
@@ -86,11 +87,12 @@ function Icon({kind}: {kind: keyof typeof iconPaths}) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;
 }
 
-export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit}: ReviewImageCanvasProps) {
+export function ReviewImageCanvas({src, width, height, contours, candidateHistory, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit}: ReviewImageCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<Size>({width: 0, height: 0});
   const [manual, setManual] = useState<{source: string; camera: Camera} | null>(null);
   const [masksEnabled, setMasksEnabled] = useState(true);
+  const [historyEnabled, setHistoryEnabled] = useState(true);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const [loadedSource, setLoadedSource] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -243,6 +245,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       <svg className={styles.image} role="img" aria-label={label} width="100%" height="100%">
         <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.scale})`}>
           <image href={src} width={width} height={height} preserveAspectRatio="xMidYMid meet" onLoad={() => {setLoadedSource(src);setFailedSource(null);}} onError={() => setFailedSource(src)}/>
+          {historyEnabled && candidateHistory?.candidates.flatMap(candidate => (candidate.contours || []).map((points,index) => <polygon key={`${candidate.source_label_id}-${candidate.component}-${index}`} points={points.map(point=>point.join(",")).join(" ")} fill="none" stroke="#ffb347" strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" pointerEvents="none"><title>{`検出時候補 ${candidate.source_label_id}.${candidate.component}：${candidateReason(candidate.reason)}`}</title></polygon>))}
           {visible && regions.map(region => <path key={region.id} d={region.path} fillRule="evenodd" data-region={region.id} data-classification={classification&&Number(region.id) in classification?(classification[Number(region.id)]===null?"unknown":classification[Number(region.id)]?"positive":"negative"):undefined}
             className={(draft?.operation === "merge" ? draft.merged.includes(Number(region.id)) : Number(region.id) === selected) ? styles.selected : styles.outline} vectorEffect="non-scaling-stroke"
             role="button" tabIndex={0} aria-label={`領域 ${region.id}`} aria-pressed={Number(region.id) === selected}
@@ -264,6 +267,12 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       <button type="button" title="輪郭の表示" aria-label="輪郭の表示" aria-pressed={visible} disabled={!showMasks || regions.length === 0} onClick={() => setMasksEnabled(value => !value)}><Icon kind="layers"/></button>
       {onOpen && <button type="button" title="この画像を大きく表示" aria-label="この画像を大きく表示" disabled={!!draft} onClick={onOpen}><Icon kind="open"/></button>}
     </div>
+    {!!candidateHistory?.candidates.length && !draft && <details className={styles.candidateHistory} onKeyDown={event=>event.stopPropagation()}>
+      <summary>検出時の要確認候補（測定対象外の履歴）</summary>
+      <label><input type="checkbox" checked={historyEnabled} onChange={event=>setHistoryEnabled(event.target.checked)}/>橙の点線で検出時の候補を表示</label>
+      <p>現在の未解決件数ではありません。編集後も検出時の形状を残しています。採用する領域は原画像を確認し、領域編集で指定してください。</p>
+      <ul>{candidateHistory.candidates.map(candidate=><li key={`${candidate.source_label_id}-${candidate.component}`}>候補 {candidate.source_label_id}.{candidate.component}：{candidateReason(candidate.reason)}{candidate.contours?.length ? "" : "（旧結果：輪郭データなし）"}</li>)}</ul>
+    </details>}
     {(onEdit || onDelete || onUndo || onRedo || backgroundEdit) && <div className={[styles.toolbar, styles.editToolbar].join(" ")} role="toolbar" aria-label={`${label}の領域編集`}>
       {draft ? <>
         <span className={styles.mode}>{stale ? "描画を取り消す" : draft.operation === "background" ? "背景を囲む" : draft.operation === "merge" ? `結合 · ${draft.merged.length} 領域` : draft.operation === "split" ? "切り離す部分を囲む" : draft.operation === "replace" ? "輪郭を描き直す" : "領域を描く"}</span>
@@ -279,4 +288,8 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       </>}
     </div>}
   </div>;
+}
+
+function candidateReason(reason:string):string {
+  return ({outside_adopted_nuclei:"採用済み核の外側",multiple_parent_nuclei:"複数の核に重なる",crosses_nuclear_boundary:"核境界をまたぐ",touches_nuclear_boundary:"核境界に接する"} as Record<string,string>)[reason] || reason;
 }
