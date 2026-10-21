@@ -29,8 +29,11 @@ export const nclCellposeDetector = ():NclParentCellposeProcessingDetector => ({
 /** Explicit weights-only change; preserve the current 4.3.0 processing recipe. */
 export function selectNclModel(detector:NclParentCellposeProcessingDetector,model:NclParentCellposeProcessingDetector["model"]):NclParentCellposeProcessingDetector {
   if(detector.protocol_version!=="4.3.0")throw new Error("cellpose_model_protocol_mismatch");
-  if(model!=="cpsam_v2"&&model!=="ncl-r1-step0375")throw new Error("cellpose_model_identity_mismatch");
-  return {...detector,model,model_sha256:model==="cpsam_v2"?cellposeDetector().model_sha256:"bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906"};
+  if(model!=="cpsam_v2"&&model!=="ncl-r1-step0375"&&model!=="ncl-r1-step0750")throw new Error("cellpose_model_identity_mismatch");
+  const hashes={cpsam_v2:cellposeDetector().model_sha256,
+    "ncl-r1-step0375":"bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+    "ncl-r1-step0750":"9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099"} as const;
+  return {...detector,model,model_sha256:hashes[model]};
 }
 
 export function isCellposeDetector(value:unknown):value is AnyCellposeProcessingDetector {

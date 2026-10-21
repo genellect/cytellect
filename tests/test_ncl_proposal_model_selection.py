@@ -1,6 +1,8 @@
 """JSON-only proposal checks; no images, model runtime or LLM requests."""
 import pytest
 from cytellect_analysis.cellpose_engine import (
+    NCL_750_MODEL_ID,
+    NCL_750_MODEL_SHA256,
     NCL_MODEL_ID,
     NCL_MODEL_SHA256,
     NclCellposeDetectorSpec,
@@ -11,8 +13,9 @@ from cytellect_analysis.proposal_validation import ProposalRejected, validate_dr
 from cytellect_analysis.region_contracts import NuclearDetectorSpec
 
 
-def candidate():
-    return NclParentCellposeDetectorSpec(model=NCL_MODEL_ID, model_sha256=NCL_MODEL_SHA256)
+def candidate(model_id=NCL_MODEL_ID):
+    return NclParentCellposeDetectorSpec(model=model_id, model_sha256=(
+        NCL_MODEL_SHA256 if model_id == NCL_MODEL_ID else NCL_750_MODEL_SHA256))
 
 
 def processing(detector, channel="ncl"):
@@ -63,3 +66,17 @@ def test_baseline_and_explicitly_different_algorithm_proposals_remain_supported(
     assert validate(NclParentCellposeDetectorSpec()).draft.processing.nucleoli.detector.model == "cpsam_v2"
     result = validate(NclCellposeDetectorSpec(), processing(candidate()))
     assert result.draft.processing.nucleoli.detector.engine == "cellpose-sam-ncl"
+
+
+@pytest.mark.parametrize("model_id,other_id", [(NCL_750_MODEL_ID, NCL_MODEL_ID), (NCL_MODEL_ID, NCL_750_MODEL_ID)])
+def test_ai_preserves_each_candidate_without_introducing_or_switching_weights(model_id, other_id):
+    selected = candidate(model_id)
+    for current in (None, processing(NclParentCellposeDetectorSpec()), processing(candidate(other_id)),
+                    processing(selected, "other")):
+        with pytest.raises(ProposalRejected) as error:
+            validate(selected, current)
+        assert "proposal_experimental_model_not_selected" in error.value.codes
+    assert validate(selected, processing(selected)).draft.processing.nucleoli.detector.model == model_id
+    with pytest.raises(ProposalRejected) as error:
+        validate(NclParentCellposeDetectorSpec(), processing(selected))
+    assert "proposal_model_selection_changed" in error.value.codes

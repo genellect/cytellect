@@ -20,13 +20,17 @@ MODEL_SIZE = 1233586851
 NCL_MODEL_ID = "ncl-r1-step0375"
 NCL_MODEL_SHA256 = "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906"
 NCL_MODEL_SIZE = 1233577155
+NCL_750_MODEL_ID = "ncl-r1-step0750"
+NCL_750_MODEL_SHA256 = "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099"
+NCL_MODEL_HASHES = {NCL_MODEL_ID: NCL_MODEL_SHA256, NCL_750_MODEL_ID: NCL_750_MODEL_SHA256}
 
 
 class CellposeParameters(RegionModel):
-    model: Literal["cpsam_v2", "ncl-r1-step0375"] = "cpsam_v2"
+    model: Literal["cpsam_v2", "ncl-r1-step0375", "ncl-r1-step0750"] = "cpsam_v2"
     model_sha256: Literal[
         "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
         "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+        "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099",
     ] = MODEL_SHA256
     diameter_px: FiniteFloat | None = Field(default=None, gt=0, le=4096)
     normalization_percentile_low: FiniteFloat = Field(default=1.0, ge=0, lt=100)
@@ -76,7 +80,7 @@ class NclParentCellposeDetectorSpec(CellposeParameters):
 
     @model_validator(mode="after")
     def pinned_model_selection(self):
-        expected = MODEL_SHA256 if self.model == "cpsam_v2" else NCL_MODEL_SHA256
+        expected = MODEL_SHA256 if self.model == "cpsam_v2" else NCL_MODEL_HASHES[self.model]
         if self.model_sha256 != expected:
             raise ValueError("cellpose_model_identity_mismatch")
         if self.model != "cpsam_v2" and self.protocol_version != "4.3.0":
@@ -85,13 +89,13 @@ class NclParentCellposeDetectorSpec(CellposeParameters):
 
 
 def model_profile(lock: dict, model_id: str = "cpsam_v2") -> dict:
-    """Resolve only the two registered identities, never a job-supplied URL."""
+    """Resolve only registered identities, never a job-supplied URL."""
     expected_sha: str
     if model_id == "cpsam_v2":
         profile, expected_sha, expected_size = lock["model"], MODEL_SHA256, MODEL_SIZE
-    elif model_id == NCL_MODEL_ID:
+    elif model_id in NCL_MODEL_HASHES:
         profile = lock.get("ncl_candidates", {}).get(model_id)
-        expected_sha, expected_size = NCL_MODEL_SHA256, NCL_MODEL_SIZE
+        expected_sha, expected_size = NCL_MODEL_HASHES[model_id], NCL_MODEL_SIZE
     else:
         raise ValueError("cellpose_model_identity_mismatch")
     if (not isinstance(profile, dict) or profile.get("id") != model_id

@@ -85,10 +85,10 @@ The Web components call the same versioned API contracts. Local delivery adds a 
 
 The local launcher uses the same pinned Fiji/Java/model and Python lockfiles. Installation downloads are separate from analysis. The worker must not fetch dependencies/models during a job. A later cloud deployment can replace database, file storage and dispatch adapters without changing scientific definitions or the browser editing workflow.
 
-### Optional NCL development candidate
+### Optional NCL development candidates
 
 The NCL detection settings expose the existing `cpsam_v2` and the explicitly
-experimental `ncl-r1-step0375` profile under protocol 4.3.0. The existing model
+experimental `ncl-r1-step0375` and `ncl-r1-step0750` profiles under protocol 4.3.0. The existing model
 remains the default. This source change does not activate a production PoC or
 claim that the candidate has passed installed-copy or biological acceptance.
 
@@ -96,11 +96,15 @@ After review, provision the optional model into the same external model cache
 used by the local Cellpose runtime:
 
 ```powershell
-python scripts/cellpose_setup.py <external-runtime> --model-cache <external-model-cache> --model ncl-r1-step0375 --model-only
+python scripts/cellpose_setup.py <external-runtime> --model-cache <external-model-cache> --model ncl-r1-step0750 --model-only
 ```
 
 Setup retrieves only the manifest's immutable HF revision, checks size and
-SHA-256, and atomically installs a separate `ncl-r1-step0375` file. For a private
+SHA-256, and atomically installs a separate file named for the selected model ID.
+The 750 profile uses public `Genellect/Cytellect` revision
+`9bec9410e6baac8b66093c4db065fa1302ed1a62`, file `ncl/r1-step0750.pt`, SHA-256
+`9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099`.
+Use `--model ncl-r1-step0375` to provision the earlier distinct candidate. For a private
 HF repository, supply `HF_TOKEN` through the operator's secret environment;
 never put it in a recipe or command argument. Authorization is not forwarded
 to signed storage redirects. A public repository requires no token. Alternatively
@@ -111,7 +115,7 @@ and retained working checkpoints.
 
 Inference performs no downloads. A missing, corrupt or mismatched model is an
 error. Select the existing model to return to it; unchanged saved recipes still
-identify their original weights. Both profiles retain the existing preprocessing
+identify their original weights. All profiles retain the existing preprocessing
 and postprocessing, and each new analysis records its actual model identity.
 Preserve local originals until retrieval from the pinned HF revision and local
 restoration have actually been verified. Remote metadata alone is not a restore

@@ -454,10 +454,10 @@ Stored 4.2.0 recipes skip this filter and retain their original meaning.
 
 #### Explicit experimental weight selection
 
-The default remains the original `cpsam_v2`. An optional `ncl-r1-step0375`
-profile identifies an NCL-trained development candidate by immutable Hugging Face
+The default remains the original `cpsam_v2`. Optional `ncl-r1-step0375` and
+`ncl-r1-step0750` profiles identify distinct NCL-trained development candidates by immutable Hugging Face
 revision, path, byte count, SHA-256 and base-weight SHA in the runtime manifest.
-It is accepted only with `cellpose-sam-ncl-parent/4.3.0`; the model ID and SHA
+Each is accepted only with `cellpose-sam-ncl-parent/4.3.0`; the model ID and SHA
 must match. Selecting this profile changes the weights, not the preprocessing,
 parent nuclei, coordinate mapping or postprocessing described below.
 
@@ -468,7 +468,7 @@ corrupt candidates fail explicitly; they do not fall back to the baseline.
 Changing a selection produces a new analysis revision through the existing
 workflow, without replacing adopted masks, corrections or historical results.
 
-This profile is experimental, not a default adoption or evidence of general
+These profiles are experimental, not a default adoption or evidence of general
 accuracy. NCL/NPM1 colocalization does not establish identical boundaries or
 performance across stains. Native fluorescence accuracy, final independent
 evaluation and human correction burden remain separate acceptance evidence.

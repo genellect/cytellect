@@ -29,14 +29,24 @@ function contractRuntime(detector:NonNullable<ProposalProcessing["nucleoli"]>["d
   return {runtime,adapter,writeSpecification};
 }
 describe("NCL settings contracts without images",()=>{
-  it("rejects an AI-only candidate selection before applying settings or running preview",async()=>{
+  it.each(["ncl-r1-step0375","ncl-r1-step0750"] as const)("rejects an AI-only candidate selection %s before applying settings or running preview",async model=>{
     const {runtime,adapter}=contractRuntime(nclCellposeDetector());await runtime.load("w");
     const response=await adapter.draft();
-    response.proposal.draft.processing!.nucleoli!.detector=selectNclModel(nclCellposeDetector(),"ncl-r1-step0375");
+    response.proposal.draft.processing!.nucleoli!.detector=selectNclModel(nclCellposeDetector(),model);
     adapter.draft.mockResolvedValueOnce(response);
     await expect(runtime.requestProposal("adjust detection settings","f")).rejects.toThrow("proposal_experimental_model_not_selected");
     expect(adapter.run).not.toHaveBeenCalled();
     expect(runtime.cellposeSettings("f","nucleoli").model).toBe("cpsam_v2");
+    runtime.dispose();
+  });
+  it("manually selects 750 and restores the baseline without starting analysis",async()=>{
+    const baseline={...nclCellposeDetector(),diameter_px:90};
+    const {runtime,adapter}=contractRuntime(baseline);await runtime.load("w");
+    runtime.selectNclModel("f","ncl-r1-step0750");
+    expect(runtime.cellposeSettings("f","nucleoli")).toEqual(selectNclModel(baseline,"ncl-r1-step0750"));
+    runtime.selectNclModel("f","cpsam_v2");
+    expect(runtime.cellposeSettings("f","nucleoli")).toEqual(baseline);
+    expect(adapter.run).not.toHaveBeenCalled();expect(adapter.draft).not.toHaveBeenCalled();
     runtime.dispose();
   });
   it("restores exact saved NCL controls",async()=>{

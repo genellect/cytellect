@@ -14,6 +14,23 @@ const base=runtimeRecipe("nuclei",nuclear,defaultRuntimeSettings(),{},null);
 const parent={nuclei:{recipe:base,result}};
 
 describe("Cellpose manual/saved/AI contracts",()=>{
+  it("preserves the distinct 750 identity through selection, saved replay and AI guards",()=>{
+    const baseline={...nclCellposeDetector(),diameter_px:90};
+    const candidate=selectNclModel(baseline,"ncl-r1-step0750");
+    expect(candidate).toEqual({...baseline,model:"ncl-r1-step0750",model_sha256:"9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099"});
+    expect(selectNclModel(candidate,"cpsam_v2")).toEqual(baseline);
+    expect(selectNclModel(candidate,"ncl-r1-step0375").model_sha256).not.toBe(candidate.model_sha256);
+    const current:ProposalProcessing={version:"1.0.0",nuclei:null,nucleoli:{channel:"marker",detector:candidate},signal:null};
+    const old:ProposalProcessing={...current,nucleoli:{channel:"marker",detector:selectNclModel(baseline,"ncl-r1-step0375")}};
+    expect(()=>preserveNclModelSelection(current,null)).toThrow("proposal_experimental_model_not_selected");
+    expect(()=>preserveNclModelSelection(current,old)).toThrow("proposal_experimental_model_not_selected");
+    expect(()=>preserveNclModelSelection(old,current)).toThrow("proposal_experimental_model_not_selected");
+    expect(()=>preserveNclModelSelection(current,current)).not.toThrow();
+    const settings={...defaultRuntimeSettings(),nucleolarDefinition:{source:"ncl" as const,marker:"marker",pixelUm:null,relative:.7}};
+    const recipe=runtimeRecipe("nucleoli",nuclear,settings,parent,current);
+    expect(recipe.detector).toEqual(candidate);
+    expect(savedProcessing(base,recipe)?.nucleoli?.detector).toEqual(candidate);
+  });
   it("keeps explicit model selection across AI followups",()=>{
     const baseline:ProposalProcessing={version:"1.0.0",nuclei:null,nucleoli:{channel:"marker",detector:nclCellposeDetector()},signal:null};
     const candidate:ProposalProcessing={...baseline,nucleoli:{channel:"marker",detector:selectNclModel(nclCellposeDetector(),"ncl-r1-step0375")}};

@@ -31,12 +31,16 @@ def selected_model(lock: dict, parameters: dict) -> dict:
     model_id = parameters.get("model", "cpsam_v2")
     if model_id == "cpsam_v2":
         model = lock["model"]
-    elif model_id == "ncl-r1-step0375":
+    elif model_id in ("ncl-r1-step0375", "ncl-r1-step0750"):
         if parameters.get("engine") != "cellpose-sam-ncl-parent" or parameters.get("protocol_version") != "4.3.0":
             raise RuntimeError("cellpose_model_protocol_mismatch")
         model = lock.get("ncl_candidates", {}).get(model_id)
+        expected_sha = {
+            "ncl-r1-step0375": "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+            "ncl-r1-step0750": "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099",
+        }[model_id]
         if (not isinstance(model, dict) or model.get("id") != model_id or model.get("size") != 1233577155
-                or model.get("sha256") != "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906"):
+                or model.get("sha256") != expected_sha):
             raise RuntimeError("cellpose_model_identity_mismatch")
     else:
         raise RuntimeError("cellpose_model_identity_mismatch")

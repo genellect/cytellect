@@ -2967,13 +2967,13 @@ export interface components {
              * @default cpsam_v2
              * @enum {string}
              */
-            model: "cpsam_v2" | "ncl-r1-step0375";
+            model: "cpsam_v2" | "ncl-r1-step0375" | "ncl-r1-step0750";
             /**
              * Model Sha256
              * @default 0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667
              * @enum {string}
              */
-            model_sha256: "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667" | "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906";
+            model_sha256: "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667" | "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906" | "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099";
             /** Diameter Px */
             diameter_px?: number | null;
             /**

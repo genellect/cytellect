@@ -36,6 +36,21 @@
       "training_stain": "NCL",
       "status": "experimental_development_candidate",
       "evaluation_scope": "NCL development images only; generalization, NPM1 accuracy, native fluorescence and correction burden not established"
+    },
+    "ncl-r1-step0750": {
+      "id": "ncl-r1-step0750",
+      "repository": "Genellect/Cytellect",
+      "revision": "9bec9410e6baac8b66093c4db065fa1302ed1a62",
+      "path": "ncl/r1-step0750.pt",
+      "url": "https://huggingface.co/Genellect/Cytellect/resolve/9bec9410e6baac8b66093c4db065fa1302ed1a62/ncl/r1-step0750.pt",
+      "sha256": "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099",
+      "size": 1233577155,
+      "base_model_sha256": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+      "engine": "cellpose-sam-ncl-parent",
+      "protocol_version": "4.3.0",
+      "training_stain": "NCL",
+      "status": "experimental_development_candidate",
+      "evaluation_scope": "NCL development images only; generalization, NPM1 accuracy, native fluorescence and correction burden not established"
     }
   }
 }

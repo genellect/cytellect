@@ -106,7 +106,7 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
             # A follow-up may retain an explicitly selected experimental model,
             # but cannot select one, move it to another channel/protocol, or
             # silently change weights within the same detection method.
-            if getattr(candidate.detector, "model", None) == "ncl-r1-step0375" and not (same_scope and same_model):
+            if getattr(candidate.detector, "model", None) in ("ncl-r1-step0375", "ncl-r1-step0750") and not (same_scope and same_model):
                 codes.append("proposal_experimental_model_not_selected")
             elif same_scope and not same_model:
                 codes.append("proposal_model_selection_changed")

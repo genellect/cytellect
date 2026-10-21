@@ -41,7 +41,7 @@ export function preserveNclModelSelection(proposed:ProposalProcessing|null,curre
   const candidateSha="model_sha256" in candidate.detector?candidate.detector.model_sha256:null;
   const selectedSha=selected&&"model_sha256" in selected.detector?selected.detector.model_sha256:null;
   const sameModel=candidateModel===selectedModel&&candidateSha===selectedSha;
-  if(candidateModel==="ncl-r1-step0375"&&!(sameScope&&sameModel))throw new Error("proposal_experimental_model_not_selected");
+  if((candidateModel==="ncl-r1-step0375"||candidateModel==="ncl-r1-step0750")&&!(sameScope&&sameModel))throw new Error("proposal_experimental_model_not_selected");
   if(sameScope&&!sameModel)throw new Error("proposal_model_selection_changed");
 }
 

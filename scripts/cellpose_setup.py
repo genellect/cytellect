@@ -88,7 +88,7 @@ def main():
     parser.add_argument("--python", default=sys.executable, help="Python 3.12 interpreter, already installed")
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--model-only", action="store_true")
-    parser.add_argument("--model", choices=("cpsam_v2", "ncl-r1-step0375"), default="cpsam_v2",
+    parser.add_argument("--model", choices=("cpsam_v2", "ncl-r1-step0375", "ncl-r1-step0750"), default="cpsam_v2",
                         help="Explicit optional model; the baseline is never replaced")
     parser.add_argument("--model-file", type=Path,
                         help="Reuse an existing checkpoint after exact size/SHA verification")
