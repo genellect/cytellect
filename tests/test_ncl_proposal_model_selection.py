@@ -80,3 +80,41 @@ def test_ai_preserves_each_candidate_without_introducing_or_switching_weights(mo
     with pytest.raises(ProposalRejected) as error:
         validate(NclParentCellposeDetectorSpec(), processing(selected))
     assert "proposal_model_selection_changed" in error.value.codes
+
+
+def envelope_candidate():
+    return NclParentCellposeDetectorSpec(
+        model=NCL_750_MODEL_ID, model_sha256=NCL_750_MODEL_SHA256,
+        postprocessing_mode="single-anchor-envelope-v1")
+
+
+def test_envelope_mode_is_explicit_saved_and_ai_cannot_switch_it():
+    legacy = candidate(NCL_750_MODEL_ID)
+    selected = envelope_candidate()
+    assert "postprocessing_mode" not in legacy.model_dump()
+    assert selected.model_dump()["postprocessing_mode"] == "single-anchor-envelope-v1"
+    assert NclParentCellposeDetectorSpec.model_validate(selected.model_dump()) == selected
+    for current in (None, processing(legacy), processing(selected, "other")):
+        with pytest.raises(ProposalRejected) as error:
+            validate(selected, current)
+        assert "proposal_experimental_postprocessing_not_selected" in error.value.codes
+    with pytest.raises(ProposalRejected) as error:
+        validate(legacy, processing(selected))
+    assert "proposal_postprocessing_selection_changed" in error.value.codes
+    assert validate(selected, processing(selected)).draft.processing.nucleoli.detector == selected
+
+
+def test_envelope_requires_fixed_750_and_explicit_ncl_stain():
+    from cytellect_analysis.cellpose_engine import validate_envelope_stain
+    from pydantic import ValidationError
+
+    for spec in (NclParentCellposeDetectorSpec(), candidate()):
+        with pytest.raises(ValidationError, match="cellpose_envelope_model_protocol_mismatch"):
+            NclParentCellposeDetectorSpec.model_validate(
+                {**spec.model_dump(), "postprocessing_mode": "single-anchor-envelope-v1"})
+    for stain in (None, "", "NPM1", "DAPI"):
+        with pytest.raises(ValueError, match="cellpose_envelope_ncl_stain_required"):
+            validate_envelope_stain(envelope_candidate(), stain)
+        validate_envelope_stain(candidate(NCL_750_MODEL_ID), stain)
+    for stain in ("NCL", " Nucleolin "):
+        validate_envelope_stain(envelope_candidate(), stain)

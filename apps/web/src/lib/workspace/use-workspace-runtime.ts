@@ -6,7 +6,7 @@ import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, ty
 import {effectiveChannelAssignments} from "./channel-assignments";
 import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, type Grouping} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
-import {cellposeDetector,nclCellposeDetector,isCellposeDetector,selectNclModel,type AnyCellposeProcessingDetector,type NclParentCellposeProcessingDetector} from "./cellpose-settings";
+import {cellposeDetector,nclCellposeDetector,isCellposeDetector,selectNclModel,selectNclPostprocessing,type AnyCellposeProcessingDetector,type NclParentCellposeProcessingDetector} from "./cellpose-settings";
 import {applicableProcessing, preserveNclModelSelection, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
 import {loadReviewPreview, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
@@ -357,6 +357,15 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       const detector=selectNclModel(base,model);
       publish({processing:{...(state.processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:defining,detector}}});
     },
+    selectNclPostprocessing(field:string,mode:"legacy"|"single-anchor-envelope-v1"){
+      if(state.busy||state.settings.nucleolarDefinition.source!=="ncl")return;
+      const defining=state.settings.nucleolarDefinition.marker;
+      const previous=state.processing?.nucleoli;
+      if(!defining||previous?.channel!==defining||previous.detector.engine!=="cellpose-sam-ncl-parent")return;
+      if(mode!=="legacy"&&!['ncl','nucleolin'].includes(definitions(field).find(ch=>ch.token===defining)?.stain?.trim().toLowerCase()??""))throw new Error("cellpose_envelope_ncl_stain_required");
+      const detector=selectNclPostprocessing(previous.detector,mode);
+      publish({processing:{...state.processing!,nucleoli:{channel:defining,detector}}});
+    },
     setCellposeParameter(field:string,target:"cell"|"nucleoli",key:"diameter_px"|"flow_threshold"|"cellprob_threshold"|"minimum_area_px"|"normalization_percentile_low"|"normalization_percentile_high"|"smoothing_sigma_px"|"background_radius_px"|"parent_background_percentile"|"nuclear_diameter_fraction"|"minimum_contrast_snr",value:number|null){
       if(state.busy)return;
       const defining=target==="cell"?state.settings.cellDefinition?.channel:state.settings.nucleolarDefinition.marker;
@@ -392,7 +401,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(definition.source==="ncl"&&definition.algorithm==="cellpose"){
         const previous=processing?.nucleoli;
         processing={...(processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:definition.marker
-          ?{channel:definition.marker,detector:previous&&isCellposeDetector(previous.detector)?previous.detector:nclCellposeDetector()}:null};
+          ?{channel:definition.marker,detector:previous&&previous.channel===definition.marker&&isCellposeDetector(previous.detector)?previous.detector:nclCellposeDetector()}:null};
       }
       publish({settings,processing});
     },

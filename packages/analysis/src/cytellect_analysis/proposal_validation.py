@@ -110,6 +110,12 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
                 codes.append("proposal_experimental_model_not_selected")
             elif same_scope and not same_model:
                 codes.append("proposal_model_selection_changed")
+            mode = getattr(candidate.detector, "postprocessing_mode", "legacy")
+            selected_mode = getattr(current.detector, "postprocessing_mode", "legacy") if current else "legacy"
+            if mode != "legacy" and not (same_scope and same_model and mode == selected_mode):
+                codes.append("proposal_experimental_postprocessing_not_selected")
+            elif same_scope and mode != selected_mode:
+                codes.append("proposal_postprocessing_selection_changed")
             source = getattr(candidate.detector, "source", "ncl")
             actual = known.get(candidate.channel)
             if draft.recipe != "nuclear-ncl":

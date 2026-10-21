@@ -8107,6 +8107,15 @@
             "exclusiveMinimum": 0.0,
             "title": "Maximum Nuclear Coverage",
             "default": 0.5
+          },
+          "postprocessing_mode": {
+            "type": "string",
+            "enum": [
+              "legacy",
+              "single-anchor-envelope-v1"
+            ],
+            "title": "Postprocessing Mode",
+            "description": "Absent means legacy; experimental mode requires explicit selection."
           }
         },
         "additionalProperties": false,

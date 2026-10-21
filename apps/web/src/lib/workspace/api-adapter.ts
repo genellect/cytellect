@@ -29,7 +29,8 @@ export interface MeasurementRow {
 export interface NucleolarCandidateHistory {
   origin_revision_id: string | null;
   parent_nuclear_mask_sha256: string | null;
-  candidates: Array<{source_label_id:number;component:number;reason:string;parent_ids:number[];area_px?:number;contours?:Point[][]}>;
+  processing_mode?: string;
+  candidates: Array<{source_label_id:number;component:number;reason:string;parent_ids:number[];area_px?:number;contours?:Point[][];candidate_kind?:"envelope_growth";processing_mode?:string;final_id?:number}>;
 }
 export interface SavedResult {
   regionSet?: string; revision: string; field: string; rows: MeasurementRow[];

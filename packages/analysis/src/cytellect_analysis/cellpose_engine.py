@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-from pydantic import Field, FiniteFloat, model_validator
+from pydantic import Field, FiniteFloat, model_serializer, model_validator
 from scipy import ndimage as ndi
 
 from .masks import contours, validate_label_array
@@ -66,6 +66,11 @@ class NclCellposeDetectorSpec(CellposeParameters):
     background_radius_px: int = Field(default=10, ge=1, le=128)
 
 
+def _omit_mode_default(schema: dict) -> None:
+    # Legacy saved recipes omit this field; generated clients must accept absence.
+    schema.pop("default", None)
+
+
 class NclParentCellposeDetectorSpec(CellposeParameters):
     """Parent-conditioned NCL copy; 4.0/4.1 replay is deliberately unchanged."""
     engine: Literal["cellpose-sam-ncl-parent"] = "cellpose-sam-ncl-parent"
@@ -77,6 +82,16 @@ class NclParentCellposeDetectorSpec(CellposeParameters):
     minimum_contrast_snr: FiniteFloat = Field(default=5, gt=0, le=100)
     local_background_radius_px: int = Field(default=8, ge=1, le=128)
     maximum_nuclear_coverage: FiniteFloat = Field(default=0.5, gt=0, lt=1)
+    postprocessing_mode: Literal["legacy", "single-anchor-envelope-v1"] = Field(
+        default="legacy", json_schema_extra=_omit_mode_default,
+        description="Absent means legacy; experimental mode requires explicit selection.")
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_serialization(self, handler):
+        values = handler(self)
+        if self.postprocessing_mode == "legacy":
+            values.pop("postprocessing_mode", None)
+        return values
 
     @model_validator(mode="after")
     def pinned_model_selection(self):
@@ -85,6 +100,8 @@ class NclParentCellposeDetectorSpec(CellposeParameters):
             raise ValueError("cellpose_model_identity_mismatch")
         if self.model != "cpsam_v2" and self.protocol_version != "4.3.0":
             raise ValueError("cellpose_model_protocol_mismatch")
+        if self.postprocessing_mode != "legacy" and (self.model != NCL_750_MODEL_ID or self.protocol_version != "4.3.0"):
+            raise ValueError("cellpose_envelope_model_protocol_mismatch")
         return self
 
 
@@ -102,6 +119,13 @@ def model_profile(lock: dict, model_id: str = "cpsam_v2") -> dict:
             or profile.get("sha256") != expected_sha or profile.get("size") != expected_size):
         raise ValueError("cellpose_model_identity_mismatch")
     return profile
+
+
+def validate_envelope_stain(detector, stain: str | None) -> None:
+    """Explicit channel metadata, never colour/filename or a model's training label."""
+    if (getattr(detector, "postprocessing_mode", "legacy") != "legacy"
+            and (stain is None or stain.strip().casefold() not in {"ncl", "nucleolin"})):
+        raise ValueError("cellpose_envelope_ncl_stain_required")
 
 
 def _assets() -> Path:
@@ -378,6 +402,49 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
                             "anchor_mask_sha256": _array_hash(anchors, "<u4"),
                             "signal_support_artifact": "cellpose-signal-support-labels.npy",
                             "signal_support_sha256": _array_hash(support, "<u4")})
+            if detector.postprocessing_mode == "single-anchor-envelope-v1":
+                from .compartment_engine import derive_compartment_masks
+                from .ncl_single_anchor_envelope import refine_ncl_single_anchor_envelope
+
+                old_masks, old_details = derive_compartment_masks(
+                    nuclei, labels, binding["nucleolar_states"], retain_review_candidates=True)
+                old_refined = labels
+                labels, members, withheld, decisions = refine_ncl_single_anchor_envelope(
+                    image, anchors, nuclei, old_masks["nucleoli"], binding["objects"],
+                    old_details["nucleolar_states"], old_details["eligible_nucleus_ids"])
+                artifacts = {}
+                for name, array in (("legacy_refined", old_refined), ("legacy_final", old_masks["nucleoli"]),
+                                    ("prewatershed_members", members), ("withheld_additions", withheld),
+                                    ("selected_final", labels)):
+                    path = output_dir / f"cellpose-envelope-{name}.npy"
+                    np.save(path, array, allow_pickle=False)
+                    artifacts[name] = {"artifact": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                                       "canonical_sha256": _array_hash(array, "<u4")}
+                # Preserve prior object provenance; update only the area of retained growth.
+                binding["objects"] = {ident: dict(item) for ident, item in binding["objects"].items()}
+                for ident in decisions["applied_ids"]:
+                    item = binding["objects"][ident]
+                    item["area_before_envelope"] = item["area"]
+                    item["area"] = int(np.count_nonzero(labels == ident))
+                history = list(binding.get("review_candidates", []))
+                for item in decisions["records"]:
+                    if item.get("final_id") is None or item["status"] not in ("withheld_parent_state", "pending_unchanged"):
+                        continue
+                    geometry = (members == item["member_id"]) & (old_masks["nucleoli"] == 0)
+                    if not geometry.any():
+                        continue
+                    history.append({"candidate_kind": "envelope_growth", "processing_mode": detector.postprocessing_mode,
+                                    "source_label_id": item["anchor_id"], "component": item["member_id"],
+                                    "final_id": item["final_id"], "parent_ids": [item["parent_id"]],
+                                    "reason": "envelope_" + ";".join(item["reasons"]),
+                                    "area_px": int(geometry.sum()),
+                                    "geometry_artifact": artifacts["prewatershed_members"],
+                                    "geometry_member_id": item["member_id"],
+                                    "contours": [part["points"] for part in contours(geometry.astype(np.uint32))]})
+                binding.update(review_candidates=history, review_candidate_count=len(history),
+                               ncl_postprocessing={**decisions, "artifacts": artifacts,
+                                                   "legacy_support_policy": dict(refined["signal_support_policy"]),
+                                                   "scope": "experimental NCL; candidate parent is not biological single-object proof"})
         np.save(output_dir / "cellpose-labels.npy", labels, allow_pickle=False)
         info = {"engine": detector.engine, "nucleolar_detector_protocol_version": detector.protocol_version,
                 "model": detector.model, "model_sha256": profile["sha256"],

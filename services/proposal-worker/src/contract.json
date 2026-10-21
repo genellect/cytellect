@@ -1219,6 +1219,15 @@
             "title": "Parent Background Percentile",
             "type": "number"
           },
+          "postprocessing_mode": {
+            "description": "Absent means legacy; experimental mode requires explicit selection.",
+            "enum": [
+              "legacy",
+              "single-anchor-envelope-v1"
+            ],
+            "title": "Postprocessing Mode",
+            "type": "string"
+          },
           "protocol_version": {
             "default": "4.3.0",
             "enum": [
@@ -3135,6 +3144,13 @@
                               "parent_background_percentile": {
                                 "type": "number"
                               },
+                              "postprocessing_mode": {
+                                "enum": [
+                                  "legacy",
+                                  "single-anchor-envelope-v1"
+                                ],
+                                "type": "string"
+                              },
                               "protocol_version": {
                                 "enum": [
                                   "4.2.0",
@@ -3168,7 +3184,8 @@
                               "crop_padding_px",
                               "minimum_contrast_snr",
                               "local_background_radius_px",
-                              "maximum_nuclear_coverage"
+                              "maximum_nuclear_coverage",
+                              "postprocessing_mode"
                             ],
                             "type": "object"
                           }
@@ -5230,6 +5247,13 @@
                               "parent_background_percentile": {
                                 "type": "number"
                               },
+                              "postprocessing_mode": {
+                                "enum": [
+                                  "legacy",
+                                  "single-anchor-envelope-v1"
+                                ],
+                                "type": "string"
+                              },
                               "protocol_version": {
                                 "enum": [
                                   "4.2.0",
@@ -5263,7 +5287,8 @@
                               "crop_padding_px",
                               "minimum_contrast_snr",
                               "local_background_radius_px",
-                              "maximum_nuclear_coverage"
+                              "maximum_nuclear_coverage",
+                              "postprocessing_mode"
                             ],
                             "type": "object"
                           }

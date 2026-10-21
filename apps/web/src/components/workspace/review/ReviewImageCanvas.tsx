@@ -245,7 +245,7 @@ export function ReviewImageCanvas({src, width, height, contours, candidateHistor
       <svg className={styles.image} role="img" aria-label={label} width="100%" height="100%">
         <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.scale})`}>
           <image href={src} width={width} height={height} preserveAspectRatio="xMidYMid meet" onLoad={() => {setLoadedSource(src);setFailedSource(null);}} onError={() => setFailedSource(src)}/>
-          {historyEnabled && candidateHistory?.candidates.flatMap(candidate => (candidate.contours || []).map((points,index) => <polygon key={`${candidate.source_label_id}-${candidate.component}-${index}`} points={points.map(point=>point.join(",")).join(" ")} fill="none" stroke="#ffb347" strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" pointerEvents="none"><title>{`検出時候補 ${candidate.source_label_id}.${candidate.component}：${candidateReason(candidate.reason)}`}</title></polygon>))}
+          {historyEnabled && candidateHistory?.candidates.flatMap(candidate => (candidate.contours || []).map((points,index) => <polygon key={`${candidate.candidate_kind??"model"}-${candidate.source_label_id}-${candidate.component}-${index}`} points={points.map(point=>point.join(",")).join(" ")} fill="none" stroke="#ffb347" strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" pointerEvents="none"><title>{`検出時候補 ${candidate.source_label_id}.${candidate.component}：${candidateReason(candidate.reason)}`}</title></polygon>))}
           {visible && regions.map(region => <path key={region.id} d={region.path} fillRule="evenodd" data-region={region.id} data-classification={classification&&Number(region.id) in classification?(classification[Number(region.id)]===null?"unknown":classification[Number(region.id)]?"positive":"negative"):undefined}
             className={(draft?.operation === "merge" ? draft.merged.includes(Number(region.id)) : Number(region.id) === selected) ? styles.selected : styles.outline} vectorEffect="non-scaling-stroke"
             role="button" tabIndex={0} aria-label={`領域 ${region.id}`} aria-pressed={Number(region.id) === selected}
@@ -271,7 +271,7 @@ export function ReviewImageCanvas({src, width, height, contours, candidateHistor
       <summary>検出時の要確認候補（測定対象外の履歴）</summary>
       <label><input type="checkbox" checked={historyEnabled} onChange={event=>setHistoryEnabled(event.target.checked)}/>橙の点線で検出時の候補を表示</label>
       <p>現在の未解決件数ではありません。編集後も検出時の形状を残しています。採用する領域は原画像を確認し、領域編集で指定してください。</p>
-      <ul>{candidateHistory.candidates.map(candidate=><li key={`${candidate.source_label_id}-${candidate.component}`}>候補 {candidate.source_label_id}.{candidate.component}：{candidateReason(candidate.reason)}{candidate.contours?.length ? "" : "（旧結果：輪郭データなし）"}</li>)}</ul>
+      <ul>{candidateHistory.candidates.map(candidate=><li key={`${candidate.candidate_kind??"model"}-${candidate.source_label_id}-${candidate.component}`}>{candidate.candidate_kind==="envelope_growth"?"輪郭補完の保留候補":"候補"} {candidate.source_label_id}.{candidate.component}：{candidateReason(candidate.reason)}{candidate.contours?.length ? "" : "（旧結果：輪郭データなし）"}</li>)}</ul>
     </details>}
     {(onEdit || onDelete || onUndo || onRedo || backgroundEdit) && <div className={[styles.toolbar, styles.editToolbar].join(" ")} role="toolbar" aria-label={`${label}の領域編集`}>
       {draft ? <>
@@ -291,5 +291,8 @@ export function ReviewImageCanvas({src, width, height, contours, candidateHistor
 }
 
 function candidateReason(reason:string):string {
+  if(reason.startsWith("envelope_existing_parent_state_"))return "親領域が要確認・不確定のため追加を保留";
+  if(reason.includes("mutual_proposal_overlap_or_8_adjacency"))return "追加候補同士が重なる、または接するため保留";
+  if(reason.startsWith("envelope_"))return "輪郭補完の適用条件を満たさないため保留";
   return ({outside_adopted_nuclei:"採用済み核の外側",multiple_parent_nuclei:"複数の核に重なる",crosses_nuclear_boundary:"核境界をまたぐ",touches_nuclear_boundary:"核境界に接する"} as Record<string,string>)[reason] || reason;
 }
