@@ -45,3 +45,15 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 今後の機能 | アカウント、チーム、長期保存、決済 |
 
 検証の層と記録の方法は [validation.md](validation.md) に従います。CI の成功や公開した事実は、科学的な妥当性の証明にはなりません。
+
+
+## Laboratory manual-retention implementation
+
+A scoped source change adds explicit manual workspace retention with consistent
+API/worker/UI behavior and a durable guard against returning the volume to TTL.
+Default non-lab retention remains 24 hours. Metadata-only checks do not establish
+installed browser behavior, image correctness or delivery readiness. Remaining:
+independent source review, integrated PR/model selection, pinned Docker release,
+quiesced DB/artifact backup/restore, hardware/resource confirmation, and fresh
+real-input installation acceptance. No automatic merge/default-model switch or
+production PoC is part of this change.

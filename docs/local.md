@@ -173,3 +173,13 @@ an explicit retry; the UI warns that retrying may incur another charge.
 Public-data/browser acceptance and Windows archive acceptance are recorded against
 the exact release commit. These checks do not establish private-image validity,
 Windows application-control compatibility on every device, or human usability.
+
+### Optional lab retention policy
+
+The default native/local configuration retains its existing TTL behavior.
+An explicitly configured lab installation can use workspace retention mode
+`manual`, consistently propagated to the child worker. Its API/UI reports no age
+deadline; manual deletion, session expiry and job leases are unchanged. See
+[Docker Desktop retention](docker-desktop.md#explicit-laboratory-retention-implementation-not-a-release-acceptance)
+for the durable mode marker, capacity responsibility and transition restrictions.
+This is source implementation, not installed-copy or Docker delivery acceptance.

@@ -27,6 +27,7 @@ from starlette.staticfiles import StaticFiles
 from .config import Settings, configure_private_tmp
 from .db import digest, sessions
 from .process_owner import Identity, process_alive, redirector_owner
+from .views import LocalSetupView, SessionView
 
 
 def installed_source_revision(root: Path | None = None) -> str | None:
@@ -152,12 +153,12 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         return response
 
-    @app.get("/v1/local/setup")
+    @app.get("/v1/local/setup", response_model=LocalSetupView)
     def setup():
         return {"mode": "local", "ready": True, "fiji_configured": bool(settings.fiji_executable),
-                "retention_hours": 24}
+                **settings.retention_policy}
 
-    @app.post("/v1/local/session")
+    @app.post("/v1/local/session", response_model=SessionView)
     def bootstrap(request: Request, response: Response):
         # The existing API middleware also requires exact Origin and the custom
         # CSRF header. Cross-origin forms, scripts and DNS rebinding cannot mint
@@ -174,7 +175,7 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
                                                      expires=now + 7 * 86400, revoked=False))
             response.set_cookie(settings.cookie_name, token, httponly=True, secure=False,
                                 samesite="strict", max_age=7 * 86400, path="/")
-        return {"authenticated": True, "mode": "local", "retention_hours": 24, "demo": settings.demo}
+        return {"authenticated": True, "mode": "local", **settings.retention_policy, "demo": settings.demo}
 
     app.mount("/", StaticFiles(directory=web_dir, html=True, follow_symlink=False), name="local-ui")
     return app
@@ -268,7 +269,8 @@ class WorkerSupervisor:
                    CYTELLECT_FIJI_EXECUTABLE=self.settings.fiji_executable,
                    CYTELLECT_WORKER_MEMORY_MB=str(self.settings.worker_memory_mb),
                    CYTELLECT_JOB_TIMEOUT_SECONDS=str(self.settings.job_timeout_seconds),
-                   CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds))
+                   CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds),
+                   CYTELLECT_WORKSPACE_RETENTION_MODE=self.settings.workspace_retention_mode)
         parent = psutil.Process()
         process = subprocess.Popen(
             [sys.executable, "-m", "cytellect_api.local_worker", str(parent.pid), str(parent.create_time())],

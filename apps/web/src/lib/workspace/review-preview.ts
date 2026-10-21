@@ -1,3 +1,4 @@
+import {workspaceNotExpired} from "@/lib/retention";
 /** Stage-one review: read saved inputs/adoptions only; never run or adopt an analysis. */
 import {effectiveChannelAssignments} from "./channel-assignments";
 import {ApiError, fetchPrivateResponse, post, request} from "../api";
@@ -65,7 +66,7 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
   if (!workspaceId) {
     // API returns a bare, unsorted list; created is in WorkspaceView's response.
     const saved = await request<Array<Workspace & {created: number; deleted: boolean}>>("/v1/workspaces");
-    workspaceId = saved.filter(value => !value.deleted && value.expires > Date.now() / 1000)
+    workspaceId = saved.filter(value => !value.deleted && workspaceNotExpired(value.expires))
       .sort((left, right) => right.created - left.created)[0]?.id;
     if (!workspaceId) throw new Error("no_saved_workspace");
   }

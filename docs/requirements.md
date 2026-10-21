@@ -126,3 +126,16 @@ L02: Bind only literal loopback; local session bootstrap is absent from cloud mo
 L03: The same analysis, revision, measurement, statistics and export contracts serve local and future cloud modes. No local-only scientific fork. Standard Vercel builds do not silently connect to localhost.
 L04: Local expiry blocks access after24h; physical deletion while the launcher/PC is off resumes at next launch, disclosed before upload. A future cloud host must satisfy its own continuous deletion and isolation acceptance.
 L05: Versioned release bundles contain tracked allowlisted sources and static UI, per-file hashes and a package checksum; no unpublished/private research data, credentials or developer runtime. Registered public demonstration assets retain their redistribution evidence. Git/PR checkpoints record implementation and remaining gates.
+
+### Laboratory workspace retention exception
+
+T09/L04 retain their default TTL semantics. An explicit lab installation may
+select manual workspace retention: no age-based access expiry or deletion,
+truthful nullable deadline/policy responses and matching UI, preserved ownership,
+session/invitation TTL, job leases and user deletion. API and worker must share
+one mode; a durable manual-volume marker rejects a later TTL launch. Do not
+substitute a distant timestamp or zero-second TTL for unlimited retention.
+No automatic mode reversal, cleanup under capacity pressure, or deletion of
+original research data is authorized by this feature. Lab delivery still needs
+fixed application/model identities, private whole-data backup/rollback and
+fresh real-input acceptance. Measurement and statistical definitions are unchanged.

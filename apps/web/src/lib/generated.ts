@@ -5256,6 +5256,25 @@ export interface components {
             detection_max_side_px: number;
             detector?: components["schemas"]["NuclearDetectorSpec"];
         };
+        /** SessionView */
+        SessionView: {
+            /** Authenticated */
+            authenticated: boolean;
+            /**
+             * Retention Mode
+             * @enum {string}
+             */
+            retention_mode: "ttl" | "manual";
+            /** Retention Hours */
+            retention_hours: number | null;
+            /**
+             * Demo
+             * @default false
+             */
+            demo: boolean;
+            /** Mode */
+            mode?: "local" | null;
+        };
         /** SignalDetectorSpec */
         SignalDetectorSpec: {
             /**
@@ -5491,7 +5510,7 @@ export interface components {
             /** Created */
             created: number;
             /** Expires */
-            expires: number;
+            expires: number | null;
             /** Deleted */
             deleted: boolean;
             /** Active Revision */
@@ -5898,7 +5917,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SessionView"];
                 };
             };
         };

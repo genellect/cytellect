@@ -46,3 +46,40 @@ Web3087/API8001は127.0.0.1にだけ公開します。APIはDocker Desktopのポ
 独立・対応あり比較、順位検定、相関、出力ZIPのハッシュと再計算一致を確認します。
 Windows配布物の検査と同じ参照式を再利用しますが、Dockerの招待認証を使い、
 Windowsのインストール成功には数えません。出力先はrepo外に設定します。
+
+## Explicit laboratory retention (implementation, not a release acceptance)
+
+The optional `infra/compose.lab.yaml` overlay sets
+`CYTELLECT_WORKSPACE_RETENTION_MODE=manual` for both API and worker. Apply it
+only to a separately named lab installation after stopping all its writers.
+The ordinary Desktop/developer configuration remains `ttl` (24 hours by default).
+This overlay does not supply pinned release images or a verified backup tool;
+those delivery requirements and fresh-installation acceptance remain open.
+
+Manual mode retains workspaces until the owner explicitly deletes them. It does
+not silently expire data while the PC is off or when it restarts. The API reports
+`expires: null`; the UI shows manual retention and hides deadline-extension
+controls. Session/invitation expiry, ownership, job leases, cancellation and
+explicit deletion still apply. No synthetic-image validation is implied.
+
+The private volume keeps an empty `.manual-workspace-retention` marker. Keep it
+with the database and artifacts in any future quiesced backup/restore. A TTL
+launch on a marked volume fails before opening the database; a stale TTL writer
+also refuses subsequent workspace operations. Do not delete the marker or
+switch modes on a live installation. Manual-to-TTL conversion is not provided:
+old stored deadlines could otherwise cause immediate data deletion. Existing
+numeric deadlines are not rewritten, and previously deleted data is not restored.
+TTL-to-manual transition requires every writer to be stopped first: the marker
+cannot synchronize cleanup already in flight in an older process. New marker
+creation flushes the file and, on POSIX, its parent directory. Power-loss recovery
+has not been verified; this is not a crash-proof backup guarantee.
+Older binaries do not know this marker. Never roll back a manual-retention volume
+to a version without manual-retention support; restore a separately compatible
+snapshot under its recorded policy instead.
+
+Manual retention has no automatic storage reclamation. The lab must monitor disk
+space, explicitly delete unwanted workspaces through the product, export needed
+results and maintain a private backup on another medium. Never use `down -v`,
+prune, or deletion of unknown files as an update procedure. A named volume alone
+is not a backup; verified whole DB/artifact backup and rollback remain a separate
+release requirement. This change does not alter any currently running service.

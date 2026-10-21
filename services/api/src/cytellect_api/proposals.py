@@ -379,7 +379,7 @@ def register_proposal_routes(api, store, settings, owner, workspace):
         now = time.time()
         with store.transaction() as conn:
             live = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().first()
-            if not live or live["owner"] != who or live["deleted"] or live["expires"] <= now:
+            if not store.workspace_is_live(live, now) or live["owner"] != who:
                 raise HTTPException(404, "workspace_not_found")
             cached = conn.execute(select(proposal_drafts).where(
                 proposal_drafts.c.workspace_id == wid, proposal_drafts.c.cache_key == key)).mappings().first()

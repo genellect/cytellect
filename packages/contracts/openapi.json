@@ -66,7 +66,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
               }
             }
           }
@@ -14211,6 +14213,57 @@
         ],
         "title": "ScaledNuclearRecipe"
       },
+      "SessionView": {
+        "properties": {
+          "authenticated": {
+            "type": "boolean",
+            "title": "Authenticated"
+          },
+          "retention_mode": {
+            "type": "string",
+            "enum": [
+              "ttl",
+              "manual"
+            ],
+            "title": "Retention Mode"
+          },
+          "retention_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Hours"
+          },
+          "demo": {
+            "type": "boolean",
+            "title": "Demo",
+            "default": false
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "local"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "authenticated",
+          "retention_mode",
+          "retention_hours"
+        ],
+        "title": "SessionView"
+      },
       "SignalDetectorSpec": {
         "properties": {
           "engine": {
@@ -14944,7 +14997,14 @@
             "title": "Created"
           },
           "expires": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Expires"
           },
           "deleted": {

@@ -95,3 +95,19 @@ Hosted invitation authentication is unchanged; this endpoint is absent by defaul
 Earlier invitation-owned workspaces are not silently reassigned. Research-data
 expiry remains 24 hours after explicit use. Deleting the private runtime volume
 also removes the persistent local owner.
+
+### Explicit manual workspace retention
+
+A lab installation may select `CYTELLECT_WORKSPACE_RETENTION_MODE=manual` for
+all API/worker processes. This is an explicit exception to the default workspace
+24-hour expiry above, not to session/invitation expiry, ownership, lease fencing,
+cancellation or deletion. Manual mode ignores workspace age for reads, queued
+work, heartbeat/watchdog and final publication. Explicit DELETE still revokes
+access immediately; active-lease protection still delays physical cleanup.
+
+An empty persistent marker in the private runtime volume rejects subsequent TTL
+startup and stale TTL workspace writes. Preserve it alongside the DB and artifacts.
+Stop all writers before changing installation policy; no live mixed-mode operation
+or automatic manual-to-TTL conversion is supported. No timestamps are rewritten.
+Private backups, capacity monitoring and manual deletion remain the lab's
+responsibility; automatic age cleanup is not a storage-pressure fallback.
