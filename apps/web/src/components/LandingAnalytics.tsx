@@ -4,8 +4,9 @@ import { useEffect } from "react";
 import { API_CONFIGURED, LOCAL_MODE } from "@/lib/api";
 
 const origin = "https://cytellect.vercel.app";
-const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch", "workspace", "story"]);
-/** Public pages without research content. The analysis workspace is never measured. */
+// The demo's step tabs and download link send only these fixed names; never what was analysed.
+const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch", "workspace", "story", "demo_image", "demo_statistics", "demo_figure", "demo_download"]);
+/** Public pages without research content. The private analysis workspace is never measured; /demo shows public images only. */
 export type MeasuredPage = "/" | "/demo" | "/plan";
 
 /** The Google tag lives in a disposable document, never the application shell. */

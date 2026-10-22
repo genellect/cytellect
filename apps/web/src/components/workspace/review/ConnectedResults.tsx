@@ -11,6 +11,7 @@ import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/ap
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {checkedPlot,emptyMetadata,resultRequest,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
+import {ErrorText} from "./showcase-ui";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
@@ -203,7 +204,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       </>}
       {missing>0&&<><p role="status">{missing} 視野の測定が未完了です。</p>{onPrepareMissing&&<button disabled={!!busy||disabled} onClick={()=>{setBusy("必要な測定値を計算中…");void onPrepareMissing().catch(cause=>setError(fail(cause))).finally(()=>setBusy(""));}}>必要な測定値を計算</button>}</>}
       {stale&&<p role="status">測定結果または解析条件が変わりました。再計算してください。</p>}
-      {error&&<p role="alert">{error}</p>}
+      {error&&<ErrorText text={error}/>}
       {saved&&<div className={styles.downloads}>{mode==="figure"&&<label className={styles.check}><input type="checkbox" checked={includeRaw} disabled={!!busy||stale} onChange={event=>setRawExport({revision:saved.revision,included:event.target.checked})}/>元画像を含める</label>}<button disabled={!!busy||stale} onClick={()=>void render(true)}>保存</button></div>}
     </div>
     <div className={styles.output} ref={outputRef}>

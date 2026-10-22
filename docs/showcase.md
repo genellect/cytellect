@@ -134,3 +134,16 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - 受入テストは、画像の追加以外の全機能を自動操作し、エラー表示が 0 件であること、`/v1` やローカルへの外部通信がないことを確認する。
 - ブラウザ内の計算結果（測定値・統計・図の元データ）を、同じ操作のサーバー出力と照合する。許容誤差を超えた操作は、記録の再生に切り替える。
 - デモの数値は公開画像の例示であり、研究室の実画像での科学的な妥当性を示すものではない。
+
+## ブラウザ側の実装（`apps/web/src/lib/showcase/`）
+
+契約の節を補足する、Web 側の実装の詳細です。
+
+- 公開ビルド（API 未設定）の `/demo` だけが `activateShowcase()` で切り替えを有効にし、`lib/api.ts` の `request`・`fetchPrivateResponse`（`download`・`fetchBlob` を含む）がこの経路を使う。API を設定したビルドとローカル版の通信は変わらない。`/workspace` は公開ビルドでは `/demo` へ転送する。
+- 記録の再生：`GET <パスとクエリ>` が `snapshot/index.json` にあれば、その本文を返す。最初の変更操作より後、またはブラウザ内の API が起動した後は、すべての要求を Web Worker へ送る。記録にない GET は起動を待つ。要求は発行順に1件ずつ処理する。
+- 起動：PC のブラウザ（`navigator.deviceMemory` が分かる場合は 4 以上、狭いタッチ端末を除く）では、初回表示の後に Worker を起動する。Worker は `seed.zip` を先に取得し、`runtime/` の各ファイルを `runtime-config.json` の SHA-256 と照合してから導入する（URL に `?sha256=` を付け、長期キャッシュでも別ビルドの内容を使わない）。Pyodide 本体は `indexURL` の `pyodide.mjs` から読み込む。ホイールは site-packages に展開し、フォントは `/showcase/fonts/`（`runtime.DEFAULT_FONT_DIR`、Node の検証ハーネスと同じ場所）に置き、`boot` の `font_dir` で渡す。
+- 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（端末で起動しない・起動に失敗した）、`showcase_unavailable`（記録やランタイムが公開されていない）。`role="alert"` ではなく情報表示にする。
+- 任意のファイル（なければ本番と同じ表示）：`snapshot/recorded-options.json` のキーは検出器の `engine`（例 `fiji-stardist-2d`、`cytellect-nucleolar-v2`、`cellpose-sam`）、その中のキーは検出器の項目名で、核の `detection_max_side_px`（`null` は自動）も `fiji-stardist-2d` に含める。記載のある項目は記録した値の選択肢になり、記載のない項目は変更できない。記載のない検出器は選択肢として選べない。`snapshot/proposal-examples.json` は AI の指示の例、`snapshot/dataset.json`（`title`、`attribution`、`licence`、`licenceUrl`、`sourceUrl`、`caveats`）はデモ表示と案内の最後の手順に出典として表示する。
+- HTTP ヘッダー：公開ビルドの CSP は `'wasm-unsafe-eval'`、`indexURL` のオリジン（script-src・connect-src）、`worker-src 'self' blob:` を加える。`/showcase/runtime/*` は長期・immutable、`seed.zip`・`manifest.json`・`snapshot/*` は毎回再検証、それ以外は従来どおり `no-store`。
+- 開発用：`scripts/dev_showcase_backend.py` は同じ boot/handle の契約を CPython の API で提供する（検出はしきい値による代用で、結果は公開しない）。`NEXT_PUBLIC_SHOWCASE_DEV_BACKEND`（ループバックのみ）を付けたビルドでだけ使う。
+- `.gitignore` は `*.zip` を除外しているため、`seed.zip` を登録する変更では除外の例外を加える。

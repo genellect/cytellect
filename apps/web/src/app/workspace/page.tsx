@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import WorkspacePrototype from "@/components/workspace/WorkspacePrototype";
+import WorkspaceScreen from "@/components/workspace/WorkspaceScreen";
 
 export const metadata: Metadata = {
   title: "ワークスペース | Cytellect",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function WorkspacePage() {
-  return <WorkspacePrototype />;
+  return <WorkspaceScreen />;
 }

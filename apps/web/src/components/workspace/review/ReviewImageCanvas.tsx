@@ -6,6 +6,7 @@ import type {MaskOperation} from "@/lib/workspace/api-adapter";
 import {compoundOutlines} from "../../../lib/workspace/compound-outlines";
 import {regionAnnotations} from "../../../lib/workspace/image-viewport";
 import styles from "./review-image.module.css";
+import {isShowcaseNoticeError} from "./showcase-ui";
 
 export interface ReviewImageCanvasProps {
   src: string;
@@ -110,7 +111,8 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const visible = showMasks && (masksEnabled || !!draft);
   const interactionBlocked = loading || loadedSource !== src || failedSource === src || saving;
   const blocked = interactionBlocked || (editDisabled && draft?.operation !== "background");
-  const stale = !!draft && draft.identity !== identity;
+  // While a save is in flight the adopted revision changes before the draft closes; that is not a stale edit.
+  const stale = !!draft && !saving && draft.identity !== identity;
   const selectedExists = selected !== undefined && contours.some(contour => contour.id === selected);
   const canSave = !!draft && !stale && !blocked && (draft.operation === "merge" ? draft.merged.length >= 2 : new Set(draft.polygon.map(point => point.join(","))).size >= 3);
   const outlines = useMemo(() => contours.map(contour => ({outline: {id: String(contour.id), points: contour.points}, state: "included" as const})), [contours]);
@@ -179,13 +181,17 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       else await onEdit!(draft.operation,polygon,draft.region,[...draft.merged]);
       setDraft(null); onEditingChange?.(false);
     }
-    catch {setError("保存できませんでした。描画は保持しています。");}
+    catch (cause) {
+      // A demo limitation is announced by the workspace; the drawing is closed instead of failing.
+      if (isShowcaseNoticeError(cause)) {if (draft.operation === "background") backgroundEdit?.onCancel(); setDraft(null); onEditingChange?.(false);}
+      else setError("保存できませんでした。描画は保持しています。");
+    }
     finally {pending.current = false; setSaving(false);}
   };
   const runAction = async (action: (() => Promise<void> | void) | undefined) => {
     if (!action || blocked || draft || pending.current) return;
     pending.current = true; setSaving(true); setError("");
-    try {await action();} catch {setError("操作を完了できませんでした。");}
+    try {await action();} catch (cause) {if (!isShowcaseNoticeError(cause)) setError("操作を完了できませんでした。");}
     finally {pending.current = false; setSaving(false);}
   };
   const chooseRegion = (id: number) => {

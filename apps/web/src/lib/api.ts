@@ -1,16 +1,20 @@
+import {isShowcaseNoticeCode, showcaseActive, showcaseNotices, showcaseTransport} from "./showcase";
 export const LOCAL_MODE = process.env.NEXT_PUBLIC_CYTELLECT_WEB_MODE === "local";
 export const API = LOCAL_MODE ? "" : process.env.NEXT_PUBLIC_API_ORIGIN || (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 export const API_CONFIGURED = LOCAL_MODE || !!API;
 /** An analysis API on this computer (Docker Desktop, development): the owner's own installation. */
 export const LOOPBACK_API = (() => {try {return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(API).hostname);} catch {return false;}})();
+/** The public build without an analysis API hosts the serverless demo (/demo). */
+export const PUBLIC_SHOWCASE = !API_CONFIGURED;
 export class ApiError extends Error { constructor(public code: string, public status: number) { super(code); } }
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
- if(!API_CONFIGURED) throw new ApiError("server_not_configured",503);
+ const showcase = !API_CONFIGURED && showcaseActive();
+ if(!API_CONFIGURED && !showcase) throw new ApiError("server_not_configured",503);
  if(LOCAL_MODE && typeof window!=="undefined" && !["localhost","127.0.0.1","[::1]","::1"].includes(window.location.hostname)) throw new ApiError("local_host_required",403);
  const headers = new Headers(options.headers);
  if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
  if (options.method && !["GET", "HEAD"].includes(options.method)) headers.set("X-Cytellect-Request", "1");
- const result = await fetch(API + path, {...options, headers, credentials: "include", cache: "no-store"});
+ const result = showcase ? await showcaseTransport()!.fetch(path, {...options, headers}) : await fetch(API + path, {...options, headers, credentials: "include", cache: "no-store"});
  if (!result.ok) {
    let code = "request_failed";
    try { const value = await result.json(); if (typeof value.detail === "string") code = value.detail; } catch {}
@@ -23,6 +27,15 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
  return (await fetchPrivateResponse(path,signal)).blob();
 }
 export async function fetchPrivateResponse(path: string, signal?: AbortSignal): Promise<Response> {
+ if(!API_CONFIGURED && showcaseActive()) {
+   const result = await showcaseTransport()!.fetch(path, {signal});
+   if (!result.ok) {
+     let code = "artifact_unavailable";
+     try { const value = await result.clone().json(); if (typeof value.detail === "string" && isShowcaseNoticeCode(value.detail)) code = value.detail; } catch {}
+     throw new ApiError(code, result.status);
+   }
+   return result;
+ }
  if(!API_CONFIGURED) throw new ApiError("server_not_configured",503);
  if(LOCAL_MODE && typeof window!=="undefined" && !["localhost","127.0.0.1","[::1]","::1"].includes(window.location.hostname)) throw new ApiError("local_host_required",403);
  const result = await fetch(API + path, {credentials:"include",cache:"no-store",signal});
@@ -35,6 +48,7 @@ export async function download(path: string, name: string) {
  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 const messages:Record<string,string> = {
+ ...showcaseNotices,
  proposal_association_same_region_required:"相関の横軸と縦軸には同じ測定領域を指定してください。核と核小体など、異なる領域を組み合わせた相関は現在実行できません。",
   signal_threshold_indeterminate: "画像内の輝度が一定のため、陽性領域を検出できません。別のチャンネルを指定してください。",
  proposal_service_disabled:"解析案の補助は現在無効です。管理者がサービス設定を確認してください。",

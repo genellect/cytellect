@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import PublicLanding from "@/components/PublicLanding";
-import WorkspacePrototype from "@/components/workspace/WorkspacePrototype";
+import WorkspaceScreen from "@/components/workspace/WorkspaceScreen";
 import { LOCAL_MODE, LOOPBACK_API } from "@/lib/api";
 
 // Installations on the user's own computer open their workspace at the root.
@@ -20,5 +20,5 @@ export const metadata: Metadata = OWN_COMPUTER
  *  The Windows launcher and the Docker Desktop script open the root, so those installations
  *  (local mode or an analysis API on this computer) show their workspace directly. */
 export default function Page() {
-  return OWN_COMPUTER ? <WorkspacePrototype /> : <PublicLanding />;
+  return OWN_COMPUTER ? <WorkspaceScreen /> : <PublicLanding />;
 }
