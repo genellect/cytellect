@@ -150,7 +150,7 @@
     "license": "Apache-2.0"
   },
   "apps/web/public/marketing/provenance.json": {
-    "sha256": "3c190bf5ad0566a6500249713aae281f92dcbd6824f533fd4ea581628febc377",
+    "sha256": "3545fa6195a42194c5d645a1389e248ad3b05bc835e7ca94a9d702c0b01134ce",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -214,21 +214,6 @@
     "source": "https://unsplash.com/license",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
-  "apps/web/public/marketing/cell-sculpture.glb": {
-    "sha256": "81b33a2adb1f1a375143a720ce74c52fbf7134a1b43108631f69445a3828e407",
-    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/marketing/cell-sculpture-poster.webp": {
-    "sha256": "acb52a9e37df399058883de114e211766cbcddbfc9bead3850ceaf26b6c52a6a",
-    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/marketing/cell-sculpture-provenance.json": {
-    "sha256": "58aec4dafe74413b58819298710ec71bf992e6daba697f671a482e8384f27154",
-    "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
-    "license": "Apache-2.0"
-  },
   "apps/web/public/prototype/bbbc013/A01-gfp.png": {
     "sha256": "0b04c395f6cc613ce5caf11aebf0336e06eb4f3e87800c6f0beeb9f6f2238e51",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
@@ -278,5 +263,10 @@
     "sha256": "047060a6136cf0d739e2e7b7ab00599b1979990f69072ade5ac189c7d3496f2d",
     "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
     "license": "Apache-2.0"
+  },
+  "docs/images/4dn-ncl-preview.png": {
+    "sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
+    "source": "https://registry.opendata.aws/4dnucleome/",
+    "license": "4DN public-data use policy; source-attributed derived results"
   }
 }

@@ -107,10 +107,8 @@ or the terms of its third-party assets.
 
 | Cytellect file | COMPASS source | Adaptation |
 |---|---|---|
-| `EditorialHeading.tsx` | `OfficialCoreSections.tsx`, `SectionHeading` | Semantic heading structure; removed reveal effects and decorative labels |
 | `ProductMenu.tsx` | `founder/MobileExternalMenu.tsx` | Outside-click, Escape and focus restoration; product navigation |
-| `CellHero.tsx`, `cell-scene-engine.ts` | `founder/ProductSculpture.tsx`, `founder/product-sculpture-engine.ts` | Visibility-triggered WebGL setup, lighting environment and explicit renderer/resource disposal; Cytellect Blender geometry |
-| `PublicationStage.tsx` | `founder/ProductSculpture.tsx` | Visibility-based loading, generation guard and disposal; exported figure instead of WebGL sculpture |
+| `OpticalHero.tsx`, `optical-scene-engine.ts` | `founder/ProductSculpture.tsx`, `founder/product-sculpture-engine.ts` | Visibility-triggered WebGL setup, generation guards, lighting environment and explicit renderer/resource disposal; Cytellect Blender optical background |
 | `product.module.css` | `founder/founder.module.css` | Header, navigation and editorial typography adapted to Cytellect compositions |
 
 Inter and Noto Sans JP are self-hosted under their included OFL notices.
@@ -124,9 +122,11 @@ and license. No Lila or GraphPad photographs, fonts or source code are included.
 Three.js `0.185.1` and `@types/three` `0.185.4` are fixed in the Web
 manifest and pnpm lockfile. Both declare MIT; preserve their installed license
 notices with the Web distribution. Three.js renders only the landing-page
-Blender artwork, with no analysis, segmentation or measurement role. Its
-renderer and GLTF loader are loaded on demand; mobile and reduced-motion
-views use the same artwork's Blender-rendered poster. Upstream license:
+Blender background (`optical-assembly.glb`), with no analysis, segmentation or
+measurement role. Its renderer and GLTF loader are loaded on demand; before
+loading, with reduced motion or on WebGL failure, the page shows the same
+artwork's Blender-rendered desktop or mobile poster
+(`apps/web/public/marketing/optical-provenance.json`). Upstream license:
 https://github.com/mrdoob/three.js/blob/r185/LICENSE
 The type package's transitive dependencies are development dependencies;
 they are not additional runtime analysis engines.

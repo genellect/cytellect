@@ -1,6 +1,8 @@
-# Single workspace — real adapter and explicit public prototype
+# Single workspace — real adapter and explicit public prototype (retired)
 
-`/workspace` now uses the real API adapter of the [single analysis workspace](workspace-redesign.md). The recorded public prototype is available only at `/workspace?demo=bbbc013`. The two modes do not share results or exports.
+> **Historical record.** This document describes the step-1/step-2 workspace of October 2026 and the recorded `AnalysisWorkspace` prototype at `/workspace?demo=bbbc013`. That prototype is being retired: the public site's `/demo` is replaced by the production workspace (`ConnectedWorkspace`) running serverless with pre-registered public images ([public demo](../showcase.md)), and `/workspace` on the public site redirects to `/demo`. `ApiWorkspace.tsx`, described below as the default real path, has been removed in favour of `ConnectedWorkspace`. The visual language described below is also superseded: the brand direction is the light landing page with the Blender/Three.js optical background ([interface design](../interface-design.md)). Do not use this document as a current specification or instruction; see the [archive notes](README.md).
+
+At the time, `/workspace` used the real API adapter of the [single analysis workspace](../workspace-redesign.md). The recorded public prototype was available only at `/workspace?demo=bbbc013`. The two modes did not share results or exports.
 
 ## Real API path: current integration increment
 
@@ -39,9 +41,9 @@ Ask only what cannot be derived, only when needed, once for the whole set, with 
 
 ## Design and wording
 
-The workspace uses the public site's visual language (`product.module.css`): midnight paper `#030916`, blue actions `#236bf1` with `#5d91ff` edges, hairline rules, 3 px corners, Inter/Noto Sans JP. Figures are shown as white exported paper, as on the site. Each state says what is happening and what to do next: the start screen lists the three steps, the proposal lists what running will do, the result view lists the next operations, and the figure view says that a point opens its image. Wording names the operation or the fact; it avoids promotional or explanatory filler.
+The prototype reused the public site's styles of that period (`product.module.css`): a dark background, blue actions, hairline rules, 3 px corners, Inter/Noto Sans JP. That palette is no longer the brand direction. Figures were shown as white exported paper. Each state says what is happening and what to do next: the start screen lists the three steps, the proposal lists what running will do, the result view lists the next operations, and the figure view says that a point opens its image. Wording names the operation or the fact; it avoids promotional or explanatory filler.
 
-The app icon (`apps/web/src/app/icon.svg`) is a cell outline with an offset nucleus and nucleoli in the site's blue on midnight.
+The app icon (`apps/web/src/app/icon.svg`) of that period was a cell outline with an offset nucleus and nucleoli; its colours followed the former dark palette and are not a brand requirement.
 
 ## Data and boundaries
 
