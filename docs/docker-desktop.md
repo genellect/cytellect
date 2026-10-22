@@ -1,5 +1,59 @@
 # Docker Desktopでのブラウザ操作
 
+## 研究室向け固定イメージの作成（ソース準備段階）
+
+`scripts/build-lab-release.ps1` は、固定版ランチャーが要求する3イメージを
+意図的にビルドするための入口です。この変更はPR64を基点とし、manual保持対応の
+PR63と、搭載するモデルを含む統合ソースに依存します。これらを自動で取り込まず、
+未統合の現在のソースではmanual能力の事前検査で停止します。
+実イメージのビルド・起動・研究室配布は、このソース変更では未実施です。
+
+統合ソースとモデルのレビュー、ビルド時のRAM・ディスク容量・ネットワーク取得の確認後、
+そのソースをcommitしたclean checkoutからPowerShell 7で実行します。
+`$commit` はそのcheckoutの正確な40桁commit、`$newOutput` はcheckout外の
+まだ存在しない専用ディレクトリの絶対パスです。親ディレクトリは事前に用意します。
+
+```powershell
+# baselineだけの版。候補の検査失敗をnoneへ置き換えて続行しないでください。
+.\scripts\build-lab-release.ps1 -SourceCommit $commit -Candidate none -OutputDirectory $newOutput
+# 候補を含む版ではnoneを、両lockで一致するレビュー対象の実model IDへ明示的に置き換えます。
+```
+
+`none`でもcpsam_v2を保持します。候補を指定した場合は同じbaselineに加えて1件だけを
+既存の固定HF revision・SHA・サイズ検証で取得し、既定モデルを変更しません。
+APIには重みを入れず、workerだけにruntime/cacheを同梱します。Webは
+`http://127.0.0.1:8001` とdesktop-owner設定で別途コンパイルします。
+通常のDockerfile最終target（Pythonはworker、Webはbuilder）と開発用の挙動は維持します。
+
+Dockerへ渡すcontextは現在のディレクトリコピーではありません。固定commitのGit blobから、
+Dockerfileが必要とするコード・lock・契約・公開assetだけを新しいcontextへ出力します。
+ignored/untrackedファイルは読み込みません。Gitのsymlink/submodule、パスのjunction等、
+研究データ・重み・DB・秘密鍵のパス、既知の秘密情報パターンは拒否します。
+公開バイナリassetは既存の公開allowlistの出典・ライセンス・SHAを照合します。
+コードやJSONに非公開情報がないことを自動検査だけで保証はできないため、固定commitの
+プライバシーレビューも必要です。contextと検査記録の全ファイルSHAを保存します。
+
+ビルドは指定local Docker Desktop contextのdefault builderを使い、api、worker、webの
+順に実行します。外部Docker/buildx/env上書きは拒否し、pull更新は要求しません。
+ただし未存在のベースイメージ、OS/package/Fiji/Cellpose/modelの取得はビルド時に必要です。
+これは固定版Startの `--no-build --pull never` と別工程です。元のベースimageタグは
+この変更でdigestへ置き換えておらず、完全な再現ビルドを保証しません。実配布時には
+ベースdigest、依存物・license/notice、生成したimage内容を別途確認します。
+
+新しいiid、各段階の開始・検証記録、すべて成功した時だけ `build-completed.json` を
+保存します。途中で失敗・中断した出力と予約ファイルは残し、同じ出力先を再利用しません。
+このコマンドは再試行、image削除、load/save/push、volume操作、アプリ起動を行いません。
+エラーに生のツール出力や秘密情報を含めず、失敗段階を記録で特定します。
+同じOSユーザーによる同時改変に対するセキュリティ境界ではありません。
+
+receiptは実image IDと検査した入力の記録です。ラベルやmanual設定の能力検査だけで
+科学的採用・統合機能・配布受入を証明せず、受理済みrelease manifestを自動発行しません。
+実起動、offline取得済み重みのidentity、baseline復帰、実画像推論・保存修正、
+研究室hardware適合、バックアップ復元は別途受入が必要です。
+この研究室配布の画像受入には来歴を確認した実画像だけを使い、末尾の
+`verify_docker_regions.py` による生成画素検査で代用しません。
+特にactive host-VHDと物理容量のbinding未確認によるbackup/restoreの保留は解除しません。
+
 ## 固定版を使う研究室向け起動経路（配布受入前）
 
 下記の通常開発経路とは別に、`docker-desktop.ps1` に明示的な固定版起動を
