@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument("--text-source", action="append", help="Repo-relative UI text source; repeat to override all UI components and labels")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    image = root / "apps/web/public/demo/4dn-ncl/demo-preview.png"
+    image = root / "docs/images/4dn-ncl-preview.png"
     expected = "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f"
     if hashlib.sha256(image.read_bytes()).hexdigest() != expected:
         raise SystemExit("Registered microscopy preview changed; review provenance first")

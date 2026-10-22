@@ -32,6 +32,8 @@ build/
 *.npz
 data/
 runtime/
+# Committed browser runtime of the public showcase (built by scripts/build_showcase_runtime.py).
+!apps/web/public/showcase/runtime/
 .cache/
 .pnpm-store/
 *.log

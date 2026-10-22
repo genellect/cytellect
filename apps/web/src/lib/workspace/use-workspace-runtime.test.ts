@@ -138,4 +138,9 @@ describe("functional workspace runtime",()=>{
     expect(sameRuntimeRecipe(recipe,{...recipe,detector:{...recipe.detector!,nms:.1}} as Recipe)).toBe(false);
     expect(sameRuntimeRecipe(recipe,Object.fromEntries(Object.entries(recipe).reverse()) as unknown as Recipe)).toBe(true);
   });
+  it("treats the API's null nucleolar parent of a nucleolar recipe as the omitted client field",()=>{
+    const recipe={...runtimeRecipe("nuclei",nuclear,defaultRuntimeSettings(),{},null),region_set_id:"nucleoli"} as Recipe;
+    expect(sameRuntimeRecipe({...recipe,nucleolar_revision_id:null} as unknown as Recipe,recipe)).toBe(true);
+    expect(sameRuntimeRecipe({...recipe,nucleolar_revision_id:"r2"},recipe)).toBe(false);
+  });
 });

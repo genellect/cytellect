@@ -143,7 +143,10 @@ Preserve the browser workflow and shared analysis packages. Hosted deployment ad
 
 ## Workspace entry and Desktop acceptance (2026-10-06)
 
-`/workspace` opens the single analysis workspace. On the public site `/` is the
+In local mode and with a loopback API, `/workspace` opens the single analysis
+workspace. On the public site `/workspace` redirects to `/demo`, which runs the
+same workspace serverless with registered public images and no image upload
+([public demo](showcase.md)). On the public site `/` is the
 landing page with downloads (`/product` redirects there); GA4 is limited to the
 public pages listed in [security](security.md). Installations on the user's own
 computer (the Windows package and Docker Desktop, whose analysis API is on a

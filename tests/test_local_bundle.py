@@ -155,6 +155,8 @@ def test_current_public_assets_fit_the_local_release_boundary(tmp_path):
     files = bundle.collect_files(tmp_path, names, web)
     assert len(files) >= len(public)
     assert "apps/web/out/marketing/figure-caption.md" in files
+    # The public serverless showcase is not part of the local release.
+    assert not any(name.startswith("apps/web/out/showcase/") for name in files)
 
 
 def test_generated_license_is_hashed_but_arbitrary_generated_files_are_rejected(tmp_path):

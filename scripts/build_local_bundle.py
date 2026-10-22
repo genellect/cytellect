@@ -34,6 +34,9 @@ DATA_NOTICES = {"fixtures/public/allowlist.json"}
 WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".svg", ".woff2", ".woff", ".ttf",
                 ".ico", ".png", ".jpg", ".jpeg", ".webp"}
 REGISTERED_MARKETING_SUFFIXES = {".mp4", ".csv", ".glb", ".md"}
+# The serverless public showcase (browser runtime wheels, seed) belongs to the public
+# site only; the local release runs the real API instead and does not ship it.
+PUBLIC_SITE_ONLY = "showcase"
 
 
 def source_allowed(name: str) -> bool:
@@ -73,6 +76,8 @@ def collect_files(root: Path, tracked: list[str], web_dir: Path) -> dict[str, Pa
         if path.is_dir():
             continue
         relative = path.relative_to(web_dir)
+        if relative.parts[0] == PUBLIC_SITE_ONLY:
+            continue
         registered_media = path.suffix in REGISTERED_MARKETING_SUFFIXES
         if any(part.startswith(".") for part in relative.parts) or (
             path.suffix not in WEB_SUFFIXES and not registered_media

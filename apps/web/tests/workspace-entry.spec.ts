@@ -1,12 +1,12 @@
 import {expect, test} from "@playwright/test";
 
-test("the public analysis screen opens without analytics or a private API connection", async ({page}) => {
+test("the public analysis screen is the demo and opens without analytics or a private API connection", async ({page}) => {
   test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED !== "1", "Public build only");
   const external: string[] = [];
-  page.on("request", request => {if (/google-analytics|googletagmanager|\/v1\//.test(request.url())) external.push(request.url());});
+  page.on("request", request => {if (/google-analytics|googletagmanager|\/v1\/|:8000/.test(request.url())) external.push(request.url());});
   await page.goto("/workspace");
-  await expect(page.getByRole("heading", {name:"画像解析", exact:true, level:1})).toBeVisible();
-  await expect(page.getByRole("button", {name:"画像を追加", exact:true})).toBeDisabled();
+  await expect(page).toHaveURL(/\/demo(\?|$)/);
+  await expect(page.getByText("デモ", {exact:true})).toBeVisible();
   expect(external).toEqual([]);
   expect((await page.request.get("/legacy")).status()).toBe(404);
 });
