@@ -27,6 +27,18 @@ export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"
   return comparisonSelection(design.regionSet, design.metric as RegionComparisonMetric | CompartmentComparisonMetric,
     design.metric.startsWith("area_") || ["nucleolar_count","nucleolar_area_fraction"].includes(design.metric) ? null : design.channel,design.gfp??null);
 }
+/** Figure series are exactly the analysed groups: fields for a distribution, the
+ * checked groups for a comparison (as sent in the request), all groups for an association. */
+export function resultSeries(operation: ResultOperation, sourceFields: string[], conditions: string[], contrasts: string[][]): string[] {
+  if (operation === "distribution") return sourceFields;
+  if (operation === "association") return conditions;
+  const compared = new Set(contrasts.flat());
+  return [...conditions.filter(value => compared.has(value)), ...[...compared].filter(value => !conditions.includes(value))];
+}
+/** An edited order never adds or keeps a series outside the analysed groups. */
+export function seriesOrder(order: string[], series: string[]): string[] {
+  return order.length ? [...new Set([...order.filter(key => series.includes(key)), ...series.filter(key => !order.includes(key))])] : [];
+}
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
   const selection = resultSelection(design);
   if (design.operation === "distribution") return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...plot,kind:"distribution"}};

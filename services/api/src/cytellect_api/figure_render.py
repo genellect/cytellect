@@ -41,6 +41,14 @@ def validated_plot(result, proposed):
     value = model.model_validate({**current, **proposed})
     if value.language != "en":
         raise ValueError("figure_english_labels_required")
+    # A series order lists exactly the saved analysed groups (or fields); a group
+    # outside the saved comparison is never added to the figure. The renderer
+    # repeats this check on the full result.
+    groups = (result.get("spec", {}).get("conditions") if model is not DescriptivePlot
+              else [row.get("field_id") for row in result.get("field_summary", [])])
+    order = getattr(value, "group_order", None) or []
+    if order and groups is not None and (len(order) != len(set(order)) or set(order) != set(groups)):
+        raise ValueError("group_order_must_match_groups")
     figure_settings(value.model_dump(mode="json"))
     return value.model_dump(mode="json")
 
@@ -83,8 +91,11 @@ def register_figure_render_routes(api, store, owner, job_record, queue):
             raise HTTPException(409, "figure_source_mismatch")
         try:
             plot = validated_plot(result, body.plot)
-        except (ValidationError, ValueError):
+        except ValidationError:
             raise HTTPException(422, "figure_settings_invalid") from None
+        except ValueError as error:
+            code = "group_order_must_match_groups" if str(error) == "group_order_must_match_groups" else "figure_settings_invalid"
+            raise HTTPException(422, code) from None
         payload = {"source_job_id": jid, "plot": plot, "request_id": body.request_id}
         with store.transaction() as conn:
             from sqlalchemy import select
