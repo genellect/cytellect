@@ -23,7 +23,7 @@ from mathutils import Vector
 
 DEFAULTS = {
     "w": "1920", "h": "1080", "samples": "64", "frames": "240", "fps": "24",
-    "dist": "2.15", "fstop": "0.25", "focus": "0.86", "exposure": "0.25", "shift": "-0.2",
+    "dist": "2.7", "fstop": "0.25", "focus": "0.86", "exposure": "0.25", "shift": "-0.3",
     "background": "3.0", "transmission": "0.88", "roughness": "0.14", "subsurface": "0.1",
     "key": "1.2e6", "rim": "1.0e6", "look": "AgX - Medium High Contrast",
     "direction": "-0.25,-0.92,0.3", "orbit_deg": "9", "still": "0",
