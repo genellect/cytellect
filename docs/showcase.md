@@ -63,6 +63,72 @@
 
 `apps/web/src/lib/showcase/runtime-config.json` に、Pyodide の版と読み込み元、読み込むパッケージ、ホイールの一覧を記録します。
 
+## 実行環境
+
+ブラウザ内の API（②）は Pyodide 314.0.7（CPython 3.14.2、Emscripten 5.0.3）で動かします。`requires-python`（3.12・3.14、3.13 を除く）を満たし、同梱の数値計算パッケージが uv.lock に最も近い版です。0.27 系（Python 3.12）は NumPy 2.0・Matplotlib 3.8・SciPy 1.14 と古く、0.28・0.29 系は Python 3.13 です。
+
+### 読み込みの手順
+
+Web Worker は次の順に読み込みます。Node のハーネス（`services/showcase/pyodide/harness.mjs`）も同じ順で実行します。
+
+1. `runtime-config.json` の `indexURL` から `loadPyodide`。`packages` を `pyodide.loadPackage` で読み込む（依存は Pyodide が解決する）。
+2. `wheels` を記載順に `/showcase/runtime/<file>` から取得し、SHA-256 を照合してから `pyodide.unpackArchive(bytes, "wheel", {extractDir: <site-packages>})` で展開する。手順 1 の後に展開するため、`typing_extensions` は uv.lock の版で上書きされる。micropip は使わない。
+3. `fonts` を同様に照合し、`/showcase/fonts/<file>` に書き込む。`importlib.invalidate_caches()` を呼ぶ。
+4. `cytellect_showcase.runtime` の `boot(seed, location.origin)` を呼び、以後は `handle(method, url, headers, body)` を呼ぶ。`headers` は `[[name, value], ...]`、`body` は `Uint8Array` か `undefined`。戻り値は `toJs({dict_converter: Object.fromEntries})` で変換し、`destroy()` する。`body` は `Uint8Array` になる。
+
+### `boot` と `handle` の動作
+
+- シードの zip は、ルートがデータディレクトリです（`cytellect.sqlite`、`workspaces/`、`recordings/`、`proposals.json`、`showcase.json`）。絶対パス・`..`・1 GiB 超は拒否し、`tmp/` は展開しません。
+- `boot` は展開 → `cytellect_showcase.seed.restore(data_dir)`（モジュールがあれば）→ 検出の再生 → `create_app` の順に実行します。検出関数は、まず `showcase_detection_not_recorded` で失敗する関数に置き換え、その後に `detections.install_replay(<data>/recordings)` を呼びます。実際の Fiji・Cellpose は実行されません。`showcase_detection_not_recorded` は、このプロセス内でだけ視野の失敗理由の許可リストに加えます。
+- セッションは `showcase.json` の `owner`（無ければシード内のワークスペースの所有者）に対して直接作成し、Cookie は `handle` が付けます。応答の `Set-Cookie` は返しません。ログアウト後や期限切れの後は、次の要求で作り直します。`Origin` は `boot` に渡した origin、`Host` はその host に固定します。CSRF 用の `X-Cytellect-Request: 1` は呼び出し側が付けます（本番と同じ）。
+- ワークスペースの保持期限は起動時に 10 年先へ更新します。
+- 変更系の要求の後、応答を返してから、ワーカーと同じ手順（`cleanup`、`advance_workspace_runs`、`Store.claim`）で待機中のジョブを同じプロセスで実行します。ハンドラーは `cytellect_worker.child` と同じ許可リスト、出力先は `runs/<lease>/output`、公開は `Store.finish` です。並行の heartbeat ができないため、実行前にリースを `job_timeout_seconds` まで延長します。未知の例外は `analysis_failed` として記録し、メッセージは保存しません。要求とジョブの実行は 1 つのロックで直列化するので、次の要求（UI のジョブ確認）は完了後の状態を返します。
+- 提案は `cytellect_api.proposals.request_draft` を `proposals.json` の参照に置き換えます。形式は `{"version": 1, "entries": {"<context_sha256>": {"model", "prompt_version", "draft"}}}`（提案サービスの応答そのもの）で、`{}` は記録なしです。記録が無い文脈は 409 `showcase_proposal_not_recorded` を返し、失敗した下書きの行を消すので、同じ依頼を繰り返しても同じ案内になります。返した下書きは本番と同じ `validate_draft` で検証します。設定の `proposal_url` は `https://proposals.showcase.invalid` で、接続はしません。
+- Pyodide にはスレッドと子プロセスがありません。`anyio.to_thread.run_sync` は要求の間だけ同じスレッドで実行し、`psutil` が無い場合は読み込み用の空のモジュールを置きます（使用すると失敗します）。
+
+### 本番コードの変更
+
+`cytellect_api.config` は、モジュールから 4 階層上をチェックアウトとみなし、その中のデータディレクトリを拒否します。Pyodide の `/lib/python3.14/site-packages` では 4 階層上がファイルシステムのルートになり、すべてのパスが拒否されました。ルートに `pyproject.toml` が無い場合だけチェックアウトではないと判定します。実際のチェックアウトとルートに置いたチェックアウトの保護は変わりません（`tests/test_showcase_runtime.py`）。
+
+### 版と uv.lock との差
+
+Pyodide の CDN から読み込むパッケージ（再配布しない）:
+
+| パッケージ | Pyodide 314.0.7 | uv.lock |
+|---|---|---|
+| numpy | 2.4.6 | 2.5.3 |
+| scipy | 1.18.0 | 1.18.1 |
+| pandas | 3.0.2 | 2.3.3（pyproject は `<3`） |
+| scikit-image | 0.26.0 | 0.26.0 |
+| statsmodels | 0.14.6 | 0.15.0 |
+| matplotlib | 3.10.8 | 3.11.2 |
+| pydantic / pydantic-core | 2.12.5 / 2.41.5 | 2.13.5 / 2.46.5 |
+| sqlalchemy | 2.0.48 | 2.1.2 |
+| pillow | 12.2.0 | 12.3.0 |
+| typing-inspection, patsy, contourpy, fonttools ほか | Pyodide の版 | — |
+
+`runtime/` に置く純 Python のホイールは、uv.lock と同じ版・同じ SHA-256 です: typing-extensions 4.16.0、idna 3.20、anyio 4.15.1、starlette 1.7.0、annotated-doc 0.0.5、opentelemetry-api 1.45.0（fastapi が読み込む）、fastapi 0.142.2、python-multipart 0.0.32、mako 1.4.3、alembic 1.20.0、tifffile 2026.9.20、roifile 2026.9.22、defusedxml 0.7.1。psutil、uvicorn、imagecodecs は含めません（画像の追加をしないため、圧縮 TIFF の読み込みはできません）。
+
+- Matplotlib 3.10 の SVG 出力は数値の太さ（400 など）で失敗します。3.11 と同じく数値をそのまま使うよう、ブラウザ内でだけ `font_manager.weight_dict` に 0–1000 の数値を加えます。
+- 日本語の図は Noto Sans JP（公式の可変フォント、SHA-256 `c2f3b4d4…fc68f`、OFL-1.1）を fontTools で太さ 400 の静的フォントにしたもの（`NotoSansJP-Regular.ttf`）を使います。サーバーは Noto Sans CJK JP なので、図の font の記録と文字の配置は異なります。英語の図はどちらも DejaVu Sans です。
+- 版の文字列（`scipy_version` など）は結果に記録されたまま異なります。測定値・統計・図の元データの一致は、`tests/test_showcase_runtime.py` が同じ要求をハーネスと CPython で実行して相対誤差 1e-9 で照合しています（公開画像 BBBC013 の切り出し 4 視野、試験用の閾値検出）。
+
+### ビルドと検査
+
+`uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出します。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録を照合し、古い場合は失敗します。
+
+### 測定値（Node 24、このリポジトリの開発環境）
+
+- 取得量: Pyodide 本体 13.4 MB、パッケージ 56.3 MB、`runtime/` 7.4 MB（フォント 5.8 MB を含む）、計約 77 MB（圧縮前）。
+- 時間: Pyodide の起動とパッケージの読み込み約 13 秒（キャッシュあり）、`boot` 約 20–25 秒。
+- メモリ: 本番の公開デモと同じ大きさ（1536×1536 uint16 の 2 チャンネル × 6 視野、展開後のデータ約 170 MB）で、領域の削除・コホート・記述統計・共通統計・出力・図の再描画・論文用パッケージまで実行した後の WebAssembly ヒープが約 410 MB、Node のプロセス全体が約 1.6 GB。一連の操作は約 40 秒。
+
+### 既知の制約
+
+- ブラウザのメインスレッドではなく Web Worker で動かす前提です。ジョブの計算中は、その Worker は次の要求に応答しません。
+- ジョブの取り消しは、実行中の計算を止めません（公開されないだけです）。
+- 自動背景補正（測定方式 4.0.0）の結果に対する記述統計と共通統計は、本番でも `statistical_methods_source_invalid` で失敗します（`cytellect_analysis.statistical_methods` が 4.0.0 を扱わない）。
+
 ## 検証
 
 - 受入テストは、画像の追加以外の全機能を自動操作し、エラー表示が 0 件であること、`/v1` やローカルへの外部通信がないことを確認する。
