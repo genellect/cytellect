@@ -311,7 +311,7 @@ class Api:
         return self._check(self.client.put(path, headers={**HEADERS, "origin": self.origin}, json=body))
 
 
-def open_api(data_dir: Path, origin: str, fiji: str) -> Api:
+def open_api(data_dir: Path, origin: str, fiji: str, owner: str | None = None) -> Api:
     from cytellect_api.app import create_app
     from cytellect_api.config import Settings
     from fastapi.testclient import TestClient
@@ -321,8 +321,20 @@ def open_api(data_dir: Path, origin: str, fiji: str) -> Api:
     app = create_app(settings)
     client = TestClient(app, base_url="http://127.0.0.1")
     api = Api(client, app, settings, origin)
-    token = app.state.store.invite()
-    api.post("/v1/invitations/redeem", {"token": token})
+    if owner is None:
+        token = app.state.store.invite()
+        api.post("/v1/invitations/redeem", {"token": token})
+    else:
+        # Continue as the owner of an existing workspace (a fresh build-time session).
+        import secrets
+
+        from cytellect_api.db import digest, sessions
+
+        token = secrets.token_urlsafe(32)
+        with app.state.store.transaction() as conn:
+            conn.execute(sessions.insert().values(digest=digest(token), owner=owner, expires=time.time() + 86400,
+                                                  revoked=False))
+        client.cookies.set(settings.cookie_name, token)
     return api
 
 
@@ -527,7 +539,8 @@ class Workspace:
         return {item["id"]: {**empty, **{key: item["metadata"].get(key) for key in empty}} for item in self.fields}
 
     def calculate(self, operation: str, target: str, metric: str, channel: str | None, unit: str,
-                  x_metric: str = "area_px", x_channel: str | None = None) -> dict:
+                  x_metric: str = "area_px", x_channel: str | None = None, paired: bool = False,
+                  pairing: str = "") -> dict:
         api, wid = self.api, self.wid
         adopted = self.adopted(target)
         sources = [(item["id"], adopted[item["id"]]) for item in self.fields if item["id"] in adopted]
@@ -543,13 +556,14 @@ class Workspace:
         canonical = "ncl_log2_nucleoplasm_over_nucleoli" if metric == "log2_nucleoplasm_over_nucleolus" else metric
         region = "nucleus" if region_set == "nuclei" else "supplied" if region_set == "cell" else region_set
         method = {"kind": "descriptive" if operation == "distribution" else operation,
-                  "test": "welch-t" if operation == "comparison" else None,
-                  "omnibus": "welch-anova" if operation == "comparison" and len(conditions) >= 3 else None,
+                  "test": ("paired-t" if paired else "welch-t") if operation == "comparison" else None,
+                  "omnibus": "welch-anova" if operation == "comparison" and not paired and len(conditions) >= 3 else None,
                   "association": "pearson" if operation == "association" else None,
                   "x": {"metric": x_metric, "channel": x_channel, "region": region} if operation == "association" else None,
                   "y": {"metric": canonical, "channel": channel, "region": region} if operation == "association" else None}
-        draft = {"statistics": {"method": method, "metric": canonical, "channel_id": channel, "design": "independent",
-                                "unit_definition": unit, "pairing_basis": "", "conditions": conditions,
+        draft = {"statistics": {"method": method, "metric": canonical, "channel_id": channel,
+                                "design": "paired" if paired else "independent",
+                                "unit_definition": unit, "pairing_basis": pairing if paired else "", "conditions": conditions,
                                 "comparisons": contrasts, "field_metadata": fields, "x_metric": x_metric,
                                 "x_channel_id": x_channel},
                  "figure": {"metric": canonical, "channel_id": channel,
@@ -561,10 +575,11 @@ class Workspace:
                        "figure_policy": {"version": "2.0.0", "layout": "field-pages"},
                        "plot": {**display, "kind": "distribution"}}
         elif operation == "comparison":
-            request = {"mode": "region-experimental-unit", "version": "2.0.0", "test": "welch-t",
-                       "omnibus": "welch-anova" if len(conditions) >= 3 else None, "selection": selection,
-                       "design": {"kind": "independent", "confirmed": True, "unit_definition": unit,
-                                  "pairing_basis": None},
+            request = {"mode": "region-experimental-unit", "version": "2.0.0",
+                       "test": "paired-t" if paired else "welch-t",
+                       "omnibus": "welch-anova" if len(conditions) >= 3 and not paired else None, "selection": selection,
+                       "design": {"kind": "paired" if paired else "independent", "confirmed": True,
+                                  "unit_definition": unit, "pairing_basis": pairing if paired else None},
                        "conditions": list(dict.fromkeys(itertools.chain.from_iterable(contrasts))),
                        "comparison_family": {"family_id": "workspace-planned", "kind": "planned", "control": None,
                                              "contrasts": contrasts},
@@ -700,7 +715,8 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             continue
         saved[name] = timed(f"statistics-{name}", lambda analysis=analysis, name=name: space.calculate(
             name, analysis["target"], analysis["metric"], analysis.get("channel"), plan["unit_definition"],
-            analysis.get("x_metric", "area_px"), analysis.get("x_channel")))
+            analysis.get("x_metric", "area_px"), analysis.get("x_channel"), analysis.get("design") == "paired",
+            plan.get("pairing_basis", "")))
     renders = []
     if "comparison" in saved:
         for kind in plan.get("comparison_layouts", ["box", "violin", "histogram"]):
@@ -1073,7 +1089,7 @@ def main(argv: list[str] | None = None) -> None:
             shutil.rmtree(grid_data)
         shutil.copytree(seed_data, grid_data, ignore=shutil.ignore_patterns("tmp"))
         recorder = install_recorder(recordings, reuse=True)
-        api = open_api(grid_data, origin, args.fiji)
+        api = open_api(grid_data, origin, args.fiji, state["scenario"]["owner"])
         scenario_state = state["scenario"]
         space = Workspace(api, scenario_state["workspace_id"], scenario_state["fields"],
                           api.get(f"/v1/workspaces/{scenario_state['workspace_id']}/analysis-spec"),

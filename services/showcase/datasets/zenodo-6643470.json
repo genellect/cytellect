@@ -16,6 +16,7 @@
   "modifications": "Centre 1536 x 1536 crop of each 2304 x 2304 plane; channels Hoechst (OME c3, filter DAPI) and NPM1-mTagRFP (OME c1, filter TRITC) only; pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
   "caveats": [
    "All replicates (Rep1-Rep3) were acquired on the same date (2021-12-01). The source does not state whether Rep1-Rep3 are independent experiments; they are treated as replicate units for demonstration only.",
+   "Each replicate contains both conditions; the demo pairs conditions by replicate (paired t-test over three pairs, one field per condition and replicate). With three pairs the test has very low power; p-values are illustrations of the workflow, not findings.",
    "The nucleolar marker here is NPM1-mTagRFP. The workspace definition used for Cellpose-SAM nucleolar detection is labelled 「NCL陽性領域」; in this demo it is applied to the NPM1 channel.",
    "Hoechst saturates (value 65535) in a small fraction of pixels in some fields; counts are listed in manifest.json (selection.results[].saturated_pixels).",
    "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images."
@@ -60,10 +61,11 @@
   "cells": [
    {
     "metadata": {
-     "condition": "未処理",
-     "experimental_unit": "Rep1",
-     "sample": "Untreated-Rep1",
-     "acquisition_date": "2021-12-01"
+     "condition": "Untreated",
+     "experimental_unit": "Rep1 Untreated",
+     "sample": "Rep1 Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
     },
     "candidates": [
      "40x_1.4_Rep1_Untreated_20211201_01_01.tif",
@@ -80,10 +82,11 @@
    },
    {
     "metadata": {
-     "condition": "未処理",
-     "experimental_unit": "Rep2",
-     "sample": "Untreated-Rep2",
-     "acquisition_date": "2021-12-01"
+     "condition": "Untreated",
+     "experimental_unit": "Rep2 Untreated",
+     "sample": "Rep2 Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
     },
     "candidates": [
      "40x_1.4_Rep2_Untreated_20211201_01_61.tif",
@@ -100,10 +103,11 @@
    },
    {
     "metadata": {
-     "condition": "未処理",
-     "experimental_unit": "Rep3",
-     "sample": "Untreated-Rep3",
-     "acquisition_date": "2021-12-01"
+     "condition": "Untreated",
+     "experimental_unit": "Rep3 Untreated",
+     "sample": "Rep3 Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
     },
     "candidates": [
      "40x_1.4_Rep3_Untreated_20211201_01_121.tif",
@@ -121,9 +125,10 @@
    {
     "metadata": {
      "condition": "ActD 1 µM",
-     "experimental_unit": "Rep1",
-     "sample": "ActD1-Rep1",
-     "acquisition_date": "2021-12-01"
+     "experimental_unit": "Rep1 ActD 1 µM",
+     "sample": "Rep1 ActD 1 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
     },
     "candidates": [
      "40x_1.4_Rep1_ActD1_20211201_01_51.tif",
@@ -141,9 +146,10 @@
    {
     "metadata": {
      "condition": "ActD 1 µM",
-     "experimental_unit": "Rep2",
-     "sample": "ActD1-Rep2",
-     "acquisition_date": "2021-12-01"
+     "experimental_unit": "Rep2 ActD 1 µM",
+     "sample": "Rep2 ActD 1 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
     },
     "candidates": [
      "40x_1.4_Rep2_ActD1_20211201_01_111.tif",
@@ -161,9 +167,10 @@
    {
     "metadata": {
      "condition": "ActD 1 µM",
-     "experimental_unit": "Rep3",
-     "sample": "ActD1-Rep3",
-     "acquisition_date": "2021-12-01"
+     "experimental_unit": "Rep3 ActD 1 µM",
+     "sample": "Rep3 ActD 1 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
     },
     "candidates": [
      "40x_1.4_Rep3_ActD1_20211201_01_171.tif",
@@ -423,9 +430,9 @@
   },
   "results": [
    {
-    "condition": "未処理",
-    "experimental_unit": "Rep1",
-    "sample": "Untreated-Rep1",
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep1_Untreated_20211201_01_01.tif",
     "whole_nuclei": 25,
@@ -433,12 +440,13 @@
     "detection_max_side_px": 758,
     "estimated_diameter_px": 81.10212998498776,
     "saturated_pixels": 1931,
-    "qualifies": false
+    "qualifies": false,
+    "pair": "Rep1"
    },
    {
-    "condition": "未処理",
-    "experimental_unit": "Rep1",
-    "sample": "Untreated-Rep1",
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep1_Untreated_20211201_01_02.tif",
     "whole_nuclei": 34,
@@ -446,12 +454,13 @@
     "detection_max_side_px": 792,
     "estimated_diameter_px": 77.56324418739615,
     "saturated_pixels": 12058,
-    "qualifies": false
+    "qualifies": false,
+    "pair": "Rep1"
    },
    {
-    "condition": "未処理",
-    "experimental_unit": "Rep1",
-    "sample": "Untreated-Rep1",
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep1_Untreated_20211201_01_03.tif",
     "whole_nuclei": 26,
@@ -459,12 +468,13 @@
     "detection_max_side_px": 725,
     "estimated_diameter_px": 84.76373488078804,
     "saturated_pixels": 19924,
-    "qualifies": false
+    "qualifies": false,
+    "pair": "Rep1"
    },
    {
-    "condition": "未処理",
-    "experimental_unit": "Rep1",
-    "sample": "Untreated-Rep1",
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep1_Untreated_20211201_01_04.tif",
     "whole_nuclei": 41,
@@ -472,12 +482,13 @@
     "detection_max_side_px": 795,
     "estimated_diameter_px": 77.2672001903989,
     "saturated_pixels": 11040,
-    "qualifies": false
+    "qualifies": false,
+    "pair": "Rep1"
    },
    {
-    "condition": "未処理",
-    "experimental_unit": "Rep1",
-    "sample": "Untreated-Rep1",
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep1_Untreated_20211201_01_05.tif",
     "whole_nuclei": 17,
@@ -485,12 +496,13 @@
     "detection_max_side_px": 768,
     "estimated_diameter_px": 79.96379801922859,
     "saturated_pixels": 9423,
-    "qualifies": true
+    "qualifies": true,
+    "pair": "Rep1"
    },
    {
-    "condition": "未処理",
-    "experimental_unit": "Rep2",
-    "sample": "Untreated-Rep2",
+    "condition": "Untreated",
+    "experimental_unit": "Rep2 Untreated",
+    "sample": "Rep2 Untreated",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep2_Untreated_20211201_01_61.tif",
     "whole_nuclei": 15,
@@ -498,12 +510,13 @@
     "detection_max_side_px": 798,
     "estimated_diameter_px": 76.97001755003511,
     "saturated_pixels": 8372,
-    "qualifies": true
+    "qualifies": true,
+    "pair": "Rep2"
    },
    {
-    "condition": "未処理",
-    "experimental_unit": "Rep3",
-    "sample": "Untreated-Rep3",
+    "condition": "Untreated",
+    "experimental_unit": "Rep3 Untreated",
+    "sample": "Rep3 Untreated",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep3_Untreated_20211201_01_121.tif",
     "whole_nuclei": 12,
@@ -511,12 +524,13 @@
     "detection_max_side_px": 811,
     "estimated_diameter_px": 75.76963182707732,
     "saturated_pixels": 9893,
-    "qualifies": true
+    "qualifies": true,
+    "pair": "Rep3"
    },
    {
     "condition": "ActD 1 µM",
-    "experimental_unit": "Rep1",
-    "sample": "ActD1-Rep1",
+    "experimental_unit": "Rep1 ActD 1 µM",
+    "sample": "Rep1 ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep1_ActD1_20211201_01_51.tif",
     "whole_nuclei": 10,
@@ -524,12 +538,13 @@
     "detection_max_side_px": 652,
     "estimated_diameter_px": 94.29901897915151,
     "saturated_pixels": 23789,
-    "qualifies": true
+    "qualifies": true,
+    "pair": "Rep1"
    },
    {
     "condition": "ActD 1 µM",
-    "experimental_unit": "Rep2",
-    "sample": "ActD1-Rep2",
+    "experimental_unit": "Rep2 ActD 1 µM",
+    "sample": "Rep2 ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep2_ActD1_20211201_01_111.tif",
     "whole_nuclei": 18,
@@ -537,12 +552,13 @@
     "detection_max_side_px": 758,
     "estimated_diameter_px": 81.03145273410341,
     "saturated_pixels": 35236,
-    "qualifies": true
+    "qualifies": true,
+    "pair": "Rep2"
    },
    {
     "condition": "ActD 1 µM",
-    "experimental_unit": "Rep3",
-    "sample": "ActD1-Rep3",
+    "experimental_unit": "Rep3 ActD 1 µM",
+    "sample": "Rep3 ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "file": "40x_1.4_Rep3_ActD1_20211201_01_171.tif",
     "whole_nuclei": 18,
@@ -550,7 +566,8 @@
     "detection_max_side_px": 772,
     "estimated_diameter_px": 79.60473110404246,
     "saturated_pixels": 14576,
-    "qualifies": true
+    "qualifies": true,
+    "pair": "Rep3"
    }
   ]
  },
@@ -608,10 +625,11 @@
     1536
    ],
    "metadata": {
-    "condition": "未処理",
-    "experimental_unit": "Rep1",
-    "sample": "Untreated-Rep1",
-    "acquisition_date": "2021-12-01"
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
    },
    "planes": {
     "hoechst": {
@@ -637,10 +655,11 @@
     1536
    ],
    "metadata": {
-    "condition": "未処理",
-    "experimental_unit": "Rep2",
-    "sample": "Untreated-Rep2",
-    "acquisition_date": "2021-12-01"
+    "condition": "Untreated",
+    "experimental_unit": "Rep2 Untreated",
+    "sample": "Rep2 Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
    },
    "planes": {
     "hoechst": {
@@ -666,10 +685,11 @@
     1536
    ],
    "metadata": {
-    "condition": "未処理",
-    "experimental_unit": "Rep3",
-    "sample": "Untreated-Rep3",
-    "acquisition_date": "2021-12-01"
+    "condition": "Untreated",
+    "experimental_unit": "Rep3 Untreated",
+    "sample": "Rep3 Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
    },
    "planes": {
     "hoechst": {
@@ -696,9 +716,10 @@
    ],
    "metadata": {
     "condition": "ActD 1 µM",
-    "experimental_unit": "Rep1",
-    "sample": "ActD1-Rep1",
-    "acquisition_date": "2021-12-01"
+    "experimental_unit": "Rep1 ActD 1 µM",
+    "sample": "Rep1 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
    },
    "planes": {
     "hoechst": {
@@ -725,9 +746,10 @@
    ],
    "metadata": {
     "condition": "ActD 1 µM",
-    "experimental_unit": "Rep2",
-    "sample": "ActD1-Rep2",
-    "acquisition_date": "2021-12-01"
+    "experimental_unit": "Rep2 ActD 1 µM",
+    "sample": "Rep2 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
    },
    "planes": {
     "hoechst": {
@@ -754,9 +776,10 @@
    ],
    "metadata": {
     "condition": "ActD 1 µM",
-    "experimental_unit": "Rep3",
-    "sample": "ActD1-Rep3",
-    "acquisition_date": "2021-12-01"
+    "experimental_unit": "Rep3 ActD 1 µM",
+    "sample": "Rep3 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
    },
    "planes": {
     "hoechst": {
@@ -775,11 +798,11 @@
   }
  ],
  "scenario": {
-  "unit_definition": "反復（Rep1–Rep3、同日撮影。独立性は出典に記載なし）",
+  "unit_definition": "反復（Rep1–Rep3）内の各処理条件（同日撮影。反復の独立性は出典に記載なし）",
   "nucleolar_marker": "npm1",
   "statistics": {
    "distribution": {
-    "target": "nucleoli",
+    "target": "nuclei",
     "metric": "area_px",
     "channel": "npm1"
    },
@@ -790,12 +813,14 @@
     "x_metric": "area_px"
    },
    "comparison": {
-    "target": "nucleoplasm",
-    "metric": "nucleolar_area_fraction",
-    "channel": "npm1"
+    "target": "nuclei",
+    "metric": "mean",
+    "channel": "npm1",
+    "design": "paired"
    }
   },
   "comparison_layouts": [
+   "paired",
    "box",
    "violin",
    "histogram"
@@ -818,9 +843,7 @@
    },
    "cellpose-sam-ncl-parent": {
     "cellprob_threshold": [
-     -1,
-     0,
-     1
+     0
     ]
    },
    "fiji-nucleolar-compartments": {
@@ -830,13 +853,29 @@
     "minimum_area_px": [
      1
     ]
-   },
-   "cellpose-sam": {
-    "channel": "npm1",
-    "diameter_px": [
-     null
-    ]
    }
-  }
+  },
+  "statistics_planned": {
+   "distribution": {
+    "target": "nucleoli",
+    "metric": "area_px",
+    "channel": "npm1"
+   },
+   "association": {
+    "target": "nuclei",
+    "metric": "mean",
+    "channel": "npm1",
+    "x_metric": "area_px"
+   },
+   "comparison": {
+    "target": "nucleoplasm",
+    "metric": "nucleolar_area_fraction",
+    "channel": "npm1"
+   }
+  },
+  "statistics_amendment": "The planned nucleolar/nucleoplasm analyses could not be saved: the workspace refuses cohorts of compartment revisions until every parent nucleus has a resolved candidate state (assert_complete_compartments), and the NPM1 Cellpose-SAM detection left unresolved parents (no_candidate / indeterminate / review_required) in every field, including all parents of one ActD field. Excluding those nuclei would select cells by the outcome, so the saved statistics use the nuclear region set instead. The change was made because of this software gate, before any statistical result was computed; the nucleolar masks and their per-parent states remain visible in the image view.",
+  "grid_notes": "Nuclei: full 3 x 3 grid of probability and NMS at the automatic detection scale. Cellpose-SAM nucleoli (protocol 4.3.0): default settings only, because one CPU inference takes 1.5-18 min per field. Fiji NCL threshold: default settings. Cellpose-SAM cell ROI is not recorded: the dataset has no cell-boundary or cytoplasmic channel (Hoechst, NPM1 and FBL are nuclear/nucleolar), so a cell detector on these channels would not represent cells.",
+  "pairing_basis": "同じ反復（Rep）で撮影したUntreated と ActD 1 µM",
+  "design_note": "Each replicate (Rep1-Rep3) contains both conditions, so conditions are paired by replicate: experimental unit = one condition within one replicate, pair = replicate. The comparison is a paired t-test over three replicate pairs; the source does not state that replicates are independent experiments."
  }
 }

@@ -55,7 +55,7 @@ page.on("response", response => {
 
 async function settle(label) {
   await page.waitForLoadState("networkidle").catch(() => {});
-  for (let index = 0; index < 20; index++) {
+  for (let index = 0; index < 8; index++) {
     const status = await page.locator("header [role=status]").first().textContent().catch(() => "");
     if (!status) break;
     await page.waitForTimeout(500);
@@ -83,7 +83,7 @@ const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
 for (let index = 0; index < count; index++) {
   await step(`field ${index + 1}`, () => cards.nth(index).click());
-  const channels = page.locator("[class*=channelBar] > button[aria-pressed]");
+  const channels = page.locator("[class*=channelBar] > button[aria-pressed]:not([aria-label])");
   const total = await channels.count();
   for (let channel = 0; channel < total; channel++) await step(`field ${index + 1} channel ${channel + 1}`, () => channels.nth(channel).click());
 }
