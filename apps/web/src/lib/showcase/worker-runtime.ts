@@ -32,7 +32,7 @@ async def _cytellect_boot(seed, origin):
     await _cytellect_runtime.boot(seed.to_bytes(), str(origin), font_dir=${JSON.stringify(FONT_DIR)})
 async def _cytellect_handle(method, url, headers, body):
     result = await _cytellect_runtime.handle(str(method), str(url), [[str(k), str(v)] for k, v in headers.to_py()],
-                                             None if body is None else body.to_bytes())
+                                             body.to_bytes() if hasattr(body, "to_bytes") else None)
     return to_js({"status": int(result["status"]), "headers": [[str(k), str(v)] for k, v in result["headers"]],
                   "body": bytes(result["body"])}, dict_converter=js.Object.fromEntries)
 `;

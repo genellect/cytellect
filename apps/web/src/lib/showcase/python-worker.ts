@@ -20,6 +20,7 @@ async function receive(message: WorkerInbound) {
         : await bootPyodideRuntime(message.config, message.origin, {fetcher: fetch.bind(self), loadPyodide, base: `${scope.location.origin}/showcase/`});
       scope.postMessage({type: "booted", id: message.id});
     } catch (error) {
+      console.error("showcase: boot failed", error);
       scope.postMessage({type: "failed", id: message.id, code: error instanceof Error && /^showcase_[a-z_]+$/.test(error.message) ? error.message : "showcase_engine_unavailable"});
     }
     return;
@@ -28,7 +29,8 @@ async function receive(message: WorkerInbound) {
   try {
     const response = await runtime.handle(message.request);
     scope.postMessage({type: "response", id: message.id, response}, [response.body]);
-  } catch {
+  } catch (error) {
+    console.error("showcase: request failed", message.request.method, message.request.url, error);
     scope.postMessage({type: "failed", id: message.id, code: "showcase_engine_unavailable"});
   }
 }
