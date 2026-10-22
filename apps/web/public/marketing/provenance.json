@@ -153,6 +153,10 @@
       "bytes": 439904
     }
   },
+  "illustrative_photography": {
+    "manifest": "/marketing/photo-provenance.json",
+    "scope": "Illustrative stock photographs; not analysis inputs or product usage evidence."
+  },
   "generation_environment": {
     "runtime_dependency": false,
     "python": "3.12 (existing development interpreter; no product dependency added)",
@@ -191,10 +195,5 @@
     "manifest": "optical-provenance.json",
     "authoring": "scripts/create_optical_hero.py",
     "note": "No cell photograph or microscopy texture is used in the page background. Existing real product captures remain within product demonstrations."
-  },
-  "landing_media": {
-    "hero_product": "workspace-public.mp4 with workspace-public.png (workspace-public-mobile.png on phones) until showcase-hero.mp4 and showcase-hero.webp are committed. Those are to be recorded from the public /demo with registered public images only; add their hashes, capture method and source revision here and in fixtures/public/allowlist.json in the same change.",
-    "nucleolus_section": "hero-microscopy.mp4 and hero-microscopy-poster.webp (source 4dn): display-only viewport motion of one real image. No detection result is drawn on it; the nucleolus detection rate on the same page comes from the separate fine-tuning test set.",
-    "stock_photography": "None. The earlier illustrative Unsplash photographs were removed from the site."
   }
 }

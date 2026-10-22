@@ -6,52 +6,55 @@ landing-page copy and repeated feature-card layouts.
 
 ## Public website
 
-The owner's October 22 direction supersedes the earlier dark-blue art direction,
-the cell-sculpture hero and the title-less essay layout. The canonical design
-record, section by section, is [the LP design record](lp-optical-preview.md).
-
-- Keep the light optical direction: light stone surfaces over the moving
-  Blender/Three.js optical space (`OpticalHero`, `optical-scene-engine.ts`).
-  The 3D space is the atmosphere, not the subject: no cell photographs, swirls,
-  microscope or paper diagrams in the background. Its static poster is the
-  fallback for reduced motion and WebGL failure.
-- Follow the structure of leading product sites: the product in motion
-  immediately, one promise, a sequence of product moments, a band of verified
-  numbers, a way to try it live, trust, the offering and a final call to
-  action. Atmosphere and intuitive understanding matter as much as data.
-- Preserve the hero: **Get your microscopy publication-ready.**, with strong
-  Japanese sub-copy. Marketing copy may be bold and aspirational
-  (「画像をアップロードするだけで、論文の図まで。」), but every number and every
-  scientific claim must be a verified fact with a public source.
-- Primary action: **デモを触る** (`/demo`). Secondary: the Windows download.
-  Product moments deep-link into the demo (`/demo?step=image`, `statistics`,
-  `figure`). Keep installation requirements, supported inputs and data
-  retention one click away from the download.
-- Show the real product and real public microscopy only: recorded product
-  footage, captures from public images and exported figures. No stock
-  photography, generated cells, invented results, customer quotes, team
-  sections or unsupported endorsements.
-- Content sits on rounded light sheets that float over the 3D space; one dark
-  sheet carries the numbers. Section headings are set in deliberate lines at
-  phrase boundaries. Use Inter and Noto Sans JP, self-hosted. Body text may use
-  the secondary ink colour; no glowing or coloured words inside running text.
-- The AI illustration uses the workspace's own UI style and is labelled as an
-  example. It shows settings, never results.
-- Motion: one hero entrance, the looping product clip and the 3D space. Clips
-  play only on screen, never start under reduced motion, always offer a
-  pause control, and fall back to the same still on failure. Phones show a
-  still when the clip is not legible at that width.
+- Preserve the hero: **Get your microscopy publication-ready.**
+- Lila is the primary visual reference; GraphPad supplies the information
+  hierarchy. Lead with the researcher's ambition, then reduced repetitive work,
+  accessible analytical decisions and communication through a figure. Feature
+  categories such as "images and measurements" are not benefit headlines.
+- The current art direction is light and readable (approved in #59). The
+  visual standard and its open revision are recorded in the
+  [LP design record](lp-optical-preview.md) and the
+  [art direction proposal](lp-art-direction.md): science and the world view are
+  carried by real data and real footage rather than hand-authored objects.
+  Keep the copy and actions in the first viewport, including short windows and
+  mobile. Avoid generic nested glass spheres, star fields and decorative
+  particles. Record authored or rendered artwork separately from measured
+  microscopy in provenance.
+- Review the actual rendered silhouette, texture, lighting and composition
+  before calling the hero complete. Keep a matching static fallback, respect
+  reduced motion and pause rendering offscreen; performance work must preserve
+  the intended visual quality rather than remove the requested art direction.
+- Use the actual photography, composition, whitespace and typography to carry
+  the visual identity. Do not explain the intended atmosphere in the copy.
+- Below the hero, take Lila's design and emotional pull, not its grid
+  (`optical-landing.module.css`): no section titles or English labels. Each
+  section opens with its own first sentence set large (weight 400), followed
+  by body text in the same single column; pictures use wide rounded panels,
+  and a pale panel marks the exported figure and the download. The owner's
+  story has no title and is set in one size throughout. All text uses one
+  colour (one on dark, one on light): no faded or translucent text, no
+  scroll-linked dimming, no tilted or animated figures. Japanese lines break
+  at phrase boundaries; no coloured or glowing words inside running text.
 - The header wordmark returns to the hero (`#top`) on the landing page.
-  "About the Developer" lives in the footer and the mobile menu.
-- Keep development status, evaluation records and asset provenance in the
-  relevant documentation and `apps/web/public/marketing/provenance.json`.
+- Primary action: **ダウンロード**. Product examples and setup information have
+  separate, direct links.
+- Alternate full-width photography, portrait compositions, readable product
+  screens and the exported figure. Avoid a sequence of identical feature cards.
+- Keep development status, scientific evaluation records and asset provenance
+  in the relevant documentation. Do not add development badges, stock-photo
+  disclaimers, defensive captions or unsupported endorsements to the page.
+- Keep installation requirements, supported inputs and data retention
+  accessible before download. These are functional product information.
+- Show actual public-image measurements and outputs. Never invent results,
+  independent replicates or a customer quote to complete a composition.
+- Use self-hosted Inter and Noto Sans JP. Reuse the owner's COMPASS components
+  with source attribution; see [the asset register](oss.md).
 
-Visual references: [Linear](https://linear.app/), [Stripe](https://stripe.com/),
-[Vercel](https://vercel.com/), [Benchling](https://www.benchling.com/),
-[BioRender](https://www.biorender.com/), and for light, space and typography
-[Lila](https://www.lila.ai/). Their imagery, fonts and claims are not
-substituted for Cytellect's own assets or capabilities. Reuse the owner's
-COMPASS components with source attribution; see [the asset register](oss.md).
+Visual references: [Lila](https://www.lila.ai/),
+[COMPASS](https://compass-official.pages.dev/),
+[Yuto Matsui](https://yuto-matsui.com/) and
+[GraphPad](https://www.graphpad.com/). Their photographs, fonts and claims are
+not substituted for Cytellect's own assets or capabilities.
 
 ## Analysis workspace
 
