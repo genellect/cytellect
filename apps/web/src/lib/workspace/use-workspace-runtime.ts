@@ -37,7 +37,9 @@ const emptyData = (): ReviewData => ({workspaceId:"",title:"画像解析",fields
 const labels = {nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
 const message = (error:unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? errorCodeMessage(error.message) : "処理できませんでした。";
 const fingerprint = (value:unknown):string => JSON.stringify(value,(_,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
-export const sameRuntimeRecipe = (a:Recipe,b:Recipe) => fingerprint(a) === fingerprint(b);
+// The API stores an absent nucleolar parent as null (RegionCompartmentRecipe); the client omits it.
+const comparableRecipe = (recipe:Recipe) => {const {nucleolar_revision_id,...rest}=recipe as Recipe&{nucleolar_revision_id?:string|null};return nucleolar_revision_id==null?rest:recipe;};
+export const sameRuntimeRecipe = (a:Recipe,b:Recipe) => fingerprint(comparableRecipe(a)) === fingerprint(comparableRecipe(b));
 
 /** Legacy marker records store an unused sigma; display the operation actually replayed. */
 function visibleNucleolarSettings(settings:RuntimeSettings,processing:ProposalProcessing|null):RuntimeSettings {

@@ -2,6 +2,7 @@
 
 import {useLayoutEffect, useRef, useState} from "react";
 import {ApiError, errorMessage} from "@/lib/api";
+import {ErrorText} from "./showcase-ui";
 import type {ApiAdapter, GfpGateResult} from "@/lib/workspace/api-adapter";
 
 export type WorkspaceGfpFilter = {
@@ -69,6 +70,6 @@ export function ConnectedGfp({adapter,workspace,fields,channels,disabled=false,o
     {!fields.length&&<p>{unit==="nucleus"?"核の検出後":"細胞ROIの保存後"}に分類できます。</p>}
     {totals&&<output aria-live="polite">陽性 {totals.positive} · 陰性 {totals.negative} · 未判定 {totals.pending}</output>}
     {result&&Object.entries(result.dates).map(([date,item])=><small key={date}>{date==="all"?"全視野":date||"撮影日未設定"} · {item.threshold===null?"しきい値未確定":`しきい値 ${item.threshold.toPrecision(5)}`}</small>)}
-    {error&&<p role="alert">{error}</p>}
+    {error&&<ErrorText text={error}/>}
   </section>;
 }

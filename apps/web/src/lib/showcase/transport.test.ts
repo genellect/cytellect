@@ -1,0 +1,170 @@
+import {afterEach, describe, expect, it, vi} from "vitest";
+import {fetchVerified, IntegrityError, sha256Hex} from "./digest";
+import type {ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
+import {createShowcaseTransport, snapshotKey, type ShowcaseEngine} from "./transport";
+import {bootPyodideRuntime} from "./worker-runtime";
+
+const encoder = new TextEncoder();
+const json = (value: unknown) => encoder.encode(JSON.stringify(value)).buffer as ArrayBuffer;
+function staticFiles(entries: Record<string, unknown> | null) {
+  const index: SnapshotIndex = {version: 1, entries: {}};
+  const files: Record<string, ArrayBuffer> = {};
+  for (const [path, body] of Object.entries(entries ?? {})) {
+    const file = `r${Object.keys(files).length}.json`;
+    index.entries[snapshotKey(path)] = {status: 200, headers: [["content-type", "application/json"], ["x-recorded", "1"]], file};
+    files[file] = json(body);
+  }
+  return vi.fn(async (url: string) => {
+    if (url === "/showcase/snapshot/index.json") return entries ? new Response(JSON.stringify(index)) : new Response("missing", {status: 404});
+    const name = url.replace("/showcase/snapshot/", "");
+    return files[name] ? new Response(files[name]) : new Response("missing", {status: 404});
+  });
+}
+function fakeEngine(reply: (request: ShowcaseRequest) => unknown = request => ({live: request.url})) {
+  const handled: ShowcaseRequest[] = [];
+  let concurrent = 0, peak = 0;
+  const engine: ShowcaseEngine & {handled: ShowcaseRequest[]; peak: () => number} = {
+    handled, peak: () => peak,
+    start: vi.fn(async () => undefined),
+    async handle(request): Promise<ShowcaseResponse> {
+      concurrent += 1; peak = Math.max(peak, concurrent);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      handled.push(request); concurrent -= 1;
+      const value = reply(request);
+      return typeof value === "object" && value && "status" in (value as object) ? value as ShowcaseResponse
+        : {status: 200, headers: [["content-type", "application/json"]], body: json(value)};
+    },
+  };
+  return engine;
+}
+const transport = (options: {entries?: Record<string, unknown> | null; engine?: ShowcaseEngine | null; capable?: boolean}) => createShowcaseTransport({
+  fetchStatic: staticFiles(options.entries === undefined ? {} : options.entries),
+  createEngine: () => options.engine === undefined ? fakeEngine() : options.engine,
+  capable: () => options.capable ?? true,
+  snapshotBase: "/showcase/snapshot/",
+});
+
+describe("showcase transport", () => {
+  it("serves recorded GETs without starting the live engine", async () => {
+    const engine = fakeEngine();
+    const subject = transport({entries: {"/v1/session": {authenticated: true}}, engine});
+    const response = await subject.fetch("/v1/session");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-recorded")).toBe("1");
+    expect(await response.json()).toEqual({authenticated: true});
+    expect(engine.start).not.toHaveBeenCalled();
+    expect(subject.state().engine).toBe("idle");
+  });
+
+  it("waits for the live engine when a GET has no recording", async () => {
+    const engine = fakeEngine();
+    const subject = transport({entries: {"/v1/session": {authenticated: true}}, engine});
+    const response = await subject.fetch("/v1/workspaces/w/jobs?x=1");
+    expect(await response.json()).toEqual({live: "/v1/workspaces/w/jobs?x=1"});
+    expect(engine.start).toHaveBeenCalledTimes(1);
+    expect(subject.state().engine).toBe("active");
+  });
+
+  it("routes every request live after the first change, in order and one at a time", async () => {
+    const engine = fakeEngine();
+    const subject = transport({entries: {"/v1/workspaces/w/selection": {version: 1}}, engine});
+    expect(await (await subject.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+    const changed = subject.fetch("/v1/workspaces/w/selection", {method: "POST", body: JSON.stringify({version: 1}), headers: {"X-Cytellect-Request": "1"}});
+    const reread = subject.fetch("/v1/workspaces/w/selection");
+    await Promise.all([changed, reread]);
+    expect(engine.handled.map(request => `${request.method} ${request.url}`)).toEqual(["POST /v1/workspaces/w/selection", "GET /v1/workspaces/w/selection"]);
+    expect(new TextDecoder().decode(engine.handled[0].body!)).toBe('{"version":1}');
+    expect(engine.handled[0].headers).toContainEqual(["x-cytellect-request", "1"]);
+    expect(engine.handled[1].body).toBeNull();
+    expect(engine.peak()).toBe(1);
+  });
+
+  it("uses the engine for reads once the background start has finished", async () => {
+    const engine = fakeEngine();
+    const subject = transport({entries: {"/v1/session": {authenticated: true}}, engine});
+    subject.prepare();
+    await vi.waitFor(() => expect(subject.state().engine).toBe("active"));
+    expect(await (await subject.fetch("/v1/session")).json()).toEqual({live: "/v1/session"});
+  });
+
+  it("answers changes with a notice on devices that do not run the engine", async () => {
+    const engine = fakeEngine();
+    const subject = transport({entries: {}, engine, capable: false});
+    subject.prepare();
+    expect(engine.start).not.toHaveBeenCalled();
+    const response = await subject.fetch("/v1/workspaces", {method: "POST", body: "{}"});
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({detail: "showcase_engine_unavailable"});
+    expect(subject.state()).toEqual({engine: "unavailable", reason: "device"});
+  });
+
+  it("reports an unpublished demo and a failed boot without throwing", async () => {
+    const unpublished = transport({entries: null, engine: null});
+    expect(await (await unpublished.fetch("/v1/session")).json()).toEqual({detail: "showcase_unavailable"});
+    const broken = fakeEngine();
+    broken.start = vi.fn(async () => {throw new Error("showcase_integrity_failed");});
+    const failed = transport({entries: {}, engine: broken});
+    expect(await (await failed.fetch("/v1/workspaces", {method: "POST"})).json()).toEqual({detail: "showcase_engine_unavailable"});
+    expect(failed.state()).toEqual({engine: "unavailable", reason: "failed"});
+  });
+
+  it("never uploads files in the demo", async () => {
+    const engine = fakeEngine();
+    const response = await transport({engine}).fetch("/v1/workspaces/w/region-fields", {method: "POST", body: new FormData()});
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({detail: "showcase_upload_disabled"});
+    expect(engine.start).not.toHaveBeenCalled();
+  });
+
+  it("returns the engine's API errors unchanged for the client to interpret", async () => {
+    const engine = fakeEngine(() => ({status: 409, headers: [["content-type", "application/json"]], body: json({detail: "showcase_detection_not_recorded"})}));
+    const response = await transport({engine}).fetch("/v1/workspaces/w/runs", {method: "POST", body: "{}"});
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({detail: "showcase_detection_not_recorded"});
+  });
+});
+
+describe("showcase notices through the API client", () => {
+  afterEach(() => {vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetModules();});
+  it("maps demo limitations to information messages, not errors", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_ORIGIN", "");
+    vi.resetModules();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("missing", {status: 404})));
+    const api = await import("../api");
+    const showcase = await import(".");
+    await expect(api.request("/v1/session")).rejects.toEqual(new api.ApiError("server_not_configured", 503));
+    showcase.activateShowcase();
+    const error = await api.request("/v1/workspaces", {method: "POST", body: "{}"}).then(() => null, (value: unknown) => value);
+    expect(error).toEqual(new api.ApiError("showcase_engine_unavailable", 503));
+    expect(showcase.isShowcaseNotice(api.errorMessage(error))).toBe(true);
+    expect(showcase.isShowcaseNotice(api.errorMessage(new api.ApiError("invalid_analysis_input", 422)))).toBe(false);
+    for (const code of ["showcase_detection_not_recorded", "showcase_proposal_not_recorded", "showcase_upload_disabled"])
+      expect(showcase.isShowcaseNotice(`視野 1：${api.errorCodeMessage(code)} 実行条件を確認してください。`)).toBe(true);
+    await expect(api.fetchPrivateResponse("/v1/region-fields/f/preview")).rejects.toEqual(new api.ApiError("showcase_engine_unavailable", 503));
+  });
+});
+
+describe("runtime file verification", () => {
+  const bytes = encoder.encode("synthetic wheel");
+  it("accepts only files whose SHA-256 matches the recorded digest", async () => {
+    const digest = await sha256Hex(bytes);
+    const fetcher = vi.fn(async () => new Response(bytes)) as unknown as typeof fetch;
+    expect(await fetchVerified("/showcase/runtime/a.whl", digest, fetcher)).toEqual(bytes);
+    await expect(fetchVerified("/showcase/runtime/a.whl", "0".repeat(64), fetcher)).rejects.toBeInstanceOf(IntegrityError);
+    await expect(fetchVerified("/showcase/runtime/a.whl", "not-a-digest", fetcher)).rejects.toBeInstanceOf(IntegrityError);
+  });
+  it("never starts the interpreter when a self-hosted file was altered", async () => {
+    const loadPyodide = vi.fn();
+    const fetcher = vi.fn(async (url: string) => new Response(url.endsWith("seed.zip") ? encoder.encode("seed") : encoder.encode("altered"))) as unknown as typeof fetch;
+    const config = {pyodideVersion: "0", indexURL: "https://cdn.example/pyodide/", packages: [], fonts: [],
+      wheels: [{file: "cytellect_showcase-0-py3-none-any.whl", sha256: await sha256Hex(bytes)}]};
+    await expect(bootPyodideRuntime(config, "https://example.org", {fetcher, loadPyodide, base: "https://example.org/showcase/"})).rejects.toBeInstanceOf(IntegrityError);
+    expect(loadPyodide).not.toHaveBeenCalled();
+    expect(vi.mocked(fetcher).mock.calls.map(call => call[0])).toContain(`https://example.org/showcase/runtime/cytellect_showcase-0-py3-none-any.whl?sha256=${await sha256Hex(bytes)}`);
+  });
+  it("does not download anything for an unpublished runtime", async () => {
+    const fetcher = vi.fn() as unknown as typeof fetch;
+    await expect(bootPyodideRuntime({pyodideVersion: "", indexURL: "", packages: [], wheels: [], fonts: []}, "https://example.org", {fetcher, loadPyodide: vi.fn(), base: "/"})).rejects.toThrow("showcase_runtime_missing");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});

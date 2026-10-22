@@ -3,7 +3,6 @@ import { API, errorCodeMessage, fetchBlob, post, request } from "../api";
 import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-view";
 import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
-import type {DistributionPoint, FieldSummary} from "./adapter";
 import type {NclObjectProcessingDetector} from "./nucleolar-definition";
 import type {AnyCellposeProcessingDetector} from "./cellpose-settings";
 import type { ProposalProcessing, NuclearProcessingDetector, SignalProcessingDetector } from "./proposal-processing";
@@ -113,6 +112,9 @@ export function nuclearRecipe(channel: ChannelDefinition, detectionMaxSide?: num
 
 /** Figure identity includes both the saved revision and every editable setting. */
 export function figureIdentity(revision: string, choice: FigureChoice) { return JSON.stringify([revision, choice.metric, choice.channel, choice.width, choice.height, choice.label, choice.xLabel ?? "", choice.fontSize ?? 7, choice.language ?? "ja", choice.yMin ?? null, choice.yMax ?? null, choice.yTickStep ?? null, choice.pointSize ?? null]); }
+
+export interface DistributionPoint { field: string; region: number; value: number; state: "included" | "excluded" }
+export interface FieldSummary { field: string; n: number; excluded: number; median: number | null; q1: number | null; q3: number | null }
 
 /** Map saved values for interactive selection; never calculate summaries in the browser. */
 export function savedDistribution(figure: SavedFigure): {points: DistributionPoint[]; summaries: FieldSummary[]} {

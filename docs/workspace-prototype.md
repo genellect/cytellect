@@ -1,6 +1,6 @@
 # Single workspace — real adapter and explicit public prototype
 
-`/workspace` now uses the real API adapter of the [single analysis workspace](workspace-redesign.md). The recorded public prototype is available only at `/workspace?demo=bbbc013`. The two modes do not share results or exports.
+`/workspace` uses the real API adapter of the [single analysis workspace](workspace-redesign.md). The recorded public prototype (`/workspace?demo=bbbc013`) has been removed: the public site now runs the same workspace as a serverless demo at `/demo` (see [showcase](showcase.md)). Sections below that describe the prototype are historical.
 
 ## Real API path: current integration increment
 

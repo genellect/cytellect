@@ -49,11 +49,6 @@
     "source": "https://bbbc.broadinstitute.org/BBBC039",
     "license": "CC0-1.0"
   },
-  "apps/web/public/demo/bbbc039/preview.png": {
-    "sha256": "4719dd91fbff82ebcdeca5e9d7d2b7e916a1cdfee06d674876c773289d8319ee",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
-  },
   "apps/web/public/demo/4dn-ncl/demo-dapi.png": {
     "sha256": "0cef831cb009cb92be585b28f4956dd03059308ba69450cb7eb2a90d597ca1c9",
     "source": "https://registry.opendata.aws/4dnucleome/",
@@ -96,16 +91,6 @@
   },
   "fixtures/public/bbbc013/A12-dapi.tif": {
     "sha256": "ce90a36a347e1dc0c9ca7323070ae5eebb410c04960e8e22d5133da2f730a88e",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "apps/web/public/demo/bbbc013/demo-dapi.png": {
-    "sha256": "db73d50afde31044f3df0466e08ff38a1fa1b3dad34aad9cfb306aa73d266d85",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "apps/web/public/demo/bbbc013/demo-gfp.png": {
-    "sha256": "119fa3fa612973b25d22bb3343f17cbb53ba2a99e619104a19ce95301750d2d9",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "CC-BY-3.0"
   },
@@ -228,36 +213,6 @@
     "sha256": "58aec4dafe74413b58819298710ec71bf992e6daba697f671a482e8384f27154",
     "source": "https://github.com/genellect/cytellect/blob/59bc3882067dd13d7cba91553dc06fea26994786/scripts/create_cell_sculpture.py",
     "license": "Apache-2.0"
-  },
-  "apps/web/public/prototype/bbbc013/A01-gfp.png": {
-    "sha256": "0b04c395f6cc613ce5caf11aebf0336e06eb4f3e87800c6f0beeb9f6f2238e51",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "apps/web/public/prototype/bbbc013/A01-dapi.png": {
-    "sha256": "95766db941c0e6bf148b744fd00697af03806276df254260d75f2013053cb6a5",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "apps/web/public/prototype/bbbc013/A06-gfp.png": {
-    "sha256": "4772c228801c2e6b052aa43a88c7bb7f42fda2f7cfe4ae56d9ceace795763ee7",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "apps/web/public/prototype/bbbc013/A06-dapi.png": {
-    "sha256": "4e5a71e7a0f36c74569625d297860865fff1d4fc1b8f26d3afb56f05885a53e0",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "apps/web/public/prototype/bbbc013/A12-gfp.png": {
-    "sha256": "bea8657486577ee8a7cf0d6387e71e9313b56b0e0d5fe05491be5b14a3622b1e",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "apps/web/public/prototype/bbbc013/A12-dapi.png": {
-    "sha256": "b9702e157a57c9303c00bcb3533584bef424ab4407c7d2673c9087811ea0e2e6",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
   },
   "apps/web/public/marketing/optical-assembly.glb": {
     "sha256": "982e1809f9fec399d4b97ff0fe95ee2b60a3d8ad23e6b9c1326c2b3a6fdfcb63",
