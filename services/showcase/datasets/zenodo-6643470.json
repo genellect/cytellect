@@ -17,7 +17,7 @@
   "caveats": [
    "All replicates (Rep1-Rep3) were acquired on the same date (2021-12-01). The source does not state whether Rep1-Rep3 are independent experiments; they are treated as replicate units for demonstration only.",
    "Each replicate contains both conditions; the demo pairs conditions by replicate (paired t-test over three pairs, one field per condition and replicate). With three pairs the test has very low power; p-values are illustrations of the workflow, not findings.",
-   "The nucleolar marker here is NPM1-mTagRFP. The workspace definition used for Cellpose-SAM nucleolar detection is labelled 「NCL陽性領域」; in this demo it is applied to the NPM1 channel.",
+   "Nucleoli are defined from NPM1 with the workspace's nucleolar-marker definition (default parameters). Under ActD, NPM1 partly relocates to the nucleoplasm, so marker-defined nucleoli reflect NPM1 distribution, not nucleolar structure alone.",
    "Hoechst saturates (value 65535) in a small fraction of pixels in some fields; counts are listed in manifest.json (selection.results[].saturated_pixels).",
    "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images."
   ]
@@ -874,8 +874,31 @@
    }
   },
   "statistics_amendment": "The planned nucleolar/nucleoplasm analyses could not be saved: the workspace refuses cohorts of compartment revisions until every parent nucleus has a resolved candidate state (assert_complete_compartments), and the NPM1 Cellpose-SAM detection left unresolved parents (no_candidate / indeterminate / review_required) in every field, including all parents of one ActD field. Excluding those nuclei would select cells by the outcome, so the saved statistics use the nuclear region set instead. The change was made because of this software gate, before any statistical result was computed; the nucleolar masks and their per-parent states remain visible in the image view.",
-  "grid_notes": "Nuclei: full 3 x 3 grid of probability and NMS at the automatic detection scale. Cellpose-SAM nucleoli (protocol 4.3.0): default settings only, because one CPU inference takes 1.5-18 min per field. Fiji NCL threshold: default settings. Cellpose-SAM cell ROI is not recorded: the dataset has no cell-boundary or cytoplasmic channel (Hoechst, NPM1 and FBL are nuclear/nucleolar), so a cell detector on these channels would not represent cells.",
+  "grid_notes": "Nuclei: full 3 x 3 grid of StarDist probability (0.4/0.5/0.6) and NMS (0.2/0.3/0.4) at the automatic detection scale on all fields. The default marker definition is computed in the browser for any nuclear result. NCL-positive alternatives (Cellpose-SAM 4.3.0 with default settings, one CPU inference 1.5-18 min per field; Fiji NCL threshold with default settings) are recorded on all fields for the default nuclear result only; after changing the nuclear setting they report showcase_detection_not_recorded. Cellpose-SAM cell ROI is not recorded: the dataset has no cell-boundary or cytoplasmic channel.",
   "pairing_basis": "同じ反復（Rep）で撮影したUntreated と ActD 1 µM",
-  "design_note": "Each replicate (Rep1-Rep3) contains both conditions, so conditions are paired by replicate: experimental unit = one condition within one replicate, pair = replicate. The comparison is a paired t-test over three replicate pairs; the source does not state that replicates are independent experiments."
+  "design_note": "Each replicate (Rep1-Rep3) contains both conditions, so conditions are paired by replicate: experimental unit = one condition within one replicate, pair = replicate. The comparison is a paired t-test over three replicate pairs; the source does not state that replicates are independent experiments.",
+  "nucleolar_definition": "marker",
+  "nucleolar_definition_note": "Nucleoli are defined with the workspace's stable nucleolar-marker definition (核小体マーカー, cytellect-nucleolar-v2 protocol 2.1.0, default parameters) on NPM1, chosen by stain type (NPM1 is a nucleolar marker; 「NCL陽性領域」 is the NCL-antibody definition) before any nucleolar statistic. The NCL-positive alternatives (Cellpose-SAM 4.3.0 and the Fiji NCL threshold) are recorded at the default nuclear setting so the UI options can be compared.",
+  "python_options": {
+   "cytellect-nucleolar-v2": {
+    "smoothing_sigma_px": [
+     0.5,
+     0.7,
+     1.0,
+     2.0
+    ],
+    "minimum_area_px": [
+     2,
+     4,
+     8
+    ],
+    "relative_threshold": [
+     0.6,
+     0.7,
+     0.8
+    ]
+   },
+   "cytellect-ncl-objects": {}
+  }
  }
 }

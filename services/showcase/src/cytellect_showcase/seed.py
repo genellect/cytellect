@@ -49,7 +49,8 @@ def plan(files: dict[str, Path], channel_arrays: dict[str, str], minimum_bytes: 
     import numpy as np
     from cytellect_analysis.images import read_tiff
 
-    entries, by_digest = [], {}
+    entries: list[dict] = []
+    by_digest: dict[str, str] = {}
     for npy, tif in sorted(channel_arrays.items()):
         path = files[npy]
         digest = _digest(path)

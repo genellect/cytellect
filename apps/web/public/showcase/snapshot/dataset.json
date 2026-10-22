@@ -1,0 +1,75 @@
+{
+ "version": 1,
+ "title": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
+ "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; centre-cropped, channel subset.",
+ "licence": "CC-BY-4.0",
+ "licenceUrl": "https://creativecommons.org/licenses/by/4.0/",
+ "sourceUrl": "https://zenodo.org/records/6643470",
+ "doi": "10.5281/zenodo.6643470",
+ "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
+ "description": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
+ "modifications": "Centre 1536 x 1536 crop of each 2304 x 2304 plane; channels Hoechst (OME c3, filter DAPI) and NPM1-mTagRFP (OME c1, filter TRITC) only; pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
+ "caveats": [
+  "All replicates (Rep1-Rep3) were acquired on the same date (2021-12-01). The source does not state whether Rep1-Rep3 are independent experiments; they are treated as replicate units for demonstration only.",
+  "Each replicate contains both conditions; the demo pairs conditions by replicate (paired t-test over three pairs, one field per condition and replicate). With three pairs the test has very low power; p-values are illustrations of the workflow, not findings.",
+  "Nucleoli are defined from NPM1 with the workspace's nucleolar-marker definition (default parameters). Under ActD, NPM1 partly relocates to the nucleoplasm, so marker-defined nucleoli reflect NPM1 distribution, not nucleolar structure alone.",
+  "Hoechst saturates (value 65535) in a small fraction of pixels in some fields; counts are listed in manifest.json (selection.results[].saturated_pixels).",
+  "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images."
+ ],
+ "fields": [
+  {
+   "field": "視野 1",
+   "source_file": "40x_1.4_Rep1_Untreated_20211201_01_05",
+   "condition": "Untreated",
+   "experimental_unit": "Rep1 Untreated",
+   "sample": "Rep1 Untreated",
+   "acquisition_date": "2021-12-01",
+   "pair": "Rep1"
+  },
+  {
+   "field": "視野 2",
+   "source_file": "40x_1.4_Rep2_Untreated_20211201_01_61",
+   "condition": "Untreated",
+   "experimental_unit": "Rep2 Untreated",
+   "sample": "Rep2 Untreated",
+   "acquisition_date": "2021-12-01",
+   "pair": "Rep2"
+  },
+  {
+   "field": "視野 3",
+   "source_file": "40x_1.4_Rep3_Untreated_20211201_01_121",
+   "condition": "Untreated",
+   "experimental_unit": "Rep3 Untreated",
+   "sample": "Rep3 Untreated",
+   "acquisition_date": "2021-12-01",
+   "pair": "Rep3"
+  },
+  {
+   "field": "視野 4",
+   "source_file": "40x_1.4_Rep1_ActD1_20211201_01_51",
+   "condition": "ActD 1 µM",
+   "experimental_unit": "Rep1 ActD 1 µM",
+   "sample": "Rep1 ActD 1 µM",
+   "acquisition_date": "2021-12-01",
+   "pair": "Rep1"
+  },
+  {
+   "field": "視野 5",
+   "source_file": "40x_1.4_Rep2_ActD1_20211201_01_111",
+   "condition": "ActD 1 µM",
+   "experimental_unit": "Rep2 ActD 1 µM",
+   "sample": "Rep2 ActD 1 µM",
+   "acquisition_date": "2021-12-01",
+   "pair": "Rep2"
+  },
+  {
+   "field": "視野 6",
+   "source_file": "40x_1.4_Rep3_ActD1_20211201_01_171",
+   "condition": "ActD 1 µM",
+   "experimental_unit": "Rep3 ActD 1 µM",
+   "sample": "Rep3 ActD 1 µM",
+   "acquisition_date": "2021-12-01",
+   "pair": "Rep3"
+  }
+ ]
+}

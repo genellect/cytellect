@@ -68,7 +68,7 @@ async function settle(label) {
 
 // Session of the workspace owner, created by the builder (never logged or saved).
 await context.addCookies([{name: config.cookie, value: config.token, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Strict"}]);
-await page.goto(`${config.origin}/workspace?id=${encodeURIComponent(config.workspace)}`, {waitUntil: "domcontentloaded", timeout: 180000});
+await page.goto(`${config.origin}/workspace`, {waitUntil: "domcontentloaded", timeout: 180000});
 const cards = page.locator("[class*=fieldCard]");
 try {await cards.first().waitFor({timeout: 180000});}
 catch (error) {
@@ -102,6 +102,20 @@ if (await history.count()) {
   report.figures = values.length;
 } else report.alerts.push("no saved figure history");
 await step("back to image", () => tabs.getByRole("button", {name: "画像"}).click());
+// Chromium does not keep bodies of responses the page consumed as blobs (previews, figure
+// files); fetch those same GETs again with the same session (GETs never change the state).
+report.refetched = 0;
+for (const [key, entry] of Object.entries(entries)) {
+  if (bodies.get(entry.file)?.length) continue;
+  const response = await context.request.get(config.api + key.slice(4), {headers: {Origin: config.origin}});
+  const body = await response.body(), headers = response.headers();
+  const type = (headers["content-type"] || "").split(";")[0].trim();
+  const file = `${createHash("sha256").update(body).digest("hex").slice(0, 24)}${EXTENSIONS[type] || ".bin"}`;
+  if (!body.length || response.status() !== entry.status) report.alerts.push(`refetch failed ${key}`);
+  entries[key] = {status: response.status(), headers: KEEP_HEADERS.filter(name => headers[name] !== undefined).map(name => [name, headers[name]]), file};
+  bodies.set(file, body);
+  report.refetched++;
+}
 await browser.close();
 
 await mkdir(path.join(config.out, "files"), {recursive: true});

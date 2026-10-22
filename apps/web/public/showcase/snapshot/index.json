@@ -1,0 +1,783 @@
+{
+ "version": 1,
+ "entries": {
+  "GET /v1/jobs/1841a34c-1f2a-4d6a-b99d-db2fa421cb72/files/figure-001.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "6cfa43d07e6326016f7f3ab0.svg"
+  },
+  "GET /v1/jobs/1841a34c-1f2a-4d6a-b99d-db2fa421cb72/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "4c82a9fa939cbe58444f9317.json"
+  },
+  "GET /v1/jobs/32b9d9ac-733e-43f3-ad64-4936c789478c/files/figure.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "d48abba437e19ccbc6f40818.svg"
+  },
+  "GET /v1/jobs/32b9d9ac-733e-43f3-ad64-4936c789478c/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "d7dc880b846137a2d1ecc12a.json"
+  },
+  "GET /v1/jobs/7f14534f-bcbd-40ea-a324-21ed1beec903/files/figure.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "a07a4b774442bb18c7ba2e23.svg"
+  },
+  "GET /v1/jobs/7f14534f-bcbd-40ea-a324-21ed1beec903/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "2f18d63370fbcebee60f3dd4.json"
+  },
+  "GET /v1/jobs/805b2f4a-a14e-4f79-a158-e68b35aa4ef5/files/figure.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "5db7db2d7905c2dc59d15595.svg"
+  },
+  "GET /v1/jobs/805b2f4a-a14e-4f79-a158-e68b35aa4ef5/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "582ddbbbf63020d3a95f04de.json"
+  },
+  "GET /v1/jobs/8d8318e6-3ca6-4f1a-acff-8aee00daf66c/files/figure.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "e5fa0e44814fff5f2313b8e3.svg"
+  },
+  "GET /v1/jobs/8d8318e6-3ca6-4f1a-acff-8aee00daf66c/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "b62c54ff6b7a567ef5fe7d6b.json"
+  },
+  "GET /v1/jobs/a38ee84d-71ad-4109-8041-cb68dc9b679d/files/figure.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "3c99703365aabd7e7c82d272.svg"
+  },
+  "GET /v1/jobs/a38ee84d-71ad-4109-8041-cb68dc9b679d/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "71618f474a6e16dbd54f410f.json"
+  },
+  "GET /v1/jobs/f2aa194e-4af3-4979-9719-2eefec1c6474/files/figure.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "df6ccb9fedb6923cd75481a2.svg"
+  },
+  "GET /v1/jobs/f2aa194e-4af3-4979-9719-2eefec1c6474/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "e28bac184cee6119ce865f56.json"
+  },
+  "GET /v1/region-fields/081620c8-e1b6-411f-83bd-a1d4fb92da90/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"081620c8-e1b6-411f-83bd-a1d4fb92da90\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":102.0,\"source_max\":65535.0,\"percentile_low_value\":102.0,\"percentile_high_value\":65535.0,\"normalization_span\":65433.0,\"display_black_value\":102.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "9a3321f1ad234e9fd30e82da.png"
+  },
+  "GET /v1/region-fields/081620c8-e1b6-411f-83bd-a1d4fb92da90/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"081620c8-e1b6-411f-83bd-a1d4fb92da90\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":151.0,\"source_max\":10501.0,\"percentile_low_value\":151.0,\"percentile_high_value\":10501.0,\"normalization_span\":10350.0,\"display_black_value\":151.0,\"display_white_value\":10501.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "87295717dd4408ab6f9ff8b1.png"
+  },
+  "GET /v1/region-fields/3ea70d38-cb66-4e8d-83db-f01d86a8dae4/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"3ea70d38-cb66-4e8d-83db-f01d86a8dae4\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":107.0,\"source_max\":65535.0,\"percentile_low_value\":107.0,\"percentile_high_value\":65535.0,\"normalization_span\":65428.0,\"display_black_value\":107.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "7c4415110d419ee4286174e5.png"
+  },
+  "GET /v1/region-fields/3ea70d38-cb66-4e8d-83db-f01d86a8dae4/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"3ea70d38-cb66-4e8d-83db-f01d86a8dae4\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":143.0,\"source_max\":23889.0,\"percentile_low_value\":143.0,\"percentile_high_value\":23889.0,\"normalization_span\":23746.0,\"display_black_value\":143.0,\"display_white_value\":23889.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "0eeba370e1a42078c1610a79.png"
+  },
+  "GET /v1/region-fields/6d91a0d6-077f-4dfa-8f50-719878400416/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"6d91a0d6-077f-4dfa-8f50-719878400416\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":111.0,\"source_max\":65535.0,\"percentile_low_value\":111.0,\"percentile_high_value\":65535.0,\"normalization_span\":65424.0,\"display_black_value\":111.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "151d398f78c9fab183f9a610.png"
+  },
+  "GET /v1/region-fields/6d91a0d6-077f-4dfa-8f50-719878400416/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"6d91a0d6-077f-4dfa-8f50-719878400416\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":157.0,\"source_max\":36978.0,\"percentile_low_value\":157.0,\"percentile_high_value\":36978.0,\"normalization_span\":36821.0,\"display_black_value\":157.0,\"display_white_value\":36978.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "0f4134ddc895248f4fb525b6.png"
+  },
+  "GET /v1/region-fields/e278bb13-caa4-4d6f-9a1f-d534728e4e5d/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"e278bb13-caa4-4d6f-9a1f-d534728e4e5d\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":91.0,\"source_max\":65535.0,\"percentile_low_value\":91.0,\"percentile_high_value\":65535.0,\"normalization_span\":65444.0,\"display_black_value\":91.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "14f9881a18b4fc3860267f5d.png"
+  },
+  "GET /v1/region-fields/e278bb13-caa4-4d6f-9a1f-d534728e4e5d/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"e278bb13-caa4-4d6f-9a1f-d534728e4e5d\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":139.0,\"source_max\":15677.0,\"percentile_low_value\":139.0,\"percentile_high_value\":15677.0,\"normalization_span\":15538.0,\"display_black_value\":139.0,\"display_white_value\":15677.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "9aa25bbd509d1b18d2a2c465.png"
+  },
+  "GET /v1/region-fields/f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":89.0,\"source_max\":65535.0,\"percentile_low_value\":89.0,\"percentile_high_value\":65535.0,\"normalization_span\":65446.0,\"display_black_value\":89.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "60a12c6bfc2a977b8851e2f2.png"
+  },
+  "GET /v1/region-fields/f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":131.0,\"source_max\":8338.0,\"percentile_low_value\":131.0,\"percentile_high_value\":8338.0,\"normalization_span\":8207.0,\"display_black_value\":131.0,\"display_white_value\":8338.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "bb31b60577f4fa4887722dd0.png"
+  },
+  "GET /v1/region-fields/ffc953f6-ae80-413d-90f2-5c75cb5e63a0/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"ffc953f6-ae80-413d-90f2-5c75cb5e63a0\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":110.0,\"source_max\":65535.0,\"percentile_low_value\":110.0,\"percentile_high_value\":65535.0,\"normalization_span\":65425.0,\"display_black_value\":110.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "7bf822249c125428f51fc9d6.png"
+  },
+  "GET /v1/region-fields/ffc953f6-ae80-413d-90f2-5c75cb5e63a0/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"ffc953f6-ae80-413d-90f2-5c75cb5e63a0\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":168.0,\"source_max\":4238.0,\"percentile_low_value\":168.0,\"percentile_high_value\":4238.0,\"normalization_span\":4070.0,\"display_black_value\":168.0,\"display_white_value\":4238.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "5b3c97f6d05ad7b445e0eb44.png"
+  },
+  "GET /v1/revisions/11ead483-e491-46f3-bf00-7f2df7ca1a11/region-masks?field_id=3ea70d38-cb66-4e8d-83db-f01d86a8dae4": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "8750ef448977960a77f219ed.json"
+  },
+  "GET /v1/revisions/11ead483-e491-46f3-bf00-7f2df7ca1a11/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "2fcfcfed95228e2eb91e0c9d.json"
+  },
+  "GET /v1/revisions/1583bd60-0b29-4261-86e2-903224c800c8/region-masks?field_id=f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "0c7bb02ba9311b059d6baaa2.json"
+  },
+  "GET /v1/revisions/1583bd60-0b29-4261-86e2-903224c800c8/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "7d3942b363de568226007f43.json"
+  },
+  "GET /v1/revisions/23a06e5f-9428-4c8c-85de-014bcd527da7/region-masks?field_id=ffc953f6-ae80-413d-90f2-5c75cb5e63a0": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "fc36d43ac05217ba28deeae9.json"
+  },
+  "GET /v1/revisions/23a06e5f-9428-4c8c-85de-014bcd527da7/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "cbb13f59e83858b41044e4c4.json"
+  },
+  "GET /v1/revisions/3267cef1-97a9-46a0-9308-6241eb00af24/region-masks?field_id=f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "00934c388938600ab61f9bfa.json"
+  },
+  "GET /v1/revisions/3267cef1-97a9-46a0-9308-6241eb00af24/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "45bb3585923fec7ed67b201e.json"
+  },
+  "GET /v1/revisions/5ec59b22-8af3-40da-b9b5-3d8a0510b622/region-masks?field_id=081620c8-e1b6-411f-83bd-a1d4fb92da90": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "dc0ff66e0146a36995e0d4ab.json"
+  },
+  "GET /v1/revisions/5ec59b22-8af3-40da-b9b5-3d8a0510b622/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "ff753415bcefd60e267141d2.json"
+  },
+  "GET /v1/revisions/6f28aaf2-ac7e-4111-916d-3c9e349fb51d/region-masks?field_id=f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "a80516ce1bbc10501bfe4db4.json"
+  },
+  "GET /v1/revisions/6f28aaf2-ac7e-4111-916d-3c9e349fb51d/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "101fe1c153f6bbde7389e700.json"
+  },
+  "GET /v1/revisions/77994e7a-fb9f-4415-9354-ef4587e2f918/region-masks?field_id=ffc953f6-ae80-413d-90f2-5c75cb5e63a0": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "6378c7f0e93065729aaf6a92.json"
+  },
+  "GET /v1/revisions/77994e7a-fb9f-4415-9354-ef4587e2f918/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "15ebf6f4b1b83a2d17c15927.json"
+  },
+  "GET /v1/revisions/83423120-68a0-44dc-b7b7-1a4398ae7bcc/region-masks?field_id=081620c8-e1b6-411f-83bd-a1d4fb92da90": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "bcb910eab16e278283421473.json"
+  },
+  "GET /v1/revisions/83423120-68a0-44dc-b7b7-1a4398ae7bcc/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "d063ee2b4d6e65e54dd25bf0.json"
+  },
+  "GET /v1/revisions/a4733ca2-b65d-4898-bbfd-8c6c3faf7810/region-masks?field_id=3ea70d38-cb66-4e8d-83db-f01d86a8dae4": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "84a4c8516f09673f2d8588a7.json"
+  },
+  "GET /v1/revisions/a4733ca2-b65d-4898-bbfd-8c6c3faf7810/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "8a4d541c26d1f399b68e03d6.json"
+  },
+  "GET /v1/revisions/b7f8c36b-ad17-414c-b797-eccde2ff74e0/region-masks?field_id=ffc953f6-ae80-413d-90f2-5c75cb5e63a0": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "c843bdf35513c53aab7e555d.json"
+  },
+  "GET /v1/revisions/b7f8c36b-ad17-414c-b797-eccde2ff74e0/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "f1e9a1fba6146c3eec7e98aa.json"
+  },
+  "GET /v1/revisions/c2e1dd5a-f954-4259-937e-bcdbd2d8cfd6/region-masks?field_id=6d91a0d6-077f-4dfa-8f50-719878400416": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "61e3b628628fe018bbe0a227.json"
+  },
+  "GET /v1/revisions/c2e1dd5a-f954-4259-937e-bcdbd2d8cfd6/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "b875b28a1bbb87dd528be9c5.json"
+  },
+  "GET /v1/revisions/d38089df-cb4f-4c0a-bd96-8064cca16b1c/region-masks?field_id=e278bb13-caa4-4d6f-9a1f-d534728e4e5d": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "25f2ed72fd582b11d0348a79.json"
+  },
+  "GET /v1/revisions/d38089df-cb4f-4c0a-bd96-8064cca16b1c/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "8b3215362fba5b0d0af865b6.json"
+  },
+  "GET /v1/revisions/d6be36cc-d9e9-4ac8-b0a0-339f353b4e2d/region-masks?field_id=081620c8-e1b6-411f-83bd-a1d4fb92da90": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "d4d26ef3a2ae314c3149ed35.json"
+  },
+  "GET /v1/revisions/d6be36cc-d9e9-4ac8-b0a0-339f353b4e2d/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "eaa9b0bc88750e21b0f74bba.json"
+  },
+  "GET /v1/revisions/daca27d3-32dd-42a3-8b99-0bdb23f1565c/region-masks?field_id=6d91a0d6-077f-4dfa-8f50-719878400416": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "63bd1a644cd3ae1bad31b92f.json"
+  },
+  "GET /v1/revisions/daca27d3-32dd-42a3-8b99-0bdb23f1565c/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "4519f9b60b2dfaef9a08fc5a.json"
+  },
+  "GET /v1/revisions/db39ddf0-d44d-47fc-869e-193a409fe732/region-masks?field_id=6d91a0d6-077f-4dfa-8f50-719878400416": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "26a3fb365d1210cffb5cb633.json"
+  },
+  "GET /v1/revisions/db39ddf0-d44d-47fc-869e-193a409fe732/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "da0d583bb61056bf3d1400b4.json"
+  },
+  "GET /v1/revisions/e145e00f-b277-4900-b450-e70fb1e65942/region-masks?field_id=e278bb13-caa4-4d6f-9a1f-d534728e4e5d": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "134ad43627a257325fe07f1e.json"
+  },
+  "GET /v1/revisions/e145e00f-b277-4900-b450-e70fb1e65942/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "2eb02a363720e072ed77fea7.json"
+  },
+  "GET /v1/revisions/e68c122c-51bd-4e3a-963b-a535ea01cc63/region-masks?field_id=e278bb13-caa4-4d6f-9a1f-d534728e4e5d": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "082483bb820c22a8b8700f97.json"
+  },
+  "GET /v1/revisions/e68c122c-51bd-4e3a-963b-a535ea01cc63/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "e2549b55d8992bfabf3becf9.json"
+  },
+  "GET /v1/revisions/fec17ae1-f8b5-450c-b6b1-e409fb5170b7/region-masks?field_id=3ea70d38-cb66-4e8d-83db-f01d86a8dae4": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "01c514d66c6357c77768aa2f.json"
+  },
+  "GET /v1/revisions/fec17ae1-f8b5-450c-b6b1-e409fb5170b7/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "db25e5322e3c25969dcdbec9.json"
+  },
+  "GET /v1/session": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "28b2de63b27de95cc200795c.json"
+  },
+  "GET /v1/workspaces": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "a86f5834cf40d536ffc9942f.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "02ebc538e3609c5f52c63247.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/analysis-spec": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "f2c6723335c5b091707ae047.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/channel-assignments": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "8e26b3560cc2bd3c610481f8.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/field-links": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "4c5164702e5bac2a3c80ee35.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/jobs": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "079ac227b8d7af9e26f4ce56.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/region-fields": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "21a4c209377b4df81e6be86a.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/revisions": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "ebe4a50b25fcde1c3c5da4e1.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/runs": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "79a58cccf2f6b9eb384d672c.json"
+  },
+  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/selection": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "0d30bea8fdd3d743539ad857.json"
+  }
+ }
+}

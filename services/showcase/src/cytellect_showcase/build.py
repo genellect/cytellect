@@ -526,7 +526,7 @@ class Workspace:
     def selection(self) -> dict:
         return self.api.get(f"/v1/workspaces/{self.wid}/selection")
 
-    def adopted(self, target: str) -> dict[str, str]:
+    def adopted(self, target: str) -> dict[str, Any]:
         entries = self.selection()["entries"]
         return {entry["field_id"]: (entry.get("target_revisions") or {}).get(target)
                 for entry in entries if entry.get("field_id") and not entry.get("exclusion_reason")
@@ -570,6 +570,7 @@ class Workspace:
                             "plot": {**display, "kind": "scatter" if operation == "association" else "distribution"}}}
         self.persist(self.spec["spec"]["target"] if self.spec["spec"] else target, draft)
         selection = selection_for(region_set, metric, channel)
+        request: dict[str, Any]
         if operation == "distribution":
             request = {"mode": "descriptive", "selection": selection, "group_by": "field",
                        "figure_policy": {"version": "2.0.0", "layout": "field-pages"},
@@ -700,12 +701,16 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
 
     timed("nuclei", lambda: space.run("nuclei"))
     marker = plan.get("nucleolar_marker")
+    source = plan.get("nucleolar_definition", "ncl")
     if marker:
+        # selectNucleolarSource(source, marker): "ncl" defaults to Cellpose-SAM; "marker" is the
+        # stable-marker definition (cytellect-nucleolar-v2), whose defaults the API supplies.
         space.settings = {**space.settings, "nucleolarDefinition": {**space.settings["nucleolarDefinition"],
-                          "source": "ncl", "marker": marker, "algorithm": "cellpose"},
+                          "source": source, "marker": marker, "algorithm": "cellpose" if source == "ncl" else None},
                           "nucleolarSigma": None, "nucleolarRim": None, "nucleolarMinimumArea": None,
                           "nucleolarMaximumArea": None}
-        space.processing = {**empty_processing(), "nucleoli": {"channel": marker, "detector": ncl_cellpose_detector()}}
+        space.processing = ({**empty_processing(), "nucleoli": {"channel": marker, "detector": ncl_cellpose_detector()}}
+                            if source == "ncl" else None)
     timed("nucleoli", lambda: space.run("nucleoli"))
     timed("nucleoplasm", lambda: space.run("nucleoplasm"))
     saved = {}
@@ -721,6 +726,9 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     if "comparison" in saved:
         for kind in plan.get("comparison_layouts", ["box", "violin", "histogram"]):
             renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
+    # Leave the saved settings on the nucleus view (the runtime's saveSettings("nuclei")),
+    # where outlines can be edited; nucleoplasm masks are derived and not editable.
+    space.persist(plan.get("final_target", "nuclei"))
     drain(api)
     from cytellect_api.db import workspaces
 
@@ -769,6 +777,22 @@ def grid(api: Api, manifest: dict, state: dict) -> dict:
             preview(f"nuclei p={probability} nms={nms} side={side}", "nuclei")
     space.settings = copy.deepcopy(default_settings_value)
     marker = manifest["scenario"].get("nucleolar_marker")
+    # Every recorded nuclear setting also gets recorded nucleoli: adopt that nuclear result
+    # (a measurement run, as 測定 does) and preview each recorded nucleolar definition.
+    for probability, nms in plan.get("nucleoli_for_nuclei", []):
+        nuclear = {**default_settings_value, "nuclearProbability": probability, "nuclearNms": nms}
+        space.settings, space.processing = nuclear, copy.deepcopy(default_processing)
+        space.run("nuclei")
+        for algorithm, detector in (("cellpose", ncl_cellpose_detector()), ("legacy", None)):
+            space.settings = {**nuclear, "nucleolarDefinition": {**nuclear["nucleolarDefinition"], "source": "ncl",
+                                                                  "marker": marker, "algorithm": algorithm}}
+            space.processing = ({**empty_processing(), "nucleoli": {"channel": marker, "detector": detector}}
+                                if detector else {**(copy.deepcopy(default_processing or empty_processing())),
+                                                  "nucleoli": None})
+            preview(f"nucleoli {algorithm} on nuclei p={probability} nms={nms}", "nucleoli")
+    space.settings, space.processing = copy.deepcopy(default_settings_value), copy.deepcopy(default_processing)
+    if plan.get("nucleoli_for_nuclei"):
+        space.run("nuclei")  # back to the default nuclear result for the grid below
     for kind, detector_default, algorithm in (("cellpose-sam-ncl-parent", ncl_cellpose_detector(), "cellpose"),
                                               ("fiji-nucleolar-compartments", legacy_ncl_detector(), "legacy")):
         values = plan.get(kind)
@@ -787,10 +811,8 @@ def grid(api: Api, manifest: dict, state: dict) -> dict:
                 # sigma/minimum-area inputs then override the default legacy detector.
                 settings.update(nucleolarSigma=detector["smoothing_sigma_px"],
                                 nucleolarMinimumArea=detector["minimum_area_px"])
-                processing = {**(copy.deepcopy(default_processing) or empty_processing()), "nucleoli": None}
+                processing = {**(copy.deepcopy(default_processing or empty_processing())), "nucleoli": None}
             else:
-                if detector == detector_default:
-                    continue  # recorded by the scenario's measurement run
                 processing = {**empty_processing(), "nucleoli": {"channel": marker, "detector": detector}}
             space.settings = settings
             space.processing = processing
@@ -801,7 +823,7 @@ def grid(api: Api, manifest: dict, state: dict) -> dict:
         keys = [key for key in cells if key != "channel"]
         for combination in itertools.product(*(cells[key] for key in keys)):
             space.settings = {**default_settings_value, "cellDefinition": {"source": "cellpose", "channel": cells["channel"]}}
-            space.processing = {**(copy.deepcopy(default_processing) or empty_processing()),
+            space.processing = {**(copy.deepcopy(default_processing or empty_processing())),
                                 "cells": {"channel": cells["channel"],
                                           "detector": {**cellpose_detector(), **dict(zip(keys, combination, strict=True))}}}
             preview(f"cellpose-sam {dict(zip(keys, combination, strict=True))}", "cell")
@@ -1141,6 +1163,8 @@ def main(argv: list[str] | None = None) -> None:
         state["snapshot"] = report
         state_path.write_text(json.dumps(state, indent=1))
         write_manifest(args, manifest, state)
+    if "manifest" in stages:
+        write_manifest(args, manifest, state)
     if "qa" in stages:
         written = overlays(work / "grid-data" if (work / "grid-data").exists() else seed_data, work / "qa",
                            state["scenario"]["fields"])
@@ -1153,7 +1177,7 @@ def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path
     (out / "snapshot").mkdir(parents=True, exist_ok=True)
     # Python-only nucleolar definitions run in the browser and need no recording; they are
     # listed without adjustable fields (docs/showcase.md: unlisted fields stay fixed).
-    options = {**{engine: {} for engine in ("cytellect-nucleolar-v2", "cytellect-ncl-objects")},
+    options = {**manifest["scenario"].get("python_options", {"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}),
                **state.get("grid", {}).get("options", {})}
     (out / "snapshot" / "recorded-options.json").write_text(json.dumps(options, sort_keys=True, indent=1) + "\n")
     proposals: dict = {}
@@ -1171,6 +1195,7 @@ def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path
     showcase = {"version": 1, "workspace_id": scenario_state["workspace_id"], "owner": scenario_state["owner"],
                 "dataset": manifest["id"], "retention_seconds": RETENTION_SECONDS}
     state["seed"] = export_seed(seed_data, recordings, proposals, showcase, out / "seed.zip")
+    (args.work / "state.json").write_text(json.dumps(state, indent=1))
     write_manifest(args, manifest, state)
 
 
@@ -1183,9 +1208,16 @@ def write_manifest(args, manifest: dict, state: dict) -> None:
     record = {
         "schema": "cytellect-showcase-manifest/1",
         "dataset": {key: manifest.get("dataset", {}).get(key) for key in (
-            "name", "source", "license", "license_url", "attribution", "citation", "scope")},
+            "name", "source", "doi", "license", "license_quoted", "license_url", "attribution", "citation", "scope",
+            "modifications", "caveats")},
         "derivation_rule": manifest.get("derivation_rule"),
-        "sources": {key: {name: value.get(name) for name in ("url", "sha256", "bytes", "member", "member_sha256")}
+        "selection": {key: value for key, value in manifest.get("selection", {}).items()
+                      if key not in ("cells", "checksums")},
+        "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
+            "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
+            "statistics_amendment", "grid_notes")},
+        "seed": state.get("seed"),
+        "sources": {key: {name: value.get(name) for name in ("url", "md5", "sha256", "bytes", "member", "member_sha256")}
                     for key, value in manifest["sources"].items()},
         "fields": [{"id": item["id"], "metadata": item["metadata"], "derivation": item["derivation"]}
                    for item in state.get("prepared", [])],
@@ -1212,10 +1244,12 @@ def register_public_files(out: Path, manifest: dict) -> None:
     registry = REPO / "fixtures" / "public" / "allowlist.json"
     allowed = json.loads(registry.read_text(encoding="utf-8"))
     prefix = out.resolve().relative_to(REPO).as_posix() + "/"
-    allowed = {key: value for key, value in allowed.items() if not key.startswith(prefix)}
+    # runtime/ belongs to scripts/build_showcase_runtime.py, which registers its own files.
+    allowed = {key: value for key, value in allowed.items()
+               if not key.startswith(prefix) or key.startswith(prefix + "runtime/")}
     dataset = manifest["dataset"]
     for path in sorted(out.rglob("*")):
-        if path.is_file() and path.suffix.lower() in SENSITIVE:
+        if path.is_file() and path.suffix.lower() in SENSITIVE and path.relative_to(out).parts[0] != "runtime":
             allowed[prefix + path.relative_to(out).as_posix()] = {
                 "sha256": sha256_file(path), "source": dataset["source"], "license": dataset["license"],
                 "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"}
