@@ -29,6 +29,36 @@ RUN pip install --no-cache-dir uv==0.12.2
 COPY engines/cellpose/provisioning.lock.json engines/cellpose/requirements.lock /app/engines/cellpose/
 COPY scripts/cellpose_setup.py /app/scripts/cellpose_setup.py
 RUN python /app/scripts/cellpose_setup.py /opt/cellpose-runtime --model-cache /opt/cellpose-models --runtime-only
+
+# Explicit lab targets are built only by build-lab-release.ps1 from an audited tree.
+# Keep the baseline layer even when an experimental candidate is requested.
+FROM cellpose-build AS lab-cellpose-build
+ARG CYTELLECT_LAB_MODEL
+RUN test -n "$CYTELLECT_LAB_MODEL" && if [ "$CYTELLECT_LAB_MODEL" != none ]; then python /app/scripts/cellpose_setup.py /opt/cellpose-runtime --model-cache /opt/cellpose-models --runtime-only --model-only --model "$CYTELLECT_LAB_MODEL"; fi
+
+FROM api AS lab-api
+ARG CYTELLECT_SOURCE_COMMIT
+ARG CYTELLECT_BASELINE_SHA256
+ARG CYTELLECT_CANDIDATE_SHA256
+RUN /opt/venv/bin/python -c "from pathlib import Path; from cytellect_api.config import Settings; s=Settings(Path('/data'), workspace_retention_mode='manual'); assert s.workspace_retention_mode == 'manual'"
+LABEL org.opencontainers.image.revision=$CYTELLECT_SOURCE_COMMIT io.cytellect.lab-contract=manual-v1 io.cytellect.baseline-sha256=$CYTELLECT_BASELINE_SHA256 io.cytellect.candidate-sha256=$CYTELLECT_CANDIDATE_SHA256
+
+FROM base AS lab-worker
+COPY --from=fiji-build /opt/fiji /opt/fiji
+COPY --from=lab-cellpose-build /opt/cellpose-runtime /opt/cellpose-runtime
+COPY --from=lab-cellpose-build /opt/cellpose-models /opt/cellpose-models
+COPY engines/fiji /app/engines/fiji
+COPY engines/cellpose /app/engines/cellpose
+ENV CYTELLECT_FIJI_EXECUTABLE=/opt/fiji CYTELLECT_ENGINE_ASSETS=/app/engines/fiji
+ENV CYTELLECT_CELLPOSE_PYTHON=/opt/cellpose-runtime/bin/python CYTELLECT_CELLPOSE_MODEL_DIR=/opt/cellpose-models CYTELLECT_CELLPOSE_ASSETS=/app/engines/cellpose
+ARG CYTELLECT_SOURCE_COMMIT
+ARG CYTELLECT_BASELINE_SHA256
+ARG CYTELLECT_CANDIDATE_SHA256
+RUN /opt/venv/bin/python -c "from pathlib import Path; from cytellect_api.config import Settings; from cytellect_analysis.cellpose_engine import runtime_status; s=Settings(Path('/data'), workspace_retention_mode='manual'); assert s.workspace_retention_mode == 'manual'; status=runtime_status(); assert status.get('available'), 'lab_runtime_unavailable'"
+LABEL org.opencontainers.image.revision=$CYTELLECT_SOURCE_COMMIT io.cytellect.lab-contract=manual-v1 io.cytellect.baseline-sha256=$CYTELLECT_BASELINE_SHA256 io.cytellect.candidate-sha256=$CYTELLECT_CANDIDATE_SHA256
+CMD ["cytellect-worker"]
+
+# Preserve the original default (last) target and its existing behavior.
 FROM base AS worker
 COPY --from=fiji-build /opt/fiji /opt/fiji
 COPY --from=cellpose-build /opt/cellpose-runtime /opt/cellpose-runtime

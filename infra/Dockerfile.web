@@ -1,4 +1,4 @@
-FROM node:24.18.0-bookworm-slim AS builder
+FROM node:24.18.0-bookworm-slim AS web-source
 WORKDIR /app
 RUN npm install --global pnpm@11.19.0
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
@@ -7,6 +7,21 @@ RUN pnpm install --frozen-lockfile
 COPY apps/web apps/web
 COPY packages/contracts packages/contracts
 COPY fixtures/planning fixtures/planning
+
+# Separate compilation: never relabel the developer-origin build as a lab build.
+FROM web-source AS lab-web
+ENV NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8001 NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER=true NEXT_TELEMETRY_DISABLED=1
+RUN pnpm build
+ARG CYTELLECT_SOURCE_COMMIT
+ARG CYTELLECT_BASELINE_SHA256
+ARG CYTELLECT_CANDIDATE_SHA256
+LABEL org.opencontainers.image.revision=$CYTELLECT_SOURCE_COMMIT io.cytellect.lab-contract=manual-v1 io.cytellect.baseline-sha256=$CYTELLECT_BASELINE_SHA256 io.cytellect.candidate-sha256=$CYTELLECT_CANDIDATE_SHA256 io.cytellect.api-origin=http://127.0.0.1:8001 io.cytellect.desktop-owner=true
+USER node
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@cytellect/web", "start"]
+
+# Preserve the original named and default developer target.
+FROM web-source AS builder
 ARG NEXT_PUBLIC_API_ORIGIN=http://localhost:8000
 ARG NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER=false
 ENV NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER=$NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER
