@@ -193,3 +193,35 @@ def test_worker_replays_recorded_measurement_and_reports_missing_code(tmp_path, 
     missing = finish_analysis(app, settings)
     assert missing["field_tables"] == {}
     assert missing["field_failures"] == [{"field_id": fid, "reason": NOT_RECORDED}]
+
+
+def test_seed_duplicates_are_omitted_and_restored_byte_for_byte(tmp_path):
+    from cytellect_showcase import seed
+
+    root = tmp_path / "build"
+    folder = root / "workspaces" / "w" / "fields" / "f"
+    folder.mkdir(parents=True)
+    (folder / "ch0.tif").write_bytes(tiff_bytes(image()))
+    np.save(folder / "channel-ch1.npy", image(), allow_pickle=False)
+    engine = root / "results" / "r" / "f" / "engine"
+    engine.mkdir(parents=True)
+    (engine / "cellpose-input.npy").write_bytes((folder / "channel-ch1.npy").read_bytes())
+    (engine / "other.json").write_text("{}")
+    files = {path.relative_to(root).as_posix(): path for path in root.rglob("*") if path.is_file()}
+    entries = seed.plan(files, {"workspaces/w/fields/f/channel-ch1.npy": "workspaces/w/fields/f/ch0.tif"})
+    assert [entry["path"] for entry in entries] == ["workspaces/w/fields/f/channel-ch1.npy",
+                                                     "results/r/f/engine/cellpose-input.npy"]
+    unpacked = tmp_path / "unpacked"
+    omitted = {entry["path"] for entry in entries}
+    for name, path in files.items():
+        if name not in omitted:
+            (unpacked / name).parent.mkdir(parents=True, exist_ok=True)
+            (unpacked / name).write_bytes(path.read_bytes())
+    (unpacked / "showcase.json").write_text(json.dumps({"regenerate": entries}))
+    assert seed.restore(unpacked) == 2
+    for name, path in files.items():
+        assert (unpacked / name).read_bytes() == path.read_bytes()
+    entries[0]["sha256"] = "0" * 64
+    (unpacked / "showcase.json").write_text(json.dumps({"regenerate": entries}))
+    with pytest.raises(ValueError, match="showcase_seed_restore_mismatch"):
+        seed.restore(unpacked)

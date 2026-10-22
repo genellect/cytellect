@@ -248,11 +248,13 @@ class Recorder:
                           (json.dumps(self.index, sort_keys=True, indent=1) + "\n").encode("utf-8"))
 
 
-def install_recorder(out_dir: Path) -> Recorder:
+def install_recorder(out_dir: Path, *, reuse: bool = False) -> Recorder:
     """Wrap the worker's detector functions; every real call is recorded.
 
     Existing recordings in ``out_dir`` are kept and extended. Python-only
-    nucleolar definitions are executed but not recorded.
+    nucleolar definitions are executed but not recorded. With ``reuse`` a call
+    whose key is already recorded returns that real recorded output (as replay
+    does) instead of running the detector again; used to resume a build.
     """
     import time
 
@@ -263,6 +265,10 @@ def install_recorder(out_dir: Path) -> Recorder:
     def wrap(name: str, real: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args, **kwargs):
             call = _describe(name, args, kwargs)
+            entry = recorder.index["entries"].get(call.key)
+            if reuse and entry is not None and entry.get("fn") == name:
+                recorder.calls.append({"key": call.key, "fn": name, "reused": True})
+                return _replay_entry(root, entry, call, name)
             started = time.perf_counter()
             result = real(*args, **kwargs)
             if not _python_only(call):
@@ -287,6 +293,21 @@ def _safe_relative(root: Path, relative: str) -> Path:
     return target
 
 
+def _replay_entry(root: Path, entry: dict, call: _Call, name: str):
+    call.output_dir.mkdir(parents=True, exist_ok=True)
+    for item in entry["files"]:
+        source = _safe_relative(root, item["file"])
+        target = _safe_relative(call.output_dir, item["path"])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    arrays = {output: np.load(_safe_relative(root, relative), allow_pickle=False)
+              for output, relative in entry["outputs"].items()}
+    info = copy.deepcopy(entry["engine_info"])
+    if name == "detect_compartments":
+        return arrays, info
+    return arrays["labels"], info
+
+
 def install_replay(recordings_dir: Path) -> dict:
     """Serve recorded detector outputs; unrecorded requests fail visibly.
 
@@ -306,18 +327,7 @@ def install_replay(recordings_dir: Path) -> dict:
                 if _python_only(call):
                     return real(*args, **kwargs)
                 raise DetectionNotRecorded()
-            call.output_dir.mkdir(parents=True, exist_ok=True)
-            for item in entry["files"]:
-                source = _safe_relative(root, item["file"])
-                target = _safe_relative(call.output_dir, item["path"])
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, target)
-            arrays = {output: np.load(_safe_relative(root, relative), allow_pickle=False)
-                      for output, relative in entry["outputs"].items()}
-            info = copy.deepcopy(entry["engine_info"])
-            if name == "detect_compartments":
-                return arrays, info
-            return arrays["labels"], info
+            return _replay_entry(root, entry, call, name)
 
         wrapper.__name__ = name
         return wrapper
