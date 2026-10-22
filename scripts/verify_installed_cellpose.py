@@ -21,6 +21,9 @@ def main() -> int:
     parser.add_argument("--image", type=Path, required=True, help="registered public 2D TIFF")
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args()
+    # Resolve caller-relative paths before switching to the app directory.
+    args.root, args.app, args.image, args.receipt = (
+        path.resolve() for path in (args.root, args.app, args.image, args.receipt))
     receipt: dict = {"schema": "cytellect-installed-cellpose-check/1", "status": "failed"}
     try:
         settings = json.loads((args.root / "settings" / "cellpose.json").read_text(encoding="utf-8-sig"))

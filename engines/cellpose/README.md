@@ -72,9 +72,9 @@ extensions with established reputation, loaded. Cellpose calls
 SciPy `binary_fill_holes` replacement before importing Cellpose on every
 platform and refuses 3D input. Equivalence evidence: every 4x4 binary mask
 (65,536) and random/smoothed 2D masks matched the native extension exactly, and
-pinned `cpsam_v2` inference on three 512 px crops of the public 4DN NCL plane
-(4DNFI7FAWT6C, 27 objects) produced byte-identical label arrays with native and
-replacement hole filling. 3D masks are not equivalent and are not used. The locked
+pinned `cpsam_v2` inference on six 512 px crops of the public 4DN image
+(4DNFI7FAWT6C; three NCL and three DAPI crops, 56 objects) produced byte-identical
+label arrays with native and replacement hole filling. 3D masks are not equivalent and are not used. The locked
 wheel stays installed but is never imported.
 
 Input is one explicitly selected native unsigned 8/16-bit plane, with two zero
