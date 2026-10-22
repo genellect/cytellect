@@ -1,87 +1,7 @@
 {
  "version": 1,
  "entries": {
-  "GET /v1/jobs/1841a34c-1f2a-4d6a-b99d-db2fa421cb72/files/figure-001.svg": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "image/svg+xml"
-    ]
-   ],
-   "file": "6cfa43d07e6326016f7f3ab0.svg"
-  },
-  "GET /v1/jobs/1841a34c-1f2a-4d6a-b99d-db2fa421cb72/result": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "application/json"
-    ]
-   ],
-   "file": "4c82a9fa939cbe58444f9317.json"
-  },
-  "GET /v1/jobs/32b9d9ac-733e-43f3-ad64-4936c789478c/files/figure.svg": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "image/svg+xml"
-    ]
-   ],
-   "file": "d48abba437e19ccbc6f40818.svg"
-  },
-  "GET /v1/jobs/32b9d9ac-733e-43f3-ad64-4936c789478c/result": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "application/json"
-    ]
-   ],
-   "file": "d7dc880b846137a2d1ecc12a.json"
-  },
-  "GET /v1/jobs/7f14534f-bcbd-40ea-a324-21ed1beec903/files/figure.svg": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "image/svg+xml"
-    ]
-   ],
-   "file": "a07a4b774442bb18c7ba2e23.svg"
-  },
-  "GET /v1/jobs/7f14534f-bcbd-40ea-a324-21ed1beec903/result": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "application/json"
-    ]
-   ],
-   "file": "2f18d63370fbcebee60f3dd4.json"
-  },
-  "GET /v1/jobs/805b2f4a-a14e-4f79-a158-e68b35aa4ef5/files/figure.svg": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "image/svg+xml"
-    ]
-   ],
-   "file": "5db7db2d7905c2dc59d15595.svg"
-  },
-  "GET /v1/jobs/805b2f4a-a14e-4f79-a158-e68b35aa4ef5/result": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "application/json"
-    ]
-   ],
-   "file": "582ddbbbf63020d3a95f04de.json"
-  },
-  "GET /v1/jobs/8d8318e6-3ca6-4f1a-acff-8aee00daf66c/files/figure.svg": {
+  "GET /v1/jobs/156b17f1-26e1-4abc-aaed-f2ea839bcf8a/files/figure.svg": {
    "status": 200,
    "headers": [
     [
@@ -91,7 +11,7 @@
    ],
    "file": "e5fa0e44814fff5f2313b8e3.svg"
   },
-  "GET /v1/jobs/8d8318e6-3ca6-4f1a-acff-8aee00daf66c/result": {
+  "GET /v1/jobs/156b17f1-26e1-4abc-aaed-f2ea839bcf8a/result": {
    "status": 200,
    "headers": [
     [
@@ -99,29 +19,9 @@
      "application/json"
     ]
    ],
-   "file": "b62c54ff6b7a567ef5fe7d6b.json"
+   "file": "ea62ee96d7ae71b850bd5282.json"
   },
-  "GET /v1/jobs/a38ee84d-71ad-4109-8041-cb68dc9b679d/files/figure.svg": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "image/svg+xml"
-    ]
-   ],
-   "file": "3c99703365aabd7e7c82d272.svg"
-  },
-  "GET /v1/jobs/a38ee84d-71ad-4109-8041-cb68dc9b679d/result": {
-   "status": 200,
-   "headers": [
-    [
-     "content-type",
-     "application/json"
-    ]
-   ],
-   "file": "71618f474a6e16dbd54f410f.json"
-  },
-  "GET /v1/jobs/f2aa194e-4af3-4979-9719-2eefec1c6474/files/figure.svg": {
+  "GET /v1/jobs/4d0d0077-a14c-4c23-9bec-5fa23db9fb3d/files/figure.svg": {
    "status": 200,
    "headers": [
     [
@@ -131,7 +31,7 @@
    ],
    "file": "df6ccb9fedb6923cd75481a2.svg"
   },
-  "GET /v1/jobs/f2aa194e-4af3-4979-9719-2eefec1c6474/result": {
+  "GET /v1/jobs/4d0d0077-a14c-4c23-9bec-5fa23db9fb3d/result": {
    "status": 200,
    "headers": [
     [
@@ -139,121 +39,109 @@
      "application/json"
     ]
    ],
-   "file": "e28bac184cee6119ce865f56.json"
+   "file": "ac7fb6772c2d96dc1fcd76ce.json"
   },
-  "GET /v1/region-fields/081620c8-e1b6-411f-83bd-a1d4fb92da90/preview?channel_id=hoechst&gain=1": {
+  "GET /v1/jobs/6aa8e11e-ff4b-4fa8-b6ba-f9a3d7ff4e44/files/figure.svg": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"081620c8-e1b6-411f-83bd-a1d4fb92da90\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":102.0,\"source_max\":65535.0,\"percentile_low_value\":102.0,\"percentile_high_value\":65535.0,\"normalization_span\":65433.0,\"display_black_value\":102.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+     "image/svg+xml"
     ]
    ],
-   "file": "9a3321f1ad234e9fd30e82da.png"
+   "file": "d48abba437e19ccbc6f40818.svg"
   },
-  "GET /v1/region-fields/081620c8-e1b6-411f-83bd-a1d4fb92da90/preview?channel_id=npm1&gain=1": {
+  "GET /v1/jobs/6aa8e11e-ff4b-4fa8-b6ba-f9a3d7ff4e44/result": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"081620c8-e1b6-411f-83bd-a1d4fb92da90\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":151.0,\"source_max\":10501.0,\"percentile_low_value\":151.0,\"percentile_high_value\":10501.0,\"normalization_span\":10350.0,\"display_black_value\":151.0,\"display_white_value\":10501.0,\"constant_plane\":false}]}"
+     "application/json"
     ]
    ],
-   "file": "87295717dd4408ab6f9ff8b1.png"
+   "file": "1b8537d29d89a31e68d3b8fe.json"
   },
-  "GET /v1/region-fields/3ea70d38-cb66-4e8d-83db-f01d86a8dae4/preview?channel_id=hoechst&gain=1": {
+  "GET /v1/jobs/961f95f4-030f-4214-b1b8-3e0a3f8393af/files/figure.svg": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"3ea70d38-cb66-4e8d-83db-f01d86a8dae4\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":107.0,\"source_max\":65535.0,\"percentile_low_value\":107.0,\"percentile_high_value\":65535.0,\"normalization_span\":65428.0,\"display_black_value\":107.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+     "image/svg+xml"
     ]
    ],
-   "file": "7c4415110d419ee4286174e5.png"
+   "file": "a07a4b774442bb18c7ba2e23.svg"
   },
-  "GET /v1/region-fields/3ea70d38-cb66-4e8d-83db-f01d86a8dae4/preview?channel_id=npm1&gain=1": {
+  "GET /v1/jobs/961f95f4-030f-4214-b1b8-3e0a3f8393af/result": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"3ea70d38-cb66-4e8d-83db-f01d86a8dae4\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":143.0,\"source_max\":23889.0,\"percentile_low_value\":143.0,\"percentile_high_value\":23889.0,\"normalization_span\":23746.0,\"display_black_value\":143.0,\"display_white_value\":23889.0,\"constant_plane\":false}]}"
+     "application/json"
     ]
    ],
-   "file": "0eeba370e1a42078c1610a79.png"
+   "file": "6e967d53131bede3d58cec66.json"
   },
-  "GET /v1/region-fields/6d91a0d6-077f-4dfa-8f50-719878400416/preview?channel_id=hoechst&gain=1": {
+  "GET /v1/jobs/aa897ace-5f40-47f8-a1dd-bb032d909823/files/figure-001.svg": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"6d91a0d6-077f-4dfa-8f50-719878400416\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":111.0,\"source_max\":65535.0,\"percentile_low_value\":111.0,\"percentile_high_value\":65535.0,\"normalization_span\":65424.0,\"display_black_value\":111.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+     "image/svg+xml"
     ]
    ],
-   "file": "151d398f78c9fab183f9a610.png"
+   "file": "d5967258dccd11f19f693b53.svg"
   },
-  "GET /v1/region-fields/6d91a0d6-077f-4dfa-8f50-719878400416/preview?channel_id=npm1&gain=1": {
+  "GET /v1/jobs/aa897ace-5f40-47f8-a1dd-bb032d909823/result": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"6d91a0d6-077f-4dfa-8f50-719878400416\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":157.0,\"source_max\":36978.0,\"percentile_low_value\":157.0,\"percentile_high_value\":36978.0,\"normalization_span\":36821.0,\"display_black_value\":157.0,\"display_white_value\":36978.0,\"constant_plane\":false}]}"
+     "application/json"
     ]
    ],
-   "file": "0f4134ddc895248f4fb525b6.png"
+   "file": "a9b494b7851ed9b07fedf114.json"
   },
-  "GET /v1/region-fields/e278bb13-caa4-4d6f-9a1f-d534728e4e5d/preview?channel_id=hoechst&gain=1": {
+  "GET /v1/jobs/d6024a19-9f1c-493f-b1ec-2977355b53b5/files/figure.svg": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"e278bb13-caa4-4d6f-9a1f-d534728e4e5d\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":91.0,\"source_max\":65535.0,\"percentile_low_value\":91.0,\"percentile_high_value\":65535.0,\"normalization_span\":65444.0,\"display_black_value\":91.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+     "image/svg+xml"
     ]
    ],
-   "file": "14f9881a18b4fc3860267f5d.png"
+   "file": "5db7db2d7905c2dc59d15595.svg"
   },
-  "GET /v1/region-fields/e278bb13-caa4-4d6f-9a1f-d534728e4e5d/preview?channel_id=npm1&gain=1": {
+  "GET /v1/jobs/d6024a19-9f1c-493f-b1ec-2977355b53b5/result": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "image/png"
-    ],
-    [
-     "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"e278bb13-caa4-4d6f-9a1f-d534728e4e5d\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":139.0,\"source_max\":15677.0,\"percentile_low_value\":139.0,\"percentile_high_value\":15677.0,\"normalization_span\":15538.0,\"display_black_value\":139.0,\"display_white_value\":15677.0,\"constant_plane\":false}]}"
+     "application/json"
     ]
    ],
-   "file": "9aa25bbd509d1b18d2a2c465.png"
+   "file": "114aac6bd291cf789c257776.json"
   },
-  "GET /v1/region-fields/f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4/preview?channel_id=hoechst&gain=1": {
+  "GET /v1/jobs/e528f306-af74-485d-bcb6-cf2f3c2f0f09/files/figure.svg": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/svg+xml"
+    ]
+   ],
+   "file": "3c99703365aabd7e7c82d272.svg"
+  },
+  "GET /v1/jobs/e528f306-af74-485d-bcb6-cf2f3c2f0f09/result": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "05be50ba39e0bc9b77083020.json"
+  },
+  "GET /v1/region-fields/21ef8d13-139a-4c80-88c4-af10f3757b77/preview?channel_id=hoechst&gain=1": {
    "status": 200,
    "headers": [
     [
@@ -262,12 +150,12 @@
     ],
     [
      "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":89.0,\"source_max\":65535.0,\"percentile_low_value\":89.0,\"percentile_high_value\":65535.0,\"normalization_span\":65446.0,\"display_black_value\":89.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+     "{\"version\":\"1.0.0\",\"field_id\":\"21ef8d13-139a-4c80-88c4-af10f3757b77\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":89.0,\"source_max\":65535.0,\"percentile_low_value\":89.0,\"percentile_high_value\":65535.0,\"normalization_span\":65446.0,\"display_black_value\":89.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
     ]
    ],
    "file": "60a12c6bfc2a977b8851e2f2.png"
   },
-  "GET /v1/region-fields/f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4/preview?channel_id=npm1&gain=1": {
+  "GET /v1/region-fields/21ef8d13-139a-4c80-88c4-af10f3757b77/preview?channel_id=npm1&gain=1": {
    "status": 200,
    "headers": [
     [
@@ -276,12 +164,12 @@
     ],
     [
      "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":131.0,\"source_max\":8338.0,\"percentile_low_value\":131.0,\"percentile_high_value\":8338.0,\"normalization_span\":8207.0,\"display_black_value\":131.0,\"display_white_value\":8338.0,\"constant_plane\":false}]}"
+     "{\"version\":\"1.0.0\",\"field_id\":\"21ef8d13-139a-4c80-88c4-af10f3757b77\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":131.0,\"source_max\":8338.0,\"percentile_low_value\":131.0,\"percentile_high_value\":8338.0,\"normalization_span\":8207.0,\"display_black_value\":131.0,\"display_white_value\":8338.0,\"constant_plane\":false}]}"
     ]
    ],
    "file": "bb31b60577f4fa4887722dd0.png"
   },
-  "GET /v1/region-fields/ffc953f6-ae80-413d-90f2-5c75cb5e63a0/preview?channel_id=hoechst&gain=1": {
+  "GET /v1/region-fields/ab8403c9-beb2-4666-86b2-2a174cfc137b/preview?channel_id=hoechst&gain=1": {
    "status": 200,
    "headers": [
     [
@@ -290,12 +178,68 @@
     ],
     [
      "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"ffc953f6-ae80-413d-90f2-5c75cb5e63a0\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":110.0,\"source_max\":65535.0,\"percentile_low_value\":110.0,\"percentile_high_value\":65535.0,\"normalization_span\":65425.0,\"display_black_value\":110.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+     "{\"version\":\"1.0.0\",\"field_id\":\"ab8403c9-beb2-4666-86b2-2a174cfc137b\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":107.0,\"source_max\":65535.0,\"percentile_low_value\":107.0,\"percentile_high_value\":65535.0,\"normalization_span\":65428.0,\"display_black_value\":107.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "7c4415110d419ee4286174e5.png"
+  },
+  "GET /v1/region-fields/ab8403c9-beb2-4666-86b2-2a174cfc137b/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"ab8403c9-beb2-4666-86b2-2a174cfc137b\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":143.0,\"source_max\":23889.0,\"percentile_low_value\":143.0,\"percentile_high_value\":23889.0,\"normalization_span\":23746.0,\"display_black_value\":143.0,\"display_white_value\":23889.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "0eeba370e1a42078c1610a79.png"
+  },
+  "GET /v1/region-fields/af49cf01-3f97-4db5-aa0a-b83adc9ece4a/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"af49cf01-3f97-4db5-aa0a-b83adc9ece4a\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":102.0,\"source_max\":65535.0,\"percentile_low_value\":102.0,\"percentile_high_value\":65535.0,\"normalization_span\":65433.0,\"display_black_value\":102.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "9a3321f1ad234e9fd30e82da.png"
+  },
+  "GET /v1/region-fields/af49cf01-3f97-4db5-aa0a-b83adc9ece4a/preview?channel_id=npm1&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"af49cf01-3f97-4db5-aa0a-b83adc9ece4a\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":151.0,\"source_max\":10501.0,\"percentile_low_value\":151.0,\"percentile_high_value\":10501.0,\"normalization_span\":10350.0,\"display_black_value\":151.0,\"display_white_value\":10501.0,\"constant_plane\":false}]}"
+    ]
+   ],
+   "file": "87295717dd4408ab6f9ff8b1.png"
+  },
+  "GET /v1/region-fields/bb651eb5-2024-43af-861b-673ae309d7e9/preview?channel_id=hoechst&gain=1": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"bb651eb5-2024-43af-861b-673ae309d7e9\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":110.0,\"source_max\":65535.0,\"percentile_low_value\":110.0,\"percentile_high_value\":65535.0,\"normalization_span\":65425.0,\"display_black_value\":110.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
     ]
    ],
    "file": "7bf822249c125428f51fc9d6.png"
   },
-  "GET /v1/region-fields/ffc953f6-ae80-413d-90f2-5c75cb5e63a0/preview?channel_id=npm1&gain=1": {
+  "GET /v1/region-fields/bb651eb5-2024-43af-861b-673ae309d7e9/preview?channel_id=npm1&gain=1": {
    "status": 200,
    "headers": [
     [
@@ -304,52 +248,68 @@
     ],
     [
      "x-cytellect-preview-display",
-     "{\"version\":\"1.0.0\",\"field_id\":\"ffc953f6-ae80-413d-90f2-5c75cb5e63a0\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":168.0,\"source_max\":4238.0,\"percentile_low_value\":168.0,\"percentile_high_value\":4238.0,\"normalization_span\":4070.0,\"display_black_value\":168.0,\"display_white_value\":4238.0,\"constant_plane\":false}]}"
+     "{\"version\":\"1.0.0\",\"field_id\":\"bb651eb5-2024-43af-861b-673ae309d7e9\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":168.0,\"source_max\":4238.0,\"percentile_low_value\":168.0,\"percentile_high_value\":4238.0,\"normalization_span\":4070.0,\"display_black_value\":168.0,\"display_white_value\":4238.0,\"constant_plane\":false}]}"
     ]
    ],
    "file": "5b3c97f6d05ad7b445e0eb44.png"
   },
-  "GET /v1/revisions/11ead483-e491-46f3-bf00-7f2df7ca1a11/region-masks?field_id=3ea70d38-cb66-4e8d-83db-f01d86a8dae4": {
+  "GET /v1/region-fields/ee6019e1-be47-4ca4-baec-b1c0af7b94db/preview?channel_id=hoechst&gain=1": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "application/json"
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"ee6019e1-be47-4ca4-baec-b1c0af7b94db\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":111.0,\"source_max\":65535.0,\"percentile_low_value\":111.0,\"percentile_high_value\":65535.0,\"normalization_span\":65424.0,\"display_black_value\":111.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
     ]
    ],
-   "file": "8750ef448977960a77f219ed.json"
+   "file": "151d398f78c9fab183f9a610.png"
   },
-  "GET /v1/revisions/11ead483-e491-46f3-bf00-7f2df7ca1a11/region-measurements": {
+  "GET /v1/region-fields/ee6019e1-be47-4ca4-baec-b1c0af7b94db/preview?channel_id=npm1&gain=1": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "application/json"
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"ee6019e1-be47-4ca4-baec-b1c0af7b94db\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":157.0,\"source_max\":36978.0,\"percentile_low_value\":157.0,\"percentile_high_value\":36978.0,\"normalization_span\":36821.0,\"display_black_value\":157.0,\"display_white_value\":36978.0,\"constant_plane\":false}]}"
     ]
    ],
-   "file": "2fcfcfed95228e2eb91e0c9d.json"
+   "file": "0f4134ddc895248f4fb525b6.png"
   },
-  "GET /v1/revisions/1583bd60-0b29-4261-86e2-903224c800c8/region-masks?field_id=f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4": {
+  "GET /v1/region-fields/f6804bb6-7eea-48d0-899a-31cc0e768a1f/preview?channel_id=hoechst&gain=1": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "application/json"
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"f6804bb6-7eea-48d0-899a-31cc0e768a1f\",\"requested_channel\":\"hoechst\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"hoechst\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":91.0,\"source_max\":65535.0,\"percentile_low_value\":91.0,\"percentile_high_value\":65535.0,\"normalization_span\":65444.0,\"display_black_value\":91.0,\"display_white_value\":65535.0,\"constant_plane\":false}]}"
     ]
    ],
-   "file": "0c7bb02ba9311b059d6baaa2.json"
+   "file": "14f9881a18b4fc3860267f5d.png"
   },
-  "GET /v1/revisions/1583bd60-0b29-4261-86e2-903224c800c8/region-measurements": {
+  "GET /v1/region-fields/f6804bb6-7eea-48d0-899a-31cc0e768a1f/preview?channel_id=npm1&gain=1": {
    "status": 200,
    "headers": [
     [
      "content-type",
-     "application/json"
+     "image/png"
+    ],
+    [
+     "x-cytellect-preview-display",
+     "{\"version\":\"1.0.0\",\"field_id\":\"f6804bb6-7eea-48d0-899a-31cc0e768a1f\",\"requested_channel\":\"npm1\",\"composite\":false,\"scope\":\"whole-plane\",\"mode\":\"per-plane-percentile\",\"low_percentile\":0.0,\"high_percentile\":100.0,\"gain\":1.0,\"planes\":[{\"channel_id\":\"npm1\",\"dtype\":\"uint16\",\"value_basis\":\"native-grayscale\",\"source_min\":139.0,\"source_max\":15677.0,\"percentile_low_value\":139.0,\"percentile_high_value\":15677.0,\"normalization_span\":15538.0,\"display_black_value\":139.0,\"display_white_value\":15677.0,\"constant_plane\":false}]}"
     ]
    ],
-   "file": "7d3942b363de568226007f43.json"
+   "file": "9aa25bbd509d1b18d2a2c465.png"
   },
-  "GET /v1/revisions/23a06e5f-9428-4c8c-85de-014bcd527da7/region-masks?field_id=ffc953f6-ae80-413d-90f2-5c75cb5e63a0": {
+  "GET /v1/revisions/0d7e8273-ca4f-4e61-9c61-9fae0f014709/region-masks?field_id=ab8403c9-beb2-4666-86b2-2a174cfc137b": {
    "status": 200,
    "headers": [
     [
@@ -357,9 +317,9 @@
      "application/json"
     ]
    ],
-   "file": "fc36d43ac05217ba28deeae9.json"
+   "file": "c2193aa6042e3bd783a46f0d.json"
   },
-  "GET /v1/revisions/23a06e5f-9428-4c8c-85de-014bcd527da7/region-measurements": {
+  "GET /v1/revisions/0d7e8273-ca4f-4e61-9c61-9fae0f014709/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -367,9 +327,9 @@
      "application/json"
     ]
    ],
-   "file": "cbb13f59e83858b41044e4c4.json"
+   "file": "a953a2ffab7e69a80259f3ef.json"
   },
-  "GET /v1/revisions/3267cef1-97a9-46a0-9308-6241eb00af24/region-masks?field_id=f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4": {
+  "GET /v1/revisions/10e509e1-25b6-4abf-b56f-588c51a54223/region-masks?field_id=f6804bb6-7eea-48d0-899a-31cc0e768a1f": {
    "status": 200,
    "headers": [
     [
@@ -377,9 +337,9 @@
      "application/json"
     ]
    ],
-   "file": "00934c388938600ab61f9bfa.json"
+   "file": "d75e0b419ccb877cd9777fcc.json"
   },
-  "GET /v1/revisions/3267cef1-97a9-46a0-9308-6241eb00af24/region-measurements": {
+  "GET /v1/revisions/10e509e1-25b6-4abf-b56f-588c51a54223/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -387,9 +347,9 @@
      "application/json"
     ]
    ],
-   "file": "45bb3585923fec7ed67b201e.json"
+   "file": "51ef3bac5d679dfa5cb5d696.json"
   },
-  "GET /v1/revisions/5ec59b22-8af3-40da-b9b5-3d8a0510b622/region-masks?field_id=081620c8-e1b6-411f-83bd-a1d4fb92da90": {
+  "GET /v1/revisions/132a5b36-199c-4015-9b08-00942efbf485/region-masks?field_id=ee6019e1-be47-4ca4-baec-b1c0af7b94db": {
    "status": 200,
    "headers": [
     [
@@ -397,9 +357,9 @@
      "application/json"
     ]
    ],
-   "file": "dc0ff66e0146a36995e0d4ab.json"
+   "file": "d8db6e8fa38ecf0e585ac2d5.json"
   },
-  "GET /v1/revisions/5ec59b22-8af3-40da-b9b5-3d8a0510b622/region-measurements": {
+  "GET /v1/revisions/132a5b36-199c-4015-9b08-00942efbf485/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -407,9 +367,9 @@
      "application/json"
     ]
    ],
-   "file": "ff753415bcefd60e267141d2.json"
+   "file": "7ba7b9ef20037f6511de3491.json"
   },
-  "GET /v1/revisions/6f28aaf2-ac7e-4111-916d-3c9e349fb51d/region-masks?field_id=f21ac3e2-c436-4b9c-b7b8-501b70dcb1b4": {
+  "GET /v1/revisions/165f347d-9231-42a6-8543-4d0fee78ee24/region-masks?field_id=af49cf01-3f97-4db5-aa0a-b83adc9ece4a": {
    "status": 200,
    "headers": [
     [
@@ -417,9 +377,9 @@
      "application/json"
     ]
    ],
-   "file": "a80516ce1bbc10501bfe4db4.json"
+   "file": "c3e6f1fdc6c57f1add605b26.json"
   },
-  "GET /v1/revisions/6f28aaf2-ac7e-4111-916d-3c9e349fb51d/region-measurements": {
+  "GET /v1/revisions/165f347d-9231-42a6-8543-4d0fee78ee24/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -427,9 +387,9 @@
      "application/json"
     ]
    ],
-   "file": "101fe1c153f6bbde7389e700.json"
+   "file": "2528a05b6a5cc858833ea752.json"
   },
-  "GET /v1/revisions/77994e7a-fb9f-4415-9354-ef4587e2f918/region-masks?field_id=ffc953f6-ae80-413d-90f2-5c75cb5e63a0": {
+  "GET /v1/revisions/374685d2-c56f-4148-9dfc-275f0490060f/region-masks?field_id=af49cf01-3f97-4db5-aa0a-b83adc9ece4a": {
    "status": 200,
    "headers": [
     [
@@ -437,9 +397,9 @@
      "application/json"
     ]
    ],
-   "file": "6378c7f0e93065729aaf6a92.json"
+   "file": "97ef9a076b486abb8728ded4.json"
   },
-  "GET /v1/revisions/77994e7a-fb9f-4415-9354-ef4587e2f918/region-measurements": {
+  "GET /v1/revisions/374685d2-c56f-4148-9dfc-275f0490060f/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -447,9 +407,9 @@
      "application/json"
     ]
    ],
-   "file": "15ebf6f4b1b83a2d17c15927.json"
+   "file": "0a6790268aeae0275f9bdbbb.json"
   },
-  "GET /v1/revisions/83423120-68a0-44dc-b7b7-1a4398ae7bcc/region-masks?field_id=081620c8-e1b6-411f-83bd-a1d4fb92da90": {
+  "GET /v1/revisions/5cfd3fa7-fb0e-442f-bf7b-9d7b70177dff/region-masks?field_id=bb651eb5-2024-43af-861b-673ae309d7e9": {
    "status": 200,
    "headers": [
     [
@@ -457,9 +417,9 @@
      "application/json"
     ]
    ],
-   "file": "bcb910eab16e278283421473.json"
+   "file": "9ca70cfddb44b7bdf04a621d.json"
   },
-  "GET /v1/revisions/83423120-68a0-44dc-b7b7-1a4398ae7bcc/region-measurements": {
+  "GET /v1/revisions/5cfd3fa7-fb0e-442f-bf7b-9d7b70177dff/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -467,9 +427,9 @@
      "application/json"
     ]
    ],
-   "file": "d063ee2b4d6e65e54dd25bf0.json"
+   "file": "7bb45526df8e80b784d61a4e.json"
   },
-  "GET /v1/revisions/a4733ca2-b65d-4898-bbfd-8c6c3faf7810/region-masks?field_id=3ea70d38-cb66-4e8d-83db-f01d86a8dae4": {
+  "GET /v1/revisions/61d79005-e842-4529-ac37-45c98348b564/region-masks?field_id=ab8403c9-beb2-4666-86b2-2a174cfc137b": {
    "status": 200,
    "headers": [
     [
@@ -477,9 +437,9 @@
      "application/json"
     ]
    ],
-   "file": "84a4c8516f09673f2d8588a7.json"
+   "file": "5b7429f113914279e1f8762b.json"
   },
-  "GET /v1/revisions/a4733ca2-b65d-4898-bbfd-8c6c3faf7810/region-measurements": {
+  "GET /v1/revisions/61d79005-e842-4529-ac37-45c98348b564/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -487,9 +447,9 @@
      "application/json"
     ]
    ],
-   "file": "8a4d541c26d1f399b68e03d6.json"
+   "file": "1dedd6460b03dc72dcef563f.json"
   },
-  "GET /v1/revisions/b7f8c36b-ad17-414c-b797-eccde2ff74e0/region-masks?field_id=ffc953f6-ae80-413d-90f2-5c75cb5e63a0": {
+  "GET /v1/revisions/6ded7773-d43a-4f8b-8662-d93dfa636912/region-masks?field_id=bb651eb5-2024-43af-861b-673ae309d7e9": {
    "status": 200,
    "headers": [
     [
@@ -497,9 +457,9 @@
      "application/json"
     ]
    ],
-   "file": "c843bdf35513c53aab7e555d.json"
+   "file": "c55acc3e8deda8e5ca1eb078.json"
   },
-  "GET /v1/revisions/b7f8c36b-ad17-414c-b797-eccde2ff74e0/region-measurements": {
+  "GET /v1/revisions/6ded7773-d43a-4f8b-8662-d93dfa636912/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -507,9 +467,9 @@
      "application/json"
     ]
    ],
-   "file": "f1e9a1fba6146c3eec7e98aa.json"
+   "file": "653ebde6197ad3c25c80ca0f.json"
   },
-  "GET /v1/revisions/c2e1dd5a-f954-4259-937e-bcdbd2d8cfd6/region-masks?field_id=6d91a0d6-077f-4dfa-8f50-719878400416": {
+  "GET /v1/revisions/83239b14-cc9c-4cf8-99b3-921e49ff3203/region-masks?field_id=21ef8d13-139a-4c80-88c4-af10f3757b77": {
    "status": 200,
    "headers": [
     [
@@ -517,9 +477,9 @@
      "application/json"
     ]
    ],
-   "file": "61e3b628628fe018bbe0a227.json"
+   "file": "640e5833710495c09f32be8f.json"
   },
-  "GET /v1/revisions/c2e1dd5a-f954-4259-937e-bcdbd2d8cfd6/region-measurements": {
+  "GET /v1/revisions/83239b14-cc9c-4cf8-99b3-921e49ff3203/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -527,9 +487,9 @@
      "application/json"
     ]
    ],
-   "file": "b875b28a1bbb87dd528be9c5.json"
+   "file": "32a2a5085d06868115488324.json"
   },
-  "GET /v1/revisions/d38089df-cb4f-4c0a-bd96-8064cca16b1c/region-masks?field_id=e278bb13-caa4-4d6f-9a1f-d534728e4e5d": {
+  "GET /v1/revisions/83b3ba5a-b66b-4d55-9c0f-08fac3b939ef/region-masks?field_id=21ef8d13-139a-4c80-88c4-af10f3757b77": {
    "status": 200,
    "headers": [
     [
@@ -537,9 +497,9 @@
      "application/json"
     ]
    ],
-   "file": "25f2ed72fd582b11d0348a79.json"
+   "file": "33b964fbb608d736394703de.json"
   },
-  "GET /v1/revisions/d38089df-cb4f-4c0a-bd96-8064cca16b1c/region-measurements": {
+  "GET /v1/revisions/83b3ba5a-b66b-4d55-9c0f-08fac3b939ef/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -547,9 +507,9 @@
      "application/json"
     ]
    ],
-   "file": "8b3215362fba5b0d0af865b6.json"
+   "file": "ba1324637c90ceb6402e4469.json"
   },
-  "GET /v1/revisions/d6be36cc-d9e9-4ac8-b0a0-339f353b4e2d/region-masks?field_id=081620c8-e1b6-411f-83bd-a1d4fb92da90": {
+  "GET /v1/revisions/9452654c-c98e-467c-956a-644bf9f6d6ce/region-masks?field_id=af49cf01-3f97-4db5-aa0a-b83adc9ece4a": {
    "status": 200,
    "headers": [
     [
@@ -557,9 +517,9 @@
      "application/json"
     ]
    ],
-   "file": "d4d26ef3a2ae314c3149ed35.json"
+   "file": "5cb1214d9d25bc7c867d6525.json"
   },
-  "GET /v1/revisions/d6be36cc-d9e9-4ac8-b0a0-339f353b4e2d/region-measurements": {
+  "GET /v1/revisions/9452654c-c98e-467c-956a-644bf9f6d6ce/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -567,9 +527,9 @@
      "application/json"
     ]
    ],
-   "file": "eaa9b0bc88750e21b0f74bba.json"
+   "file": "056d211314325d4767b99a30.json"
   },
-  "GET /v1/revisions/daca27d3-32dd-42a3-8b99-0bdb23f1565c/region-masks?field_id=6d91a0d6-077f-4dfa-8f50-719878400416": {
+  "GET /v1/revisions/b00485ca-0cf1-4ad9-9ead-556faeed8868/region-masks?field_id=ab8403c9-beb2-4666-86b2-2a174cfc137b": {
    "status": 200,
    "headers": [
     [
@@ -577,9 +537,9 @@
      "application/json"
     ]
    ],
-   "file": "63bd1a644cd3ae1bad31b92f.json"
+   "file": "f8131f19264c6e83c4a4293c.json"
   },
-  "GET /v1/revisions/daca27d3-32dd-42a3-8b99-0bdb23f1565c/region-measurements": {
+  "GET /v1/revisions/b00485ca-0cf1-4ad9-9ead-556faeed8868/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -587,9 +547,9 @@
      "application/json"
     ]
    ],
-   "file": "4519f9b60b2dfaef9a08fc5a.json"
+   "file": "6541be48fec98839bab57654.json"
   },
-  "GET /v1/revisions/db39ddf0-d44d-47fc-869e-193a409fe732/region-masks?field_id=6d91a0d6-077f-4dfa-8f50-719878400416": {
+  "GET /v1/revisions/b42197c3-13d0-4183-8b1b-d4d0e2fe0d4f/region-masks?field_id=ee6019e1-be47-4ca4-baec-b1c0af7b94db": {
    "status": 200,
    "headers": [
     [
@@ -597,9 +557,9 @@
      "application/json"
     ]
    ],
-   "file": "26a3fb365d1210cffb5cb633.json"
+   "file": "19094a32109c17af4406e2ec.json"
   },
-  "GET /v1/revisions/db39ddf0-d44d-47fc-869e-193a409fe732/region-measurements": {
+  "GET /v1/revisions/b42197c3-13d0-4183-8b1b-d4d0e2fe0d4f/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -607,9 +567,9 @@
      "application/json"
     ]
    ],
-   "file": "da0d583bb61056bf3d1400b4.json"
+   "file": "511eb5d117aabaa5f72e06c2.json"
   },
-  "GET /v1/revisions/e145e00f-b277-4900-b450-e70fb1e65942/region-masks?field_id=e278bb13-caa4-4d6f-9a1f-d534728e4e5d": {
+  "GET /v1/revisions/b89d16fb-c00f-4a26-8649-5acb33a8c6a8/region-masks?field_id=21ef8d13-139a-4c80-88c4-af10f3757b77": {
    "status": 200,
    "headers": [
     [
@@ -617,9 +577,9 @@
      "application/json"
     ]
    ],
-   "file": "134ad43627a257325fe07f1e.json"
+   "file": "566b20f23f03ab2d5b833ebd.json"
   },
-  "GET /v1/revisions/e145e00f-b277-4900-b450-e70fb1e65942/region-measurements": {
+  "GET /v1/revisions/b89d16fb-c00f-4a26-8649-5acb33a8c6a8/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -627,9 +587,9 @@
      "application/json"
     ]
    ],
-   "file": "2eb02a363720e072ed77fea7.json"
+   "file": "ca1a96e64840841d22bb82a2.json"
   },
-  "GET /v1/revisions/e68c122c-51bd-4e3a-963b-a535ea01cc63/region-masks?field_id=e278bb13-caa4-4d6f-9a1f-d534728e4e5d": {
+  "GET /v1/revisions/baedfa89-df65-44c5-b18d-207f806c1fc0/region-masks?field_id=f6804bb6-7eea-48d0-899a-31cc0e768a1f": {
    "status": 200,
    "headers": [
     [
@@ -637,9 +597,9 @@
      "application/json"
     ]
    ],
-   "file": "082483bb820c22a8b8700f97.json"
+   "file": "fd8b70314317a97b68fdbfec.json"
   },
-  "GET /v1/revisions/e68c122c-51bd-4e3a-963b-a535ea01cc63/region-measurements": {
+  "GET /v1/revisions/baedfa89-df65-44c5-b18d-207f806c1fc0/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -647,9 +607,9 @@
      "application/json"
     ]
    ],
-   "file": "e2549b55d8992bfabf3becf9.json"
+   "file": "7e85392ee2ad71fd8ceea962.json"
   },
-  "GET /v1/revisions/fec17ae1-f8b5-450c-b6b1-e409fb5170b7/region-masks?field_id=3ea70d38-cb66-4e8d-83db-f01d86a8dae4": {
+  "GET /v1/revisions/e04137af-10c4-41aa-8377-b87415c1ccc0/region-masks?field_id=bb651eb5-2024-43af-861b-673ae309d7e9": {
    "status": 200,
    "headers": [
     [
@@ -657,9 +617,9 @@
      "application/json"
     ]
    ],
-   "file": "01c514d66c6357c77768aa2f.json"
+   "file": "8aa393213ba019bc233aaa3f.json"
   },
-  "GET /v1/revisions/fec17ae1-f8b5-450c-b6b1-e409fb5170b7/region-measurements": {
+  "GET /v1/revisions/e04137af-10c4-41aa-8377-b87415c1ccc0/region-measurements": {
    "status": 200,
    "headers": [
     [
@@ -667,7 +627,47 @@
      "application/json"
     ]
    ],
-   "file": "db25e5322e3c25969dcdbec9.json"
+   "file": "6bf71ab8c4986a0528f52124.json"
+  },
+  "GET /v1/revisions/e6611c89-82cf-4c76-9251-5c2702ee246f/region-masks?field_id=f6804bb6-7eea-48d0-899a-31cc0e768a1f": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "de1d799318e1616708295a99.json"
+  },
+  "GET /v1/revisions/e6611c89-82cf-4c76-9251-5c2702ee246f/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "2ac6fe66bf38396fb5b45ea5.json"
+  },
+  "GET /v1/revisions/f66407d9-dc2a-4107-9a12-a5c268dcc53c/region-masks?field_id=ee6019e1-be47-4ca4-baec-b1c0af7b94db": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "5aeac2f80acf67703e491fcf.json"
+  },
+  "GET /v1/revisions/f66407d9-dc2a-4107-9a12-a5c268dcc53c/region-measurements": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "ebd5dec8d20099fd8d1911a9.json"
   },
   "GET /v1/session": {
    "status": 200,
@@ -687,9 +687,9 @@
      "application/json"
     ]
    ],
-   "file": "a86f5834cf40d536ffc9942f.json"
+   "file": "c0d529558332f095cf656742.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d": {
    "status": 200,
    "headers": [
     [
@@ -697,9 +697,9 @@
      "application/json"
     ]
    ],
-   "file": "02ebc538e3609c5f52c63247.json"
+   "file": "6a9205093c36b053bf922955.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/analysis-spec": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/analysis-spec": {
    "status": 200,
    "headers": [
     [
@@ -707,9 +707,9 @@
      "application/json"
     ]
    ],
-   "file": "f2c6723335c5b091707ae047.json"
+   "file": "93e12d7265d5722cc3bda707.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/channel-assignments": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/channel-assignments": {
    "status": 200,
    "headers": [
     [
@@ -717,9 +717,9 @@
      "application/json"
     ]
    ],
-   "file": "8e26b3560cc2bd3c610481f8.json"
+   "file": "f27a923d4782d62d9332c529.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/field-links": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/field-links": {
    "status": 200,
    "headers": [
     [
@@ -729,7 +729,7 @@
    ],
    "file": "4c5164702e5bac2a3c80ee35.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/jobs": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/jobs": {
    "status": 200,
    "headers": [
     [
@@ -737,9 +737,9 @@
      "application/json"
     ]
    ],
-   "file": "079ac227b8d7af9e26f4ce56.json"
+   "file": "ab8cb184a81583e29b495ee4.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/region-fields": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/region-fields": {
    "status": 200,
    "headers": [
     [
@@ -747,9 +747,9 @@
      "application/json"
     ]
    ],
-   "file": "21a4c209377b4df81e6be86a.json"
+   "file": "3ec6a32d5f33b201937b6e4f.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/revisions": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/revisions": {
    "status": 200,
    "headers": [
     [
@@ -757,9 +757,9 @@
      "application/json"
     ]
    ],
-   "file": "ebe4a50b25fcde1c3c5da4e1.json"
+   "file": "e100fd5d6b5ab817e0fb18f8.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/runs": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/runs": {
    "status": 200,
    "headers": [
     [
@@ -767,9 +767,9 @@
      "application/json"
     ]
    ],
-   "file": "79a58cccf2f6b9eb384d672c.json"
+   "file": "7560eb59240f833ce050e7b1.json"
   },
-  "GET /v1/workspaces/e6d79709-9361-48bd-9379-3387612625cc/selection": {
+  "GET /v1/workspaces/1a7bb04c-9b4a-40d7-aa84-1ce12b36673d/selection": {
    "status": 200,
    "headers": [
     [
@@ -777,7 +777,7 @@
      "application/json"
     ]
    ],
-   "file": "0d30bea8fdd3d743539ad857.json"
+   "file": "fa1a1a63af2fc5bd7aed52e9.json"
   }
  }
 }

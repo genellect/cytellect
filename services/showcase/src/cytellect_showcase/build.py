@@ -714,7 +714,10 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     timed("nucleoli", lambda: space.run("nucleoli"))
     timed("nucleoplasm", lambda: space.run("nucleoplasm"))
     saved = {}
-    for name in ("distribution", "association", "comparison"):
+    # The comparison and its layouts first; the last calculation (the per-field distribution) is
+    # what the statistics view restores on opening, as after a researcher's own session.
+    renders = []
+    for name in ("comparison", "association", "distribution"):
         analysis = plan["statistics"].get(name)
         if not analysis:
             continue
@@ -722,10 +725,9 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             name, analysis["target"], analysis["metric"], analysis.get("channel"), plan["unit_definition"],
             analysis.get("x_metric", "area_px"), analysis.get("x_channel"), analysis.get("design") == "paired",
             plan.get("pairing_basis", "")))
-    renders = []
-    if "comparison" in saved:
-        for kind in plan.get("comparison_layouts", ["box", "violin", "histogram"]):
-            renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
+        if name == "comparison":
+            for kind in plan.get("comparison_layouts", ["box", "violin", "histogram"]):
+                renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
     # Leave the saved settings on the nucleus view (the runtime's saveSettings("nuclei")),
     # where outlines can be edited; nucleoplasm masks are derived and not editable.
     space.persist(plan.get("final_target", "nuclei"))
