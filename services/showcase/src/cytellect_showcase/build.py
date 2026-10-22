@@ -391,21 +391,26 @@ def execute_job(store, settings, job) -> None:
         conn.execute(update(jobs).where(jobs.c.id == job["id"], jobs.c.lease == job["lease"]).values(lease_until=0))
 
 
-def drain(api: Api) -> int:
+def drain_store(store, settings) -> int:
+    """Advance workspace runs and execute queued jobs in this process until idle."""
     from cytellect_api.workspace_runs import advance_workspace_runs
 
-    store, count = api.app.state.store, 0
+    count = 0
     while True:
-        progressed = advance_workspace_runs(store, api.settings)
+        progressed = advance_workspace_runs(store, settings)
         job = store.claim()
         if job is None:
             if not progressed:
                 return count
             continue
         started = time.perf_counter()
-        execute_job(store, api.settings, job)
+        execute_job(store, settings, job)
         count += 1
         log(f"job {job['kind']} {time.perf_counter() - started:.1f}s")
+
+
+def drain(api: Api) -> int:
+    return drain_store(api.app.state.store, api.settings)
 
 
 def wait_job(api: Api, wid: str, job_id: str) -> dict:
@@ -954,18 +959,25 @@ def git_commit() -> str:
 # 5. Snapshot
 # ---------------------------------------------------------------------------
 
-def serve(data_dir: Path, origin: str, fiji: str, port: int):
-    """Real API under uvicorn plus the in-process worker (records only GETs later)."""
+def serve(data_dir: Path, origin: str, fiji: str, port: int, *, worker: bool = False, **overrides):
+    """Real API under uvicorn; with ``worker`` also the in-process job loop."""
     import uvicorn
     from cytellect_api.app import create_app
     from cytellect_api.config import Settings
 
     settings = Settings(data_dir, app_origin=origin, secure_cookies=False, fiji_executable=fiji,
-                        retention_seconds=RETENTION_SECONDS)
+                        retention_seconds=RETENTION_SECONDS, **overrides)
     app = create_app(settings)
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="off"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
+    if worker:
+        def loop():
+            while not server.should_exit:
+                drain_store(app.state.store, settings)
+                time.sleep(0.3)
+
+        threading.Thread(target=loop, daemon=True).start()
     for _ in range(200):
         if server.started:
             break
@@ -1044,6 +1056,109 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
     return report
 
 
+def _owner_session(app, workspace_id: str) -> str:
+    """A session for the seeded workspace's owner, as the showcase runtime creates one."""
+    import secrets
+
+    from cytellect_api.db import digest, sessions, workspaces
+
+    token = secrets.token_urlsafe(32)
+    owner = app.state.store.one(workspaces, id=workspace_id)["owner"]
+    with app.state.store.transaction() as conn:
+        conn.execute(sessions.insert().values(digest=digest(token), owner=owner, expires=time.time() + 3600,
+                                              revoked=False))
+    return token
+
+
+PROPOSAL_URL = "https://proposals.showcase.invalid"
+
+
+def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: int, api_port: int, fiji: str,
+                     workspace_id: str) -> dict:
+    """Record demo-authored drafts for preset instructions through the production route.
+
+    The proposal service is never contacted: ``request_draft`` returns the authored draft for
+    the preset goal, the route validates it with ``validate_draft`` and the UI applies it and
+    starts its preview run. Keys are the exact ``context_sha256`` of each context the real
+    UI produced: every preset sent first in the seeded state, then every other preset after it
+    (``previous_proposal`` and the applied settings are part of the context).
+    """
+    import cytellect_api.proposals as route
+    from cytellect_analysis.proposal_validation import context_sha256, validate_draft
+
+    plan = manifest["scenario"]["proposals"]
+    drafts = {item["instruction"]: item["draft"] for item in plan["presets"]}
+    entries: dict[str, dict] = {}
+    original = route.request_draft
+
+    def authored(settings, context, request_id=None):
+        draft = drafts.get(context.goal)
+        if draft is None:
+            raise route.ProposalServiceError(409, "showcase_proposal_not_recorded")
+        validate_draft(context, draft, model=plan["model"], prompt_version=plan["prompt_version"])
+        payload = {"model": plan["model"], "prompt_version": plan["prompt_version"], "draft": copy.deepcopy(draft)}
+        entries[context_sha256(context)] = {**payload, "source": plan["source"], "goal": context.goal,
+                                            "previous_goal": context.previous_goal}
+        return copy.deepcopy(payload)
+
+    count = len(plan["presets"])
+    sequences = [[first, second] for first in range(count) for second in range(count) if first != second] or [[0]]
+    origin, api_origin = f"http://127.0.0.1:{origin_port}", f"http://127.0.0.1:{api_port}"
+    web = REPO / "apps" / "web"
+    preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
+    env = {**os.environ, "NEXT_PUBLIC_API_ORIGIN": api_origin, "CYTELLECT_NEXT_DIST_DIR": ".next-showcase",
+           "NEXT_TELEMETRY_DISABLED": "1"}
+    nextjs = subprocess.Popen(["pnpm", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", str(origin_port)],
+                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              start_new_session=True)
+    reports = []
+    route.request_draft = authored
+    try:
+        for _ in range(240):
+            try:
+                urllib.request.urlopen(f"{origin}/", timeout=5)
+                break
+            except OSError:
+                time.sleep(1)
+        for sequence in sequences:
+            data = work / "proposal-data"
+            if data.exists():
+                shutil.rmtree(data)
+            shutil.copytree(seed_data, data, ignore=shutil.ignore_patterns("tmp"))
+            app, settings, server, thread = serve(data, origin, fiji, api_port, worker=True,
+                                                  proposal_model=plan["model"],
+                                                  proposal_prompt_version=plan["prompt_version"],
+                                                  proposal_url=PROPOSAL_URL)
+            try:
+                config = {"origin": origin, "api": api_origin, "token": _owner_session(app, workspace_id),
+                          "cookie": settings.cookie_name, "web": str(web),
+                          "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium"),
+                          "instructions": [plan["presets"][index]["instruction"] for index in sequence]}
+                result = subprocess.run(["node", str(Path(__file__).with_name("proposals.mjs"))],
+                                        input=json.dumps(config), text=True, cwd=work, capture_output=True,
+                                        timeout=1800)
+                if result.returncode:
+                    sys.stderr.write(result.stderr[-3000:])
+                    raise SystemExit("proposal walk failed")
+                report = json.loads(result.stdout.strip().splitlines()[-1])
+                reports.append({"sequence": sequence, **report})
+                log("proposals", sequence, report)
+            finally:
+                server.should_exit = True
+                thread.join(10)
+                app.state.store.engine.dispose()
+    finally:
+        route.request_draft = original
+        os.killpg(nextjs.pid, 15)
+        nextjs.wait(30)
+        for name, content in preserved.items():
+            (web / name).write_bytes(content)
+        shutil.rmtree(web / ".next-showcase", ignore_errors=True)
+    recorded = {"version": 1, "entries": dict(sorted(entries.items()))}
+    (work / "proposals.json").write_text(json.dumps(recorded, ensure_ascii=False, indent=1) + "\n")
+    return {"entries": len(entries), "walks": reports}
+
+
 # ---------------------------------------------------------------------------
 # 6. Visual QA (outside the checkout)
 # ---------------------------------------------------------------------------
@@ -1095,7 +1210,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--cache", type=Path, required=True, help="download cache outside the checkout")
     parser.add_argument("--fiji", required=True, help="pinned Fiji installation (scripts/fiji_setup.py)")
     parser.add_argument("--out", type=Path, default=PUBLIC)
-    parser.add_argument("--stages", default="prepare,scenario,grid,publish,snapshot,qa")
+    parser.add_argument("--stages", default="prepare,scenario,grid,proposals,publish,snapshot,qa")
     parser.add_argument("--web-port", type=int, default=3217)
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
@@ -1157,6 +1272,13 @@ def main(argv: list[str] | None = None) -> None:
         state["grid"] = {**result, "recorded_calls": recorder.calls}
         state_path.write_text(json.dumps(state, indent=1))
         api.client.close()
+    if "proposals" in stages and manifest["scenario"].get("proposals"):
+        recorder = install_recorder(recordings, reuse=True)
+        result = record_proposals(manifest, seed_data, work, args.web_port, args.api_port, args.fiji,
+                                  state["scenario"]["workspace_id"])
+        uninstall()
+        state["proposals"] = {**result, "recorded_calls": recorder.calls}
+        state_path.write_text(json.dumps(state, indent=1))
     if "publish" in stages:
         publish(args, manifest, state, seed_data, recordings, started)
     if "snapshot" in stages:
@@ -1182,8 +1304,11 @@ def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path
     options = {**manifest["scenario"].get("python_options", {"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}),
                **state.get("grid", {}).get("options", {})}
     (out / "snapshot" / "recorded-options.json").write_text(json.dumps(options, sort_keys=True, indent=1) + "\n")
-    proposals: dict = {}
-    (out / "snapshot" / "proposal-examples.json").write_text("[]\n")
+    recorded = args.work / "proposals.json"
+    proposals: dict = json.loads(recorded.read_text()) if recorded.is_file() and "proposals" in state else {}
+    examples = ([{"label": item["label"], "instruction": item["instruction"]}
+                 for item in manifest["scenario"]["proposals"]["presets"]] if proposals else [])
+    (out / "snapshot" / "proposal-examples.json").write_text(json.dumps(examples, ensure_ascii=False, indent=1) + "\n")
     dataset = manifest.get("dataset", {})
     note = {"version": 1, "title": dataset.get("name"), "attribution": dataset.get("attribution"),
             "licence": dataset.get("license"), "licenceUrl": dataset.get("license_url"),
@@ -1219,6 +1344,10 @@ def write_manifest(args, manifest: dict, state: dict) -> None:
             "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
             "statistics_amendment", "grid_notes")},
         "seed": state.get("seed"),
+        "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
+                       "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],
+                       "recorded_contexts": state.get("proposals", {}).get("entries", 0)}
+                      if manifest.get("scenario", {}).get("proposals") else None),
         "sources": {key: {name: value.get(name) for name in ("url", "md5", "sha256", "bytes", "member", "member_sha256")}
                     for key, value in manifest["sources"].items()},
         "fields": [{"id": item["id"], "metadata": item["metadata"], "derivation": item["derivation"]}

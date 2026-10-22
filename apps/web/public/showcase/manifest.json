@@ -16,7 +16,8 @@
    "Each replicate contains both conditions; the demo pairs conditions by replicate (paired t-test over three pairs, one field per condition and replicate). With three pairs the test has very low power; p-values are illustrations of the workflow, not findings.",
    "Nucleoli are defined from NPM1 with the workspace's nucleolar-marker definition (default parameters). Under ActD, NPM1 partly relocates to the nucleoplasm, so marker-defined nucleoli reflect NPM1 distribution, not nucleolar structure alone.",
    "Hoechst saturates (value 65535) in a small fraction of pixels in some fields; counts are listed in manifest.json (selection.results[].saturated_pixels).",
-   "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images."
+   "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images.",
+   "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
   ]
  },
  "derivation_rule": "Pre-registered (coordinator, before any measurement): crop the centred 1536 x 1536 region of each 2304 x 2304 plane (no other processing, uint16 values unchanged). For each condition (Untreated, ActD1) x replicate (Rep1-Rep3), take fields in acquisition order and keep the first whose number of whole nuclei inside the crop, counted by StarDist on the Hoechst channel only with the default nuclear recipe (region-2d 1.7.0, nuclear-size/1.0.0, probability 0.5, NMS 0.3; nuclei touching the crop border excluded), is 10-20. Amendment recorded before any NPM1 measurement or statistics: the original rule kept the first 3 qualifying fields per cell; it was reduced to the first 1 qualifying field to keep the published bundle size near 40 MB (each 1536 x 1536 field costs about 7.5 MB losslessly). NPM1 is never read during selection.",
@@ -220,9 +221,21 @@
  },
  "seed": {
   "entries": 408,
-  "bytes": 39479783,
+  "bytes": 39481446,
   "regenerated_on_boot": 19,
   "regenerated_bytes": 114098976
+ },
+ "proposals": {
+  "model": "showcase-preset",
+  "prompt_version": "1",
+  "source": "showcase-authored",
+  "note": "Demo-authored analysis drafts for preset instructions; no language model was called. Each draft is returned through the production proposal route and validated by validate_draft.",
+  "presets": [
+   "核の面積の分布を視野ごとに確認したい",
+   "NPM1の核内平均輝度を未処理とActD処理で比較したい",
+   "核の面積とNPM1の平均輝度の関係を条件ごとに見たい"
+  ],
+  "recorded_contexts": 9
  },
  "sources": {
   "40x_1.4_Rep1_Untreated_20211201_01_05": {
@@ -600,7 +613,7 @@
    }
   }
  ],
- "generated_from_commit": "a6ffdfa8888d93e3205022210b212e0c7931f835",
+ "generated_from_commit": "860c1da005c3965012951d035a9c52f5d549e2bc",
  "runtime": {
   "fiji": {
    "distribution": {
@@ -878,8 +891,8 @@
    "bytes": 132079
   },
   "runtime/cytellect-0.1.0-py3-none-any.whl": {
-   "sha256": "a359e53bd4eb21bcfb1f238dc41728caceddffedbcf439504e2adf6c44866bad",
-   "bytes": 389424
+   "sha256": "a87fc005d940e1dc327218f3995add0760ad3442830f1939a8afa19094db5dba",
+   "bytes": 392422
   },
   "runtime/defusedxml-0.7.1-py2.py3-none-any.whl": {
    "sha256": "a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61",
@@ -922,8 +935,8 @@
    "bytes": 45571
   },
   "seed.zip": {
-   "sha256": "b1104edae494855bef754f130a2589c107161a66bb0d18d3e63673bc498ee583",
-   "bytes": 39479783
+   "sha256": "3352c2607069453c8dd9976f8f032393260fe73d4925c1f59e182ba6ec23b31a",
+   "bytes": 39481446
   },
   "snapshot/056d211314325d4767b99a30.json": {
    "sha256": "056d211314325d4767b99a30293c4dfed41c4a99566d2f32363f98dbde2dfb1d",
@@ -1178,8 +1191,8 @@
    "bytes": 86207
   },
   "snapshot/dataset.json": {
-   "sha256": "caf8737928c74222261e6bab326e124cfc446de0205c5db9c12638bec8c4f9ac",
-   "bytes": 3531
+   "sha256": "2ae20d3bd83d71519440f6493da562039dd9a2529de734a68441d428e2c5c20d",
+   "bytes": 3658
   },
   "snapshot/de1d799318e1616708295a99.json": {
    "sha256": "de1d799318e1616708295a99a1044687a69d3eadd735ec6d55da4e2c7a84de9d",
@@ -1226,8 +1239,8 @@
    "bytes": 24602
   },
   "snapshot/proposal-examples.json": {
-   "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
-   "bytes": 3
+   "sha256": "c9183b7b6f9e70dc4c0d5decbca8bb45590088aed47304c06293300340ee78ab",
+   "bytes": 419
   },
   "snapshot/recorded-options.json": {
    "sha256": "a560beb6956dbd0de27b4e56588234f25d6324ff2f7cd613a23e70de573e0500",

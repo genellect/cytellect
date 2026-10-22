@@ -153,7 +153,8 @@ def test_current_public_assets_fit_the_local_release_boundary(tmp_path):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / name, target)
     files = bundle.collect_files(tmp_path, names, web)
-    assert len(files) >= len(public)
+    # The public serverless showcase (seed, recorded responses, runtime) is excluded below.
+    assert len(files) >= len([name for name in public if not name.startswith("apps/web/public/showcase/")])
     assert "apps/web/out/marketing/figure-caption.md" in files
     # The public serverless showcase is not part of the local release.
     assert not any(name.startswith("apps/web/out/showcase/") for name in files)
