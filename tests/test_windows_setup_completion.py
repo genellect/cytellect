@@ -20,7 +20,7 @@ $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }
 foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Update-SetupStatus',
-    'ConvertTo-NativeArgument','Install-Cytellect')) {
+    'ConvertTo-NativeArgument','Remove-LegacyVersionShortcuts','Install-Cytellect')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
     Invoke-Expression $function.Extent.Text
@@ -206,6 +206,18 @@ function Assert-PythonRuntimeInventory([string]$Runtime,$Inventory) {
 '''
 
 
+CELLPOSE_DOUBLE = r'''
+# Controlled Cellpose provisioning; the real downloads and imports run in release CI.
+function Install-CellposeRuntime([string]$Root,[string]$App,[string]$AppPython,[string]$Uv,[hashtable]$Environment) {
+    if ($AppPython -cne (Get-SafeChild $App '.venv/Scripts/python.exe') -or
+        $Environment.PYTHONDONTWRITEBYTECODE -cne '1' -or $Environment.UV_PYTHON_DOWNLOADS -cne 'never') {
+        throw 'unexpected_cellpose_environment'
+    }
+    $script:Pipeline += 'cellpose-runtime'
+    return [ordered]@{ status = 'ready' }
+}
+'''
+
 @pytest.mark.parametrize(
     "fault,kind,phase,marker_after_failure,shortcut_saves",
     [
@@ -235,6 +247,7 @@ def test_late_setup_failure_never_keeps_launch_ready_and_retry_finishes(
         "engines/python/windows-install.json": json.dumps(inputs).encode(),
         "engines/python/windows-runtime.lock.json": json.dumps(runtime).encode(),
         "scripts/windows_runtime.ps1": RUNTIME_DOUBLE.encode(),
+        "scripts/cellpose_windows.ps1": CELLPOSE_DOUBLE.encode(),
     })
     # The child PID is included solely to avoid an existing user's shortcut path.
     manifest["version"] = "0.0.0-test"
@@ -266,8 +279,54 @@ $manifest.version='0.0.0-test.'+$PID
         "retry_python": "3.14.8", "retry_no_bytecode": True, "retry_input_hashes_match": True,
         "pipeline": ["signed-runtime-venv", "hashed-wheel-sync", "dependency-check", "gui-check",
                      "fiji-install", "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity",
+                     "cellpose-runtime",
                      "signed-runtime-venv", "hashed-wheel-sync", "dependency-check", "gui-check",
-                     "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity"],
+                     "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity",
+                     "cellpose-runtime"],
         "runtime_calls": 2, "signed_venv_checks": [True, False, False, False, True, False, False, False],
         "shortcut_saves": shortcut_saves,
     }
+
+
+LEGACY_SHORTCUT_HARNESS = r'''
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+$tokens=$null; $errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw 'parse_failed' }
+foreach ($name in @('Get-SafeChild','Remove-LegacyVersionShortcuts')) {
+    $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+    if ($null -eq $function) { throw 'test_function_absent' }
+    Invoke-Expression $function.Extent.Text
+}
+$root=$env:CYTELLECT_TEST_ROOT; $links=$env:CYTELLECT_TEST_LINKS
+$shell=New-Object -ComObject WScript.Shell
+function New-Link([string]$Name,[string]$Target,[string]$Description) {
+    $link=$shell.CreateShortcut((Join-Path $links $Name))
+    $link.TargetPath=$Target; $link.Description=$Description; $link.Save()
+}
+$owned='Cytellect local analysis and control window'
+New-Link 'Cytellect 0.1.0-local.11-c21f9057dd13.lnk' (Join-Path $root 'apps\0.1.0-local.11-c21f9057dd13\.venv\Scripts\pythonw.exe') $owned
+New-Link 'Cytellect 0.1.0-local.9-aaaaaaaaaaaa.lnk' (Join-Path $env:CYTELLECT_TEST_OTHER 'apps\old\.venv\Scripts\pythonw.exe') $owned
+New-Link 'Cytellect notes.lnk' (Join-Path $root 'apps\0.1.0-local.11-c21f9057dd13\.venv\Scripts\pythonw.exe') 'user shortcut'
+New-Link 'Cytellect.lnk' (Join-Path $root 'apps\current\.venv\Scripts\pythonw.exe') $owned
+$removed=Remove-LegacyVersionShortcuts $root @($links, (Join-Path $links 'missing'))
+[ordered]@{ removed=$removed; remaining=@(Get-ChildItem -LiteralPath $links -Filter '*.lnk' | ForEach-Object Name | Sort-Object) } | ConvertTo-Json -Compress
+'''
+
+
+def test_update_removes_only_this_installations_versioned_shortcuts(tmp_path):
+    links, root, other = tmp_path / "links", tmp_path / "Cytellect", tmp_path / "Other"
+    for directory in (links, root, other):
+        directory.mkdir()
+    shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    result = subprocess.run(
+        [str(shell), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", LEGACY_SHORTCUT_HARNESS],
+        env={**os.environ, "CYTELLECT_TEST_SETUP": str(ROOT / "scripts/local_setup.ps1"),
+             "CYTELLECT_TEST_ROOT": str(root), "CYTELLECT_TEST_LINKS": str(links), "CYTELLECT_TEST_OTHER": str(other)},
+        capture_output=True, text=True, encoding="utf-8", errors="strict", check=False, timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    # Another installation's link, a user-named link and the stable link remain.
+    assert json.loads(result.stdout) == {"removed": 1, "remaining": [
+        "Cytellect 0.1.0-local.9-aaaaaaaaaaaa.lnk", "Cytellect notes.lnk", "Cytellect.lnk"]}

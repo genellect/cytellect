@@ -27,6 +27,56 @@ def verify_assets(lock: dict):
                 raise RuntimeError("cellpose_adapter_integrity_failed")
 
 
+def install_fill_voids_compat():
+    """Register a SciPy 2D hole filler as `fill_voids` before Cellpose is imported.
+
+    Cellpose 4.2.1.1 calls fill_voids.fill only on 2D boolean crops here. Windows
+    application control rejects the low-prevalence fill_voids extension, while
+    SciPy's binary_fill_holes is identical for every 2D input and already loads.
+    The native extension is therefore never imported on any platform.
+    """
+    import types
+
+    import numpy as np
+    from scipy import ndimage as ndi
+
+    def fill(img, in_place=False, return_fill_count=False):
+        array = np.asarray(img)
+        if array.ndim != 2:
+            raise RuntimeError("cellpose_fill_voids_compat_2d_only")
+        filled = ndi.binary_fill_holes(array.astype(bool, copy=False))
+        count = int(np.count_nonzero(filled)) - int(np.count_nonzero(array))
+        if in_place:
+            array[...] = filled
+            result = array
+        else:
+            result = filled if array.dtype == bool else filled.astype(array.dtype)
+        return (result, count) if return_fill_count else result
+
+    module = types.ModuleType("fill_voids")
+    module.fill = fill
+    module.__cytellect_compat__ = "scipy.ndimage.binary_fill_holes/2d"
+    sys.modules["fill_voids"] = module
+
+
+def self_check() -> dict:
+    """Import the pinned runtime exactly as inference does, without a model or image."""
+    lock = json.loads(Path(__file__).with_name("runtime.lock.json").read_text(encoding="utf-8"))
+    verify_assets(lock)
+    if sys.version_info[:2] != (3, 12):
+        raise RuntimeError("cellpose_python_version_mismatch")
+    versions = {name: importlib.metadata.version(name) for name in lock["packages"]}
+    if versions != lock["packages"]:
+        raise RuntimeError("cellpose_runtime_version_mismatch")
+    install_fill_voids_compat()
+    import torch  # noqa: F401
+    from cellpose import models, utils  # noqa: F401
+
+    if getattr(utils.fill_voids, "__cytellect_compat__", None) is None:
+        raise RuntimeError("cellpose_fill_voids_compat_inactive")
+    return {"status": "succeeded", "runtime_packages": versions}
+
+
 def prepare_detection_input(image, parameters: dict):
     """Detection-copy transform; never receive or modify the adopted nuclei."""
     if parameters["engine"] == "cellpose-sam" and parameters["protocol_version"] == "4.0.0":
@@ -202,6 +252,7 @@ def run(request_path: Path) -> dict:
     socket.create_connection = offline_socket
     socket.socket.connect = offline_socket
     socket.socket.connect_ex = offline_socket
+    install_fill_voids_compat()
     import numpy as np
     import torch
     from cellpose import models, utils
@@ -263,6 +314,22 @@ def run(request_path: Path) -> dict:
 
 
 def main():
+    if sys.argv[1:2] == ["--self-check"] and len(sys.argv) <= 3:
+        # Installation check: fixed codes only, never third-party diagnostics.
+        try:
+            receipt = self_check()
+        except RuntimeError as error:
+            name = str(error)
+            receipt = {"status": "failed",
+                       "error": name if name.startswith("cellpose_") and len(name) < 80 else "cellpose_runtime_missing"}
+        except (importlib.metadata.PackageNotFoundError, ImportError) as error:
+            blocked = "4551" in str(error) or "Application Control" in str(error)
+            receipt = {"status": "failed",
+                       "error": "windows_application_control_blocked" if blocked else "cellpose_runtime_missing"}
+        if len(sys.argv) == 3:
+            Path(sys.argv[2]).write_text(json.dumps(receipt), encoding="utf-8")
+        print(json.dumps(receipt))
+        return 0 if receipt["status"] == "succeeded" else 1
     parser = argparse.ArgumentParser()
     parser.add_argument("request", type=Path)
     parser.add_argument("receipt", type=Path)

@@ -8,7 +8,7 @@ The accepted [0.1.0-local.17 release](https://github.com/genellect/cytellect/rel
 
 1. Download the versioned Windows setup ZIP from the Cytellect release, verify its published SHA-256 if required by the laboratory, and extract it.
 2. Open **Cytellect Setup.cmd**, review the destination and local data policy, and start setup. An unsigned early package may require Windows confirmation; do not disable operating-system security to bypass it.
-3. Setup verifies its source manifest and provisions pinned Python, packages and Fiji in the user's Cytellect directory. It does not modify the system Python, PATH or an existing Fiji installation. Internet access is needed for this step only.
+3. Setup verifies its source manifest and provisions pinned Python, packages, Fiji and Cellpose (an official signed Python 3.12, the hashed Cellpose lock and the pinned `cpsam_v2` model) in the user's Cytellect directory. It does not modify the system Python, PATH or an existing Fiji installation. Internet access is needed for this step only. The researcher-facing steps are in [install-windows.ja.md](install-windows.ja.md).
 4. Open **Cytellect** from its shortcut. The small launcher starts the API and independent worker, then opens the browser workspace. There is no terminal command or invitation to enter for routine local use.
 5. Import images, review masks, quantify, compare and export through the browser. Close the launcher to stop the local service and its worker. Closing only the browser tab does not stop the launcher.
 
@@ -70,6 +70,13 @@ unsigned Python virtual-environment launcher created by the pinned `uv`, not
 complete and no accepted installation was recorded. This is separate from
 installation on GitHub's Windows runner; successful CI cannot establish that a
 laboratory's application-control policy permits the package.
+
+The rejected file was Cellpose's `fill_voids` extension. Packages from source
+including the Cellpose integration no longer load it: the runner registers an
+exactly equivalent 2D SciPy hole filler instead (see the
+[Cellpose adapter](../engines/cellpose/README.md#native-fill_voids-is-not-loaded)).
+Acceptance on a PC with Smart App Control enabled is still required before
+this is claimed to pass application control.
 
 Do not disable application control, unblock or relocate executables to work
 around this result. Keep the failure state and ask the workstation administrator

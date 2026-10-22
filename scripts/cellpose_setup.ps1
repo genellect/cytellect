@@ -127,7 +127,8 @@ try {
             $runtime, '--model-cache', $models, '--python', $Python312, '--uv', $uv) | Out-Null
         $python = Get-CellposeChild $runtime 'Scripts/python.exe'
         if ((Get-AuthenticodeSignature -LiteralPath $python).Status -ne 'Valid') { throw 'cellpose_signed_python_required' }
-        Invoke-CellposeProcess $python @('-I', '-c', 'import fastremap,torch,torchvision;from cellpose import models') | Out-Null
+        # Import exactly as inference does; the native fill_voids extension is never loaded.
+        Invoke-CellposeProcess $python @('-I', '-B', (Get-CellposeChild $SourceRoot 'engines/cellpose/runner.py'), '--self-check') | Out-Null
         $settings = Get-CellposeChild $root 'settings'
         [IO.Directory]::CreateDirectory($settings) | Out-Null
         $configuration = [ordered]@{schema='cytellect-cellpose-local/1'; python=$python; model_dir=$models}

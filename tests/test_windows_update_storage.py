@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import test_windows_setup_completion as completion
 from test_windows_setup import release_fixture
-from test_windows_setup_completion import HARNESS, ROOT, RUNTIME_DOUBLE
+from test_windows_setup_completion import CELLPOSE_DOUBLE, HARNESS, ROOT, RUNTIME_DOUBLE
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows setup integration")
 
@@ -30,7 +30,8 @@ def test_three_application_versions_download_fiji_once_and_bound_storage(tmp_pat
     manifest = release_fixture(source, {wheel_path: wheel, requirements_path: requirements,
         "engines/python/windows-install.json": json.dumps(inputs).encode(),
         "engines/python/windows-runtime.lock.json": json.dumps(runtime).encode(),
-        "scripts/windows_runtime.ps1": RUNTIME_DOUBLE.encode()})
+        "scripts/windows_runtime.ps1": RUNTIME_DOUBLE.encode(),
+        "scripts/cellpose_windows.ps1": CELLPOSE_DOUBLE.encode()})
     (source / "local-release.json").write_text(json.dumps(manifest), encoding="utf-8")
     harness = HARNESS.split("$caught=$false; $failureKind='none'")[0]
     harness = harness.replace("$script:UvVersion='test'", "$script:UvVersion='0.12.2'")

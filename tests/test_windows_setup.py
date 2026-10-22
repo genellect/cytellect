@@ -14,6 +14,11 @@ RUNTIME_ASSETS = (
     "engines/python/windows-install.json", "engines/python/windows-requirements.txt",
     "engines/python/windows-tcltk-9.0.4-data.zip",
 )
+CELLPOSE_ASSETS = (
+    "scripts/cellpose_windows.ps1", "scripts/cellpose_setup.py", "engines/cellpose/runner.py",
+    "engines/cellpose/runtime.lock.json", "engines/cellpose/requirements.lock",
+    "engines/cellpose/windows-python.lock.json",
+)
 
 
 def release_fixture(directory, payloads=None):
@@ -22,7 +27,7 @@ def release_fixture(directory, payloads=None):
     contents = {name: b"public installer boundary test\n" for name in (
         "pyproject.toml", "uv.lock", "scripts/fiji_setup.py",
         "services/api/src/cytellect_api/local.py", "engines/fiji/runtime.lock.json", "apps/web/out/index.html",
-        *RUNTIME_ASSETS,
+        *RUNTIME_ASSETS, *CELLPOSE_ASSETS,
     )}
     contents.update(payloads or {})
     for name, content in contents.items():

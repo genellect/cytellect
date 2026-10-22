@@ -1,0 +1,34 @@
+{
+  "schema": "cytellect-cellpose-windows-python/1",
+  "platform": "windows-x64",
+  "python": {
+    "version": "3.12.10",
+    "url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.zip",
+    "sha256": "8649692de846c56a7189d6dae5c322ab20deb1b5908b6f39426b62a36f39415d",
+    "bytes": 32399361,
+    "expanded_bytes": 120770083,
+    "file_count": 3845,
+    "launchers": [
+      {
+        "path": "python.exe",
+        "sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a"
+      },
+      {
+        "path": "pythonw.exe",
+        "sha256": "d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681"
+      },
+      {
+        "path": "Lib/venv/scripts/nt/python.exe",
+        "sha256": "0b471133e110cfb53a061cad528ce8e517d7b9ac41a0a396c39ad795a487fc14"
+      },
+      {
+        "path": "Lib/venv/scripts/nt/pythonw.exe",
+        "sha256": "c946a75fdc676012b084f6dc056506bfca5098dad04c407419ce7605bd85108c"
+      }
+    ],
+    "license": {
+      "path": "LICENSE.txt",
+      "sha256": "e502c6b880ff58d614901495a9009c136539cd0b1e2a2abb8fc00b934c203419"
+    }
+  }
+}

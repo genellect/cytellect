@@ -46,7 +46,7 @@ jobs:
             const checks = await github.paginate(github.rest.checks.listForRef, {
               ...context.repo, ref: context.sha, filter: 'latest', per_page: 100
             });
-            for (const name of ['python', 'web', 'fiji-browser', 'local-windows', 'python-windows-314']) {
+            for (const name of ['python', 'web', 'fiji-browser', 'local-windows', 'windows-installed', 'python-windows-314']) {
               const check = checks.find(c => c.name === name && c.app?.slug === 'github-actions');
               if (check?.conclusion !== 'success') throw new Error(`${name} has not passed on this commit`);
             }
@@ -90,6 +90,13 @@ jobs:
           Expand-Archive -LiteralPath $env:CYTELLECT_RELEASE_ZIP -DestinationPath $source
           & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $install -Console -NoShortcut
           if ($LASTEXITCODE -ne 0) { throw 'Pinned installation or Fiji verification failed' }
+          $marker = @(Get-ChildItem -LiteralPath "$install\apps" -Filter setup-complete.json -Recurse)
+          if ($marker.Count -ne 1) { throw 'Expected one installed application' }
+          $state = Get-Content -LiteralPath $marker[0].FullName -Raw | ConvertFrom-Json
+          if ($state.cellpose.status -ne 'ready') { throw ('Cellpose was not provisioned: ' + $state.cellpose.failure) }
+          $python = Join-Path $state.app '.venv\Scripts\python.exe'
+          & $python -B scripts/verify_installed_cellpose.py --root $install --app $state.app --image fixtures/public/bbbc013/A01-dapi.tif --receipt (Join-Path $env:RUNNER_TEMP 'installed-cellpose.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Installed Cellpose inference failed' }
           "CYTELLECT_INSTALL_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Repeat setup in the existing private installation
         shell: pwsh

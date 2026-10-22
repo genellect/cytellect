@@ -39,38 +39,43 @@ manifest repeats the exact fixed package/model information without a runner hash
 the final runner checks its full runtime manifest, runner and dependency-lock
 hashes before loading the model. Ordinary Windows setup retains that runner check.
 
-## Windows optional installation
+## Windows installation
 
-The setup ZIP carries the adapter, model manifest, dependency lock, license and
-explicit Cellpose provisioning scripts. It does not carry model weights or add
-Torch to Cytellect's normal Python 3.14 environment. First complete the ordinary
-Cytellect installation, then use an already installed, signed official Python
-3.12 interpreter:
+`Cytellect Setup.cmd` provisions Cellpose after the ordinary Python/Fiji checks;
+researchers no longer install Python 3.12 or run a separate command. Setup
+obtains the official signed PSF `python-3.12.10-amd64.zip` pinned in
+[windows-python.lock.json](windows-python.lock.json) (URL, bytes, SHA-256,
+member count and launcher hashes/signatures) into
+`runtimes/cellpose-python-<version>-<hash>`. It then runs `scripts/cellpose_setup.py`
+to create a standard-library venv with the signed PSF launchers in
+`runtimes/cellpose-<requirements-hash>`, install the hashed lock and reuse weights
+in `models/cellpose-<model-hash>`. `runner.py --self-check` imports Torch and
+Cellpose exactly as an analysis job does before the atomic, nonsecret
+`settings/cellpose.json` (`cytellect-cellpose-local/1`) is written. The setup
+record (`setup-complete.json`) stores `cellpose.status`; release CI requires
+`ready` plus one real inference through the installed app.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "<extracted release>/scripts/cellpose_setup.ps1" -Python312 "<official Python 3.12>/python.exe"
-```
+A Cellpose failure does not invalidate the ordinary installation: nuclear,
+region and statistics analysis remain usable, the setup window shows the fixed
+code, and rerunning setup resumes from verified downloads. Windows
+application-control rejection remains a failure; no OS policy is weakened.
+`scripts/cellpose_setup.ps1 -Python312 <python.exe>` remains an advanced repair
+path for an existing installation.
 
-`-InstallRoot` selects the same Cytellect installation root when it differs from
-`%LOCALAPPDATA%/Cytellect`. This explicit operation downloads packages and the
-model. It creates a standard-library Python 3.12 venv in
-`runtimes/cellpose-<requirements-hash>` and reuses weights in
-`models/cellpose-<model-hash>`. A changed application version alone does not create
-another model copy. Successful import checks precede the atomic, nonsecret
-`settings/cellpose.json` configuration (`cytellect-cellpose-local/1`). Restart the
-app to load it; explicit runtime environment variables take precedence.
+### Native fill_voids is not loaded
 
-Version-specific adapter assets are not saved in that shared configuration.
-When the installed analysis wheel is outside the extracted app, the launcher’s
-app working directory supplies `engines/cellpose` only after its release-manifest
-hashes and the fixed runner/dependency-lock hashes pass verification.
-
-The helper checks the source-release hashes, the already installed fixed uv ZIP
-and binary, and signed Python launchers. Missing Python 3.12 is an unmet
-installation prerequisite with an official Windows download link, not an
-installed feature. Windows application-control rejection remains a failure;
-no OS policy is weakened. This optional Windows path requires separately
-recorded installed-bundle acceptance before a public Windows release.
+Cellpose 4.2.1.1 imports the `fill_voids` extension for hole filling. Windows
+Smart App Control rejected `fill_voids.cp312-win_amd64.pyd` (Code Integrity event
+3077), while the other runtime binaries, including unsigned NumPy/SciPy/Torch
+extensions with established reputation, loaded. Cellpose calls
+`fill_voids.fill` only on 2D boolean crops here, so the runner registers a
+SciPy `binary_fill_holes` replacement before importing Cellpose on every
+platform and refuses 3D input. Equivalence evidence: every 4x4 binary mask
+(65,536) and random/smoothed 2D masks matched the native extension exactly, and
+pinned `cpsam_v2` inference on three 512 px crops of the public 4DN NCL plane
+(4DNFI7FAWT6C, 27 objects) produced byte-identical label arrays with native and
+replacement hole filling. 3D masks are not equivalent and are not used. The locked
+wheel stays installed but is never imported.
 
 Input is one explicitly selected native unsigned 8/16-bit plane, with two zero
 channels. Percentile normalization changes only a detection copy. Diameter,

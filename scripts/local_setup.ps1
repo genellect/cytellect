@@ -82,7 +82,9 @@ function Get-VerifiedRelease {
         'services/api/src/cytellect_api/local.py', 'engines/fiji/runtime.lock.json', 'apps/web/out/index.html',
         'scripts/windows_runtime.ps1', 'engines/python/windows-runtime.lock.json',
         'engines/python/windows-install.json', 'engines/python/windows-requirements.txt',
-        'engines/python/windows-tcltk-9.0.4-data.zip')) {
+        'engines/python/windows-tcltk-9.0.4-data.zip', 'scripts/cellpose_windows.ps1', 'scripts/cellpose_setup.py',
+        'engines/cellpose/runner.py', 'engines/cellpose/runtime.lock.json', 'engines/cellpose/requirements.lock',
+        'engines/cellpose/windows-python.lock.json')) {
         if (-not $seen.Contains($required)) { throw 'release_file_missing' }
     }
     return $manifest
@@ -267,6 +269,30 @@ function Get-PinnedUv([string]$Root) {
     return $uv
 }
 
+function Remove-LegacyVersionShortcuts([string]$Root, [string[]]$Directories) {
+    # Releases before 0.1.0-local.15 created one shortcut per version. After a
+    # newer version is ready, an older app must not open its migrated database.
+    # Remove only those links that this installation created; never fail setup.
+    $apps = (Get-SafeChild $Root 'apps') + '\'
+    $shell = New-Object -ComObject WScript.Shell
+    $removed = 0
+    foreach ($directory in $Directories) {
+        if (-not $directory -or -not [IO.Directory]::Exists($directory)) { continue }
+        foreach ($legacy in [IO.Directory]::GetFiles($directory, 'Cytellect *.lnk')) {
+            try {
+                if (([IO.File]::GetAttributes($legacy) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+                $link = $shell.CreateShortcut($legacy)
+                if ($link.Description -ceq 'Cytellect local analysis and control window' -and
+                    $link.TargetPath.StartsWith($apps, [StringComparison]::OrdinalIgnoreCase)) {
+                    [IO.File]::Delete($legacy)
+                    $removed++
+                }
+            } catch { }
+        }
+    }
+    return $removed
+}
+
 function Install-Cytellect {
     $script:LaunchInfo = $null
     Update-SetupStatus 'verify_release' '配布ファイルを検証しています…'
@@ -361,6 +387,17 @@ function Install-Cytellect {
         '--result', (Get-SafeChild $root 'setup-cache/installation-check.json')) $app @{} 180
     Assert-PythonRuntimeInventory $runtime.path $runtime.inventory
     Assert-SignedPythonVenv $app $runtime
+    . (Get-SafeChild $app 'scripts/cellpose_windows.ps1')
+    try {
+        $cellpose = Install-CellposeRuntime $root $app $python $uv $environment
+    } catch {
+        if ($_.Exception.Message -eq 'setup_cancelled') { throw }
+        # Nuclear, region and statistics analysis remain usable. The fixed code is
+        # recorded and shown; rerunning setup resumes from verified downloads.
+        $code = Get-SetupFailureCode -Exception $_.Exception
+        $cellpose = [ordered]@{ status = 'unavailable'; phase = $script:Phase
+            failure = $(if ($null -ne $code) { $code } else { 'cellpose_setup_failed' }) }
+    }
     $data = Get-SafeChild $root 'data'
     [IO.Directory]::CreateDirectory($data) | Out-Null
     $web = Get-SafeChild $app 'apps/web/out'
@@ -406,7 +443,7 @@ function Install-Cytellect {
         python_url = $runtime.specification.python.url; python_sha256 = $runtime.specification.python.sha256
         python_data_sha256 = $runtime.specification.data_asset.sha256; python_inventory = $runtime.receipt
         wheel_sha256 = $install.wheel.sha256; requirements_sha256 = $install.requirements.sha256
-        uv = $script:UvVersion; uv_sha256 = $script:UvSha256 }
+        uv = $script:UvVersion; uv_sha256 = $script:UvSha256; cellpose = $cellpose }
     [IO.File]::WriteAllText((Get-SafeChild $app 'setup-complete.json'), ($state | ConvertTo-Json))
     # Checks above must succeed before registering or removing any prior version.
     # Observe cancellation before entering the storage commit. Once collection
@@ -429,9 +466,19 @@ function Install-Cytellect {
         # Housekeeping must never invalidate the successfully checked app.
         # The collector preserves unverified trees; do not print private paths.
     }
+    if ($cellpose.status -ne 'ready') {
+        $storageText += ' 核小体・細胞の自動検出（Cellpose）は準備できませんでした (' + $cellpose.failure + ')。' +
+            'セットアップを再実行してください。解決しない場合はこのコードを管理者に伝えてください。'
+    }
     $script:Phase = 'complete'
     if ($null -ne $script:StatusLabel) { $script:StatusLabel.Text = $storageText }
     if ($Console) { Write-Host $storageText }
+    if (-not $NoShortcut) {
+        try {
+            $null = Remove-LegacyVersionShortcuts $root @([Environment]::GetFolderPath('DesktopDirectory'),
+                [Environment]::GetFolderPath('Programs'))
+        } catch { }
+    }
     $script:LaunchInfo = @{ executable = $pythonw; arguments = $launchArgs; directory = $app }
     $setupSucceeded = $true
     } finally {
@@ -476,7 +523,7 @@ $title.SetBounds(24, 22, 560, 32)
 $title.Font = [Drawing.Font]::new('Yu Gothic UI', 14, [Drawing.FontStyle]::Bold)
 $form.Controls.Add($title)
 $description = [Windows.Forms.Label]::new()
-$description.Text = "解析用Python・Fijiを専用フォルダーに準備します。`r`n既存ソフトやシステムPATHは変更しません。`r`n初回・依存環境の更新時は通信と空き容量が必要です。`r`n研究画像はPC内で保存。24時間期限、停止中の削除は次回起動時です。"
+$description.Text = "解析用Python・Fiji・Cellposeを専用フォルダーに準備します。`r`n既存ソフトやシステムPATHは変更しません。`r`n初回は約3 GBの取得と10 GB以上の空き容量が必要です。`r`n研究画像はPC内で保存。24時間期限、停止中の削除は次回起動時です。"
 $description.SetBounds(24, 66, 560, 94)
 $form.Controls.Add($description)
 $destinationLabel = [Windows.Forms.Label]::new()

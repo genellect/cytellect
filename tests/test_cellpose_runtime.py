@@ -38,6 +38,41 @@ def test_model_and_runtime_are_fixed():
         CellposeDetectorSpec(diameter_px=float("nan"))
 
 
+def load_runner(monkeypatch):
+    spec = importlib.util.spec_from_file_location("cytellect_cellpose_runner", engine._assets() / "runner.py")
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    monkeypatch.delitem(__import__("sys").modules, "fill_voids", raising=False)
+    return runner
+
+
+def test_fill_voids_compat_contract_without_native_extension(monkeypatch):
+    runner = load_runner(monkeypatch)
+    runner.install_fill_voids_compat()
+    import fill_voids
+
+    assert fill_voids.__cytellect_compat__ == "scipy.ndimage.binary_fill_holes/2d"
+    ring = np.ones((5, 5), bool)
+    ring[2, 2] = False
+    filled = fill_voids.fill(ring)
+    assert filled.dtype == bool and filled.all() and not ring[2, 2]
+    assert fill_voids.fill(ring, return_fill_count=True)[1] == 1
+    assert fill_voids.fill(ring, in_place=True) is ring and ring.all()
+    with pytest.raises(RuntimeError, match="cellpose_fill_voids_compat_2d_only"):
+        fill_voids.fill(np.zeros((2, 2, 2), bool))
+
+
+def test_fill_voids_compat_equals_native_for_every_4x4_mask(monkeypatch):
+    # Complete enumeration of the 2D function Cellpose calls; no image is analyzed.
+    native = pytest.importorskip("fill_voids")
+    runner = load_runner(monkeypatch)
+    runner.install_fill_voids_compat()
+    compat = __import__("sys").modules["fill_voids"]
+    bits = (np.arange(1 << 16)[:, None] >> np.arange(16)) & 1
+    for mask in bits.astype(bool).reshape(-1, 4, 4):
+        assert np.array_equal(compat.fill(mask.copy()), native.fill(mask.copy(), in_place=False))
+
+
 def test_protocols_share_pins_without_reinterpreting_legacy_settings():
     original, ncl = CellposeDetectorSpec(), NclCellposeDetectorSpec()
     assert (original.engine, original.protocol_version) == ("cellpose-sam", "4.0.0")
