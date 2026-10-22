@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import platform
@@ -14,6 +15,8 @@ import re
 import shutil
 import stat
 import tempfile
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -24,16 +27,39 @@ def sha(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def download(url: str, target: Path, expected: str) -> None:
-    # Some proxies end large streaming responses early without a read exception.
-    # Always check the complete byte count/hash; resume verified HTTP ranges only.
-    for attempt in range(4):
-        offset = target.stat().st_size if target.exists() else 0
-        request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
+# Rate limits, gateway errors and dropped connections are retried with backoff;
+# any other HTTP status stops setup.
+TRANSIENT_HTTP = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+
+def transfer(url: str, target: Path, attempt: int) -> bool:
+    """Write one response to target, resuming a partial file; False after a transient failure."""
+    offset = target.stat().st_size if target.exists() else 0
+    request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
+    try:
         with urllib.request.urlopen(request, timeout=120) as response:
             append = offset > 0 and response.status == 206
             with target.open("ab" if append else "wb") as stream:
                 shutil.copyfileobj(response, stream, 1024 * 1024)
+        return True
+    except urllib.error.HTTPError as error:
+        if error.code not in TRANSIENT_HTTP:
+            raise
+        reason, wait = f"HTTP {error.code}", error.headers.get("Retry-After", "")
+    except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError) as error:
+        reason, wait = type(error).__name__, ""
+    delay = min(int(wait), 120) if wait.isdigit() else min(5 * 2 ** attempt, 60)
+    print("Transient download failure;", reason, "; retry in", delay, "s", flush=True)
+    time.sleep(delay)
+    return False
+
+
+def download(url: str, target: Path, expected: str) -> None:
+    # Some proxies end large streaming responses early without a read exception.
+    # Always check the complete byte count/hash; resume verified HTTP ranges only.
+    for attempt in range(6):
+        if not transfer(url, target, attempt):
+            continue
         received = sha(target)
         if received == expected:
             return

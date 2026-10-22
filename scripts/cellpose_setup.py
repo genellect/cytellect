@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -20,6 +23,31 @@ from pathlib import Path
 def digest(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+# Rate limits, gateway errors and dropped connections are retried with backoff;
+# any other HTTP status stops provisioning.
+TRANSIENT_HTTP = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+
+def transfer(url: str, partial: Path, attempt: int) -> bool:
+    """Write one response to partial, resuming it; False after a transient failure."""
+    offset = partial.stat().st_size if partial.exists() else 0
+    request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            append = offset > 0 and response.status == 206
+            with partial.open("ab" if append else "wb") as stream:
+                shutil.copyfileobj(response, stream, 1024 * 1024)
+        return True
+    except urllib.error.HTTPError as error:
+        if error.code not in TRANSIENT_HTTP:
+            raise
+        wait = error.headers.get("Retry-After", "")
+    except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError):
+        wait = ""
+    time.sleep(min(int(wait), 120) if wait.isdigit() else min(5 * 2 ** attempt, 60))
+    return False
 
 
 def provision_model(model_cache: Path, artifact: dict) -> Path:
@@ -32,13 +60,9 @@ def provision_model(model_cache: Path, artifact: dict) -> Path:
     # Fixed URL supplied by the repository manifest, never by a submitted job.
     partial = model_cache / (artifact["id"] + ".partial")
     try:
-        for _attempt in range(4):
-            offset = partial.stat().st_size if partial.exists() else 0
-            request = urllib.request.Request(artifact["url"], headers={"Range": f"bytes={offset}-"} if offset else {})
-            with urllib.request.urlopen(request, timeout=120) as response:
-                append = offset > 0 and response.status == 206
-                with partial.open("ab" if append else "wb") as stream:
-                    shutil.copyfileobj(response, stream, 1024 * 1024)
+        for attempt in range(6):
+            if not transfer(artifact["url"], partial, attempt):
+                continue
             if partial.stat().st_size == artifact["size"] and digest(partial) == artifact["sha256"]:
                 os.replace(partial, target)
                 return target

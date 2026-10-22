@@ -75,7 +75,7 @@
 | 表示 | 対処 |
 |---|---|
 | 「Windowsの保護機能により実行が拒否されました（4551）」、またはコード `windows_application_control_blocked` | PC のアプリケーション制御（Smart App Control など）が配布物の一部を拒否しました。設定を無効にせず、PC の管理者に配布物の確認を依頼してください |
-| 「準備を停止しました（…）」 | ネットワーク接続と空き容量を確認し、Cytellect Setup.cmd を再実行します |
+| 「準備を停止しました（…）」 | ネットワーク接続と空き容量を確認し、Cytellect Setup.cmd を再実行します。Fiji と Cellpose のモデルの取得は、通信の一時的な切断や混雑（HTTP 429・5xx）なら自動で再試行してから停止します |
 | Cellpose が準備できない（`cellpose_setup_failed` など） | Cytellect Setup.cmd を再実行します。解決しない場合は、表示されたコードを管理者または開発者に伝えてください |
 | 作業画面で「Cellposeの実行環境がありません」 | Cytellect Setup.cmd を再実行します。Cellpose も自動で準備されます |
 | 「Cytellectは既に起動しています」 | 開いている起動・停止ウィンドウを使います。見当たらない場合は PC を再起動します |
