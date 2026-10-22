@@ -113,9 +113,8 @@ or the terms of its third-party assets.
 
 Inter and Noto Sans JP are self-hosted under their included OFL notices.
 The font subset manifest records source hashes and included application text.
-Registered microscopy and generated figures retain their source manifests;
-the laboratory photographs retain their separate Unsplash terms and creator
-records in `apps/web/public/marketing/photo-provenance.json`.
+Registered microscopy and generated figures retain their source manifests.
+The landing page uses no stock photographs.
 The public asset allowlist binds each distributed file to its SHA-256, source
 and license. No Lila or GraphPad photographs, fonts or source code are included.
 
