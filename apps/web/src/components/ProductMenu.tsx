@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
-import styles from "./product.module.css";
+import styles from "./optical-landing.module.css";
 
 // Adapted from COMPASS founder/MobileExternalMenu.tsx at
 // 4805fb6df9e5a0bd267aef9cfa440174ccac5fb1.
@@ -31,10 +31,10 @@ export function ProductMenu({ children }: { children: ReactNode }) {
       document.removeEventListener("keydown", closeFromKeyboard);
     };
   }, [open]);
-  return <div ref={rootRef} className={styles.mobileMenu}>
+  return <div ref={rootRef} className={styles.menu}>
     <button ref={triggerRef} type="button" aria-label={open ? "メニューを閉じる" : "メニューを開く"} aria-expanded={open} aria-controls="mobile-product-navigation" onClick={() => setOpen(current => !current)}>
-      <svg viewBox="0 0 24 24" aria-hidden="true">{[5,12,19].flatMap(y=>[5,12,19].map(x=><circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" />))}</svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true">{open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 8h16M4 16h16" />}</svg>
     </button>
-    {open ? <nav id="mobile-product-navigation" className={styles.mobilePopover} aria-label="モバイルナビゲーション" onClick={event => {if((event.target as Element).closest("a"))setOpen(false);}}>{children}</nav> : null}
+    {open ? <nav id="mobile-product-navigation" className={styles.menuPopover} aria-label="モバイルナビゲーション" onClick={event => {if((event.target as Element).closest("a"))setOpen(false);}}>{children}</nav> : null}
   </div>;
 }
