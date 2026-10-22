@@ -3065,6 +3065,12 @@ export interface components {
              * @default 0.5
              */
             maximum_nuclear_coverage: number;
+            /**
+             * Postprocessing Mode
+             * @description Absent means legacy; experimental mode requires explicit selection.
+             * @enum {string}
+             */
+            postprocessing_mode?: "legacy" | "single-anchor-envelope-v1";
         };
         /**
          * NuclearDetectorSpec

@@ -3,6 +3,7 @@ import time
 from contextlib import nullcontext
 from copy import deepcopy
 
+from cytellect_analysis.cellpose_engine import validate_envelope_stain
 from cytellect_analysis.engine import nuclear_detection_shape
 from cytellect_analysis.masks import polygon_mask
 from cytellect_analysis.region_contracts import (
@@ -54,6 +55,12 @@ def validate_region_request(store, body, selected, reused_masks=()):
         channels = {c.channel_id for c in info.channels}
         if body.recipe.defining_channel_id is not None and body.recipe.defining_channel_id not in channels:
             raise HTTPException(422, "unknown_defining_channel")
+        if isinstance(body.recipe, RegionCompartmentRecipe):
+            channel = next(c for c in info.channels if c.channel_id == body.recipe.defining_channel_id)
+            try:
+                validate_envelope_stain(body.recipe.detector, channel.stain)
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from None
         if body.recipe.source == "imported" and info.labels_array is None:
             raise HTTPException(422, "region_labels_required")
         if body.recipe.source == "manual" and info.labels_array is not None:

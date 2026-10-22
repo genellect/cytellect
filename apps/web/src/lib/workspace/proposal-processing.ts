@@ -43,6 +43,10 @@ export function preserveNclModelSelection(proposed:ProposalProcessing|null,curre
   const sameModel=candidateModel===selectedModel&&candidateSha===selectedSha;
   if((candidateModel==="ncl-r1-step0375"||candidateModel==="ncl-r1-step0750")&&!(sameScope&&sameModel))throw new Error("proposal_experimental_model_not_selected");
   if(sameScope&&!sameModel)throw new Error("proposal_model_selection_changed");
+  const mode="postprocessing_mode" in candidate.detector?candidate.detector.postprocessing_mode??"legacy":"legacy";
+  const selectedMode=selected&&"postprocessing_mode" in selected.detector?selected.detector.postprocessing_mode??"legacy":"legacy";
+  if(mode!=="legacy"&&!(sameScope&&sameModel&&mode===selectedMode))throw new Error("proposal_experimental_postprocessing_not_selected");
+  if(sameScope&&mode!==selectedMode)throw new Error("proposal_postprocessing_selection_changed");
 }
 
 /** Unknown roles stay pending; accepting a proposal is not acquisition confirmation. */

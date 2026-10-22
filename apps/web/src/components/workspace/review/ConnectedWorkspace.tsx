@@ -222,6 +222,8 @@ function importIssueText(issue:GroupingIssue){
 function NumberSetting({label,value,onChange,min,max,step=1}:{label:string;value:number|null;onChange:(value:number|null)=>void;min?:number;max?:number;step?:number}){return <label>{label}<input type="number" value={value??""} placeholder="自動" min={min} max={max} step={step} onChange={e=>onChange(e.target.value===""?null:Number(e.target.value))}/></label>;}
 function CellposeSettings({runtime:r,field,target,disabled,onChanged}:{runtime:Runtime;field:string;target:"cell"|"nucleoli";disabled:boolean;onChanged:()=>void}){
   const settings=r.cellposeSettings(field,target);
+  const stain=r.data?.fields.find(value=>value.id===field)?.channels.find(value=>value.id===r.settings.nucleolarDefinition.marker)?.stain?.trim().toLowerCase();
+  const envelopeAvailable=settings.engine==="cellpose-sam-ncl-parent"&&settings.protocol_version==="4.3.0"&&(stain==="ncl"||stain==="nucleolin");
   return <details><summary>検出条件</summary><fieldset className={styles.detectorSettings} disabled={disabled}>
     {target==="nucleoli"&&settings.engine==="cellpose-sam-ncl-parent"&&settings.protocol_version==="4.3.0"&&<>
     <label>核小体の検出モデル<select value={settings.model} onChange={event=>{const model=event.target.value;if(model==="cpsam_v2"||model==="ncl-r1-step0375"||model==="ncl-r1-step0750"){r.selectNclModel(field,model);onChanged();}}}>
@@ -229,6 +231,9 @@ function CellposeSettings({runtime:r,field,target,disabled,onChanged}:{runtime:R
       <option value="ncl-r1-step0375">NCL追加学習候補 R1 / 375（実験用）</option>
       <option value="ncl-r1-step0750">NCL追加学習候補 R1 / 750（実験用）</option>
     </select></label>
+    {settings.model==="ncl-r1-step0750"&&<><label>NCL後処理<select value={settings.postprocessing_mode??"legacy"} onChange={event=>{const mode=event.target.value;if(mode==="legacy"||mode==="single-anchor-envelope-v1"){r.selectNclPostprocessing(field,mode);onChanged();}}}>
+      <option value="legacy">従来の処理</option><option value="single-anchor-envelope-v1" disabled={!envelopeAvailable}>輪郭補完（実験）</option>
+    </select></label>{!envelopeAvailable&&<p>輪郭補完には、選択チャンネルの染色対応をNCLまたはNucleolinとして記録してください。</p>}<p>記録済みのNCL染色に限る実験的な処理です。親が要確認の場合は追加を保留します。単一の核小体や精度を保証しません。「従来の処理」で戻せます。モデルを切り替えると従来の処理に戻ります。</p></>}
     {settings.model!=="cpsam_v2"&&<p>NCL染色で学習した候補です。NPM1を含む他の条件での精度と定量・修正負担は未検証です。導入済みの重みを使用します。元に戻すには「既存モデル」を選択してください。</p>}
     </>}
     {target==="nucleoli"&&settings.engine==="cellpose-sam-ncl"&&<>

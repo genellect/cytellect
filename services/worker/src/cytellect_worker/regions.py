@@ -57,6 +57,7 @@ REGION_FIELD_ERRORS = {
     "cellpose_adapter_missing", "cellpose_runtime_missing", "cellpose_model_missing",
     "cellpose_adapter_integrity_failed", "cellpose_model_integrity_failed", "cellpose_input_invalid",
     "cellpose_model_identity_mismatch", "cellpose_model_protocol_mismatch",
+    "cellpose_envelope_model_protocol_mismatch", "cellpose_envelope_ncl_stain_required",
     "cellpose_inference_failed", "cellpose_inference_timeout", "cellpose_output_shape_invalid",
     "cellpose_gpu_unavailable", "cellpose_runtime_version_mismatch", "cellpose_memory_exhausted",
     "region_input_file_missing", "region_input_file_size_mismatch", "region_input_file_hash_mismatch",
@@ -319,6 +320,11 @@ def run_region_analysis(store, settings, job, output):
                 raise ValueError("region_source_shape_or_dtype_invalid")
             if request.recipe.defining_channel_id is not None and request.recipe.defining_channel_id not in channels:
                 raise ValueError("region_unknown_defining_channel")
+            if isinstance(request.recipe, RegionCompartmentRecipe):
+                from cytellect_analysis.cellpose_engine import validate_envelope_stain
+
+                defining = next(c for c in image_info.channels if c.channel_id == request.recipe.defining_channel_id)
+                validate_envelope_stain(request.recipe.detector, defining.stain)
             nuclear = isinstance(request.recipe, (RegionNuclearRecipe, AdoptedNuclearRecipe, ScaledNuclearRecipe, AutoScaledNuclearRecipe, RegionSignalRecipe, RegionCompartmentRecipe, RegionCellposeRecipe))
             if nuclear and image_info.labels_array is not None:
                 raise ValueError("region_automatic_source_has_imported_labels")

@@ -440,6 +440,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 "parent_nuclear_mask_sha256": engine.get("parent_nuclear_mask_sha256"),
                 "nuclear_source": field_provenance.get("nuclear_source"),
                 "candidates": engine["review_candidates"],
+                **({"processing_mode": engine["ncl_postprocessing"]["mode"]} if "ncl_postprocessing" in engine else {}),
             }
         return {"regions": contours(np.load(path, allow_pickle=False)),
                 "metadata": report.get("field_masks", {}).get(field_id),

@@ -452,6 +452,43 @@ Stored 4.2.0 recipes skip this filter and retain their original meaning.
 
 ### Conservative NCL signal support, protocol 4.3.0
 
+#### Optional experimental envelope processing 1.0.0
+
+The separately selected `single-anchor-envelope-v1` mode requires the fixed750
+model, protocol 4.3.0 and recorded NCL/nucleolin metadata. Missing/legacy mode
+keeps existing processing and serialization; NPM1 and unknown stains are rejected.
+First run the unchanged refinement and obtain its existing visible final objects.
+Use the original NCL plane with sigma 0.9, parent bbox padding 24, upper three-class
+multi-Otsu, disk-2 closing, hole filling and 8-connected pre-watershed components.
+Require exactly one positively overlapping anchor per component and exactly one
+component per anchor. The crop anchor denominator must equal its complete area,
+with at least half overlapped. Retain existing boundary, maximum-parent-coverage
+0.5 and original-pixel enrichment rules (8 dilation iterations outside support).
+The old group must have one anchor and one final object. Union complete component
+and old pixels under the old ID; require containment, connectivity and no overlap
+or 8-contact with other old objects. Assess all proposals simultaneously; mutual
+conflicts withhold both proposals rather than choose by iteration order.
+
+Admit only additional growth under exact existing `candidate` parent state,
+consistent with eligibility metadata. Other states withhold additions;
+missing/unknown/inconsistent states fail closed. Keep existing review-required
+individuals. Computed eligibility does not establish biological completeness,
+single-nucleolus identity or absence of undetected adjacent structures. No
+reference label, field identity, reference crop or desired metric enters this rule.
+
+Save legacy refined/final masks, complete pre-watershed member geometry, withheld
+additions and selected final artifacts, plus every decision/reason, old/new object
+area, parent/anchor ownership, model identity and processing version. Raw/anchor/
+support artifacts remain unchanged. Derive the selected output's eligible-parent
+complement and measurements through the existing common path. Withheld geometry
+is historical evidence, not an adopted mask, current unresolved count or negative
+ground truth. Changing mode changes recipe/revision scope; old histories stay immutable.
+
+This is a development-driven processing amendment. Source implementation alone
+does not establish real-product equivalence, UI/save/undo acceptance, general
+accuracy, neighbor safety, native fluorescence, reduced correction burden or PoC
+readiness. Those require separately reviewed evidence.
+
 #### Explicit experimental weight selection
 
 The default remains the original `cpsam_v2`. Optional `ncl-r1-step0375` and
