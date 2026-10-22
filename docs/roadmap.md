@@ -10,8 +10,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | Windows 版 | [0.1.0-local.17](local-release-0.1.0-local.17.md)。画像・統計・グラフを一つにつないだワークスペース |
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
-| 核小体検出 | NCL の protocol 4.3.0（固定した公式の Cellpose-SAM `cpsam_v2`、親核ごとの前処理と境界補正）。[計算仕様](methods.md) |
-| 細胞質検出 | モデルは開発中。現在の細胞 ROI は手描き、または Cellpose-SAM の候補 |
+| 核小体検出 | NCL の protocol 4.3.0（追加学習した Cellpose-SAM と境界補正）。[計算仕様](methods.md) |
 
 ## 今後の計画
 

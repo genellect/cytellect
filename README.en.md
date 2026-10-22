@@ -48,9 +48,7 @@ Detection masks are stored as integer labels in the same coordinate system as th
 
 The Fiji/TensorFlow Java and Cellpose-SAM/PyTorch inference environments are independent. Each pins its dependencies and models and verifies their hashes at run time.
 
-The detections implemented today are nuclei (StarDist), nucleoli (NCL protocol 4.3.0), nucleoplasm (the nucleus minus its nucleoli) and cell ROIs (hand-drawn, or Cellpose-SAM candidates). The repository pins the official Cellpose-SAM weights (`cpsam_v2`); nucleolar detection applies the preprocessing and boundary refinement described above to that model's output. A cytoplasm detection model is in development (see the [roadmap](docs/roadmap.md)).
-
-**Fine-tuning** uses stained images with ground-truth labels and corrected instance masks to adapt Cellpose-SAM separately for nucleoli and cytoplasm. Evaluation keeps specimens and imaging batches apart and checks boundary accuracy, over-segmentation and merge errors. Training data, weights and inference settings are versioned together.
+**Fine-tuning** uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
 
 ## Web workspace
 
