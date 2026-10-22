@@ -5,7 +5,10 @@ param(
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Cytellect'),
     [switch]$Console,
     [switch]$NoShortcut,
-    [switch]$VerifyOnly
+    [switch]$VerifyOnly,
+    # Remote GPU service for Cellpose, from the administrator; blank keeps the saved setting.
+    [string]$CellposeRemoteUrl = '',
+    [string]$CellposeRemoteToken = ''
 )
 
 Set-StrictMode -Version Latest
@@ -267,6 +270,73 @@ function Get-PinnedUv([string]$Root) {
     return $uv
 }
 
+function Test-CellposeRemoteUrl([string]$Url) {
+    return $Url -cmatch '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$'
+}
+
+function Test-CellposeRemoteToken([string]$Token) {
+    return $Token -cmatch '^[\x21-\x7e]{1,512}$'
+}
+
+function Set-CellposeRemote([string]$Root, [string]$Url, [string]$Token) {
+    # Cellpose runs on the administrator's GPU service; the PC keeps no Cellpose runtime.
+    # Blank input keeps the saved setting, and a blank key keeps the saved key for the same URL.
+    $Url = $Url.Trim()
+    $Token = $Token.Trim()
+    if (-not $Url -and -not $Token) { return }
+    if (-not (Test-CellposeRemoteUrl $Url)) { throw 'cellpose_remote_url_invalid' }
+    if ($Token -and -not (Test-CellposeRemoteToken $Token)) { throw 'cellpose_remote_token_invalid' }
+    $settings = Get-SafeChild $Root 'settings'
+    [IO.Directory]::CreateDirectory($settings) | Out-Null
+    $path = Get-SafeChild $Root 'settings/cellpose-remote.json'
+    if (-not $Token -and [IO.File]::Exists($path)) {
+        try {
+            $saved = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+            if ($saved.url -ceq $Url -and $saved.token -is [string]) { $Token = $saved.token }
+        } catch { }
+    }
+    $value = [ordered]@{ schema = 'cytellect-cellpose-remote/1'; url = $Url }
+    if ($Token) { $value.token = $Token }
+    $temporary = Get-SafeChild $Root ('settings/cellpose-remote-' + [Guid]::NewGuid().ToString('N') + '.json')
+    [IO.File]::WriteAllText($temporary, ($value | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+    if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, [NullString]::Value) }
+    else { [IO.File]::Move($temporary, $path) }
+}
+
+function Get-CellposeRemoteUrl([string]$Root) {
+    try {
+        $path = Join-Path $Root 'settings\cellpose-remote.json'
+        if (-not [IO.File]::Exists($path)) { return '' }
+        $saved = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+        if ($saved.schema -ceq 'cytellect-cellpose-remote/1' -and (Test-CellposeRemoteUrl $saved.url)) { return $saved.url }
+    } catch { }
+    return ''
+}
+
+function Remove-LegacyVersionShortcuts([string]$Root, [string[]]$Directories) {
+    # Releases before 0.1.0-local.15 created one shortcut per version. After a
+    # newer version is ready, an older app must not open its migrated database.
+    # Remove only those links that this installation created; never fail setup.
+    $apps = (Get-SafeChild $Root 'apps') + '\'
+    $shell = New-Object -ComObject WScript.Shell
+    $removed = 0
+    foreach ($directory in $Directories) {
+        if (-not $directory -or -not [IO.Directory]::Exists($directory)) { continue }
+        foreach ($legacy in [IO.Directory]::GetFiles($directory, 'Cytellect *.lnk')) {
+            try {
+                if (([IO.File]::GetAttributes($legacy) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+                $link = $shell.CreateShortcut($legacy)
+                if ($link.Description -ceq 'Cytellect local analysis and control window' -and
+                    $link.TargetPath.StartsWith($apps, [StringComparison]::OrdinalIgnoreCase)) {
+                    [IO.File]::Delete($legacy)
+                    $removed++
+                }
+            } catch { }
+        }
+    }
+    return $removed
+}
+
 function Install-Cytellect {
     $script:LaunchInfo = $null
     Update-SetupStatus 'verify_release' '配布ファイルを検証しています…'
@@ -281,6 +351,7 @@ function Install-Cytellect {
     $setupSucceeded = $false
     $shortcutChanges = @()
     try {
+    Set-CellposeRemote $root $script:CellposeRemoteUrl $script:CellposeRemoteToken
     $releaseId = $manifest.version + '-' + $manifest.source_commit.Substring(0, 12)
     $app = Get-SafeChild $root ('apps/' + $releaseId)
     [IO.Directory]::CreateDirectory($app) | Out-Null
@@ -406,7 +477,8 @@ function Install-Cytellect {
         python_url = $runtime.specification.python.url; python_sha256 = $runtime.specification.python.sha256
         python_data_sha256 = $runtime.specification.data_asset.sha256; python_inventory = $runtime.receipt
         wheel_sha256 = $install.wheel.sha256; requirements_sha256 = $install.requirements.sha256
-        uv = $script:UvVersion; uv_sha256 = $script:UvSha256 }
+        uv = $script:UvVersion; uv_sha256 = $script:UvSha256
+        cellpose_remote = [bool](Get-CellposeRemoteUrl $root) }
     [IO.File]::WriteAllText((Get-SafeChild $app 'setup-complete.json'), ($state | ConvertTo-Json))
     # Checks above must succeed before registering or removing any prior version.
     # Observe cancellation before entering the storage commit. Once collection
@@ -429,9 +501,17 @@ function Install-Cytellect {
         # Housekeeping must never invalidate the successfully checked app.
         # The collector preserves unverified trees; do not print private paths.
     }
+    $storageText += $(if ($state.cellpose_remote) { ' Cellposeはクラウド GPU で実行します。' }
+        else { ' クラウド GPU が未設定のため、Cellposeは使えません。管理者から接続先と接続キーを受け取り、セットアップで入力してください。' })
     $script:Phase = 'complete'
     if ($null -ne $script:StatusLabel) { $script:StatusLabel.Text = $storageText }
     if ($Console) { Write-Host $storageText }
+    if (-not $NoShortcut) {
+        try {
+            $null = Remove-LegacyVersionShortcuts $root @([Environment]::GetFolderPath('DesktopDirectory'),
+                [Environment]::GetFolderPath('Programs'))
+        } catch { }
+    }
     $script:LaunchInfo = @{ executable = $pythonw; arguments = $launchArgs; directory = $app }
     $setupSucceeded = $true
     } finally {
@@ -454,6 +534,9 @@ if ($Console -or $VerifyOnly) {
     try { Install-Cytellect; exit 0 } catch {
         # Fixed stage and code only; never print arbitrary exceptions or paths.
         $code = Get-SetupFailureCode -Exception $_.Exception
+        if ($null -eq $code -and $_.Exception.Message -cin @('cellpose_remote_url_invalid', 'cellpose_remote_token_invalid')) {
+            $code = $_.Exception.Message
+        }
         $suffix = if ($null -ne $code) { ' (' + $code + ')' } else { '' }
         Write-Host ('Cytellect setup failed: ' + $script:Phase + $suffix)
         exit 1
@@ -465,7 +548,7 @@ Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'Cytellect セットアップ'
-$form.Size = [Drawing.Size]::new(620, 425)
+$form.Size = [Drawing.Size]::new(620, 560)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
@@ -488,20 +571,38 @@ $destinationBox.Text = $InstallRoot
 $destinationBox.ReadOnly = $true
 $destinationBox.SetBounds(24, 188, 560, 32)
 $form.Controls.Add($destinationBox)
+$savedRemoteUrl = Get-CellposeRemoteUrl $InstallRoot
+$remoteLabel = [Windows.Forms.Label]::new()
+$remoteLabel.Text = $(if ($savedRemoteUrl) { 'Cellpose用クラウドGPUの接続先（設定済み。変更する場合のみ入力）' }
+    else { 'Cellpose用クラウドGPUの接続先（管理者から受け取ったもの。任意）' })
+$remoteLabel.SetBounds(24, 228, 560, 20)
+$form.Controls.Add($remoteLabel)
+$remoteUrlBox = [Windows.Forms.TextBox]::new()
+$remoteUrlBox.Text = $(if ($CellposeRemoteUrl) { $CellposeRemoteUrl } else { $savedRemoteUrl })
+$remoteUrlBox.SetBounds(24, 250, 560, 28)
+$form.Controls.Add($remoteUrlBox)
+$remoteTokenLabel = [Windows.Forms.Label]::new()
+$remoteTokenLabel.Text = $(if ($savedRemoteUrl) { '接続キー（変更する場合のみ入力）' } else { '接続キー' })
+$remoteTokenLabel.SetBounds(24, 284, 560, 20)
+$form.Controls.Add($remoteTokenLabel)
+$remoteTokenBox = [Windows.Forms.TextBox]::new()
+$remoteTokenBox.UseSystemPasswordChar = $true
+$remoteTokenBox.SetBounds(24, 306, 560, 28)
+$form.Controls.Add($remoteTokenBox)
 $script:StatusLabel = [Windows.Forms.Label]::new()
 $script:StatusLabel.Text = '「セットアップ」を押すと準備を開始します。'
-$script:StatusLabel.SetBounds(24, 238, 560, 48)
+$script:StatusLabel.SetBounds(24, 346, 560, 70)
 $form.Controls.Add($script:StatusLabel)
 $progress = [Windows.Forms.ProgressBar]::new()
-$progress.SetBounds(24, 290, 560, 12)
+$progress.SetBounds(24, 422, 560, 12)
 $form.Controls.Add($progress)
 $installButton = [Windows.Forms.Button]::new()
 $installButton.Text = 'セットアップ'
-$installButton.SetBounds(344, 327, 115, 34)
+$installButton.SetBounds(344, 460, 115, 34)
 $form.Controls.Add($installButton)
 $closeButton = [Windows.Forms.Button]::new()
 $closeButton.Text = '閉じる'
-$closeButton.SetBounds(469, 327, 115, 34)
+$closeButton.SetBounds(469, 460, 115, 34)
 $form.Controls.Add($closeButton)
 $installButton.Add_Click({
     if ($null -ne $script:LaunchInfo) {
@@ -515,6 +616,21 @@ $installButton.Add_Click({
         $form.Close()
         return
     }
+    $url = $remoteUrlBox.Text.Trim()
+    $key = $remoteTokenBox.Text.Trim()
+    if (($url -or $key) -and -not (Test-CellposeRemoteUrl $url)) {
+        $script:StatusLabel.Text = 'クラウドGPUの接続先は、管理者から受け取った https:// で始まるURLを入力してください。'
+        return
+    }
+    if ($key -and -not (Test-CellposeRemoteToken $key)) {
+        $script:StatusLabel.Text = '接続キーに使えない文字が含まれています。管理者から受け取った接続キーを貼り付け直してください。'
+        return
+    }
+    # A URL already saved and shown again counts as unchanged, keeping its saved key.
+    $script:CellposeRemoteUrl = $(if ($url -ceq $savedRemoteUrl -and -not $key) { '' } else { $url })
+    $script:CellposeRemoteToken = $key
+    $remoteUrlBox.Enabled = $false
+    $remoteTokenBox.Enabled = $false
     $script:Installing = $true
     $script:Cancelled = $false
     $installButton.Enabled = $false

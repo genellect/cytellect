@@ -315,6 +315,123 @@ jobs:
       - run: uv sync --locked --dev
       - name: Loopback lifecycle and Windows setup boundaries
         run: uv run pytest tests/test_local.py tests/test_local_cold_start.py tests/test_process_owner.py tests/test_local_bundle.py tests/test_windows_setup.py tests/test_windows_setup_errors.py tests/test_windows_setup_completion.py tests/test_windows_runtime.py tests/test_windows_runtime_data.py tests/test_windows_runtime_prepare.py tests/test_local_revision.py
+  windows-installed:
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI_VERSION: 0.0.0-local.ci
+      PREVIOUS_VERSION: 0.1.0-local.17
+      PREVIOUS_SHA256: 1532f1e0b32eb7f9f457f82b6a9847e85c9a919a178c766b27f835cdcc0df51c
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --group build
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - name: Build the installable package from this exact commit
+        shell: pwsh
+        run: |
+          $inputs = Join-Path $env:RUNNER_TEMP 'package-inputs'
+          New-Item -ItemType Directory -Path $inputs | Out-Null
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          $data = Join-Path $inputs 'windows-tcltk-9.0.4-data.zip'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/prepare_windows_runtime_data.ps1 -Python $python -CacheRoot (Join-Path $inputs 'cache') -ScratchRoot (Join-Path $inputs 'extraction') -Output $data
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned runtime data preparation failed' }
+          & $python -B -m hatchling build -t wheel -d (Join-Path $inputs 'wheels')
+          if ($LASTEXITCODE -ne 0) { throw 'Wheel build failed' }
+          $requirements = Join-Path $inputs 'requirements.txt'
+          uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Hashed dependency export failed' }
+          $wheel = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')[0].FullName
+          $archive = Join-Path $env:RUNNER_TEMP "Cytellect-$env:CI_VERSION-windows-x64.zip"
+          & $python -B scripts/build_local_bundle.py --version $env:CI_VERSION --output $archive --runtime-data $data --wheel $wheel --requirements $requirements
+          if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
+          "CYTELLECT_CI_ZIP=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Fresh setup provisions Python and Fiji and records the cloud GPU setting
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'package-source'
+          $install = Join-Path $env:RUNNER_TEMP 'installed-fresh'
+          Expand-Archive -LiteralPath $env:CYTELLECT_CI_ZIP -DestinationPath $source
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $install -Console -NoShortcut -CellposeRemoteUrl 'https://cellpose-ci.example' -CellposeRemoteToken 'ci-placeholder-key'
+          if ($LASTEXITCODE -ne 0) { throw 'Fresh setup failed' }
+          $marker = @(Get-ChildItem -LiteralPath "$install\apps" -Filter setup-complete.json -Recurse)
+          if ($marker.Count -ne 1) { throw 'Expected one installed application' }
+          $state = Get-Content -LiteralPath $marker[0].FullName -Raw | ConvertFrom-Json
+          if (-not $state.cellpose_remote) { throw 'The cloud GPU setting was not recorded' }
+          $saved = Get-Content -LiteralPath "$install\settings\cellpose-remote.json" -Raw | ConvertFrom-Json
+          if ($saved.url -cne 'https://cellpose-ci.example' -or $saved.token -cne 'ci-placeholder-key') { throw 'Unexpected cloud GPU setting' }
+          $footprint = (Get-ChildItem -LiteralPath $install -Recurse -File -Force | Measure-Object -Property Length -Sum).Sum
+          Write-Host ('Installed footprint: {0:N2} GB' -f ($footprint / 1GB))
+          "CYTELLECT_FRESH_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CYTELLECT_FRESH_APP=$($state.app)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: The installed application selects the cloud GPU for Cellpose without contacting it
+        shell: pwsh
+        run: |
+          $python = Join-Path $env:CYTELLECT_FRESH_APP '.venv\Scripts\python.exe'
+          $code = "import json,os,sys; from pathlib import Path; from cytellect_api.local import local_cellpose_remote_environment as remote; os.environ.update(remote(Path(sys.argv[1]))); from cytellect_analysis.cellpose_engine import runtime_status; status=runtime_status(); print(json.dumps(status)); sys.exit(0 if status.get('available') and status.get('backend') == 'remote' else 1)"
+          Push-Location $env:CYTELLECT_FRESH_APP
+          try { & $python -B -c $code (Join-Path $env:CYTELLECT_FRESH_ROOT 'data') } finally { Pop-Location }
+          if ($LASTEXITCODE -ne 0) { throw 'The installed application does not select the cloud GPU' }
+      - name: Update the published previous release that already holds a workspace
+        shell: pwsh
+        run: |
+          $previous = Join-Path $env:RUNNER_TEMP "Cytellect-$env:PREVIOUS_VERSION-windows-x64.zip"
+          Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/genellect/cytellect/releases/download/v$env:PREVIOUS_VERSION/Cytellect-$env:PREVIOUS_VERSION-windows-x64.zip" -OutFile $previous
+          if ((Get-FileHash -LiteralPath $previous -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:PREVIOUS_SHA256) { throw 'Previous release hash mismatch' }
+          $previousSource = Join-Path $env:RUNNER_TEMP 'previous-source'
+          $root = Join-Path $env:RUNNER_TEMP 'installed-update'
+          Expand-Archive -LiteralPath $previous -DestinationPath $previousSource
+          $shell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+          & $shell -NoProfile -ExecutionPolicy Bypass -File "$previousSource\scripts\local_setup.ps1" -SourceRoot $previousSource -InstallRoot $root -Console -NoShortcut
+          if ($LASTEXITCODE -ne 0) { throw 'Previous release setup failed' }
+          $origin = 'http://127.0.0.1:8765'
+          $headers = @{ Origin = $origin; 'X-Cytellect-Request' = '1' }
+          function Start-Installed([string]$Version) {
+            $apps = @(Get-ChildItem -LiteralPath "$root\apps" -Directory | Where-Object { $_.Name.StartsWith("$Version-") })
+            if ($apps.Count -ne 1) { throw "Expected one installed $Version" }
+            $marker = Get-Content -LiteralPath (Join-Path $apps[0].FullName 'setup-complete.json') -Raw | ConvertFrom-Json
+            $python = Join-Path $marker.app '.venv\Scripts\python.exe'
+            $arguments = @('-B', '-m', 'cytellect_api.local', '--data-dir', "`"$root\data`"", '--web-dir', "`"$($marker.app)\apps\web\out`"", '--fiji', "`"$($marker.fiji)`"", '--no-browser')
+            $process = Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory $marker.app -WindowStyle Hidden -PassThru
+            for ($attempt = 0; $attempt -lt 90; $attempt++) {
+              if ($process.HasExited) { throw "$Version launcher exited early" }
+              try { if ((Invoke-WebRequest -UseBasicParsing -Uri "$origin/v1/local/setup").StatusCode -eq 200) { return $process } } catch { Start-Sleep -Seconds 1 }
+            }
+            throw "$Version did not start"
+          }
+          function Stop-Installed($Process) {
+            Stop-Process -Id $Process.Id
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+              if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { return }
+              Start-Sleep -Milliseconds 500
+            }
+            throw 'Launcher kept listening after stop'
+          }
+          $process = Start-Installed $env:PREVIOUS_VERSION
+          $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+          Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$origin/v1/local/session" -Headers $headers -WebSession $session | Out-Null
+          $created = Invoke-RestMethod -Method Post -Uri "$origin/v1/workspaces" -Headers $headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Update preservation check"}'
+          Stop-Installed $process
+          & $shell -NoProfile -ExecutionPolicy Bypass -File "$env:RUNNER_TEMP\package-source\scripts\local_setup.ps1" -SourceRoot "$env:RUNNER_TEMP\package-source" -InstallRoot $root -Console -NoShortcut
+          if ($LASTEXITCODE -ne 0) { throw 'Update over the previous release failed' }
+          $process = Start-Installed $env:CI_VERSION
+          try {
+            $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+            Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$origin/v1/local/session" -Headers $headers -WebSession $session | Out-Null
+            $kept = Invoke-RestMethod -Uri "$origin/v1/workspaces/$($created.id)" -Headers $headers -WebSession $session
+            if ($kept.title -ne 'Update preservation check') { throw 'Workspace was not preserved across the update' }
+            $status = Invoke-RestMethod -Uri "$origin/v1/local/setup"
+            if (-not $status.ready) { throw 'Updated application is not ready' }
+          } finally { Stop-Installed $process }
   python-windows-314:
     needs: changes
     if: needs.changes.outputs.windows == 'true'
