@@ -334,7 +334,12 @@ def install_replay(recordings_dir: Path) -> dict:
             entry = index["entries"].get(call.key)
             if entry is None or entry.get("fn") != name:
                 if _python_only(call):
-                    return real(*args, **kwargs)
+                    # The analysis package's own function, never whatever currently
+                    # occupies the worker attribute (the runtime installs a fail-closed
+                    # stand-in before replay).
+                    from cytellect_analysis import compartment_engine
+
+                    return compartment_engine.detect_compartments(*args, **kwargs)
                 raise DetectionNotRecorded()
             return _replay_entry(root, entry, call, name)
 

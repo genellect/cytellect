@@ -129,6 +129,11 @@ def test_compartments_record_all_masks_and_python_only_definitions_execute(tmp_p
     assert sorted(next(iter(index["entries"].values()))["outputs"]) == ["nucleoli", "nucleoplasm"]
     detections.uninstall()
     executed.clear()
+    # The runtime replaces the worker attribute with a fail-closed stand-in before replay;
+    # Python-only definitions must still run the analysis package's function.
+    monkeypatch.setattr("cytellect_analysis.compartment_engine.detect_compartments", fake_compartments)
+    monkeypatch.setattr("cytellect_worker.regions.detect_compartments",
+                        lambda *args, **kwargs: (_ for _ in ()).throw(DetectionNotRecorded()))
     install_replay(tmp_path / "rec")
     masks, info = regions.detect_compartments(channels=channels, nuclei=nuclei, parameters=legacy,
                                               output_dir=tmp_path / "c", executable="")

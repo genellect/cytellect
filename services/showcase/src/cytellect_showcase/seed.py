@@ -85,6 +85,8 @@ def restore(data_dir: Path) -> int:
 
     root = Path(data_dir)
     manifest_path = root / MANIFEST
+    if not manifest_path.is_file():
+        return 0  # a seed without omitted duplicates
     entries = json.loads(manifest_path.read_text(encoding="utf-8")).get("regenerate", [])
     for entry in entries:
         target = _inside(root, entry["path"])
