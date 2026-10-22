@@ -4,7 +4,8 @@
 .live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#4c5663;white-space:nowrap;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .live>span{width:7px;height:7px;border-radius:50%;background:#b4bdc9;flex-shrink:0}
 .live[data-state=preparing]>span{background:#f4bb58}.live[data-state=active]>span{background:#2fa36b}
-.notice{background:#eef4fc;color:#1d3d6b;font-size:14px;padding:8px 12px;margin:0;line-height:1.6;border-radius:4px}
+/* Doubled class: a notice shares the error banner's layout but must never read as an error. */
+.notice.notice{background:#eef4fc;color:#1d3d6b;font-size:14px;padding:8px 12px;margin:0;line-height:1.6;border-radius:4px}
 .backdrop{position:fixed;inset:0;z-index:40;background:#20252b55;display:grid;place-items:center;padding:16px}
 .dialog{width:min(440px,100%);background:#fff;border-radius:8px;padding:20px;box-shadow:0 12px 40px #20252b40;color:#20252b}
 .dialog h2{font-size:17px;margin:0 0 10px}.dialog p{font-size:14px;line-height:1.7;margin:0 0 16px}
