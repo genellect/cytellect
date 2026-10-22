@@ -838,18 +838,46 @@ def deterministic_zip(target: Path, entries: dict[str, Path | bytes]) -> None:
     os.replace(partial, target)
 
 
+ENGINE_FILE_LIMIT = 1024 * 1024
+
+
 def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dict, target: Path) -> dict:
     staging = data_dir.parent / "seed-db.sqlite"
     sqlite_copy(data_dir / "cytellect.sqlite", staging)
     entries: dict[str, Path | bytes] = {"cytellect.sqlite": staging}
+    omitted = []
     for path in sorted(data_dir.rglob("*")):
         relative = path.relative_to(data_dir)
         if not path.is_file() or relative.parts[0] == "tmp" or relative.name.startswith("cytellect.sqlite"):
             continue
+        if "engine" in relative.parts and path.stat().st_size > ENGINE_FILE_LIMIT:
+            # Detector diagnostics (label/plane copies) that no API route reads.
+            omitted.append({"path": relative.as_posix(), "sha256": sha256_file(path), "bytes": path.stat().st_size})
+            continue
         entries[relative.as_posix()] = path
-    for path in sorted(recordings.rglob("*")):
-        if path.is_file():
-            entries[f"recordings/{path.relative_to(recordings).as_posix()}"] = path
+    index = json.loads((recordings / "index.json").read_text())
+    used = set()
+    import numpy as np
+
+    for entry in index["entries"].values():
+        # Label arrays are published compressed (.npz) so unpacking the seed stays small.
+        for name, relative in list(entry["outputs"].items()):
+            if relative.endswith(".npy"):
+                packed = relative[:-4] + ".npz"
+                if f"recordings/{packed}" not in entries:
+                    buffer = io.BytesIO()
+                    np.savez_compressed(buffer, array=np.load(recordings / relative, allow_pickle=False))
+                    entries[f"recordings/{packed}"] = buffer.getvalue()
+                entry["outputs"][name] = packed
+        for item in entry["files"]:
+            if item.get("omitted") or item["bytes"] > ENGINE_FILE_LIMIT:
+                item.pop("file", None)
+                item["omitted"] = True
+            else:
+                used.add(item["file"])
+    entries["recordings/index.json"] = (json.dumps(index, sort_keys=True, indent=1) + "\n").encode()
+    for relative in sorted(used):
+        entries[f"recordings/{relative}"] = recordings / relative
     from cytellect_api.db import Store, fields
 
     from .seed import plan
@@ -862,7 +890,10 @@ def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dic
     regenerate = plan({name: value for name, value in entries.items() if isinstance(value, Path)}, channel_arrays)
     for item in regenerate:
         entries.pop(item["path"])
-    showcase = {**showcase, "regenerate": regenerate}
+    showcase = {**showcase, "regenerate": regenerate, "omitted_engine_files": omitted,
+                "omitted_engine_file_policy": f"engine-directory files larger than {ENGINE_FILE_LIMIT} bytes "
+                                              "(detector diagnostics no route reads) are not published; "
+                                              "their SHA-256 is listed here and in recordings/index.json"}
     entries["proposals.json"] = (json.dumps(proposals, sort_keys=True, ensure_ascii=False) + "\n").encode()
     entries["showcase.json"] = (json.dumps(showcase, sort_keys=True, ensure_ascii=False, indent=1) + "\n").encode()
     deterministic_zip(target, entries)
@@ -1120,14 +1151,17 @@ def main(argv: list[str] | None = None) -> None:
 def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path, started: float) -> None:
     out = args.out
     (out / "snapshot").mkdir(parents=True, exist_ok=True)
-    options = state.get("grid", {}).get("options", {})
+    # Python-only nucleolar definitions run in the browser and need no recording; they are
+    # listed without adjustable fields (docs/showcase.md: unlisted fields stay fixed).
+    options = {**{engine: {} for engine in ("cytellect-nucleolar-v2", "cytellect-ncl-objects")},
+               **state.get("grid", {}).get("options", {})}
     (out / "snapshot" / "recorded-options.json").write_text(json.dumps(options, sort_keys=True, indent=1) + "\n")
     proposals: dict = {}
     (out / "snapshot" / "proposal-examples.json").write_text("[]\n")
     dataset = manifest.get("dataset", {})
     note = {"version": 1, "title": dataset.get("name"), "attribution": dataset.get("attribution"),
-            "license": dataset.get("license"), "license_url": dataset.get("license_url"),
-            "source": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
+            "licence": dataset.get("license"), "licenceUrl": dataset.get("license_url"),
+            "sourceUrl": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
             "caveats": dataset.get("caveats", []),
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}

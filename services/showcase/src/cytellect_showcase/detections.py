@@ -293,15 +293,24 @@ def _safe_relative(root: Path, relative: str) -> Path:
     return target
 
 
+def _load_output(path: Path) -> np.ndarray:
+    """``.npy`` as recorded, or the published ``.npz`` (single member ``array``)."""
+    if path.suffix == ".npz":
+        with np.load(path, allow_pickle=False) as archive:
+            return archive["array"]
+    return np.load(path, allow_pickle=False)
+
+
 def _replay_entry(root: Path, entry: dict, call: _Call, name: str):
     call.output_dir.mkdir(parents=True, exist_ok=True)
     for item in entry["files"]:
+        if item.get("omitted"):
+            continue  # large engine diagnostic left out of the published seed (hash kept)
         source = _safe_relative(root, item["file"])
         target = _safe_relative(call.output_dir, item["path"])
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
-    arrays = {output: np.load(_safe_relative(root, relative), allow_pickle=False)
-              for output, relative in entry["outputs"].items()}
+    arrays = {output: _load_output(_safe_relative(root, relative)) for output, relative in entry["outputs"].items()}
     info = copy.deepcopy(entry["engine_info"])
     if name == "detect_compartments":
         return arrays, info

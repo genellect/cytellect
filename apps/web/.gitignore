@@ -9,5 +9,9 @@ playwright-report/
 !public/demo/4dn-ncl/demo-ncl.png
 !public/demo/bbbc013/demo-dapi.png
 !public/demo/bbbc013/demo-gfp.png
+# Public showcase seed and recorded responses (registered in fixtures/public/allowlist.json).
+!public/showcase/seed.zip
+!public/showcase/snapshot/*.png
+!public/showcase/snapshot/*.pdf
 
 out/

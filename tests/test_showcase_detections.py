@@ -208,7 +208,7 @@ def test_seed_duplicates_are_omitted_and_restored_byte_for_byte(tmp_path):
     (engine / "cellpose-input.npy").write_bytes((folder / "channel-ch1.npy").read_bytes())
     (engine / "other.json").write_text("{}")
     files = {path.relative_to(root).as_posix(): path for path in root.rglob("*") if path.is_file()}
-    entries = seed.plan(files, {"workspaces/w/fields/f/channel-ch1.npy": "workspaces/w/fields/f/ch0.tif"})
+    entries = seed.plan(files, {"workspaces/w/fields/f/channel-ch1.npy": "workspaces/w/fields/f/ch0.tif"}, 0)
     assert [entry["path"] for entry in entries] == ["workspaces/w/fields/f/channel-ch1.npy",
                                                      "results/r/f/engine/cellpose-input.npy"]
     unpacked = tmp_path / "unpacked"
