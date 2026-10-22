@@ -116,7 +116,7 @@ def descriptive_methods(result, *, methods_template=None):
         return readable_descriptive_methods(result)
     spec = parse_descriptive_request(result["spec"])
     policy = _source_measurement_policy(result)
-    if getattr(policy, "mode", None) == "raw_intensity":
+    if getattr(policy, "mode", None) in ("raw_intensity", "automatic_background"):
         return readable_descriptive_methods(result)
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.", "",
              f"Descriptive protocol: {result['descriptive_version']}; source: {result['source_kind']}.",
