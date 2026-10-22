@@ -58,23 +58,33 @@ def main():
     parser.add_argument("--model-only", action="store_true")
     parser.add_argument("--runtime-only", action="store_true",
                         help="Docker build: provision fixed packages/model independently of the job adapter")
+    parser.add_argument("--variant", choices=("cpu", "cuda"), default="cpu",
+                        help="cuda: the remote GPU service image (Linux, with --runtime-only)")
     args = parser.parse_args()
     if args.runtime_only and os.name == "nt":
         parser.error("runtime-only is for Docker builds; Windows setup must verify the job adapter")
+    if args.variant == "cuda" and not args.runtime_only:
+        parser.error("The CUDA variant is only built into the remote GPU service image")
     repo = Path(__file__).resolve().parents[1]
     assets = repo / "engines" / "cellpose"
     destination, cache = args.destination.resolve(), args.model_cache.resolve()
     for target in (destination, cache):
         if target == repo or repo in target.parents:
             parser.error("Runtime/model binaries must be outside the checkout")
-    manifest = "provisioning.lock.json" if args.runtime_only else "runtime.lock.json"
+    cuda = args.variant == "cuda"
+    manifest = "gpu.lock.json" if cuda else "provisioning.lock.json" if args.runtime_only else "runtime.lock.json"
     lock = json.loads((assets / manifest).read_text(encoding="utf-8"))
-    expected_schema = "cytellect-cellpose-provisioning/1" if args.runtime_only else "cytellect-cellpose-runtime/1"
+    expected_schema = ("cytellect-cellpose-provisioning/1" if args.runtime_only and not cuda
+                       else "cytellect-cellpose-runtime/1")
     if lock.get("schema") != expected_schema:
+        raise RuntimeError("cellpose_provisioning_manifest_invalid")
+    requirements = assets / ("requirements-cuda.lock" if cuda else "requirements.lock")
+    backend = "cu126" if cuda else "cpu"
+    if cuda and (lock.get("requirements_file") != requirements.name or lock.get("torch_backend") != backend):
         raise RuntimeError("cellpose_provisioning_manifest_invalid")
     if not args.runtime_only and digest(assets / "runner.py") != lock["runner_sha256"]:
         raise RuntimeError("cellpose_adapter_integrity_failed")
-    if digest(assets / "requirements.lock") != lock["requirements_sha256"]:
+    if digest(requirements) != lock["requirements_sha256"]:
         raise RuntimeError("cellpose_package_lock_integrity_failed")
     model = provision_model(cache, lock["model"])
     if args.model_only:
@@ -94,8 +104,8 @@ def main():
             subprocess.run([args.uv, "venv", str(destination), "--python", args.python], check=True)
     elif not executable.is_file():
         parser.error("Destination exists and is not an isolated Python runtime")
-    subprocess.run([args.uv, "pip", "sync", str(assets / "requirements.lock"),
-                    "--python", str(executable), "--require-hashes", "--torch-backend", "cpu"], check=True)
+    subprocess.run([args.uv, "pip", "sync", str(requirements),
+                    "--python", str(executable), "--require-hashes", "--torch-backend", backend], check=True)
     with tempfile.TemporaryDirectory(prefix="cytellect-cellpose-verify-", dir=destination.parent) as temporary:
         script = Path(temporary) / "verify.py"
         script.write_text("import importlib.metadata,json; print(json.dumps({name:importlib.metadata.version(name) "

@@ -1,0 +1,21 @@
+# Remote GPU inference service: the pinned Cellpose runner behind engines/cellpose/server.py.
+# The runner, model and package versions are the CPU runtime's, with only the CUDA
+# build of Torch. The service keeps no request content and has no other routes.
+FROM python:3.12.14-slim-bookworm AS build
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir uv==0.12.2
+COPY engines/cellpose/gpu.lock.json engines/cellpose/requirements-cuda.lock /app/engines/cellpose/
+COPY scripts/cellpose_setup.py /app/scripts/cellpose_setup.py
+RUN python /app/scripts/cellpose_setup.py /opt/cellpose-runtime --model-cache /opt/cellpose-models --runtime-only --variant cuda
+
+FROM python:3.12.14-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
+COPY --from=build /opt/cellpose-runtime /opt/cellpose-runtime
+COPY --from=build /opt/cellpose-models /opt/cellpose-models
+COPY engines/cellpose /app/engines/cellpose
+RUN useradd --uid 10001 --create-home app
+USER 10001
+ENV PYTHONDONTWRITEBYTECODE=1 CYTELLECT_CELLPOSE_RUNTIME_LOCK=gpu.lock.json \
+    CYTELLECT_CELLPOSE_MODEL=/opt/cellpose-models/cpsam_v2 CYTELLECT_CELLPOSE_PORT=8080 CYTELLECT_REQUIRE_GPU=1
+EXPOSE 8080
+CMD ["/opt/cellpose-runtime/bin/python", "-I", "/app/engines/cellpose/server.py"]

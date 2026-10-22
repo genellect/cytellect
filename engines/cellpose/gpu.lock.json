@@ -1,0 +1,29 @@
+{
+  "schema": "cytellect-cellpose-runtime/1",
+  "python": "3.12",
+  "packages": {
+    "cellpose": "4.2.1.1",
+    "torch": "2.8.0+cu126",
+    "torchvision": "0.23.0+cu126",
+    "numpy": "2.2.6",
+    "scipy": "1.16.2",
+    "segment-anything": "1.0",
+    "packaging": "26.3"
+  },
+  "torch_backend": "cu126",
+  "model": {
+    "id": "cpsam_v2",
+    "revision": "7c61431b5fbb078f3296754bd15d9f51b320f837",
+    "url": "https://huggingface.co/mouseland/cellpose-sam/resolve/7c61431b5fbb078f3296754bd15d9f51b320f837/cpsam_v2",
+    "sha256": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+    "size": 1233586851,
+    "license": "BSD-3-Clause",
+    "license_source": "https://huggingface.co/mouseland/cellpose-sam/blob/7c61431b5fbb078f3296754bd15d9f51b320f837/README.md"
+  },
+  "code_license": "BSD-3-Clause",
+  "code_license_source": "https://github.com/MouseLand/cellpose/blob/main/LICENSE",
+  "runtime_downloads": false,
+  "runner_sha256": "98db8e818ec4a547d87078d1c634f81a99c0c9d911de50a8dcde229bf0442201",
+  "requirements_file": "requirements-cuda.lock",
+  "requirements_sha256": "f9f3e0403d717d7e2759e7151346702b4048f81e78151a33679a5e4af2fbbbd7"
+}

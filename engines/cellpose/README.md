@@ -26,10 +26,10 @@ Runtime configuration:
 The runner verifies package versions and model bytes before deserialization.
 It uses an explicit local model path and prohibits Cellpose fallback downloads
 and socket connections. The scientific worker also retains its offline Docker
-network boundary. This initial CPU profile cannot use CUDA; an explicit CUDA
+network boundary. The local CPU profile cannot use CUDA; an explicit CUDA
 request reports `cellpose_gpu_unavailable`, and `auto` uses the available CPU.
-The model is loaded once per isolated image-job process. No persistent model
-pool is claimed in this version.
+Locally the model is loaded once per isolated image-job process; the remote
+service keeps it loaded between requests.
 
 The Docker provisioning stage copies only `provisioning.lock.json`, the pinned
 dependency lock and the setup helper. The job runner, runtime manifest and source
@@ -38,6 +38,32 @@ therefore leaves the dependency/model stage unchanged. The public provisioning
 manifest repeats the exact fixed package/model information without a runner hash;
 the final runner checks its full runtime manifest, runner and dependency-lock
 hashes before loading the model. Ordinary Windows setup retains that runner check.
+
+## Remote GPU inference
+
+`server.py` serves this same runner over HTTP for one field at a time
+(`POST /v1/cellpose`, `GET /health`). `gpu.lock.json` and `requirements-cuda.lock`
+describe its image: identical runner, model and package versions, with only the
+CUDA 12.6 build of Torch. Every package shared with `requirements.lock` keeps the
+same version (`requirements-cuda.in`). `infra/Dockerfile.cellpose-gpu` builds the
+image; `.github/workflows/cellpose-gpu-image.yml` publishes it from `main` on the
+owner's instruction.
+
+On CUDA the runner uses float32 with TF32 disabled and deterministic algorithms,
+to stay as close as possible to the validated CPU results and to repeat run to run.
+GPU results are not claimed to be bitwise equal to CPU results; the receipt records
+`device`, `precision`, `gpu` and the remote `execution_backend`.
+
+A client configured with `CYTELLECT_CELLPOSE_REMOTE_URL` sends the detection plane,
+the adopted nuclei (nucleolar protocols) and the parameters. The service returns
+only raw candidate labels and the receipt; the client checks the reported runner,
+model and package-lock hashes and then binds, refines and measures locally exactly
+as for a local run. `compute_device` is a preference: the client asks the service
+to choose its device and records the requested value next to the device used.
+
+CI runs the service on the worker image's CPU runtime and requires the remote path
+to return exactly the local labels (`scripts/cellpose_remote_check.py`). The same
+script records timing and agreement against a real remote endpoint.
 
 ## Windows optional installation
 
