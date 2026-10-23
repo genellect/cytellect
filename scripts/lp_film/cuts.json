@@ -10,30 +10,20 @@
     "fps": 25,
     "crf": 24,
     "webm_crf": 38,
-    "fade": 0.8,
-    "poster_cut": "hands",
-    "poster_time": 1.2
+    "fade": 0.7,
+    "poster_cut": "automation",
+    "poster_time": 1.0
   },
-  "grade": "eq=contrast=0.86:brightness=0.035:saturation=0.70:gamma=1.04,colorbalance=rs=0.012:gs=0.004:bs=-0.012:rh=0.01:bh=-0.012,curves=all='0/0.11 0.5/0.57 1/0.97'",
+  "grade": "eq=contrast=1.08:brightness=-0.05:saturation=0.85,colorbalance=rs=-0.015:bs=0.02,curves=all='0/0.035 0.5/0.40 1/0.90'",
   "cuts": [
-    {
-      "id": "hands",
-      "owner": "stock",
-      "source": "px-v-3195394",
-      "start": 3.0,
-      "duration": 3.4,
-      "speed": 1.0,
-      "adjust": "eq=saturation=0.85"
-    },
     {
       "id": "automation",
       "owner": "stock",
       "source": "px-v-8940765",
-      "start": 5.0,
+      "start": 4.6,
       "duration": 3.4,
       "speed": 1.0,
-      "crop": [600, 300, 2640, 1485],
-      "adjust": "eq=brightness=0.05:gamma=1.10"
+      "crop": [600, 300, 2640, 1485]
     },
     {
       "id": "culture",
@@ -41,8 +31,15 @@
       "source": "px-p-3992927",
       "duration": 3.2,
       "crop": [1400, 900, 1800, 1012],
-      "move": [1.0, 1.06],
-      "adjust": "eq=saturation=0.78:gamma=1.06"
+      "move": [1.0, 1.06]
+    },
+    {
+      "id": "hands",
+      "owner": "stock",
+      "source": "px-v-3195394",
+      "start": 3.0,
+      "duration": 3.4,
+      "speed": 1.0
     },
     {
       "id": "droplet",
@@ -52,7 +49,7 @@
       "duration": 3.2,
       "crop": [0, 664, 4632, 2606],
       "move": [1.0, 1.05],
-      "adjust": "eq=saturation=0.55"
+      "adjust": "eq=saturation=0.7"
     },
     {
       "id": "glass",
@@ -62,7 +59,7 @@
       "duration": 3.2,
       "crop": [0, 1640, 3266, 1837],
       "move": [1.0, 1.05],
-      "adjust": "eq=saturation=0.60"
+      "adjust": "eq=saturation=0.75"
     }
   ]
 }

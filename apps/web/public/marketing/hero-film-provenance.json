@@ -4,7 +4,7 @@
   "not_analysis_input": true,
   "not_product_usage_evidence": true,
   "built_by": "scripts/lp_film/build_film.py from scripts/lp_film/cuts.json",
-  "duration_seconds": 12.4,
+  "duration_seconds": 12.9,
   "licenses": {
     "pexels": {
       "url": "https://www.pexels.com/license/",
@@ -22,15 +22,6 @@
   ],
   "cuts": [
     {
-      "cut": "hands",
-      "kind": "video",
-      "source": "px-v-3195394",
-      "page": "https://www.pexels.com/video/drops-of-liquid-on-a-tray-to-be-use-as-samples-3195394/",
-      "creator": "Pressmaster",
-      "license": "pexels",
-      "treatment": "そのまま。共通の色調に揃える"
-    },
-    {
       "cut": "automation",
       "kind": "video",
       "source": "px-v-8940765",
@@ -47,6 +38,15 @@
       "creator": "CDC",
       "license": "pexels",
       "treatment": "6 穴プレートとピペットの先端へ寄せて切り抜き、手袋・フラスコ・チューブを外す。灰緑の色かぶりと金属の映り込みを補正し、ゆっくり寄るカメラの動きを付ける。CDC の推奨を示唆しない"
+    },
+    {
+      "cut": "hands",
+      "kind": "video",
+      "source": "px-v-3195394",
+      "page": "https://www.pexels.com/video/drops-of-liquid-on-a-tray-to-be-use-as-samples-3195394/",
+      "creator": "Pressmaster",
+      "license": "pexels",
+      "treatment": "そのまま。共通の色調に揃える"
     },
     {
       "cut": "droplet",
@@ -68,8 +68,8 @@
     }
   ],
   "outputs": {
-    "apps/web/public/marketing/hero-film.mp4": "fc634bf8a69a891bfb9139b0935aec68bdf935ad0f4a40a1fdf48011a02f7c9d",
-    "apps/web/public/marketing/hero-film.webm": "424508eeaef9a3252d649d57a20d8c9fdfd128af2272f285de11f19e5fde639a",
-    "apps/web/public/marketing/hero-film-poster.webp": "b1b6377c679c53e50960dff5ec5ed734834076596e66edfe508d341a97f78352"
+    "apps/web/public/marketing/hero-film.mp4": "8627365a8066e8af0fd67afa9fbed30136de9fc4d3fdd5036ff4af8942c86e25",
+    "apps/web/public/marketing/hero-film.webm": "1e84616ce5a77c5a9c0a3e97fd8b4992a99ed88bcefbca1190cc66a17a8227be",
+    "apps/web/public/marketing/hero-film-poster.webp": "5b7d098ebb0ffca4778227634c516d2a0b9c7917b5379b5cc622218b8324ef3f"
   }
 }
