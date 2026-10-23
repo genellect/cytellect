@@ -37,7 +37,7 @@ function recorder(): ((exchange: RecordedExchange) => void) | undefined {
 let transport: ShowcaseTransport | null = null;
 export function activateShowcase() {
   transport ??= createShowcaseTransport({
-    fetchStatic: url => fetch(url, {credentials: "omit"}),
+    fetchStatic: url => fetch(url, {credentials: "same-origin"}),
     createEngine: () => createWorkerEngine(runtimeConfig as RuntimeConfig, DEV_BACKEND),
     capable: () => liveCapable(),
     snapshotBase,
@@ -78,7 +78,7 @@ export function validDataset(value: unknown): ShowcaseDataset | null {
 }
 export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null}> {
   const read = async (name: string) => {
-    try {const response = await fetch(`${snapshotBase}${name}`, {credentials: "omit"}); if (!response.ok) {await response.text(); return null;} return await response.json() as unknown;}
+    try {const response = await fetch(`${snapshotBase}${name}`, {credentials: "same-origin"}); if (!response.ok) {await response.text(); return null;} return await response.json() as unknown;}
     catch {return null;}
   };
   const [options, examples, dataset] = await Promise.all([read("recorded-options.json"), read("proposal-examples.json"), read("dataset.json")]);
