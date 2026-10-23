@@ -7,7 +7,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 対象 | 状況 |
 |---|---|
 | 公開サイト | [cytellect.vercel.app](https://cytellect.vercel.app/)。公開画像による解析例のみを扱い、研究画像は受け付けない。`main` へのマージで自動デプロイ |
-| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU で実行できる（クラウド GPU は未作成のため、現時点では使えない） |
+| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU で実行できる。Modal の GPU サーバーを 2026-10-23 にデプロイし、公開画像 2 枚で CPU と完全一致を確認（[実測](cloud-gpu.ja.md#実測2026-10-23)） |
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
 | 核小体検出 | NCL の protocol 4.3.0（追加学習した Cellpose-SAM と境界補正）。[計算仕様](methods.md) |
@@ -40,7 +40,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 |---|---|
 | 非公開データでの検証 | 研究室の実画像による、検出と測定の生物学的な妥当性の確認 |
 | 研究者による評価 | 複数の研究室の研究者による、作業の完了・時間・修正の負担・理解・再利用の評価（[評価タスク](usability-tasks.ja.md)） |
-| Windows 版 | Cellpose は CPU では 1 視野に数十分かかり実用にならないため、推論をクラウド GPU（[設定](cloud-gpu.ja.md)）で行う。実 GPU での所要時間・費用と CPU との一致度の受入、Windows のセットアップ画面からの設定。別の PC で起きた Smart App Control によるブロックへの対応 |
+| Windows 版 | Cellpose は CPU では 1 視野に数十分かかり実用にならないため、推論をクラウド GPU（[設定](cloud-gpu.ja.md)）で行う。研究室の実画像での GPU 実行と CPU との一致度の確認、実際の Windows PC のセットアップ画面からの接続。別の PC で起きた Smart App Control によるブロックへの対応 |
 | ホスト型の解析 | 公開 TLS とドメイン、利用者が不在の間の継続的な削除、運用サーバーの分離。研究画像をクラウドで受け付ける前に満たす |
 | 今後の機能 | アカウント、チーム、長期保存、決済 |
 

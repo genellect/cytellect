@@ -23,6 +23,11 @@ jobs:
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          # Wide enough that Modal does not wrap the server URL across lines.
+          COLUMNS: "400"
         run: |
           modal deploy infra/modal_cellpose.py | tee deploy.log
-          grep -o 'https://[A-Za-z0-9.-]*\.modal\.run' deploy.log | sort -u | sed 's/^/Server: /' >> "$GITHUB_STEP_SUMMARY"
+          # Servers are addressed at *.modal.direct; web functions use *.modal.run.
+          grep -oE 'https://[A-Za-z0-9.-]+\.modal\.(direct|run)' deploy.log | sort -u | sed 's/^/Server: /' > urls.txt
+          test -s urls.txt
+          cat urls.txt >> "$GITHUB_STEP_SUMMARY"
