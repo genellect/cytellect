@@ -7,6 +7,7 @@ param([Parameter(Mandatory=$true)][string]$AppRoot,
       [Parameter(Mandatory=$true)][string]$RepoRoot,
       [Parameter(Mandatory=$true)][string]$NodeExecutable,
       [Parameter(Mandatory=$true)][string]$BrowserCache,
+      [Parameter(Mandatory=$true)][string]$ContextPath,
       [Parameter(Mandatory=$true)][string]$ExpectedSource)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -15,9 +16,19 @@ $python=Join-Path $AppRoot 'runtime/python.exe'
 $result=[ordered]@{schema='cytellect-msix-inside/1';phase='start';passed=$false
     fiji=$false;public_browser=$false;numerical_replay=$false}
 try {
-    $result.phase='hosted_runner_guard'
-    if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
-        throw 'msix_acceptance_requires_disposable_hosted_runner'
+    $result.phase='parent_context_guard'
+    # The package debugging process gets a fresh user environment. The parent
+    # already enforced the disposable-hosted-runner gate before installing or
+    # trusting anything; hand off only non-secret source/process identity.
+    if ([IO.Path]::GetFullPath($ContextPath) -ine (Join-Path $WorkRoot 'inside-context.json')) {
+        throw 'msix_ci_context_location_invalid'
+    }
+    $context=Get-Content -LiteralPath $ContextPath -Raw | ConvertFrom-Json
+    $parent=Get-Process -Id $context.parent_process_id -ErrorAction Stop
+    if ($context.schema -cne 'cytellect-msix-ci-context/1' -or -not $context.hosted_runner_verified -or
+        $context.source_commit -cne $ExpectedSource -or
+        $parent.StartTime.ToUniversalTime().Ticks.ToString() -cne $context.parent_created) {
+        throw 'msix_ci_parent_context_invalid'
     }
     $env:CYTELLECT_ENGINE_ASSETS=Join-Path $AppRoot 'engines/fiji'
     $env:CYTELLECT_CELLPOSE_ASSETS=Join-Path $AppRoot 'engines/cellpose'

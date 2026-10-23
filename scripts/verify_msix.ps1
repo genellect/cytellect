@@ -87,10 +87,15 @@ public static class MsixActivation {
     # browser/reference harness in the package context through Microsoft's
     # debugging cmdlet, without adding an interpreter alias to the product.
     $inside=Join-Path $repo 'scripts/verify_msix_inside.ps1'
+    $contextPath=Join-Path $WorkRoot 'inside-context.json'
+    @{schema='cytellect-msix-ci-context/1';hosted_runner_verified=$true;source_commit=$env:GITHUB_SHA
+        parent_process_id=$PID;parent_created=(Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks.ToString()} |
+        ConvertTo-Json | Set-Content -LiteralPath $contextPath -Encoding utf8
     $arguments=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass',
         '-File',$inside,'-AppRoot',$installed,'-DataRoot',(Join-Path $userRoot 'data'),
         '-WorkRoot',$WorkRoot,'-RepoRoot',$repo,'-NodeExecutable',(Get-Command node).Source,
-        '-BrowserCache',(Join-Path $env:LOCALAPPDATA 'ms-playwright'),'-ExpectedSource',$env:GITHUB_SHA)
+        '-BrowserCache',(Join-Path $env:LOCALAPPDATA 'ms-playwright'),'-ContextPath',$contextPath,
+        '-ExpectedSource',$env:GITHUB_SHA)
     if (@($arguments | Where-Object {$_ -match '["\r\n]'}).Count) { throw 'msix_ci_invalid_arguments' }
     $commandArguments=($arguments | ForEach-Object {'"'+$_+'"'}) -join ' '
     Invoke-CommandInDesktopPackage -PackageFamilyName $app.PackageFamilyName -AppId Cytellect `
