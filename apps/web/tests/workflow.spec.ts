@@ -8,7 +8,7 @@ const api=process.env.CYTELLECT_TEST_API_ORIGIN||"http://localhost:8000";
 const python=process.env.CYTELLECT_TEST_PYTHON||path.join(root,".venv",process.platform==="win32"?"Scripts/python.exe":"bin/python");
 function invite(){
  if(process.env.CYTELLECT_TEST_DATA_DIR){
-  return execFileSync(python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(300))"],{encoding:"utf8",env:process.env}).trim();
+  return execFileSync(python,["-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl')).invite(300))"],{encoding:"utf8",env:process.env}).trim();
  }
  const file=process.env.CYTELLECT_TEST_INVITE_FILE;
  if(!file)throw new Error("Use a fresh synthetic-only invite file or isolated test data directory");
@@ -151,7 +151,7 @@ test("synthetic invite → detect → edit → remeasure → statistics → expo
  // Inject the actual worker failure shape to verify the UI contract, without changing scientific data.
  await page.route(api+`/v1/revisions/${resegmented.revision_id}/measurements`,async route=>route.fulfill({json:{...renewed,field_failures:[{field_id:fixture.field_ids[0],reason:"fiji_detection_capacity_exceeded",category:"EngineUnavailable"}]}}));
  await page.reload();
- await page.getByRole("button",{name:/Synthetic browser validation 有効期限/}).click();
+ await page.getByRole("button",{name:/Synthetic browser validation (有効期限|手動で削除するまで保持)/}).click();
  await expect(page.getByText(/この画像は現在の自動検出の上限を超えています/)).toBeVisible();
  await page.getByLabel("領域、背景、対象選別、失敗・除外理由を確認しました。").check();
  await expect(page.getByRole("button",{name:"品質確認を完了",exact:true})).toBeDisabled();

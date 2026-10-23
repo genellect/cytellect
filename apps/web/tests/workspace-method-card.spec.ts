@@ -16,7 +16,7 @@ test("nuclear and nucleolar candidates retain source identity and explicit adopt
   const original=["a9-actin.tif","a9-dna.tif"];
   const bytes=await Promise.all(original.map(name=>readFile(path.join(inputs!,name))));
   bytes.forEach((value,index)=>expect(createHash("sha256").update(value).digest("hex")).toBe(manifest.files[original[index]]));
-  const token=execFileSync(python!,["-B","-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(3600))"],{encoding:"utf8",env:process.env,stdio:["ignore","pipe","ignore"]}).trim();
+  const token=execFileSync(python!,["-B","-c","import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl')).invite(3600))"],{encoding:"utf8",env:process.env,stdio:["ignore","pipe","ignore"]}).trim();
   const redeemed=await page.request.post(`${api}/v1/invitations/redeem`,{headers:{Origin:process.env.CYTELLECT_WEB_URL!,"X-Cytellect-Request":"1"},data:{token}});
   expect(redeemed.ok()).toBeTruthy();
   const loaded=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="GET");

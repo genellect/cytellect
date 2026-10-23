@@ -14,7 +14,7 @@ async function post(page:Page,url:string,options:Parameters<Page["request"]["pos
 }
 async function mutation(page:Page,suffix:string,action:()=>Promise<void>){const response=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith(suffix)&&r.request().method()==="POST");await action();return json(await response);}
 async function job(page:Page,id:string){await expect.poll(async()=>{const result=await json(await page.request.get(`${api}/v1/jobs/${id}`));if(["failed","cancelled"].includes(result.state))throw Error(result.error||result.state);return result.state;},{timeout:600000,intervals:[1000,2000]}).toBe("succeeded");}
-async function reopen(page:Page,title:string){await page.reload();await page.getByRole("button",{name:new RegExp(`^${title} 有効期限`)}).click();}
+async function reopen(page:Page,title:string){await page.reload();await page.getByRole("button",{name:new RegExp(`^${title} (有効期限|手動で削除するまで保持)`)}).click();}
 async function background(page:Page){
  await page.getByRole("button",{name:"背景ROI",exact:true}).click();
  const details=page.locator("details").filter({has:page.locator("summary",{hasText:"座標から多角形を指定"})});
