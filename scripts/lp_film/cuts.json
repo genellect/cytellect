@@ -42,16 +42,6 @@
       "speed": 1.0
     },
     {
-      "id": "droplet",
-      "owner": "blender",
-      "render": "scripts/lp_film/renders/droplet.mp4",
-      "source": "px-p-18959104",
-      "duration": 3.2,
-      "crop": [0, 664, 4632, 2606],
-      "move": [1.0, 1.05],
-      "adjust": "eq=saturation=0.7"
-    },
-    {
       "id": "glass",
       "owner": "blender",
       "render": "scripts/lp_film/renders/glass.mp4",

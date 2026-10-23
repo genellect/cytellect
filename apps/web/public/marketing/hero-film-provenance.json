@@ -4,7 +4,7 @@
   "not_analysis_input": true,
   "not_product_usage_evidence": true,
   "built_by": "scripts/lp_film/build_film.py from scripts/lp_film/cuts.json",
-  "duration_seconds": 12.9,
+  "duration_seconds": 10.4,
   "licenses": {
     "pexels": {
       "url": "https://www.pexels.com/license/",
@@ -49,15 +49,6 @@
       "treatment": "そのまま。共通の色調に揃える"
     },
     {
-      "cut": "droplet",
-      "kind": "photo",
-      "source": "px-p-18959104",
-      "page": "https://www.pexels.com/photo/water-droplet-photography-18959104/",
-      "creator": "Kelemen Boldizsár",
-      "license": "pexels",
-      "treatment": "ゆっくり寄るカメラの動き。青みを抜いて共通の色調に揃える"
-    },
-    {
       "cut": "glass",
       "kind": "photo",
       "source": "us-6Uu8CSP38AI",
@@ -68,8 +59,8 @@
     }
   ],
   "outputs": {
-    "apps/web/public/marketing/hero-film.mp4": "8627365a8066e8af0fd67afa9fbed30136de9fc4d3fdd5036ff4af8942c86e25",
-    "apps/web/public/marketing/hero-film.webm": "1e84616ce5a77c5a9c0a3e97fd8b4992a99ed88bcefbca1190cc66a17a8227be",
+    "apps/web/public/marketing/hero-film.mp4": "b5692095e4e9e01ff36ef1f9853604eca0b2e7d68ee63c669af68fe0c2d633d8",
+    "apps/web/public/marketing/hero-film.webm": "7d4d5d6fe3c8a13a71257069e57c14325a72ad17100769402a465aef08070677",
     "apps/web/public/marketing/hero-film-poster.webp": "5b7d098ebb0ffca4778227634c516d2a0b9c7917b5379b5cc622218b8324ef3f"
   }
 }
