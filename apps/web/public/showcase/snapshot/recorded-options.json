@@ -1,0 +1,49 @@
+{
+ "cellpose-sam-ncl-parent": {
+  "cellprob_threshold": [
+   0
+  ]
+ },
+ "cytellect-ncl-objects": {},
+ "cytellect-nucleolar-v2": {
+  "minimum_area_px": [
+   2,
+   4,
+   8
+  ],
+  "relative_threshold": [
+   0.6,
+   0.7,
+   0.8
+  ],
+  "smoothing_sigma_px": [
+   0.5,
+   0.7,
+   1.0,
+   2.0
+  ]
+ },
+ "fiji-nucleolar-compartments": {
+  "minimum_area_px": [
+   1
+  ],
+  "smoothing_sigma_px": [
+   0
+  ]
+ },
+ "fiji-stardist-2d": {
+  "detection_max_side_px": [
+   null
+  ],
+  "nms": [
+   0.2,
+   0.3,
+   0.4
+  ],
+  "probability": [
+   0.4,
+   0.5,
+   0.6
+  ]
+ }
+}

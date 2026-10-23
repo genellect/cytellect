@@ -35,6 +35,7 @@
 | `runtime.py` | `async boot(seed_zip: bytes, origin: str) -> None`、`async handle(method: str, url: str, headers: list[list[str]], body: bytes \| None) -> dict`（`{"status": int, "headers": [[name, value], ...], "body": bytes}`）。セッションは内部で作成・保持し、呼び出し側は Cookie を扱わない。変更系の要求の後、待機中のジョブをその場で実行する |
 | `detections.py` | 検出の記録と再生。`install_recorder(out_dir: Path)`、`install_replay(recordings_dir: Path)`、`record_key(...)` |
 | `build.py` | ビルド時に CPython で実行する。公開画像の取り込み、記録付きの実検出、シナリオの実行、初期状態と GET 応答の書き出し |
+| `seed.py` | `restore(data_dir: Path) -> int`。`seed.zip` を展開した直後、API を開く前に `boot()` が呼ぶ。`showcase.json` の `regenerate` に列挙した重複ファイル（元 TIFF から復号する `channel-*.npy`、その複製）をバイト単位で再生成し、SHA-256 を照合する。不一致は `showcase_seed_restore_mismatch` |
 
 ### 検出の記録キー
 
@@ -57,7 +58,8 @@
 
 | パス | 内容 |
 |---|---|
-| `seed.zip` | データディレクトリ（`cytellect.sqlite`、`workspaces/` ほか。`tmp/` を除く）、`recordings/`、`proposals.json` |
+| `seed.zip` | データディレクトリ（`cytellect.sqlite`、`workspaces/` ほか。`tmp/` と再生成できる重複を除く）、`recordings/`、`proposals.json`、`showcase.json`（`workspace_id`、所有者 `owner`、`regenerate`。ビルド時のセッションは削除済みで、実行時はこの `owner` のセッションを作成する） |
+| `snapshot/dataset.json` | データセットの題名、出典、ライセンス、帰属表示、加工内容、注意事項（UI が表示する） |
 | `snapshot/index.json` | `{"version": 1, "entries": {"GET <パスとクエリ>": {"status": 200, "headers": [[...]], "file": "<ファイル名>"}}}` |
 | `runtime/` | 自前のホイールと純 Python の依存。Pyodide 本体と同梱パッケージは、版を固定した CDN から読み込む |
 

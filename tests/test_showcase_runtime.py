@@ -266,6 +266,9 @@ def test_seed_description_restore_hook_and_empty_proposals(seed, tmp_path, monke
     module = types.ModuleType("cytellect_showcase.seed")
     module.restore = lambda data_dir: restored.append(sorted(p.name for p in Path(data_dir).iterdir()))
     monkeypatch.setitem(sys.modules, "cytellect_showcase.seed", module)
+    # `from . import seed` reads the package attribute once the real module was imported.
+    import cytellect_showcase
+    monkeypatch.setattr(cytellect_showcase, "seed", module, raising=False)
 
     async def scenario():
         await runtime.boot(buffer.getvalue(), ORIGIN, root=tmp_path / "browser")

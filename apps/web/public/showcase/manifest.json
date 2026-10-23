@@ -1,0 +1,1251 @@
+{
+ "schema": "cytellect-showcase-manifest/1",
+ "dataset": {
+  "name": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
+  "source": "https://zenodo.org/records/6643470",
+  "doi": "10.5281/zenodo.6643470",
+  "license": "CC-BY-4.0",
+  "license_quoted": "Creative Commons Attribution 4.0 International (Zenodo record metadata: license id cc-by-4.0)",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; centre-cropped, channel subset.",
+  "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
+  "scope": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
+  "modifications": "Centre 1536 x 1536 crop of each 2304 x 2304 plane; channels Hoechst (OME c3, filter DAPI) and NPM1-mTagRFP (OME c1, filter TRITC) only; pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
+  "caveats": [
+   "All replicates (Rep1-Rep3) were acquired on the same date (2021-12-01). The source does not state whether Rep1-Rep3 are independent experiments; they are treated as replicate units for demonstration only.",
+   "Each replicate contains both conditions; the demo pairs conditions by replicate (paired t-test over three pairs, one field per condition and replicate). With three pairs the test has very low power; p-values are illustrations of the workflow, not findings.",
+   "Nucleoli are defined from NPM1 with the workspace's nucleolar-marker definition (default parameters). Under ActD, NPM1 partly relocates to the nucleoplasm, so marker-defined nucleoli reflect NPM1 distribution, not nucleolar structure alone.",
+   "Hoechst saturates (value 65535) in a small fraction of pixels in some fields; counts are listed in manifest.json (selection.results[].saturated_pixels).",
+   "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images.",
+   "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
+  ]
+ },
+ "derivation_rule": "Pre-registered (coordinator, before any measurement): crop the centred 1536 x 1536 region of each 2304 x 2304 plane (no other processing, uint16 values unchanged). For each condition (Untreated, ActD1) x replicate (Rep1-Rep3), take fields in acquisition order and keep the first whose number of whole nuclei inside the crop, counted by StarDist on the Hoechst channel only with the default nuclear recipe (region-2d 1.7.0, nuclear-size/1.0.0, probability 0.5, NMS 0.3; nuclei touching the crop border excluded), is 10-20. Amendment recorded before any NPM1 measurement or statistics: the original rule kept the first 3 qualifying fields per cell; it was reduced to the first 1 qualifying field to keep the published bundle size near 40 MB (each 1536 x 1536 field costs about 7.5 MB losslessly). NPM1 is never read during selection.",
+ "selection": {
+  "url_pattern": "https://zenodo.org/api/records/6643470/files/{name}/content",
+  "crop_size": [
+   1536,
+   1536
+  ],
+  "count_channel": "hoechst",
+  "minimum": 10,
+  "maximum": 20,
+  "per_cell": 1,
+  "per_cell_original": 3,
+  "results": [
+   {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep1_Untreated_20211201_01_01.tif",
+    "whole_nuclei": 25,
+    "border_nuclei": 0,
+    "detection_max_side_px": 758,
+    "estimated_diameter_px": 81.10212998498776,
+    "saturated_pixels": 1931,
+    "qualifies": false,
+    "pair": "Rep1"
+   },
+   {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep1_Untreated_20211201_01_02.tif",
+    "whole_nuclei": 34,
+    "border_nuclei": 11,
+    "detection_max_side_px": 792,
+    "estimated_diameter_px": 77.56324418739615,
+    "saturated_pixels": 12058,
+    "qualifies": false,
+    "pair": "Rep1"
+   },
+   {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep1_Untreated_20211201_01_03.tif",
+    "whole_nuclei": 26,
+    "border_nuclei": 8,
+    "detection_max_side_px": 725,
+    "estimated_diameter_px": 84.76373488078804,
+    "saturated_pixels": 19924,
+    "qualifies": false,
+    "pair": "Rep1"
+   },
+   {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep1_Untreated_20211201_01_04.tif",
+    "whole_nuclei": 41,
+    "border_nuclei": 9,
+    "detection_max_side_px": 795,
+    "estimated_diameter_px": 77.2672001903989,
+    "saturated_pixels": 11040,
+    "qualifies": false,
+    "pair": "Rep1"
+   },
+   {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep1_Untreated_20211201_01_05.tif",
+    "whole_nuclei": 17,
+    "border_nuclei": 8,
+    "detection_max_side_px": 768,
+    "estimated_diameter_px": 79.96379801922859,
+    "saturated_pixels": 9423,
+    "qualifies": true,
+    "pair": "Rep1"
+   },
+   {
+    "condition": "Untreated",
+    "experimental_unit": "Rep2 Untreated",
+    "sample": "Rep2 Untreated",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep2_Untreated_20211201_01_61.tif",
+    "whole_nuclei": 15,
+    "border_nuclei": 0,
+    "detection_max_side_px": 798,
+    "estimated_diameter_px": 76.97001755003511,
+    "saturated_pixels": 8372,
+    "qualifies": true,
+    "pair": "Rep2"
+   },
+   {
+    "condition": "Untreated",
+    "experimental_unit": "Rep3 Untreated",
+    "sample": "Rep3 Untreated",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep3_Untreated_20211201_01_121.tif",
+    "whole_nuclei": 12,
+    "border_nuclei": 2,
+    "detection_max_side_px": 811,
+    "estimated_diameter_px": 75.76963182707732,
+    "saturated_pixels": 9893,
+    "qualifies": true,
+    "pair": "Rep3"
+   },
+   {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep1 ActD 1 µM",
+    "sample": "Rep1 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep1_ActD1_20211201_01_51.tif",
+    "whole_nuclei": 10,
+    "border_nuclei": 0,
+    "detection_max_side_px": 652,
+    "estimated_diameter_px": 94.29901897915151,
+    "saturated_pixels": 23789,
+    "qualifies": true,
+    "pair": "Rep1"
+   },
+   {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep2 ActD 1 µM",
+    "sample": "Rep2 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep2_ActD1_20211201_01_111.tif",
+    "whole_nuclei": 18,
+    "border_nuclei": 2,
+    "detection_max_side_px": 758,
+    "estimated_diameter_px": 81.03145273410341,
+    "saturated_pixels": 35236,
+    "qualifies": true,
+    "pair": "Rep2"
+   },
+   {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep3 ActD 1 µM",
+    "sample": "Rep3 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "file": "40x_1.4_Rep3_ActD1_20211201_01_171.tif",
+    "whole_nuclei": 18,
+    "border_nuclei": 4,
+    "detection_max_side_px": 772,
+    "estimated_diameter_px": 79.60473110404246,
+    "saturated_pixels": 14576,
+    "qualifies": true,
+    "pair": "Rep3"
+   }
+  ]
+ },
+ "scenario_notes": {
+  "unit_definition": "反復（Rep1–Rep3）内の各処理条件（同日撮影。反復の独立性は出典に記載なし）",
+  "pairing_basis": "同じ反復（Rep）で撮影したUntreated と ActD 1 µM",
+  "design_note": "Each replicate (Rep1-Rep3) contains both conditions, so conditions are paired by replicate: experimental unit = one condition within one replicate, pair = replicate. The comparison is a paired t-test over three replicate pairs; the source does not state that replicates are independent experiments.",
+  "statistics": {
+   "distribution": {
+    "target": "nuclei",
+    "metric": "area_px",
+    "channel": "npm1"
+   },
+   "association": {
+    "target": "nuclei",
+    "metric": "mean",
+    "channel": "npm1",
+    "x_metric": "area_px"
+   },
+   "comparison": {
+    "target": "nuclei",
+    "metric": "mean",
+    "channel": "npm1",
+    "design": "paired"
+   }
+  },
+  "statistics_planned": {
+   "distribution": {
+    "target": "nucleoli",
+    "metric": "area_px",
+    "channel": "npm1"
+   },
+   "association": {
+    "target": "nuclei",
+    "metric": "mean",
+    "channel": "npm1",
+    "x_metric": "area_px"
+   },
+   "comparison": {
+    "target": "nucleoplasm",
+    "metric": "nucleolar_area_fraction",
+    "channel": "npm1"
+   }
+  },
+  "statistics_amendment": "The planned nucleolar/nucleoplasm analyses could not be saved: the workspace refuses cohorts of compartment revisions until every parent nucleus has a resolved candidate state (assert_complete_compartments), and the NPM1 Cellpose-SAM detection left unresolved parents (no_candidate / indeterminate / review_required) in every field, including all parents of one ActD field. Excluding those nuclei would select cells by the outcome, so the saved statistics use the nuclear region set instead. The change was made because of this software gate, before any statistical result was computed; the nucleolar masks and their per-parent states remain visible in the image view.",
+  "grid_notes": "Nuclei: full 3 x 3 grid of StarDist probability (0.4/0.5/0.6) and NMS (0.2/0.3/0.4) at the automatic detection scale on all fields. The default marker definition is computed in the browser for any nuclear result. NCL-positive alternatives (Cellpose-SAM 4.3.0 with default settings, one CPU inference 1.5-18 min per field; Fiji NCL threshold with default settings) are recorded on all fields for the default nuclear result only; after changing the nuclear setting they report showcase_detection_not_recorded. Cellpose-SAM cell ROI is not recorded: the dataset has no cell-boundary or cytoplasmic channel."
+ },
+ "seed": {
+  "entries": 408,
+  "bytes": 39481446,
+  "regenerated_on_boot": 19,
+  "regenerated_bytes": 114098976
+ },
+ "proposals": {
+  "model": "showcase-preset",
+  "prompt_version": "1",
+  "source": "showcase-authored",
+  "note": "Demo-authored analysis drafts for preset instructions; no language model was called. Each draft is returned through the production proposal route and validated by validate_draft.",
+  "presets": [
+   "核の面積の分布を視野ごとに確認したい",
+   "NPM1の核内平均輝度を未処理とActD処理で比較したい",
+   "核の面積とNPM1の平均輝度の関係を条件ごとに見たい"
+  ],
+  "recorded_contexts": 9
+ },
+ "sources": {
+  "40x_1.4_Rep1_Untreated_20211201_01_05": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_05.tif/content",
+   "md5": "cc7f5239be471f986adf8caec297144a",
+   "sha256": "a908495e3106ff85bcce4f33a3cab74f910e1f7bf0231a71c8554e5ad108eb7a",
+   "bytes": 42566775,
+   "member": null,
+   "member_sha256": null
+  },
+  "40x_1.4_Rep2_Untreated_20211201_01_61": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_61.tif/content",
+   "md5": "2095eaac0c3d97912f9bdd0693956745",
+   "sha256": "9ec7c667f488b4c6d5359e7c4505cf75521d55b1520ac697092a307f773f4d01",
+   "bytes": 42566775,
+   "member": null,
+   "member_sha256": null
+  },
+  "40x_1.4_Rep3_Untreated_20211201_01_121": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_121.tif/content",
+   "md5": "bddb3282bf78b91c15d9c2fbd5c83a8b",
+   "sha256": "3adb28d54afa648ce14d94f093b3142dc300cff669b2247d4e62edffd56757d0",
+   "bytes": 42566775,
+   "member": null,
+   "member_sha256": null
+  },
+  "40x_1.4_Rep1_ActD1_20211201_01_51": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_51.tif/content",
+   "md5": "2e661797a8df3da5af7c7acf8698bb46",
+   "sha256": "7fdb940cf46b54a508d42d524415fe9c23af14c54b304ca7058c489be2961b1c",
+   "bytes": 42566715,
+   "member": null,
+   "member_sha256": null
+  },
+  "40x_1.4_Rep2_ActD1_20211201_01_111": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_111.tif/content",
+   "md5": "570de0519a29b7fcfdc57eea2a345c9b",
+   "sha256": "d5b4b92dd8d844f805985ce93dcdfff3767f60ca975064056d46441dfa709203",
+   "bytes": 42566709,
+   "member": null,
+   "member_sha256": null
+  },
+  "40x_1.4_Rep3_ActD1_20211201_01_171": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_171.tif/content",
+   "md5": "408379344a9b42ac9e554b16b991a9ec",
+   "sha256": "13aa7532ca84885f315d00b3f9edbc1a99c516d86cbec1cfd44125808fb905e4",
+   "bytes": 42566707,
+   "member": null,
+   "member_sha256": null
+  }
+ },
+ "fields": [
+  {
+   "id": "40x_1.4_Rep1_Untreated_20211201_01_05",
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 Untreated",
+    "sample": "Rep1 Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   },
+   "derivation": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_05",
+     "source_sha256": "a908495e3106ff85bcce4f33a3cab74f910e1f7bf0231a71c8554e5ad108eb7a",
+     "member": null,
+     "select": {
+      "C": 3
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "78c71bd3fd9fc0cfad0262732d2fda8b9580c8685544cb84b0573bc65d4e7795",
+     "pixel_sha256": "c234bf071fab992ff41935a61a769ff6a907df5a2ea2c143fb5444fffa452fa3"
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_05",
+     "source_sha256": "a908495e3106ff85bcce4f33a3cab74f910e1f7bf0231a71c8554e5ad108eb7a",
+     "member": null,
+     "select": {
+      "C": 1
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "d0b999fa8826072c248ed70b008634b882647fdb7f535ac79a283e8a1138cb4d",
+     "pixel_sha256": "d311af042ed42ec70358d5ed323f086a8ded28397c378290fd9086a59ef38fe2"
+    }
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_Untreated_20211201_01_61",
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep2 Untreated",
+    "sample": "Rep2 Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   },
+   "derivation": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+     "source_sha256": "9ec7c667f488b4c6d5359e7c4505cf75521d55b1520ac697092a307f773f4d01",
+     "member": null,
+     "select": {
+      "C": 3
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "82b0ae53e02c962f1e4ba7ccf937454b3a97d1b7ce621db9ada334e4a1074041",
+     "pixel_sha256": "861c023028f5dcd1c35032a0702805ca19448d76c1c10a69bb7c4eb4917bac8f"
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+     "source_sha256": "9ec7c667f488b4c6d5359e7c4505cf75521d55b1520ac697092a307f773f4d01",
+     "member": null,
+     "select": {
+      "C": 1
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "b03bb7620d6404fd099a410614767d526e67195a3bfbf26c7a3af6388ca674c5",
+     "pixel_sha256": "1c8f194594324867f87776e4862a5718e2bbfac5432fe9e6ebabff8bc62ca799"
+    }
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_Untreated_20211201_01_121",
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep3 Untreated",
+    "sample": "Rep3 Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   },
+   "derivation": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+     "source_sha256": "3adb28d54afa648ce14d94f093b3142dc300cff669b2247d4e62edffd56757d0",
+     "member": null,
+     "select": {
+      "C": 3
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "a7ce5571980244fd76575c1a5565a56e5395ff42013597842d27cfbf39038573",
+     "pixel_sha256": "a6e37001d5b048a228038ff85fdb2eec7ac8e709ee4607e63d6b97fca6e642ca"
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+     "source_sha256": "3adb28d54afa648ce14d94f093b3142dc300cff669b2247d4e62edffd56757d0",
+     "member": null,
+     "select": {
+      "C": 1
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "3e9565080fc7a57780e0e49cfaa8a4ba1649931e3a986b9273f3832576ff76f1",
+     "pixel_sha256": "6fa043df7802d0a566bd0b9538892a453f909f1b0efd214f152bab89ccc33083"
+    }
+   }
+  },
+  {
+   "id": "40x_1.4_Rep1_ActD1_20211201_01_51",
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep1 ActD 1 µM",
+    "sample": "Rep1 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   },
+   "derivation": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+     "source_sha256": "7fdb940cf46b54a508d42d524415fe9c23af14c54b304ca7058c489be2961b1c",
+     "member": null,
+     "select": {
+      "C": 3
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "d7193eeafe5ae5d5a463f4390b03baed99caf95d3d7f96eab03a7b2bd2c162c9",
+     "pixel_sha256": "71c83f06b4f67b401a4afde9f1e5264d08dd3ac0cfa2e28643b6d854a0d4fb9b"
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+     "source_sha256": "7fdb940cf46b54a508d42d524415fe9c23af14c54b304ca7058c489be2961b1c",
+     "member": null,
+     "select": {
+      "C": 1
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "32e7b18a9ada3b32a5b210cf66de5e5ddf5a6bdb5d67566947e3fb1d9b7bff0a",
+     "pixel_sha256": "e274c2114dbbd0c26deed1461bc033fe12f21a2333390051e4f746ed4b8839e3"
+    }
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_ActD1_20211201_01_111",
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep2 ActD 1 µM",
+    "sample": "Rep2 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   },
+   "derivation": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+     "source_sha256": "d5b4b92dd8d844f805985ce93dcdfff3767f60ca975064056d46441dfa709203",
+     "member": null,
+     "select": {
+      "C": 3
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "d030bf625e15f3c3cfff7e42a85cd872e20bf380366f40118644cdf9589bb3bb",
+     "pixel_sha256": "08d10380c69f41b381b593cf3086a5c3a201b90f37c9e5ceef41558ae37226dc"
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+     "source_sha256": "d5b4b92dd8d844f805985ce93dcdfff3767f60ca975064056d46441dfa709203",
+     "member": null,
+     "select": {
+      "C": 1
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "095e910be695325e14e8a89aa22c9d0855f133d858674adacdc7873dc80c8074",
+     "pixel_sha256": "64274b43fc4733e16fa85daa69a56473de394cca29371628b84c1104d2aa72a0"
+    }
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_ActD1_20211201_01_171",
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep3 ActD 1 µM",
+    "sample": "Rep3 ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   },
+   "derivation": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+     "source_sha256": "13aa7532ca84885f315d00b3f9edbc1a99c516d86cbec1cfd44125808fb905e4",
+     "member": null,
+     "select": {
+      "C": 3
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "6f634e4ef6a60f3342c0a65013c239c433afea6be43afa042de2afa11c39c9d0",
+     "pixel_sha256": "eaeccf59255cc39458c5ce23d3b5efc2e684e71fadc4511ab76561f9d7cb4fc6"
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+     "source_sha256": "13aa7532ca84885f315d00b3f9edbc1a99c516d86cbec1cfd44125808fb905e4",
+     "member": null,
+     "select": {
+      "C": 1
+     },
+     "crop_yxhw": [
+      384,
+      384,
+      1536,
+      1536
+     ],
+     "dtype": "uint16",
+     "shape": [
+      1536,
+      1536
+     ],
+     "tiff_sha256": "4e857912d4c437df4570a006f64dbbb3b8e0aaf40aaf67c4e9765674c794e427",
+     "pixel_sha256": "a789e3f80dbf1f1fd8756aa3c9371e1575262039b9a86d97dfe85a6d621db47f"
+    }
+   }
+  }
+ ],
+ "generated_from_commit": "860c1da005c3965012951d035a9c52f5d549e2bc",
+ "runtime": {
+  "fiji": {
+   "distribution": {
+    "url": "https://downloads.imagej.net/fiji/archive/latest/20260929-1417/fiji-latest-linux64-jdk.zip",
+    "sha256": "0b2197f45a0c0a5d54f4479518dc3fdbd79b4e1c76bd7d2b4fc30e95ef68d44c"
+   },
+   "plugins": [
+    {
+     "path": "jars/Clipper-6.4.2.jar",
+     "sha256": "df1020524cc2cad78d57a6928cf94d00e8558397ccf8d227d2c8f4af1023b970"
+    },
+    {
+     "path": "plugins/StarDist_-0.3.0.jar",
+     "sha256": "fff483154961e60cb6305e4ef73ef9e662298e1e65a077858e018717eb30d2bd"
+    },
+    {
+     "path": "jars/libtensorflow-1.15.0.jar",
+     "sha256": "9c51d1b825f189f60836e4ce75484106e7b13eca589f3db932725223f28c2d63"
+    },
+    {
+     "path": "jars/libtensorflow_jni-1.15.0.jar",
+     "sha256": "f08ce6e684b50eb57e7b3c98347c3597433f945b17f0d1937517ef49ab47d047"
+    },
+    {
+     "path": "jars/proto-1.15.0.jar",
+     "sha256": "bc97062b6a89cf80ac6165e0085eb5c44f48d879a8679346ce31acfd16c17cb6"
+    },
+    {
+     "path": "jars/tensorflow-1.15.0.jar",
+     "sha256": "8ce4b87401fc04936834c5167c41d828407028f2c17455300044577f9db6b4cd"
+    },
+    {
+     "path": "jars/csbdeep-0.6.0.jar",
+     "sha256": "13bfb85d179bedf1d5e6542b0e200cb250ab8e030e88d5e645e6e6b486b22894"
+    },
+    {
+     "path": "jars/imagej-tensorflow-1.1.9.jar",
+     "sha256": "6a706ad629dd5cf037f1a6b19dc69ca5dd53a5c02449f680cb6885ed485933da"
+    },
+    {
+     "path": "plugins/MorphoLibJ_-1.6.5.jar",
+     "sha256": "086c4661ccdd8c2787a6433468955df7646589b16cbae5c97607c18d8fe2af59"
+    },
+    {
+     "path": "jars/protobuf-java-3.25.8.jar",
+     "sha256": "72bdb32eb38cafb7dcd288262c29a34d57cba2e19101af9685155ba8c0a56008"
+    }
+   ],
+   "model": {
+    "container": "plugins/StarDist_-0.3.0.jar",
+    "member": "models/2D/dsb2018_heavy_augment.zip",
+    "sha256": "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3",
+    "name": "Versatile (fluorescent nuclei)",
+    "license": "BSD-3-Clause",
+    "source": "https://github.com/stardist/stardist-models"
+   },
+   "installed_lock_sha256": "a449aebd0a0cf82cca81e86dfae1a0f17a06c50bc309aa7765bbd36e300cd4b3"
+  },
+  "cellpose": {
+   "packages": {
+    "cellpose": "4.2.1.1",
+    "torch": "2.8.0+cpu",
+    "torchvision": "0.23.0+cpu",
+    "numpy": "2.2.6",
+    "scipy": "1.16.2",
+    "segment-anything": "1.0",
+    "packaging": "26.3"
+   },
+   "model": {
+    "id": "cpsam_v2",
+    "revision": "7c61431b5fbb078f3296754bd15d9f51b320f837",
+    "url": "https://huggingface.co/mouseland/cellpose-sam/resolve/7c61431b5fbb078f3296754bd15d9f51b320f837/cpsam_v2",
+    "sha256": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+    "size": 1233586851,
+    "license": "BSD-3-Clause"
+   },
+   "runner_sha256": "c4b32c7910b3e00804b48794791468dfefedec7896ec770548f34872b4fd9453",
+   "requirements_sha256": "58e95d4056a9ff6d225e4a90c43a5a35dd3a867d959d48f1074b3d4f7f548f53"
+  },
+  "python": "3.12.3"
+ },
+ "scenario": {
+  "timings": {
+   "nuclei": 3.9,
+   "nucleoli": 22.4,
+   "nucleoplasm": 12.3,
+   "statistics-comparison": 3.1,
+   "render-paired": 0.8,
+   "render-box": 0.6,
+   "render-violin": 0.9,
+   "render-histogram": 0.6,
+   "statistics-association": 1.1,
+   "statistics-distribution": 0.9
+  },
+  "statistics": {
+   "comparison": {
+    "job": "156b17f1-26e1-4abc-aaed-f2ea839bcf8a",
+    "revision": "988025a6-917c-4b09-8677-9107a40a7919"
+   },
+   "association": {
+    "job": "961f95f4-030f-4214-b1b8-3e0a3f8393af",
+    "revision": "988025a6-917c-4b09-8677-9107a40a7919"
+   },
+   "distribution": {
+    "job": "aa897ace-5f40-47f8-a1dd-bb032d909823",
+    "revision": "988025a6-917c-4b09-8677-9107a40a7919"
+   }
+  },
+  "renders": [
+   {
+    "job": "d6024a19-9f1c-493f-b1ec-2977355b53b5",
+    "kind": "paired",
+    "files": [
+     "figure.svg",
+     "figure.pdf",
+     "figure.png",
+     "experimental-units.csv",
+     "unit-ledger.csv",
+     "counts.csv",
+     "plot-data.csv",
+     "observations.csv",
+     "source-fields.csv",
+     "field-summary.csv",
+     "sample-summary.csv",
+     "unit-summary.csv",
+     "pair-ledger.csv",
+     "comparisons.csv",
+     "figure-data.json",
+     "figure-caption.md",
+     "methods.md"
+    ]
+   },
+   {
+    "job": "e528f306-af74-485d-bcb6-cf2f3c2f0f09",
+    "kind": "box",
+    "files": [
+     "figure.svg",
+     "figure.pdf",
+     "figure.png",
+     "experimental-units.csv",
+     "unit-ledger.csv",
+     "counts.csv",
+     "plot-data.csv",
+     "observations.csv",
+     "source-fields.csv",
+     "field-summary.csv",
+     "sample-summary.csv",
+     "unit-summary.csv",
+     "pair-ledger.csv",
+     "comparisons.csv",
+     "graphical-summary.csv",
+     "figure-data.json",
+     "figure-caption.md",
+     "methods.md"
+    ]
+   },
+   {
+    "job": "6aa8e11e-ff4b-4fa8-b6ba-f9a3d7ff4e44",
+    "kind": "violin",
+    "files": [
+     "figure.svg",
+     "figure.pdf",
+     "figure.png",
+     "experimental-units.csv",
+     "unit-ledger.csv",
+     "counts.csv",
+     "plot-data.csv",
+     "observations.csv",
+     "source-fields.csv",
+     "field-summary.csv",
+     "sample-summary.csv",
+     "unit-summary.csv",
+     "pair-ledger.csv",
+     "comparisons.csv",
+     "graphical-summary.csv",
+     "figure-data.json",
+     "figure-caption.md",
+     "methods.md"
+    ]
+   },
+   {
+    "job": "4d0d0077-a14c-4c23-9bec-5fa23db9fb3d",
+    "kind": "histogram",
+    "files": [
+     "figure.svg",
+     "figure.pdf",
+     "figure.png",
+     "experimental-units.csv",
+     "unit-ledger.csv",
+     "counts.csv",
+     "plot-data.csv",
+     "observations.csv",
+     "source-fields.csv",
+     "field-summary.csv",
+     "sample-summary.csv",
+     "unit-summary.csv",
+     "pair-ledger.csv",
+     "comparisons.csv",
+     "graphical-summary.csv",
+     "figure-data.json",
+     "figure-caption.md",
+     "methods.md"
+    ]
+   }
+  ]
+ },
+ "grid": {
+  "options": {
+   "fiji-stardist-2d": {
+    "probability": [
+     0.4,
+     0.5,
+     0.6
+    ],
+    "nms": [
+     0.2,
+     0.3,
+     0.4
+    ],
+    "detection_max_side_px": [
+     null
+    ]
+   },
+   "cellpose-sam-ncl-parent": {
+    "cellprob_threshold": [
+     0
+    ]
+   },
+   "fiji-nucleolar-compartments": {
+    "smoothing_sigma_px": [
+     0
+    ],
+    "minimum_area_px": [
+     1
+    ]
+   }
+  },
+  "timings": {
+   "nuclei p=0.4 nms=0.2 side=None": 3.2,
+   "nuclei p=0.4 nms=0.3 side=None": 3.1,
+   "nuclei p=0.4 nms=0.4 side=None": 3.0,
+   "nuclei p=0.5 nms=0.2 side=None": 2.8,
+   "nuclei p=0.5 nms=0.4 side=None": 2.9,
+   "nuclei p=0.6 nms=0.2 side=None": 3.0,
+   "nuclei p=0.6 nms=0.3 side=None": 2.9,
+   "nuclei p=0.6 nms=0.4 side=None": 2.8,
+   "cellpose-sam-ncl-parent {'cellprob_threshold': 0}": 4.3,
+   "fiji-nucleolar-compartments {'smoothing_sigma_px': 0, 'minimum_area_px': 1}": 7.7
+  }
+ },
+ "detections_recorded": 66,
+ "files": {
+  "runtime/NotoSansJP-OFL.txt": {
+   "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+   "bytes": 4388
+  },
+  "runtime/NotoSansJP-Regular.ttf": {
+   "sha256": "a66655d7b24ac6f793f73914c60ad44522b9fbd9e5f9b3706220b66c44fdaad2",
+   "bytes": 5766828
+  },
+  "runtime/THIRD_PARTY_NOTICES.txt": {
+   "sha256": "116d673a8e48f1db7f3c7f3a52e1531ed8359d7b32fd39c6e1f8540555a72310",
+   "bytes": 58691
+  },
+  "runtime/alembic-1.20.0-py3-none-any.whl": {
+   "sha256": "77eb101048d95f982c0353e9233404889dcd7a6fc244c107836c0e2fc9cf7d9d",
+   "bytes": 268719
+  },
+  "runtime/annotated_doc-0.0.5-py3-none-any.whl": {
+   "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+   "bytes": 5302
+  },
+  "runtime/anyio-4.15.1-py3-none-any.whl": {
+   "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+   "bytes": 132079
+  },
+  "runtime/cytellect-0.1.0-py3-none-any.whl": {
+   "sha256": "a87fc005d940e1dc327218f3995add0760ad3442830f1939a8afa19094db5dba",
+   "bytes": 392422
+  },
+  "runtime/defusedxml-0.7.1-py2.py3-none-any.whl": {
+   "sha256": "a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61",
+   "bytes": 25604
+  },
+  "runtime/fastapi-0.142.2-py3-none-any.whl": {
+   "sha256": "bd5f4d81f1e93a88bcd77caf4dfe3c2dbffc3805407a0007e9a114c18b3a670b",
+   "bytes": 144409
+  },
+  "runtime/idna-3.20-py3-none-any.whl": {
+   "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+   "bytes": 69583
+  },
+  "runtime/mako-1.4.3-py3-none-any.whl": {
+   "sha256": "723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f",
+   "bytes": 80164
+  },
+  "runtime/opentelemetry_api-1.45.0-py3-none-any.whl": {
+   "sha256": "80e068aba7cd56c8b58512d6a36f8d25cb1dfaa0c0a4cc1c938ccf9f362d9cb3",
+   "bytes": 60020
+  },
+  "runtime/python_multipart-0.0.32-py3-none-any.whl": {
+   "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+   "bytes": 30042
+  },
+  "runtime/roifile-2026.9.22-py3-none-any.whl": {
+   "sha256": "2bde74e084c4f2f07edd0d54df41fc3b482a548044ed43fbbed3e0db6b77363e",
+   "bytes": 21894
+  },
+  "runtime/starlette-1.7.0-py3-none-any.whl": {
+   "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+   "bytes": 78980
+  },
+  "runtime/tifffile-2026.9.20-py3-none-any.whl": {
+   "sha256": "9b913167b8f66a57f2e7c0454486c4c4607196d494797461226166bd0755c0e6",
+   "bytes": 275004
+  },
+  "runtime/typing_extensions-4.16.0-py3-none-any.whl": {
+   "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+   "bytes": 45571
+  },
+  "seed.zip": {
+   "sha256": "3352c2607069453c8dd9976f8f032393260fe73d4925c1f59e182ba6ec23b31a",
+   "bytes": 39481446
+  },
+  "snapshot/056d211314325d4767b99a30.json": {
+   "sha256": "056d211314325d4767b99a30293c4dfed41c4a99566d2f32363f98dbde2dfb1d",
+   "bytes": 65117
+  },
+  "snapshot/05be50ba39e0bc9b77083020.json": {
+   "sha256": "05be50ba39e0bc9b77083020541b9cbd3d64acb71bce94e1345a2b52bba15973",
+   "bytes": 149834
+  },
+  "snapshot/0a6790268aeae0275f9bdbbb.json": {
+   "sha256": "0a6790268aeae0275f9bdbbb6a4e4406f222dd85d234f3b9aae85ff3bfc00470",
+   "bytes": 23396
+  },
+  "snapshot/0eeba370e1a42078c1610a79.png": {
+   "sha256": "0eeba370e1a42078c1610a79d7462240d27c11bc9578aa7244b5161261565fa5",
+   "bytes": 743499
+  },
+  "snapshot/0f4134ddc895248f4fb525b6.png": {
+   "sha256": "0f4134ddc895248f4fb525b6206927b2dbecc808f6364285932237bda1be519c",
+   "bytes": 572929
+  },
+  "snapshot/114aac6bd291cf789c257776.json": {
+   "sha256": "114aac6bd291cf789c2577769be226ccceffef1e84a62cdce36fb04447815efb",
+   "bytes": 149813
+  },
+  "snapshot/14f9881a18b4fc3860267f5d.png": {
+   "sha256": "14f9881a18b4fc3860267f5db86582e0683b758141ed29093f68b95647a91450",
+   "bytes": 202975
+  },
+  "snapshot/151d398f78c9fab183f9a610.png": {
+   "sha256": "151d398f78c9fab183f9a610d4c452d1eb96a24a2476e04c5aaf7a8dd19842dd",
+   "bytes": 440803
+  },
+  "snapshot/19094a32109c17af4406e2ec.json": {
+   "sha256": "19094a32109c17af4406e2ec4a819983fd8e627332578a75fadd78c72ad95421",
+   "bytes": 107474
+  },
+  "snapshot/1b8537d29d89a31e68d3b8fe.json": {
+   "sha256": "1b8537d29d89a31e68d3b8fe6625d7ef953852ef15ad31c10489732e79b44015",
+   "bytes": 149837
+  },
+  "snapshot/1dedd6460b03dc72dcef563f.json": {
+   "sha256": "1dedd6460b03dc72dcef563fbda39f9f8064c510a9ec6c617313272b3d39e958",
+   "bytes": 38958
+  },
+  "snapshot/2528a05b6a5cc858833ea752.json": {
+   "sha256": "2528a05b6a5cc858833ea752e97fe5300d670ef29ebad7438ebefc662bed815c",
+   "bytes": 23016
+  },
+  "snapshot/28b2de63b27de95cc200795c.json": {
+   "sha256": "28b2de63b27de95cc200795cc7b404f9b0514c8fea62403a32af8ba45b7d75d3",
+   "bytes": 56
+  },
+  "snapshot/2ac6fe66bf38396fb5b45ea5.json": {
+   "sha256": "2ac6fe66bf38396fb5b45ea50b32751877bda16a49938067ea75707d5fc58de5",
+   "bytes": 43284
+  },
+  "snapshot/32a2a5085d06868115488324.json": {
+   "sha256": "32a2a5085d06868115488324d998276cda694430fc8fcfabc4a37e9f3eb996c8",
+   "bytes": 24479
+  },
+  "snapshot/33b964fbb608d736394703de.json": {
+   "sha256": "33b964fbb608d736394703ded6492fe2e59595e1054833a47ddad1245e6bf204",
+   "bytes": 103299
+  },
+  "snapshot/3c99703365aabd7e7c82d272.svg": {
+   "sha256": "3c99703365aabd7e7c82d27251e9e6f837baef222a536dc78dd95861ff36d15e",
+   "bytes": 11008
+  },
+  "snapshot/3ec6a32d5f33b201937b6e4f.json": {
+   "sha256": "3ec6a32d5f33b201937b6e4f0b4aef1dfbc48f7362fe12e3aec92484b7d43158",
+   "bytes": 7552
+  },
+  "snapshot/4c5164702e5bac2a3c80ee35.json": {
+   "sha256": "4c5164702e5bac2a3c80ee359457e94918835d7cb412799174a23db20622f571",
+   "bytes": 26
+  },
+  "snapshot/511eb5d117aabaa5f72e06c2.json": {
+   "sha256": "511eb5d117aabaa5f72e06c2e946c6cdcc5bcdd9a0e25da05a4bf92716ace66f",
+   "bytes": 32269
+  },
+  "snapshot/51ef3bac5d679dfa5cb5d696.json": {
+   "sha256": "51ef3bac5d679dfa5cb5d696bd13d9b696878997b09134e9b98e3e20084e9bb6",
+   "bytes": 17131
+  },
+  "snapshot/566b20f23f03ab2d5b833ebd.json": {
+   "sha256": "566b20f23f03ab2d5b833ebdf9cb4827d671f66aefcf40da67f0dd55ec43a780",
+   "bytes": 39171
+  },
+  "snapshot/5aeac2f80acf67703e491fcf.json": {
+   "sha256": "5aeac2f80acf67703e491fcf5091a54bdf78464f6253a6927082e7ba43783c5b",
+   "bytes": 21609
+  },
+  "snapshot/5b3c97f6d05ad7b445e0eb44.png": {
+   "sha256": "5b3c97f6d05ad7b445e0eb443a991249c360862c1a4d3b04fc53220f0bf82431",
+   "bytes": 1828902
+  },
+  "snapshot/5b7429f113914279e1f8762b.json": {
+   "sha256": "5b7429f113914279e1f8762bb51b248e9512938fc7e3e210f8832f50aaa087a5",
+   "bytes": 111598
+  },
+  "snapshot/5cb1214d9d25bc7c867d6525.json": {
+   "sha256": "5cb1214d9d25bc7c867d6525c79293f8f6abfd088efcf51594aee9e99351e226",
+   "bytes": 44919
+  },
+  "snapshot/5db7db2d7905c2dc59d15595.svg": {
+   "sha256": "5db7db2d7905c2dc59d15595840fb930bf0b1e0dee170a21b40691c6c3e21193",
+   "bytes": 9282
+  },
+  "snapshot/60a12c6bfc2a977b8851e2f2.png": {
+   "sha256": "60a12c6bfc2a977b8851e2f2ade42670fece952993ae73f14fb2a82e7f2f827f",
+   "bytes": 300502
+  },
+  "snapshot/640e5833710495c09f32be8f.json": {
+   "sha256": "640e5833710495c09f32be8f64ff346c25e7edeae87ffac7a786bbe9567c9944",
+   "bytes": 67501
+  },
+  "snapshot/653ebde6197ad3c25c80ca0f.json": {
+   "sha256": "653ebde6197ad3c25c80ca0f701bd22858256d028489be74cbff9c92a49525f0",
+   "bytes": 33541
+  },
+  "snapshot/6541be48fec98839bab57654.json": {
+   "sha256": "6541be48fec98839bab57654e42b653a9387a8dd0b31c88468b06de22a6d7234",
+   "bytes": 38108
+  },
+  "snapshot/6a9205093c36b053bf922955.json": {
+   "sha256": "6a9205093c36b053bf92295563c740ced6fac854aaff0d4e3c9f15765328d1fa",
+   "bytes": 313
+  },
+  "snapshot/6bf71ab8c4986a0528f52124.json": {
+   "sha256": "6bf71ab8c4986a0528f5212451f45300b35f6321edaf9090b7dbb838aedaba95",
+   "bytes": 34541
+  },
+  "snapshot/6e967d53131bede3d58cec66.json": {
+   "sha256": "6e967d53131bede3d58cec66e335f5070b2d7252fa88fb36f57f40dd875b236c",
+   "bytes": 293414
+  },
+  "snapshot/7560eb59240f833ce050e7b1.json": {
+   "sha256": "7560eb59240f833ce050e7b13418ca1cbe0efa3d50b495c386a8e7b49af6e30a",
+   "bytes": 26777
+  },
+  "snapshot/7ba7b9ef20037f6511de3491.json": {
+   "sha256": "7ba7b9ef20037f6511de3491c934a70dcfc6d63ed48caf979e7ec45517332b82",
+   "bytes": 31898
+  },
+  "snapshot/7bb45526df8e80b784d61a4e.json": {
+   "sha256": "7bb45526df8e80b784d61a4e7b367f9f550d4afa90a23116e812d82e08b319ee",
+   "bytes": 262720
+  },
+  "snapshot/7bf822249c125428f51fc9d6.png": {
+   "sha256": "7bf822249c125428f51fc9d6a55a655ebefb746868ab8239fe3a33309ed3e8d8",
+   "bytes": 380982
+  },
+  "snapshot/7c4415110d419ee4286174e5.png": {
+   "sha256": "7c4415110d419ee4286174e5b3f78465a2a35a637f96681801c86e0f09ce290d",
+   "bytes": 414388
+  },
+  "snapshot/7e85392ee2ad71fd8ceea962.json": {
+   "sha256": "7e85392ee2ad71fd8ceea96230e74d16069c4557c9bcd5943fac54f6585392e2",
+   "bytes": 17547
+  },
+  "snapshot/87295717dd4408ab6f9ff8b1.png": {
+   "sha256": "87295717dd4408ab6f9ff8b1de6044a11c21f614977d7a2b0e1540769f9ad764",
+   "bytes": 1167813
+  },
+  "snapshot/8aa393213ba019bc233aaa3f.json": {
+   "sha256": "8aa393213ba019bc233aaa3fa1b20ff6115aba8aaf06e2b835d78cb4c5c32974",
+   "bytes": 102823
+  },
+  "snapshot/93e12d7265d5722cc3bda707.json": {
+   "sha256": "93e12d7265d5722cc3bda70732fbf864cabed99b29d9be863b26bfcd9e415657",
+   "bytes": 2758
+  },
+  "snapshot/97ef9a076b486abb8728ded4.json": {
+   "sha256": "97ef9a076b486abb8728ded48838db9e84e2d8588e4fe959844984fc8fb3e573",
+   "bytes": 107087
+  },
+  "snapshot/9a3321f1ad234e9fd30e82da.png": {
+   "sha256": "9a3321f1ad234e9fd30e82da263ef57206f9f55b89eeabd94a47211422cfb0b1",
+   "bytes": 235571
+  },
+  "snapshot/9aa25bbd509d1b18d2a2c465.png": {
+   "sha256": "9aa25bbd509d1b18d2a2c465eb31ead3aee6aad24b407b4ef9a3ede97a4684dd",
+   "bytes": 907705
+  },
+  "snapshot/9ca70cfddb44b7bdf04a621d.json": {
+   "sha256": "9ca70cfddb44b7bdf04a621d8640f2c157590087a543e56e0a2ab90789bfbc89",
+   "bytes": 81884
+  },
+  "snapshot/a07a4b774442bb18c7ba2e23.svg": {
+   "sha256": "a07a4b774442bb18c7ba2e23586fbf8a184e18f5f3cf8daaf5a12f9657cd14d9",
+   "bytes": 11012
+  },
+  "snapshot/a953a2ffab7e69a80259f3ef.json": {
+   "sha256": "a953a2ffab7e69a80259f3ef3f723c17f4decacef3f24671d9227f4c63d52c62",
+   "bytes": 89733
+  },
+  "snapshot/a9b494b7851ed9b07fedf114.json": {
+   "sha256": "a9b494b7851ed9b07fedf114d1a00126f2404eff901807a1290cd8c54957c928",
+   "bytes": 109138
+  },
+  "snapshot/ab8cb184a81583e29b495ee4.json": {
+   "sha256": "ab8cb184a81583e29b495ee489731f310ff76f4372d0d7bcc5ba3741e1ecff1a",
+   "bytes": 6231
+  },
+  "snapshot/ac7fb6772c2d96dc1fcd76ce.json": {
+   "sha256": "ac7fb6772c2d96dc1fcd76ce7b58935aabaee0bdde6e3a56c1cc33f8992f897b",
+   "bytes": 149840
+  },
+  "snapshot/ba1324637c90ceb6402e4469.json": {
+   "sha256": "ba1324637c90ceb6402e4469f90ca95929c0ef6e6beaa620e72a6a5b1095e13d",
+   "bytes": 23430
+  },
+  "snapshot/bb31b60577f4fa4887722dd0.png": {
+   "sha256": "bb31b60577f4fa4887722dd0bc7482959e14d413269ba9f58cd6be3eeb1b1653",
+   "bytes": 1267733
+  },
+  "snapshot/c0d529558332f095cf656742.json": {
+   "sha256": "c0d529558332f095cf656742714c4b72acceccfb7cbd265ccb6150bb36557675",
+   "bytes": 315
+  },
+  "snapshot/c2193aa6042e3bd783a46f0d.json": {
+   "sha256": "c2193aa6042e3bd783a46f0da5ee0e22f6d7a99c030a9edc3b4bfdb1abf7cbc4",
+   "bytes": 69263
+  },
+  "snapshot/c3e6f1fdc6c57f1add605b26.json": {
+   "sha256": "c3e6f1fdc6c57f1add605b266caedfb0dbe88d83b997fd17ed0f4b8d0d95ff92",
+   "bytes": 62591
+  },
+  "snapshot/c55acc3e8deda8e5ca1eb078.json": {
+   "sha256": "c55acc3e8deda8e5ca1eb078b87fe88aaf275ac4d6d6f7e59e1670fcab716e13",
+   "bytes": 179828
+  },
+  "snapshot/ca1a96e64840841d22bb82a2.json": {
+   "sha256": "ca1a96e64840841d22bb82a230cb506bd121f598ffdccff28af0d222eaf6fd92",
+   "bytes": 60943
+  },
+  "snapshot/d48abba437e19ccbc6f40818.svg": {
+   "sha256": "d48abba437e19ccbc6f40818a3eaee308df2c51010d9addae8ee7d0696a2e1d2",
+   "bytes": 19141
+  },
+  "snapshot/d5967258dccd11f19f693b53.svg": {
+   "sha256": "d5967258dccd11f19f693b538023a3ab84a6d955e99b0ca24a6bcf38364c4a8d",
+   "bytes": 61163
+  },
+  "snapshot/d75e0b419ccb877cd9777fcc.json": {
+   "sha256": "d75e0b419ccb877cd9777fccf010e2793f578450fd1f87e1d941ee9796341580",
+   "bytes": 47345
+  },
+  "snapshot/d8db6e8fa38ecf0e585ac2d5.json": {
+   "sha256": "d8db6e8fa38ecf0e585ac2d567ff9cc99be3ddb90b281daf4f18f8ae92840dae",
+   "bytes": 86207
+  },
+  "snapshot/dataset.json": {
+   "sha256": "2ae20d3bd83d71519440f6493da562039dd9a2529de734a68441d428e2c5c20d",
+   "bytes": 3658
+  },
+  "snapshot/de1d799318e1616708295a99.json": {
+   "sha256": "de1d799318e1616708295a99a1044687a69d3eadd735ec6d55da4e2c7a84de9d",
+   "bytes": 16397
+  },
+  "snapshot/df6ccb9fedb6923cd75481a2.svg": {
+   "sha256": "df6ccb9fedb6923cd75481a2d17d61a64f963f637a09efdcc7aca52ad6c0b390",
+   "bytes": 9240
+  },
+  "snapshot/e100fd5d6b5ab817e0fb18f8.json": {
+   "sha256": "e100fd5d6b5ab817e0fb18f8da8e337636c3d1a557a25e8868b37a7efe992a25",
+   "bytes": 64899
+  },
+  "snapshot/e5fa0e44814fff5f2313b8e3.svg": {
+   "sha256": "e5fa0e44814fff5f2313b8e3b48b680217acb25ad1a683b3e4af5a32701e0470",
+   "bytes": 8663
+  },
+  "snapshot/ea62ee96d7ae71b850bd5282.json": {
+   "sha256": "ea62ee96d7ae71b850bd528284ea99110f69390a37d9ebb5e8434675617a85c0",
+   "bytes": 149764
+  },
+  "snapshot/ebd5dec8d20099fd8d1911a9.json": {
+   "sha256": "ebd5dec8d20099fd8d1911a9a942ac7088aafddc6e0eb3a7ac5edf357c16e350",
+   "bytes": 50574
+  },
+  "snapshot/f27a923d4782d62d9332c529.json": {
+   "sha256": "f27a923d4782d62d9332c529f71ac8b185ee4d2d38786a2a86c66b4a44f72c40",
+   "bytes": 410
+  },
+  "snapshot/f8131f19264c6e83c4a4293c.json": {
+   "sha256": "f8131f19264c6e83c4a4293c5a1eccaecb52ba066da12d260503937ddb4d0dc0",
+   "bytes": 179596
+  },
+  "snapshot/fa1a1a63af2fc5bd7aed52e9.json": {
+   "sha256": "fa1a1a63af2fc5bd7aed52e9d85d2b36b11be719cb2c680d7245cbe617669b86",
+   "bytes": 2096
+  },
+  "snapshot/fd8b70314317a97b68fdbfec.json": {
+   "sha256": "fd8b70314317a97b68fdbfec1e665b6b00e6094a22ad2fa5c04f27b8c056e97c",
+   "bytes": 63284
+  },
+  "snapshot/index.json": {
+   "sha256": "3c7bcaa11118a5c20bd791f37c070d35f5e7ec13ba1d7acda53fe251d55e2997",
+   "bytes": 24602
+  },
+  "snapshot/proposal-examples.json": {
+   "sha256": "c9183b7b6f9e70dc4c0d5decbca8bb45590088aed47304c06293300340ee78ab",
+   "bytes": 419
+  },
+  "snapshot/recorded-options.json": {
+   "sha256": "a560beb6956dbd0de27b4e56588234f25d6324ff2f7cd613a23e70de573e0500",
+   "bytes": 555
+  }
+ },
+ "limitations": "Public example images; numbers illustrate the software and do not establish scientific validity for any laboratory's images."
+}
