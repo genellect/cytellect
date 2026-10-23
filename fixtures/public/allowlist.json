@@ -120,7 +120,7 @@
     "license": "Apache-2.0"
   },
   "apps/web/public/marketing/provenance.json": {
-    "sha256": "946e9c984778a505b0aa51e480d66d7b38fae1fae2ddfea8bd9f88970b5f15ee",
+    "sha256": "5aff9c25a5c6c09908ac2f5e7c693b6be423f3150f6281d4f369dada40198fdb",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -210,17 +210,17 @@
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
   "apps/web/public/marketing/hero-film.mp4": {
-    "sha256": "536c5d0185c5238c1065a82906df862d4d376b22911abbc9803e106d6c5aa65c",
+    "sha256": "a89411c1275dc95071b3b835409e1a31677e7bc0a4c63f3f9bf86f328d54f5b3",
     "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
     "license": "Pexels License"
   },
   "apps/web/public/marketing/hero-film-poster.webp": {
-    "sha256": "b79db91f17f688467bd19b940b660becf96df8a70870b3036eccf1c75ce89f99",
+    "sha256": "7b631a40c17183de7492e84fd8ac3b82b78e94639ecf30174e1490179d1dd645",
     "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
     "license": "Pexels License"
   },
   "apps/web/public/marketing/hero-film.webm": {
-    "sha256": "74f9e3d7c7597ae2e9c4a83edfaa9c9c299713711fbd99982b22333fe283cf33",
+    "sha256": "f34fb944fc3c2ed3b9ccc23e46e505254ec9524192febb24e2781f809aa357ca",
     "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
     "license": "Pexels License"
   },
@@ -414,12 +414,27 @@
     "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
   },
   "apps/web/public/marketing/lp-figure.svg": {
-    "sha256": "3c99703365aabd7e7c82d27251e9e6f837baef222a536dc78dd95861ff36d15e",
+    "sha256": "5db7db2d7905c2dc59d15595840fb930bf0b1e0dee170a21b40691c6c3e21193",
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
   },
   "apps/web/public/marketing/lp-workspace-mobile.webp": {
     "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-ai.webp": {
+    "sha256": "2968bc1fbbbc5cd98c35dd79ac96388e57f2ea9dedd6c6f01ea42a1594ff9eed",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-ai-mobile.webp": {
+    "sha256": "2c3deda9d9a366231e64c0b3afbc219bb2dcb7238d239d90984b13aca5d980bb",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-statistics.webp": {
+    "sha256": "fb4da6d29cf0883951451db37ed14c47fc949fe094c8419698e8b753bf34ccce",
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
   }

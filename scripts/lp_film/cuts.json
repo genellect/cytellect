@@ -11,11 +11,19 @@
     "crf": 24,
     "webm_crf": 38,
     "fade": 0.7,
-    "poster_cut": "automation",
-    "poster_time": 1.0
+    "poster_cut": "culture",
+    "poster_time": 0.4
   },
   "grade": "eq=contrast=1.08:brightness=-0.05:saturation=0.85,colorbalance=rs=-0.015:bs=0.02,curves=all='0/0.035 0.5/0.40 1/0.90'",
   "cuts": [
+    {
+      "id": "culture",
+      "owner": "stock",
+      "source": "px-p-3992927",
+      "duration": 3.0,
+      "crop": [1400, 900, 1800, 1012],
+      "move": [1.0, 1.06]
+    },
     {
       "id": "automation",
       "owner": "stock",
@@ -24,14 +32,6 @@
       "duration": 3.2,
       "speed": 1.0,
       "crop": [600, 300, 2640, 1485]
-    },
-    {
-      "id": "culture",
-      "owner": "stock",
-      "source": "px-p-3992927",
-      "duration": 3.0,
-      "crop": [1400, 900, 1800, 1012],
-      "move": [1.0, 1.06]
     },
     {
       "id": "hands",

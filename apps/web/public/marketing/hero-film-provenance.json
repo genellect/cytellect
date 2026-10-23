@@ -18,15 +18,6 @@
   ],
   "cuts": [
     {
-      "cut": "automation",
-      "kind": "video",
-      "source": "px-v-8940765",
-      "page": "https://www.pexels.com/video/close-up-of-a-machine-putting-liquid-on-vials-8940765/",
-      "creator": "Thirdman",
-      "license": "pexels",
-      "treatment": "中央を切り抜き、周辺の金属と暗い機械内部を外す（4.6 秒〜）。共通の色調に揃える"
-    },
-    {
       "cut": "culture",
       "kind": "photo",
       "source": "px-p-3992927",
@@ -34,6 +25,15 @@
       "creator": "CDC",
       "license": "pexels",
       "treatment": "6 穴プレートとピペットの先端へ寄せて切り抜き、手袋・フラスコ・チューブを外す。灰緑の色かぶりと金属の映り込みを補正し、ゆっくり寄るカメラの動きを付ける。CDC の推奨を示唆しない"
+    },
+    {
+      "cut": "automation",
+      "kind": "video",
+      "source": "px-v-8940765",
+      "page": "https://www.pexels.com/video/close-up-of-a-machine-putting-liquid-on-vials-8940765/",
+      "creator": "Thirdman",
+      "license": "pexels",
+      "treatment": "中央を切り抜き、周辺の金属と暗い機械内部を外す（4.6 秒〜）。共通の色調に揃える"
     },
     {
       "cut": "hands",
@@ -55,8 +55,8 @@
     }
   ],
   "outputs": {
-    "apps/web/public/marketing/hero-film.mp4": "536c5d0185c5238c1065a82906df862d4d376b22911abbc9803e106d6c5aa65c",
-    "apps/web/public/marketing/hero-film.webm": "74f9e3d7c7597ae2e9c4a83edfaa9c9c299713711fbd99982b22333fe283cf33",
-    "apps/web/public/marketing/hero-film-poster.webp": "b79db91f17f688467bd19b940b660becf96df8a70870b3036eccf1c75ce89f99"
+    "apps/web/public/marketing/hero-film.mp4": "a89411c1275dc95071b3b835409e1a31677e7bc0a4c63f3f9bf86f328d54f5b3",
+    "apps/web/public/marketing/hero-film.webm": "f34fb944fc3c2ed3b9ccc23e46e505254ec9524192febb24e2781f809aa357ca",
+    "apps/web/public/marketing/hero-film-poster.webp": "7b631a40c17183de7492e84fd8ac3b82b78e94639ecf30174e1490179d1dd645"
   }
 }
