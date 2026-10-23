@@ -198,7 +198,7 @@ def test_proposal_replay_hit_and_miss(seed, tmp_path, fake_replay, isolated):
 def _reseeded(path: Path, staging: Path, proposals: dict) -> bytes:
     with zipfile.ZipFile(path) as archive:
         archive.extractall(staging)
-    (staging / "proposals.json").write_text(json.dumps(proposals, ensure_ascii=False))
+    (staging / "proposals.json").write_text(json.dumps(proposals, ensure_ascii=False), encoding="utf-8")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         for item in sorted(staging.rglob("*")):
@@ -296,8 +296,8 @@ def test_seed_description_restore_hook_and_empty_proposals(seed, tmp_path, monke
     with store.transaction() as conn:
         conn.execute(delete(sessions))
     store.engine.dispose()
-    (staging / "showcase.json").write_text(json.dumps({"workspace_id": info["workspace_id"], "owner": owner}))
-    (staging / "proposals.json").write_text("{}")
+    (staging / "showcase.json").write_text(json.dumps({"workspace_id": info["workspace_id"], "owner": owner}), encoding="utf-8")
+    (staging / "proposals.json").write_text("{}", encoding="utf-8")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         for item in sorted(staging.rglob("*")):
