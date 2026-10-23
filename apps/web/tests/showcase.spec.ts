@@ -182,6 +182,8 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(channels.nth(channelCount - 1)).toHaveAttribute("aria-pressed", "true");
   await channels.first().click();
   const zoom = page.locator("[role=toolbar] span").first();
+  // The fitted scale exists once the viewer has measured its viewport (until then it shows "–").
+  await expect(zoom).toHaveText(/^\d+%$/);
   const before = await zoom.textContent();
   await page.getByRole("button", {name: "拡大", exact: true}).first().click();
   await expect(zoom).not.toHaveText(before!);

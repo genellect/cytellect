@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent} from "react";
+import {useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent} from "react";
 import type {Point} from "@/lib/types";
 import type {MaskOperation} from "@/lib/workspace/api-adapter";
 import {compoundOutlines} from "../../../lib/workspace/compound-outlines";
@@ -48,6 +48,11 @@ export function reviewImageFit(image: Size, viewport: Size): Camera {
   if (Math.min(image.width, image.height, viewport.width, viewport.height) <= 0) return {scale: 1, x: 0, y: 0};
   const scale = Math.min(viewport.width / image.width, viewport.height / image.height);
   return {scale, x: (viewport.width - image.width * scale) / 2, y: (viewport.height - image.height * scale) / 2};
+}
+
+/** Toolbar zoom text; null until both the image and its viewport have a size (no fit exists yet). */
+export function reviewImageZoomLabel(camera: Camera, image: Size, viewport: Size): string | null {
+  return Math.min(image.width, image.height, viewport.width, viewport.height) > 0 ? `${Math.round(camera.scale * 100)}%` : null;
 }
 
 export function reviewImageZoom(camera: Camera, scale: number, anchor: {x: number; y: number}): Camera {
@@ -108,6 +113,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const imageSize = {width, height};
   const fit = reviewImageFit(imageSize, available);
   const camera = sharedViewport !== undefined ? sharedViewport === null ? fit : boundedCamera(reviewViewportCamera(sharedViewport, available), imageSize, available) : manual?.source === source ? boundedCamera(manual.camera, imageSize, available) : fit;
+  const zoomLabel = reviewImageZoomLabel(camera, imageSize, available), measured = zoomLabel !== null;
   const visible = showMasks && (masksEnabled || !!draft);
   const interactionBlocked = loading || loadedSource !== src || failedSource === src || saving;
   const blocked = interactionBlocked || (editDisabled && draft?.operation !== "background");
@@ -124,7 +130,9 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   });
   useEffect(()=>{syncBackground();},[backgroundEdit?.requestId]);
 
-  useEffect(() => {
+  // Measured before the first paint: an unmeasured viewport has no fit, and the toolbar
+  // must never show a placeholder scale (it showed 100% until the effect ran).
+  useLayoutEffect(() => {
     const element = viewportRef.current;
     if (!element) return;
     const resize = () => setAvailable({width: element.clientWidth, height: element.clientHeight});
@@ -263,9 +271,9 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       {(error || stale) && <p className={styles.error} role="alert">{stale ? "画像または領域が更新されました。描画を取り消してから再編集してください。" : error}</p>}
     </div>
     <div className={styles.toolbar} role="toolbar" aria-label={`${label}の表示操作`}>
-      <button type="button" title="縮小" aria-label="縮小" disabled={camera.scale <= fit.scale} onClick={() => changeZoom(1 / 1.5)}>−</button>
-      <span className={styles.zoom}>{Math.round(camera.scale * 100)}%</span>
-      <button type="button" title="拡大" aria-label="拡大" onClick={() => changeZoom(1.5)}>＋</button>
+      <button type="button" title="縮小" aria-label="縮小" disabled={!measured || camera.scale <= fit.scale} onClick={() => changeZoom(1 / 1.5)}>−</button>
+      <span className={styles.zoom}>{zoomLabel ?? "–"}</span>
+      <button type="button" title="拡大" aria-label="拡大" disabled={!measured} onClick={() => changeZoom(1.5)}>＋</button>
       <button type="button" title="画像全体を表示" aria-label="画像全体を表示" onClick={() => publishCamera(null)}><Icon kind="fit"/></button>
       <button type="button" title="輪郭の表示" aria-label="輪郭の表示" aria-pressed={visible} disabled={!showMasks || regions.length === 0} onClick={() => setMasksEnabled(value => !value)}><Icon kind="layers"/></button>
       {onOpen && <button type="button" title="この画像を大きく表示" aria-label="この画像を大きく表示" disabled={!!draft} onClick={onOpen}><Icon kind="open"/></button>}
