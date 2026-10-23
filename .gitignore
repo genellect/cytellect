@@ -34,6 +34,8 @@ data/
 runtime/
 # Committed browser runtime of the public showcase (built by scripts/build_showcase_runtime.py).
 !apps/web/public/showcase/runtime/
+# Committed recorded responses of the public showcase (services/showcase build: snapshot and journal stages).
+!apps/web/public/showcase/snapshot/*
 .cache/
 .pnpm-store/
 *.log
