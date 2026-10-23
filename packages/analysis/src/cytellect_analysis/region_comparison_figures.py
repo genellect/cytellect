@@ -58,7 +58,7 @@ def region_comparison_methods(result, *, methods_template=None):
     if methods_metadata(methods_template):
         return readable_comparison_methods(result)
     policy = _source_measurement_policy(result)
-    if getattr(policy, "mode", None) == "raw_intensity":
+    if getattr(policy, "mode", None) in ("raw_intensity", "automatic_background"):
         return readable_comparison_methods(result)
     return "\n".join([
         "# Cytellect generic-region comparison Methods", "", "Generated from saved settings; review before publication.",

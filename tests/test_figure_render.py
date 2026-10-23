@@ -109,3 +109,61 @@ def test_numeric_figure_render_is_private_idempotent_and_keeps_statistics(tmp_pa
         assert saved_figure["comparisons"] == original["comparisons"]
         assert saved_figure["spec"]["plot"]["y_label"] == "Expression"
         assert bundle.read("analysis.zip") == app.state.store.safe_path(source["result_dir"], "analysis.zip").read_bytes()
+
+
+def test_series_order_must_list_exactly_the_compared_groups(tmp_path):
+    """Comparing only A and B of A/B/C: the figure may reorder A and B but never add C."""
+    import json
+
+    import numpy as np
+    from cytellect_worker.main import process_one
+    from test_api_worker import HEADERS, authenticated
+    from test_common_statistics_api import common_request
+    from test_region_api import region_request, tiff_bytes
+
+    client, app, settings = authenticated(tmp_path)
+    wid = client.post("/v1/workspaces", headers=HEADERS, json={"title": "Arithmetic fixture"}).json()["id"]
+    fids = []
+    for index, value in enumerate([2, 4, 5, 7, 9, 11]):
+        pixels = np.full((12, 12), 10, np.uint16)
+        pixels[4:6, 4:6] = 10 + value
+        labels = np.zeros((12, 12), np.uint32)
+        labels[4:6, 4:6] = 1
+        specification = {"channels": [{"channel_id": "marker", "label": "Measured marker",
+                                         "stain": "Fixture fluorescence", "identity_confirmed": True}],
+                         "metadata": {"condition": "ABC"[index // 2], "sample": f"sample-{index}",
+                                      "experimental_unit": f"culture-{index}", "acquisition_date": "batch-1"}}
+        response = client.post(f"/v1/workspaces/{wid}/region-fields", headers=HEADERS,
+                               data={"specification": json.dumps(specification)}, files={
+                                   "ch0": ("image.tif", tiff_bytes(pixels), "image/tiff"),
+                                   "labels": ("labels.tif", tiff_bytes(labels), "image/tiff")})
+        assert response.status_code == 201, response.text
+        fids.append(response.json()["id"])
+    body = region_request(fids[0])
+    background = body["backgrounds"][fids[0]]["actin"]
+    body.update(field_ids=fids, backgrounds={fid: {"marker": background} for fid in fids})
+    rid = client.post(f"/v1/workspaces/{wid}/region-analyses", headers=HEADERS, json=body).json()["revision_id"]
+    process_one(app.state.store, settings)
+    assert client.post(f"/v1/revisions/{rid}/review", headers=HEADERS, json={}).status_code == 200
+    request = {**common_request(), "conditions": ["A", "B"],
+               "comparison_family": {"family_id": "workspace-planned", "kind": "planned", "control": None,
+                                     "contrasts": [["A", "B"]]}}
+    response = client.post(f"/v1/revisions/{rid}/common-statistics", headers=HEADERS, json=request)
+    assert response.status_code == 202, response.text
+    jid = response.json()["job_id"]
+    process_one(app.state.store, settings)
+    assert client.get(f"/v1/jobs/{jid}").json()["state"] == "succeeded"
+    route = f"/v1/jobs/{jid}/figure-render"
+    for index, order in enumerate([["A", "B", "C"], ["C", "B", "A"], ["A"]]):
+        rejected = client.post(route, headers=HEADERS, json={"request_id": f"bad-{index}", "plot": {"group_order": order}})
+        assert rejected.status_code == 422 and rejected.json()["detail"] == "group_order_must_match_groups"
+    for index, order in enumerate([[], ["B", "A"]]):
+        accepted = client.post(route, headers=HEADERS, json={"request_id": f"ok-{index}", "plot": {"group_order": order}})
+        assert accepted.status_code == 202, accepted.text
+        process_one(app.state.store, settings)
+        assert client.get(f"/v1/jobs/{accepted.json()['job_id']}").json()["state"] == "succeeded"
+        rendered = client.get(f"/v1/jobs/{accepted.json()['job_id']}/figure-render").json()
+        assert rendered["spec"]["plot"]["group_order"] == order
+        assert rendered["spec"]["conditions"] == ["A", "B"]
+    client.close()
+    app.state.store.engine.dispose()

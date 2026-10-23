@@ -40,6 +40,72 @@ def _count(row, key):
     return str(value)
 
 
+def _automatic_background(result, metric, fields, channel_id):
+    """Describe saved protocol 4.0.0 facts; the constants must be the recorded algorithm's."""
+    from .background_candidate import ALGORITHM, CONSTANTS, FAILURE_REASONS, PROTOCOL_VERSION
+
+    with_extra = 0
+    established = 0
+    for field in fields:
+        records = [entry["background"] for entry in field["channel_provenance"]]
+        if not records or any(
+                record.get("background_source") != "automatic_candidate" or record.get("confirmed") is not False
+                or record.get("algorithm") != ALGORITHM or record.get("algorithm_version") != PROTOCOL_VERSION
+                or record.get("constants") != CONSTANTS or record.get("status") not in ("established", "not_established")
+                or (record["status"] == "not_established") != (record.get("reason") in FAILURE_REASONS)
+                for record in records):
+            raise ValueError("statistical_methods_source_invalid")
+        extra = {record.get("additional_exclusion") for record in records}
+        if len(extra) != 1 or not isinstance(next(iter(extra)), bool):
+            raise ValueError("statistical_methods_source_invalid")
+        with_extra += next(iter(extra))
+        if channel_id is not None:
+            selected = [entry["background"] for entry in field["channel_provenance"]
+                        if entry["channel"]["channel_id"] == channel_id]
+            established += selected[0]["status"] == "established"
+    input_modes = {field.get("image_info", {}).get("input_mode", "native") for field in fields}
+    display = input_modes == {"display-rgb"}
+    if not display and input_modes != {"native"} and not metric.startswith("area"):
+        raise ValueError("statistical_methods_source_invalid")
+    plane = ("display-RGB transform 1.0.0 plane, max(R,G,B) ignoring alpha," if display else
+             "unchanged original pixels" if input_modes == {"native"} else "recorded native or display-RGB measurement planes")
+    policy = fields[0]["measurement"]["version"]
+    lines = [f"Measurement protocol 4.0.0 (policy {policy}, automatic_background) recorded raw mean, median and pixel sum "
+             f"of the {plane} at original resolution, as in raw protocol 3.0.0, plus corrections from an automatic "
+             f"background candidate (algorithm {ALGORITHM} {PROTOCOL_VERSION}). The candidate was selected by the software; "
+             "it is not a human-confirmed background ROI."]
+    if display:
+        lines.append("These intensities are display codes, not acquired raw fluorescence; acquisition LUTs, clipping "
+                     "and gamma cannot be reversed.")
+    if not metric.endswith("_corrected"):
+        lines.append("The selected outcome does not use these automatic background corrections.")
+        return lines
+    c = CONSTANTS
+    nuclei = "every nucleus of the pinned source nuclear revision, including excluded nuclei"
+    lines.append(
+        "Per field and channel, on that measurement plane: every labelled pixel of the measured region set"
+        + (f" and {nuclei}," if with_extra == len(fields) else "")
+        + f" was excluded together with all pixels within a Euclidean distance of {c['perinuclear_margin_px']} px; "
+        f"remaining pixels strictly above median + {c['bright_k']:g} × {c['mad_scale']:g} × max(MAD, {c['bright_mad_floor']:g}) "
+        f"of that channel were also excluded. Non-overlapping {c['tile_size_px']} × {c['tile_size_px']} px tiles from the "
+        f"image origin (partial edge tiles dropped) with at least {c['min_unexcluded_fraction']:.0%} unexcluded pixels were eligible. "
+        "One rejection pass, on unexcluded pixels, removed tiles whose median differed from the median of tile medians by more than "
+        f"{c['tile_median_k']:g} × {c['mad_scale']:g} × MAD of the tile medians, or whose MAD exceeded the median tile MAD by more than "
+        f"{c['tile_dispersion_k']:g} × {c['mad_scale']:g} × MAD of the tile MADs. At least {c['min_tiles']} retained tiles with "
+        f"centres in at least {c['min_quadrants']} image quadrants were required; b is the median of the unexcluded pixels of "
+        "the retained tiles.")
+    if 0 < with_extra < len(fields):
+        lines.append(f"In {with_extra} of {len(fields)} fields, {nuclei}, was also excluded before the margin was applied.")
+    lines.append("b is one value per field and channel: an illumination gradient is not removed (the recorded "
+                 "retained tile-median range shows its spread) and field-wide diffuse signal can contribute to b.")
+    if channel_id is not None:
+        lines.append(f"For the selected channel, the candidate was established in {established} of {len(fields)} fields.")
+    lines.append("Where no candidate met these criteria, corrected values are missing with the recorded reason "
+                 "(automatic_background_insufficient_tiles or automatic_background_insufficient_coverage); "
+                 "raw values were retained and the field was not excluded.")
+    return lines
+
+
 def _measurement(result):
     source, metric, fields = result["source_kind"], result["metric"], result["source_fields"]
     if not fields:
@@ -49,16 +115,18 @@ def _measurement(result):
         lines.append("Previously measured numerical values were described in their recorded units. "
                      "This step performed no image measurement or background correction.")
         return lines
-    legacy = False
+    legacy = automatic = False
     if source == "region-2d":
-        from .region_policy import MEASUREMENT_POLICY
+        from .region_policy import MEASUREMENT_POLICY, MODE_BY_PROTOCOL
 
         modes: set[str] = set()
         for field in fields:
             protocol = field.get("measurement_protocol", "1.0.0")
             policy = field.get("measurement")
-            if protocol in ("2.0.0", "3.0.0"):
+            if protocol in ("2.0.0", "3.0.0", "4.0.0"):
                 policy = MEASUREMENT_POLICY.validate_python(policy)
+                if policy.mode != MODE_BY_PROTOCOL[protocol]:
+                    raise ValueError("statistical_methods_source_invalid")
                 modes.add(policy.mode)
             elif protocol == "1.0.0" and policy is None:
                 modes.add("intensity-and-area")
@@ -85,6 +153,9 @@ def _measurement(result):
                 raise ValueError("statistical_methods_source_invalid")
             label, stain = next(iter(identities))
             lines.append(f"Measured channel: {label}; stain: {stain or 'not recorded'}; recorded channel ID: {channel_id}.")
+        automatic = "automatic_background" in modes
+        if automatic:
+            lines.extend(_automatic_background(result, metric, fields, channel_id))
         if "raw_intensity" in modes:
             input_modes = {field.get("image_info", {}).get("input_mode", "native") for field in fields}
             if input_modes == {"display-rgb"}:
@@ -157,7 +228,12 @@ def _measurement(result):
         values = "max(I − b, 0)" if legacy and corrected else ("I − b" if corrected else "I")
         operator = {"integrated": "sum", "median": "median", "mean": "arithmetic mean"}[operation]
         lines.append(f"Each region outcome is the {operator} of ({values}) over its measured pixels.")
-        if corrected and not legacy:
+        if corrected and automatic:
+            lines.append("Here b is the median of the automatic background candidate pixels of that field and channel. "
+                         "Corrected values remain signed and unclipped"
+                         + ("; the corrected integral equals ΣI − |R|b, where |R| is the region pixel count."
+                            if operation == "integrated" else "."))
+        elif corrected and not legacy:
             lines.append("Here b is the median of the saved user-confirmed background ROI. Native negative corrected values remain signed.")
         if not corrected:
             lines.append("The selected raw outcome does not subtract background.")
