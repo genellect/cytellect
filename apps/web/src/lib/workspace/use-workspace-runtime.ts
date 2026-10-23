@@ -334,6 +334,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
     async load(id?:string){closed=false;publish({busy:true,error:"",operation:"画像と保存結果を読み込み中"});try{await refresh(id,true);await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}},
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
+    /** Hide the last message (used for demo notices, which need no reload). */
+    dismissError(){if(state.error)publish({error:""});},
     newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[]});replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
     nclDetector(field:string){

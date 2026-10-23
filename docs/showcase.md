@@ -16,7 +16,7 @@
 - 最初の変更操作から先は、すべて②が処理する。②が使えない環境（スマートフォン、メモリ不足）では、変更操作の代わりに案内を表示する。
 - 検出（StarDist/Fiji、Cellpose）はブラウザで実行しない。記録した条件以外の検出は行わず、入力欄は記録した値の範囲に揃える。
 - 測定値と統計は、API と解析パッケージの共通実装だけが生成する。ブラウザ内の計算結果は、同じ操作のサーバー出力と CI で照合する。
-- 有料サービス（LLM）は呼ばない。AI の提案は、実際のモデル出力として記録したものだけを再生する。
+- 有料サービス（LLM）は呼ばない。AI の提案は、記録したモデル出力か、指示の例ごとにデモ用に用意した設定案（`showcase-authored`）だけを返す。
 
 ## 共有する契約
 
@@ -85,7 +85,7 @@ Web Worker は次の順に読み込みます。Node のハーネス（`services/
 - セッションは `showcase.json` の `owner`（無ければシード内のワークスペースの所有者）に対して直接作成し、Cookie は `handle` が付けます。応答の `Set-Cookie` は返しません。ログアウト後や期限切れの後は、次の要求で作り直します。`Origin` は `boot` に渡した origin、`Host` はその host に固定します。CSRF 用の `X-Cytellect-Request: 1` は呼び出し側が付けます（本番と同じ）。
 - ワークスペースの保持期限は起動時に 10 年先へ更新します。
 - 変更系の要求の後、応答を返してから、ワーカーと同じ手順（`cleanup`、`advance_workspace_runs`、`Store.claim`）で待機中のジョブを同じプロセスで実行します。ハンドラーは `cytellect_worker.child` と同じ許可リスト、出力先は `runs/<lease>/output`、公開は `Store.finish` です。並行の heartbeat ができないため、実行前にリースを `job_timeout_seconds` まで延長します。未知の例外は `analysis_failed` として記録し、メッセージは保存しません。要求とジョブの実行は 1 つのロックで直列化するので、次の要求（UI のジョブ確認）は完了後の状態を返します。
-- 提案は `cytellect_api.proposals.request_draft` を `proposals.json` の参照に置き換えます。形式は `{"version": 1, "entries": {"<context_sha256>": {"model", "prompt_version", "draft"}}}`（提案サービスの応答そのもの）で、`{}` は記録なしです。記録が無い文脈は 409 `showcase_proposal_not_recorded` を返し、失敗した下書きの行を消すので、同じ依頼を繰り返しても同じ案内になります。返した下書きは本番と同じ `validate_draft` で検証します。設定の `proposal_url` は `https://proposals.showcase.invalid` で、接続はしません。
+- 提案は `cytellect_api.proposals.request_draft` を `proposals.json` の参照に置き換えます。形式は `{"version": 1, "entries": {"<context_sha256>": {"model", "prompt_version", "draft"}}}`（提案サービスの応答そのもの）で、`{}` は記録なしです。`source` が `showcase-authored` の行（指示の例に対してデモ用に用意した案。案は指示だけで決まる）は、来訪者が先に設定を変えて文脈が一致しない場合も、同じ指示（前後の空白を除く）なら、現在の文脈で `validate_draft` に通る案を返します。モデル出力の行は、記録した文脈と完全に一致した場合だけ返します。どちらにも当たらない文脈は 409 `showcase_proposal_not_recorded` を返し、失敗した下書きの行を消すので、同じ依頼を繰り返しても同じ案内になります。返した下書きは本番と同じ `validate_draft` で検証します。設定の `proposal_url` は `https://proposals.showcase.invalid` で、接続はしません。
 - Pyodide にはスレッドと子プロセスがありません。`anyio.to_thread.run_sync` は要求の間だけ同じスレッドで実行し、`psutil` が無い場合は読み込み用の空のモジュールを置きます（使用すると失敗します）。
 
 ### 本番コードの変更
@@ -129,7 +129,6 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 - ブラウザのメインスレッドではなく Web Worker で動かす前提です。ジョブの計算中は、その Worker は次の要求に応答しません。
 - ジョブの取り消しは、実行中の計算を止めません（公開されないだけです）。
-- 自動背景補正（測定方式 4.0.0）の結果に対する記述統計と共通統計は、本番でも `statistical_methods_source_invalid` で失敗します（`cytellect_analysis.statistical_methods` が 4.0.0 を扱わない）。
 
 ## 検証
 
@@ -144,8 +143,9 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - 公開ビルド（API 未設定）の `/demo` だけが `activateShowcase()` で切り替えを有効にし、`lib/api.ts` の `request`・`fetchPrivateResponse`（`download`・`fetchBlob` を含む）がこの経路を使う。API を設定したビルドとローカル版の通信は変わらない。`/workspace` は公開ビルドでは `/demo` へ転送する。
 - 記録の再生：`GET <パスとクエリ>` が `snapshot/index.json` にあれば、その本文を返す。最初の変更操作より後、またはブラウザ内の API が起動した後は、すべての要求を Web Worker へ送る。記録にない GET は起動を待つ。要求は発行順に1件ずつ処理する。
 - 起動：PC のブラウザ（`navigator.deviceMemory` が分かる場合は 4 以上、狭いタッチ端末を除く）では、初回表示の後に Worker を起動する。Worker は `seed.zip` を先に取得し、`runtime/` の各ファイルを `runtime-config.json` の SHA-256 と照合してから導入する（URL に `?sha256=` を付け、長期キャッシュでも別ビルドの内容を使わない）。Pyodide 本体は `indexURL` の `pyodide.mjs` から読み込む。ホイールは site-packages に展開し、フォントは `/showcase/fonts/`（`runtime.DEFAULT_FONT_DIR`、Node の検証ハーネスと同じ場所）に置き、`boot` の `font_dir` で渡す。
-- 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（端末で起動しない・起動に失敗した）、`showcase_unavailable`（記録やランタイムが公開されていない）。`role="alert"` ではなく情報表示にする。
+- 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（端末で起動しない・起動に失敗した）、`showcase_unavailable`（記録やランタイムが公開されていない）。`role="alert"` ではなく情報表示にし、再読み込みではなく「閉じる」で消せる。
 - 任意のファイル（なければ本番と同じ表示）：`snapshot/recorded-options.json` のキーは検出器の `engine`（例 `fiji-stardist-2d`、`cytellect-nucleolar-v2`、`cellpose-sam`）、その中のキーは検出器の項目名で、核の `detection_max_side_px`（`null` は自動）も `fiji-stardist-2d` に含める。記載のある項目は記録した値の選択肢になり、記載のない項目は変更できない。記載のない検出器は選択肢として選べない。`snapshot/proposal-examples.json` は AI の指示の例、`snapshot/dataset.json`（`title`、`attribution`、`licence`、`licenceUrl`、`sourceUrl`、`caveats`）はデモ表示と案内の最後の手順に出典として表示する。
+- 初回表示：読み込み中は画像追加の画面ではなく読み込み中の案内を出す。統計とグラフは、計算前でも保存済みの最新の結果（シナリオの最後の計算）を開く（本番は「保存した図」から選ぶまで空のまま）。
 - HTTP ヘッダー：公開ビルドの CSP は `'wasm-unsafe-eval'`、`indexURL` のオリジン（script-src・connect-src）、`worker-src 'self' blob:` を加える。`/showcase/runtime/*` は長期・immutable、`seed.zip`・`manifest.json`・`snapshot/*` は毎回再検証、それ以外は従来どおり `no-store`。
 - 開発用：`scripts/dev_showcase_backend.py` は同じ boot/handle の契約を CPython の API で提供する（検出はしきい値による代用で、結果は公開しない）。`NEXT_PUBLIC_SHOWCASE_DEV_BACKEND`（ループバックのみ）を付けたビルドでだけ使う。
 - `.gitignore` は `*.zip` を除外しているため、`seed.zip` を登録する変更では除外の例外を加える。

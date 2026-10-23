@@ -195,6 +195,47 @@ def test_proposal_replay_hit_and_miss(seed, tmp_path, fake_replay, isolated):
     run(scenario())
 
 
+def _reseeded(path: Path, staging: Path, proposals: dict) -> bytes:
+    with zipfile.ZipFile(path) as archive:
+        archive.extractall(staging)
+    (staging / "proposals.json").write_text(json.dumps(proposals, ensure_ascii=False))
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for item in sorted(staging.rglob("*")):
+            if item.is_file() and item.relative_to(staging).parts[0] != "tmp":
+                archive.write(item, item.relative_to(staging).as_posix())
+    return buffer.getvalue()
+
+
+def test_authored_preset_drafts_answer_changed_contexts_but_model_outputs_do_not(seed, tmp_path, fake_replay, isolated):
+    """A demo-authored preset draft depends only on its instruction; a changed context still gets it."""
+    from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION
+    from showcase_seed import RECORDED_MODEL
+
+    path, info = seed
+    identity = {"model": RECORDED_MODEL, "prompt_version": PROPOSAL_PROMPT_VERSION}
+    mismatched = {**DRAFT, "channels": DRAFT["channels"][:1]}
+    entries = {  # keys never equal a real context digest: only the authored fallback can answer
+        "a" * 64: {**identity, "draft": DRAFT, "source": "showcase-authored", "goal": GOAL, "previous_goal": ""},
+        "b" * 64: {**identity, "draft": DRAFT, "goal": "モデルの出力"},
+        "c" * 64: {**identity, "draft": mismatched, "source": "showcase-authored", "goal": "検証に通らない案"},
+    }
+    seed_bytes = _reseeded(path, tmp_path / "staging", {"version": 1, "entries": entries})
+
+    async def scenario():
+        await runtime.boot(seed_bytes, ORIGIN, root=tmp_path / "browser")
+        client = Client()
+        route = f"/v1/workspaces/{info['workspace_id']}/proposal-drafts"
+        hit = await client.ok("POST", route, {"goal": f" {GOAL} ", "transmission_confirmed": True})
+        assert hit["proposal"]["draft"]["recipe"] == DRAFT["recipe"]
+        assert hit["proposal"]["model"] == RECORDED_MODEL
+        for goal in ("モデルの出力", "検証に通らない案"):
+            code, value, _ = await client.call("POST", route, {"goal": goal, "transmission_confirmed": True})
+            assert code == 409 and value["detail"] == "showcase_proposal_not_recorded", goal
+
+    run(scenario())
+
+
 def test_unrecorded_detection_is_a_field_notice_and_logout_recovers_session(seed, tmp_path, monkeypatch, isolated):
     path, info = seed
 

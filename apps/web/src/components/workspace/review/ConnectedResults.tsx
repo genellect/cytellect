@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect,useLayoutEffect,useMemo,useRef,useState} from "react";
+import {useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState} from "react";
 import {ApiError,download,errorCodeMessage,errorMessage,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
@@ -11,7 +11,7 @@ import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/ap
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {checkedPlot,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
-import {ErrorText} from "./showcase-ui";
+import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
@@ -164,6 +164,11 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   }
   function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setConfirmed(false);}
   function restoreFigure(selected:Saved){setSaved(selected);setFigureKind(selected.plot.kind);setWidth(selected.plot.width_inches*25.4);setHeight(selected.plot.height_inches*25.4);setFont(selected.plot.font_size);setXLabel(selected.plot.x_label);setYLabel(selected.plot.y_label);setYMin(selected.plot.y_min==null?"":String(selected.plot.y_min));setYMax(selected.plot.y_max==null?"":String(selected.plot.y_max));setPointSize(selected.plot.point_size??18);setColors(selected.plot.style?.series_colors||{});setLegend(selected.plot.style?.show_legend??true);setOrder(selected.plot.group_order);setXAxis({min:selected.plot.axes?.x_min==null?"":String(selected.plot.axes.x_min),max:selected.plot.axes?.x_max==null?"":String(selected.plot.axes.x_max),step:selected.plot.axes?.x_tick_step==null?"":String(selected.plot.axes.x_tick_step),scale:selected.plot.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:selected.plot.y_tick_step==null?"":String(selected.plot.y_tick_step),scale:selected.plot.axes?.y_scale||"linear"});}
+  // The public demo opens on the latest saved result (as a researcher's own session would
+  // have left it) instead of an empty view; production keeps the explicit choice.
+  const demo=useShowcaseUi().enabled,openedSaved=useRef(false);
+  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(!saved)restoreFigure(entry);});
+  useEffect(()=>{if(!demo||openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[demo,history]);
   const shownTarget=saved?.historical?saved.target:target;const shownMetric=saved?.historical?(saved.result.metric||saved.result.y_source?.metric||saved.result.spec?.selection?.metric||""):metric;const shownChannel=saved?.historical?(saved.result.channel?.channel_id||saved.result.y_source?.channel?.channel_id||saved.result.spec?.selection?.channel_id||null):channel;
   const savedChannel=saved?.result.channel?.channel_id??saved?.result.y_source?.channel?.channel_id??saved?.result.spec?.selection?.channel_id??null;
   const tableRows=saved?.operation==="comparison"?saved.result.comparisons:saved?.operation==="association"?saved.result.associations:saved?.result.field_summary;
