@@ -44,5 +44,7 @@ def test_modal_app_runs_the_published_image_and_unchanged_server():
 def test_modal_deploy_runs_only_from_main_with_hashed_client():
     workflow = (ROOT / ".github" / "workflows" / "cellpose-modal-deploy.yml").read_text(encoding="utf-8")
     assert "if: github.ref == 'refs/heads/main'" in workflow and "--require-hashes" in workflow
+    # Modal Servers are served at *.modal.direct; the summary must carry that URL.
+    assert r"\.modal\.(direct|run)" in workflow
     requirements = (ROOT / "infra" / "modal-requirements.txt").read_text(encoding="utf-8")
     assert "modal==1.6.2" in requirements and "--hash=sha256:" in requirements

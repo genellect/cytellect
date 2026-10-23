@@ -25,7 +25,7 @@ Modal の Starter プラン（月額 0 円）を使います。
 | 無料枠 | カードを登録すると毎月 30 ドル分（登録前は 1 ドル分）。使い残しは翌月に繰り越さない |
 | GPU（NVIDIA L4） | 1 秒あたり 0.000222 ドル（1 時間で約 0.8 ドル）。CPU とメモリは別に秒単位 |
 | 使い終わった後 | 20 秒で自動停止（`infra/modal_cellpose.py` の `SCALEDOWN_SECONDS`）。止まっている間は 0 円 |
-| 1 視野あたり | 実測後に記載 |
+| 1 視野あたり | 起動済みなら 6〜11 秒で約 0.003 ドル。停止状態からの起動（約 3 分）を含むと 1 回約 0.06 ドル（[実測](#実測2026-10-23)） |
 
 **支出の上限（Spend limit）を必ず 0 ドルにしてください。** 無料枠を超える処理は止まり、請求は出ません。上限に達すると、その月は Cellpose が使えなくなります。
 
@@ -47,7 +47,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行します�
 ### 3. GitHub に登録してデプロイする
 
 1. リポジトリの Settings → Secrets and variables → Actions に、`MODAL_TOKEN_ID` と `MODAL_TOKEN_SECRET`（手順 2 の 3）を登録します。
-2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行します（オーナーの指示で行います）。実行結果の概要に、サーバーの URL（`https://….modal.run`）が表示されます。
+2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行します（オーナーの指示で行います）。実行結果の概要に、サーバーの URL（`https://….modal.direct`）が表示されます。
 
 デプロイ用のトークンは GitHub の秘密の値にだけ置き、研究室の PC や作業環境には置きません。この作業環境（Claude Code のクラウドセッション）からは、通信の制約で `modal deploy` を実行できません。
 
@@ -65,16 +65,42 @@ Cytellect はこの値を `Authorization: Bearer` として送り、Modal はこ
 
 ### 5. 動作を確かめる
 
-公開画像で、時間と結果を確かめます。研究画像は使いません。
+公開画像で、時間と結果を確かめます。
 
 ```sh
-CYTELLECT_CELLPOSE_REMOTE_URL=https://….modal.run \
+CYTELLECT_CELLPOSE_REMOTE_URL=https://….modal.direct \
 CYTELLECT_CELLPOSE_REMOTE_TOKEN=wk-…….ws-…… \
 uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A01-dapi.tif --crop 320 \
   --skip-local --receipt cellpose-remote-check.json
 ```
 
 記録（`cellpose-remote-check.json`）には、検出数、所要時間、GPU の種類だけが残ります。画素やパスは残りません。PC に Cellpose の CPU 環境がある場合は `--skip-local` を外すと、PC の結果との一致度も記録します。
+
+研究室の実画像で確かめる場合は、[実画像での確認](#実画像での確認)の手順で、画像のある PC から実行します。
+
+## 実測（2026-10-23）
+
+`main` の 1e39876 をデプロイした Modal Server（NVIDIA L4 × 1、最大 1 台、同時処理 1 件、20 秒で停止）を、`scripts/cellpose_remote_check.py` で測りました。比べた CPU は、Linux の作業環境の CPU で動かした同じ runner・モデル・ライブラリです。
+
+| 画像 | 検出 | GPU | CPU | 一致度 |
+| --- | --- | --- | --- | --- |
+| BBBC013 A01 の DAPI（320 × 320） | Cellpose-SAM（protocol 4.0.0） | 6.4 秒 | 87.6 秒 | ラベル画像が完全に一致（74 個とも一致、画素の違い 0） |
+| 4DN 4DNFI7FAWT6C の NCL（512 × 512） | NCL（protocol 4.3.0）。核は Otsu の代用（8 個） | 10.5 秒 | 127.4 秒 | ラベル画像が完全に一致（9 個とも一致、画素の違い 0） |
+
+- 時間は、PC から要求を送って結果を受け取るまでです（転送を含み、起動済みの状態）。
+- 停止状態から `/health` が応答するまでは 166 秒と 188 秒でした。Cytellect は起動中の応答（503）を最大 900 秒待ちます。
+- 接続キーは `wk-…….ws-……` の `Authorization: Bearer` で受け付けられました。キーなし・誤ったキーは 401 で拒否されました。
+- 2 回の測定でコンテナが動いた時間は、起動・処理・20 秒の待機を合わせて約 420 秒です。L4・CPU 2 コア・メモリ 8 GiB の単価から、費用は約 0.11 ドルと見積もりました（無料枠から差し引かれ、請求はありません）。Modal の画面の使用額で確認します。
+- 核の代用は時間を測るためのもので、製品の核検出（StarDist）ではありません。公開画像には正解の輪郭がないため、検出の正確さは評価していません。
+
+## 実画像での確認
+
+研究室の実画像では、画像をこの作業環境や GitHub に置かず、画像のある PC から確かめます。記録に残るのは、検出数、所要時間、GPU の種類、CPU との一致度だけです。ファイル名、パス、画素は残りません。
+
+- **Windows 版で確かめる**：手順 4 の設定をしたうえで、いつもどおり核小体の検出を実行します。製品と同じ流れ（StarDist の核 → Cellpose）で、所要時間と結果を確かめられます。Windows 版には CPU の Cellpose がないため、CPU との一致度は測れません。
+- **CPU との一致度も測る**：リポジトリと `uv` のある PC で、`uv run python scripts/cellpose_setup.py <runtime の場所> --model-cache <モデルの場所> --runtime-only` で CPU の環境を用意し、手順 5 のコマンドを `--skip-local` なしで実行します。核小体では `--plane <NCL のチャンネル> --nuclei-plane <DAPI のチャンネル>` を付けます。CPU では 1 視野に数分かかります。
+
+記録（JSON）を共有するときは、中身が数値だけであることを確かめてから渡します。画像そのもの、ファイル名、結果の画像は共有しません。
 
 ## 送ったデータの扱い（Modal）
 
@@ -95,7 +121,7 @@ uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A
 - `execution_backend`：クラウドで処理したこと、接続先のホスト名、検出条件で指定されていた処理装置
 - `service`：クラウド側の runner・サーバー・ライブラリ・モデルのハッシュ
 
-GPU では、TF32 を使わない float32 と、毎回同じ結果になる計算方法を使います。それでも GPU と CPU の結果が 1 画素も違わないとは限りません。初回の受入では、公開画像で CPU との一致度を記録します。
+GPU では、TF32 を使わない float32 と、毎回同じ結果になる計算方法を使います。それでも GPU と CPU の結果が 1 画素も違わないとは限りません。公開画像の受入では、2 枚とも CPU とラベル画像が完全に一致しました（[実測](#実測2026-10-23)）。
 
 ## 困ったとき
 

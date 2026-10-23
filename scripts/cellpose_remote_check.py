@@ -1,10 +1,11 @@
-"""Compare Cellpose through the remote service with the local runner on a public image.
+"""Compare Cellpose through the remote service with the local runner on one image.
 
 CI: --start-service runs engines/cellpose/server.py on this machine's CPU runtime;
 the remote path must then return exactly the local labels.
 Remote GPU acceptance: set CYTELLECT_CELLPOSE_REMOTE_URL (and _TOKEN) instead and
-record timing and agreement. Only public registered images may be used here; the
-receipt holds counts and timings, never pixels or paths.
+record timing and agreement. CI and shared environments use registered public
+images only; a researcher's own images are checked on the PC that holds them.
+The receipt holds counts and timings, never pixels or paths.
 """
 from __future__ import annotations
 
