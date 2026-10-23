@@ -39,7 +39,7 @@ export function AnalysisPlanner() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return <main className={styles.page}>
-    <header className={styles.header}><Link href="/" className={styles.brand}>cytellect</Link><nav aria-label="ナビゲーション"><Link href="/">{API_CONFIGURED || LOCAL_MODE ? "ワークスペース" : "ホーム"}</Link><Link href="/demo">解析例</Link></nav></header>
+    <header className={styles.header}><Link href="/" className={styles.brand}>cytellect</Link><nav aria-label="ナビゲーション"><Link href="/">{API_CONFIGURED || LOCAL_MODE ? "ワークスペース" : "ホーム"}</Link><Link href="/demo">デモ</Link></nav></header>
     <div className={styles.intro}>
       <h1>解析設定</h1>
       <p>測定項目、画像形式、実験条件を入力してください。対応する解析方法と必要な設定を表示します。</p>

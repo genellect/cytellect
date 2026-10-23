@@ -1,5 +1,5 @@
 import {describe,it,expect} from "vitest";
-import {checkedPlot,emptyMetadata,numericFigureFiles,resultRequest,type ResultDesign} from "./connected-results-model";
+import {checkedPlot,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,seriesOrder,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
@@ -35,6 +35,20 @@ describe("connected result contracts",()=>{
   });
   it("distribution needs no fabricated experiment metadata",()=>{
     expect(resultRequest({...design,operation:"distribution",confirmed:false},{f1:emptyMetadata},plot)).toMatchObject({mode:"descriptive",group_by:"field",selection:{metric:"mean",channel_id:"gfp"}});
+  });
+  it("figure series and order list exactly the compared groups",()=>{
+    const three={...fields,f3:{...emptyMetadata,condition:"C",sample:"s3",experimental_unit:"u3",acquisition_date:"day1"}};
+    const conditions=["A","B","C"];
+    const series=resultSeries("comparison",["f1","f2","f3"],conditions,[["B","A"]]);
+    expect(series).toEqual(["A","B"]);
+    // A reordered or restored order that names an uncompared group never reaches the request.
+    expect(seriesOrder(["C","B","A"],series)).toEqual(["B","A"]);
+    expect(seriesOrder([],series)).toEqual([]);
+    expect(seriesOrder(["B"],series)).toEqual(["B","A"]);
+    const request=resultRequest({...design,contrasts:[["A","B"]]},three,{...plot,group_order:seriesOrder(["C","B","A"],series)}) as {conditions:string[];plot:{group_order:string[]}};
+    expect(new Set(request.plot.group_order)).toEqual(new Set(request.conditions));
+    expect(resultSeries("association",["f1"],conditions,[["A","B"]])).toEqual(conditions);
+    expect(resultSeries("distribution",["f1","f2"],conditions,[["A","B"]])).toEqual(["f1","f2"]);
   });
   it("rejects invalid axis ranges and preserves explicit negative bounds",()=>{
     expect(()=>checkedPlot(178,100,7,"","","10","1")).toThrow();

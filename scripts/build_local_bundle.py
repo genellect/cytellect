@@ -19,7 +19,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 UV_VERSION = "0.12.2"
 PRODUCTION_EXPORT = ("export", "--locked", "--no-dev", "--no-emit-project", "--no-header")
 ROOT_FILES = {"pyproject.toml", "uv.lock", "README.md", "README.en.md", "LICENSE", "NOTICE"}
-SOURCE_TREES = ("packages/analysis/src/", "services/api/src/", "services/worker/src/")
+SOURCE_TREES = ("packages/analysis/src/", "services/api/src/", "services/worker/src/", "services/showcase/src/")
 SCRIPTS = {"scripts/fiji_setup.py", "scripts/local_setup.ps1", "scripts/windows_runtime.ps1",
            "scripts/cellpose_setup.py", "scripts/cellpose_setup.ps1"}
 CELLPOSE_ASSETS = {f"engines/cellpose/{name}" for name in (
@@ -35,6 +35,9 @@ DATA_NOTICES = {"fixtures/public/allowlist.json"}
 WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".svg", ".woff2", ".woff", ".ttf",
                 ".ico", ".png", ".jpg", ".jpeg", ".webp"}
 REGISTERED_MARKETING_SUFFIXES = {".mp4", ".webm", ".csv", ".glb", ".md"}
+# The serverless public showcase (browser runtime wheels, seed) belongs to the public
+# site only; the local release runs the real API instead and does not ship it.
+PUBLIC_SITE_ONLY = "showcase"
 
 
 def source_allowed(name: str) -> bool:
@@ -74,6 +77,8 @@ def collect_files(root: Path, tracked: list[str], web_dir: Path) -> dict[str, Pa
         if path.is_dir():
             continue
         relative = path.relative_to(web_dir)
+        if relative.parts[0] == PUBLIC_SITE_ONLY:
+            continue
         registered_media = path.suffix in REGISTERED_MARKETING_SUFFIXES
         if any(part.startswith(".") for part in relative.parts) or (
             path.suffix not in WEB_SUFFIXES and not registered_media

@@ -20,7 +20,9 @@
 
 **入力**：DAPI と NCL の2色で染めた核の画像（公開データ 4DN）
 
-![DAPI と NCL の蛍光画像](../apps/web/public/demo/4dn-ncl/demo-preview.png)
+![DAPI と NCL の蛍光画像](images/4dn-ncl-preview.png)
+
+画像：4DN Sceptic NPC DAPI/NCL（4DNFI7FAWT6C）。Li G, Kim HJ, Pendyala S, et al. Genome Biology 26, 209 (2025)；Doug Fowler laboratory, University of Washington；4D Nucleome。[4DN の公開データ利用方針](https://registry.opendata.aws/4dnucleome/)に従う表示用の合成画像です。出典とハッシュは [4dn-ncl-preview.json](images/4dn-ncl-preview.json) に記録しています。
 
 **核の自動検出**：検出した核の輪郭を画像に重ねて表示します。誤りは追加・削除・結合・分割で直せます。
 

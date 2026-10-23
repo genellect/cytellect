@@ -110,9 +110,13 @@ quadrants and the retained tile-median range. Synthetic counterexamples are
 tested: a confluent field and one-sided background fail; a linear illumination
 gradient is not removed (b is one global median, the tile-median range shows the
 spread); a local diffuse blob is excluded; field-wide diffuse signal is reported
-as background, which is why the candidate is never treated as confirmed. Exports
-and statistical summaries refuse protocol 4.0.0 until their own Methods text is
-versioned.
+as background, which is why the candidate is never treated as confirmed.
+Reproducibility exports use bundle format `/4` with measurement Methods 1.4.0.
+Descriptive and comparison Methods (statistical Methods template 1.0.0) describe
+protocol 4.0.0 sources from their saved provenance, as listed in
+[Statistical Methods documents](statistical-methods.md); common statistics name
+the automatic candidate median as the correction basis. None of these steps
+recalculates or alters the measured values.
 
 
 ## Generic display-RGB input transform 1.0.0

@@ -29,6 +29,14 @@ function fixture(withResult=true,initialSpecification:import("./use-workspace-ru
   return {runtime,adapter,adopted,recipe,revisions,assignments,loadPreview,writeSpecification};
 }
 describe("functional workspace runtime",()=>{
+  it("shows the first field before loading the others, and loads a single field once",async()=>{
+    const single=fixture();await single.runtime.load("w");
+    expect(single.loadPreview.mock.calls).toEqual([["w",undefined,{limit:1}]]);
+    const several=fixture(),restore=several.adapter.restore.getMockImplementation()!;
+    several.adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);return {...value,fields:[...value.fields,{...value.fields[0],id:"f2"}]};});
+    await several.runtime.load("w");
+    expect(several.loadPreview.mock.calls).toEqual([["w",undefined,{limit:1}],["w",undefined,undefined]]);
+  });
   it("repairs historical result settings in one versioned write with current manual settings",async()=>{
     const settings=defaultRuntimeSettings();
     const invalid={method:{kind:"association",association:"spearman"},x_metric:"nucleolar_count",y_metric:"nuclear_area"};
@@ -100,6 +108,12 @@ describe("functional workspace runtime",()=>{
     runtime.setSettings(value=>({...value,nuclearProbability:.8}));expect(runtime.candidateResult("f1","nuclei")).toBeUndefined();
     await expect(runtime.acceptCandidates("f1","nuclei")).rejects.toThrow("一致する候補");expect(adapter.selectRevision).not.toHaveBeenCalled();
   });
+  it("dismisses the last message without reloading the saved state",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");adapter.draft.mockRejectedValueOnce(new Error("showcase_proposal_not_recorded"));
+    await expect(runtime.requestProposal("free text","f1")).rejects.toThrow();expect(runtime.getSnapshot().error).not.toBe("");
+    const restores=adapter.restore.mock.calls.length;runtime.dismissError();
+    expect(runtime.getSnapshot().error).toBe("");expect(adapter.restore.mock.calls.length).toBe(restores);
+  });
   it("initializes a separate manual cell ROI set without nuclei or signal segmentation",async()=>{
     const {runtime,adapter}=fixture(false);await runtime.load("w");await runtime.run("cell","f1");
     expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.run.mock.calls[0][2]).toMatchObject({source:"manual",version:"1.0.0",region_set_id:"cell"});
@@ -137,5 +151,10 @@ describe("functional workspace runtime",()=>{
     const recipe=runtimeRecipe("nuclei",nuclear,defaultRuntimeSettings(),{},null);
     expect(sameRuntimeRecipe(recipe,{...recipe,detector:{...recipe.detector!,nms:.1}} as Recipe)).toBe(false);
     expect(sameRuntimeRecipe(recipe,Object.fromEntries(Object.entries(recipe).reverse()) as unknown as Recipe)).toBe(true);
+  });
+  it("treats the API's null nucleolar parent of a nucleolar recipe as the omitted client field",()=>{
+    const recipe={...runtimeRecipe("nuclei",nuclear,defaultRuntimeSettings(),{},null),region_set_id:"nucleoli"} as Recipe;
+    expect(sameRuntimeRecipe({...recipe,nucleolar_revision_id:null} as unknown as Recipe,recipe)).toBe(true);
+    expect(sameRuntimeRecipe({...recipe,nucleolar_revision_id:"r2"},recipe)).toBe(false);
   });
 });

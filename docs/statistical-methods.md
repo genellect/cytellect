@@ -21,6 +21,24 @@ are not automatically biological nucleoli. Area-only output explicitly states
 that intensity, saturation and background correction were not measured. A
 numerical-assay description does not invent an image measurement.
 
+Generic-region sources are accepted with measurement protocols 1.0.0 (confirmed
+ROI), 2.0.0 (area only), 3.0.0 (raw intensity) and 4.0.0 (automatic background
+candidate). Each field's recorded protocol must match its policy mode, and one
+document never mixes modes. For protocol 4.0.0 the document states that the raw
+values follow protocol 3.0.0 and that b came from the automatic candidate
+`cytellect-automatic-background` 1.0.0, which is not a human-confirmed ROI. For a
+corrected outcome it describes the recorded exclusion (measured regions, and the
+pinned source nuclei including excluded ones where recorded, with an 8 px
+Euclidean margin and the bright-pixel rule), the 32 px tiling, the single
+rejection pass, the 4-tile/3-quadrant requirement, `b = median(I[B])`, signed
+unclipped corrections, the number of fields whose selected channel established a
+candidate, and that missing candidates leave corrected values missing with their
+reason while raw values and the field remain. A saved background record whose
+source, confirmation flag, algorithm version or constants differ from that
+protocol is refused. This prose reads saved facts only; measured numbers are
+unchanged. Template 1.0.0 previously refused protocol 4.0.0 sources, so no
+earlier document changes.
+
 Descriptive Methods report saved observation/field counts and the partition of
 excluded, gate-unselected and missing outcomes. They do not assign independent n
 or inferential intervals. GFP selection rules are retained where applicable;
@@ -75,5 +93,8 @@ missingness and bounded prose size with a complete 20,000-observation ledger.
 `tests/test_statistical_methods_export.py` covers actual original/archived/replayed
 Methods bytes, historical/current single and paged paths, parent/child document
 agreement, area-only output and altered Methods with a recomputed file hash.
+`tests/test_automatic_background_statistics.py` measures protocol 4.0.0 through
+the API and runs descriptive, Welch comparison and common statistics on it, and
+refuses tampered or mixed automatic-background sources.
 These checks concern reporting, provenance and software behavior; they do not
 establish journal acceptance, biological applicability or human usability.

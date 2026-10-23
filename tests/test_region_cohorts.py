@@ -172,6 +172,21 @@ def test_cohort_refuses_different_stains_even_when_channel_ids_match(tmp_path):
     assert response.status_code == 409 and response.json()["detail"] == "cohort_channel_identity_mismatch"
 
 
+def test_cohort_names_unresolved_nuclear_compartments(tmp_path, monkeypatch):
+    client, app, _, wid, body, _ = setup_cohort(tmp_path)
+    for entry in body["sources"]:
+        source = app.state.store.one(revisions, id=entry["revision_id"])
+        config = copy.deepcopy(source["config"])
+        config["recipe"]["source"] = "fiji_nuclear_compartment"
+        with app.state.store.transaction() as conn:
+            conn.execute(update(revisions).where(revisions.c.id == source["id"]).values(config=config))
+    # The compartment recipe is only simulated here; its report policy is covered elsewhere.
+    monkeypatch.setattr("cytellect_api.region_cohorts.validate_region_report_policy", lambda report, config: None)
+    response = client.post(f"/v1/workspaces/{wid}/region-cohorts", json=body, headers=HEADERS)
+    # Provenance without per-nucleus nucleolar states fails closed, under its own name.
+    assert response.status_code == 409 and response.json()["detail"] == "cohort_compartments_unresolved"
+
+
 def test_cohort_source_change_after_queue_is_visible_failure_and_blocks_review(tmp_path):
     client, app, settings, wid, body, _ = setup_cohort(tmp_path)
     queued = client.post(f"/v1/workspaces/{wid}/region-cohorts", json=body, headers=HEADERS)

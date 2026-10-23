@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {reviewImageFit, reviewImagePoint, reviewImageReveal, reviewImageSelection, reviewImageZoom, reviewViewportCamera} from "./ReviewImageCanvas";
+import {reviewImageFit, reviewImagePoint, reviewImageReveal, reviewImageSelection, reviewImageZoom, reviewImageZoomLabel, reviewViewportCamera} from "./ReviewImageCanvas";
 
 describe("review image geometry", () => {
   it.each([[1920, 900, 2048, 2048], [1280, 440, 1024, 2048], [280, 300, 4096, 1024]])("fits %s×%s without distorting native coordinates", (vw, vh, width, height) => {
@@ -9,6 +9,12 @@ describe("review image geometry", () => {
     expect(camera.x + width * camera.scale).toBeLessThanOrEqual(vw);
     expect(camera.y + height * camera.scale).toBeLessThanOrEqual(vh);
     expect(Math.min(camera.x, camera.y)).toBe(0);
+  });
+  it("shows no zoom scale until the viewport is measured", () => {
+    const image = {width: 1536, height: 1536};
+    expect(reviewImageZoomLabel(reviewImageFit(image, {width: 0, height: 0}), image, {width: 0, height: 0})).toBeNull();
+    const viewport = {width: 800, height: 700};
+    expect(reviewImageZoomLabel(reviewImageFit(image, viewport), image, viewport)).toBe("46%");
   });
   it("keeps the pixel below the cursor fixed during zoom", () => {
     const before = {scale: 0.2, x: 120, y: 0};
