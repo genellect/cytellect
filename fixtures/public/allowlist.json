@@ -150,7 +150,7 @@
     "license": "Apache-2.0"
   },
   "apps/web/public/marketing/provenance.json": {
-    "sha256": "3c190bf5ad0566a6500249713aae281f92dcbd6824f533fd4ea581628febc377",
+    "sha256": "2c3481948d2406d60125ead7e0d3d3f12c12010f34d5b65a17a0eafab0fb262b",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -210,7 +210,7 @@
     "license": "Unsplash License"
   },
   "apps/web/public/marketing/photo-provenance.json": {
-    "sha256": "711635ddcb253143e2f7476c4c830ba1e4e882e844d081c36db2c9e452ea6b12",
+    "sha256": "2cfb04bac2cc9468ab10e019b54dd78e6874e35ae517e67d9952d2c6770f6ead",
     "source": "https://unsplash.com/license",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -278,5 +278,55 @@
     "sha256": "047060a6136cf0d739e2e7b7ab00599b1979990f69072ade5ac189c7d3496f2d",
     "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
     "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/hero-film.mp4": {
+    "sha256": "a89411c1275dc95071b3b835409e1a31677e7bc0a4c63f3f9bf86f328d54f5b3",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/hero-film-poster.webp": {
+    "sha256": "7b631a40c17183de7492e84fd8ac3b82b78e94639ecf30174e1490179d1dd645",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/hero-film.webm": {
+    "sha256": "f34fb944fc3c2ed3b9ccc23e46e505254ec9524192febb24e2781f809aa357ca",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/lp-pipetting.webp": {
+    "sha256": "f9c39056535c20971e87fa10c74f7e16f8421006e67f55b5eac78cb930d10377",
+    "source": "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/lp-dish.webp": {
+    "sha256": "aaf6a2ff6b5f28f94fe466c819d9792d8df5de4094cd4af7bbc4f0a6ef8a7600",
+    "source": "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/lp-field.webp": {
+    "sha256": "08ed04a7a70aa864d31b0705fc85d73c3d73450bfb2e532c9a90866e3facee33",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-field-mobile.webp": {
+    "sha256": "9ea89fcee9d511a9a1f2c5b71d0a74e7b195f70a26b0df2effea35a0f64182cf",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-workspace.webp": {
+    "sha256": "f015acdbf9b2a721d98f803da9142f2a1c54272dc87e225f09cd3c29727e7743",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-figure.svg": {
+    "sha256": "5db7db2d7905c2dc59d15595840fb930bf0b1e0dee170a21b40691c6c3e21193",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-workspace-mobile.webp": {
+    "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
   }
 }

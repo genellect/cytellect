@@ -24,9 +24,9 @@ export function LandingStory() {
   const paragraph = (text: string) => <p key={text.slice(0, 12)}>{text}</p>;
   return <section className={[lp.section, lp.story].join(" ")} aria-label="Cytellectが生まれた理由">
     <div className={lp.column}><div className={lp.prose}>
-      {paragraph(lead)}
       <div id="story-more" className={lp.more} data-open={open} inert={!open}>
         <div><div>
+          {paragraph(lead)}
           {body.map(paragraph)}
           {paragraph("こうした課題を解決するために開発したのが、「Cytellect」である。")}
           {answer.map(paragraph)}
@@ -35,7 +35,7 @@ export function LandingStory() {
       </div>
       <button type="button" className={lp.button} aria-expanded={open} aria-controls="story-more"
         data-lp-event={open ? undefined : "story"} onClick={() => setOpen(value => !value)}>
-        <span>{open ? "閉じる" : "続きを読む"}</span><span aria-hidden="true" className={lp.toggleIcon} />
+        <span>{open ? "閉じる" : "Cytellectが生まれた理由を読む"}</span><span aria-hidden="true" className={lp.toggleIcon} />
       </button>
     </div></div>
   </section>;
