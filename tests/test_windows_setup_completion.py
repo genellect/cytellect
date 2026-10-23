@@ -354,6 +354,40 @@ $result | ConvertTo-Json -Compress
 '''
 
 
+
+RETENTION_SETTING_HARNESS = r"""
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+$tokens=$null; $errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw 'parse_failed' }
+foreach ($name in @('Get-SafeChild','Set-WorkspaceRetention')) {
+    $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+    if ($null -eq $function) { throw 'test_function_absent' }
+    Invoke-Expression $function.Extent.Text
+}
+function Case([string]$Name) { $root=Join-Path $env:CYTELLECT_TEST_ROOT $Name; [IO.Directory]::CreateDirectory($root) | Out-Null; $root }
+function Saved([string]$Root) { $file=Join-Path $Root 'settings\retention.json'; if ([IO.File]::Exists($file)) { [IO.File]::ReadAllText($file) } else { $null } }
+$result=[ordered]@{}
+$root=Case 'fresh-ttl'; $result.fresh_ttl=@((Set-WorkspaceRetention $root 'ttl'), (Saved $root))
+$root=Case 'fresh-manual'; $result.fresh_manual=@((Set-WorkspaceRetention $root 'manual'), (Saved $root))
+$result.manual_stays=Set-WorkspaceRetention $root 'ttl'
+$root=Case 'lost-setting'; [IO.Directory]::CreateDirectory((Join-Path $root 'data')) | Out-Null
+[IO.File]::WriteAllText((Join-Path $root 'data\.manual-workspace-retention'), '')
+$result.lost_setting=@((Set-WorkspaceRetention $root 'ttl'), (Saved $root))
+$result | ConvertTo-Json -Compress
+"""
+
+
+def test_setup_keeps_manual_retention_when_the_setting_file_was_lost(tmp_path):
+    result = windows_powershell(RETENTION_SETTING_HARNESS, {"CYTELLECT_TEST_ROOT": str(tmp_path)})
+    assert result.returncode == 0, result.stdout + result.stderr
+    manual = '{"schema":"cytellect-local-retention/1","mode":"manual"}'
+    assert json.loads(result.stdout) == {
+        "fresh_ttl": ["ttl", None], "fresh_manual": ["manual", manual], "manual_stays": "manual",
+        # The application's permanent marker restores the setting instead of reporting 24-hour deletion.
+        "lost_setting": ["manual", manual]}
+
 def test_setup_saves_the_remote_gpu_setting_and_keeps_it_when_left_blank(tmp_path):
     result = windows_powershell(REMOTE_SETTING_HARNESS, {"CYTELLECT_TEST_ROOT": str(tmp_path)})
     assert result.returncode == 0, result.stdout + result.stderr

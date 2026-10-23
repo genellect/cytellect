@@ -348,7 +348,10 @@ function Set-WorkspaceRetention([string]$Root, [string]$Requested) {
             if ((Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json).mode -ceq 'manual') { $current = 'manual' }
         } catch { }
     }
-    if ($current -eq 'manual' -or $Requested -ne 'manual') { return $current }
+    # The application leaves a permanent marker beside the database once it has kept
+    # data. A lost or damaged settings file must not make setup report 24-hour deletion.
+    $kept = Test-Path -LiteralPath (Get-SafeChild $Root 'data/.manual-workspace-retention') -PathType Leaf
+    if ($current -eq 'manual' -or ($Requested -ne 'manual' -and -not $kept)) { return $current }
     [IO.Directory]::CreateDirectory((Get-SafeChild $Root 'settings')) | Out-Null
     $temporary = Get-SafeChild $Root ('settings/retention-' + [Guid]::NewGuid().ToString('N') + '.json')
     $value = [ordered]@{ schema = 'cytellect-local-retention/1'; mode = 'manual' } | ConvertTo-Json -Compress
