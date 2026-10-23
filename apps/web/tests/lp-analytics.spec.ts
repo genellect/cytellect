@@ -46,7 +46,7 @@ test("LP sends only fixed page identity and allowlisted actions; exit destroys t
   // Opening the story is measured once; closing it is not an event and never navigates.
   const story = page.getByRole("region", { name: "Cytellectが生まれた理由" });
   const before = page.url();
-  await story.getByRole("button", { name: "続きを読む" }).click();
+  await story.getByRole("button", { name: "Cytellectが生まれた理由を読む" }).click();
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"story_open"');
   await story.getByRole("button", { name: "閉じる" }).click();
   await expect(page).toHaveURL(before);

@@ -18,7 +18,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  // What Cytellect does is split into tabs; each opens the matching step of the public demo.
  const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
  await expect(features.getByRole("tab")).toHaveText(["解析の流れ","核小体の検出","AIによる設定","統計と論文の図"]);
- for(const [tab,title,link,href] of [["核小体の検出",/^汎用のモデルでは見つからない核小体を、/,"この画像をデモで解析する","/demo?step=image"],["AIによる設定",/^やりたい解析を一文で書くと、/,"デモでAIに指示する","/demo"],["統計と論文の図",/^nは細胞の数ではなく、/,"デモで統計とグラフを作る","/demo?step=figure"],["解析の流れ",/^検出・修正・測定から、/,"デモで操作する","/demo"]] as const){
+ for(const [tab,title,link,href] of [["核小体の検出",/^汎用のAIでは見つからない核小体も、/,"この画像をデモで解析する","/demo?step=image"],["AIによる設定",/^やりたいことを一文で。/,"デモでAIに頼む","/demo"],["統計と論文の図",/^統計の検定も、論文に載せる図も、/,"デモで統計と図を作る","/demo?step=figure"],["解析の流れ",/^画像を入れるだけ。/,"デモで操作する","/demo"]] as const){
   await features.getByRole("tab",{name:tab,exact:true}).click();
   const panel=page.getByRole("tabpanel",{name:tab,exact:true});
   await expect(panel.getByRole("heading",{name:title})).toBeVisible();
@@ -36,7 +36,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
-  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^核の形、核と細胞質の輝度の比、/,/^Windows版は無料。研究画像は、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
+  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^核と核小体の定量を、/,/^Windows版は無料。研究画像はPCの外に/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
   if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').filter({visible:true}).all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
  }
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));
@@ -98,7 +98,7 @@ test("the story for general readers opens in place and keeps its text", async ({
  await page.goto("/");
  const story = page.getByRole("region", { name: "Cytellectが生まれた理由" });
  await expect(story).toContainText("私たちの体は、約30兆個もの細胞から成り立っている。");
- const toggle = story.getByRole("button", { name: "続きを読む" });
+ const toggle = story.getByRole("button", { name: "Cytellectが生まれた理由を読む" });
  await expect(toggle).toHaveAttribute("aria-expanded", "false");
  await expect(story.getByText("次世代の研究者のためのアプリケーションである。")).not.toBeInViewport();
  await toggle.click();

@@ -226,21 +226,6 @@
         "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
         "bytes": 47042,
         "description": "Crop of the same demo screenshot as lp-workspace.webp (image and measurement table area), downscaled to 1080 px wide for narrow screens."
-      },
-      "lp-ai.webp": {
-        "sha256": "2968bc1fbbbc5cd98c35dd79ac96388e57f2ea9dedd6c6f01ea42a1594ff9eed",
-        "bytes": 186428,
-        "description": "Browser screenshot of the public demo after choosing the preset AI instruction 'NPM1の核内平均輝度を未処理とActD処理で比較したい' (recorded demo draft; no paid API), 1440x900 at device scale 2."
-      },
-      "lp-ai-mobile.webp": {
-        "sha256": "2c3deda9d9a366231e64c0b3afbc219bb2dcb7238d239d90984b13aca5d980bb",
-        "bytes": 51734,
-        "description": "Crop of lp-ai.webp showing the AI panel only."
-      },
-      "lp-statistics.webp": {
-        "sha256": "fb4da6d29cf0883951451db37ed14c47fc949fe094c8419698e8b753bf34ccce",
-        "bytes": 134714,
-        "description": "Browser screenshot of the public demo statistics step after calculating the group comparison (independent units Rep1-Rep3) proposed by the AI example."
       }
     }
   }

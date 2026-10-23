@@ -33,7 +33,7 @@ export default function PublicLanding() {
       <section className={lp.mission} aria-labelledby="mission-title">
         <div className={lp.column}>
           <h2 id="mission-title" className={lp.manifesto}>画像解析を、一部の専門家の技術から、すべての生命科学研究者が使える研究基盤に。</h2>
-          <p className={lp.missionLead}>Cytellectは、蛍光顕微鏡の画像をアップロードするだけで、画像解析から統計解析、論文に使えるグラフの作成までを一貫して行えるソフトウェアです。</p>
+          <p className={lp.missionLead}>蛍光顕微鏡の画像をアップロードするだけで、画像解析・統計・論文用のグラフまで。</p>
         </div>
       </section>
       <LandingStory />
@@ -47,19 +47,33 @@ export default function PublicLanding() {
         <LandingFeatures />
       </section>
 
+      <section className={[lp.section, lp.loopSection].join(" ")} aria-labelledby="loop-title">
+        <div className={lp.wide}>
+          <Display id="loop-title" text="研究者の修正が、次のAIになる。" />
+          <p className={lp.loopLead}>使われるほど、検出できる構造が増えていきます。</p>
+          <ol className={lp.loop} aria-label="検出AIが育つ仕組み">
+            <li><b>研究者が輪郭を直す</b><span>ずれた輪郭を、画面の上でなぞり直すだけ。</span></li>
+            <li><b>修正が教師データになる</b><span>染色画像と、直した輪郭が組になって残ります。</span></li>
+            <li><b>AIを追加学習</b><span>大規模な画像AIを土台に、核小体や細胞質まで学習します。</span></li>
+            <li><b>クラウドのGPUで検出</b><span>PCのCPUでは1視野に数十分かかる検出を、高性能なGPUで。</span></li>
+          </ol>
+          <p className={lp.loopBack}><span aria-hidden="true">↺</span> 次の画像から、より正確に。</p>
+        </div>
+      </section>
+
       <figure className={[lp.band, lp.bandLow].join(" ")}><img src="/marketing/lp-dish.webp" alt="淡いミント色の面に置いたシャーレとガラス管" width={2400} height={1597} loading="lazy" /></figure>
 
       <section className={lp.section} aria-labelledby="impact-title">
         <div className={lp.column}>
-          <Display id="impact-title" text="核の形、核と細胞質の輝度の比、核小体の数と大きさは、がんやALS、認知症、老化の研究で使われている指標です。" />
-          <div className={lp.prose}><p>研究室をまたいで同じ基準で測れれば、病気の仕組みの解明や新薬の候補選びにつながります。Cytellectは現在、核と核小体の自動検出に対応しており、細胞質の検出は追加学習を進めています。</p></div>
+          <Display id="impact-title" text="核と核小体の定量を、がん・ALS・認知症・老化の研究へ。" />
+          <div className={lp.prose}><p>同じ基準で測れれば、研究室をまたいで比べられます。細胞質の検出は追加学習を進めています。</p></div>
         </div>
       </section>
 
       <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
-          <Display id="download-title" text="Windows版は無料。研究画像は、あなたのPCの外に出ません。" />
-          <div className={lp.prose}><p>解析はすべて手元のPCの中で行います。解析のコードはApache-2.0で公開しており、測定と統計の計算方法を誰でも確かめられます。</p></div>
+          <Display id="download-title" text="Windows版は無料。研究画像はPCの外に出ません。" />
+          <div className={lp.prose}><p>コマンド入力も管理者権限も不要。解析のコードは公開しています。</p></div>
           <div className={lp.install}>
             <div>
               {WINDOWS_RELEASE_URL?<a className={lp.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>:<Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link>}
@@ -67,9 +81,10 @@ export default function PublicLanding() {
               {WINDOWS_RELEASE_URL&&<Link data-lp-event="example" href="/demo" className={lp.button}>インストールの前にデモを体験する <Forward /></Link>}
             </div>
             <ol className={lp.steps} aria-label="インストールの手順">
-              <li><b>ZIPを展開する</b><span>ダウンロードしたZIPを右クリックし、「すべて展開」を選びます。</span></li>
-              <li><b>「Cytellect Setup.cmd」を開く</b><span>セットアップを押すと、解析環境の取得と確認が自動で進みます（初回のみ、インターネット接続で5〜20分）。「WindowsによってPCが保護されました」と表示されたら、「詳細情報」→「実行」を選びます。</span></li>
-              <li><b>デスクトップの「Cytellect」を開く</b><span>ブラウザに解析画面が開きます。画像を読み込めば、検出から統計、論文用の図まで進めます。</span></li>
+              <li><b>ダウンロードしたZIPを右クリックし、「すべて展開」</b><span>展開先はそのままで大丈夫です。</span></li>
+              <li><b>展開したフォルダーの「Cytellect Setup」をダブルクリック</b><span>青い画面が出たら「詳細情報」→「実行」を押します。</span></li>
+              <li><b>「セットアップ」を押して、待つ</b><span>初回だけ5〜20分かかります。インターネットにつないでおいてください。</span></li>
+              <li><b>「開く」を押すと、解析画面が開きます</b><span>次からは、デスクトップの「Cytellect」から開けます。</span></li>
             </ol>
           </div>
         </div>
