@@ -37,11 +37,12 @@ function fakeEngine(reply: (request: ShowcaseRequest) => unknown = request => ({
   };
   return engine;
 }
-const transport = (options: {entries?: Record<string, unknown> | null; engine?: ShowcaseEngine | null; capable?: boolean}) => createShowcaseTransport({
+const transport = (options: {entries?: Record<string, unknown> | null; engine?: ShowcaseEngine | null; capable?: boolean; record?: () => void}) => createShowcaseTransport({
   fetchStatic: staticFiles(options.entries === undefined ? {} : options.entries),
   createEngine: () => options.engine === undefined ? fakeEngine() : options.engine,
   capable: () => options.capable ?? true,
   snapshotBase: "/showcase/snapshot/",
+  ...(options.record ? {record: options.record} : {}),
 });
 
 describe("showcase transport", () => {
@@ -75,18 +76,20 @@ describe("showcase transport", () => {
     expect(fetchStatic.mock.calls.length).toBe(calls);
   });
 
-  it("waits for the live engine when a GET has no recording", async () => {
+  it("answers anything unrecorded at once with a notice, never with the in-browser API", async () => {
     const engine = fakeEngine();
     const subject = transport({entries: {"/v1/session": {authenticated: true}}, engine});
-    const response = await subject.fetch("/v1/workspaces/w/jobs?x=1");
-    expect(await response.json()).toEqual({live: "/v1/workspaces/w/jobs?x=1"});
-    expect(engine.start).toHaveBeenCalledTimes(1);
-    expect(subject.state().engine).toBe("active");
+    const read = await subject.fetch("/v1/workspaces/w/jobs?x=1");
+    expect(read.status).toBe(409);
+    expect(await read.json()).toEqual({detail: "showcase_action_not_recorded"});
+    expect(await (await subject.fetch("/v1/workspaces", {method: "POST", body: "{}"})).json()).toEqual({detail: "showcase_action_not_recorded"});
+    expect(engine.start).not.toHaveBeenCalled();
+    expect(subject.state().engine).toBe("idle");
   });
 
-  it("routes every request live after the first change, in order and one at a time", async () => {
+  it("routes the recorder's requests live after the first change, in order and one at a time", async () => {
     const engine = fakeEngine();
-    const subject = transport({entries: {"/v1/workspaces/w/selection": {version: 1}}, engine});
+    const subject = transport({entries: {"/v1/workspaces/w/selection": {version: 1}}, engine, record: vi.fn()});
     expect(await (await subject.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
     const changed = subject.fetch("/v1/workspaces/w/selection", {method: "POST", body: JSON.stringify({version: 1}), headers: {"X-Cytellect-Request": "1"}});
     const reread = subject.fetch("/v1/workspaces/w/selection");
@@ -107,23 +110,12 @@ describe("showcase transport", () => {
     expect(await (await subject.fetch("/v1/session")).json()).toEqual({authenticated: true});
   });
 
-  it("answers changes with a notice on devices that do not run the engine", async () => {
-    const engine = fakeEngine();
-    const subject = transport({entries: {}, engine, capable: false});
-    subject.prepare();
-    expect(engine.start).not.toHaveBeenCalled();
-    const response = await subject.fetch("/v1/workspaces", {method: "POST", body: "{}"});
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({detail: "showcase_engine_unavailable"});
-    expect(subject.state()).toEqual({engine: "unavailable", reason: "device"});
-  });
-
   it("reports an unpublished demo and a failed boot without throwing", async () => {
     const unpublished = transport({entries: null, engine: null});
     expect(await (await unpublished.fetch("/v1/session")).json()).toEqual({detail: "showcase_unavailable"});
     const broken = fakeEngine();
     broken.start = vi.fn(async () => {throw new Error("showcase_integrity_failed");});
-    const failed = transport({entries: {}, engine: broken});
+    const failed = transport({entries: {}, engine: broken, record: vi.fn()});
     expect(await (await failed.fetch("/v1/workspaces", {method: "POST"})).json()).toEqual({detail: "showcase_engine_unavailable"});
     expect(failed.state()).toEqual({engine: "unavailable", reason: "failed"});
   });
@@ -138,7 +130,7 @@ describe("showcase transport", () => {
 
   it("returns the engine's API errors unchanged for the client to interpret", async () => {
     const engine = fakeEngine(() => ({status: 409, headers: [["content-type", "application/json"]], body: json({detail: "showcase_detection_not_recorded"})}));
-    const response = await transport({engine}).fetch("/v1/workspaces/w/runs", {method: "POST", body: "{}"});
+    const response = await transport({engine, record: vi.fn()}).fetch("/v1/workspaces/w/runs", {method: "POST", body: "{}"});
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({detail: "showcase_detection_not_recorded"});
   });
@@ -198,31 +190,11 @@ describe("recorded tour", () => {
     expect(engine.start).not.toHaveBeenCalled();
   });
 
-  it("answers recorded changes on devices that run the API, and starts it only for an unrecorded one", async () => {
+  it("answers the same way on devices that could run the API", async () => {
     const {subject, engine} = tour(true);
     expect((await post(subject, "area")).status).toBe(202);
+    expect(await (await post(subject, "intensity")).json()).toEqual({detail: "showcase_action_not_recorded"});
     expect(engine.start).not.toHaveBeenCalled();
-    // The API starts from the published state, so the view first returns there.
-    const reset = await post(subject, "intensity");
-    expect(await reset.json()).toEqual({detail: "showcase_tour_reset"});
-    expect(subject.state().resets).toBe(1);
-    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "snapshot"});
-    expect(await (await post(subject, "intensity")).json()).toEqual({live: "/v1/workspaces/w/statistics"});
-    expect(engine.handled.map(request => request.url)).toEqual(["/v1/workspaces/w/statistics"]);
-  });
-
-  it("carries the device's settings to the API that takes over, mapping their versions", async () => {
-    const engine = fakeEngine(request => request.url.endsWith("analysis-spec")
-      ? {status: 200, headers: [["content-type", "application/json"]], body: json(request.method === "PUT" ? {version: 12, spec: {}} : {version: 11, spec: {}})}
-      : {spec_version: 12});
-    const {subject} = tour(true, engine);
-    await subject.fetch("/v1/workspaces/w/analysis-spec", {method: "PUT", body: JSON.stringify({version: 20, spec: {target: "nuclei"}})});
-    const started = await subject.fetch("/v1/workspaces/w/runs", {method: "POST", body: JSON.stringify({spec_version: 21})});
-    expect(await started.json()).toEqual({spec_version: 21});
-    const [read, written, run] = engine.handled;
-    expect([read.method, written.method, run.url]).toEqual(["GET", "PUT", "/v1/workspaces/w/runs"]);
-    expect(JSON.parse(new TextDecoder().decode(written.body!))).toEqual({version: 11, spec: {target: "nuclei"}});
-    expect(JSON.parse(new TextDecoder().decode(run.body!))).toEqual({spec_version: 12});
   });
 
   it("finds a recorded change taken out of the recorded order", async () => {
@@ -299,12 +271,12 @@ describe("showcase notices through the API client", () => {
     await expect(api.request("/v1/session")).rejects.toEqual(new api.ApiError("server_not_configured", 503));
     showcase.activateShowcase();
     const error = await api.request("/v1/workspaces", {method: "POST", body: "{}"}).then(() => null, (value: unknown) => value);
-    expect(error).toEqual(new api.ApiError("showcase_engine_unavailable", 503));
+    expect(error).toEqual(new api.ApiError("showcase_unavailable", 503));
     expect(showcase.isShowcaseNotice(api.errorMessage(error))).toBe(true);
     expect(showcase.isShowcaseNotice(api.errorMessage(new api.ApiError("invalid_analysis_input", 422)))).toBe(false);
-    for (const code of ["showcase_detection_not_recorded", "showcase_proposal_not_recorded", "showcase_upload_disabled"])
+    for (const code of ["showcase_detection_not_recorded", "showcase_proposal_not_recorded", "showcase_upload_disabled", "showcase_action_not_recorded"])
       expect(showcase.isShowcaseNotice(`視野 1：${api.errorCodeMessage(code)} 実行条件を確認してください。`)).toBe(true);
-    await expect(api.fetchPrivateResponse("/v1/region-fields/f/preview")).rejects.toEqual(new api.ApiError("showcase_engine_unavailable", 503));
+    await expect(api.fetchPrivateResponse("/v1/region-fields/f/preview")).rejects.toEqual(new api.ApiError("showcase_unavailable", 503));
   });
 });
 

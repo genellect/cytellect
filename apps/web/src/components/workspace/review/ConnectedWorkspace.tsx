@@ -19,7 +19,7 @@ import {imageStageLayout} from "./image-stage-layout";
 import {emptyMetadata} from "./connected-results-model";
 import {initialPanelState,panelReducer} from "./panel-state";
 import styles from "./connected-workspace.module.css";
-import {DemoBadge,DemoGuide,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,useShowcaseState,recordedKind,recordedValues,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
+import {DemoBadge,DemoGuide,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,recordedKind,recordedValues,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
 import showcaseStyles from "./showcase.module.css";
 
 type Mode="image"|"statistics"|"figure";
@@ -93,9 +93,6 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // The in-browser API downloads after the recorded view has painted (capable devices only).
   const loaded=!!data;
   useEffect(()=>{if(!demo||!loaded)return;const timer=setTimeout(()=>activateShowcase().prepare(),1500);return()=>clearTimeout(timer);},[demo,loaded]);
-  // The demo returned to its published state (an operation the recording does not hold): show that state.
-  const showcaseResets=useShowcaseState().resets??0;
-  useEffect(()=>{if(demo&&showcaseResets)void r.reload().catch(()=>undefined);},[demo,showcaseResets]); // eslint-disable-line react-hooks/exhaustive-deps
   const recorded=(kind:string,key:string)=>demo?recordedValues(showcase.options,kind,key):undefined;
   const allowed=(...kinds:string[])=>!demo||recordedKind(showcase.options,...kinds);
   function chooseFiles(folder=false){if(demo){showcase.requestUpload("image");return;}(folder?folderInput:fileInput).current?.click();}

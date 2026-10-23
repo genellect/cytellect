@@ -40,12 +40,10 @@ export function useShowcaseState(): ShowcaseState {
   return useSyncExternalStore(listener => showcaseTransport()?.subscribe(listener) ?? (() => undefined),
     () => showcaseTransport()?.state() ?? idle, () => idle);
 }
-/** Shown only while an operation the recording does not hold waits for the in-browser API.
- *  Tests and support read the state from the attribute. */
+/** Not shown: visitors see recorded results and never wait for a runtime. Tests read the state from the attribute. */
 export function LiveStatus() {
   const state = useShowcaseState();
-  return <span role={state.engine === "preparing" ? "status" : undefined} hidden={state.engine !== "preparing"}
-    data-showcase-engine={state.engine} data-showcase-reason={state.reason ?? undefined}>ブラウザ内で計算する準備をしています（初回のみ30秒ほど）</span>;
+  return <span hidden data-showcase-engine={state.engine} data-showcase-reason={state.reason ?? undefined}/>;
 }
 
 export function UploadDialog({kind, onClose}: {kind: "image" | "csv" | null; onClose: () => void}) {

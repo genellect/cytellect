@@ -1,5 +1,5 @@
 // Record every GET response the real workspace UI makes while opening the seeded
-// workspace and switching 画像 (each field and channel, each region), 統計 and
+// workspace and switching 画像 (each field, region and channel), 統計 and
 // グラフ (each saved figure). Config arrives as JSON on stdin (see build.py).
 import {createHash} from "node:crypto";
 import {mkdir, writeFile} from "node:fs/promises";
@@ -81,17 +81,21 @@ await settle("initial");
 await mkdir(config.out, {recursive: true});
 const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
+// Every field, region and channel a visitor can look at, so browsing never meets an unrecorded
+// view (regions through the settings panel; never 細胞ROI: it starts a run).
+const region = page.locator("select").filter({has: page.locator("option[value=nucleoplasm]")}).first();
+const channels = page.locator("[class*=channelBar] > button[aria-pressed]:not([aria-label])");
 for (let index = 0; index < count; index++) {
   await step(`field ${index + 1}`, () => cards.nth(index).click());
-  const channels = page.locator("[class*=channelBar] > button[aria-pressed]:not([aria-label])");
-  const total = await channels.count();
-  for (let channel = 0; channel < total; channel++) await step(`field ${index + 1} channel ${channel + 1}`, () => channels.nth(channel).click());
+  if (!(await region.isVisible())) await step("settings panel", () => page.getByRole("button", {name: "設定パネル"}).click());
+  for (const value of ["nuclei", "nucleoli", "nucleoplasm"]) {
+    await step(`field ${index + 1} region ${value}`, () => region.selectOption(value));
+    const total = await channels.count();
+    for (let channel = 0; channel < total; channel++) await step(`field ${index + 1} ${value} channel ${channel + 1}`, () => channels.nth(channel).click());
+  }
 }
-// Regions shown for the first field, through the settings panel (never 細胞ROI: it starts a run).
 await step("first field", () => cards.first().click());
-const region = page.locator("select").filter({has: page.locator("option[value=nucleoplasm]")}).first();
-if (!(await region.isVisible())) await step("settings panel", () => page.getByRole("button", {name: "設定パネル"}).click());
-for (const value of ["nucleoli", "nucleoplasm", "nuclei"]) await step(`region ${value}`, () => region.selectOption(value));
+await step("region nuclei", () => region.selectOption("nuclei"));
 const tabs = page.getByRole("navigation", {name: "作業の切替"});
 await step("statistics", () => tabs.getByRole("button", {name: "統計"}).click());
 await step("figure", () => tabs.getByRole("button", {name: "グラフ"}).click());

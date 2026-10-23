@@ -63,19 +63,18 @@ the shared contracts and the demo files are described in [the showcase document]
 `/workspace` on the public build redirects to `/demo`; installations with an API (local package,
 Docker, development) keep their workspace at `/` and `/workspace` and have no `/demo`.
 
-- Transport: `lib/showcase` serves the recorded initial GET responses (`/showcase/snapshot/`) at
-  once, and starts the real API in a Web Worker (Pyodide) after the first paint on desktop
-  browsers (`navigator.deviceMemory` ≥ 4 when reported; not on narrow touch devices). The first
-  change, or a read without a recording, waits for it; from then on every request goes to the
-  worker, one at a time. Runtime files are verified against `runtime-config.json` (SHA-256)
-  before installation. No request reaches `/v1` on any server or a local service.
-- Devices without the in-browser API keep the recorded view; a change shows an information
-  notice ("この操作はPCのブラウザで試せます"), never the error banner. Unrecorded detection
-  conditions, unrecorded AI instructions and uploads are notices too.
+- Transport: `lib/showcase` answers visitors from recordings only, on every device and without
+  waiting: the recorded GET responses (`/showcase/snapshot/`, every field, region and channel)
+  paint the view, and the recorded tour (`snapshot/journal.json`) answers changes. The in-browser
+  API (Pyodide) is never fetched or started for visitors; it runs only for the build-time recorder.
+  No request reaches `/v1` on any server or a local service.
+- An operation the recording does not hold (a hand-drawn outline correction, a measurement under
+  unrecorded settings) shows an information notice at once ("公開デモに記録していません"), never
+  the error banner. Unrecorded detection conditions, unrecorded AI instructions and uploads are
+  notices too.
 - Detection inputs offer only recorded values (`snapshot/recorded-options.json`); the AI composer
   offers the recorded instructions (`snapshot/proposal-examples.json`) as examples. The header
-  shows a デモ badge with the image source and limits (`snapshot/dataset.json`), the live-engine
-  state and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that
+  shows a デモ badge with the image source and limits (`snapshot/dataset.json`) and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that
   points to the Windows/Docker versions.
 - `?step=image|statistics|figure` opens that tab. A dismissible four-step guide (画像と輪郭 →
   測定値 → 統計 → グラフと書き出し) appears on the first visit; its dismissal is the only

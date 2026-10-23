@@ -32,6 +32,6 @@ export type WorkerOutbound =
 /** Codes the UI shows as information, never as an error. */
 export const SHOWCASE_NOTICE_CODES = [
   "showcase_detection_not_recorded", "showcase_proposal_not_recorded", "showcase_upload_disabled",
-  "showcase_engine_unavailable", "showcase_unavailable", "showcase_action_not_recorded", "showcase_tour_reset",
+  "showcase_engine_unavailable", "showcase_unavailable", "showcase_action_not_recorded",
 ] as const;
 export type ShowcaseNoticeCode = typeof SHOWCASE_NOTICE_CODES[number];
