@@ -53,7 +53,7 @@ export default function PublicLanding() {
           <p className={lp.loopLead}>汎用のAIでは見つからない構造まで、輪郭を一つも描かずに測れます。</p>
           <ul className={lp.loop} aria-label="自動で測れる理由">
             <li><b>構造ごとに、専用のAI</b><span>核、核小体、細胞質。それぞれを見分けるAIが、細胞を一つずつ切り分けます。</span></li>
-            <li><b>クラウドのGPUで、速く</b><span>PCのCPUでは1視野に数十分かかる検出を、高性能なGPUで。PCの性能を選びません。</span></li>
+            <li><b>どのPCでも、GPUの速さで</b><span>検出はクラウドの高性能なGPUで。研究室のノートPCのままで、GPUを買う必要はありません。</span></li>
             <li><b>何度やっても、同じ結果</b><span>同じ画像からは、いつも同じ輪郭と数値。使ったAIの版まで記録します。</span></li>
             <li><b>すべての数値が、元の画像に戻れる</b><span>測定は元の画素値から。グラフの点から、その細胞の輪郭へ戻れます。</span></li>
           </ul>
