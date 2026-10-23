@@ -50,7 +50,6 @@ Cytellect の開発に参加するメンバーのためのルールです。開�
 - エージェントが作成したコミットには、ツールが付ける `Co-Authored-By` 行を残します。
 - エージェントにマージや本番公開をさせるのは、オーナーがその PR について明示的に指示した場合に限ります。
 - 作業の引き継ぎは、PR の説明と [roadmap](roadmap.md) に記録します。セッションごとの引き継ぎ文書は新たに作りません。
-- エージェントは、依頼者への報告（進捗、確認の質問、完了報告）を日本語で書きます。
 
 ### 6. 研究データの扱い
 
@@ -129,7 +128,6 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 - Keep the `Co-Authored-By` lines that agent tools add to commits.
 - Agents merge or publish only when the owner explicitly instructs them to for that PR.
 - Record handoffs in the PR description and the [roadmap](roadmap.md). Do not create new per-session handoff documents.
-- Agents write their reports to the requester (progress, clarifying questions, completion reports) in Japanese.
 
 ### 6. Research data
 
