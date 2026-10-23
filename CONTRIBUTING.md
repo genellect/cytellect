@@ -47,3 +47,9 @@ Documentation (`docs/**`, root-level Markdown, `LICENSE`, `NOTICE`) selects no a
 Workflows, lockfiles, package manifests, the rest of `fixtures/` and any unlisted path select every area. So do every merge-queue run, every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.
 
 The three integration jobs — `fiji-browser` (real Fiji, API/browser workflow, containers, local web bundle), `cellpose-gpu-image` and `windows-installed` (fresh install and update of the packaged Windows release) — do not run on pull requests. They run on every push to `main`, in the merge queue and on manual runs. The Windows release workflow requires all seven jobs, these three included, to have passed on the exact `main` commit it releases, so a release is never built from a commit they did not verify. A failure on `main` is fixed or reverted before the next release.
+
+## Workflow and toolchain pins
+
+Workflows reference every action by full commit SHA with its release as a comment, and checkouts set `persist-credentials: false`. Dependabot (`.github/dependabot.yml`) proposes action updates weekly in one PR and raises security-only updates for Python and pnpm dependencies. The `Weekly audit` workflow re-runs `pip-audit`, `pnpm audit` and the full-history secret scan every Monday, because pull-request CI audits only the areas a change selects.
+
+Node is pinned in `.node-version`, pnpm in `package.json` `packageManager`, uv in `scripts/build_local_bundle.py` and Linux Python in the Docker base images (`.python-version` names only the minor version, because uv cannot always download the newest patch). `tests/test_toolchain_versions.py` fails when any workflow, Dockerfile or setup script disagrees.
