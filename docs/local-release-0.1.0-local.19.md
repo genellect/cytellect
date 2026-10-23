@@ -1,6 +1,6 @@
 # Windows 0.1.0-local.19 — acceptance record
 
-The [release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) keeps workspaces until explicit deletion by default, can send Cellpose inference to an administrator-provided cloud GPU, and carries the current dependency security updates. Private analysis uses the installed local API and pinned Fiji; Vercel publication does not provide a hosted private-image backend.
+The [release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) is the first published package with the NCL Cellpose detector `cellpose-sam-ncl-parent/4.3.0`. It keeps workspaces until explicit deletion by default, can send Cellpose inference to an administrator-provided cloud GPU, and carries the current dependency security updates. Private analysis uses the installed local API and pinned Fiji; Vercel publication does not provide a hosted private-image backend.
 
 ## Identity and acceptance
 
@@ -23,11 +23,15 @@ The draft archive was downloaded before publication: its SHA-256 and size matche
 
 ## Delivered behavior
 
+Changes since the published local.17 (`0210812`), including PRs that were merged after it but never released (the local.18 draft was not published):
+
+- New NCL Cellpose selections use `cellpose-sam-ncl-parent/4.3.0` (#50): the parent-conditioned Cellpose-SAM candidates and whole-nucleus rejection are followed by the researcher-approved, model-anchored signal-support refinement, restricted to each adopted nucleus. Raw predictions, anchors, support and final labels are stored separately with their lineage. StarDist remains the nuclear detector; existing adopted/manual masks and historical protocols keep their meanings. On Windows this detector runs only through a configured cloud GPU, and none is provided yet. See [Methods](methods.md).
+- Image intake waits until the workspace data is initialized (#53).
 - Workspaces are kept until explicit deletion by default (#69). Setup offers 24-hour deletion instead; once a data directory has kept work, it cannot return to 24-hour deletion, and setup recognises the application's permanent marker even if its settings file was lost. Updating a local.17 installation switches it to manual retention; workspaces already past their deadline at the switch are deleted, not revived.
 - Setup accepts a cloud GPU endpoint and key for Cellpose (#71, #72). Only the detection plane, adopted nuclear labels for nucleolar protocols and detector parameters are sent; results are accepted only when the remote runner, model and package hashes match this release. No endpoint is provided yet, so Cellpose remains unavailable on Windows, as in local.17. The CPU Cellpose runtime is not installed.
 - Updates remove this installation's earlier versioned shortcuts after the new version is ready; Fiji and model downloads retry transient failures (#72).
 - Pillow, certifi, Next.js 16.4.2 and opentelemetry-api 1.45.1 clear the dependency audit findings (#70, #73).
-- Input pixels, detection, measurement, statistics and figure calculations are unchanged.
+- Input pixels are never modified. Apart from the new NCL detector above, StarDist nuclear detection, measurement equations, statistics and figure calculations are unchanged. Remote GPU execution uses the same runner, model and package versions with float32 and TF32 disabled, but its agreement with the CPU results has not been measured.
 
 ## Failed attempt and correction
 
