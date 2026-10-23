@@ -3,7 +3,7 @@
   "kind": "illustrative-stock-photography",
   "not_analysis_input": true,
   "not_product_usage_evidence": true,
-  "license_summary": "The verified Unsplash license permits copying, modifying and distributing images, including commercial use. Attribution is appreciated, not required. Unmodified image resale and building a competing image library are excluded. These assets retain their Unsplash terms and are not relicensed as Apache-2.0.",
+  "license_summary": "The verified Unsplash license permits copying, modifying and distributing images, including commercial use. Attribution is appreciated, not required. Unmodified image resale and building a competing image library are excluded. These assets retain their Unsplash terms and are not relicensed as Apache-2.0. Pexels photographs retain the Pexels License (https://www.pexels.com/license/): free commercial use and modification, attribution not required; unmodified resale and implying endorsement by depicted people or brands are excluded.",
   "presentation_rules": [
     "Distinguish these stock photographs from registered microscopy inputs and actual Cytellect figures.",
     "Do not imply that creators, CDC or NCI use or endorse Cytellect.",
@@ -64,6 +64,42 @@
       "composition": "portrait; white negative space; use a modest crop without implying fluorescence hardware",
       "local_derivative_origin": "COMPASS licensed public photography: public/images/founder-portfolio/fragments/microscope-pawel-1108.webp",
       "processing": "Byte-for-byte copy of an existing local WebP derivative; no new pixel processing, crop or generative editing."
+    },
+    {
+      "path": "apps/web/public/marketing/lp-pipetting.webp",
+      "sha256": "f9c39056535c20971e87fa10c74f7e16f8421006e67f55b5eac78cb930d10377",
+      "bytes": 111698,
+      "width": 2400,
+      "height": 1600,
+      "creator": "Thirdman",
+      "source_url": "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/",
+      "title": "Multichannel pipetting on a white bench",
+      "alt_ja": "白い実験台でマルチチャンネルピペットを使う手元",
+      "license": "Pexels License",
+      "license_url": "https://www.pexels.com/license/",
+      "license_verified_on": "2026-10-23",
+      "source_context": "Stock photograph. Not the developer laboratory, user research data or Cytellect hardware.",
+      "source_sha256": "4bfa7e56395a8030e6596f085285c3c4ef6a83e9a0d6cc5155a136b7e44ca89d",
+      "source_record": "scripts/lp_film/sources.json#px-p-8940473",
+      "processing": "Downscaled to 2400 px wide and re-encoded as WebP (quality 80). No crop, retouching or generative editing."
+    },
+    {
+      "path": "apps/web/public/marketing/lp-dish.webp",
+      "sha256": "aaf6a2ff6b5f28f94fe466c819d9792d8df5de4094cd4af7bbc4f0a6ef8a7600",
+      "bytes": 48804,
+      "width": 2400,
+      "height": 1597,
+      "creator": "Girl with red hat",
+      "source_url": "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE",
+      "title": "Petri dish and glass tubes on a pale mint surface",
+      "alt_ja": "淡いミント色の面に置いたシャーレとガラス管",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "license_verified_on": "2026-10-23",
+      "source_context": "Stock photograph. Not the developer laboratory, user research data or Cytellect hardware.",
+      "source_sha256": "5cdd7a4aa3b7f4bfc0cf01bcfc02390335ab9a8f882f2262feb641a18fd9ee4d",
+      "source_record": "scripts/lp_film/sources.json#us-dst8x5ScJPE",
+      "processing": "Downscaled to 2400 px wide and re-encoded as WebP (quality 80). No crop, retouching or generative editing."
     }
   ]
 }
