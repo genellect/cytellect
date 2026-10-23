@@ -47,7 +47,9 @@ describe its image: identical runner, model and package versions, with only the
 CUDA 12.6 build of Torch. Every package shared with `requirements.lock` keeps the
 same version (`requirements-cuda.in`). `infra/Dockerfile.cellpose-gpu` builds the
 image; `.github/workflows/cellpose-gpu-image.yml` publishes it from `main` on the
-owner's instruction.
+owner's instruction. `infra/modal_cellpose.py` runs that image as a Modal Server
+(one L4, 20 s scale-down, proxy-auth required); `.github/workflows/cellpose-modal-deploy.yml`
+deploys it from `main`.
 
 On CUDA the runner uses float32 with TF32 disabled and deterministic algorithms,
 to stay as close as possible to the validated CPU results and to repeat run to run.
