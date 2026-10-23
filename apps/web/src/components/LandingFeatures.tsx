@@ -8,12 +8,12 @@ const Forward = () => <span aria-hidden="true">→</span>;
 
 type Feature = { id: string; label: string; title: string; lead: string; extra?: ReactNode; link: ReactNode; visual: ReactNode };
 
-/** The demo's recorded answer to this instruction, shown as the settings it fills in. */
+/** An example instruction and the settings it fills in. */
 const proposal = [
   ["測る場所", "核"],
-  ["測る値", "NPM1の平均輝度"],
-  ["比べる群", "未処理 と ActD処理"],
-  ["統計", "反復ごとに対応をとった t検定"],
+  ["測る値", "GFPの核内平均輝度と、陽性細胞の割合"],
+  ["比べる群", "薬の濃度ごと"],
+  ["統計", "実験の繰り返しを単位にした比較"],
 ];
 
 /** Each tab states one thing Cytellect does in a line, and shows it. */
@@ -29,9 +29,9 @@ const features: Feature[] = [
   },
   {
     id: "nucleoli",
-    label: "核小体の検出",
-    title: "汎用のAIでは見つからない核小体も、検出できます。",
-    lead: "核の内側から、核小体だけを見分けます。",
+    label: "自動検出",
+    title: "汎用のAIでは見つからない構造も、検出できます。",
+    lead: "たとえば核小体。汎用のAIでは見つからなかった核小体を、Cytellectは見分けます。",
     extra: <div className={lp.numbers}>
       <p><strong>0% → 90%</strong><span>核小体の検出率<br />（汎用のAI → Cytellect）</span></p>
       <p><strong>92%</strong><span>核の検出精度</span></p>
@@ -50,10 +50,10 @@ const features: Feature[] = [
     link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモでAIに頼む <Forward /></Link>,
     visual: <figure className={lp.prompt}>
       <p className={lp.before}><span>これまで</span>処理の選択、組み合わせ、条件の調整を、すべて自分で。</p>
-      <p className={lp.ask}><span>Cytellect</span>NPM1の核内平均輝度を、未処理とActD処理で比較したい</p>
+      <p className={lp.ask}><span>Cytellect</span>GFPが核に移った細胞の割合を、薬の濃度ごとに比べたい</p>
       <span className={lp.arrow} aria-hidden="true">↓</span>
       <dl className={lp.answer} aria-label="AIが組み立てた設定">{proposal.map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl>
-      <figcaption>デモでこの一文を送ったときの提案。採用するかはあなたが決め、計算はCytellectの解析処理が行います。AIに送るのは入力した文だけで、画像や測定値は送りません。</figcaption>
+      <figcaption>一文から組み立てた設定の例。採用するかはあなたが決め、計算はCytellectの解析処理が行います。AIに送るのは入力した文だけで、画像や測定値は送りません。</figcaption>
     </figure>,
   },
   {
