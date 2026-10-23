@@ -101,8 +101,8 @@ test("blocking Google leaves navigation usable", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!, true);
   await page.goto(origin + "/");
   await page.getByRole("tab", { name: "統計と論文の図", exact: true }).click();
-  await page.locator('[data-lp-event="planning"]').click();
-  await expect(page).toHaveURL(`${origin}/plan`);
+  await page.locator('[data-lp-event="demo_figure"]').click();
+  await expect(page).toHaveURL(`${origin}/demo?step=figure`);
   await expect(page.getByRole("link", { name: "cytellect" }).first()).toBeVisible();
   expect(await commands(page)).toEqual([]);
 });
