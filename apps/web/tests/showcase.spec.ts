@@ -133,6 +133,8 @@ test("demo: image, outline, measurement, statistics and figure features run with
   const header = page.locator("header");
   await expect(header.getByText("デモ", {exact: true})).toBeVisible();
   await expect(page.getByRole("link", {name: "ダウンロード", exact: true})).toHaveAttribute("href", "/#download");
+  // Uploads are unavailable here, so the demo never offers an empty new workspace.
+  await expect(page.getByRole("button", {name: "新しいワークスペース", exact: true})).toHaveCount(0);
   // Image source and limits (snapshot/dataset.json) open from the badge when published.
   await expect(stage(page)).toBeVisible({timeout: live});
   const credit = header.locator("summary", {hasText: "デモ"});

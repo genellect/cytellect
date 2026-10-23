@@ -36,6 +36,9 @@ RUNTIME = ROOT / "apps/web/public/showcase/runtime"
 CONFIG = ROOT / "apps/web/src/lib/showcase/runtime-config.json"
 ALLOWLIST = ROOT / "fixtures/public/allowlist.json"
 PACKAGE_JSON = ROOT / "services/showcase/pyodide/package.json"
+MANIFEST = ROOT / "apps/web/public/showcase/manifest.json"
+# Inputs of the Cytellect wheel; their committed state is the runtime's source revision.
+RUNTIME_SOURCES = ["packages", "services", "pyproject.toml", "uv.lock"]
 
 PYODIDE_VERSION = "314.0.7"
 INDEX_URL = f"https://cdn.jsdelivr.net/pyodide/v{PYODIDE_VERSION}/full/"
@@ -197,6 +200,21 @@ def build(output: Path, cache: Path, font_source: Path | None) -> dict:
     return {"config": config, "allow": allow}
 
 
+def source_commit() -> str:
+    """The commit whose tree reproduces the runtime, marked when its inputs have uncommitted changes."""
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *RUNTIME_SOURCES], cwd=ROOT, text=True).strip()
+    return head + ("+uncommitted" if dirty else "")
+
+
+def manifest_files(manifest: dict, built: dict) -> dict:
+    """The demo manifest's file list with the runtime entries replaced by the built ones."""
+    files = {key: value for key, value in manifest.get("files", {}).items() if not key.startswith("runtime/")}
+    files.update({f"runtime/{name}": {"sha256": entry["sha256"], "bytes": (RUNTIME / name).stat().st_size if (RUNTIME / name).is_file() else None}
+                  for name, entry in built["allow"].items()})
+    return dict(sorted(files.items()))
+
+
 def config_text(config: dict) -> str:
     return json.dumps(config, ensure_ascii=False, indent=2) + "\n"
 
@@ -231,6 +249,9 @@ def main() -> None:
                     problems.append(name)
                 if allowlist.get(prefix + name) != entry:
                     problems.append(f"allowlist:{name}")
+            manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+            if manifest.get("files") != manifest_files(manifest, built):
+                problems.append("manifest.json files")
             extra = {p.name for p in RUNTIME.iterdir()} - set(built["allow"]) if RUNTIME.is_dir() else set()
             problems.extend(sorted(f"unexpected:{name}" for name in extra))
             if problems:
@@ -242,6 +263,11 @@ def main() -> None:
         allowlist = {key: value for key, value in allowlist.items() if not key.startswith(prefix)}
         allowlist.update(registered)
         ALLOWLIST.write_text(json.dumps(allowlist, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        manifest["files"] = manifest_files(manifest, built)
+        # generated_from_commit records the seed and recordings; the runtime is rebuilt on its own.
+        manifest["runtime_generated_from_commit"] = source_commit()
+        MANIFEST.write_text(json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
         size = sum((RUNTIME / name).stat().st_size for name in built["allow"])
         print(json.dumps({"status": "written", "files": len(built["allow"]), "bytes": size}))
 

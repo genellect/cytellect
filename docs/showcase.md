@@ -117,7 +117,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 ### ビルドと検査
 
-`uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出します。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録を照合し、古い場合は失敗します。
+`uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。
 
 ### 測定値（Node 24、このリポジトリの開発環境）
 
