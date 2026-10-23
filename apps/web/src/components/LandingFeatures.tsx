@@ -31,9 +31,9 @@ const features: Feature[] = [
     id: "nucleoli",
     label: "核小体の検出",
     title: "汎用のAIでは見つからない核小体も、検出できます。",
-    lead: "研究者が直した輪郭で、AIを追加学習しました。",
+    lead: "核の内側から、核小体だけを見分けます。",
     extra: <div className={lp.numbers}>
-      <p><strong>0% → 90%</strong><span>核小体の検出率<br />（追加学習の前 → 後）</span></p>
+      <p><strong>0% → 90%</strong><span>核小体の検出率<br />（汎用のAI → Cytellect）</span></p>
       <p><strong>92%</strong><span>核の検出精度</span></p>
     </div>,
     link: <Link data-lp-event="demo_image" href="/demo?step=image" className={lp.button}>この画像をデモで解析する <Forward /></Link>,

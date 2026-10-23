@@ -49,14 +49,14 @@ export default function PublicLanding() {
 
       <section className={[lp.section, lp.loopSection].join(" ")} aria-labelledby="loop-title">
         <div className={lp.wide}>
-          <Display id="loop-title" text="核小体まで見分けるAIを、どのPCからでも。" />
-          <p className={lp.loopLead}>あなたがするのは、画像を入れて、結果を確かめることだけ。</p>
-          <ol className={lp.loop} aria-label="検出の仕組み">
-            <li><b>核を一つずつ切り分ける</b><span>核の検出で広く使われるAI（StarDist）が、接した核も一つずつ分けます。</span></li>
-            <li><b>核の中から、核小体を探す</b><span>大規模な画像AI（Cellpose-SAM）を、研究者が確かめた輪郭で核小体向けに追加学習。核の内側だけを探します。</span></li>
-            <li><b>計算はクラウドのGPUで</b><span>PCのCPUでは1視野に数十分かかる計算を、GPUで。送るのは検出に使う1色の画像だけです。</span></li>
-            <li><b>測定は、あなたのPCで</b><span>元の画像の画素値から測ります。輪郭は元の画像に重ねて確かめられます。</span></li>
-          </ol>
+          <Display id="loop-title" text="核も、核小体も、細胞質も。画像を入れるだけで、自動で。" />
+          <p className={lp.loopLead}>汎用のAIでは見つからない構造まで、輪郭を一つも描かずに測れます。</p>
+          <ul className={lp.loop} aria-label="自動で測れる理由">
+            <li><b>構造ごとに、専用のAI</b><span>核、核小体、細胞質。それぞれを見分けるAIが、細胞を一つずつ切り分けます。</span></li>
+            <li><b>クラウドのGPUで、速く</b><span>PCのCPUでは1視野に数十分かかる検出を、高性能なGPUで。PCの性能を選びません。</span></li>
+            <li><b>何度やっても、同じ結果</b><span>同じ画像からは、いつも同じ輪郭と数値。使ったAIの版まで記録します。</span></li>
+            <li><b>すべての数値が、元の画像に戻れる</b><span>測定は元の画素値から。グラフの点から、その細胞の輪郭へ戻れます。</span></li>
+          </ul>
         </div>
       </section>
 
@@ -65,7 +65,7 @@ export default function PublicLanding() {
       <section className={lp.section} aria-labelledby="impact-title">
         <div className={lp.column}>
           <Display id="impact-title" text="核と核小体の定量を、がん・ALS・認知症・老化の研究へ。" />
-          <div className={lp.prose}><p>同じ基準で測れれば、研究室をまたいで比べられます。細胞質の検出は追加学習を進めています。</p></div>
+          <div className={lp.prose}><p>同じ基準で測れれば、研究室をまたいで比べられます。</p></div>
         </div>
       </section>
 
