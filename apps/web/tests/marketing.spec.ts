@@ -10,12 +10,15 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await page.goto("/");
  const hero=page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true});
  await expect(hero.getByRole("heading",{level:1})).toHaveText("Get your microscopy publication-ready.");
- await expect(hero.locator("p")).toHaveCount(0);
+ await expect(hero.locator("p")).toHaveText(/^画像をアップロードするだけで、\s*論文の図まで。$/);
  await expect(hero.locator("video")).toHaveCount(0);await expect(hero.locator("canvas")).toHaveCount(0);
+ await expect(hero.getByRole("link",{name:"デモを触る",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("link",{name:"ダウンロード",exact:true})).toHaveAttribute("href","#download");
- await expect(hero.getByRole("link",{name:"解析例を見る",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("button",{name:/領域/})).toHaveCount(0);
- await expect(page.getByRole("link",{name:"グラフを拡大",exact:true})).toHaveAttribute("href","/marketing/figure-public.svg");
+ await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
+ // Each claim on the page opens the matching step of the public demo.
+ await expect(page.getByRole("link",{name:"公開デモで検出結果を確かめる",exact:true})).toHaveAttribute("href","/demo?step=image");
+ await expect(page.getByRole("link",{name:"デモで統計と図を見る",exact:true})).toHaveAttribute("href","/demo?step=figure");
  const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir)fs.mkdirSync(dir,{recursive:true});
  for(const [width,height] of [[1440,900],[1280,800],[768,1024],[390,844],[360,800]]){
   await page.setViewportSize({width,height});
@@ -23,7 +26,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
-  for(const name of [/^Cytellectは、顕微鏡画像の解析から統計、/,/^画像解析や統計が専門でなくても、/,/^積み重ねた実験の成果を、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
+  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^一つずつ輪郭を描き、/,/^核も、核小体も。/,/^直した輪郭は、/,/^n は、細胞の数ではなく、/,/^次の論文の図を、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
   if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
  }
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));
@@ -36,7 +39,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(page.getByRole("heading",{name:"使い方と解析方法",exact:true})).toBeVisible();
  const images=page.locator('main img[src^="/marketing/"]');
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
- await page.getByRole("link",{name:"グラフを拡大",exact:true}).click();await expect(page).toHaveURL(/figure-public\.svg$/);await page.goBack();await expect(hero.getByRole("heading",{level:1})).toBeVisible();
+ await page.getByRole("link",{name:"図を拡大",exact:true}).click();await expect(page).toHaveURL(/lp-figure\.svg$/);await page.goBack();await expect(hero.getByRole("heading",{level:1})).toBeVisible();
  expect(errors).toEqual([]);
 });
 
@@ -80,18 +83,6 @@ test("a researcher can stop the hero film and keep it stopped after navigation",
  await page.emulateMedia({reducedMotion:"reduce"});await expect(film.locator("video")).toHaveCount(0);await expect(film.locator("img")).toBeVisible();
  expect(errors).toEqual([]);
 });
-test("product walkthrough is explicitly started and returns to the real still image",async({page})=>{
- await page.emulateMedia({reducedMotion:"reduce"});await page.goto("/");
- await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).locator("video")).toHaveCount(0);
- await expect(page.getByLabel("解析の操作例",{exact:true})).toHaveCount(0);
- await page.getByRole("button",{name:"操作例を見る",exact:true}).click();
- const clip=page.getByLabel("解析の操作例",{exact:true});
- await expect(clip).toBeVisible();await expect(clip).toHaveJSProperty("paused",false);
- await page.getByRole("button",{name:"画面例に戻る",exact:true}).click();
- await expect(clip).toHaveCount(0);
- await expect(page.getByAltText(/^公開蛍光画像を読み込んだCytellect/)).toBeVisible();
-});
-
 test("the story for general readers opens in place and keeps its text", async ({page}) => {
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.goto("/");

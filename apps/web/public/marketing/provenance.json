@@ -195,5 +195,38 @@
     "manifest": "optical-provenance.json",
     "authoring": "scripts/create_optical_hero.py",
     "note": "No cell photograph or microscopy texture is used in the page background. Existing real product captures remain within product demonstrations."
+  },
+  "lp_demo_evidence": {
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0",
+    "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0",
+    "composition_script": "compose from apps/web/public/showcase/seed.zip labels and snapshot previews",
+    "assets": {
+      "lp-field.webp": {
+        "sha256": "08ed04a7a70aa864d31b0705fc85d73c3d73450bfb2e532c9a90866e3facee33",
+        "bytes": 39582,
+        "description": "Composite of the demo field 'Rep1 Untreated' (Zenodo 6643470): Hoechst preview in blue, NPM1 preview in pink, display-only contrast stretch (percentile 50-99.7 and 60-99.8). Light-blue outlines are the recorded Cytellect nuclear labels (StarDist 2D) and pale-yellow outlines the recorded nucleolar labels (Cellpose cpsam_v2 base weights, protocol 4.3.0) from the public demo seed. 16:9 crop. Not used for measurement; original pixels unchanged in the demo."
+      },
+      "lp-field-mobile.webp": {
+        "sha256": "9ea89fcee9d511a9a1f2c5b71d0a74e7b195f70a26b0df2effea35a0f64182cf",
+        "bytes": 36492,
+        "description": "Same composite as lp-field.webp, full square field, downscaled to 1080 px."
+      },
+      "lp-workspace.webp": {
+        "sha256": "f015acdbf9b2a721d98f803da9142f2a1c54272dc87e225f09cd3c29727e7743",
+        "bytes": 153872,
+        "description": "Browser screenshot of the public demo (/demo, image step, field 1) at 1440x900, device scale 2, after the in-browser live calculation reported ready and the tour was closed. No edited UI or values."
+      },
+      "lp-figure.svg": {
+        "sha256": "3c99703365aabd7e7c82d27251e9e6f837baef222a536dc78dd95861ff36d15e",
+        "bytes": 11008,
+        "description": "Byte-for-byte copy of the demo's recorded figure output (box plot of NPM1 mean intensity, Untreated vs ActD 1 uM, n = 3 independent units each), produced by the shared statistics implementation."
+      },
+      "lp-workspace-mobile.webp": {
+        "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
+        "bytes": 47042,
+        "description": "Crop of the same demo screenshot as lp-workspace.webp (image and measurement table area), downscaled to 1080 px wide for narrow screens."
+      }
+    }
   }
 }

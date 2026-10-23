@@ -49,21 +49,6 @@
     "source": "https://bbbc.broadinstitute.org/BBBC039",
     "license": "CC0-1.0"
   },
-  "apps/web/public/demo/4dn-ncl/demo-dapi.png": {
-    "sha256": "0cef831cb009cb92be585b28f4956dd03059308ba69450cb7eb2a90d597ca1c9",
-    "source": "https://registry.opendata.aws/4dnucleome/",
-    "license": "4DN public-data use policy; source-attributed derived results"
-  },
-  "apps/web/public/demo/4dn-ncl/demo-ncl.png": {
-    "sha256": "42f09f21bbf3b9a9a3d22d5ee102f55bdb2639e18352bc3d8e4b125fbac1fc76",
-    "source": "https://registry.opendata.aws/4dnucleome/",
-    "license": "4DN public-data use policy; source-attributed derived results"
-  },
-  "apps/web/public/demo/4dn-ncl/demo-preview.png": {
-    "sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
-    "source": "https://registry.opendata.aws/4dnucleome/",
-    "license": "4DN public-data use policy; source-attributed derived results"
-  },
   "fixtures/public/bbbc013/A01-gfp.tif": {
     "sha256": "ef0bd8c6903d78fb5145e65eae8f7dd8aa721cbe7693783799b9a965c19e1616",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
@@ -135,7 +120,7 @@
     "license": "Apache-2.0"
   },
   "apps/web/public/marketing/provenance.json": {
-    "sha256": "3545fa6195a42194c5d645a1389e248ad3b05bc835e7ca94a9d702c0b01134ce",
+    "sha256": "946e9c984778a505b0aa51e480d66d7b38fae1fae2ddfea8bd9f88970b5f15ee",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -220,7 +205,7 @@
     "license": "Unsplash License"
   },
   "apps/web/public/marketing/photo-provenance.json": {
-    "sha256": "711635ddcb253143e2f7476c4c830ba1e4e882e844d081c36db2c9e452ea6b12",
+    "sha256": "2cfb04bac2cc9468ab10e019b54dd78e6874e35ae517e67d9952d2c6770f6ead",
     "source": "https://unsplash.com/license",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -402,5 +387,40 @@
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
+  "apps/web/public/marketing/lp-pipetting.webp": {
+    "sha256": "f9c39056535c20971e87fa10c74f7e16f8421006e67f55b5eac78cb930d10377",
+    "source": "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/lp-dish.webp": {
+    "sha256": "aaf6a2ff6b5f28f94fe466c819d9792d8df5de4094cd4af7bbc4f0a6ef8a7600",
+    "source": "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/lp-field.webp": {
+    "sha256": "08ed04a7a70aa864d31b0705fc85d73c3d73450bfb2e532c9a90866e3facee33",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-field-mobile.webp": {
+    "sha256": "9ea89fcee9d511a9a1f2c5b71d0a74e7b195f70a26b0df2effea35a0f64182cf",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-workspace.webp": {
+    "sha256": "f015acdbf9b2a721d98f803da9142f2a1c54272dc87e225f09cd3c29727e7743",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-figure.svg": {
+    "sha256": "3c99703365aabd7e7c82d27251e9e6f837baef222a536dc78dd95861ff36d15e",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-workspace-mobile.webp": {
+    "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
   }
 }

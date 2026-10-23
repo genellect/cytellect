@@ -90,8 +90,8 @@ Docker, development) keep their workspace at `/` and `/workspace` and have no `/
 
 The demo numbers illustrate the software on public images; they establish neither detection
 accuracy nor scientific validity on laboratory images. The former explorer
-(`apps/web/public/demo/bbbc013`, `bbbc039`) and the recorded-output prototype were removed; the
-4DN sample under `apps/web/public/demo/4dn-ncl` remains for the landing page figure.
+(`apps/web/public/demo/bbbc013`, `bbbc039`, `4dn-ncl`) and the recorded-output prototype were
+removed. The landing page shows images and figures recorded from this demo (`apps/web/public/marketing/lp-*`).
 
 UI reference: [QuPath first steps](https://qupath.readthedocs.io/en/stable/docs/starting/first_steps.html)
 object selection, annotations and measurement inspection; [OMERO](https://www.openmicroscopy.org/omero/)
