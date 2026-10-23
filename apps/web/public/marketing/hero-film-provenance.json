@@ -4,15 +4,11 @@
   "not_analysis_input": true,
   "not_product_usage_evidence": true,
   "built_by": "scripts/lp_film/build_film.py from scripts/lp_film/cuts.json",
-  "duration_seconds": 10.4,
+  "duration_seconds": 10.0,
   "licenses": {
     "pexels": {
       "url": "https://www.pexels.com/license/",
       "summary": "All photos and videos on Pexels are free to use. Attribution is not required. You can modify the photos and videos from Pexels. Don't imply endorsement of your product by people or brands on the imagery. Don't redistribute or sell the photos and videos on other stock photo or wallpaper platforms."
-    },
-    "unsplash": {
-      "url": "https://unsplash.com/license",
-      "summary": "Unsplash grants you an irrevocable, nonexclusive, worldwide copyright license to download, copy, modify, distribute (commercial and non-commercial purposes; no permission or attribution needed). Images cannot be sold without significant modification. Compiling images from Unsplash to replicate a similar or competing service is not permitted."
     }
   },
   "presentation_rules": [
@@ -28,7 +24,7 @@
       "page": "https://www.pexels.com/video/close-up-of-a-machine-putting-liquid-on-vials-8940765/",
       "creator": "Thirdman",
       "license": "pexels",
-      "treatment": "中央を切り抜き、周辺の金属と暗い機械内部を外す。暗部を持ち上げる"
+      "treatment": "中央を切り抜き、周辺の金属と暗い機械内部を外す（4.6 秒〜）。共通の色調に揃える"
     },
     {
       "cut": "culture",
@@ -46,21 +42,21 @@
       "page": "https://www.pexels.com/video/drops-of-liquid-on-a-tray-to-be-use-as-samples-3195394/",
       "creator": "Pressmaster",
       "license": "pexels",
-      "treatment": "そのまま。共通の色調に揃える"
+      "treatment": "そのまま（3.0 秒〜）。共通の色調に揃える"
     },
     {
-      "cut": "glass",
-      "kind": "photo",
-      "source": "us-6Uu8CSP38AI",
-      "page": "https://unsplash.com/photos/water-drop-in-clear-glass-bottle-6Uu8CSP38AI",
-      "creator": "Colin Lloyd",
-      "license": "unsplash",
-      "treatment": "縦位置から横長に切り抜く。ゆっくり寄るカメラの動き。黄みを抑える"
+      "cut": "lab",
+      "kind": "video",
+      "source": "px-v-9573740",
+      "page": "https://www.pexels.com/video/man-and-a-woman-using-microscope-9573740/",
+      "creator": "Tima Miroshnichenko",
+      "license": "pexels",
+      "treatment": "16:9 に切り抜く。前半の寄りのカットに対して、研究の現場を引きで見せる。顔は遠景でマスク姿。人物・機関の推奨を示唆しない"
     }
   ],
   "outputs": {
-    "apps/web/public/marketing/hero-film.mp4": "b5692095e4e9e01ff36ef1f9853604eca0b2e7d68ee63c669af68fe0c2d633d8",
-    "apps/web/public/marketing/hero-film.webm": "7d4d5d6fe3c8a13a71257069e57c14325a72ad17100769402a465aef08070677",
-    "apps/web/public/marketing/hero-film-poster.webp": "5b7d098ebb0ffca4778227634c516d2a0b9c7917b5379b5cc622218b8324ef3f"
+    "apps/web/public/marketing/hero-film.mp4": "536c5d0185c5238c1065a82906df862d4d376b22911abbc9803e106d6c5aa65c",
+    "apps/web/public/marketing/hero-film.webm": "74f9e3d7c7597ae2e9c4a83edfaa9c9c299713711fbd99982b22333fe283cf33",
+    "apps/web/public/marketing/hero-film-poster.webp": "b79db91f17f688467bd19b940b660becf96df8a70870b3036eccf1c75ce89f99"
   }
 }

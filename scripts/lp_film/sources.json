@@ -23,7 +23,7 @@
       "license": "pexels",
       "size": "3840x2160 25fps 26.6s",
       "sha256": "f96dfc0e1094eafc14bf1bde1d474d1919e9f9f5bf5ad35d7ddeae0f5eb3426e",
-      "treatment": "中央を切り抜き、周辺の金属と暗い機械内部を外す。暗部を持ち上げる"
+      "treatment": "中央を切り抜き、周辺の金属と暗い機械内部を外す（4.6 秒〜）。共通の色調に揃える"
     },
     {
       "id": "px-v-3195394",
@@ -36,7 +36,7 @@
       "license": "pexels",
       "size": "3840x2160 25fps 14.0s",
       "sha256": "11011423b6cc2389f331733d845290de09d089be6c2f37b3f9dbf2364f3509fd",
-      "treatment": "そのまま。共通の色調に揃える"
+      "treatment": "そのまま（3.0 秒〜）。共通の色調に揃える"
     },
     {
       "id": "px-p-3992927",
@@ -52,17 +52,17 @@
       "treatment": "6 穴プレートとピペットの先端へ寄せて切り抜き、手袋・フラスコ・チューブを外す。灰緑の色かぶりと金属の映り込みを補正し、ゆっくり寄るカメラの動きを付ける。CDC の推奨を示唆しない"
     },
     {
-      "id": "us-6Uu8CSP38AI",
-      "role": "hero-fallback",
-      "scene": "光とガラス：ガラスの先端が液面に触れるマクロ（Blender の glass カットの代替）",
-      "kind": "photo",
-      "page": "https://unsplash.com/photos/water-drop-in-clear-glass-bottle-6Uu8CSP38AI",
-      "download": "https://images.unsplash.com/photo-1621958180351-126bb5062e57?fm=jpg&q=95",
-      "creator": "Colin Lloyd",
-      "license": "unsplash",
-      "size": "3266x4909",
-      "sha256": "2abb204b7c4761434f14fd320c3ee5c602fefdaffd81e26bf4cb4231943f1237",
-      "treatment": "縦位置から横長に切り抜く。ゆっくり寄るカメラの動き。黄みを抑える"
+      "id": "px-v-9573740",
+      "role": "hero",
+      "scene": "ラボ風景：明るく整った研究室で、顕微鏡に向かう研究者を遠景で捉える（ゆっくり動くカメラ）",
+      "kind": "video",
+      "page": "https://www.pexels.com/video/man-and-a-woman-using-microscope-9573740/",
+      "download": "https://videos.pexels.com/video-files/9573740/9573740-uhd_4096_2160_25fps.mp4",
+      "creator": "Tima Miroshnichenko",
+      "license": "pexels",
+      "size": "4096x2160 25fps 42.7s",
+      "sha256": "395477e07263e6600225fdc1d3804705567fb7897b1c55c55318d7d54fc3adbf",
+      "treatment": "16:9 に切り抜く。前半の寄りのカットに対して、研究の現場を引きで見せる。顔は遠景でマスク姿。人物・機関の推奨を示唆しない"
     },
     {
       "id": "us-0Em3L8ddLFI",
@@ -89,6 +89,19 @@
       "size": "3794x2524",
       "sha256": "5cdd7a4aa3b7f4bfc0cf01bcfc02390335ab9a8f882f2262feb641a18fd9ee4d",
       "treatment": "章の転換の背景"
+    },
+    {
+      "id": "us-6Uu8CSP38AI",
+      "role": "reserve",
+      "scene": "光とガラス：ガラスの先端が液面に触れるマクロ（Blender の glass カットの代替）",
+      "kind": "photo",
+      "page": "https://unsplash.com/photos/water-drop-in-clear-glass-bottle-6Uu8CSP38AI",
+      "download": "https://images.unsplash.com/photo-1621958180351-126bb5062e57?fm=jpg&q=95",
+      "creator": "Colin Lloyd",
+      "license": "unsplash",
+      "size": "3266x4909",
+      "sha256": "2abb204b7c4761434f14fd320c3ee5c602fefdaffd81e26bf4cb4231943f1237",
+      "treatment": "2026-10-23 オーナー判定で水滴以降のカットは不採用。使わない"
     },
     {
       "id": "px-p-18959104",
