@@ -16,7 +16,7 @@ const Forward = () => <span aria-hidden="true">→</span>;
 function Display({ id, text }: { id: string; text: string }) {
   return <h2 id={id} className={lp.display}>{text}</h2>;
 }
-function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a data-lp-event="guide" href="#guide">ガイド</a><a href="https://yuto-matsui.com/">About the Developer</a><a data-lp-event="download_section" href="#download" className={lp.navDownload}>ダウンロード <span aria-hidden="true">↓</span></a></>;}
+function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a data-lp-event="guide" href="#guide">ガイド</a><a href="https://yuto-matsui.com/">About the Developer</a><a data-lp-event="download_section" href="#download">ダウンロード</a><Link data-lp-event="example" href="/demo" className={lp.navDownload}>デモを体験 <span aria-hidden="true">→</span></Link></>;}
 
 export default function PublicLanding() {
   return <div className={lp.page} data-cytellect-public-page="/">
@@ -27,7 +27,7 @@ export default function PublicLanding() {
       <section id="top" className={lp.hero} aria-labelledby="hero-title">
         <HeroFilm />
         <div className={lp.heroShade} />
-        <div className={lp.heroCopy}><h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1><div className={lp.heroActions}><a data-lp-event="download_section" href="#download" className={lp.primary}>ダウンロード <span aria-hidden="true">↓</span></a><Link data-lp-event="example" href="/demo" className={lp.heroSecondary}>解析例を見る <Forward /></Link></div></div>
+        <div className={lp.heroCopy}><h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1><div className={lp.heroActions}><Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link><a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a></div></div>
       </section>
 
       <section className={lp.mission} aria-labelledby="mission-title">
@@ -58,20 +58,31 @@ export default function PublicLanding() {
 
       <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
-          <Display id="download-title" text="画像の解析はすべて手元のPCの中で行い、研究画像を外部に送りません。" />
-          <div className={lp.prose}><p>CytellectのWindows（x64）版は無料です。PCの中で動く解析画面をブラウザで操作し、画像はPCの外に出ません。解析中のデータはPC内の専用フォルダーに置き、最後の操作から24時間で削除するので、必要な結果はCSV・SVG・PDFで書き出してください。解析のコードはApache-2.0で公開しており、測定と統計の計算方法を誰でも確かめられます。</p></div>
-          <div className={lp.actions}>{WINDOWS_RELEASE_URL?<><a className={lp.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL&&<a className={lp.release} href={`https://github.com/genellect/cytellect/releases/tag/v${PUBLISHED_RELEASE.version}`}>v{PUBLISHED_RELEASE.version} · リリース情報 <Arrow /></a>}</>:null}<Link data-lp-event="example" href="/demo" className={lp.button}>解析例を見る <Forward /></Link><a href="https://github.com/genellect/cytellect" className={lp.button}>GitHub <Arrow /></a></div>
+          <Display id="download-title" text="Windows版は無料。研究画像は、あなたのPCの外に出ません。" />
+          <div className={lp.prose}><p>解析はすべて手元のPCの中で行います。解析のコードはApache-2.0で公開しており、測定と統計の計算方法を誰でも確かめられます。</p></div>
+          <div className={lp.install}>
+            <div>
+              {WINDOWS_RELEASE_URL?<a className={lp.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>:<Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link>}
+              {WINDOWS_RELEASE_URL&&<p className={lp.meta}>ZIP{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL?`・${Math.round(PUBLISHED_RELEASE.size_bytes/1e6)} MB・v${PUBLISHED_RELEASE.version}`:""}<br />Windows 10／11（64ビット）・空き容量 5 GB 以上を推奨</p>}
+              {WINDOWS_RELEASE_URL&&<Link data-lp-event="example" href="/demo" className={lp.button}>インストールの前にデモを体験する <Forward /></Link>}
+            </div>
+            <ol className={lp.steps} aria-label="インストールの手順">
+              <li><b>ZIPを展開する</b><span>ダウンロードしたZIPを右クリックし、「すべて展開」を選びます。</span></li>
+              <li><b>「Cytellect Setup.cmd」を開く</b><span>セットアップを押すと、解析環境の取得と確認が自動で進みます（初回のみ、インターネット接続で5〜20分）。「WindowsによってPCが保護されました」と表示されたら、「詳細情報」→「実行」を選びます。</span></li>
+              <li><b>デスクトップの「Cytellect」を開く</b><span>ブラウザに解析画面が開きます。画像を読み込めば、検出から統計、論文用の図まで進めます。</span></li>
+            </ol>
+          </div>
         </div>
         <div id="guide" className={[lp.wide, lp.guide].join(" ")}>
           <h2 className={lp.label}>使い方と解析方法</h2>
-          <nav aria-label="使い方と解析方法"><a data-lp-event="quickstart" href={docs+"quickstart.ja.md"}>はじめての解析 <Arrow /></a><a data-lp-event="methods" href={docs+"methods.md"}>測定値と統計の定義 <Arrow /></a><a data-lp-event="setup" href={docs+"local.md"}>動作環境と導入手順 <Arrow /></a><a data-lp-event="figures" href={docs+"figures.md"}>出力できる図と形式 <Arrow /></a></nav>
+          <nav aria-label="使い方と解析方法"><a data-lp-event="quickstart" href={docs+"quickstart.ja.md"}>はじめての解析 <Arrow /></a><a data-lp-event="methods" href={docs+"methods.md"}>測定値と統計の定義 <Arrow /></a><a data-lp-event="setup" href="#download">インストールの手順 <span aria-hidden="true">↑</span></a><a data-lp-event="figures" href={docs+"figures.md"}>出力できる図と形式 <Arrow /></a></nav>
         </div>
         <div className={[lp.wide, lp.details].join(" ")}>
           <div id="launch" className={lp.prose}><h3>インストール済みの方</h3><p>デスクトップの「Cytellect」を開くと、解析画面がブラウザに表示されます。起動済みの場合は、Cytellectの起動画面で「ブラウザで開く」を選択してください。</p><p>再ダウンロード・再インストールは不要です。</p><Link data-lp-event="workspace" href="/workspace" className={lp.button}>解析画面を開く <Forward /></Link></div>
           <div id="scope" className={lp.prose}>
             <details><summary>対応する画像と解析</summary><p>核と核小体は、機械学習モデルで自動検出します。GFPなどのシグナルは、検出した核での測定や、しきい値・手動の輪郭・整数ラベルで領域にして測れます。</p><p>読み込めるのは、8／16-bitグレースケールのチャンネル別2D TIFFと、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）です。大きな画像は検出用に縮小した複製で検出し、測定は元の画素で行います。3D、時系列、細胞全体の境界の自動検出には、まだ対応していません。</p></details>
-            <details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。アップロードした研究画像が、この公開サイトに送られることはありません。</p><a data-lp-event="setup" href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details>
-            <details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details>
+            <details><summary>インストールと動作環境</summary><p>Windows 10／11の64ビット版で動作します。メモリは8 GB以上（16 GBを推奨）、空き容量は5 GB以上を推奨します。初回のセットアップでは、解析に使うPythonとFijiをCytellect専用のフォルダーに取得します。システムのPythonや既存のFijiは変更しません。</p><p>解析はPC内で実行します。読み込んだ研究画像が、この公開サイトに送られることはありません。</p></details>
+            <details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>作業データの保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details>
           </div>
         </div>
       </section>
