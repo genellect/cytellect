@@ -40,6 +40,8 @@ Pull requests run only the jobs their changed paths can affect. `scripts/ci_chan
 | `fiji` | real Fiji, API/browser workflow, containers, local web bundle | `apps/web`, contracts, analysis/API/worker, scripts, tests, Fiji engine, infra |
 | `windows` | Windows setup/launcher tests and the Python 3.14 Windows suite | analysis/API/worker, scripts, tests, engines, local-export scripts |
 
+The public landing page is the exception within `apps/web`: its components (`PublicLanding`, `Landing*`, `HeroFilm`, `optical-landing.module.css`), `lp-metrics` and its browser tests (`marketing`, `lp-*`) select only `web`; its media (`apps/web/public/marketing/**`) and `fixtures/public/allowlist.json` select `python` and `web`, because the media ship in the Windows bundle whose boundary the Python suite checks. The offline hero-film scripts (`scripts/lp_film/**`) select no area.
+
 Documentation (`docs/**`, root-level Markdown, `LICENSE`, `NOTICE`) selects no area. The public-tree check, documentation links and the full-history secret scan always run, and the packaged-documentation tests run whenever the Python suite does not. Skipped jobs report success to branch protection.
 
-Workflows, lockfiles, package manifests, `fixtures/` and any unlisted path select every area. So do every merge-queue run, every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.
+Workflows, lockfiles, package manifests, the rest of `fixtures/` and any unlisted path select every area. So do every merge-queue run, every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.
