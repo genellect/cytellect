@@ -18,9 +18,11 @@ export default function WindowsDownload({url}:{url:string}){
   <a className={styles.releaseInfo} href="https://github.com/genellect/cytellect/blob/main/docs/quickstart.ja.md" target="_blank" rel="noreferrer">公開画像で、はじめての解析 ↗</a>
   <details className={styles.downloadPrivacy}>
    <summary>保存先と削除について</summary>
-   <p>画像と解析結果は、PC内のCytellect専用フォルダーに保存します。Webサイトや外部AIには送信しません。</p>
-   <p>保存期限は最後の明示的な操作から24時間です。期限後はアクセスできなくなり、削除されます。終了中に期限を迎えたデータは次回起動時に削除します。</p>
-   <p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p>
+   <p>画像と解析結果は、PC内のCytellect専用フォルダーに保存します。Webサイトには送信しません。PCの外へ画像を送るのは、次の設定をした場合だけです。</p>
+   <p>管理者がCellpose用のクラウドGPUを設定した場合：Cellposeの検出に使う1チャンネルの画像（核小体の検出では核のマスクも）をそのGPUへ送ります。送った画像はクラウド側に保存しません。</p>
+   <p>AIによる解析提案で画像の送信も有効にした場合：縮小した代表画像（最大6枚）を提案サービスへ送ります。</p>
+   <p>作業は、既定ではワークスペースで削除するまで保持します。セットアップで選択を外した場合は、最後の明示的な操作から24時間で削除します。終了中に期限を迎えたデータは次回起動時に削除します。</p>
+   <p>必要な結果は保存機能から書き出し、別の媒体にもバックアップしてください。作業の削除はワークスペース内から実行できます。</p>
   </details>
  </div>;
 }

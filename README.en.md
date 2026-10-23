@@ -2,7 +2,7 @@
 
 **Get your microscopy publication-ready.**
 
-[日本語](README.md) · [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.17) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
+[日本語](README.md) · [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
 
 Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
 
