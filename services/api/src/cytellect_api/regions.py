@@ -428,8 +428,22 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
         if not path.is_file():
             raise HTTPException(409, "field_failed")
         report = read_json(root / "measurements.json")
+        provenance = read_json(root / "provenance.json")
+        field_provenance = provenance.get("fields", {}).get(field_id, {})
+        detector = field_provenance.get("detector", {})
+        engine = detector.get("engine", {})
+        # Historical detection geometry is never an adopted measurement region.
+        candidate_history = None
+        if rev["config"].get("recipe", {}).get("compartment") == "nucleoli" and "review_candidates" in engine:
+            candidate_history = {
+                "origin_revision_id": detector.get("origin_revision_id"),
+                "parent_nuclear_mask_sha256": engine.get("parent_nuclear_mask_sha256"),
+                "nuclear_source": field_provenance.get("nuclear_source"),
+                "candidates": engine["review_candidates"],
+            }
         return {"regions": contours(np.load(path, allow_pickle=False)),
-                "metadata": report.get("field_masks", {}).get(field_id)}
+                "metadata": report.get("field_masks", {}).get(field_id),
+                "candidate_history": candidate_history}
 
     @api.post("/v1/revisions/{rid}/region-edits", status_code=202)
     def edit(rid: str, body: RegionMaskEdit, who: Owner):
