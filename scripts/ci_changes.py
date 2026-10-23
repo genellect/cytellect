@@ -26,6 +26,16 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("LICENSE", frozenset()),
     ("NOTICE", frozenset()),
     ("apps/web/scripts/*", frozenset({"web", "fiji", "windows"})),
+    # The public landing page is covered by the public-site browser tests; its media
+    # also ship in the Windows bundle, whose boundary the Python suite checks.
+    ("apps/web/public/marketing/*", frozenset({"python", "web"})),
+    ("apps/web/public/lp-metrics*", frozenset({"web"})),
+    ("apps/web/src/components/PublicLanding.tsx", frozenset({"web"})),
+    ("apps/web/src/components/Landing*.tsx", frozenset({"web"})),
+    ("apps/web/src/components/HeroFilm.tsx", frozenset({"web"})),
+    ("apps/web/src/components/optical-landing.module.css", frozenset({"web"})),
+    ("apps/web/tests/marketing.spec.ts", frozenset({"web"})),
+    ("apps/web/tests/lp-*.spec.ts", frozenset({"web"})),
     ("apps/web/*", frozenset({"web", "fiji"})),
     ("packages/contracts/*", frozenset({"web", "fiji"})),
     ("services/proposal-worker/*", frozenset({"web"})),
@@ -35,10 +45,12 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("engines/fiji/*", frozenset({"python", "fiji", "windows"})),
     ("engines/python/*", frozenset({"python", "windows"})),
     ("scripts/windows/*", frozenset({"python", "windows"})),
+    ("scripts/lp_film/*", frozenset()),  # offline hero-film authoring; CI never runs it
     ("scripts/*.ps1", frozenset({"python", "windows"})),
     ("scripts/*", frozenset({"python", "fiji", "windows"})),
     ("tests/*", frozenset({"python", "fiji", "windows"})),
     ("validation/*", frozenset({"python"})),
+    ("fixtures/public/allowlist.json", frozenset({"python", "web"})),
     ("infra/*", frozenset({"python", "fiji"})),
     ("compose.yaml", frozenset({"python", "fiji"})),
 )

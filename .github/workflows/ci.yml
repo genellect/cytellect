@@ -158,7 +158,9 @@ jobs:
           retention-days: 7
   fiji-browser:
     needs: changes
-    if: needs.changes.outputs.fiji == 'true'
+    # Integration jobs run after merge (every push to main), in the merge queue and on manual runs,
+    # not on each pull request; the release workflow still requires them on the released commit.
+    if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -273,7 +275,7 @@ jobs:
           pnpm --filter @cytellect/web exec playwright test tests/local-workspace.spec.ts
   cellpose-gpu-image:
     needs: changes
-    if: needs.changes.outputs.fiji == 'true'
+    if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -317,7 +319,7 @@ jobs:
         run: uv run pytest tests/test_local.py tests/test_local_cold_start.py tests/test_process_owner.py tests/test_local_bundle.py tests/test_windows_setup.py tests/test_windows_setup_errors.py tests/test_windows_setup_completion.py tests/test_windows_runtime.py tests/test_windows_runtime_data.py tests/test_windows_runtime_prepare.py tests/test_local_revision.py
   windows-installed:
     needs: changes
-    if: needs.changes.outputs.windows == 'true'
+    if: github.event_name != 'pull_request' && needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 120
     env:
