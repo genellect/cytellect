@@ -100,6 +100,12 @@ describe("functional workspace runtime",()=>{
     runtime.setSettings(value=>({...value,nuclearProbability:.8}));expect(runtime.candidateResult("f1","nuclei")).toBeUndefined();
     await expect(runtime.acceptCandidates("f1","nuclei")).rejects.toThrow("一致する候補");expect(adapter.selectRevision).not.toHaveBeenCalled();
   });
+  it("dismisses the last message without reloading the saved state",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");adapter.draft.mockRejectedValueOnce(new Error("showcase_proposal_not_recorded"));
+    await expect(runtime.requestProposal("free text","f1")).rejects.toThrow();expect(runtime.getSnapshot().error).not.toBe("");
+    const restores=adapter.restore.mock.calls.length;runtime.dismissError();
+    expect(runtime.getSnapshot().error).toBe("");expect(adapter.restore.mock.calls.length).toBe(restores);
+  });
   it("initializes a separate manual cell ROI set without nuclei or signal segmentation",async()=>{
     const {runtime,adapter}=fixture(false);await runtime.load("w");await runtime.run("cell","f1");
     expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.run.mock.calls[0][2]).toMatchObject({source:"manual",version:"1.0.0",region_set_id:"cell"});

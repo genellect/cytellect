@@ -24,6 +24,9 @@ async function openDemo(page: Page, url = "/demo", {guide = false} = {}): Promis
   const watch: Watch = {requests: [], errors: []};
   page.on("request", request => watch.requests.push(request.url()));
   page.on("pageerror", error => watch.errors.push(error.message));
+  page.on("console", message => {if (message.type() === "error") watch.errors.push(`console: ${message.text()}`);});
+  // A request the page itself cancelled (a superseded preview) is not a failure.
+  page.on("requestfailed", request => {if (!/ERR_ABORTED/.test(request.failure()?.errorText ?? "")) watch.errors.push(`request failed: ${request.url()} ${request.failure()?.errorText}`);});
   await page.addInitScript(dismissed => {
     try {if (dismissed) localStorage.setItem("cytellect-demo-guide", "dismissed");} catch {}
     const seen: string[] = [];
@@ -374,7 +377,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await operation.selectOption("comparison");
   await expect(results.getByText("実験情報", {exact: true})).toBeVisible();
   const groups = results.locator("fieldset").filter({hasText: "比較する群"}).locator("input[type=checkbox]");
-  // All pairs: a figure series list covers every condition (a partial family is refused by the figure API; see docs/showcase.md).
+  // All pairs here; a subset of groups is covered by its own test below.
   for (const group of await groups.all()) await group.check();
   await results.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した").check();
   if (!await reviewed.isChecked()) await reviewed.check();
@@ -434,6 +437,9 @@ test("deep links open the requested step without the guide", async ({page}) => {
   await expect(page.locator("header").getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("complementary", {name: "公開デモの使い方"})).toHaveCount(0);
   await expect(page.getByRole("region", {name: "図の作成・保存"})).toBeVisible({timeout: live});
+  // The demo opens on the latest saved result instead of an empty view.
+  await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
+  await expect(page.getByText("計算した結果とグラフをここに表示します。")).toHaveCount(0);
   await noErrors(page, watch);
 });
 
@@ -447,7 +453,173 @@ test("phones keep the recorded view and explain changes instead of failing", asy
   await page.locator("header").getByRole("button", {name: "測定", exact: true}).click();
   await expect(page.getByRole("status").filter({hasText: "この操作はPCのブラウザで試せます"})).toBeVisible({timeout: live});
   await expect(page.locator("header").getByText("保存済みの結果を表示中")).toBeAttached();
+  // Saved statistics come from the recorded responses.
+  await page.goto("/demo?step=statistics");
+  await expect(page.getByRole("region", {name: "測定結果の統計解析"}).locator("table").first()).toBeVisible({timeout: live});
   expect(DEV ? watch.requests.filter(url => url.endsWith("/handle")) : []).toEqual([]);
   await noOverflow(page);
+  await noErrors(page, watch);
+});
+
+/** Waits for the in-browser API (every change needs it). */
+async function liveEngine(page: Page) {
+  await expect(page.locator("header").getByText("ライブ計算：有効")).toBeAttached({timeout: live});
+}
+async function openSettings(page: Page) {
+  const inspector = page.getByRole("complementary", {name: "画像解析"});
+  if (!(await inspector.count())) await page.locator("header").getByRole("button", {name: "設定パネル"}).click();
+  await expect(inspector).toBeVisible();
+  return inspector;
+}
+async function fillIfEmpty(control: Locator, value: string) {
+  if (await control.count() && !await control.inputValue()) await control.fill(value);
+}
+async function calculate(page: Page) {
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await fillIfEmpty(results.getByRole("textbox", {name: "独立実験単位", exact: true}), "公開画像の反復（デモ）");
+  await fillIfEmpty(results.getByRole("textbox", {name: "対応の根拠", exact: true}), "同じ反復（Rep）内の 2 条件");
+  const confirm = results.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した");
+  if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
+  const reviewed = results.getByLabel("測定領域と採用する視野を確認した");
+  if (!await reviewed.isChecked()) await reviewed.check();
+  await results.getByRole("button", {name: "計算", exact: true}).click();
+  await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
+  await expect(results.getByText("測定結果または解析条件が変わりました。再計算してください。")).toHaveCount(0);
+  expect(await alerts(page)).toEqual([]);
+}
+async function renderFigure(page: Page) {
+  const update = page.getByRole("region", {name: "図の作成・保存"}).getByRole("button", {name: "図を更新", exact: true});
+  await update.click();
+  await expect(update).toBeEnabled({timeout: live});
+  await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
+  expect(await alerts(page)).toEqual([]);
+}
+const comparisonGroups = (page: Page) => page.getByRole("region", {name: "測定結果の統計解析"}).locator("fieldset").filter({hasText: "比較する群"}).locator("label");
+
+test("automatic background (measurement protocol 4.0.0) flows into statistics and figures", async ({page}) => {
+  test.setTimeout(900_000);
+  const watch = await openDemo(page);
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  await liveEngine(page);
+  const inspector = await openSettings(page);
+  await inspector.getByRole("combobox", {name: "背景補正", exact: true}).selectOption("automatic");
+  await idle(page);
+  await header.getByLabel("測定する視野").selectOption("all");
+  await header.getByRole("button", {name: "測定", exact: true}).click();
+  await idle(page);
+  expect(await alerts(page)).toEqual([]);
+
+  await header.getByRole("button", {name: "統計", exact: true}).click();
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  // NPM1, the measured channel (Hoechst saturates in some fields and its intensity comparison is refused).
+  const target = page.getByRole("complementary", {name: "解析対象"});
+  await target.getByRole("combobox", {name: "指標", exact: true}).selectOption("mean_corrected");
+  await target.getByRole("combobox", {name: "染色", exact: true}).selectOption({label: "NPM1 · npm1"});
+  const operation = results.getByRole("combobox", {name: "解析", exact: true});
+  for (const value of ["distribution", "comparison", "association"]) {
+    await operation.selectOption(value);
+    if (value === "comparison") for (const group of await comparisonGroups(page).locator("input").all()) await group.check();
+    await calculate(page);
+    await expect(results.locator("table").first()).toBeVisible();
+    await expect(results.getByText("核 · 平均輝度（背景補正） · npm1", {exact: true})).toBeVisible();
+    await header.getByRole("button", {name: "グラフ", exact: true}).click();
+    await renderFigure(page);
+    await header.getByRole("button", {name: "統計", exact: true}).click();
+  }
+  await noErrors(page, watch);
+});
+
+test("comparing a subset of groups renders and reorders its figure; a value opens its source image", async ({page}) => {
+  test.setTimeout(900_000);
+  const watch = await openDemo(page, "/demo?step=statistics");
+  const header = page.locator("header");
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await expect(results).toBeVisible({timeout: live});
+  await liveEngine(page);
+  await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
+  await results.getByRole("combobox", {name: "対応", exact: true}).selectOption({label: "独立した実験"});
+  // A third group: two fields relabelled in the experimental information.
+  const metadata = results.locator("details").filter({hasText: "実験情報"}).first();
+  await metadata.getByLabel("視野 3 condition").fill("Third group");
+  await metadata.getByLabel("視野 6 condition").fill("Third group");
+  const pairs = comparisonGroups(page);
+  await expect(pairs).toHaveCount(3);
+  for (const box of await pairs.locator("input").all()) if (await box.isChecked()) await box.uncheck();
+  await pairs.filter({hasText: /^Untreated \/ ActD/}).locator("input").check();
+  await calculate(page);
+
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  const figure = page.getByRole("region", {name: "図の作成・保存"});
+  await figure.getByRole("button", {name: "系列", exact: true}).click();
+  const series = figure.locator("label", {hasText: "系列"}).locator("select");
+  await expect(series.locator("option")).toHaveText(["Untreated", /^ActD/]);
+  await figure.getByRole("button", {name: "後へ", exact: true}).click();
+  await expect(series.locator("option")).toHaveText([/^ActD/, "Untreated"]);
+  await renderFigure(page);
+  await figure.getByRole("button", {name: "図", exact: true}).click();
+  for (const value of ["box", "violin"]) {await figure.getByRole("combobox", {name: "図のレイアウト", exact: true}).selectOption(value); await renderFigure(page);}
+
+  // A point of the figure lists its source fields; a field opens the image and returns to the result.
+  await page.locator("[data-cytellect-source]").first().dispatchEvent("click");
+  const point = page.getByRole("region", {name: "選択した点の試料・視野"});
+  await expect(point).toBeVisible();
+  await point.locator("tbody button").first().click();
+  await expect(header.getByRole("button", {name: "画像", exact: true})).toHaveAttribute("aria-current", "page");
+  await expect(stage(page)).toBeVisible({timeout: live});
+  await page.getByRole("button", {name: "元の結果へ戻る"}).click();
+  await expect(header.getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");
+  await noErrors(page, watch);
+});
+
+test("each preset AI instruction returns a settings draft that applies like a real proposal", async ({page}) => {
+  test.setTimeout(900_000);
+  const watch = await openDemo(page);
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  await liveEngine(page);
+  const notRecorded = page.getByRole("status").filter({hasText: "記録した指示の例だけに応答します"});
+  const composer = page.getByLabel("AIへの指示");
+  await composer.click();
+  const ai = page.getByRole("complementary", {name: "AI"});
+  const examples = ai.getByRole("group", {name: "指示の例"}).getByRole("button");
+  const count = await examples.count();
+  expect(count).toBeGreaterThan(0);
+  for (let index = 0; index < count; index++) {
+    const instruction = await examples.nth(index).getAttribute("title");
+    await examples.nth(index).click();
+    await idle(page);
+    await expect(notRecorded).toHaveCount(0);
+    await expect(composer).toHaveValue(instruction!);
+    await expect(ai.getByRole("button", {name: "AIによる設定変更を戻す"})).toBeVisible();
+    // The draft's detection preview is offered for adoption, as after a real proposal.
+    const adopt = page.getByRole("button", {name: "候補を採用", exact: true});
+    if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
+    expect(await alerts(page)).toEqual([]);
+  }
+  // After the visitor changes a setting, the examples still answer.
+  await page.getByRole("button", {name: "パネルを閉じる"}).click();
+  const inspector = await openSettings(page);
+  await inspector.getByRole("combobox", {name: "背景補正", exact: true}).selectOption("automatic");
+  await idle(page);
+  await composer.click();
+  const comparison = examples.filter({hasText: "比較"});
+  await (await comparison.count() ? comparison.first() : examples.first()).click();
+  await idle(page);
+  await expect(notRecorded).toHaveCount(0);
+  expect(await alerts(page)).toEqual([]);
+  // The applied draft is what the statistics view calculates.
+  await header.getByRole("button", {name: "統計", exact: true}).click();
+  for (const group of await comparisonGroups(page).locator("input").all()) await group.check();
+  await calculate(page);
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  await renderFigure(page);
+  // Free text gets the demo notice, which the visitor can dismiss.
+  await header.getByRole("button", {name: "画像", exact: true}).click();
+  await composer.fill("公開デモで記録されていない指示");
+  await page.getByRole("button", {name: "AIへ送信"}).click();
+  await expect(notRecorded).toBeVisible({timeout: live});
+  await notRecorded.getByRole("button", {name: "案内を閉じる"}).click();
+  await expect(notRecorded).toHaveCount(0);
   await noErrors(page, watch);
 });
