@@ -98,6 +98,18 @@ def test_inventory_rejects_user_data(tmp_path):
         payload.write_inventory(stage, tmp_path / "inventory.json")
 
 
+def test_local_wheel_provenance_does_not_ship_builder_paths(tmp_path):
+    info = tmp_path / "cytellect-0.1.0.dist-info"
+    info.mkdir()
+    provenance = info / "direct_url.json"
+    provenance.write_text(json.dumps({"url": "file:///example/build/wheel.whl"}))
+    record = info / "RECORD"
+    record.write_text("cytellect-0.1.0.dist-info/direct_url.json,,\ncytellect_api/local.py,sha256:example,20\n")
+    payload.sanitize_install_metadata(tmp_path)
+    assert not provenance.exists()
+    assert record.read_text() == "cytellect_api/local.py,sha256:example,20\n"
+
+
 def test_store_launch_shares_data_and_preserves_manual_retention(tmp_path, monkeypatch):
     package, user = tmp_path / "package", tmp_path / "user"
     (package / "fiji").mkdir(parents=True)

@@ -9,7 +9,8 @@ param(
     [string]$IdentityName = 'Cytellect.Development',
     [string]$Publisher = 'CN=Cytellect Development',
     [string]$PublisherDisplayName = 'Cytellect',
-    [string]$MakeAppx = ''
+    [string]$MakeAppx = '',
+    [string]$RuntimeRoot = ''
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -42,17 +43,21 @@ function Get-SafeChild([string]$Root, [string]$Relative) {
     $base = [IO.Path]::GetFullPath($Root).TrimEnd('\','/')
     $path = [IO.Path]::GetFullPath((Join-Path $base $Relative))
     $cursor = $path
-    while ($cursor) {
-        if ((Test-Path -LiteralPath $cursor) -and
-            ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+    while ($cursor.Length -ge $base.Length) {
+        if (([IO.File]::Exists($cursor) -or [IO.Directory]::Exists($cursor)) -and
+            ([IO.File]::GetAttributes($cursor) -band [IO.FileAttributes]::ReparsePoint)) {
             throw 'msix_redirected_path'
         }
+        if ($cursor -eq $base) { break }
         $cursor = Split-Path -Parent $cursor
     }
     if (-not $path.StartsWith($base + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'msix_unsafe_path' }
     return $path
 }
-function Update-SetupStatus([string]$Phase, [string]$Text) { Write-Host $Phase }
+$script:LastBuildPhase = ''
+function Update-SetupStatus([string]$Phase, [string]$Text) {
+    if ($script:LastBuildPhase -ne $Phase) { Write-Host $Phase; $script:LastBuildPhase=$Phase }
+}
 if (-not $MakeAppx) {
     $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10'
     $candidates = @(Get-ChildItem -LiteralPath (Join-Path $sdk 'bin') -Filter makeappx.exe -Recurse -ErrorAction SilentlyContinue |
@@ -62,10 +67,21 @@ if (-not $MakeAppx) {
 if (-not (Test-Path -LiteralPath $MakeAppx -PathType Leaf)) { throw 'msix_windows_sdk_required' }
 $null = Get-SafeChild (Split-Path -Parent $WorkRoot) (Split-Path -Leaf $WorkRoot)
 $null = Get-SafeChild (Split-Path -Parent $Output) (Split-Path -Leaf $Output)
+foreach ($target in @($WorkRoot,$Output,$RuntimeRoot)) {
+    if (-not $target) { continue }
+    $cursor=[IO.Path]::GetFullPath($target)
+    while ($cursor) {
+        if (([IO.File]::Exists($cursor) -or [IO.Directory]::Exists($cursor)) -and
+            ([IO.File]::GetAttributes($cursor) -band [IO.FileAttributes]::ReparsePoint)) { throw 'msix_redirected_path' }
+        $cursor=Split-Path -Parent $cursor
+    }
+}
 [IO.Directory]::CreateDirectory($WorkRoot) | Out-Null
 $source = Join-Path $WorkRoot 'source'
 $stage = Join-Path $WorkRoot 'package'
-$buildRuntime = Join-Path $WorkRoot 'builder-runtime'
+$buildRuntime = if ($RuntimeRoot) { [IO.Path]::GetFullPath($RuntimeRoot) } else { Join-Path $WorkRoot 'builder-runtime' }
+if ((Test-Path -LiteralPath (Join-Path $buildRuntime 'data')) -or
+    (Test-Path -LiteralPath (Join-Path $buildRuntime 'settings'))) { throw 'msix_user_installation_forbidden' }
 $helper = Join-Path $PSScriptRoot 'msix_payload.py'
 Invoke-Checked $Python @('-B', $helper, 'extract', $SourceZip, $source)
 $release = Get-Content -LiteralPath (Join-Path $source 'local-release.json') -Raw | ConvertFrom-Json
@@ -86,6 +102,7 @@ try {
         '--require-hashes','--only-binary',':all:','--no-config','--no-python-downloads',
         '--default-index','https://pypi.org/simple','engines/python/windows-requirements.txt')
 } finally { Pop-Location }
+Invoke-Checked $Python @('-B',$helper,'sanitize',(Join-Path $stage 'runtime/Lib/site-packages'))
 $env:CYTELLECT_ENGINE_ASSETS = Join-Path $stage 'engines/fiji'
 $env:CYTELLECT_CELLPOSE_ASSETS = Join-Path $stage 'engines/cellpose'
 Invoke-Checked $runtimePython @('-I','-B', (Join-Path $source 'scripts/fiji_setup.py'), (Join-Path $stage 'fiji'), '--platform','windows-x64')

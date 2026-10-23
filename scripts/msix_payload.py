@@ -6,6 +6,7 @@ Third-party runtimes are provisioned separately by build_msix.ps1 from locks.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import importlib.metadata
 import json
@@ -144,6 +145,25 @@ def write_notices_inventory(stage: Path) -> None:
     (stage / "THIRD_PARTY_INVENTORY.json").write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
+def sanitize_install_metadata(site: Path) -> None:
+    # uv's local-wheel provenance contains a builder's absolute filesystem path.
+    # The release manifest already binds the wheel/hash: omit only this generated
+    # local provenance, and keep its RECORD consistent. Never alter wheel payloads.
+    for path in site.glob("*.dist-info/direct_url.json"):
+        verify_file(site, path)
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not value.get("url", "").startswith("file:"):
+            raise ValueError("msix_unexpected_direct_dependency")
+        record = path.parent / "RECORD"
+        verify_file(site, record)
+        relative = path.relative_to(site).as_posix()
+        with record.open(encoding="utf-8", newline="") as stream:
+            rows = [row for row in csv.reader(stream) if row[0] != relative]
+        path.unlink()
+        with record.open("w", encoding="utf-8", newline="") as stream:
+            csv.writer(stream, lineterminator="\n").writerows(rows)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -165,6 +185,8 @@ def main() -> None:
     inventory.add_argument("output", type=Path)
     notices = commands.add_parser("notices")
     notices.add_argument("stage", type=Path)
+    sanitize = commands.add_parser("sanitize")
+    sanitize.add_argument("site", type=Path)
     args = parser.parse_args()
     if args.command == "extract":
         extract_release(args.archive, args.destination)
@@ -174,8 +196,10 @@ def main() -> None:
         write_manifest(args.template, args.destination, args.name, args.publisher, args.publisher_name, args.version)
     elif args.command == "inventory":
         write_inventory(args.stage, args.output)
-    else:
+    elif args.command == "notices":
         write_notices_inventory(args.stage)
+    else:
+        sanitize_install_metadata(args.site)
 
 
 if __name__ == "__main__":
