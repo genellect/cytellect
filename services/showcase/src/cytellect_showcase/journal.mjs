@@ -5,8 +5,10 @@
 // Config arrives as JSON on stdin: {web, origin, chromium, snapshot, out, only?}.
 //
 // A visitor's requests differ from the recorded ones only in values generated per visit, so
-// changes are kept with "*" for: request identifiers and document versions, and identifiers
-// the API generated while recording (any UUID absent from the seed's snapshot). The saved
+// change bodies are kept with "*" for: request identifiers and document versions, identifiers
+// the API generated while recording (any UUID absent from the seed's snapshot), and the context
+// an AI example carries (its prepared draft depends only on the instruction). Paths stay exact:
+// the client addresses what the recording returned to it. The saved
 // analysis settings (PUT analysis-spec) are held on the device; they are kept here only as the
 // conditions later recorded runs were measured under. Each entry names its scene.
 import {createHash} from "node:crypto";
@@ -20,6 +22,7 @@ const {chromium} = require("@playwright/test");
 const KEEP_HEADERS = ["content-type", "x-cytellect-preview-display", "content-disposition"];
 const EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv", "application/pdf": ".pdf", "application/zip": ".zip"};
 const PER_VISIT = new Set(["request_id", "version", "spec_version"]);
+const AI_CONTEXT = new Set(["current_processing", "previous_goal", "previous_proposal", "field_id"]);
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const LIVE = 240000;
@@ -43,9 +46,13 @@ function keep(exchange) {
   const change = !["GET", "HEAD"].includes(exchange.method);
   let body = exchange.body, where = exchange.path;
   if (change) {
-    if (body !== null) {try {body = JSON.stringify(wildcard(JSON.parse(body)));} catch {}}
-    const [route, query] = where.split("?");
-    where = route.split("/").map(segment => generated(segment) ? "*" : segment).join("/") + (query === undefined ? "" : `?${query}`);
+    if (body !== null) {
+      try {
+        const value = wildcard(JSON.parse(body));
+        if (where.endsWith("/proposal-drafts") && value && typeof value === "object") for (const key of AI_CONTEXT) if (key in value) value[key] = "*";
+        body = JSON.stringify(value);
+      } catch {}
+    }
   }
   const settings = change && SETTINGS.test(exchange.path);
   entries.push({scene: current, method: exchange.method, path: where, body, status: exchange.status,
@@ -209,11 +216,22 @@ const scenes = {
   "measure-nucleoli": measureScene("nucleoli"),
   "measure-nucleoplasm": measureScene("nucleoplasm"),
 };
-for (let index = 0; index < (config.examples ?? 3); index++) scenes[`ai-${index + 1}`] = async page => {
-  await page.getByLabel("AIへの指示").click();
+// Each example from the seed, and all of them in their listed order; the detection preview
+// a draft brings is adopted, as a visitor does.
+async function example(page, index) {
   await page.getByRole("group", {name: "指示の例"}).getByRole("button").nth(index).click();
   await idle(page);
-  await page.screenshot({path: path.join(config.out, `ai-${index + 1}.png`)});
+  const adopt = page.getByRole("button", {name: "候補を採用", exact: true});
+  if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
+}
+const EXAMPLES = config.examples ?? 3;
+for (let index = 0; index < EXAMPLES; index++) scenes[`ai-${index + 1}`] = async page => {
+  await page.getByLabel("AIへの指示").click();
+  await example(page, index);
+};
+scenes["ai-in-order"] = async page => {
+  await page.getByLabel("AIへの指示").click();
+  for (let index = 0; index < EXAMPLES; index++) await example(page, index);
 };
 await mkdir(config.out, {recursive: true});
 for (const [name, walk] of Object.entries(scenes)) if (!config.only || config.only.includes(name)) await scene(name, walk);

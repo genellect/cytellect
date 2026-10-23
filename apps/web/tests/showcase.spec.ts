@@ -576,6 +576,9 @@ test("comparing a subset of groups renders and reorders its figure; a value open
   const header = page.locator("header");
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   await expect(results).toBeVisible({timeout: live});
+  // The saved settings and all fields have arrived (they set the controls when they do).
+  await expect(results.getByText("6 視野", {exact: true})).toBeVisible({timeout: live});
+  await expect(results.locator("table").first()).toBeVisible({timeout: live});
   await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
   await results.getByRole("combobox", {name: "対応", exact: true}).selectOption({label: "独立した実験"});
   // A third group: two fields relabelled in the experimental information.

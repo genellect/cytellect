@@ -120,14 +120,13 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let index: Promise<SnapshotIndex | null> | null = null;
   let engine: Promise<ShowcaseEngine> | null = null;
   let live = false, active = false;
-  // Recorded tour: `cursor` is the last change it answered; `served` the last read answered per path.
+  // Recorded tour: `cursor` is the last change it answered.
   let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1;
   let gate: Promise<unknown> = Promise.resolve();
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
   let settings: {version: number; spec: unknown} | null = null, settingsPath = "";
   // After a switch to the API, the client keeps counting settings versions from the device's copy.
   let versionOffset = 0;
-  const served = new Map<string, number>();
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<() => void>();
   const publish = (next: Partial<ShowcaseState>) => {state = {...state, ...next}; listeners.forEach(listener => listener());};
@@ -244,12 +243,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     if (!journaled) return null;
     const next = entries.findIndex((entry, position) => position > cursor && !reading(entry.method));
     const end = next < 0 ? entries.length : next;
-    const from = Math.max(cursor, served.get(path) ?? -1);
-    // The next recorded read of this path before the next change (e.g. a job finishing), else the
-    // latest one before it, else one recorded later (a resource another scene created).
+    // The last recorded read of this path before the next change (a job has finished, a document
+    // is settled), so repeated reads agree; else the latest one before, else one recorded later
+    // (a resource another scene created).
     const read = (index: number) => entries[index].method === "GET" && entries[index].path === path;
-    for (let index = from + 1; index < end; index++) if (read(index)) {served.set(path, index); return answer(entries[index]);}
-    for (let index = Math.min(from, end - 1); index >= 0; index--) if (read(index)) return answer(entries[index]);
+    for (let index = end - 1; index >= 0; index--) if (read(index)) return answer(entries[index]);
     for (let index = end; index < entries.length; index++) if (read(index)) return answer(entries[index]);
     return null;
   }
@@ -314,7 +312,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         if (!dependencies.capable() || state.reason === "failed") return journaled ? "unrecorded" : "live";
         // A change the recording does not hold. The API starts from the published state; results
         // the recording returned since then are not in it, so the view returns to that state first.
-        if (journaled) {journaled = false; cursor = -1; served.clear(); publish({resets: (state.resets ?? 0) + 1}); return "reset";}
+        if (journaled) {journaled = false; cursor = -1; publish({resets: (state.resets ?? 0) + 1}); return "reset";}
         live = true;
         if (settings) void carrySettings(settings);
         return "live";

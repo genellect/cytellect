@@ -175,8 +175,7 @@ describe("recorded tour", () => {
     const started = await post(subject, "area");
     expect(started.status).toBe(202);
     expect(await started.json()).toEqual({job: "j"});
-    // A job polled after the change finishes as it did when recorded, then stays finished.
-    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "running"});
+    // Reads after the change return its settled state (the job as it finished), the same each time.
     expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
     expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
     expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
@@ -187,7 +186,7 @@ describe("recorded tour", () => {
   it("orders a read issued during a recorded change after that change", async () => {
     const {subject} = tour(false);
     const [, read] = await Promise.all([post(subject, "area"), subject.fetch("/v1/workspaces/w/jobs/j")]);
-    expect(await read.json()).toEqual({state: "running"});
+    expect(await read.json()).toEqual({state: "done"});
   });
 
   it("explains a change the tour does not hold, without starting the engine", async () => {
@@ -230,7 +229,7 @@ describe("recorded tour", () => {
     const {subject} = tour(false);
     expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
     expect((await post(subject, "area")).status).toBe(202);
-    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "running"});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
   });
 
   it("keeps the saved analysis settings on the device", async () => {
