@@ -203,7 +203,7 @@ def test_installed_wheel_uses_verified_app_cwd_assets(monkeypatch, tmp_path):
     assets = app / "engines/cellpose"
     assets.mkdir(parents=True)
     entries = []
-    for name in ("runtime.lock.json", "runner.py", "requirements.lock"):
+    for name in ("runtime.lock.json", "gpu.lock.json", "runner.py", "requirements.lock"):
         path = assets / name
         shutil.copyfile(source / name, path)
         entries.append({"path": f"engines/cellpose/{name}", "size": path.stat().st_size,

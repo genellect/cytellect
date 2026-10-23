@@ -8,7 +8,7 @@ The accepted [0.1.0-local.17 release](https://github.com/genellect/cytellect/rel
 
 1. Download the versioned Windows setup ZIP from the Cytellect release, verify its published SHA-256 if required by the laboratory, and extract it.
 2. Open **Cytellect Setup.cmd**, review the destination and local data policy, and start setup. An unsigned early package may require Windows confirmation; do not disable operating-system security to bypass it.
-3. Setup verifies its source manifest and provisions pinned Python, packages and Fiji in the user's Cytellect directory. It does not modify the system Python, PATH or an existing Fiji installation. Internet access is needed for this step only.
+3. Setup verifies its source manifest and provisions pinned Python, packages and Fiji in the user's Cytellect directory. It does not modify the system Python, PATH or an existing Fiji installation. Internet access is needed for this step only. Cellpose is not installed on the PC, where CPU inference takes tens of minutes per field: setup instead records the administrator-provided remote GPU service and access key ([cloud GPU](cloud-gpu.ja.md)). The researcher-facing steps are in [install-windows.ja.md](install-windows.ja.md).
 4. Open **Cytellect** from its shortcut. The small launcher starts the API and independent worker, then opens the browser workspace. There is no terminal command or invitation to enter for routine local use.
 5. Import images, review masks, quantify, compare and export through the browser. Close the launcher to stop the local service and its worker. Closing only the browser tab does not stop the launcher.
 

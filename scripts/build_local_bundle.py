@@ -23,7 +23,8 @@ SOURCE_TREES = ("packages/analysis/src/", "services/api/src/", "services/worker/
 SCRIPTS = {"scripts/fiji_setup.py", "scripts/local_setup.ps1", "scripts/windows_runtime.ps1",
            "scripts/cellpose_setup.py", "scripts/cellpose_setup.ps1"}
 CELLPOSE_ASSETS = {f"engines/cellpose/{name}" for name in (
-    "runner.py", "runtime.lock.json", "requirements.in", "requirements.lock", "LICENSE.cellpose.txt", "README.md",
+    "runner.py", "runtime.lock.json", "gpu.lock.json", "requirements.in", "requirements.lock", "LICENSE.cellpose.txt",
+    "README.md",
 )}
 RUNTIME_RECORDS = {"engines/python/windows-runtime.lock.json", "engines/python/windows-tcltk-members.json"}
 RUNTIME_DATA = "engines/python/windows-tcltk-9.0.4-data.zip"

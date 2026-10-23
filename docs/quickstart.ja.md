@@ -1,6 +1,8 @@
 # Cytellect はじめての画像解析
 
-このガイドは、計画の引継ぎ・一括登録に対応した **Windows版 0.1.0-local.11（開発プレビュー）** 向けです。[配布版とリリース情報](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.11)
+このガイドは、公開画像を使って操作を覚えるための練習手順です。Windows版のインストールと更新は、先に[インストールと更新の手順](install-windows.ja.md)に従ってください。配布版は常に[Cytellect のサイト](https://cytellect.vercel.app/)の最新版を使ってください。0.1.0-local.11 などの古い版は使わないでください。
+
+以下の画面操作は、詳細画面（起動中に `http://127.0.0.1:8765/legacy` を開く）での手順です。標準の作業画面向けの手順は改訂中です。
 
 公開画像で、核の中の蛍光を測り、元画像までたどれる図を作ります。
 
@@ -19,7 +21,7 @@ Windows PCと、練習用のチャンネル別TIFF画像を用意します。初
 
 ## 1．測ることを決める
 
-[Windows版ZIP](https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-0.1.0-local.11-windows-x64.zip)を展開し、**Cytellect Setup.cmd** で初回セットアップを行います。その後はCytellectのショートカットから開き、**「解析を開始」** へ進みます。通常の起動にコマンド入力は不要です。
+[インストールと更新の手順](install-windows.ja.md)でセットアップを済ませ、Cytellectのショートカットから起動します。詳細画面を開いて **「解析を開始」** へ進みます。通常の起動にコマンド入力は不要です。
 
 新しい作業の「計画ガイドを開く」から、次のように選びます。
 

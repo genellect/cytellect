@@ -36,6 +36,7 @@ COPY --from=cellpose-build /opt/cellpose-models /opt/cellpose-models
 COPY engines/fiji /app/engines/fiji
 COPY engines/cellpose /app/engines/cellpose
 COPY scripts/container_smoke.py /app/scripts/container_smoke.py
+COPY scripts/cellpose_remote_check.py /app/scripts/cellpose_remote_check.py
 ENV CYTELLECT_FIJI_EXECUTABLE=/opt/fiji CYTELLECT_ENGINE_ASSETS=/app/engines/fiji
 ENV CYTELLECT_CELLPOSE_PYTHON=/opt/cellpose-runtime/bin/python CYTELLECT_CELLPOSE_MODEL_DIR=/opt/cellpose-models CYTELLECT_CELLPOSE_ASSETS=/app/engines/cellpose
 RUN /opt/venv/bin/python -c "from cytellect_analysis.cellpose_engine import runtime_status; status=runtime_status(); assert status.get('available'), status"
