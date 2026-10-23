@@ -18,7 +18,7 @@ async function mutate(page:Page,url:string,options:Parameters<Page["request"]["p
 async function json(response:APIResponse){expect(response.ok()).toBeTruthy();return response.json();}
 async function job(page:Page,id:string){await expect.poll(async()=>{const value=await json(await page.request.get(`${api}/v1/jobs/${id}`));if(value.state==="failed")throw Error(value.error);return value.state;},{timeout:120000}).toBe("succeeded");}
 async function shot(page:Page,name:string){if(evidence){fs.mkdirSync(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,name),fullPage:true});}}
-async function reopen(page:Page,title:string){await page.reload();await page.getByRole("button",{name:new RegExp(`^${title} 有効期限`)}).click();}
+async function reopen(page:Page,title:string){await page.reload();await page.getByRole("button",{name:new RegExp(`^${title} (有効期限|手動で削除するまで保持)`)}).click();}
 async function gain(page:Page,value:string){await page.getByRole("slider",{name:"表示ゲイン",exact:true}).evaluate((element,next)=>{const slider=element as HTMLInputElement;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(slider,next);slider.dispatchEvent(new Event("input",{bubbles:true}));slider.dispatchEvent(new Event("change",{bubbles:true}));},value);}
 function numericalInputs(){
  const folder=fs.mkdtempSync(path.join(dataDir||os.tmpdir(),"preview-numerical-"));

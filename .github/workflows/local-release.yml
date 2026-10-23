@@ -104,6 +104,8 @@ jobs:
           if ($completed.Count -ne 1) { throw 'Expected exactly one installed application' }
           $setup = Get-Content -LiteralPath $completed[0].FullName -Raw | ConvertFrom-Json
           if ($setup.source_commit -ne $env:GITHUB_SHA) { throw 'Installed revision mismatch' }
+          # The browser cases accept either retention mode, so the shipped default is asserted here.
+          if ($setup.workspace_retention -ne 'manual') { throw 'Fresh setup did not choose manual workspace retention' }
           $python = Join-Path $setup.app '.venv\Scripts\python.exe'
           $web = Join-Path $setup.app 'apps\web\out'
           $data = Join-Path $env:CYTELLECT_INSTALL_ROOT 'data'
@@ -149,6 +151,9 @@ jobs:
               } catch { Start-Sleep -Seconds 1 }
             }
             if (-not $ready) { throw 'Installed application did not start' }
+            $localSetup = Invoke-RestMethod -Uri "$env:CYTELLECT_WEB_URL/v1/local/setup"
+            if ($localSetup.retention_mode -ne 'manual') { throw 'Installed application is not keeping workspaces until deletion' }
+            $receipt.retention_mode = $localSetup.retention_mode
             pnpm --filter @cytellect/web test:e2e tests/local-workspace.spec.ts tests/generic-workspace.spec.ts tests/nuclear-region-comparison.spec.ts tests/plan-batch-workflow.spec.ts tests/region-trace.spec.ts tests/batch-common-metadata.spec.ts tests/comparison-hierarchy.spec.ts tests/area-only.spec.ts tests/preview-display.spec.ts tests/descriptive-pages.spec.ts tests/native-recipe-guidance.spec.ts tests/region-quality.spec.ts tests/draft-navigation.spec.ts tests/common-statistics.spec.ts tests/workspace-real-fiji.spec.ts tests/workspace-comparison-real.spec.ts --reporter=json
             $browserExit = $LASTEXITCODE
             if (Test-Path -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE) {

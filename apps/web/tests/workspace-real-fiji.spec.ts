@@ -21,7 +21,7 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
   const bytes = await Promise.all(original.map(name => readFile(path.join(inputs!, name))));
   bytes.forEach((value, index) => expect(createHash("sha256").update(value).digest("hex")).toBe(manifest.files[original[index]]));
   // One-use token is captured only in memory, never logged or saved in evidence.
-  const token = execFileSync(python!, ["-B", "-c", "import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(3600))"], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
+  const token = execFileSync(python!, ["-B", "-c", "import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl')).invite(3600))"], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
   const origin = process.env.CYTELLECT_WEB_URL!;
   const redeemed = await page.request.post(`${api}/v1/invitations/redeem`, {headers: {Origin: origin, "X-Cytellect-Request": "1"}, data: {token}});
   expect(redeemed.ok()).toBeTruthy();
@@ -73,7 +73,7 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
     "import json,sys,numpy as np,tifffile",
     "from pathlib import Path",
     "from cytellect_api.db import Store,revisions",
-    "store=Store(Path(sys.argv[1]));rev=store.one(revisions,id=sys.argv[2]);root=store.safe_path(rev['result_dir'])",
+    "store=Store(Path(sys.argv[1]),workspace_retention_mode=('manual' if (Path(sys.argv[1])/'.manual-workspace-retention').exists() else 'ttl'));rev=store.one(revisions,id=sys.argv[2]);root=store.safe_path(rev['result_dir'])",
     "report=json.loads((root/'measurements.json').read_text());fid=sys.argv[3];mask=np.load(root/fid/'labels.npy',allow_pickle=False)",
     "images={'c1':tifffile.imread(Path(sys.argv[4])/'a9-actin.tif'),'c2':tifffile.imread(Path(sys.argv[4])/'a9-dna.tif')}",
     "errors=[]",
