@@ -5,7 +5,7 @@
   const measurement = "G-EHKJ8B8N0Y";
   if (location.origin !== origin || location.search || location.hash || window.parent === window
     || navigator.doNotTrack === "1" || navigator.globalPrivacyControl) return;
-  // Fixed page identities; the analysis workspace and every other route are absent.
+  // Fixed page identities; the private analysis workspace and every other route are absent.
   const pages = { "/": "Cytellect", "/demo": "Cytellect — Example analysis", "/plan": "Cytellect — Analysis planning" };
   let path = "";
   try {
@@ -18,6 +18,8 @@
     launch: "launch_help_click", example: "example_click", planning: "planning_click", guide: "guide_click",
     quickstart: "guide_click", methods: "guide_click", setup: "guide_click", figures: "guide_click",
     workspace: "workspace_click", story: "story_open",
+    demo_image: "demo_step_click", demo_statistics: "demo_step_click", demo_figure: "demo_step_click",
+    demo_download: "demo_download_click",
   };
   window.dataLayer = [];
   function gtag() { window.dataLayer.push(arguments); }

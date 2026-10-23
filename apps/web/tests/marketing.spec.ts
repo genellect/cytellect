@@ -13,9 +13,22 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(hero.locator("p")).toHaveCount(0);
  await expect(hero.locator("video")).toHaveCount(0);await expect(hero.locator("canvas")).toHaveCount(0);
  await expect(hero.getByRole("link",{name:"ダウンロード",exact:true})).toHaveAttribute("href","#download");
- await expect(hero.getByRole("link",{name:"解析例を見る",exact:true})).toHaveAttribute("href","/demo");
+ await expect(hero.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("button",{name:/領域/})).toHaveCount(0);
- await expect(page.getByRole("link",{name:"グラフを拡大",exact:true})).toHaveAttribute("href","/marketing/figure-public.svg");
+ // What Cytellect does is split into tabs; each opens the matching step of the public demo.
+ const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
+ await expect(features.getByRole("tab")).toHaveText(["解析の流れ","自動検出","AIによる設定","統計と論文の図"]);
+ for(const [tab,title,link,href] of [["自動検出",/^汎用のAIでは見つからない構造も、/,"この画像をデモで解析する","/demo?step=image"],["AIによる設定",/^やりたいことを一文で。/,"デモを体験する","/demo"],["統計と論文の図",/^統計の検定も、論文に載せる図も、/,"デモを体験する","/demo"],["解析の流れ",/^画像を入れるだけ。/,"デモで操作する","/demo"]] as const){
+  await features.getByRole("tab",{name:tab,exact:true}).click();
+  const panel=page.getByRole("tabpanel",{name:tab,exact:true});
+  await expect(panel.getByRole("heading",{name:title})).toBeVisible();
+  await expect(panel.getByRole("link",{name:link,exact:true})).toHaveAttribute("href",href);
+  await expect(page.getByRole("tabpanel")).toHaveCount(1);
+ }
+ await features.getByRole("tab",{name:"解析の流れ",exact:true}).press("ArrowLeft");
+ await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toBeFocused();
+ await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toHaveAttribute("aria-selected","true");
+ await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
  const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir)fs.mkdirSync(dir,{recursive:true});
  for(const [width,height] of [[1440,900],[1280,800],[768,1024],[390,844],[360,800]]){
   await page.setViewportSize({width,height});
@@ -23,90 +36,69 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
-  for(const name of [/^Cytellectは、顕微鏡画像の解析から統計、/,/^画像解析や統計が専門でなくても、/,/^積み重ねた実験の成果を、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
-  if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
+  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^核と核小体の定量を、/,/^Windows版は無料。測定も保存も、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
+  if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').filter({visible:true}).all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
  }
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));
  const toggle=page.getByRole("button",{name:"メニューを開く",exact:true});await toggle.click();
  const nav=page.getByRole("navigation",{name:"モバイルナビゲーション"});
- await expect(nav.getByRole("link")).toHaveText(["プロダクト","ガイド","About the Developer","ダウンロード ↓"]);
+ await expect(nav.getByRole("link")).toHaveText(["プロダクト","ガイド","About the Developer","ダウンロード","デモを体験 →"]);
  await expect(nav.getByRole("link",{name:"About the Developer",exact:true})).toHaveAttribute("href","https://yuto-matsui.com/");
  await page.keyboard.press("Escape");await expect(toggle).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await toggle.click();await nav.getByRole("link",{name:"ガイド",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await expect(page.getByRole("heading",{name:"使い方と解析方法",exact:true})).toBeVisible();
- const images=page.locator('main img[src^="/marketing/"]');
+ const images=page.locator('main img[src^="/marketing/"]').filter({visible:true});
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
- await page.getByRole("link",{name:"グラフを拡大",exact:true}).click();await expect(page).toHaveURL(/figure-public\.svg$/);await page.goBack();await expect(hero.getByRole("heading",{level:1})).toBeVisible();
+ await page.getByRole("link",{name:"図を拡大",exact:true}).click();await expect(page).toHaveURL(/lp-figure\.svg$/);await page.goBack();await expect(hero.getByRole("heading",{level:1})).toBeVisible();
  expect(errors).toEqual([]);
 });
 
-test("failed 3D asset leaves the poster and primary action available",async({page})=>{
+test("a failed hero film leaves the poster and primary action available",async({page})=>{
  await page.emulateMedia({reducedMotion:"no-preference"});
- await page.route("**/marketing/optical-assembly.glb",route=>route.abort());
+ await page.route(/\/marketing\/hero-film\.(webm|mp4)$/,route=>route.abort());
  await page.goto("/");
- await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
- const poster=page.getByAltText("光と透明な構造が広がる3D空間",{exact:true});
+ const film=page.getByTestId("hero-film");
+ await expect(film).toHaveAttribute("data-state","error");
+ const poster=film.locator("img");
  await expect(poster).toBeVisible();
  await expect.poll(()=>poster.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);
+ await expect(film.locator("video")).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"背景映像を停止",exact:true})).toHaveCount(0);
  await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).getByRole("link",{name:"ダウンロード",exact:true})).toBeVisible();
- await expect(page.locator("canvas")).toHaveCount(0);
- await page.unroute("**/marketing/optical-assembly.glb");
- await page.route("**/marketing/optical-assembly.glb",async route=>{
-  // Truncated GLB must keep the same usable fallback as an offline request.
-  await route.fulfill({status:200,contentType:"model/gltf-binary",body:Buffer.from("glTF")});
- });
- await page.reload();await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
- await expect(poster).toBeVisible();await expect(page.locator("canvas")).toHaveCount(0);
 });
 
-test("a researcher can stop the real 3D rendering and keep it stopped after navigation",async({page})=>{
+test("a researcher can stop the hero film and keep it stopped after navigation",async({page})=>{
  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));page.on("console",message=>{if(message.type()==="error")errors.push(message.text());});
  await page.setViewportSize({width:1440,height:900});
  await page.emulateMedia({reducedMotion:"no-preference"});
  await page.goto("/");
- const scene=page.getByTestId("hero-scene");
- await expect(scene).toHaveAttribute("data-state","ready");
- await expect(scene.locator("canvas")).toBeVisible();
- const rendered=scene.locator("[data-render-count]");
+ const film=page.getByTestId("hero-film");const video=film.locator("video");
+ await expect(film).toHaveAttribute("data-state","playing");
+ await expect.poll(()=>video.evaluate((node:HTMLVideoElement)=>node.currentTime)).toBeGreaterThan(0.2);
  await page.getByRole("button",{name:"背景映像を停止",exact:true}).click();
- await expect(scene).toHaveAttribute("data-paused","true");
- const count=await rendered.getAttribute("data-render-count");
- await page.waitForTimeout(180);
- await expect(rendered).toHaveAttribute("data-render-count",count!);
- const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,"lp-hero-3d.png")});}
+ await expect(film).toHaveAttribute("data-paused","true");
+ await expect(video).toHaveJSProperty("paused",true);
+ const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,"lp-hero-film.png")});}
  await page.getByRole("link",{name:"プロダクト",exact:true}).click();
  await page.evaluate(()=>scrollTo(0,0));
  await expect(page.getByRole("button",{name:"背景映像を再生",exact:true})).toBeVisible();
- await expect(scene).toHaveAttribute("data-paused","true");
+ await expect(video).toHaveJSProperty("paused",true);
  await page.getByRole("button",{name:"背景映像を再生",exact:true}).click();
- await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(count));
- // Pause while scrolling on software WebGL runners; then verify live rendering
- // below the hero independently of the scroll action.
- await page.getByRole("button",{name:"背景映像を停止",exact:true}).click();
- const figure=page.getByAltText(/^公開画像の817領域/);await figure.scrollIntoViewIfNeeded();
- await page.getByRole("button",{name:"背景映像を再生",exact:true}).click();
- const belowHero=await rendered.getAttribute("data-render-count");await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(belowHero));
- await page.emulateMedia({reducedMotion:"reduce"});await expect(scene.locator("canvas")).toHaveCount(0);
+ await expect(video).toHaveJSProperty("paused",false);
+ // The film stops while the hero is off screen and resumes when it returns.
+ await page.locator("#download").scrollIntoViewIfNeeded();
+ await expect(video).toHaveJSProperty("paused",true);
+ await page.evaluate(()=>scrollTo(0,0));
+ await expect(video).toHaveJSProperty("paused",false);
+ await page.emulateMedia({reducedMotion:"reduce"});await expect(film.locator("video")).toHaveCount(0);await expect(film.locator("img")).toBeVisible();
  expect(errors).toEqual([]);
 });
-test("product walkthrough is explicitly started and returns to the real still image",async({page})=>{
- await page.emulateMedia({reducedMotion:"reduce"});await page.goto("/");
- await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).locator("video")).toHaveCount(0);
- await expect(page.getByLabel("解析の操作例",{exact:true})).toHaveCount(0);
- await page.getByRole("button",{name:"操作例を見る",exact:true}).click();
- const clip=page.getByLabel("解析の操作例",{exact:true});
- await expect(clip).toBeVisible();await expect(clip).toHaveJSProperty("paused",false);
- await page.getByRole("button",{name:"画面例に戻る",exact:true}).click();
- await expect(clip).toHaveCount(0);
- await expect(page.getByAltText(/^公開蛍光画像を読み込んだCytellect/)).toBeVisible();
-});
-
 test("the story for general readers opens in place and keeps its text", async ({page}) => {
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.goto("/");
  const story = page.getByRole("region", { name: "Cytellectが生まれた理由" });
  await expect(story).toContainText("私たちの体は、約30兆個もの細胞から成り立っている。");
- const toggle = story.getByRole("button", { name: "続きを読む" });
+ const toggle = story.getByRole("button", { name: "Cytellectが生まれた理由を読む" });
  await expect(toggle).toHaveAttribute("aria-expanded", "false");
  await expect(story.getByText("次世代の研究者のためのアプリケーションである。")).not.toBeInViewport();
  await toggle.click();
@@ -129,11 +121,8 @@ test("the wordmark returns to the hero from anywhere on the page", async ({page}
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
  await expect(page.getByRole("heading",{level:1})).toBeInViewport();
  expect(page.url()).toBe(previousUrl); expect(navigations).toBe(0);
- // This case verifies the wordmark's animated scroll, not GPU throughput.
- // Real WebGL start/stop is exercised separately above.
- await page.route("**/marketing/optical-assembly.glb",route=>route.abort());
+ // The animated scroll also runs while the hero film is allowed to play.
  await page.emulateMedia({reducedMotion:"no-preference"});
- await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
  await page.locator("#download").scrollIntoViewIfNeeded();
  await page.getByRole("link",{name:"Cytellect ホーム",exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
