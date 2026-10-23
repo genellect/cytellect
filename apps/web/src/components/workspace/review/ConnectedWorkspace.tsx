@@ -192,6 +192,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // The demo opens on the nucleoli of the saved analysis; later target changes follow the runtime as in production.
   const demoOpening=useRef(demo);
   useEffect(()=>{if(demoOpening.current&&r.activeTarget==="nuclei")return;demoOpening.current=false;setTarget(r.activeTarget);setRegion(undefined);},[r.activeTarget]);
+  // Statistics and figures open on the saved analysis (its target), as in production.
+  useEffect(()=>{if(!demoOpening.current||mode==="image")return;demoOpening.current=false;setTarget(r.activeTarget);setRegion(undefined);},[mode,r.activeTarget]);
   async function classify(result:GfpGateResult,filter:WorkspaceGfpFilter){await act(async()=>{await r.saveSelection({field_ids:nuclearFields.map(value=>value.fieldId),gfp:filter});setGfpSaved({signature:nuclearSignature,result,filter});});}
   async function saveBackground(polygon:Point[]){
     if(!backgroundDraw)return;

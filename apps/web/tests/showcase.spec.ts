@@ -145,6 +145,10 @@ test("demo: image, outline, measurement, statistics and figure features run with
   }
   await expect(stage(page)).toBeVisible({timeout: live});
   await expect(regions(page).first()).toBeAttached({timeout: live});
+  // The demo opens on nucleoli, with nuclear outlines, over a colour merge of the two stains.
+  await expect(page.locator("[class*=measureToggle] span")).toHaveText("核小体");
+  await expect(page.getByRole("button", {name: "重ねて表示", exact: true})).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("svg polygon[class*=context]").first()).toBeAttached();
   await noOverflow(page);
 
   // First-visit guide walks the real tabs.
@@ -200,8 +204,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await page.getByRole("button", {name: "輪郭の表示", exact: true}).first().click();
   await expect(regions(page).first()).toBeAttached();
 
-  // The demo opens on nucleoli over a colour merge; the nuclear corrections below work on whole nuclei.
-  await expect(page.locator("[class*=measureToggle] span")).toHaveText("核小体");
+  // The nuclear corrections below work on whole nuclei.
   {
     const settings = page.getByRole("button", {name: "設定パネル"});
     if (await settings.getAttribute("aria-pressed") !== "true") await settings.click();
@@ -518,6 +521,9 @@ test("automatic background (measurement protocol 4.0.0) flows into statistics an
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await liveEngine(page);
   const inspector = await openSettings(page);
+  // This scenario measures whole nuclei (the demo opens on nucleoli).
+  await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
+  await idle(page);
   await inspector.getByRole("combobox", {name: "背景補正", exact: true}).selectOption("automatic");
   await idle(page);
   await header.getByLabel("測定する視野").selectOption("all");
