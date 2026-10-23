@@ -160,7 +160,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(guide).toHaveCount(0);
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await page.getByRole("button", {name: /^測定値/}).click();
-  await expect(header.getByText("ライブ計算：有効")).toBeAttached({timeout: live});
+  await expect(header.locator("[data-showcase-engine=active]")).toBeAttached({timeout: live});
 
   // Image intake is explained, never attempted.
   const fieldList = page.getByRole("complementary", {name: "視野一覧"});
@@ -456,7 +456,7 @@ test("phones keep the recorded view and explain changes instead of failing", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator("header").getByRole("button", {name: "測定", exact: true}).click();
   await expect(page.getByRole("status").filter({hasText: "この操作はPCのブラウザで試せます"})).toBeVisible({timeout: live});
-  await expect(page.locator("header").getByText("保存済みの結果を表示中")).toBeAttached();
+  await expect(page.locator("header [data-showcase-engine=unavailable]")).toBeAttached();
   // Saved statistics come from the recorded responses.
   await page.goto("/demo?step=statistics");
   await expect(page.getByRole("region", {name: "測定結果の統計解析"}).locator("table").first()).toBeVisible({timeout: live});
@@ -467,7 +467,7 @@ test("phones keep the recorded view and explain changes instead of failing", asy
 
 /** Waits for the in-browser API (every change needs it). */
 async function liveEngine(page: Page) {
-  await expect(page.locator("header").getByText("ライブ計算：有効")).toBeAttached({timeout: live});
+  await expect(page.locator("header [data-showcase-engine=active]")).toBeAttached({timeout: live});
 }
 async function openSettings(page: Page) {
   const inspector = page.getByRole("complementary", {name: "画像解析"});

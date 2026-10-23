@@ -61,10 +61,12 @@ function WorkspaceRoute(){
 function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoStep}){
   const data=r.data;const fields=useMemo(()=>data?.fields||[],[data]);
   const showcase=useShowcaseUi(),demo=showcase.enabled;
-  const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>("nuclei"),[region,setRegion]=useState<number>();
+  const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>(demo?"nucleoli":"nuclei"),[region,setRegion]=useState<number>();
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
   const [metric,setMetric]=useState("mean"),[range,setRange]=useState("selected"),[compare,setCompare]=useState(false),[picked,setPicked]=useState<string[]>([]),[picker,setPicker]=useState(false),[table,setTable]=useState(false);
-  const [panelState,dispatchPanel]=useReducer(panelReducer,initialPanelState);
+  const [panelState,dispatchPanel]=useReducer(panelReducer,initialPanelState,state=>demo&&typeof window!=="undefined"&&window.matchMedia("(max-width: 900px)").matches?{view:"closed",returnView:"closed"} as typeof state:state);
+  // The demo opens on a colour merge of the stains; choosing one stain shows it alone, as in production.
+  const [composite,setComposite]=useState(demo);
   const ai=panelState.view==="ai",panel=panelState.view==="settings";
   const [instruction,setInstruction]=useState(""),[assignments,setAssignments]=useState(false),[editing,setEditing]=useState(false),[search,setSearch]=useState(""),[returnMode,setReturnMode]=useState<Mode|null>(null);
   const sourceReturn=useRef<{mode:Mode;field:string;channel:string;target:ReviewTarget;metric:string;region:number|undefined;historical:{target:ReviewTarget;result:SavedResult}|null}|null>(null);
@@ -76,7 +78,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const sourceRequest=useRef(0);
   const fileInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null);
   const field=fields.find(value=>value.id===selected)||fields[0];
-  const actualChannel=field?.channels.find(value=>value.id===channelId)?.id||field?.nuclearChannelId||field?.channels.find(value=>value.role==="nuclear")?.id||field?.channels[0]?.id||"";
+  const markerChannel=demo&&(target==="nucleoli"||target==="nucleoplasm")?field?.channels.find(value=>value.id!==field?.nuclearChannelId&&value.role!=="nuclear")?.id:undefined;
+  const actualChannel=field?.channels.find(value=>value.id===channelId)?.id||markerChannel||field?.nuclearChannelId||field?.channels.find(value=>value.role==="nuclear")?.id||field?.channels[0]?.id||"";
   const historicResult=historical?.target===target&&historical.result.field===field?.id?historical.result:undefined;
   const candidate=field&&!historicResult?r.candidateResult(field.id,target):undefined;
   const result=historicResult||candidate||(field?r.currentResult(field.id,target):undefined);
@@ -87,7 +90,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const busy=r.busy||editing||!transportAvailable;
   const intakeDisabled=!data||r.busy||!transportAvailable;
   const [guide,setGuide]=useState(false);
-  useEffect(()=>{if(demo&&!initialMode&&!guideDismissed())setGuide(true);},[demo,initialMode]);
+  useEffect(()=>{if(demo&&!initialMode&&!guideDismissed()&&!window.matchMedia("(max-width: 900px)").matches)setGuide(true);},[demo,initialMode]);
   // The in-browser API downloads after the recorded view has painted (capable devices only).
   const loaded=!!data;
   useEffect(()=>{if(!demo||!loaded)return;const timer=setTimeout(()=>activateShowcase().prepare(),1500);return()=>clearTimeout(timer);},[demo,loaded]);
@@ -186,7 +189,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const previewSettings=JSON.stringify([r.settings,r.processing]);
   const nucleolarKind=r.settings.nucleolarDefinition.source!=="ncl"?"cytellect-nucleolar-v2":nclAlgorithm==="objects"?"cytellect-ncl-objects":"fiji-nucleolar-compartments";
   useEffect(()=>{if(!previewRequest||busy)return;const timer=setTimeout(()=>void previewNow(previewRequest),650);return()=>clearTimeout(timer);},[previewRequest,busy,previewSettings]);
-  useEffect(()=>{setTarget(r.activeTarget);setRegion(undefined);},[r.activeTarget]);
+  // The demo opens on the nucleoli of the saved analysis; later target changes follow the runtime as in production.
+  const demoOpening=useRef(demo);
+  useEffect(()=>{if(demoOpening.current&&r.activeTarget==="nuclei")return;demoOpening.current=false;setTarget(r.activeTarget);setRegion(undefined);},[r.activeTarget]);
   async function classify(result:GfpGateResult,filter:WorkspaceGfpFilter){await act(async()=>{await r.saveSelection({field_ids:nuclearFields.map(value=>value.fieldId),gfp:filter});setGfpSaved({signature:nuclearSignature,result,filter});});}
   async function saveBackground(polygon:Point[]){
     if(!backgroundDraw)return;
@@ -196,6 +201,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     setBackgroundDraw(null);queuePreview();
   }
   function changeTarget(value:ReviewTarget){
+    demoOpening.current=false;
     ++sourceRequest.current;setPreviewRequest(null);setHistorical(null);setTarget(value);setRegion(undefined);
     if(value==="cell"&&r.settings.cellDefinition?.source!=="cellpose"&&field&&!field.results.cell&&!busy)void act(()=>r.run("cell",field.id));
   }
@@ -217,10 +223,10 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
       {(r.error||localError)&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
       <section hidden={mode!=="image"} className={styles.imageWork}>
         {!field&&demo&&!fields.length&&!r.error?<div className={styles.start}><p role="status">公開画像と保存済みの解析結果を読み込み中…</p></div>:!field?<div className={styles.start}><h1>画像解析</h1><div className={styles.startActions}><button className={styles.primary} disabled={intakeDisabled} onClick={()=>chooseFiles()}>画像を追加</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダを追加</button></div><p>TIFF・OME-TIFF</p><button onClick={()=>changeMode("statistics")}>測定済みデータを使う</button></div>:<>
-          <div className={styles.channelBar}>{returnMode&&<button className={styles.icon} aria-label="元の結果へ戻る" disabled={editing} onClick={returnToResult}><Icon name="back"/></button>}<strong title={field.label}>{field.label}</strong>{field.channels.map(ch=><button disabled={editing} aria-pressed={actualChannel===ch.id&&!compare} key={ch.id} onClick={()=>{setChannel(ch.id);setCompare(false);}}>{ch.stain?`${ch.stain} · ${ch.id}`:ch.id}</button>)}<button className={styles.assignButton} disabled={busy} onClick={()=>setAssignments(!assignments)}>染色対応</button><button className={styles.icon} disabled={editing} aria-label="画像を比較" aria-pressed={compare} onClick={chooseComparison}><Icon name="compare"/></button><details className={styles.fieldMenu}><summary aria-label="画像の用途">⋯</summary><label>画像の用途<select disabled={busy} value={field.kind||"analysis"} onChange={e=>void act(()=>r.saveFieldLink(field.id,e.target.value as "analysis"|"reference"))}><option value="analysis">解析画像</option><option value="reference">補助画像</option></select></label>{field.kind==="reference"&&<label>対応する視野<select disabled={busy} value={field.referenceFor||""} onChange={e=>void act(()=>r.saveFieldLink(field.id,"reference",e.target.value||null))}><option value="">指定なし</option>{fields.filter(value=>value.id!==field.id&&value.kind!=="reference").map(value=><option key={value.id} value={value.id}>{value.label}</option>)}</select></label>}</details></div>
+          <div className={styles.channelBar}>{returnMode&&<button className={styles.icon} aria-label="元の結果へ戻る" disabled={editing} onClick={returnToResult}><Icon name="back"/></button>}<strong title={field.label}>{field.label}</strong>{demo&&field.channels.length>1&&<button disabled={editing} aria-pressed={composite&&!compare} onClick={()=>{setComposite(true);setCompare(false);}}>重ねて表示</button>}{field.channels.map(ch=><button disabled={editing} aria-pressed={actualChannel===ch.id&&!compare&&!(demo&&composite)} key={ch.id} onClick={()=>{setChannel(ch.id);setCompare(false);setComposite(false);}}>{ch.stain?`${ch.stain} · ${ch.id}`:ch.id}</button>)}<button className={styles.assignButton} disabled={busy} onClick={()=>setAssignments(!assignments)}>染色対応</button><button className={styles.icon} disabled={editing} aria-label="画像を比較" aria-pressed={compare} onClick={chooseComparison}><Icon name="compare"/></button><details className={styles.fieldMenu}><summary aria-label="画像の用途">⋯</summary><label>画像の用途<select disabled={busy} value={field.kind||"analysis"} onChange={e=>void act(()=>r.saveFieldLink(field.id,e.target.value as "analysis"|"reference"))}><option value="analysis">解析画像</option><option value="reference">補助画像</option></select></label>{field.kind==="reference"&&<label>対応する視野<select disabled={busy} value={field.referenceFor||""} onChange={e=>void act(()=>r.saveFieldLink(field.id,"reference",e.target.value||null))}><option value="">指定なし</option>{fields.filter(value=>value.id!==field.id&&value.kind!=="reference").map(value=><option key={value.id} value={value.id}>{value.label}</option>)}</select></label>}</details></div>
           {assignments&&<AssignmentEditor key={field.id} field={field} runtime={r} onDone={()=>{setAssignments(false);queuePreview("nuclei");}} onError={setLocalError}/>}
           {picker&&<div className={styles.comparisonPicker}>{planes.map(value=><label key={value.key}><input type="checkbox" checked={picked.includes(value.key)} onChange={e=>setPicked(previous=>e.target.checked?[...previous,value.key]:previous.filter(key=>key!==value.key))}/>{value.field.label} · {value.channel.stain||value.channel.id}</label>)}<button className={styles.icon} aria-label="比較対象を閉じる" onClick={()=>setPicker(false)}><Icon name="close"/></button></div>}
-          <ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} classification={target==="nuclei"||target==="cell"?classification:undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))}/>
+          <ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} classification={target==="nuclei"||target==="cell"?classification:undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))} composite={demo&&composite&&!compare} demo={demo}/>
           <div className={styles.measureToggle}><button aria-expanded={table} onClick={()=>setTable(!table)}>測定値{rows.length?` · ${rows.length}`:""}</button><span>{targets[target]}{historicResult?" · 図の保存時の版":candidate?" · 検出候補":result?"":" · 未測定"}</span>{candidate&&<button disabled={busy} onClick={()=>void act(()=>r.acceptCandidates(field.id,target))}>候補を採用</button>}{field.exclusionReason?<button onClick={()=>void act(()=>r.excludeField(field.id,null))}>解析対象に戻す</button>:field.error?<button onClick={()=>void act(()=>r.excludeField(field.id,"利用者が解析対象から除外"))}>この視野を除外</button>:null}</div>
           {table&&<div className={styles.tableDrawer}><MeasurementTable rows={rows} selected={region} onSelect={setRegion}/></div>}
         </>}
@@ -291,7 +297,7 @@ function MeasurementTable({rows,selected,onSelect}:{rows:MeasurementRow[];select
   return <table><thead><tr><th>番号</th><th>面積 / px²</th><th>平均輝度</th><th>積算輝度</th>{corrected&&<><th>平均（背景補正）</th><th>積算（背景補正）</th></>}</tr></thead><tbody>{rows.map(row=><tr key={row.region_id} aria-selected={row.region_id===selected}><td><button onClick={()=>onSelect(row.region_id)}>{row.region_id}</button></td>{[row.area_px,row.mean,row.integrated,...(corrected?[row.mean_corrected,row.integrated_corrected]:[])].map((value,i)=><td key={i} title={value==null?row.correction_missing_reason||row.intensity_missing_reason||row.area_missing_reason||undefined:undefined}>{value?.toLocaleString(undefined,{maximumFractionDigits:2})??"—"}</td>)}</tr>)}</tbody></table>;
 }
 
-function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,classification,historical,backgrounds,backgroundDraw,viewport,onViewport}:{planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;classification?:GfpGateResult["nuclei"];historical:{target:ReviewTarget;result:SavedResult}|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
+function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,classification,historical,backgrounds,backgroundDraw,viewport,onViewport,composite=false,demo=false}:{composite?:boolean;demo?:boolean;planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;classification?:GfpGateResult["nuclei"];historical:{target:ReviewTarget;result:SavedResult}|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
   const ref=useRef<HTMLDivElement>(null),[size,setSize]=useState({width:800,height:600});
   useEffect(()=>{const node=ref.current;if(!node)return;const observer=new ResizeObserver(entries=>{const {width,height}=entries[0].contentRect;setSize({width,height});});observer.observe(node);return()=>observer.disconnect();},[]);
   const single=planes.length===1;const layout=imageStageLayout(planes.map(plane=>plane.field),size);
@@ -314,9 +320,20 @@ function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,
           onUndo={editable?()=>r.undo(plane.field.id,target):undefined} onRedo={editable?()=>r.redo(plane.field.id,target):undefined}
           canUndo={!r.busy&&r.canUndo(plane.field.id,target)} canRedo={!r.busy&&r.canRedo(plane.field.id,target)}
           backgroundPolygon={backgrounds[plane.field.id]?.[plane.channel.id]?.polygon} backgroundEdit={single&&backgroundDraw?.field===plane.field.id?backgroundDraw:undefined} onEditingChange={onEditing} viewport={viewport[plane.field.id]} onViewportChange={value=>onViewport(plane.field.id,value)}
-          style={{width:tile.width,height:tile.imageHeight,flex:"none"}}/>:<p>画像を読み込み中…</p>}
+          style={{width:tile.width,height:tile.imageHeight,flex:"none"}}
+          layers={single&&composite?plane.field.channels.filter(ch=>plane.field.previews[ch.id]).map(ch=>({src:plane.field.previews[ch.id],color:ch.id===plane.field.nuclearChannelId||ch.role==="nuclear"?"#3f86ff":"#ff4fb3"})):undefined}
+          context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined}
+          initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
       </div>;
     })}
     {showTable&&<div className={styles.sideMeasurements}><h3>{targets[target]}の測定値</h3>{rows.length?<MeasurementTable rows={rows} selected={region} onSelect={onRegion}/>:<p>測定結果はここに表示されます。</p>}{editing&&<p>描画を保存または取消して続けてください。</p>}</div>}
   </div>;
+}
+
+/** Display only: the centre of the nucleus with the most neighbours within `radius` source pixels. */
+function densestPoint(regions:Array<{id:number;points:Point[]}>,radius:number):Point|undefined{
+  const centres=regions.filter(region=>region.points.length).map(region=>[region.points.reduce((sum,point)=>sum+point[0],0)/region.points.length,region.points.reduce((sum,point)=>sum+point[1],0)/region.points.length] as Point);
+  let best:Point|undefined,most=-1;
+  for(const centre of centres){const count=centres.filter(other=>Math.hypot(other[0]-centre[0],other[1]-centre[1])<=radius).length;if(count>most){most=count;best=centre;}}
+  return best;
 }
