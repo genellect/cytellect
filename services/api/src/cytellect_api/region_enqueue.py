@@ -34,7 +34,8 @@ def enqueue_region_job(conn, settings, wid, rid):
         raise HTTPException(429, "queue_full")
     jid = uid()
     conn.execute(jobs.insert().values(id=jid, workspace_id=wid, revision_id=rid, kind="analysis", state="queued", payload={}, created=time.time(), attempts=0))
-    conn.execute(update(workspaces).where(workspaces.c.id == wid).values(expires=time.time() + settings.retention_seconds))
+    if settings.workspace_retention_mode == "ttl":
+        conn.execute(update(workspaces).where(workspaces.c.id == wid).values(expires=time.time() + settings.retention_seconds))
     return jid
 
 
@@ -98,7 +99,7 @@ def validate_region_request(store, body, selected, reused_masks=()):
 
 def enqueue_region(store, settings, wid, body, *, conn=None, activate=True):
     workspace_record = store.one(workspaces, id=wid)
-    if not workspace_record or workspace_record["deleted"] or workspace_record["expires"] <= time.time():
+    if not store.workspace_is_live(workspace_record):
         raise HTTPException(404, "workspace_not_found")
     selected = [dict(f) for f in store.rows(fields, workspace_id=wid) if f["image_info"].get("kind") == "region-2d"]
     if body.field_ids is not None:

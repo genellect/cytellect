@@ -117,3 +117,27 @@ Hosted invitation authentication is unchanged; this endpoint is absent by defaul
 Earlier invitation-owned workspaces are not silently reassigned. Research-data
 expiry remains 24 hours after explicit use. Deleting the private runtime volume
 also removes the persistent local owner.
+
+### Explicit manual workspace retention
+
+A researcher's own installation may select manual retention for all API/worker
+processes: Docker Desktop through `CYTELLECT_WORKSPACE_RETENTION_MODE=manual`, the
+Windows launcher through the setup choice saved as `settings/retention.json`.
+Settings refuse manual mode unless the application origin is loopback, so a
+hosted service keeps continuous TTL deletion. This is an explicit exception to the default workspace
+24-hour expiry above, not to session/invitation expiry, ownership, lease fencing,
+cancellation or deletion. Manual mode ignores workspace age for reads, queued
+work, heartbeat/watchdog and final publication. Explicit DELETE still revokes
+access immediately; active-lease protection still delays physical cleanup.
+
+The database records the policy (`retention_policy`, migration 0010) and an empty
+persistent marker in the private runtime volume repeats it. Either rejects a
+subsequent TTL startup, and every TTL transaction rechecks the recorded policy, so a
+lost marker cannot let a stale process expire retained work. On first activation,
+workspaces whose TTL deadline already passed are marked deleted and removed by
+cleanup; manual retention never revives them. Preserve the DB, marker and
+artifacts together.
+Stop all writers before changing installation policy; no live mixed-mode operation
+or automatic manual-to-TTL conversion is supported. No timestamps are rewritten.
+Private backups, capacity monitoring and manual deletion remain the lab's
+responsibility; automatic age cleanup is not a storage-pressure fallback.

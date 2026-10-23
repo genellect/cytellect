@@ -369,6 +369,7 @@ jobs:
           if (-not $state.cellpose_remote) { throw 'The cloud GPU setting was not recorded' }
           $saved = Get-Content -LiteralPath "$install\settings\cellpose-remote.json" -Raw | ConvertFrom-Json
           if ($saved.url -cne 'https://cellpose-ci.example' -or $saved.token -cne 'ci-placeholder-key') { throw 'Unexpected cloud GPU setting' }
+          if ($state.workspace_retention -ne 'manual') { throw 'Default setup did not choose manual workspace retention' }
           $footprint = (Get-ChildItem -LiteralPath $install -Recurse -File -Force | Measure-Object -Property Length -Sum).Sum
           Write-Host ('Installed footprint: {0:N2} GB' -f ($footprint / 1GB))
           "CYTELLECT_FRESH_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -429,8 +430,10 @@ jobs:
             Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$origin/v1/local/session" -Headers $headers -WebSession $session | Out-Null
             $kept = Invoke-RestMethod -Uri "$origin/v1/workspaces/$($created.id)" -Headers $headers -WebSession $session
             if ($kept.title -ne 'Update preservation check') { throw 'Workspace was not preserved across the update' }
+            if ($null -ne $kept.expires) { throw 'Updated workspace still has a TTL deadline' }
             $status = Invoke-RestMethod -Uri "$origin/v1/local/setup"
             if (-not $status.ready) { throw 'Updated application is not ready' }
+            if ($status.retention_mode -ne 'manual') { throw 'Update did not switch to manual workspace retention' }
           } finally { Stop-Installed $process }
   python-windows-314:
     needs: changes

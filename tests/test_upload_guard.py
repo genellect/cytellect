@@ -23,6 +23,9 @@ class AuthStore:
     def rows(self, table, **filters):
         return []
 
+    def workspace_is_live(self, record, now=None):
+        return bool(record and not record["deleted"] and record["expires"] > (time.time() if now is None else now))
+
 
 def context(auth=True, extra=(), route="fields"):
     headers = [(b"content-type", b"multipart/form-data; boundary=BOUNDARY")]
