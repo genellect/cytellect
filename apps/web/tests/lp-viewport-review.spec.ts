@@ -12,7 +12,7 @@ test('hero actions remain reachable and the film poster fills the hero in every 
  const composition=await page.getByTestId('hero-film').locator('img').evaluate((img,box)=>{const image=img.getBoundingClientRect();return {fit:getComputedStyle(img).objectFit,top:image.top,height:image.height-box.height,width:image.width-innerWidth};},heroBox);expect(composition.fit).toBe('cover');expect(Math.abs(composition.top)).toBeLessThan(1);expect(Math.abs(composition.height)).toBeLessThan(1);expect(Math.abs(composition.width)).toBeLessThan(1);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);if(dir)await page.screenshot({path:path.join(dir,`hero-${width}x${height}.png`)});
  }
- await expect(page.getByText('© 2026 Yuto Matsui. All rights reserved.',{exact:true})).toBeVisible();
+ await expect(page.getByText('© 2026 Genellect Inc. All rights reserved.',{exact:true})).toBeVisible();
  for(const width of [1440,390]){await page.setViewportSize({width,height:900});const planning=page.getByAltText('公開画像3視野の核の平均輝度を、視野ごとの分布と集計表で示した統計画面');await planning.scrollIntoViewIfNeeded();await expect.poll(()=>planning.evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);expect(await planning.evaluate((img:HTMLImageElement)=>Math.abs(img.clientWidth/img.clientHeight-img.naturalWidth/img.naturalHeight))).toBeLessThan(.01);await expect(page.getByRole('link',{name:'統計画面を拡大'})).toHaveAttribute('href','/marketing/planning-public.png');if(dir)await page.screenshot({path:path.join(dir,`planning-${width}.png`)});}
  if(dir){await page.locator('footer').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(dir,'footer-mobile.png')});}
 });
