@@ -42,9 +42,11 @@ try {
     $result.phase='public_inputs'
     $bbbc=Join-Path $WorkRoot 'public-bbbc007'
     $inputs=Join-Path $WorkRoot 'workspace-inputs'
-    & $python -I -B scripts/public_bbbc007.py --data-dir $bbbc --download *> (Join-Path $WorkRoot 'public-download.private.log')
+    # These fixed developer scripts import other registered-public helpers from
+    # their own scripts directory. Product startup remains isolated with -I.
+    & $python -B scripts/public_bbbc007.py --data-dir $bbbc --download *> (Join-Path $WorkRoot 'public-download.private.log')
     if ($LASTEXITCODE -ne 0) { throw 'msix_ci_public_download_failed' }
-    & $python -I -B scripts/prepare_workspace_bbbc007.py --data-dir $bbbc --output $inputs *> (Join-Path $WorkRoot 'public-inputs.private.log')
+    & $python -B scripts/prepare_workspace_bbbc007.py --data-dir $bbbc --output $inputs *> (Join-Path $WorkRoot 'public-inputs.private.log')
     if ($LASTEXITCODE -ne 0) { throw 'msix_ci_public_inputs_failed' }
     $env:CYTELLECT_TEST_LOCAL='1'
     $env:CYTELLECT_WEB_URL='http://127.0.0.1:8765'

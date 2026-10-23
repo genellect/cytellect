@@ -99,7 +99,7 @@ public static class MsixActivation {
     if (@($arguments | Where-Object {$_ -match '["\r\n]'}).Count) { throw 'msix_ci_invalid_arguments' }
     $commandArguments=($arguments | ForEach-Object {'"'+$_+'"'}) -join ' '
     Invoke-CommandInDesktopPackage -PackageFamilyName $app.PackageFamilyName -AppId Cytellect `
-        -Command (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe') `
+        -Command (Join-Path $PSHOME 'pwsh.exe') `
         -Args $commandArguments -PreventBreakaway | Out-Null
     $insideReceipt=Join-Path $WorkRoot 'inside-receipt.json'
     for ($attempt=0;$attempt -lt 1800;$attempt++) {
