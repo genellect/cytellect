@@ -5,17 +5,20 @@ param([Parameter(Mandatory=$true)][string]$AppRoot,
       [Parameter(Mandatory=$true)][string]$DataRoot,
       [Parameter(Mandatory=$true)][string]$WorkRoot,
       [Parameter(Mandatory=$true)][string]$RepoRoot,
+      [Parameter(Mandatory=$true)][string]$NodeExecutable,
+      [Parameter(Mandatory=$true)][string]$BrowserCache,
       [Parameter(Mandatory=$true)][string]$ExpectedSource)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
-if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
-    throw 'msix_acceptance_requires_disposable_hosted_runner'
-}
 Set-Location -LiteralPath $RepoRoot
 $python=Join-Path $AppRoot 'runtime/python.exe'
 $result=[ordered]@{schema='cytellect-msix-inside/1';phase='start';passed=$false
     fiji=$false;public_browser=$false;numerical_replay=$false}
 try {
+    $result.phase='hosted_runner_guard'
+    if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+        throw 'msix_acceptance_requires_disposable_hosted_runner'
+    }
     $env:CYTELLECT_ENGINE_ASSETS=Join-Path $AppRoot 'engines/fiji'
     $env:CYTELLECT_CELLPOSE_ASSETS=Join-Path $AppRoot 'engines/cellpose'
     $env:PYTHONPATH=$null
@@ -42,8 +45,11 @@ try {
     $env:CYTELLECT_REQUIRE_REAL_FIJI='1'
     $env:CYTELLECT_COMPARISON_REAL='1'
     $env:PLAYWRIGHT_JSON_OUTPUT_FILE=Join-Path $WorkRoot 'browser.json'
+    $env:PLAYWRIGHT_BROWSERS_PATH=$BrowserCache
     $result.phase='public_browser'
-    pnpm --filter @cytellect/web test:e2e tests/workspace-real-fiji.spec.ts tests/workspace-comparison-real.spec.ts --reporter=json *> (Join-Path $WorkRoot 'browser.private.log')
+    Set-Location -LiteralPath (Join-Path $RepoRoot 'apps/web')
+    & $NodeExecutable node_modules/@playwright/test/cli.js test tests/workspace-real-fiji.spec.ts tests/workspace-comparison-real.spec.ts --reporter=json *> (Join-Path $WorkRoot 'browser.private.log')
+    Set-Location -LiteralPath $RepoRoot
     if ($LASTEXITCODE -ne 0) { throw 'msix_ci_browser_failed' }
     $browser=Get-Content -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE -Raw | ConvertFrom-Json
     if ($browser.stats.expected -ne 2 -or $browser.stats.skipped -ne 0 -or $browser.stats.unexpected -ne 0) {

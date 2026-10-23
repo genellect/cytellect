@@ -89,7 +89,8 @@ public static class MsixActivation {
     $inside=Join-Path $repo 'scripts/verify_msix_inside.ps1'
     $arguments=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass',
         '-File',$inside,'-AppRoot',$installed,'-DataRoot',(Join-Path $userRoot 'data'),
-        '-WorkRoot',$WorkRoot,'-RepoRoot',$repo,'-ExpectedSource',$env:GITHUB_SHA)
+        '-WorkRoot',$WorkRoot,'-RepoRoot',$repo,'-NodeExecutable',(Get-Command node).Source,
+        '-BrowserCache',(Join-Path $env:LOCALAPPDATA 'ms-playwright'),'-ExpectedSource',$env:GITHUB_SHA)
     if (@($arguments | Where-Object {$_ -match '["\r\n]'}).Count) { throw 'msix_ci_invalid_arguments' }
     $commandArguments=($arguments | ForEach-Object {'"'+$_+'"'}) -join ' '
     Invoke-CommandInDesktopPackage -PackageFamilyName $app.PackageFamilyName -AppId Cytellect `
