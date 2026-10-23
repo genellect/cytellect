@@ -1,4 +1,5 @@
 "use client";
+import RetentionNotice from "@/components/RetentionNotice";
 import {useEffect,useState} from "react";
 import {errorMessage,LOCAL_MODE,request} from "@/lib/api";
 import {batchMetadata,emptyBatchMetadata,mapBatchFiles,metadataColumns,type MetadataDraft} from "@/lib/region-batch";
@@ -76,6 +77,6 @@ export default function RegionBatchUploadPanel({wid,channels,maskSource,hasField
   <div className={styles.actionRow}><button className={styles.primary} disabled={!ready||sending||successful===mapping.rows.length} onClick={()=>run(upload)}>{locked?"未登録の視野を再試行":"確認した視野を登録"} · {mapping.rows.length} 視野</button>{locked&&!sending&&<button className={styles.secondary} onClick={()=>{setColumns(current=>current.map(column=>({...column,files:[],confirmed:false})));setLabels([]);setMetadata({});setProgress({});setRound(value=>value+1);setConfirmed(false);setCalibrationConfirmed(false);setNotice("");setCommonReview(null);setCommonUndo(null);setCommonNotice("");}}>次の一括登録を準備</button>}</div>
   {(sending||notice)&&<p role="status" className={styles.notice}>{sending?`${successful} / ${mapping.rows.length} 視野を登録済み`:notice}</p>}
   {!!mapping.rows.length&&successful===mapping.rows.length&&!sending&&<button className={styles.primary} onClick={()=>{setOpen(false);requestAnimationFrame(onInspect);}}>登録した画像を確認 →</button>}
-  <p className={styles.small}>{LOCAL_MODE?"画像はローカルに保存します。":"画像は非公開APIへ直接送信します。"}保存期限は最終操作から24時間です。{LOCAL_MODE&&"終了中に期限を迎えたデータは次回起動時に削除します。"}入力内容はこの画面を閉じると失われます。</p>
+  <p className={styles.small}>{LOCAL_MODE?"画像はローカルに保存します。":"画像は非公開APIへ直接送信します。"}<RetentionNotice/>入力内容はこの画面を閉じると失われます。</p>
  </div></details>;
 }

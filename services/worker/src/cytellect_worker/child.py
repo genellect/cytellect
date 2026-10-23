@@ -50,7 +50,7 @@ def lease_is_live(store, job, parent, parent_started):
             parent.is_running() and parent.create_time() == parent_started
             and current and current["state"] == "running"
             and current["lease"] == job["lease"] and current["lease_until"] > time.time()
-            and workspace and not workspace["deleted"] and workspace["expires"] > time.time()
+            and store.workspace_is_live(workspace)
         )
     except Exception:
         # Never let an unhandled DB/psutil error silently kill just this thread.
@@ -62,7 +62,7 @@ def main():
     data = read_json(descriptor)
     data["settings"]["data_dir"] = Path(data["settings"]["data_dir"])
     settings = Settings(**data["settings"])
-    store = Store(settings.data_dir)
+    store = Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode)
     job = data["job"]
     parent = psutil.Process(int(sys.argv[2]))
     parent_started = parent.create_time()

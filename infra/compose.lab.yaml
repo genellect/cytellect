@@ -1,0 +1,9 @@
+# Explicit lab retention overlay. Use only with a separately named lab installation.
+# Image/version pinning and verified backup/restore are separate release requirements.
+services:
+  api:
+    environment:
+      CYTELLECT_WORKSPACE_RETENTION_MODE: manual
+  worker:
+    environment:
+      CYTELLECT_WORKSPACE_RETENTION_MODE: manual

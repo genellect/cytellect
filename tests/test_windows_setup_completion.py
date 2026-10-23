@@ -21,7 +21,7 @@ $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETU
 if ($errors.Count) { throw 'parse_failed' }
 foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Update-SetupStatus',
     'ConvertTo-NativeArgument','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote',
-    'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Install-Cytellect')) {
+    'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Set-WorkspaceRetention','Install-Cytellect')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
     Invoke-Expression $function.Extent.Text
@@ -138,7 +138,7 @@ function New-Object([string]$ComObject) {
 }
 $SourceRoot=$env:CYTELLECT_TEST_SOURCE
 $InstallRoot=$env:CYTELLECT_TEST_ROOT
-$Console=$false; $NoShortcut=$false; $VerifyOnly=$false
+$Console=$false; $NoShortcut=$false; $VerifyOnly=$false; $WorkspaceRetention='manual'
 $CellposeRemoteUrl=''; $CellposeRemoteToken=''
 $script:StatusLabel=$null; $script:Cancelled=$false; $script:Phase='initial'
 $script:UvVersion='test'; $script:UvSha256='0'*64
@@ -174,6 +174,8 @@ $install=Get-Content -LiteralPath (Get-SafeChild $app 'engines/python/windows-in
     retry_source_matches=($state.source_commit -eq ('a'*40))
     retry_python=$state.python
     retry_no_bytecode=($script:LaunchInfo.arguments[0] -ceq '-B')
+    retry_retention=$state.workspace_retention
+    retention_file=[IO.File]::ReadAllText((Join-Path $InstallRoot 'settings/retention.json'))
     retry_input_hashes_match=($state.wheel_sha256 -ceq $install.wheel.sha256 -and
         $state.requirements_sha256 -ceq $install.requirements.sha256)
     pipeline=$script:Pipeline;runtime_calls=$script:RuntimeCalls;signed_venv_checks=$script:SignedVenvChecks
@@ -266,6 +268,8 @@ $manifest.version='0.0.0-test.'+$PID
         "entry_cleared": [True, True], "retry_phase": "complete", "retry_launch_ready": True,
         "retry_ran_checks": True, "retry_executable_matches": True, "retry_source_matches": True,
         "retry_python": "3.14.8", "retry_no_bytecode": True, "retry_input_hashes_match": True,
+        "retry_retention": "manual",
+        "retention_file": '{"schema":"cytellect-local-retention/1","mode":"manual"}',
         "pipeline": ["signed-runtime-venv", "hashed-wheel-sync", "dependency-check", "gui-check",
                      "fiji-install", "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity",
                      "signed-runtime-venv", "hashed-wheel-sync", "dependency-check", "gui-check",

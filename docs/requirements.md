@@ -126,3 +126,24 @@ L02: Bind only literal loopback; local session bootstrap is absent from cloud mo
 L03: The same analysis, revision, measurement, statistics and export contracts serve local and future cloud modes. No local-only scientific fork. Optional remote Cellpose inference runs the identical pinned runner on a GPU service; only raw candidates return, and binding, refinement and measurement stay local. Standard Vercel builds do not silently connect to localhost.
 L04: Local expiry blocks access after24h; physical deletion while the launcher/PC is off resumes at next launch, disclosed before upload. A future cloud host must satisfy its own continuous deletion and isolation acceptance.
 L05: Versioned release bundles contain tracked allowlisted sources and static UI, per-file hashes and a package checksum; no unpublished/private research data, credentials or developer runtime. Registered public demonstration assets retain their redistribution evidence. Git/PR checkpoints record implementation and remaining gates.
+
+### Laboratory workspace retention exception
+
+Owner decision 2026-10-22: a researcher's own installation (Windows setup or
+Docker Desktop on loopback) may keep workspaces until explicit deletion; the
+Windows setup offers this as its default choice and 24-hour deletion remains
+selectable. Hosted/cloud deployments keep T09/L04 continuous TTL deletion and
+refuse manual mode for a non-loopback origin.
+
+T09/L04 retain their default TTL semantics. An explicit lab installation may
+select manual workspace retention: no age-based access expiry or deletion,
+truthful nullable deadline/policy responses and matching UI, preserved ownership,
+session/invitation TTL, job leases and user deletion. API and worker must share
+one mode; the database records the manual policy and, with a durable marker,
+rejects a later TTL launch. Workspaces whose TTL deadline already passed stay
+expired when manual retention is first activated. Do not
+substitute a distant timestamp or zero-second TTL for unlimited retention.
+No automatic mode reversal, cleanup under capacity pressure, or deletion of
+original research data is authorized by this feature. Lab delivery still needs
+fixed application/model identities, private whole-data backup/rollback and
+fresh real-input acceptance. Measurement and statistical definitions are unchanged.

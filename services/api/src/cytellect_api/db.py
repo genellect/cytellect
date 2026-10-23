@@ -2,7 +2,9 @@
 
 import contextlib
 import hashlib
+import os
 import secrets
+import sqlite3
 import time
 import uuid
 from pathlib import Path, PurePath, PureWindowsPath
@@ -19,6 +21,7 @@ from sqlalchemy import (
     Table,
     create_engine,
     event,
+    false,
     select,
     update,
 )
@@ -36,6 +39,15 @@ workspaces = Table(
     Column("active_revision", String),
     Column("bytes", Integer, default=0, nullable=False),
     Column("analysis_plan", JSON),
+)
+# One installation-wide row. Once manual retention is recorded, a later TTL start
+# is refused even if the marker file beside the database is lost.
+retention_policy = Table(
+    "retention_policy",
+    meta,
+    Column("id", Integer, primary_key=True),
+    Column("mode", String, nullable=False),
+    Column("activated", Float, nullable=False),
 )
 workspace_selections = Table(
     "workspace_selections", meta,
@@ -229,10 +241,48 @@ def _is_within_storage(target: PurePath, root: PurePath) -> bool:
         return False
 
 
+def recorded_retention_mode(root: Path) -> str | None:
+    """Read an existing installation's recorded policy without migrating or writing."""
+    database = root / "cytellect.sqlite"
+    if not database.is_file():
+        return None
+    try:
+        with contextlib.closing(sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)) as conn:
+            row = conn.execute("SELECT mode FROM retention_policy WHERE id = 1").fetchone()
+    except sqlite3.Error:
+        return None
+    return row[0] if row else None
+
+
 class Store:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, workspace_retention_mode: str = "ttl"):
+        if workspace_retention_mode not in {"ttl", "manual"}:
+            raise ValueError("workspace_retention_mode_invalid")
+        self.workspace_retention_mode = workspace_retention_mode
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        # A permanent, empty marker prevents a later TTL launch from deleting
+        # workspaces with dormant historical deadlines. Never auto-remove it.
+        marker = self.root / ".manual-workspace-retention"
+        if workspace_retention_mode == "manual":
+            if marker.is_symlink() or (marker.exists() and not marker.is_file()):
+                raise ValueError("workspace_retention_marker_invalid")
+            try:
+                fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                pass
+            else:
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+            if os.name == "posix":
+                directory_fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+        self.assert_retention_mode()
         self.engine = create_engine(
             "sqlite:///" + (self.root / "cytellect.sqlite").as_posix(),
             connect_args={"check_same_thread": False, "timeout": 30},
@@ -252,11 +302,52 @@ class Store:
         with self.transaction() as conn:
             migration.attributes["connection"] = conn
             command.upgrade(migration, "head")
+        self._activate_retention_mode()
+
+    def _activate_retention_mode(self):
+        now = time.time()
+        with self.transaction() as conn:
+            recorded = conn.execute(select(retention_policy.c.mode).where(retention_policy.c.id == 1)).scalar()
+            if recorded == "manual" and self.workspace_retention_mode == "ttl":
+                raise ValueError("workspace_retention_manual_to_ttl_forbidden")
+            if recorded is None and self.workspace_retention_mode == "manual":
+                # A deadline that already passed under TTL stays expired: switching to
+                # manual retention never revives it, and cleanup removes its files.
+                conn.execute(update(workspaces)
+                             .where(workspaces.c.deleted.is_(False), workspaces.c.expires <= now)
+                             .values(deleted=True))
+                conn.execute(retention_policy.insert().values(id=1, mode="manual", activated=now))
+        self._policy_recorded = True
+
+    def assert_retention_mode(self):
+        marker = self.root / ".manual-workspace-retention"
+        if marker.is_symlink() or (marker.exists() and not marker.is_file()):
+            raise ValueError("workspace_retention_marker_invalid")
+        if self.workspace_retention_mode == "ttl" and marker.exists():
+            raise ValueError("workspace_retention_manual_to_ttl_forbidden")
+
+    def workspace_expired_filter(self, now):
+        self.assert_retention_mode()
+        return workspaces.c.expires <= now if self.workspace_retention_mode == "ttl" else false()
+
+    def workspace_is_live(self, record, now=None):
+        self.assert_retention_mode()
+        return bool(record and not record["deleted"] and (
+            self.workspace_retention_mode == "manual"
+            or record["expires"] > (time.time() if now is None else now)))
+
+    def workspace_view(self, record):
+        self.assert_retention_mode()
+        return {**dict(record), "expires": None if self.workspace_retention_mode == "manual" else record["expires"]}
 
     @contextlib.contextmanager
     def transaction(self):
         with self.engine.connect() as conn:
             conn.exec_driver_sql("BEGIN IMMEDIATE")
+            self.assert_retention_mode()
+            if self.workspace_retention_mode == "ttl" and getattr(self, "_policy_recorded", False) and conn.execute(
+                    select(retention_policy.c.mode).where(retention_policy.c.id == 1)).scalar() == "manual":
+                raise ValueError("workspace_retention_manual_to_ttl_forbidden")
             try:
                 yield conn
                 conn.commit()
@@ -311,7 +402,7 @@ class Store:
                     select(jobs)
                     .join(workspaces, jobs.c.workspace_id == workspaces.c.id)
                     .where(
-                        jobs.c.state == "queued", workspaces.c.deleted.is_(False), workspaces.c.expires > now
+                        jobs.c.state == "queued", workspaces.c.deleted.is_(False), ~self.workspace_expired_filter(now)
                     )
                     .order_by(jobs.c.created)
                     .limit(1)
@@ -338,7 +429,7 @@ class Store:
             workspace = (
                 c.execute(select(workspaces).where(workspaces.c.id == job["workspace_id"])).mappings().first()
             )
-            if not workspace or workspace["deleted"] or workspace["expires"] <= time.time():
+            if not self.workspace_is_live(workspace):
                 return False
             result = c.execute(
                 update(jobs)
@@ -358,7 +449,7 @@ class Store:
             workspace = (
                 c.execute(select(workspaces).where(workspaces.c.id == job["workspace_id"])).mappings().first()
             )
-            if not workspace or workspace["deleted"] or workspace["expires"] <= time.time():
+            if not self.workspace_is_live(workspace):
                 return False
             # Adoption and successful publication share this SQLite write lock.
             # An already completed artifact stays immutable; only the running

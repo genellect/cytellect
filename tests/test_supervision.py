@@ -86,6 +86,11 @@ def test_continuing_db_outage_cannot_keep_child_or_descriptor_alive(tmp_path, mo
     assert store.one(jobs, id=job["id"])["result_dir"] is None
 
 
+def ttl_workspace_is_live(record):
+    # Store.workspace_is_live under the default TTL retention.
+    return bool(record and not record["deleted"] and record["expires"] > time.time())
+
+
 @pytest.mark.parametrize("failure", ["db", "parent", "lease", "cancelled", "deleted", "expired", "workspace_expired"])
 def test_child_watchdog_fails_closed_on_unverifiable_lease(failure):
     job = {"id": "job", "workspace_id": "workspace", "lease": "lease"}
@@ -110,13 +115,14 @@ def test_child_watchdog_fails_closed_on_unverifiable_lease(failure):
             raise OSError("private-db-location")
         return current if table is jobs else workspace
 
-    assert not lease_is_live(SimpleNamespace(one=one), job, parent, 1)
+    assert not lease_is_live(SimpleNamespace(one=one, workspace_is_live=ttl_workspace_is_live), job, parent, 1)
 
 
 def test_child_watchdog_accepts_only_current_live_owner_and_lease():
     job = {"id": "job", "workspace_id": "workspace", "lease": "lease"}
     current = {"state": "running", "lease": "lease", "lease_until": time.time()+60}
-    store = SimpleNamespace(one=lambda table, **kwargs: current if table is jobs else {"deleted": False, "expires": time.time()+86400})
+    store = SimpleNamespace(one=lambda table, **kwargs: current if table is jobs else {"deleted": False, "expires": time.time()+86400},
+                            workspace_is_live=ttl_workspace_is_live)
     parent = SimpleNamespace(is_running=lambda: True, create_time=lambda: 1)
     assert lease_is_live(store, job, parent, 1)
 

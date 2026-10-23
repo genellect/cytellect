@@ -25,8 +25,9 @@ from sqlalchemy import update
 from starlette.staticfiles import StaticFiles
 
 from .config import Settings, configure_private_tmp
-from .db import digest, sessions
+from .db import digest, recorded_retention_mode, sessions
 from .process_owner import Identity, process_alive, redirector_owner
+from .views import LocalSetupView, SessionView
 
 
 def installed_source_revision(root: Path | None = None) -> str | None:
@@ -152,12 +153,12 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         return response
 
-    @app.get("/v1/local/setup")
+    @app.get("/v1/local/setup", response_model=LocalSetupView)
     def setup():
         return {"mode": "local", "ready": True, "fiji_configured": bool(settings.fiji_executable),
-                "retention_hours": 24}
+                **settings.retention_policy}
 
-    @app.post("/v1/local/session")
+    @app.post("/v1/local/session", response_model=SessionView)
     def bootstrap(request: Request, response: Response):
         # The existing API middleware also requires exact Origin and the custom
         # CSRF header. Cross-origin forms, scripts and DNS rebinding cannot mint
@@ -174,7 +175,7 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
                                                      expires=now + 7 * 86400, revoked=False))
             response.set_cookie(settings.cookie_name, token, httponly=True, secure=False,
                                 samesite="strict", max_age=7 * 86400, path="/")
-        return {"authenticated": True, "mode": "local", "retention_hours": 24, "demo": settings.demo}
+        return {"authenticated": True, "mode": "local", **settings.retention_policy, "demo": settings.demo}
 
     app.mount("/", StaticFiles(directory=web_dir, html=True, follow_symlink=False), name="local-ui")
     return app
@@ -244,6 +245,20 @@ def local_cellpose_remote_environment(data_dir: Path) -> dict[str, str]:
         return {}
 
 
+def local_retention_mode(data_dir: Path) -> str:
+    """Setup's explicit per-installation choice; a recorded manual policy never reverts."""
+    if recorded_retention_mode(data_dir) == "manual":
+        return "manual"
+    path = data_dir.resolve().parent / "settings" / "retention.json"
+    try:
+        if path.is_file() and not path.is_symlink() and path.stat().st_size <= 4096 and json.loads(
+                path.read_text(encoding="utf-8-sig")) == {"schema": "cytellect-local-retention/1", "mode": "manual"}:
+            return "manual"
+    except (OSError, ValueError):
+        pass
+    return "ttl"
+
+
 def local_cellpose_environment(data_dir: Path) -> dict[str, str]:
     """Load an explicit local setup receipt without executing setup or downloading."""
     root = data_dir.resolve().parent
@@ -289,7 +304,8 @@ class WorkerSupervisor:
                    CYTELLECT_FIJI_EXECUTABLE=self.settings.fiji_executable,
                    CYTELLECT_WORKER_MEMORY_MB=str(self.settings.worker_memory_mb),
                    CYTELLECT_JOB_TIMEOUT_SECONDS=str(self.settings.job_timeout_seconds),
-                   CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds))
+                   CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds),
+                   CYTELLECT_WORKSPACE_RETENTION_MODE=self.settings.workspace_retention_mode)
         parent = psutil.Process()
         process = subprocess.Popen(
             [sys.executable, "-m", "cytellect_api.local_worker", str(parent.pid), str(parent.create_time())],
@@ -528,6 +544,7 @@ def main(argv=None):
         _report_startup_error(message, args.gui)
         raise SystemExit(2)
     settings = Settings(args.data_dir.resolve(), app_origin=f"http://127.0.0.1:{args.port}",
+                        workspace_retention_mode=local_retention_mode(args.data_dir.resolve()),
                         secure_cookies=False, fiji_executable=args.fiji)
     os.environ.pop("CYTELLECT_CODE_REVISION", None)
     revision = installed_source_revision()

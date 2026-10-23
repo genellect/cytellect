@@ -66,7 +66,7 @@ def main():
 
         settings = Settings.from_env()
         configure_private_tmp(settings)
-        store = Store(settings.data_dir)
+        store = Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode)
         from cytellect_worker.main import cleanup, process_one
         from cytellect_worker.supervision import terminate_tree
 

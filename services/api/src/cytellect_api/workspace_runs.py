@@ -111,7 +111,7 @@ def advance_workspace_runs(store, settings):
             wid = run["workspace_id"]
             steps = deepcopy(run["steps"])
             workspace = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().first()
-            if not workspace or workspace["deleted"] or workspace["expires"] <= time.time():
+            if not store.workspace_is_live(workspace):
                 conn.execute(
                     update(workspace_analysis_runs)
                     .where(workspace_analysis_runs.c.id == run["id"])
