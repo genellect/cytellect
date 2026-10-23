@@ -41,8 +41,7 @@ jobs:
         with: {python-version: "3.12"}
       - name: Install Japanese figure font for required rendering checks
         if: needs.changes.outputs.python == 'true'
-        # The runner's package index is usually current; refresh it only if the install fails.
-        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk; }
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --dev
       - if: needs.changes.outputs.python == 'true'
@@ -130,10 +129,7 @@ jobs:
       - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - run: pnpm build
       - name: Install browser for public-site regression
-        # The runner image already has Chrome's system libraries; install them only if Chromium cannot start.
-        run: |
-          pnpm --filter @cytellect/web exec playwright install chromium
-          pnpm --filter @cytellect/web exec node -e "require('@playwright/test').chromium.launch().then(b => b.close())" || pnpm --filter @cytellect/web exec playwright install-deps chromium
+        run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
       - name: Verify public LP and published-image viewer without an analysis API
         env:
           CYTELLECT_EXPECT_UNCONFIGURED: "1"
@@ -181,14 +177,12 @@ jobs:
         with: {node-version: "24"}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk; }
+      - run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
       - run: python -m pip install uv==0.12.2
       - run: npm install --global pnpm@11.19.0
       - run: uv sync --locked --dev
       - run: pnpm install --frozen-lockfile
-      - run: |
-          pnpm --filter @cytellect/web exec playwright install chromium
-          pnpm --filter @cytellect/web exec node -e "require('@playwright/test').chromium.launch().then(b => b.close())" || pnpm --filter @cytellect/web exec playwright install-deps chromium
+      - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
       - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64
       - run: uv run pytest -m fiji
       - name: Published DNA-actin inputs and independent ImageJ arithmetic
