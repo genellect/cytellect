@@ -77,6 +77,10 @@ export function DatasetCredit({dataset}: {dataset: ShowcaseDataset}) {
     {dataset.caveats.length > 0 && <ul>{dataset.caveats.map(caveat => <li key={caveat}>{caveat}</li>)}</ul>}
   </div>;
 }
+/** Short, always visible image credit beside the field list; the badge holds the full attribution. */
+export function SideCredit({dataset}: {dataset: ShowcaseDataset}) {
+  return <p className={styles.sideCredit} title={dataset.attribution}>公開画像{dataset.licence && <> · {dataset.licenceUrl ? <a href={dataset.licenceUrl} target="_blank" rel="noreferrer">{dataset.licence}</a> : dataset.licence}</>}{dataset.sourceUrl && <> · <a href={dataset.sourceUrl} target="_blank" rel="noreferrer">画像の出典</a></>}</p>;
+}
 export function DemoBadge({dataset}: {dataset: ShowcaseDataset | null}) {
   if (!dataset) return <span className={styles.badge}>デモ</span>;
   return <details className={styles.badgeMenu}>
