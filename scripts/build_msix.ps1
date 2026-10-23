@@ -130,7 +130,8 @@ Invoke-Checked $Python @('-B',$helper,'notices',$stage)
 Invoke-Checked $Python @('-B',$helper,'inventory',$stage,(Join-Path $WorkRoot 'payload-inventory.json'))
 [IO.Directory]::CreateDirectory((Split-Path -Parent $Output)) | Out-Null
 # Keep schema validation enabled; never use MakeAppx /nv to hide manifest errors.
-Invoke-Checked $MakeAppx @('pack','/d',$stage,'/p',$Output)
+& $MakeAppx pack /d $stage /p $Output *> (Join-Path $WorkRoot 'makeappx.private.log')
+if ($LASTEXITCODE -ne 0) { throw 'msix_package_creation_failed' }
 $digest = (Get-FileHash -LiteralPath $Output -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText(($Output + '.sha256'), ($digest + '  ' + [IO.Path]::GetFileName($Output) + "`n"), [Text.Encoding]::ASCII)
 Write-Host 'Unsigned MSIX prepared. Store identity, signing and installed-copy acceptance are separate gates.'
