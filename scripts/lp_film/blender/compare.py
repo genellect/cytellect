@@ -47,7 +47,7 @@ def main():
         if hashlib.sha256(path.read_bytes()).hexdigest() != source["sha256"]:
             raise ValueError(f"Source checksum mismatch: {source['id']}")
         crop = "crop={2}:{3}:{0}:{1},".format(*cut["crop"]) if cut.get("crop") else ""
-        filters = crop + "scale=640:360," + cut["adjust"] + "," + config["grade"]
+        filters = crop + "scale=640:360," + cut.get("adjust", "null") + "," + config["grade"]
         out = processed / f"stock-{cut['id']}.png"
         run_frame(args.ffmpeg, path, out, filters, cut["start"] + 1.2 if source["kind"] == "video" else None)
         references[cut["id"]] = out
@@ -71,7 +71,7 @@ def main():
         for col, frame in enumerate(frames):
             path = args.stills / f"{cut_id}-{frame:03d}.png"
             out = args.output / f"{cut_id}-{frame:03d}-graded.png"
-            run_frame(args.ffmpeg, path, out, cut["adjust"] + "," + config["grade"])
+            run_frame(args.ffmpeg, path, out, cut.get("adjust", "null") + "," + config["grade"])
             # Preserve neutral AgX files for direct, ungraded material inspection.
             (args.output / path.name).write_bytes(path.read_bytes())
             x = col * 640

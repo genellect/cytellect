@@ -1,0 +1,343 @@
+{
+  "status": "owner-still-review-pending",
+  "note": "Illustrative LP artwork, not research data. Full animation and integrated film preview have not been rendered or approved.",
+  "base_commit": "117c354b2d8fe7112fd7a315111242b5bd4045db",
+  "render_script": "scripts/lp_film/blender/render.py",
+  "text_checksum_newlines": "LF (Git blob canonical form)",
+  "render_script_sha256": "239bceed1d845b3b96b236ac5c73a31b0555a740735655dbcebea42e5354e5b0",
+  "compare_script_sha256": "8cfcd3aacbc41901510e1f46b8cf5b6b90a67b1b3f1b541518571706e80194f5",
+  "cuts_sha256": "3884efa1f62495a48d98fcadd3098b65d25ee439e8f222c1486d259ca51f43ca",
+  "sources_sha256": "bd49985c3b73d3e6365354864ed0298594d2a25df50c022dd2d3f049b013d3d1",
+  "comparison_config": {
+    "about": "LP のヒーロー映像の編集リスト。build_film.py が上から順に、クロスフェードでつないで最初のカットへ戻るループにする。owner が blender のカットは、render のファイルがあればそれを使い、なければ source の実写素材で代替する。方針は docs/lp-art-direction.md。",
+    "output": {
+      "video": "apps/web/public/marketing/hero-film.mp4",
+      "webm": "apps/web/public/marketing/hero-film.webm",
+      "poster": "apps/web/public/marketing/hero-film-poster.webp",
+      "provenance": "apps/web/public/marketing/hero-film-provenance.json",
+      "width": 1920,
+      "height": 1080,
+      "fps": 25,
+      "crf": 24,
+      "webm_crf": 38,
+      "fade": 0.7,
+      "poster_cut": "automation",
+      "poster_time": 1.0
+    },
+    "grade": "eq=contrast=1.08:brightness=-0.05:saturation=0.85,colorbalance=rs=-0.015:bs=0.02,curves=all='0/0.035 0.5/0.40 1/0.90'",
+    "cuts": [
+      {
+        "id": "automation",
+        "owner": "stock",
+        "source": "px-v-8940765",
+        "start": 4.6,
+        "duration": 3.4,
+        "speed": 1.0,
+        "crop": [
+          600,
+          300,
+          2640,
+          1485
+        ]
+      },
+      {
+        "id": "culture",
+        "owner": "stock",
+        "source": "px-p-3992927",
+        "duration": 3.2,
+        "crop": [
+          1400,
+          900,
+          1800,
+          1012
+        ],
+        "move": [
+          1.0,
+          1.06
+        ]
+      },
+      {
+        "id": "hands",
+        "owner": "stock",
+        "source": "px-v-3195394",
+        "start": 3.0,
+        "duration": 3.4,
+        "speed": 1.0
+      },
+      {
+        "id": "droplet",
+        "owner": "blender",
+        "render": "scripts/lp_film/renders/droplet.mp4",
+        "source": "px-p-18959104",
+        "duration": 3.2,
+        "crop": [
+          0,
+          664,
+          4632,
+          2606
+        ],
+        "move": [
+          1.0,
+          1.05
+        ],
+        "adjust": "eq=saturation=0.7"
+      },
+      {
+        "id": "glass",
+        "owner": "blender",
+        "render": "scripts/lp_film/renders/glass.mp4",
+        "source": "us-6Uu8CSP38AI",
+        "duration": 3.2,
+        "crop": [
+          0,
+          1640,
+          3266,
+          1837
+        ],
+        "move": [
+          1.0,
+          1.05
+        ],
+        "adjust": "eq=saturation=0.75"
+      }
+    ]
+  },
+  "comparison_note": "Top row: hands, culture, respective fallback; video sampled at start + 1.2s, crop then scale to 640x360, cut adjustment and shared grade. Still comparison only; no zoom, transitions, headlines or whole-film validation.",
+  "licenses": {
+    "generated": {
+      "id": "Apache-2.0",
+      "source": "LICENSE"
+    },
+    "pexels": {
+      "url": "https://www.pexels.com/license/",
+      "summary": "All photos and videos on Pexels are free to use. Attribution is not required. You can modify the photos and videos from Pexels. Don't imply endorsement of your product by people or brands on the imagery. Don't redistribute or sell the photos and videos on other stock photo or wallpaper platforms."
+    },
+    "unsplash": {
+      "url": "https://unsplash.com/license",
+      "summary": "Unsplash grants you an irrevocable, nonexclusive, worldwide copyright license to download, copy, modify, distribute (commercial and non-commercial purposes; no permission or attribution needed). Images cannot be sold without significant modification. Compiling images from Unsplash to replicate a similar or competing service is not permitted."
+    }
+  },
+  "reference_sources": [
+    {
+      "id": "px-p-3992927",
+      "role": "hero",
+      "scene": "培養フラスコと 6 穴プレート（安全キャビネット内）",
+      "kind": "photo",
+      "page": "https://www.pexels.com/photo/person-doing-an-experiment-3992927/",
+      "download": "https://images.pexels.com/photos/3992927/pexels-photo-3992927.jpeg",
+      "creator": "CDC",
+      "license": "pexels",
+      "size": "3600x2400",
+      "sha256": "34de448684aabe3e55acc0c297f4fbb4b19e909d267028555e78f2a656fc7234",
+      "treatment": "6 穴プレートとピペットの先端へ寄せて切り抜き、手袋・フラスコ・チューブを外す。灰緑の色かぶりと金属の映り込みを補正し、ゆっくり寄るカメラの動きを付ける。CDC の推奨を示唆しない"
+    },
+    {
+      "id": "px-v-3195394",
+      "role": "hero",
+      "scene": "手元：淡い色調で 96 穴プレートに分注する",
+      "kind": "video",
+      "page": "https://www.pexels.com/video/drops-of-liquid-on-a-tray-to-be-use-as-samples-3195394/",
+      "download": "https://videos.pexels.com/video-files/3195394/3195394-uhd_3840_2160_25fps.mp4",
+      "creator": "Pressmaster",
+      "license": "pexels",
+      "size": "3840x2160 25fps 14.0s",
+      "sha256": "11011423b6cc2389f331733d845290de09d089be6c2f37b3f9dbf2364f3509fd",
+      "treatment": "そのまま。共通の色調に揃える"
+    },
+    {
+      "id": "px-p-18959104",
+      "role": "hero-fallback",
+      "scene": "液滴：白に近い背景で落ちる水滴の列（Blender の droplet カットの代替）",
+      "kind": "photo",
+      "page": "https://www.pexels.com/photo/water-droplet-photography-18959104/",
+      "download": "https://images.pexels.com/photos/18959104/pexels-photo-18959104.jpeg",
+      "creator": "Kelemen Boldizsár",
+      "license": "pexels",
+      "size": "4632x3648",
+      "sha256": "9c7a0b3aafcbeb6815e7fa39cbdccebb3ff3573fa1bc27d40a64a84b0abd85b8",
+      "treatment": "ゆっくり寄るカメラの動き。青みを抜いて共通の色調に揃える"
+    },
+    {
+      "id": "us-6Uu8CSP38AI",
+      "role": "hero-fallback",
+      "scene": "光とガラス：ガラスの先端が液面に触れるマクロ（Blender の glass カットの代替）",
+      "kind": "photo",
+      "page": "https://unsplash.com/photos/water-drop-in-clear-glass-bottle-6Uu8CSP38AI",
+      "download": "https://images.unsplash.com/photo-1621958180351-126bb5062e57?fm=jpg&q=95",
+      "creator": "Colin Lloyd",
+      "license": "unsplash",
+      "size": "3266x4909",
+      "sha256": "2abb204b7c4761434f14fd320c3ee5c602fefdaffd81e26bf4cb4231943f1237",
+      "treatment": "縦位置から横長に切り抜く。ゆっくり寄るカメラの動き。黄みを抑える"
+    }
+  ],
+  "render_settings": {
+    "droplet": {
+      "blender": "4.5.9 LTS",
+      "engine": "CYCLES",
+      "frames": [
+        16,
+        49,
+        65
+      ],
+      "samples": 32,
+      "resolution": [
+        1440,
+        810
+      ],
+      "view_transform": "AgX",
+      "external_assets": [],
+      "approval": "pending",
+      "note": "Illustrative artwork; not a validated fluid simulation or research result."
+    },
+    "glass": {
+      "blender": "4.5.9 LTS",
+      "engine": "CYCLES",
+      "frames": [
+        1,
+        40,
+        80
+      ],
+      "samples": 32,
+      "resolution": [
+        1440,
+        810
+      ],
+      "view_transform": "AgX",
+      "external_assets": [],
+      "approval": "pending",
+      "note": "Illustrative artwork; not a validated fluid simulation or research result."
+    }
+  },
+  "assets": [
+    {
+      "file": "droplet-016-graded.png",
+      "kind": "graded",
+      "bytes": 497251,
+      "sha256": "70e599ff897215cc8a69ca8d7f665e71be0ecffefe3b44e3e97bf14973a0e4a0",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "droplet-016.png",
+      "kind": "neutral",
+      "bytes": 4520146,
+      "sha256": "612eb0c8a9d4d11b3d0e6349acd86475e976aaa2e82fa204e1bde424890131c1",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "droplet-049-graded.png",
+      "kind": "graded",
+      "bytes": 505392,
+      "sha256": "03d0a93223c220b1aaa360a45566099bd415da2485c470ca40813d76e3b16289",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "droplet-049.png",
+      "kind": "neutral",
+      "bytes": 4536024,
+      "sha256": "33e8b544b98be323b17a7ef4d097df35b0dab28c13bab88d78100bb0402b547c",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "droplet-065-graded.png",
+      "kind": "graded",
+      "bytes": 499915,
+      "sha256": "35d9dc0989f5cdb994f617c0a5b5ac54c39b5c5e88c74ac3fd14cbcc2db90da1",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "droplet-065.png",
+      "kind": "neutral",
+      "bytes": 4506545,
+      "sha256": "30a3305fb0175572c9795af4ffc1fbc78884e8dd2ce66c0f3117018a1f51ec20",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "droplet-comparison.jpg",
+      "kind": "comparison",
+      "bytes": 467565,
+      "sha256": "555f00f2e7ecc0e1a0d112c831978876c213bae1591b8768b12624ee969e0575",
+      "licenses": [
+        "generated",
+        "pexels"
+      ]
+    },
+    {
+      "file": "glass-001-graded.png",
+      "kind": "graded",
+      "bytes": 372146,
+      "sha256": "2692a04b883cd56b5a74e1dfc04a1f0d40ae0393f36aa33c7ab10e2d68cfa865",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "glass-001.png",
+      "kind": "neutral",
+      "bytes": 4450672,
+      "sha256": "fa7760ce7802fc92df561cb7f707eef8b8898db67bc6ba0afbce3af138054017",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "glass-040-graded.png",
+      "kind": "graded",
+      "bytes": 369458,
+      "sha256": "7959f070eabd70acc5b19d2dd8b25b50c6199b49e83a154fa6564fd3629616ce",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "glass-040.png",
+      "kind": "neutral",
+      "bytes": 4435704,
+      "sha256": "598475d8128c1bbe96814b1c60ca8a6dd757fb44e43aaf22c4dc329207a24339",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "glass-080-graded.png",
+      "kind": "graded",
+      "bytes": 365661,
+      "sha256": "06560c5cf91c20cb17e1ae9737a7e31dfc5a5c6fc18fc0e1d73687eb03debe1a",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "glass-080.png",
+      "kind": "neutral",
+      "bytes": 4423460,
+      "sha256": "d85b49e3921e995ce2295e137590b58ce493f658fce02b54af5e4f164ba2a1a0",
+      "licenses": [
+        "generated"
+      ]
+    },
+    {
+      "file": "glass-comparison.jpg",
+      "kind": "comparison",
+      "bytes": 457269,
+      "sha256": "d9babf7552c935b7092439ed38aea667ee5bf0f140617ca5b518c565c4ed80ef",
+      "licenses": [
+        "generated",
+        "pexels",
+        "unsplash"
+      ]
+    }
+  ]
+}

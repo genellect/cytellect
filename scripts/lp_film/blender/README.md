@@ -13,7 +13,25 @@
 - SI メートルのシーン。色付き照明や独自のグレーディングは使用しない。
   中立色の AgX 静止画に、比較時だけ既存 `cuts.json` の補正を適用する。
 - HDRI・画像テクスチャ・外部モデルは使用しない。全形状と照明をコードで再現する。
-  `.blend`、実写原本、比較用画像は Git に含めない。
+  `.blend` と実写原本は Git に含めない。レビュー用の静止画と比較画像は
+  `scripts/lp_film/renders/review/` に登録し、Claude のクラウド環境からも取得できる。
+
+## 登録済みの素材
+
+`scripts/lp_film/renders/review/` に、中立色 PNG 6 枚、`-graded.png` 6 枚、
+`-comparison.jpg` 2 枚を置く。画像の確認には Blender のインストールは不要。
+`provenance.json` に生成条件、各画像の SHA-256、比較時の編集設定、実写の出典と
+ライセンスを記録する。比較画像の実写部分には Pexels / Unsplash の条件が適用される。
+
+今回の比較画像は宛先ブランチの `117c354` 時点の実写・色補正で作成した。
+中立色の 6 枚は初回の描画から変更していない。静止画の合否は未判定。
+これらは採用済みの MP4 ではなく、ビルド時の実写フォールバックも置き換えない。
+他の作業中の checkout を切り替えず、必要に応じて独立した worktree で取得する。
+
+```sh
+git fetch origin feat/lp-film-blender
+git worktree add --detach ../cytellect-lp-film-review origin/feat/lp-film-blender
+```
 
 ## 寸法の根拠と近似
 
