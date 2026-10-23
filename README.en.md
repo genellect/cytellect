@@ -48,7 +48,7 @@ Detection masks are stored as integer labels in the same coordinate system as th
 
 The Fiji/TensorFlow Java and Cellpose-SAM/PyTorch inference environments are independent. Each pins its dependencies and models and verifies their hashes at run time.
 
-**Fine-tuning** uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
+**Fine-tuning** has produced a published NCL-condition candidate using real images and researcher-approved reference masks. The current code retains the original `cpsam_v2` baseline; selectable candidate integration is in a draft PR, and scientific adoption remains incomplete. The default has not been changed; any future switch requires a separate decision. A dedicated cytoplasm detection and quantification path is also outstanding. Training data, weights and inference settings are versioned together, while exposed development evaluation is kept separate from final evaluation on untouched experimental groups. See the [current direction, PR dependencies and remaining work](docs/roadmap.md).
 
 ## Web workspace
 
