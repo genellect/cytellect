@@ -4,6 +4,13 @@
 returned (``{"model", "prompt_version", "draft"}``), keyed by
 ``context_sha256`` of the normalized context the API sent. The API still
 validates every replayed draft with the same ``validate_draft`` as production.
+
+Entries whose ``source`` is ``showcase-authored`` are drafts written for the demo's
+preset instructions (no model was called; the draft depends only on the
+instruction). When the exact context was not recorded (the visitor changed a
+setting first), such a draft is still returned for the same instruction if it
+passes ``validate_draft`` for the current context. Model outputs are only ever
+replayed for the exact context they were recorded for.
 """
 
 from __future__ import annotations
@@ -15,6 +22,7 @@ from pathlib import Path
 
 NOT_RECORDED = "showcase_proposal_not_recorded"
 FORMAT_VERSION = 1
+AUTHORED = "showcase-authored"
 
 
 class Recordings:
@@ -49,7 +57,26 @@ class Recordings:
         from cytellect_analysis.proposal_validation import context_sha256
         from cytellect_api.proposals import ProposalServiceError
 
-        payload = self.entries.get(context_sha256(context))
+        payload = self.entries.get(context_sha256(context)) or self._authored(context)
         if payload is None:
             raise ProposalServiceError(409, NOT_RECORDED)
         return copy.deepcopy(payload)
+
+    def _authored(self, context) -> dict | None:
+        """The demo-authored draft for this preset instruction, valid for the current context."""
+        from cytellect_analysis.proposal_validation import ProposalRejected, validate_draft
+
+        goal = context.goal.strip()
+        candidates = [payload for payload in self.entries.values()
+                      if payload.get("source") == AUTHORED and isinstance(payload.get("goal"), str)
+                      and payload["goal"].strip() == goal]
+        # Prefer the recording made after the same previous instruction, then any other.
+        candidates.sort(key=lambda payload: payload.get("previous_goal", "") != context.previous_goal)
+        for payload in candidates:
+            try:
+                validate_draft(context, copy.deepcopy(payload["draft"]), model=payload["model"],
+                               prompt_version=payload["prompt_version"])
+            except ProposalRejected:
+                continue
+            return payload
+        return None
