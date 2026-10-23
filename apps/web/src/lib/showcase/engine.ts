@@ -5,6 +5,8 @@ import type {ShowcaseEngine} from "./transport";
 type Waiting = {resolve: (value: WorkerOutbound) => void; reject: (error: Error) => void};
 
 export function createWorkerEngine(config: RuntimeConfig, devBackend: string | null): ShowcaseEngine | null {
+  // Local (Windows) builds use the real API; this inlined constant drops the worker from their export.
+  if (process.env.NEXT_PUBLIC_CYTELLECT_WEB_MODE === "local") return null;
   if (!devBackend && !config.indexURL) return null;
   let worker: Worker | null = null, sequence = 0;
   const waiting = new Map<number, Waiting>();
