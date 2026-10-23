@@ -53,7 +53,13 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行します�
 
 ### 4. Cytellect に設定する
 
-**Windows 版**：セットアップ画面の「Cellpose用クラウドGPUの接続先」に手順 3 の URL を、「接続キー」に手順 2 の 4 の接続用トークンを入れます。入れ方（ID と Secret のつなぎ方）は、動作確認の後にここに書きます。
+**Windows 版**：セットアップ画面の「Cellpose用クラウドGPUの接続先」に手順 3 の URL を入れます。「接続キー」には、手順 2 の 4 の接続用トークンの ID と Secret を、**ピリオド（`.`）でつないで**入れます。
+
+```
+wk-…….ws-……
+```
+
+Cytellect はこの値を `Authorization: Bearer` として送り、Modal はこの形を受け付けます（[Modal の説明](https://modal.com/docs/guide/webhook-proxy-auth)）。ID だけ、Secret だけ、または別の記号でつなぐと、すべての要求が拒否されます。
 
 **Docker 版**：現時点では使えません。Docker 版の worker は、研究画像を外へ出さないため、ネットワークから切り離しています（`compose.yaml` の `network_mode: none`）。worker にクラウド GPU の接続を許す設定は、安全設計の見直しとあわせて別に用意します。
 
@@ -63,7 +69,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行します�
 
 ```sh
 CYTELLECT_CELLPOSE_REMOTE_URL=https://….modal.run \
-CYTELLECT_CELLPOSE_REMOTE_TOKEN=… \
+CYTELLECT_CELLPOSE_REMOTE_TOKEN=wk-…….ws-…… \
 uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A01-dapi.tif --crop 320 \
   --skip-local --receipt cellpose-remote-check.json
 ```
