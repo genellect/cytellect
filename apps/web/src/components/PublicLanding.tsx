@@ -96,8 +96,8 @@ export default function PublicLanding() {
           <div id="launch" className={lp.prose}><h3>インストール済みの方</h3><p>デスクトップの「Cytellect」を開くと、解析画面がブラウザに表示されます。起動済みの場合は、Cytellectの起動画面で「ブラウザで開く」を選択してください。</p><p>再ダウンロード・再インストールは不要です。</p></div>
           <div id="scope" className={lp.prose}>
             <details><summary>対応する画像と解析</summary><p>汎用の領域解析は8／16-bitグレースケールのチャンネル別2D TIFFを扱います。核・核小体・GFPの専用レシピでは、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）も読み込めます。手動・整数ラベル・確認した核染色からの検出領域で、面積・輝度を測定できます。</p><p>3D、時系列、自動細胞境界検出、任意の構造の自動検出は対象外です。大きな画像では、検出用に縮小した複製で核を検出し、測定は元の画素で行います。</p></details>
-            <details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。アップロードした研究画像が、この公開サイトに送られることはありません。</p><a data-lp-event="setup" href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details>
-            <details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details>
+            <details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。Cellposeの検出だけは、管理者が設定したクラウドGPUで実行できます。アップロードした研究画像が、この公開サイトに送られることはありません。</p><a data-lp-event="setup" href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details>
+            <details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。管理者がCellpose用のクラウドGPUを設定した場合に限り、Cellposeの検出に使う画像をそのGPUへ送ります。送った画像はクラウド側に保存しません。</p><p>作業は、既定ではワークスペースで削除するまで保持します。セットアップで選択を外した場合は、最後の明示的な操作から24時間で削除します。</p><p>必要な結果は保存機能から書き出し、別の媒体にもバックアップしてください。作業の削除はワークスペース内から実行できます。</p></details>
           </div>
         </div>
       </section>
