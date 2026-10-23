@@ -410,7 +410,7 @@ def cleanup(store):
     with store.transaction() as conn:
         expired = (
             conn.execute(
-                select(workspaces).where(workspaces.c.deleted.is_(True) | (workspaces.c.expires <= now))
+                select(workspaces).where(workspaces.c.deleted.is_(True) | store.workspace_expired_filter(now))
             )
             .mappings()
             .all()
@@ -464,7 +464,7 @@ def main():
     parser.add_argument("--poll-seconds", type=float, default=2)
     args = parser.parse_args()
     settings = Settings.from_env()
-    store = Store(settings.data_dir)
+    store = Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode)
     while True:
         cleanup(store)
         worked = process_one(store, settings)

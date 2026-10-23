@@ -52,8 +52,7 @@ class UploadGuardMiddleware:
             return
         wid, kind = route.groups()
         workspace = self.store.one(workspaces, id=wid)
-        if (not workspace or workspace["owner"] != session["owner"] or workspace["deleted"]
-                or workspace["expires"] <= now):
+        if not self.store.workspace_is_live(workspace, now) or workspace["owner"] != session["owner"]:
             await reject(404, "workspace_not_found")
             return
         if self.settings.demo:

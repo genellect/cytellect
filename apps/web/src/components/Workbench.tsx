@@ -1,4 +1,5 @@
 "use client";
+import {workspaceDeadline} from "@/lib/retention";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -95,7 +96,7 @@ export default function Workbench({id,session,onBack,onError}:Props){
   change({exclusions:[...others,{field_id:fid,nucleus_id:nucleusId,reason:excludeReason.trim()}]});
  }
  return <main className={styles.workbench}>
-  <div className={styles.workHeader}><div><button className={styles.back} onClick={onBack}>← 作業一覧</button><h1>{space.data?.title||"ワークスペース"}</h1><span className={styles.muted}>{fields.data?.length||0} 視野 · {active?`解析版 ${currentIndex+1}`:"解析前"} · {active?.reviewed?"品質確認済み":"品質確認前"}{active?.config.field_ids&&` · 解析対象 ${active.config.field_ids.length} 視野`}</span></div><div className={styles.workHeaderRight}><span className={styles.small}>有効期限 {space.data?new Date(space.data.expires*1000).toLocaleString("ja-JP"):"—"}</span><button className={styles.secondary} disabled={busy} onClick={()=>run(async()=>{await post(`/v1/workspaces/${id}/touch`);})}>保存期限を24時間延長</button></div></div>
+  <div className={styles.workHeader}><div><button className={styles.back} onClick={onBack}>← 作業一覧</button><h1>{space.data?.title||"ワークスペース"}</h1><span className={styles.muted}>{fields.data?.length||0} 視野 · {active?`解析版 ${currentIndex+1}`:"解析前"} · {active?.reviewed?"品質確認済み":"品質確認前"}{active?.config.field_ids&&` · 解析対象 ${active.config.field_ids.length} 視野`}</span></div><div className={styles.workHeaderRight}><span className={styles.small}>{workspaceDeadline(space.data?.expires)}</span>{typeof space.data?.expires === "number" && <button className={styles.secondary} disabled={busy} onClick={()=>run(async()=>{await post(`/v1/workspaces/${id}/touch`);})}>保存期限を延長</button>}</div></div>
   <nav className={styles.tabs} aria-label="解析工程"><button className={tab==="analysis"?styles.activeTab:""} onClick={()=>setTab("analysis")}>01 <b>画像と領域</b></button><button className={tab==="statistics"?styles.activeTab:""} onClick={()=>setTab("statistics")}>02 <b>統計解析</b></button><button className={tab==="export"?styles.activeTab:""} onClick={()=>setTab("export")}>03 <b>保存と履歴</b></button><span className={styles.tabStatus}>{running?"● 解析を実行中":dirty?"● 条件に未反映の変更があります":active?.reviewed?"✓ 確認済みの解析版":"修正は新しい解析版として保存されます"}</span></nav>
   {(space.error||fields.error)&&<div className={styles.error} role="alert">{errorMessage(space.error||fields.error)}</div>}
   {tab==="analysis"&&<>

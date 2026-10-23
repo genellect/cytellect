@@ -8,7 +8,8 @@ param(
     [switch]$VerifyOnly,
     # Remote GPU service for Cellpose, from the administrator; blank keeps the saved setting.
     [string]$CellposeRemoteUrl = '',
-    [string]$CellposeRemoteToken = ''
+    [string]$CellposeRemoteToken = '',
+    [ValidateSet('manual', 'ttl')][string]$WorkspaceRetention = 'manual'
 )
 
 Set-StrictMode -Version Latest
@@ -337,6 +338,29 @@ function Remove-LegacyVersionShortcuts([string]$Root, [string[]]$Directories) {
     return $removed
 }
 
+function Set-WorkspaceRetention([string]$Root, [string]$Requested) {
+    # A per-installation choice. Manual retention is irreversible: once research data
+    # has been kept, an earlier 24-hour deadline must never delete it on a later start.
+    $path = Get-SafeChild $Root 'settings/retention.json'
+    $current = 'ttl'
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        try {
+            if ((Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json).mode -ceq 'manual') { $current = 'manual' }
+        } catch { }
+    }
+    # The application leaves a permanent marker beside the database once it has kept
+    # data. A lost or damaged settings file must not make setup report 24-hour deletion.
+    $kept = Test-Path -LiteralPath (Get-SafeChild $Root 'data/.manual-workspace-retention') -PathType Leaf
+    if ($current -eq 'manual' -or ($Requested -ne 'manual' -and -not $kept)) { return $current }
+    [IO.Directory]::CreateDirectory((Get-SafeChild $Root 'settings')) | Out-Null
+    $temporary = Get-SafeChild $Root ('settings/retention-' + [Guid]::NewGuid().ToString('N') + '.json')
+    $value = [ordered]@{ schema = 'cytellect-local-retention/1'; mode = 'manual' } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText($temporary, $value, [Text.UTF8Encoding]::new($false))
+    if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, [NullString]::Value) }
+    else { [IO.File]::Move($temporary, $path) }
+    return 'manual'
+}
+
 function Install-Cytellect {
     $script:LaunchInfo = $null
     Update-SetupStatus 'verify_release' '配布ファイルを検証しています…'
@@ -432,6 +456,7 @@ function Install-Cytellect {
         '--result', (Get-SafeChild $root 'setup-cache/installation-check.json')) $app @{} 180
     Assert-PythonRuntimeInventory $runtime.path $runtime.inventory
     Assert-SignedPythonVenv $app $runtime
+    $retention = Set-WorkspaceRetention $root $WorkspaceRetention
     $data = Get-SafeChild $root 'data'
     [IO.Directory]::CreateDirectory($data) | Out-Null
     $web = Get-SafeChild $app 'apps/web/out'
@@ -478,7 +503,7 @@ function Install-Cytellect {
         python_data_sha256 = $runtime.specification.data_asset.sha256; python_inventory = $runtime.receipt
         wheel_sha256 = $install.wheel.sha256; requirements_sha256 = $install.requirements.sha256
         uv = $script:UvVersion; uv_sha256 = $script:UvSha256
-        cellpose_remote = [bool](Get-CellposeRemoteUrl $root) }
+        cellpose_remote = [bool](Get-CellposeRemoteUrl $root); workspace_retention = $retention }
     [IO.File]::WriteAllText((Get-SafeChild $app 'setup-complete.json'), ($state | ConvertTo-Json))
     # Checks above must succeed before registering or removing any prior version.
     # Observe cancellation before entering the storage commit. Once collection
@@ -501,6 +526,8 @@ function Install-Cytellect {
         # Housekeeping must never invalidate the successfully checked app.
         # The collector preserves unverified trees; do not print private paths.
     }
+    $storageText += $(if ($retention -eq 'manual') { ' 作業データは削除操作まで保持します。' }
+        else { ' 作業データは最後の操作から24時間で削除されます。' })
     $storageText += $(if ($state.cellpose_remote) { ' Cellposeはクラウド GPU で実行します。' }
         else { ' クラウド GPU が未設定のため、Cellposeは使えません。管理者から接続先と接続キーを受け取り、セットアップで入力してください。' })
     $script:Phase = 'complete'
@@ -548,7 +575,7 @@ Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'Cytellect セットアップ'
-$form.Size = [Drawing.Size]::new(620, 560)
+$form.Size = [Drawing.Size]::new(620, 620)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
@@ -559,7 +586,7 @@ $title.SetBounds(24, 22, 560, 32)
 $title.Font = [Drawing.Font]::new('Yu Gothic UI', 14, [Drawing.FontStyle]::Bold)
 $form.Controls.Add($title)
 $description = [Windows.Forms.Label]::new()
-$description.Text = "解析用Python・Fijiを専用フォルダーに準備します。`r`n既存ソフトやシステムPATHは変更しません。`r`n初回・依存環境の更新時は通信と空き容量が必要です。`r`n研究画像はPC内で保存。24時間期限、停止中の削除は次回起動時です。"
+$description.Text = "解析用Python・Fijiを専用フォルダーに準備します。`r`n既存ソフトやシステムPATHは変更しません。`r`n初回・依存環境の更新時は通信と空き容量が必要です。`r`n研究画像はPC内に保存。Cellposeの検出時だけ、設定したクラウドGPUへ送ります。"
 $description.SetBounds(24, 66, 560, 94)
 $form.Controls.Add($description)
 $destinationLabel = [Windows.Forms.Label]::new()
@@ -571,38 +598,47 @@ $destinationBox.Text = $InstallRoot
 $destinationBox.ReadOnly = $true
 $destinationBox.SetBounds(24, 188, 560, 32)
 $form.Controls.Add($destinationBox)
+$retentionBox = [Windows.Forms.CheckBox]::new()
+$retentionBox.Text = '作業データを自動で削除せず、削除操作まで保持する（推奨）'
+$retentionBox.Checked = ($WorkspaceRetention -eq 'manual')
+$retentionBox.SetBounds(24, 226, 560, 24)
+$form.Controls.Add($retentionBox)
+$retentionNote = [Windows.Forms.Label]::new()
+$retentionNote.Text = 'オフにすると最後の操作から24時間で削除します。保持を一度選んだ保存先は、24時間削除に戻せません。'
+$retentionNote.SetBounds(44, 250, 540, 36)
+$form.Controls.Add($retentionNote)
 $savedRemoteUrl = Get-CellposeRemoteUrl $InstallRoot
 $remoteLabel = [Windows.Forms.Label]::new()
 $remoteLabel.Text = $(if ($savedRemoteUrl) { 'Cellpose用クラウドGPUの接続先（設定済み。変更する場合のみ入力）' }
     else { 'Cellpose用クラウドGPUの接続先（管理者から受け取ったもの。任意）' })
-$remoteLabel.SetBounds(24, 228, 560, 20)
+$remoteLabel.SetBounds(24, 296, 560, 20)
 $form.Controls.Add($remoteLabel)
 $remoteUrlBox = [Windows.Forms.TextBox]::new()
 $remoteUrlBox.Text = $(if ($CellposeRemoteUrl) { $CellposeRemoteUrl } else { $savedRemoteUrl })
-$remoteUrlBox.SetBounds(24, 250, 560, 28)
+$remoteUrlBox.SetBounds(24, 318, 560, 28)
 $form.Controls.Add($remoteUrlBox)
 $remoteTokenLabel = [Windows.Forms.Label]::new()
 $remoteTokenLabel.Text = $(if ($savedRemoteUrl) { '接続キー（変更する場合のみ入力）' } else { '接続キー' })
-$remoteTokenLabel.SetBounds(24, 284, 560, 20)
+$remoteTokenLabel.SetBounds(24, 352, 560, 20)
 $form.Controls.Add($remoteTokenLabel)
 $remoteTokenBox = [Windows.Forms.TextBox]::new()
 $remoteTokenBox.UseSystemPasswordChar = $true
-$remoteTokenBox.SetBounds(24, 306, 560, 28)
+$remoteTokenBox.SetBounds(24, 374, 560, 28)
 $form.Controls.Add($remoteTokenBox)
 $script:StatusLabel = [Windows.Forms.Label]::new()
 $script:StatusLabel.Text = '「セットアップ」を押すと準備を開始します。'
-$script:StatusLabel.SetBounds(24, 346, 560, 70)
+$script:StatusLabel.SetBounds(24, 414, 560, 60)
 $form.Controls.Add($script:StatusLabel)
 $progress = [Windows.Forms.ProgressBar]::new()
-$progress.SetBounds(24, 422, 560, 12)
+$progress.SetBounds(24, 484, 560, 12)
 $form.Controls.Add($progress)
 $installButton = [Windows.Forms.Button]::new()
 $installButton.Text = 'セットアップ'
-$installButton.SetBounds(344, 460, 115, 34)
+$installButton.SetBounds(344, 520, 115, 34)
 $form.Controls.Add($installButton)
 $closeButton = [Windows.Forms.Button]::new()
 $closeButton.Text = '閉じる'
-$closeButton.SetBounds(469, 460, 115, 34)
+$closeButton.SetBounds(469, 520, 115, 34)
 $form.Controls.Add($closeButton)
 $installButton.Add_Click({
     if ($null -ne $script:LaunchInfo) {
@@ -633,6 +669,8 @@ $installButton.Add_Click({
     $remoteTokenBox.Enabled = $false
     $script:Installing = $true
     $script:Cancelled = $false
+    $script:WorkspaceRetention = if ($retentionBox.Checked) { 'manual' } else { 'ttl' }
+    $retentionBox.Enabled = $false
     $installButton.Enabled = $false
     $closeButton.Text = 'キャンセル'
     $progress.Style = 'Marquee'

@@ -57,7 +57,7 @@ from .region_comparisons import register_region_comparison_routes
 from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
-from .views import FieldView, JobView, MasksView, RevisionView, WorkspaceView
+from .views import FieldView, JobView, MasksView, RevisionView, SessionView, WorkspaceView
 from .workspace_runs import register_workspace_run_routes
 from .workspace_selection import register_workspace_selection_routes
 
@@ -86,7 +86,7 @@ class RevisionInput(BaseModel):
 def create_app(settings: Settings | None = None):
     settings = settings or Settings.from_env()
     configure_private_tmp(settings)
-    store = Store(settings.data_dir)
+    store = Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode)
     api = FastAPI(title="Cytellect private API", version="0.1.0", docs_url=None, redoc_url=None)
     api.state.store, api.state.settings = store, settings
     if settings.desktop_owner:
@@ -146,7 +146,7 @@ def create_app(settings: Settings | None = None):
 
     def workspace(wid, who):
         value = store.one(workspaces, id=wid)
-        if not value or value["owner"] != who or value["deleted"] or value["expires"] <= time.time():
+        if not store.workspace_is_live(value) or value["owner"] != who:
             raise HTTPException(404, "workspace_not_found")
         return value
 
@@ -165,13 +165,14 @@ def create_app(settings: Settings | None = None):
 
     def touch(conn, wid):
         current = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().first()
-        if not current or current["deleted"] or current["expires"] <= time.time():
+        if not store.workspace_is_live(current):
             raise HTTPException(404, "workspace_not_found")
-        conn.execute(
-            update(workspaces)
-            .where(workspaces.c.id == wid)
-            .values(expires=time.time() + settings.retention_seconds)
-        )
+        if settings.workspace_retention_mode == "ttl":
+            conn.execute(
+                update(workspaces)
+                .where(workspaces.c.id == wid)
+                .values(expires=time.time() + settings.retention_seconds)
+            )
 
     def queue(conn, wid, rid, kind, payload):
         count = conn.execute(
@@ -260,9 +261,9 @@ def create_app(settings: Settings | None = None):
         )
         return {"authenticated": True}
 
-    @api.get("/v1/session")
+    @api.get("/v1/session", response_model=SessionView)
     def session(who: Owner):
-        return {"authenticated": True, "retention_hours": 24, "demo": settings.demo}
+        return {"authenticated": True, **settings.retention_policy, "demo": settings.demo}
 
     @api.delete("/v1/session")
     def logout(request: Request, response: Response, who: Owner):
@@ -280,9 +281,9 @@ def create_app(settings: Settings | None = None):
     @api.get("/v1/workspaces", response_model=list[WorkspaceView])
     def list_workspaces(who: Owner):
         return [
-            dict(r)
+            store.workspace_view(r)
             for r in store.rows(workspaces, owner=who)
-            if not r["deleted"] and r["expires"] > time.time()
+            if store.workspace_is_live(r)
         ]
 
     @api.post("/v1/workspaces", status_code=201, response_model=WorkspaceView)
@@ -307,11 +308,11 @@ def create_app(settings: Settings | None = None):
                     analysis_plan=selected_plan,
                 )
             )
-        return dict(store.one(workspaces, id=wid))
+        return store.workspace_view(store.one(workspaces, id=wid))
 
     @api.get("/v1/workspaces/{wid}", response_model=WorkspaceView)
     def get_workspace(wid: str, who: Owner):
-        return dict(workspace(wid, who))
+        return store.workspace_view(workspace(wid, who))
 
     @api.delete("/v1/workspaces/{wid}")
     def delete_workspace(wid: str, who: Owner):
@@ -330,7 +331,7 @@ def create_app(settings: Settings | None = None):
         workspace(wid, who)
         with store.transaction() as c:
             touch(c, wid)
-        return {"expires": store.one(workspaces, id=wid)["expires"]}
+        return {"expires": store.workspace_view(store.one(workspaces, id=wid))["expires"]}
 
     @api.get("/v1/workspaces/{wid}/fields", response_model=list[FieldView])
     def list_fields(wid: str, who: Owner):
@@ -412,7 +413,7 @@ def create_app(settings: Settings | None = None):
                 count = c.execute(
                     select(func.count()).select_from(fields).where(fields.c.workspace_id == wid)
                 ).scalar_one()
-                if w["deleted"] or w["expires"] <= time.time():
+                if not store.workspace_is_live(w):
                     raise HTTPException(404, "workspace_not_found")
                 if any(is_region(existing) for existing in c.execute(
                     select(fields).where(fields.c.workspace_id == wid)

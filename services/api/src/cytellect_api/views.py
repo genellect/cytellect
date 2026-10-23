@@ -7,12 +7,28 @@ from cytellect_analysis.plan_adoption import AdoptedPlan
 from pydantic import BaseModel, Field
 
 
+class SessionView(BaseModel):
+    authenticated: bool
+    retention_mode: Literal["ttl", "manual"]
+    retention_hours: float | None
+    demo: bool = False
+    mode: Literal["local"] | None = None
+
+
+class LocalSetupView(BaseModel):
+    mode: Literal["local"]
+    ready: bool
+    fiji_configured: bool
+    retention_mode: Literal["ttl", "manual"]
+    retention_hours: float | None
+
+
 class WorkspaceView(BaseModel):
     id: str
     owner: str
     title: str
     created: float
-    expires: float
+    expires: float | None
     deleted: bool
     active_revision: str | None
     bytes: int

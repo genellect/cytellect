@@ -176,3 +176,16 @@ an explicit retry; the UI warns that retrying may incur another charge.
 Public-data/browser acceptance and Windows archive acceptance are recorded against
 the exact release commit. These checks do not establish private-image validity,
 Windows application-control compatibility on every device, or human usability.
+
+### Optional lab retention policy
+
+Windows setup asks how to keep workspaces. The default choice keeps them until
+explicit deletion (`settings/retention.json`); unchecking it keeps 24-hour TTL
+deletion. Once manual retention has been recorded for an installation it is not
+reverted, even if setup is rerun with the other choice. Docker Desktop selects it
+with `CYTELLECT_WORKSPACE_RETENTION_MODE=manual`. The mode is consistently
+propagated to the child worker. Its API/UI reports no age
+deadline; manual deletion, session expiry and job leases are unchanged. See
+[Docker Desktop retention](docker-desktop.md#explicit-laboratory-retention-implementation-not-a-release-acceptance)
+for the durable mode marker, capacity responsibility and transition restrictions.
+This is source implementation, not installed-copy or Docker delivery acceptance.
