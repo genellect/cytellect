@@ -15,10 +15,20 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(hero.getByRole("link",{name:"ダウンロード",exact:true})).toHaveAttribute("href","#download");
  await expect(hero.getByRole("link",{name:"解析例を見る",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("button",{name:/領域/})).toHaveCount(0);
+ // What Cytellect does is split into tabs; each opens the matching step of the public demo.
+ const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
+ await expect(features.getByRole("tab")).toHaveText(["解析の流れ","核小体の検出","AIによる設定","統計と論文の図"]);
+ for(const [tab,title,link,href] of [["核小体の検出",/^汎用のモデルでは見つからない核小体を、/,"この画像を解析例で見る","/demo?step=image"],["AIによる設定",/^やりたい解析を一文で書くと、/,"解析例でAIに指示する","/demo"],["統計と論文の図",/^nは細胞の数ではなく、/,"統計とグラフを解析例で見る","/demo?step=figure"],["解析の流れ",/^検出・修正・測定から、/,"解析例を操作する","/demo"]] as const){
+  await features.getByRole("tab",{name:tab,exact:true}).click();
+  const panel=page.getByRole("tabpanel",{name:tab,exact:true});
+  await expect(panel.getByRole("heading",{name:title})).toBeVisible();
+  await expect(panel.getByRole("link",{name:link,exact:true})).toHaveAttribute("href",href);
+  await expect(page.getByRole("tabpanel")).toHaveCount(1);
+ }
+ await features.getByRole("tab",{name:"解析の流れ",exact:true}).press("ArrowLeft");
+ await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toBeFocused();
+ await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toHaveAttribute("aria-selected","true");
  await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
- // Each claim on the page opens the matching step of the public demo.
- await expect(page.getByRole("link",{name:"この画像を解析例で見る",exact:true})).toHaveAttribute("href","/demo?step=image");
- await expect(page.getByRole("link",{name:"統計とグラフを解析例で見る",exact:true})).toHaveAttribute("href","/demo?step=figure");
  const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir)fs.mkdirSync(dir,{recursive:true});
  for(const [width,height] of [[1440,900],[1280,800],[768,1024],[390,844],[360,800]]){
   await page.setViewportSize({width,height});
@@ -26,8 +36,8 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
-  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^汎用のモデルでは見つからない核小体を、/,/^やりたい解析を一文で書くと、/,/^nは細胞の数ではなく、/,/^画像の解析はすべて手元のPCの中で/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
-  if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
+  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^核の形、核と細胞質の輝度の比、/,/^画像の解析はすべて手元のPCの中で/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
+  if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').filter({visible:true}).all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
  }
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));
  const toggle=page.getByRole("button",{name:"メニューを開く",exact:true});await toggle.click();
@@ -37,7 +47,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await page.keyboard.press("Escape");await expect(toggle).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await toggle.click();await nav.getByRole("link",{name:"ガイド",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await expect(page.getByRole("heading",{name:"使い方と解析方法",exact:true})).toBeVisible();
- const images=page.locator('main img[src^="/marketing/"]');
+ const images=page.locator('main img[src^="/marketing/"]').filter({visible:true});
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
  await page.getByRole("link",{name:"図を拡大",exact:true}).click();await expect(page).toHaveURL(/lp-figure\.svg$/);await page.goBack();await expect(hero.getByRole("heading",{level:1})).toBeVisible();
  expect(errors).toEqual([]);
