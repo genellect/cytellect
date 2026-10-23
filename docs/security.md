@@ -15,8 +15,11 @@ The optional proposal service is off by default ([design](workspace-redesign.md#
 ## Remote Cellpose inference
 
 An operator may point an installation at a remote GPU inference service
-(`settings/cellpose-remote.json` on Windows, `CYTELLECT_CELLPOSE_REMOTE_URL` and
-`CYTELLECT_CELLPOSE_REMOTE_TOKEN` in Docker); see [cloud GPU](cloud-gpu.ja.md). Only
+(`settings/cellpose-remote.json` on Windows; the client reads
+`CYTELLECT_CELLPOSE_REMOTE_URL` and `CYTELLECT_CELLPOSE_REMOTE_TOKEN`); see
+[cloud GPU](cloud-gpu.ja.md). The Docker worker keeps `network_mode: none`, so the
+Docker deployment does not use remote inference until a reviewed network-enabled
+worker profile exists. Only
 Cellpose candidate detection is sent: the one detection plane, the adopted nuclear
 labels for nucleolar protocols, and the detector parameters. Filenames, workspace
 titles, conditions, paths and other channels are not sent. Binding to nuclei,
