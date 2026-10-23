@@ -11,6 +11,7 @@ from fastapi import HTTPException, Request, Response
 
 from .db import digest, sessions
 from .local import _local_owner
+from .views import SessionView
 
 
 def install_owner_session(api, settings, store):
@@ -18,7 +19,7 @@ def install_owner_session(api, settings, store):
         raise ValueError("desktop_owner_requires_loopback_configuration")
     owner = _local_owner(settings.data_dir)
 
-    @api.post("/v1/desktop/session")
+    @api.post("/v1/desktop/session", response_model=SessionView)
     def connect(request: Request, response: Response):
         # Exact Origin and X-Cytellect-Request are also checked by API middleware.
         if (request.headers.getlist("host") != ["127.0.0.1:8001"]
@@ -40,4 +41,4 @@ def install_owner_session(api, settings, store):
                 ))
             response.set_cookie(settings.cookie_name, token, httponly=True, secure=False,
                                 samesite="strict", max_age=7 * 86400, path="/")
-        return {"authenticated": True, "retention_hours": settings.retention_seconds / 3600}
+        return {"authenticated": True, **settings.retention_policy}

@@ -40,7 +40,8 @@ def local(tmp_path):
 def test_local_bootstrap_cookie_only_and_owner_survives_relaunch(tmp_path):
     client, app, settings, web = local(tmp_path)
     before = client.get("/v1/local/setup")
-    assert before.json() == {"mode": "local", "ready": True, "fiji_configured": False, "retention_hours": 24}
+    assert before.json() == {"mode": "local", "ready": True, "fiji_configured": False,
+                             "retention_mode": "ttl", "retention_hours": 24}
     assert not app.state.store.rows(sessions)  # GET cannot authenticate.
     assert client.get("/v1/workspaces").status_code == 401
     response = client.post("/v1/local/session", headers=HEADERS)

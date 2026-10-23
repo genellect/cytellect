@@ -3,6 +3,7 @@ import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION
 
@@ -68,6 +69,22 @@ class Settings:
     proposal_model: str = "gpt-6.1-sol"
     proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
     desktop_owner: bool = False
+    workspace_retention_mode: str = "ttl"
+
+    def __post_init__(self):
+        if self.workspace_retention_mode not in {"ttl", "manual"}:
+            raise ValueError("workspace_retention_mode_invalid")
+        # Manual retention is for a researcher's own PC (Windows launcher or Docker
+        # Desktop on loopback). A hosted service keeps continuous TTL deletion.
+        if (self.workspace_retention_mode == "manual"
+                and urlsplit(self.app_origin).hostname not in {"127.0.0.1", "localhost", "::1"}):
+            raise ValueError("workspace_retention_manual_requires_loopback")
+
+    @property
+    def retention_policy(self):
+        return {"retention_mode": self.workspace_retention_mode,
+                "retention_hours": None if self.workspace_retention_mode == "manual"
+                else self.retention_seconds / 3600}
 
     @property
     def cookie_name(self):
@@ -88,6 +105,7 @@ class Settings:
             os.environ.get("CYTELLECT_DEMO", "false").lower() == "true",
             os.environ.get("CYTELLECT_FIJI_EXECUTABLE", ""),
             retention_seconds=int(os.environ.get("CYTELLECT_RETENTION_SECONDS", "86400")),
+            workspace_retention_mode=os.environ.get("CYTELLECT_WORKSPACE_RETENTION_MODE", "ttl"),
             job_timeout_seconds=int(os.environ.get("CYTELLECT_JOB_TIMEOUT_SECONDS", "3600")),
             max_upload_bytes=int(os.environ.get("CYTELLECT_MAX_UPLOAD_BYTES", str(2 * 1024**3))),
             max_fields=int(os.environ.get("CYTELLECT_MAX_FIELDS", "100")),

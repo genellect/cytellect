@@ -40,53 +40,44 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  expect(errors).toEqual([]);
 });
 
-test("failed 3D asset leaves the poster and primary action available",async({page})=>{
+test("a failed hero film leaves the poster and primary action available",async({page})=>{
  await page.emulateMedia({reducedMotion:"no-preference"});
- await page.route("**/marketing/optical-assembly.glb",route=>route.abort());
+ await page.route(/\/marketing\/hero-film\.(webm|mp4)$/,route=>route.abort());
  await page.goto("/");
- await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
- const poster=page.getByAltText("光と透明な構造が広がる3D空間",{exact:true});
+ const film=page.getByTestId("hero-film");
+ await expect(film).toHaveAttribute("data-state","error");
+ const poster=film.locator("img");
  await expect(poster).toBeVisible();
  await expect.poll(()=>poster.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);
+ await expect(film.locator("video")).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"背景映像を停止",exact:true})).toHaveCount(0);
  await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).getByRole("link",{name:"ダウンロード",exact:true})).toBeVisible();
- await expect(page.locator("canvas")).toHaveCount(0);
- await page.unroute("**/marketing/optical-assembly.glb");
- await page.route("**/marketing/optical-assembly.glb",async route=>{
-  // Truncated GLB must keep the same usable fallback as an offline request.
-  await route.fulfill({status:200,contentType:"model/gltf-binary",body:Buffer.from("glTF")});
- });
- await page.reload();await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
- await expect(poster).toBeVisible();await expect(page.locator("canvas")).toHaveCount(0);
 });
 
-test("a researcher can stop the real 3D rendering and keep it stopped after navigation",async({page})=>{
+test("a researcher can stop the hero film and keep it stopped after navigation",async({page})=>{
  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));page.on("console",message=>{if(message.type()==="error")errors.push(message.text());});
  await page.setViewportSize({width:1440,height:900});
  await page.emulateMedia({reducedMotion:"no-preference"});
  await page.goto("/");
- const scene=page.getByTestId("hero-scene");
- await expect(scene).toHaveAttribute("data-state","ready");
- await expect(scene.locator("canvas")).toBeVisible();
- const rendered=scene.locator("[data-render-count]");
+ const film=page.getByTestId("hero-film");const video=film.locator("video");
+ await expect(film).toHaveAttribute("data-state","playing");
+ await expect.poll(()=>video.evaluate((node:HTMLVideoElement)=>node.currentTime)).toBeGreaterThan(0.2);
  await page.getByRole("button",{name:"背景映像を停止",exact:true}).click();
- await expect(scene).toHaveAttribute("data-paused","true");
- const count=await rendered.getAttribute("data-render-count");
- await page.waitForTimeout(180);
- await expect(rendered).toHaveAttribute("data-render-count",count!);
- const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,"lp-hero-3d.png")});}
+ await expect(film).toHaveAttribute("data-paused","true");
+ await expect(video).toHaveJSProperty("paused",true);
+ const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,"lp-hero-film.png")});}
  await page.getByRole("link",{name:"プロダクト",exact:true}).click();
  await page.evaluate(()=>scrollTo(0,0));
  await expect(page.getByRole("button",{name:"背景映像を再生",exact:true})).toBeVisible();
- await expect(scene).toHaveAttribute("data-paused","true");
+ await expect(video).toHaveJSProperty("paused",true);
  await page.getByRole("button",{name:"背景映像を再生",exact:true}).click();
- await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(count));
- // Pause while scrolling on software WebGL runners; then verify live rendering
- // below the hero independently of the scroll action.
- await page.getByRole("button",{name:"背景映像を停止",exact:true}).click();
- const figure=page.getByAltText(/^公開画像の817領域/);await figure.scrollIntoViewIfNeeded();
- await page.getByRole("button",{name:"背景映像を再生",exact:true}).click();
- const belowHero=await rendered.getAttribute("data-render-count");await expect.poll(async()=>Number(await rendered.getAttribute("data-render-count"))).toBeGreaterThan(Number(belowHero));
- await page.emulateMedia({reducedMotion:"reduce"});await expect(scene.locator("canvas")).toHaveCount(0);
+ await expect(video).toHaveJSProperty("paused",false);
+ // The film stops while the hero is off screen and resumes when it returns.
+ await page.locator("#download").scrollIntoViewIfNeeded();
+ await expect(video).toHaveJSProperty("paused",true);
+ await page.evaluate(()=>scrollTo(0,0));
+ await expect(video).toHaveJSProperty("paused",false);
+ await page.emulateMedia({reducedMotion:"reduce"});await expect(film.locator("video")).toHaveCount(0);await expect(film.locator("img")).toBeVisible();
  expect(errors).toEqual([]);
 });
 test("product walkthrough is explicitly started and returns to the real still image",async({page})=>{
@@ -129,11 +120,8 @@ test("the wordmark returns to the hero from anywhere on the page", async ({page}
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
  await expect(page.getByRole("heading",{level:1})).toBeInViewport();
  expect(page.url()).toBe(previousUrl); expect(navigations).toBe(0);
- // This case verifies the wordmark's animated scroll, not GPU throughput.
- // Real WebGL start/stop is exercised separately above.
- await page.route("**/marketing/optical-assembly.glb",route=>route.abort());
+ // The animated scroll also runs while the hero film is allowed to play.
  await page.emulateMedia({reducedMotion:"no-preference"});
- await expect(page.getByTestId("hero-scene")).toHaveAttribute("data-state","error");
  await page.locator("#download").scrollIntoViewIfNeeded();
  await page.getByRole("link",{name:"Cytellect ホーム",exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);

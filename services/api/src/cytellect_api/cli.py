@@ -32,13 +32,13 @@ def main():
         if not 1 <= args.hours <= 168:
             parser.error("hours must be 1..168")
         # The operator receives this once. Never send stdout to central logs.
-        print(Store(settings.data_dir).invite(args.hours * 3600))
+        print(Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode).invite(args.hours * 3600))
     elif args.command == "migrate":
-        Store(settings.data_dir)
+        Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode)
     elif args.command == "cleanup":
         from cytellect_worker.main import cleanup
 
-        cleanup(Store(settings.data_dir))
+        cleanup(Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode))
     elif args.command == "openapi":
         from .app import create_app
 

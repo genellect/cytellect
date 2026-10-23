@@ -302,6 +302,21 @@
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
   },
+  "apps/web/public/marketing/hero-film.mp4": {
+    "sha256": "b5692095e4e9e01ff36ef1f9853604eca0b2e7d68ee63c669af68fe0c2d633d8",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License AND Unsplash License"
+  },
+  "apps/web/public/marketing/hero-film-poster.webp": {
+    "sha256": "5b7d098ebb0ffca4778227634c516d2a0b9c7917b5379b5cc622218b8324ef3f",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License AND Unsplash License"
+  },
+  "apps/web/public/marketing/hero-film.webm": {
+    "sha256": "7d4d5d6fe3c8a13a71257069e57c14325a72ad17100769402a465aef08070677",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License AND Unsplash License"
+  },
   "apps/web/public/showcase/runtime/typing_extensions-4.16.0-py3-none-any.whl": {
     "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
     "source": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
@@ -368,7 +383,7 @@
     "license": "PSF-2.0"
   },
   "apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl": {
-    "sha256": "15dc25511a305d9566ed1ffdc3579f51578a3bcab7906dc844d523e315928fc1",
+    "sha256": "6c8cc4dea2dcdacd2ec38f4b87d61eed47f980a5d8ab88788b2dacb968f4be0f",
     "source": "Built from this repository by scripts/build_showcase_runtime.py",
     "license": "Apache-2.0"
   },

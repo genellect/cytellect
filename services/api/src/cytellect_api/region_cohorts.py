@@ -139,7 +139,7 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
         config["cohort_request_sha256"] = fingerprint
         with store.transaction() as conn:
             live = conn.execute(select(workspaces).where(workspaces.c.id == wid)).mappings().one()
-            if live["deleted"] or live["expires"] <= time.time() or live["owner"] != who:
+            if not store.workspace_is_live(live) or live["owner"] != who:
                 raise HTTPException(404, "workspace_not_found")
             if adoption:
                 assert_selection(conn, wid, adoption)

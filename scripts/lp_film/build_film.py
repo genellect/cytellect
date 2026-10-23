@@ -55,7 +55,7 @@ def cut_input(cut: dict, sources: dict) -> tuple[list[str], str, dict]:
     return ["-i", str(path)], crop, record
 
 
-def build(config: dict, sources: dict, out: Path) -> tuple[list[dict], float]:
+def build(config: dict, sources: dict, out: Path, crf: int) -> tuple[list[dict], float]:
     o = config["output"]
     w, h, fps, fade = o["width"], o["height"], o["fps"], o["fade"]
     cuts = config["cuts"]
@@ -107,7 +107,7 @@ def build(config: dict, sources: dict, out: Path) -> tuple[list[dict], float]:
             "-preset",
             "slow",
             "-crf",
-            str(o["crf"]),
+            str(crf),
             "-pix_fmt",
             "yuv420p",
             "-movflags",
@@ -117,6 +117,23 @@ def build(config: dict, sources: dict, out: Path) -> tuple[list[dict], float]:
         check=True,
     )
     return records, total
+
+
+def encode(master: Path, out: Path, codec: list[str]) -> None:
+    command = [
+        "ffmpeg",
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        str(master),
+        "-an",
+        *codec,
+        "-pix_fmt",
+        "yuv420p",
+        str(out),
+    ]
+    subprocess.run(command, check=True)
 
 
 def poster(config: dict, film: Path, out: Path) -> None:
@@ -167,16 +184,39 @@ def main() -> None:
     manifest = json.loads((HERE / "sources.json").read_text(encoding="utf-8"))
     sources = {s["id"]: s for s in manifest["sources"]}
     if args.preview:
-        _, total = build(config, sources, args.preview.resolve())
+        _, total = build(config, sources, args.preview.resolve(), config["output"]["crf"])
         print(f"preview {args.preview} ({total:.2f}s)")
         return
     o = config["output"]
-    film, still = ROOT / o["video"], ROOT / o["poster"]
+    film, webm, still = ROOT / o["video"], ROOT / o["webm"], ROOT / o["poster"]
     with tempfile.TemporaryDirectory() as tmp:
-        staged = Path(tmp) / "film.mp4"
-        records, total = build(config, sources, staged)
-        film.write_bytes(staged.read_bytes())
-    poster(config, film, still)
+        # One near-lossless master feeds both deliveries and the poster, so they show the same frames.
+        master = Path(tmp) / "master.mp4"
+        records, total = build(config, sources, master, 8)
+        encode(
+            master,
+            film,
+            ["-c:v", "libx264", "-preset", "slow", "-crf", str(o["crf"]), "-movflags", "+faststart"],
+        )
+        encode(
+            master,
+            webm,
+            [
+                "-c:v",
+                "libvpx-vp9",
+                "-crf",
+                str(o["webm_crf"]),
+                "-b:v",
+                "0",
+                "-row-mt",
+                "1",
+                "-deadline",
+                "good",
+                "-cpu-used",
+                "2",
+            ],
+        )
+        poster(config, master, still)
     licenses = sorted({r["license"] for r in records if "license" in r})
     provenance = {
         "schema_version": "1.0.0",
@@ -192,18 +232,19 @@ def main() -> None:
             "Do not describe this footage as the developer laboratory or product-controlled instruments.",
         ],
         "cuts": records,
-        "outputs": {o["video"]: sha256(film), o["poster"]: sha256(still)},
+        "outputs": {o["video"]: sha256(film), o["webm"]: sha256(webm), o["poster"]: sha256(still)},
     }
     (ROOT / o["provenance"]).write_text(
         json.dumps(provenance, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     register(
-        [film, still],
+        [film, webm, still],
         "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
         " AND ".join(f"{key.capitalize()} License" for key in licenses)
         + ("; Apache-2.0 (Blender renders)" if any(r["kind"] == "render" for r in records) else ""),
     )
-    print(f"{o['video']} {film.stat().st_size / 1e6:.2f} MB, {total:.2f}s; poster and provenance written")
+    sizes = ", ".join(f"{path.name} {path.stat().st_size / 1e6:.2f} MB" for path in (film, webm, still))
+    print(f"{sizes}; {total:.2f}s; provenance written")
 
 
 if __name__ == "__main__":
