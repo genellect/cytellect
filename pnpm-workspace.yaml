@@ -7,3 +7,5 @@ allowBuilds:
   workerd: false
 overrides:
   'miniflare>undici': 7.29.1
+  sharp: 0.35.5
+  'vite@8.3.2': 8.3.3

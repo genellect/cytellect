@@ -3,6 +3,16 @@ on:
   pull_request:
     paths:
       - 'packaging/windows/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'apps/web/package.json'
+      - 'apps/web/src/app/icon.svg'
+      - 'engines/python/**'
+      - 'engines/fiji/**'
+      - 'scripts/build_local_bundle.py'
       - 'scripts/*msix*'
       - 'services/api/src/cytellect_api/msix.py'
       - 'services/api/src/cytellect_api/local.py'
