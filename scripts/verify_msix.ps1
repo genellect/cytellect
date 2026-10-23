@@ -83,39 +83,32 @@ public static class MsixActivation {
         throw 'msix_ci_retention_virtualized'
     }
     $receipt.manual_retention=$true
-    $env:CYTELLECT_ENGINE_ASSETS = Join-Path $installed 'engines/fiji'
-    $env:CYTELLECT_CELLPOSE_ASSETS = Join-Path $installed 'engines/cellpose'
-    $env:PYTHONPATH=$null
-    $env:PYTHONHOME=$null
-    & $python -I -B -m cytellect_analysis.install_check --fiji (Join-Path $installed 'fiji') --scratch $WorkRoot --result (Join-Path $WorkRoot 'fiji.json')
-    if ($LASTEXITCODE -ne 0) { throw 'msix_ci_fiji_failed' }
-    $receipt.fiji=$true
-    $bbbc = Join-Path $WorkRoot 'public-bbbc007'
-    $inputs = Join-Path $WorkRoot 'workspace-inputs'
-    & $python -I -B scripts/public_bbbc007.py --data-dir $bbbc --download
-    if ($LASTEXITCODE -ne 0) { throw 'msix_ci_public_download_failed' }
-    & $python -I -B scripts/prepare_workspace_bbbc007.py --data-dir $bbbc --output $inputs
-    if ($LASTEXITCODE -ne 0) { throw 'msix_ci_public_inputs_failed' }
-    $env:CYTELLECT_TEST_LOCAL='1'
-    $env:CYTELLECT_WEB_URL='http://127.0.0.1:8765'
-    $env:CYTELLECT_TEST_API_ORIGIN=$env:CYTELLECT_WEB_URL
-    $env:CYTELLECT_TEST_PYTHON=$python
-    $env:CYTELLECT_TEST_DATA_DIR=Join-Path $userRoot 'data'
-    $env:CYTELLECT_REAL_INPUTS=$inputs
-    $env:CYTELLECT_REAL_OUTPUT=Join-Path $WorkRoot 'browser-evidence'
-    $env:CYTELLECT_REQUIRE_REAL_FIJI='1'
-    $env:CYTELLECT_COMPARISON_REAL='1'
-    $env:PLAYWRIGHT_JSON_OUTPUT_FILE=Join-Path $WorkRoot 'browser.json'
-    pnpm --filter @cytellect/web test:e2e tests/workspace-real-fiji.spec.ts tests/workspace-comparison-real.spec.ts --reporter=json
-    if ($LASTEXITCODE -ne 0) { throw 'msix_ci_browser_failed' }
-    $browser=Get-Content -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE -Raw | ConvertFrom-Json
-    if ($browser.stats.expected -ne 2 -or $browser.stats.skipped -ne 0 -or $browser.stats.unexpected -ne 0) {
-        throw 'msix_ci_browser_incomplete'
+    # WindowsApps' interpreters are not standalone tools. Run the unchanged
+    # browser/reference harness in the package context through Microsoft's
+    # debugging cmdlet, without adding an interpreter alias to the product.
+    $inside=Join-Path $repo 'scripts/verify_msix_inside.ps1'
+    $arguments=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass',
+        '-File',$inside,'-AppRoot',$installed,'-DataRoot',(Join-Path $userRoot 'data'),
+        '-WorkRoot',$WorkRoot,'-RepoRoot',$repo,'-ExpectedSource',$env:GITHUB_SHA)
+    if (@($arguments | Where-Object {$_ -match '["\r\n]'}).Count) { throw 'msix_ci_invalid_arguments' }
+    $commandArguments=($arguments | ForEach-Object {'"'+$_+'"'}) -join ' '
+    Invoke-CommandInDesktopPackage -PackageFamilyName $app.PackageFamilyName -AppId Cytellect `
+        -Command (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe') `
+        -Args $commandArguments -PreventBreakaway | Out-Null
+    $insideReceipt=Join-Path $WorkRoot 'inside-receipt.json'
+    for ($attempt=0;$attempt -lt 1800;$attempt++) {
+        if (Test-Path -LiteralPath $insideReceipt) { break }
+        Start-Sleep -Seconds 1
     }
-    $receipt.public_browser=$true
-    & $python -I -B scripts/verify_installed_regions.py --app $installed --expected-source $env:GITHUB_SHA --origin $env:CYTELLECT_WEB_URL --output (Join-Path $WorkRoot 'numerical')
-    if ($LASTEXITCODE -ne 0) { throw 'msix_ci_numerical_failed' }
-    $receipt.numerical_replay=$true
+    if (-not (Test-Path -LiteralPath $insideReceipt)) { throw 'msix_ci_inside_timeout' }
+    $insideResult=Get-Content -LiteralPath $insideReceipt -Raw | ConvertFrom-Json
+    $receipt.fiji=$insideResult.fiji
+    $receipt.public_browser=$insideResult.public_browser
+    $receipt.numerical_replay=$insideResult.numerical_replay
+    if (-not $insideResult.passed) {
+        $receipt.failed_phase=$insideResult.phase
+        throw ('msix_ci_inside_failed_'+$insideResult.phase)
+    }
     $windows=@(Get-Process pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $installed 'runtime/pythonw.exe') -and $_.MainWindowHandle -ne 0 })
     if ($windows.Count -ne 1 -or -not $windows[0].CloseMainWindow()) { throw 'msix_ci_stop_window_missing' }
     for ($attempt=0; $attempt -lt 30; $attempt++) {

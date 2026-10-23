@@ -53,7 +53,11 @@ CI は使い捨ての GitHub-hosted Windows だけで仮証明書を信頼・署
 インストール・Start アクティベーション・公開 BBBC007 画像での Fiji 検出と図出力・
 合成数値の独立参照と再現・画面からの停止・アンインストール後のデータ保持・
 再インストールを検証します。`scripts/verify_msix.ps1` は一般 PC / self-hosted では拒否
-します。仮証明書を削除し、PR では集計 receipt だけを 7 日保持します。
+します。外部から同梱 Python を直接実行せず、Microsoft の
+[`Invoke-CommandInDesktopPackage -PreventBreakaway`](https://learn.microsoft.com/en-us/powershell/module/appx/invoke-commandindesktoppackage)
+で検証ツールをパッケージのコンテキストに入れます。製品に任意コードを実行する
+入口や Python の実行エイリアスを追加しません。
+仮証明書を削除し、PR では集計 receipt だけを 7 日保持します。
 バイナリーの成果物化は既定で無効です。再配布条件の確認とオーナー承認後に限り、
 手動実行の `retain_package` で未署名 MSIX を保持できます。
 鍵・画像・生ログは成果物にしません。Store への自動提出はありません。
