@@ -33,6 +33,11 @@
 .canvas canvas{display:block;width:100%;height:100%}
 .optical[data-state="ready"] .canvas{opacity:1}
 .optical[data-state="ready"] .poster{opacity:0}
+.film{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#e8e5de}
+.filmPoster,.page .filmPoster,.filmVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% center}
+.filmVideo{opacity:0;transition:opacity 900ms}
+.filmVideo[data-visible="true"]{opacity:1}
+.hero .motionToggle{position:absolute}
 .motionToggle{position:fixed;z-index:60;bottom:30px;right:var(--gutter);width:40px;height:40px;display:grid;place-items:center;padding:0;border:1px solid #ffffff50;border-radius:50%;background:#0b1018b3;color:#fff;cursor:pointer;pointer-events:auto}
 .column,.wide,.sectionShell{width:min(100% - 2 * var(--gutter),1360px);margin-inline:auto}
 .column{max-width:1000px}

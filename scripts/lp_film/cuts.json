@@ -2,12 +2,14 @@
   "about": "LP のヒーロー映像の編集リスト。build_film.py が上から順に、クロスフェードでつないで最初のカットへ戻るループにする。owner が blender のカットは、render のファイルがあればそれを使い、なければ source の実写素材で代替する。方針は docs/lp-art-direction.md。",
   "output": {
     "video": "apps/web/public/marketing/hero-film.mp4",
+    "webm": "apps/web/public/marketing/hero-film.webm",
     "poster": "apps/web/public/marketing/hero-film-poster.webp",
     "provenance": "apps/web/public/marketing/hero-film-provenance.json",
     "width": 1920,
     "height": 1080,
     "fps": 25,
     "crf": 24,
+    "webm_crf": 38,
     "fade": 0.8,
     "poster_cut": "hands",
     "poster_time": 1.2
@@ -36,11 +38,11 @@
     {
       "id": "culture",
       "owner": "stock",
-      "source": "us-WCEOtVmk2VY",
+      "source": "px-p-3992927",
       "duration": 3.2,
-      "crop": [820, 180, 2560, 1440],
+      "crop": [1400, 900, 1800, 1012],
       "move": [1.0, 1.06],
-      "adjust": "eq=saturation=0.80"
+      "adjust": "eq=saturation=0.78:gamma=1.06"
     },
     {
       "id": "droplet",

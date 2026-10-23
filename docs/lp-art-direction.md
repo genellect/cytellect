@@ -92,11 +92,11 @@ Lila は品質の参照先であり、その素材、画面、配色を複製し
 |---|---|---|---|
 | ヒーロー | `px-v-3195394` | 4K 動画。淡い色調で 96 穴プレートに分注する手元 | Pexels |
 | ヒーロー | `px-v-8940765` | 4K 動画。8 本の分注ヘッドが白い 96 穴プレートへ下りる。周辺の暗部は切り抜く | Pexels |
-| ヒーロー | `us-WCEOtVmk2VY` | 写真。安全キャビネット内の 6 穴プレートと桃色の培地（CDC） | Unsplash |
+| ヒーロー | `px-p-3992927` | 写真。安全キャビネット内の 6 穴プレートと桃色の培地、ピペットの先端（CDC） | Pexels |
 | ヒーローの代替 | `px-p-18959104` | 写真。落ちる水滴の列。Blender の `droplet` カットができるまでの代替 | Pexels |
 | ヒーローの代替 | `us-6Uu8CSP38AI` | 写真。ガラスの先端と液面のマクロ。Blender の `glass` カットができるまでの代替 | Unsplash |
 | 雰囲気 | `us-0Em3L8ddLFI`、`us-dst8x5ScJPE` | 逆光のウェルプレート、淡いミント色の面のシャーレ | Unsplash |
-| 予備 | `px-p-3992927`、`px-p-8940473`、`us-tGYrlchfObE`、`us-lQGJCMY5qcM`、`us-UeBFFAPwuj8` | 研究の営みの章と、カットの差し替え候補 | Pexels、Unsplash |
+| 予備 | `us-WCEOtVmk2VY`、`px-p-8940473`、`us-tGYrlchfObE`、`us-lQGJCMY5qcM`、`us-UeBFFAPwuj8` | 研究の営みの章と、カットの差し替え候補 | Pexels、Unsplash |
 
 LP で既に使っている写真（`photo-lab-automation.webp`、`photo-pipetting.webp`、`photo-microscope.webp`）は [`photo-provenance.json`](../apps/web/public/marketing/photo-provenance.json) に記録がある。
 
@@ -117,9 +117,9 @@ Pexels と Unsplash の素材は、出典表示は不要だが、写っている
 - **構成**：[`scripts/lp_film/cuts.json`](../scripts/lp_film/cuts.json) の 5 カット（手元 → 自動化 → 培養 → 液滴 → 光とガラス）を 0.8 秒のクロスフェードでつなぎ、最初のカットへ戻る約 12 秒のループにする。
 - **色調**：白に近い明るさ、低いコントラスト、持ち上げた黒、抑えた彩度。アクセントは培地の淡い桃色。共通の補正は `cuts.json` の `grade`、カットごとの補正は `adjust` に置く。
 - **文字との重なり**：映像は明るさと情報量を抑え、左側の文字の下は承認済みの `.heroShade`（淡い暖色のベール）で整える。見出しは LP の 1 色の文字のまま。
-- **書き出し**：1920×1080、25 fps、H.264、音声なし、4 MB 以下を目安。代表フレームを WebP の静止画にし、省モーション設定・読み込み失敗・画面外では静止画を表示する（[`HeroFilm`](../apps/web/src/components/HeroFilm.tsx)）。
+- **書き出し**：1920×1080、25 fps、音声なし。WebM（VP9）を先に、H.264 の MP4 を次に置き、合計 4 MB 以下を目安にする。代表フレームを WebP の静止画にして最初に表示し、省モーション設定と読み込み失敗では静止画のまま、画面外とタブの非表示では停止する（[`HeroFilm`](../apps/web/src/components/HeroFilm.tsx)）。
 - **生成**：`python scripts/lp_film/build_film.py` が映像、静止画、`hero-film-provenance.json` を書き出し、公開資産の許可リストに登録する。`--preview <path>` は追跡対象のファイルに触れずに試写だけを書き出す。
-- **組み込み**：ヒーローの背景を映像に置き換える。ヒーロー以降の背景（`OpticalHero`）を残すかは、プレビューで判断する。
+- **組み込み**：ヒーローの背景を映像に置き換え、LP から 3D の背景（`OpticalHero`）を外した。部品と素材は、オーナーがプレビューで判定するまで残し、判定後に削除する。
 - **本番の主役**：研究室での撮影が可能になれば、同じ編集リストのカットを撮影素材で差し替える。
 
 ## 9. Blender のカット（Codex が担当）
