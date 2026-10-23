@@ -42,6 +42,17 @@ def main() -> None:
         user_root = Path(os.environ["LOCALAPPDATA"]) / "Cytellect"
         launch(package, user_root)
     except Exception as exc:
+        if sys.argv[1:] == ["--diagnostic"]:
+            # CI captures a fixed category only, never exception text or paths.
+            category = type(exc).__name__
+            if category not in {"ValueError", "ImportError", "ModuleNotFoundError", "PermissionError",
+                                "OSError", "RuntimeError"}:
+                category = "msix_startup_failed"
+            print(category, file=sys.stderr)
+            if exc.args and isinstance(exc.args[0], str) and exc.args[0] in {
+                    "msix_payload_incomplete", "msix_source_identity_invalid", "local_runtime_already_in_use"}:
+                print(exc.args[0], file=sys.stderr)
+            raise SystemExit(1) from None
         _report_startup_error(_gui_failure_message(exc), True)
         raise SystemExit(1) from None
 

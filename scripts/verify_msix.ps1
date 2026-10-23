@@ -54,20 +54,30 @@ interface IActivationManager {
 public static class MsixActivation {
  public static uint Start(string app) {
   var manager = (IActivationManager)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")));
-  uint pid; int error = manager.ActivateApplication(app, null, 0, out pid);
+  uint pid; int error = manager.ActivateApplication(app, "--diagnostic", 0, out pid);
   Marshal.ThrowExceptionForHR(error); return pid;
  }
 }
 '@
     $activationPid = [MsixActivation]::Start($app.PackageFamilyName + '!Cytellect')
     $ready = $false
+    $diagnosticPaths = @((Join-Path $userRoot 'settings/msix-diagnostic.txt'),
+        (Join-Path $env:LOCALAPPDATA ('Packages/' + $app.PackageFamilyName + '/LocalCache/Local/Cytellect/settings/msix-diagnostic.txt')))
     for ($attempt=0; $attempt -lt 60; $attempt++) {
         try {
-            $info = Invoke-RestMethod 'http://127.0.0.1:8765/v1/local/setup'
+            $info = Invoke-RestMethod 'http://127.0.0.1:8765/v1/local/setup' -TimeoutSec 2
             if ($info.ready) { $ready=$true; break }
         } catch { Start-Sleep -Seconds 1 }
+        $diagnostic=@($diagnosticPaths | Where-Object {Test-Path -LiteralPath $_} | ForEach-Object {Get-Content -LiteralPath $_ -Raw}) -join ';'
+        if ($diagnostic -cmatch '^[a-zA-Z0-9_=;\r\n-]+$') {
+            $receipt.startup_diagnostic=$diagnostic
+            if ($diagnostic -match 'phase=(native_failed|python_exited)') { break }
+        }
     }
-    if (-not $ready) { throw 'msix_ci_activation_failed' }
+    if (-not $ready) {
+        if ($receipt.Contains('startup_diagnostic')) { Write-Output ('MSIX startup diagnostic: ' + $receipt.startup_diagnostic) }
+        throw 'msix_ci_activation_failed'
+    }
     $receipt.activation = $true
     if ($info.retention_mode -ne 'manual' -or -not (Test-Path -LiteralPath (Join-Path $userRoot 'data/.manual-workspace-retention'))) {
         throw 'msix_ci_retention_virtualized'

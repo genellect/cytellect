@@ -24,7 +24,8 @@ spec.loader.exec_module(payload)
 def restore_launch_environment(monkeypatch):
     for name in ("CYTELLECT_CODE_REVISION", "CYTELLECT_ENGINE_ASSETS", "CYTELLECT_CELLPOSE_ASSETS",
                  "PYTHONDONTWRITEBYTECODE"):
-        monkeypatch.delenv(name, raising=False)
+        # Register absent variables too: launch() mutates os.environ directly.
+        monkeypatch.setenv(name, "")
 
 
 def source_zip(tmp_path, *, extra=None, bad_hash=False):
@@ -110,6 +111,22 @@ def test_local_wheel_provenance_does_not_ship_builder_paths(tmp_path):
     assert record.read_text() == "cytellect_api/local.py,sha256:example,20\n"
 
 
+def test_unused_console_wrappers_do_not_ship_absolute_interpreter_paths(tmp_path):
+    info = tmp_path / "cytellect-0.1.0.dist-info"
+    info.mkdir()
+    (info / "entry_points.txt").write_text("[console_scripts]\ncytellect = cytellect_api.cli:main\n")
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin/cytellect.exe").write_bytes(b"generated wrapper with builder path")
+    original = tmp_path / "bin/unrelated.bin"
+    original.write_bytes(b"preserve unrelated runtime payload")
+    record = info / "RECORD"
+    record.write_text("bin/cytellect.exe,,\nbin/unrelated.bin,,\ncytellect_api/local.py,,\n")
+    payload.sanitize_install_metadata(tmp_path)
+    assert not (tmp_path / "bin/cytellect.exe").exists()
+    assert original.read_bytes() == b"preserve unrelated runtime payload"
+    assert record.read_text() == "bin/unrelated.bin,,\ncytellect_api/local.py,,\n"
+
+
 def test_store_launch_shares_data_and_preserves_manual_retention(tmp_path, monkeypatch):
     package, user = tmp_path / "package", tmp_path / "user"
     (package / "fiji").mkdir(parents=True)
@@ -141,6 +158,21 @@ def test_store_refuses_unverified_source(tmp_path, monkeypatch):
     monkeypatch.setattr(msix, "installed_source_revision", lambda root: None)
     with pytest.raises(ValueError, match="source_identity_invalid"):
         msix.launch(tmp_path, tmp_path / "user")
+
+
+def test_startup_diagnostic_never_prints_exception_text(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["msix", "--diagnostic"])
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    def failed(*args):
+        raise ValueError("example private context must not be logged")
+
+    monkeypatch.setattr(msix, "launch", failed)
+    with pytest.raises(SystemExit) as result:
+        msix.main()
+    assert result.value.code == 1
+    assert capsys.readouterr().err == "ValueError\n"
 
 
 @pytest.mark.parametrize("package", ["cytellect_analysis", "cytellect_api", "cytellect_worker"])

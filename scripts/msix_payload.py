@@ -6,6 +6,7 @@ Third-party runtimes are provisioned separately by build_msix.ps1 from locks.
 from __future__ import annotations
 
 import argparse
+import configparser
 import csv
 import hashlib
 import importlib.metadata
@@ -149,17 +150,35 @@ def sanitize_install_metadata(site: Path) -> None:
     # uv's local-wheel provenance contains a builder's absolute filesystem path.
     # The release manifest already binds the wheel/hash: omit only this generated
     # local provenance, and keep its RECORD consistent. Never alter wheel payloads.
+    removed = set()
+    # uv's unused console wrappers embed the original python.exe location in
+    # their executable shebang. The native entry point and workers use -m.
+    for entry_points in site.glob("*.dist-info/entry_points.txt"):
+        verify_file(site, entry_points)
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.optionxform = str
+        parser.read_string(entry_points.read_text(encoding="utf-8"))
+        for group in ("console_scripts", "gui_scripts"):
+            for name in parser[group] if group in parser else []:
+                if not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+                    raise ValueError("msix_invalid_console_entrypoint")
+                for prefix in ("bin", "Scripts"):
+                    path = site / prefix / (name + ".exe")
+                    if path.exists():
+                        verify_file(site, path)
+                        removed.add(path.relative_to(site).as_posix())
+                        path.unlink()
     for path in site.glob("*.dist-info/direct_url.json"):
         verify_file(site, path)
         value = json.loads(path.read_text(encoding="utf-8"))
         if not value.get("url", "").startswith("file:"):
             raise ValueError("msix_unexpected_direct_dependency")
-        record = path.parent / "RECORD"
-        verify_file(site, record)
-        relative = path.relative_to(site).as_posix()
-        with record.open(encoding="utf-8", newline="") as stream:
-            rows = [row for row in csv.reader(stream) if row[0] != relative]
+        removed.add(path.relative_to(site).as_posix())
         path.unlink()
+    for record in site.glob("*.dist-info/RECORD"):
+        verify_file(site, record)
+        with record.open(encoding="utf-8", newline="") as stream:
+            rows = [row for row in csv.reader(stream) if row[0].replace("\\", "/") not in removed]
         with record.open("w", encoding="utf-8", newline="") as stream:
             csv.writer(stream, lineterminator="\n").writerows(rows)
 

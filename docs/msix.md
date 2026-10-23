@@ -36,6 +36,9 @@ wheel を `runtime/Lib/site-packages/` に置き、venv は配布しません。
 `%LOCALAPPDATA%/Cytellect/data` を ZIP 版と共有し、削除操作まで保持します。
 既存ロックで二重起動を拒否し、起動 EXE はリダイレクトを拒否してルートの DACL を
 本人と SYSTEM に制限します。アプリ本体は読み取り専用です。
+実データの場所は `SHGetKnownFolderPath` の
+[`KF_FLAG_NO_PACKAGE_REDIRECTION`](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ne-shlobj_core-known_folder_flag)
+で取得し、子の Python にも同じ LocalAppData を渡します。
 [Microsoft の仮想化仕様](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization)
 に従い、Windows 10 では AppData 書き込み仮想化を無効化、Windows 11 では Cytellect
 フォルダーを除外し、アンインストール後もデータを残します。別の ZIP 保存先は自動移行
@@ -54,6 +57,9 @@ CI は使い捨ての GitHub-hosted Windows だけで仮証明書を信頼・署
 バイナリーの成果物化は既定で無効です。再配布条件の確認とオーナー承認後に限り、
 手動実行の `retain_package` で未署名 MSIX を保持できます。
 鍵・画像・生ログは成果物にしません。Store への自動提出はありません。
+CI の `--diagnostic` 起動は、固定の起動段階・例外カテゴリ・終了番号だけを
+`settings/msix-diagnostic.txt` に記録します。例外本文・パスは記録しません。
+通常の起動では診断ファイルを生成しません。
 
 公開前に Partner Center 登録・正式識別子・Microsoft 署名・制限付き機能の審査、
 Fiji / Java / プラグイン / Python の再配布条件と必要な対応ソース・差し替え資料の
