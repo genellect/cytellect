@@ -100,22 +100,53 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   const listeners = new Set<() => void>();
   const publish = (next: ShowcaseState) => {state = next; listeners.forEach(listener => listener());};
 
+  // The small workspace records the opening view walks through one after another are requested
+  // together as soon as the index arrives, and kept; other recorded bodies are read when asked.
+  const opening = new Map<string, Promise<ArrayBuffer | null>>();
+  const read = (file: string) => dependencies.fetchStatic(`${dependencies.snapshotBase}${file}`)
+    .then(async response => {if (!response.ok) {await response.text(); return null;} return response.arrayBuffer();})
+    .catch(() => null);
+  const OPENING = /^GET \/v1\/(session|workspaces(\?|$)|workspaces\/[^/?]+(\/(region-fields|revisions|jobs|selection|channel-assignments|field-links|analysis-spec))?$)/;
   function snapshot() {
     index ??= dependencies.fetchStatic(`${dependencies.snapshotBase}index.json`)
       .then(async response => {
         if (!response.ok) {await response.text(); return null;}
         const value = await response.json() as SnapshotIndex;
-        return value?.version === 1 && value.entries && typeof value.entries === "object" ? value : null;
+        if (value?.version !== 1 || !value.entries || typeof value.entries !== "object") return null;
+        const keep = (key: string) => {
+          const file = value.entries[key]?.file;
+          if (file && /^[A-Za-z0-9._-]+$/.test(file) && !opening.has(file)) opening.set(file, read(file));
+          return file ? opening.get(file)! : null;
+        };
+        for (const key of Object.keys(value.entries)) if (OPENING.test(key)) keep(key);
+        void openingField(value, keep);
+        return value;
       }).catch(() => null);
     return index;
+  }
+  /** The first field opens first: its previews, masks and measurements are requested with the records. */
+  async function openingField(value: SnapshotIndex, keep: (key: string) => Promise<ArrayBuffer | null> | null) {
+    const keys = Object.keys(value.entries), listing = keys.find(key => /^GET \/v1\/workspaces\/[^/?]+\/region-fields$/.test(key));
+    const bytes = listing ? await keep(listing) : null;
+    let first: string | undefined;
+    try {first = (JSON.parse(new TextDecoder().decode(bytes ?? undefined)) as Array<{id?: string}>)[0]?.id;} catch {return;}
+    if (!first) return;
+    const field = encodeURIComponent(first), revisions = new Set<string>();
+    for (const key of keys) {
+      if (!key.includes(`/region-fields/${field}/preview?`) && !key.endsWith(`field_id=${field}`)) continue;
+      keep(key);
+      const revision = /^GET \/v1\/revisions\/([^/?]+)\/region-masks\?/.exec(key)?.[1];
+      if (revision) revisions.add(revision);
+    }
+    for (const revision of revisions) keep(`GET /v1/revisions/${revision}/region-measurements`);
   }
   async function recorded(path: string): Promise<Response | null> {
     const entry = (await snapshot())?.entries[snapshotKey(path)];
     if (!entry || !/^[A-Za-z0-9._-]+$/.test(entry.file)) return null;
-    const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${entry.file}`).catch(() => null);
-    if (!response?.ok) {await response?.text().catch(() => ""); return null;}
-    const body = nullBody(entry.status) ? null : await response.arrayBuffer();
-    return new Response(body, {status: entry.status, headers: entry.headers});
+    const bytes = await (opening.get(entry.file) ?? read(entry.file));
+    if (!bytes) return null;
+    // Each caller reads its own copy; the cached bytes stay intact.
+    return new Response(nullBody(entry.status) ? null : bytes.slice(0), {status: entry.status, headers: entry.headers});
   }
   function loadJournal() {
     journal ??= dependencies.fetchStatic(`${dependencies.snapshotBase}journal.json`)
@@ -138,6 +169,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   }
   /** The recorded tour's answer, or null when the tour holds none for this request. */
   async function fromJournal(method: string, path: string, body: string | null): Promise<Response | null> {
+    // Until a change has been answered, reads come from the opening snapshot without the tour.
+    if (reading(method) && !journaled) return null;
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
     if (SETTINGS.test(path) && (method === "PUT" || (method === "GET" && settings))) {
@@ -194,8 +227,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   return {
     state: () => state,
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener);};},
-    /** Background start after the first paint; silently does nothing on incapable devices. */
-    prepare() {if (dependencies.capable() && state.engine === "idle") void ensureEngine().catch(() => undefined);},
+    /** Background start after the first paint; devices that do not run the API load the recorded tour instead. */
+    prepare() {
+      if (!dependencies.capable()) {void loadJournal(); return;}
+      if (state.engine === "idle") void ensureEngine().catch(() => undefined);
+    },
     async fetch(path: string, init: RequestInit = {}): Promise<Response> {
       const signal = init.signal;
       if (signal?.aborted) throw abortError();

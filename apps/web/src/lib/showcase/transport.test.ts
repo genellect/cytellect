@@ -56,6 +56,25 @@ describe("showcase transport", () => {
     expect(subject.state().engine).toBe("idle");
   });
 
+  it("requests the opening records and the first field's files together, once each", async () => {
+    const entries = {
+      "/v1/session": {authenticated: true}, "/v1/workspaces/w/region-fields": [{id: "f1"}, {id: "f2"}],
+      "/v1/region-fields/f1/preview?channel_id=c&gain=1": {preview: 1}, "/v1/region-fields/f2/preview?channel_id=c&gain=1": {preview: 2},
+      "/v1/revisions/r1/region-masks?field_id=f1": {masks: 1}, "/v1/revisions/r1/region-measurements": {rows: 1},
+    };
+    const fetchStatic = staticFiles(entries);
+    const subject = createShowcaseTransport({fetchStatic, createEngine: () => fakeEngine(), capable: () => true, snapshotBase: "/showcase/snapshot/"});
+    await subject.fetch("/v1/session");
+    const files = (paths: string[]) => paths.map(path => `/showcase/snapshot/r${Object.keys(entries).indexOf(path)}.json`);
+    await vi.waitFor(() => expect(fetchStatic.mock.calls.map(([url]) => url)).toEqual(expect.arrayContaining(files([
+      "/v1/workspaces/w/region-fields", "/v1/region-fields/f1/preview?channel_id=c&gain=1", "/v1/revisions/r1/region-masks?field_id=f1", "/v1/revisions/r1/region-measurements"]))));
+    expect(fetchStatic.mock.calls.map(([url]) => url)).not.toContain(files(["/v1/region-fields/f2/preview?channel_id=c&gain=1"])[0]);
+    const calls = fetchStatic.mock.calls.length;
+    expect(await (await subject.fetch("/v1/region-fields/f1/preview?channel_id=c&gain=1")).json()).toEqual({preview: 1});
+    expect(await (await subject.fetch("/v1/region-fields/f1/preview?channel_id=c&gain=1")).json()).toEqual({preview: 1});
+    expect(fetchStatic.mock.calls.length).toBe(calls);
+  });
+
   it("waits for the live engine when a GET has no recording", async () => {
     const engine = fakeEngine();
     const subject = transport({entries: {"/v1/session": {authenticated: true}}, engine});

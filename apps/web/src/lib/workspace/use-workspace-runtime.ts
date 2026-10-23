@@ -137,9 +137,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const definitions=(fieldId?:string):ChannelDefinition[]=>(fieldId?state.data?.fields.find(field=>field.id===fieldId)?.channels??[]:state.data?.channels??[]).map(value=>({token:value.id,stain:value.stain,role:value.role === "unused" ? null:value.role,evidence:"user"}));
   function nuclearChannel(fieldId?:string){let choices=definitions(fieldId).filter(value=>value.role === "nuclear");if(!choices.length && !state.assignments.version){const adopted=new Set(state.data?.fields.filter(field=>!fieldId||field.id===fieldId).map(field=>field.nuclearChannelId).filter(Boolean));if(adopted.size===1)choices=definitions(fieldId).filter(value=>adopted.has(value.token)).map(value=>({...value,role:"nuclear"}));}if(choices.length!==1)throw new Error("核検出に使うチャンネルを1つ指定してください。");return choices[0];}
   function bound(field:string,target:ReviewTarget,revision?:string){const result=currentTargets.get(field)?.[target];if(!result || (revision && result.result.revision!==revision))throw new Error("操作対象の解析版が変更されています。再読み込みしてください。");return result;}
-  async function refresh(id?:string,restoreSettings=false){
+  /** Lets the browser draw what was just published before more loading occupies it. */
+  const painted=()=>new Promise<void>(resolve=>typeof requestAnimationFrame==="function"?requestAnimationFrame(()=>setTimeout(resolve,0)):resolve());
+  async function refresh(id?:string,restoreSettings=false,limit?:number){
     const ticket=++epoch;let next:ReviewData;
-    try{next=await loadPreview(id || state.data?.workspaceId || undefined);}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
+    try{next=await loadPreview(id || state.data?.workspaceId || undefined,undefined,limit===undefined?undefined:{limit});}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
     if(closed || ticket!==epoch){releasePreview(next);return;}
     try{
       const saved=await adapter.restore(next.workspaceId),assignments=await adapter.getChannelAssignments(next.workspaceId);
@@ -332,7 +334,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
   return {
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
-    async load(id?:string){closed=false;publish({busy:true,error:"",operation:"画像と保存結果を読み込み中"});try{await refresh(id,true);await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}},
+    async load(id?:string){closed=false;publish({busy:true,error:"",operation:"画像と保存結果を読み込み中"});
+      // The first field shows as soon as it has loaded; the others follow in the background.
+      try{await refresh(id,true,1);}catch(error){publish({busy:false,operation:"",error:message(error)});throw error;}
+      try{if(registered.size>1){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}},
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},

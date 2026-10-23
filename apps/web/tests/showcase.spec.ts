@@ -20,15 +20,14 @@ test.beforeEach(() => {
 });
 
 interface Watch {requests: string[]; errors: string[]}
-async function openDemo(page: Page, url = "/demo", {guide = false} = {}): Promise<Watch> {
+async function openDemo(page: Page, url = "/demo"): Promise<Watch> {
   const watch: Watch = {requests: [], errors: []};
   page.on("request", request => watch.requests.push(request.url()));
   page.on("pageerror", error => watch.errors.push(error.message));
   page.on("console", message => {if (message.type() === "error") watch.errors.push(`console: ${message.text()}`);});
   // A request the page itself cancelled (a superseded preview) is not a failure.
   page.on("requestfailed", request => {if (!/ERR_ABORTED/.test(request.failure()?.errorText ?? "")) watch.errors.push(`request failed: ${request.url()} ${request.failure()?.errorText}`);});
-  await page.addInitScript(dismissed => {
-    try {if (dismissed) localStorage.setItem("cytellect-demo-guide", "dismissed");} catch {}
+  await page.addInitScript(() => {
     const seen: string[] = [];
     (window as unknown as {__alerts: string[]}).__alerts = seen;
     const record = (node: Node) => {
@@ -42,7 +41,7 @@ async function openDemo(page: Page, url = "/demo", {guide = false} = {}): Promis
       change.addedNodes.forEach(record);
       if (change.type === "attributes") record(change.target);
     })).observe(document, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["role"]});
-  }, !guide);
+  });
   await page.goto(url);
   return watch;
 }
@@ -129,7 +128,7 @@ async function chooseRecordedOrFill(control: Locator, preferred: string) {
 
 test("demo: image, outline, measurement, statistics and figure features run without errors", async ({page}) => {
   test.setTimeout(1_200_000);
-  const watch = await openDemo(page, "/demo", {guide: true});
+  const watch = await openDemo(page, "/demo");
   const header = page.locator("header");
   await expect(header.getByText("デモ", {exact: true})).toBeVisible();
   await expect(page.getByRole("link", {name: "ダウンロード", exact: true})).toHaveAttribute("href", "/#download");
@@ -151,8 +150,10 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(page.locator("svg polygon[class*=context]").first()).toBeAttached();
   await noOverflow(page);
 
-  // First-visit guide walks the real tabs.
+  // The guide stays closed so the image and results show at once; 「使い方」 walks the real tabs.
   const guide = page.getByRole("complementary", {name: "公開デモの使い方"});
+  await expect(guide).toHaveCount(0);
+  await header.getByRole("button", {name: "使い方", exact: true}).click();
   await expect(guide).toBeVisible();
   await guide.getByRole("button", {name: "次へ"}).click();
   await expect(page.getByRole("button", {name: /^測定値/})).toHaveAttribute("aria-expanded", "true");
@@ -452,7 +453,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
 });
 
 test("deep links open the requested step without the guide", async ({page}) => {
-  const watch = await openDemo(page, "/demo?step=figure", {guide: true});
+  const watch = await openDemo(page, "/demo?step=figure");
   await expect(page.locator("header").getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("complementary", {name: "公開デモの使い方"})).toHaveCount(0);
   await expect(page.getByRole("region", {name: "図の作成・保存"})).toBeVisible({timeout: live});

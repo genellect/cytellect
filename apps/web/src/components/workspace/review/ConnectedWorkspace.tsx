@@ -19,7 +19,7 @@ import {imageStageLayout} from "./image-stage-layout";
 import {emptyMetadata} from "./connected-results-model";
 import {initialPanelState,panelReducer} from "./panel-state";
 import styles from "./connected-workspace.module.css";
-import {DemoBadge,DemoGuide,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,guideDismissed,recordedKind,recordedValues,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
+import {DemoBadge,DemoGuide,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,recordedKind,recordedValues,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
 import showcaseStyles from "./showcase.module.css";
 
 type Mode="image"|"statistics"|"figure";
@@ -90,7 +90,6 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const busy=r.busy||editing||!transportAvailable;
   const intakeDisabled=!data||r.busy||!transportAvailable;
   const [guide,setGuide]=useState(false);
-  useEffect(()=>{if(demo&&!initialMode&&!guideDismissed()&&!window.matchMedia("(max-width: 900px)").matches)setGuide(true);},[demo,initialMode]);
   // The in-browser API downloads after the recorded view has painted (capable devices only).
   const loaded=!!data;
   useEffect(()=>{if(!demo||!loaded)return;const timer=setTimeout(()=>activateShowcase().prepare(),1500);return()=>clearTimeout(timer);},[demo,loaded]);

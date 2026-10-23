@@ -29,6 +29,14 @@ function fixture(withResult=true,initialSpecification:import("./use-workspace-ru
   return {runtime,adapter,adopted,recipe,revisions,assignments,loadPreview,writeSpecification};
 }
 describe("functional workspace runtime",()=>{
+  it("shows the first field before loading the others, and loads a single field once",async()=>{
+    const single=fixture();await single.runtime.load("w");
+    expect(single.loadPreview.mock.calls).toEqual([["w",undefined,{limit:1}]]);
+    const several=fixture(),restore=several.adapter.restore.getMockImplementation()!;
+    several.adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);return {...value,fields:[...value.fields,{...value.fields[0],id:"f2"}]};});
+    await several.runtime.load("w");
+    expect(several.loadPreview.mock.calls).toEqual([["w",undefined,{limit:1}],["w",undefined,undefined]]);
+  });
   it("repairs historical result settings in one versioned write with current manual settings",async()=>{
     const settings=defaultRuntimeSettings();
     const invalid={method:{kind:"association",association:"spearman"},x_metric:"nucleolar_count",y_metric:"nuclear_area"};

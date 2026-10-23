@@ -94,9 +94,6 @@ const steps: Array<{mode: DemoStep; title: string; text: string; table?: boolean
   {mode: "statistics", title: "統計", text: "視野や群をまとめて計算します。"},
   {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIPで保存できます。"},
 ];
-const GUIDE_KEY = "cytellect-demo-guide";
-export function guideDismissed() {try {return window.localStorage.getItem(GUIDE_KEY) === "dismissed";} catch {return false;}}
-function dismissGuide() {try {window.localStorage.setItem(GUIDE_KEY, "dismissed");} catch {}}
 
 /** First-visit guide; each step opens the matching part of the real workspace. */
 export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onClose: () => void; onStep: (mode: DemoStep, table: boolean) => void; dataset: ShowcaseDataset | null}) {
@@ -104,7 +101,7 @@ export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onCl
   if (!open) return null;
   const step = steps[index];
   const go = (next: number) => {setIndex(next); onStep(steps[next].mode, !!steps[next].table);};
-  const finish = () => {dismissGuide(); setIndex(0); onClose();};
+  const finish = () => {setIndex(0); onClose();};
   return <aside className={styles.guide} aria-label="公開デモの使い方">
     <ol>{steps.map((value, position) => <li key={value.title} aria-current={position === index ? "step" : undefined}><button type="button" onClick={() => go(position)}>{position + 1} {value.title}</button></li>)}</ol>
     <p><strong>{step.title}</strong> {step.text}</p>
