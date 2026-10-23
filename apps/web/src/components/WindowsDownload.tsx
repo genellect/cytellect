@@ -14,6 +14,7 @@ export default function WindowsDownload({url}:{url:string}){
    <li><b>解析を開始</b><span>ショートカットから起動し、ブラウザで画像を登録します。</span></li>
   </ol>
   <p className={styles.small}>初回セットアップにはインターネット接続が必要です。</p>
+  <a className={styles.releaseInfo} href="https://github.com/genellect/cytellect/blob/main/docs/install-windows.ja.md" target="_blank" rel="noreferrer">インストールと更新の手順 ↗</a>
   <a className={styles.releaseInfo} href="https://github.com/genellect/cytellect/blob/main/docs/quickstart.ja.md" target="_blank" rel="noreferrer">公開画像で、はじめての解析 ↗</a>
   <details className={styles.downloadPrivacy}>
    <summary>保存先と削除について</summary>

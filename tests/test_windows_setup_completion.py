@@ -20,7 +20,8 @@ $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }
 foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Update-SetupStatus',
-    'ConvertTo-NativeArgument','Install-Cytellect')) {
+    'ConvertTo-NativeArgument','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote',
+    'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Install-Cytellect')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
     Invoke-Expression $function.Extent.Text
@@ -138,6 +139,7 @@ function New-Object([string]$ComObject) {
 $SourceRoot=$env:CYTELLECT_TEST_SOURCE
 $InstallRoot=$env:CYTELLECT_TEST_ROOT
 $Console=$false; $NoShortcut=$false; $VerifyOnly=$false
+$CellposeRemoteUrl=''; $CellposeRemoteToken=''
 $script:StatusLabel=$null; $script:Cancelled=$false; $script:Phase='initial'
 $script:UvVersion='test'; $script:UvSha256='0'*64
 $script:PythonVersion='3.14.8'
@@ -271,3 +273,90 @@ $manifest.version='0.0.0-test.'+$PID
         "runtime_calls": 2, "signed_venv_checks": [True, False, False, False, True, False, False, False],
         "shortcut_saves": shortcut_saves,
     }
+
+
+LEGACY_SHORTCUT_HARNESS = r'''
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+$tokens=$null; $errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw 'parse_failed' }
+foreach ($name in @('Get-SafeChild','Remove-LegacyVersionShortcuts')) {
+    $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+    if ($null -eq $function) { throw 'test_function_absent' }
+    Invoke-Expression $function.Extent.Text
+}
+$root=$env:CYTELLECT_TEST_ROOT; $links=$env:CYTELLECT_TEST_LINKS
+$shell=New-Object -ComObject WScript.Shell
+function New-Link([string]$Name,[string]$Target,[string]$Description) {
+    $link=$shell.CreateShortcut((Join-Path $links $Name))
+    $link.TargetPath=$Target; $link.Description=$Description; $link.Save()
+}
+$owned='Cytellect local analysis and control window'
+New-Link 'Cytellect 0.1.0-local.11-c21f9057dd13.lnk' (Join-Path $root 'apps\0.1.0-local.11-c21f9057dd13\.venv\Scripts\pythonw.exe') $owned
+New-Link 'Cytellect 0.1.0-local.9-aaaaaaaaaaaa.lnk' (Join-Path $env:CYTELLECT_TEST_OTHER 'apps\old\.venv\Scripts\pythonw.exe') $owned
+New-Link 'Cytellect notes.lnk' (Join-Path $root 'apps\0.1.0-local.11-c21f9057dd13\.venv\Scripts\pythonw.exe') 'user shortcut'
+New-Link 'Cytellect.lnk' (Join-Path $root 'apps\current\.venv\Scripts\pythonw.exe') $owned
+$removed=Remove-LegacyVersionShortcuts $root @($links, (Join-Path $links 'missing'))
+[ordered]@{ removed=$removed; remaining=@(Get-ChildItem -LiteralPath $links -Filter '*.lnk' | ForEach-Object Name | Sort-Object) } | ConvertTo-Json -Compress
+'''
+
+
+def windows_powershell(script, env):
+    shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    return subprocess.run(
+        [str(shell), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+        env={**os.environ, "CYTELLECT_TEST_SETUP": str(ROOT / "scripts/local_setup.ps1"), **env},
+        capture_output=True, text=True, encoding="utf-8", errors="strict", check=False, timeout=60,
+    )
+
+
+def test_update_removes_only_this_installations_versioned_shortcuts(tmp_path):
+    links, root, other = tmp_path / "links", tmp_path / "Cytellect", tmp_path / "Other"
+    for directory in (links, root, other):
+        directory.mkdir()
+    result = windows_powershell(LEGACY_SHORTCUT_HARNESS, {
+        "CYTELLECT_TEST_ROOT": str(root), "CYTELLECT_TEST_LINKS": str(links), "CYTELLECT_TEST_OTHER": str(other)})
+    assert result.returncode == 0, result.stdout + result.stderr
+    # Another installation's link, a user-named link and the stable link remain.
+    assert json.loads(result.stdout) == {"removed": 1, "remaining": [
+        "Cytellect 0.1.0-local.9-aaaaaaaaaaaa.lnk", "Cytellect notes.lnk", "Cytellect.lnk"]}
+
+
+REMOTE_SETTING_HARNESS = r'''
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+$tokens=$null; $errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw 'parse_failed' }
+foreach ($name in @('Get-SafeChild','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote','Get-CellposeRemoteUrl')) {
+    $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+    if ($null -eq $function) { throw 'test_function_absent' }
+    Invoke-Expression $function.Extent.Text
+}
+$root=$env:CYTELLECT_TEST_ROOT; $file=Join-Path $root 'settings\cellpose-remote.json'
+function Saved { if ([IO.File]::Exists($file)) { [IO.File]::ReadAllText($file) } else { $null } }
+$result=[ordered]@{}
+Set-CellposeRemote $root '' ''; $result.blank=Saved
+Set-CellposeRemote $root 'https://a.endpoints.huggingface.cloud' 'hf_key1'; $result.first=Saved
+Set-CellposeRemote $root 'https://a.endpoints.huggingface.cloud' ''; $result.same_url_keeps_key=Saved
+$result.read_url=Get-CellposeRemoteUrl $root
+Set-CellposeRemote $root 'https://b.endpoints.huggingface.cloud' ''; $result.new_url_drops_key=Saved
+$result.rejected=@(foreach ($bad in @('http://a.example','https://user@a.example','https://a.example/?k=1')) {
+    try { Set-CellposeRemote $root $bad 'hf_x'; 'accepted' } catch { $_.Exception.Message } })
+try { Set-CellposeRemote $root 'https://a.example' 'hf key' } catch { $result.bad_key=$_.Exception.Message }
+$result.files=@(Get-ChildItem -LiteralPath (Join-Path $root 'settings') | ForEach-Object Name)
+$result | ConvertTo-Json -Compress
+'''
+
+
+def test_setup_saves_the_remote_gpu_setting_and_keeps_it_when_left_blank(tmp_path):
+    result = windows_powershell(REMOTE_SETTING_HARNESS, {"CYTELLECT_TEST_ROOT": str(tmp_path)})
+    assert result.returncode == 0, result.stdout + result.stderr
+    first = '{"schema":"cytellect-cellpose-remote/1","url":"https://a.endpoints.huggingface.cloud","token":"hf_key1"}'
+    assert json.loads(result.stdout) == {
+        "blank": None, "first": first, "same_url_keeps_key": first,
+        "read_url": "https://a.endpoints.huggingface.cloud",
+        "new_url_drops_key": '{"schema":"cytellect-cellpose-remote/1","url":"https://b.endpoints.huggingface.cloud"}',
+        "rejected": ["cellpose_remote_url_invalid"] * 3, "bad_key": "cellpose_remote_token_invalid",
+        "files": ["cellpose-remote.json"]}
