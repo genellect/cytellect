@@ -128,3 +128,23 @@ test("the wordmark returns to the hero from anywhere on the page", async ({page}
  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
  expect(page.url()).toBe(previousUrl); expect(navigations).toBe(0);
 });
+
+test("the mission statement sets in two balanced lines on desktop",async({page})=>{
+ await page.setViewportSize({width:1440,height:900});await page.goto("/");
+ const mission=page.getByRole("heading",{name:"画像解析を、一部の専門家の技術から、すべての生命科学研究者が使える研究基盤に。",exact:true});
+ expect(await mission.evaluate(node=>Math.round(node.getBoundingClientRect().height/parseFloat(getComputedStyle(node).lineHeight)))).toBe(2);
+});
+
+test("the footer credits every image and video at its source and has no security link",async({page})=>{
+ await page.goto("/");
+ const footer=page.getByRole("contentinfo");
+ await expect(footer.getByRole("link",{name:/セキュリティ/})).toHaveCount(0);
+ await expect(footer.getByRole("link",{name:/provenance|出典/})).toHaveCount(0);
+ const credits=footer.locator("details");
+ await expect(credits).not.toHaveAttribute("open");
+ await credits.getByText("画像・映像の出典",{exact:true}).click();
+ await expect(credits.getByRole("link")).toHaveCount(8);
+ await expect(credits.getByRole("link",{name:"Schmidt HB, Rohatgi R, Brandman O (2022) / Zenodo",exact:true})).toHaveAttribute("href","https://doi.org/10.5281/zenodo.6643470");
+ await expect(credits.getByRole("link",{name:"CC BY 4.0",exact:true})).toHaveAttribute("href","https://creativecommons.org/licenses/by/4.0/deed.ja");
+ expect(await credits.getByRole("link").evaluateAll(links=>links.every(link=>/^https:\/\/(www\.pexels\.com|unsplash\.com|doi\.org|creativecommons\.org)\//.test((link as HTMLAnchorElement).href)&&(link as HTMLAnchorElement).rel.includes("noopener")))).toBe(true);
+});
