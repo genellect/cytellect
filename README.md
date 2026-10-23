@@ -110,6 +110,8 @@ uv run cytellect invite --hours 24
 uv run cytellect serve & uv run cytellect-worker & pnpm dev
 ```
 
+ブラウザで `http://localhost:3000/workspace` を開き、`invite` が表示した招待コードを入力します。API は Origin を `CYTELLECT_APP_ORIGIN`（既定値 `http://localhost:3000`）と完全一致で照合するため、`127.0.0.1` ではなく `localhost` で開いてください。
+
 CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
 
 ```bash
