@@ -130,6 +130,23 @@ public static class MsixActivation {
     Add-AppxPackage -Path $signed
     $app=Get-AppxPackage -Name $identity
     if (-not $app -or (Get-Content -LiteralPath $sentinel -Raw) -cne 'generated retention fixture') { throw 'msix_ci_reinstall_failed' }
+    $activationPid = [MsixActivation]::Start($app.PackageFamilyName + '!Cytellect')
+    $ready=$false
+    for ($attempt=0; $attempt -lt 60; $attempt++) {
+        try {
+            $info=Invoke-RestMethod 'http://127.0.0.1:8765/v1/local/setup' -TimeoutSec 2
+            if ($info.ready -and $info.retention_mode -eq 'manual') { $ready=$true; break }
+        } catch { Start-Sleep -Seconds 1 }
+    }
+    if (-not $ready) { throw 'msix_ci_reinstall_activation_failed' }
+    $windows=@(Get-Process pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $app.InstallLocation 'runtime/pythonw.exe') -and $_.MainWindowHandle -ne 0 })
+    if ($windows.Count -ne 1 -or -not $windows[0].CloseMainWindow()) { throw 'msix_ci_reinstall_stop_missing' }
+    $stopped=$false
+    for ($attempt=0; $attempt -lt 30; $attempt++) {
+        if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { $stopped=$true; break }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $stopped) { throw 'msix_ci_reinstall_listener_remained' }
     $receipt.reinstall=$true
 } finally {
     if ($app) {
