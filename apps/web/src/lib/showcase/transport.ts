@@ -109,6 +109,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let gate: Promise<unknown> = Promise.resolve();
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
   let settings: {version: number; spec: unknown} | null = null;
+  // What this device was last given for each read, as a recorded file (snapshot or tour).
+  const seen = new Map<string, JournalEntry | "snapshot">();
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<() => void>();
   const publish = (next: Partial<ShowcaseState>) => {state = {...state, ...next}; listeners.forEach(listener => listener());};
@@ -160,6 +162,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     if (!bytes) return null;
     // Each caller reads its own copy; the cached bytes stay intact.
     return new Response(nullBody(entry.status) ? null : bytes.slice(0), {status: entry.status, headers: entry.headers});
+  }
+  async function fromSnapshot(path: string) {
+    const response = await recorded(path);
+    if (response) seen.set(path, "snapshot");
+    return response;
   }
   function loadJournal() {
     journal ??= dependencies.fetchStatic(`${dependencies.snapshotBase}journal.json`)
@@ -218,6 +225,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       if (index < 0) index = entries.findIndex(matches);
       if (index < 0) return null;
       cursor = index; journaled = true;
+      // The device now holds what this change wrote, not what it read before.
+      seen.delete(path);
       // A recorded change returns as the API would, after a moment of work.
       await pause(450);
       return answer(entries[index]);
@@ -225,13 +234,33 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     if (!journaled) return null;
     const next = entries.findIndex((entry, position) => position > cursor && !reading(entry.method));
     const end = next < 0 ? entries.length : next;
-    // The last recorded read of this path before the next change (a job has finished, a document
-    // is settled), so repeated reads agree; else the latest one before, else one recorded later
-    // (a resource another scene created).
     const read = (index: number) => entries[index].method === "GET" && entries[index].path === path;
-    for (let index = end - 1; index >= 0; index--) if (read(index)) return answer(entries[index]);
-    for (let index = end; index < entries.length; index++) if (read(index)) return answer(entries[index]);
+    const previous = seen.get(path);
+    // The last recorded read of this path after the answered change and before the next one (a job
+    // has finished, a document is settled), so repeated reads agree.
+    let after = -1;
+    for (let index = end - 1; index > cursor && after < 0; index--) if (read(index)) after = index;
+    if (after >= 0) {
+      // Scenes start from the seed, so a visitor's earlier changes may come from another scene. A
+      // document the answered change left as it was keeps what this device already has.
+      const scene = entries[cursor].scene;
+      let before: {file: string | null; status: number} | null = null;
+      for (let index = cursor - 1; index >= 0 && !before && entries[index].scene === scene; index--) if (read(index)) before = entries[index];
+      before ??= (await snapshot())?.entries[snapshotKey(path)] ?? null;
+      const unchanged = before !== null && before.file === entries[after].file && before.status === entries[after].status;
+      if (!(unchanged && previous)) return remember(path, entries[after]);
+    }
+    if (previous) return previous === "snapshot" ? recorded(path) : answer(previous);
+    // Else the scene's next read of it (what the change wrote), else the latest recorded read before,
+    // else one recorded later (a resource another scene created).
+    for (let index = end; index < entries.length && entries[index].scene === entries[cursor].scene; index++) if (read(index)) return remember(path, entries[index]);
+    for (let index = end - 1; index >= 0; index--) if (read(index)) return remember(path, entries[index]);
+    for (let index = end; index < entries.length; index++) if (read(index)) return remember(path, entries[index]);
     return null;
+  }
+  function remember(path: string, entry: JournalEntry) {
+    seen.set(path, entry);
+    return answer(entry);
   }
   function ensureEngine(): Promise<ShowcaseEngine> {
     if (engine) return engine;
@@ -271,7 +300,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const text = async () => isRead || init.body === undefined || init.body === null ? null : new TextDecoder().decode((await bodyBytes(init.body)) ?? undefined);
       if (!dependencies.record) {
         // Decisions are taken in request order, so a read issued after a change sees that change.
-        const decided = gate.then(async () => await fromJournal(method, path, await text()) ?? (isRead ? await recorded(path) : null));
+        const decided = gate.then(async () => await fromJournal(method, path, await text()) ?? (isRead ? await fromSnapshot(path) : null));
         gate = decided.catch(() => null);
         const answered = await decided;
         if (signal?.aborted) throw abortError();

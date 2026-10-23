@@ -195,6 +195,17 @@ function measureScene(target) {
     }
     await range.selectOption("all");
     await header(page).getByRole("button", {name: "測定", exact: true}).click(); await idle(page);
+    // What a researcher does next: back to the first field's nuclei, then statistics and figures
+    // of the new measurements.
+    await cards.first().click(); await idle(page);
+    if (target !== "nuclei") {await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei"); await idle(page);}
+    await tab(page, "統計");
+    const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
+    for (const kind of ["distribution", "comparison"]) {
+      await operation.selectOption(kind);
+      if (await calculate(page)) await figures(page, kind === "comparison");
+    }
+    await tab(page, "画像");
   };
 }
 const scenes = {

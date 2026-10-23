@@ -243,6 +243,58 @@ describe("recorded tour", () => {
     expect((await run(other)).status).not.toBe(202);
   });
 
+  it("keeps what a device already has when a change from another scene left it as it was", async () => {
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "seed.json"}}},
+      "seed.json": {revision: "seed"},
+      "journal.json": {version: 1, entries: [
+        {...entry("POST", "/v1/workspaces/w/runs", null, "run.json", 202), scene: "measure"},
+        {...entry("GET", "/v1/workspaces/w/selection", null, "measured.json"), scene: "measure"},
+        {...entry("POST", "/v1/workspaces/w/proposal-drafts", null, "draft.json"), scene: "ai"},
+        {...entry("GET", "/v1/workspaces/w/selection", null, "seed.json"), scene: "ai"},
+        {...entry("PUT", "/v1/workspaces/w/selection", null, "saved.json"), scene: "ai"},
+        {...entry("GET", "/v1/workspaces/w/selection", null, "saved.json"), scene: "ai"},
+      ]},
+      "run.json": {run: 1}, "measured.json": {revision: "measured"}, "draft.json": {draft: 1}, "saved.json": {revision: "saved"},
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    const subject = createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"});
+    const selection = async () => (await subject.fetch("/v1/workspaces/w/selection")).json();
+    expect(await selection()).toEqual({revision: "seed"});
+    await subject.fetch("/v1/workspaces/w/runs", {method: "POST"});
+    expect(await selection()).toEqual({revision: "measured"});
+    // The AI scene was recorded from the seed and did not change the selection: the measured one stays.
+    await subject.fetch("/v1/workspaces/w/proposal-drafts", {method: "POST"});
+    expect(await selection()).toEqual({revision: "measured"});
+    // A recorded change that does change it is shown.
+    await subject.fetch("/v1/workspaces/w/selection", {method: "PUT"});
+    expect(await selection()).toEqual({revision: "saved"});
+  });
+
+  it("reads back what a change wrote, from the scene's next read when none follows at once", async () => {
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "seed.json"}}},
+      "seed.json": {revision: "seed"},
+      "journal.json": {version: 1, entries: [
+        {...entry("POST", "/v1/workspaces/w/selection", null, "written.json"), scene: "s"},
+        {...entry("POST", "/v1/workspaces/w/cohorts", null, "cohort.json"), scene: "s"},
+        {...entry("GET", "/v1/workspaces/w/selection", null, "written.json"), scene: "s"},
+      ]},
+      "written.json": {revision: "written"}, "cohort.json": {cohort: 1},
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    const subject = createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"});
+    expect(await (await subject.fetch("/v1/workspaces/w/selection")).json()).toEqual({revision: "seed"});
+    expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "POST"})).json()).toEqual({revision: "written"});
+    expect(await (await subject.fetch("/v1/workspaces/w/selection")).json()).toEqual({revision: "written"});
+  });
+
   it("matches recorded bodies exactly except for client-generated values", () => {
     expect(journalBodyMatches('{"a":"*","b":[1,{"c":2}]}', '{"b":[1,{"c":2}],"a":"x"}')).toBe(true);
     expect(journalBodyMatches('{"a":"*"}', '{"a":1}')).toBe(true);
