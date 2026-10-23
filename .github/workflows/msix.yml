@@ -10,6 +10,11 @@ on:
       - 'tests/test_msix.py'
       - '.github/workflows/msix.yml'
   workflow_dispatch:
+    inputs:
+      retain_package:
+        description: 'Publish unsigned review binary after owner authorization and redistribution review'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -61,6 +66,7 @@ jobs:
           & scripts/verify_msix.ps1 -Package (Join-Path $env:RUNNER_TEMP 'msix-output/Cytellect-development-x64.msix') -WorkRoot (Join-Path $env:RUNNER_TEMP 'msix-acceptance')
           if (-not $?) { throw 'MSIX installed acceptance failed' }
       - name: Retain unsigned review package after acceptance
+        if: github.event_name == 'workflow_dispatch' && inputs.retain_package
         uses: actions/upload-artifact@v4
         with:
           name: cytellect-msix-development

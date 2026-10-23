@@ -50,7 +50,9 @@ CI は使い捨ての GitHub-hosted Windows だけで仮証明書を信頼・署
 インストール・Start アクティベーション・公開 BBBC007 画像での Fiji 検出と図出力・
 合成数値の独立参照と再現・画面からの停止・アンインストール後のデータ保持・
 再インストールを検証します。`scripts/verify_msix.ps1` は一般 PC / self-hosted では拒否
-します。仮証明書を削除し、未署名 MSIX と集計 receipt だけを 7 日保持します。
+します。仮証明書を削除し、PR では集計 receipt だけを 7 日保持します。
+バイナリーの成果物化は既定で無効です。再配布条件の確認とオーナー承認後に限り、
+手動実行の `retain_package` で未署名 MSIX を保持できます。
 鍵・画像・生ログは成果物にしません。Store への自動提出はありません。
 
 公開前に Partner Center 登録・正式識別子・Microsoft 署名・制限付き機能の審査、
@@ -81,8 +83,10 @@ remain a separate owner decision.
 Disposable hosted CI signs temporarily, installs/activates the actual package,
 runs public-image browser and independent numerical/replay checks, closes the
 control window, checks uninstall retention and reinstalls. The verifier refuses
-local PCs and self-hosted runners. Only unsigned packages and aggregate receipts
-are retained, never certificates, images, tokens or raw logs.
+local PCs and self-hosted runners. PRs retain aggregate receipts only. Retaining
+an unsigned binary requires the manual `retain_package` input after owner
+authorization and redistribution review. Never retain certificates, images,
+tokens or raw logs.
 
 Before release: complete Partner Center registration/signing, capability review,
 assembled third-party redistribution/source obligations, actual Store update,
