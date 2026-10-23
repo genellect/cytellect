@@ -224,6 +224,26 @@ def bind_loopback(port: int) -> socket.socket:
         raise
 
 
+def local_cellpose_remote_environment(data_dir: Path) -> dict[str, str]:
+    """Load the configured GPU inference service; images go there only for Cellpose."""
+    path = data_dir.resolve().parent / "settings" / "cellpose-remote.json"
+    try:
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 16_384:
+            return {}
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+        if (not isinstance(value, dict) or value.get("schema") != "cytellect-cellpose-remote/1"
+                or not set(value) <= {"schema", "url", "token"} or not isinstance(value.get("url"), str)
+                or not isinstance(value.get("token", ""), str)):
+            return {}
+        environment = {"CYTELLECT_CELLPOSE_REMOTE_URL": value["url"]}
+        if value.get("token"):
+            environment["CYTELLECT_CELLPOSE_REMOTE_TOKEN"] = value["token"]
+        return environment
+    except (OSError, ValueError, TypeError):
+        # A damaged optional setting must not disable Fiji or the whole workspace.
+        return {}
+
+
 def local_cellpose_environment(data_dir: Path) -> dict[str, str]:
     """Load an explicit local setup receipt without executing setup or downloading."""
     root = data_dir.resolve().parent
@@ -258,7 +278,8 @@ class WorkerSupervisor:
 
     def _spawn(self):
         env = os.environ.copy()
-        for key, value in local_cellpose_environment(self.settings.data_dir).items():
+        for key, value in {**local_cellpose_environment(self.settings.data_dir),
+                           **local_cellpose_remote_environment(self.settings.data_dir)}.items():
             env.setdefault(key, value)
         if sys.dont_write_bytecode:
             env["PYTHONDONTWRITEBYTECODE"] = "1"

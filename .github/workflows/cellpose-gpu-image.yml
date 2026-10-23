@@ -1,0 +1,27 @@
+name: Cellpose GPU image
+# Builds and publishes the remote GPU inference image from main. Publishing is a
+# release step: run it only on the owner's explicit instruction.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  image:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space for the CUDA wheels
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Build, push and record the image digest
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/cytellect-cellpose-gpu:${GITHUB_SHA}"
+          docker build -f infra/Dockerfile.cellpose-gpu -t "$image" .
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$image"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$image")"
+          echo "Image: \`$digest\`" >> "$GITHUB_STEP_SUMMARY"

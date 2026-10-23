@@ -4,13 +4,35 @@ This early prototype has local automated tests for invitation replay/revocation,
 
 ## Data boundaries
 
-Unpublished research images, papers, filenames, conditions, masks, tables and plots stay outside Git, Cloud development, CI, external AI and public demos. The single exception is the product's analysis proposal request (below). Public published images can be used for appropriate internal tests with recorded source and conditions. Only assets with a verified public redistribution basis belong in the public UI/repository; register hashes and attribution separately. Synthetic images remain numerical unit-test fixtures.
+Unpublished research images, papers, filenames, conditions, masks, tables and plots stay outside Git, Cloud development, CI, external AI and public demos. The exceptions are the product's analysis proposal request and the operator-configured remote Cellpose inference service (both below). Public published images can be used for appropriate internal tests with recorded source and conditions. Only assets with a verified public redistribution basis belong in the public UI/repository; register hashes and attribution separately. Synthetic images remain numerical unit-test fixtures.
 
 Browser uploads go directly to the analysis API. Disable Vercel image optimization, analytics/session recording, Service Workers and CDN caching for research content. API responses carry no-store. Every read checks the owning live session and workspace; IDs alone confer no permission. Do not log request bodies, filenames or token values.
 
 ## Analysis proposal service
 
 The optional proposal service is off by default ([design](workspace-redesign.md#analysis-proposal-service-llm)). When the user enables it (each request carries `transmission_confirmed: true`, refused otherwise), the local API sends the stated goal and normalized metadata (channel names, dtype, dimensions, field/group counts, known pairing) to the Cytellect proposal service, which calls the OpenAI API with `store: false`. Representative previews (≤6, downscaled) are sent only after the user separately enables image transmission. Absolute paths, unneeded filenames, documents, masks and measurement tables are never sent. `store: false` does not mean zero retention: the provider may retain requests for abuse monitoring under its API data policy. The service stores invitation/device rights and usage counters only; it does not log prompt bodies or images. The operator key exists only as a service secret. Developer tools, CI and public repositories still never receive private research content.
+
+## Remote Cellpose inference
+
+An operator may point an installation at a remote GPU inference service
+(`settings/cellpose-remote.json` on Windows; the client reads
+`CYTELLECT_CELLPOSE_REMOTE_URL` and `CYTELLECT_CELLPOSE_REMOTE_TOKEN`); see
+[cloud GPU](cloud-gpu.ja.md). The Docker worker keeps `network_mode: none`, so the
+Docker deployment does not use remote inference until a reviewed network-enabled
+worker profile exists. Only
+Cellpose candidate detection is sent: the one detection plane, the adopted nuclear
+labels for nucleolar protocols, and the detector parameters. Filenames, workspace
+titles, conditions, paths and other channels are not sent. Binding to nuclei,
+refinement, measurement and statistics remain local.
+
+The URL must be https (loopback http only for tests), without credentials, query or
+fragment in it. The access token travels in the Authorization header and never
+appears in errors. The service (`engines/cellpose/server.py`) holds request content
+only in memory for the duration of the request, writes no files and logs no request
+content, paths or client addresses. On Hugging Face Inference Endpoints, the provider
+does not store payloads and keeps its own logs for 30 days. The client accepts a
+result only when the service reports the release's runner, model and package-lock
+hashes; otherwise it fails with `cellpose_remote_version_mismatch`.
 
 ## Installation and invitations
 

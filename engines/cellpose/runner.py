@@ -10,6 +10,10 @@ import socket
 import sys
 from pathlib import Path
 
+# The CPU lock serves Windows/Docker; the CUDA lock serves the remote GPU service.
+RUNTIME_LOCKS = ("runtime.lock.json", "gpu.lock.json")
+REQUIREMENT_FILES = ("requirements.lock", "requirements-cuda.lock")
+
 
 def offline_socket(*_args, **_kwargs):
     raise RuntimeError("cellpose_network_forbidden")
@@ -21,7 +25,10 @@ def verify_assets(lock: dict):
     if (lock["model"]["id"] != "cpsam_v2" or lock["model"]["size"] != 1233586851
             or lock["model"]["sha256"] != "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"):
         raise RuntimeError("cellpose_model_integrity_failed")
-    for name, key in (("runner.py", "runner_sha256"), ("requirements.lock", "requirements_sha256")):
+    requirements = lock.get("requirements_file", "requirements.lock")
+    if requirements not in REQUIREMENT_FILES:
+        raise RuntimeError("cellpose_adapter_integrity_failed")
+    for name, key in (("runner.py", "runner_sha256"), (requirements, "requirements_sha256")):
         with Path(__file__).with_name(name).open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != lock[key]:
                 raise RuntimeError("cellpose_adapter_integrity_failed")
@@ -177,16 +184,22 @@ def parent_conditioned_inference(image, nuclei, parameters, network):
                                       "parameter_units": "original_image_pixels"}}
 
 
-def run(request_path: Path) -> dict:
-    request = json.loads(request_path.read_text(encoding="utf-8"))
-    lock = json.loads(Path(__file__).with_name("runtime.lock.json").read_text(encoding="utf-8"))
+def runtime_lock() -> dict:
+    name = os.environ.get("CYTELLECT_CELLPOSE_RUNTIME_LOCK", "runtime.lock.json")
+    if name not in RUNTIME_LOCKS:
+        raise RuntimeError("cellpose_adapter_integrity_failed")
+    return json.loads(Path(__file__).with_name(name).read_text(encoding="utf-8"))
+
+
+def prepare_runtime(model_path: Path) -> dict:
+    """Verify the pinned packages and model once, then forbid network access."""
+    lock = runtime_lock()
     verify_assets(lock)
     if sys.version_info[:2] != (3, 12):
         raise RuntimeError("cellpose_python_version_mismatch")
     versions = {name: importlib.metadata.version(name) for name in lock["packages"]}
     if versions != lock["packages"]:
         raise RuntimeError("cellpose_runtime_version_mismatch")
-    model_path = Path(request["model_path"])
     model = lock["model"]
     if not model_path.is_file():
         raise RuntimeError("cellpose_model_missing")
@@ -199,17 +212,49 @@ def run(request_path: Path) -> dict:
     # local paths and two network guards prevent its model fallback downloader.
     os.environ["CELLPOSE_LOCAL_MODELS_PATH"] = str(model_path.parent)
     os.environ["HF_HUB_OFFLINE"] = "1"
+    # Deterministic cuBLAS needs this before the first CUDA call.
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     socket.create_connection = offline_socket
     socket.socket.connect = offline_socket
     socket.socket.connect_ex = offline_socket
-    import numpy as np
-    import torch
     from cellpose import models, utils
 
     utils.download_url_to_file = offline_socket
     models.cache_model_path = offline_socket
-    p = request["parameters"]
-    image = np.load(request["input_path"], allow_pickle=False)
+    return versions
+
+
+_NETWORK: dict = {}
+
+
+def load_network(model_path: Path, device: str):
+    """Keep one loaded network per model and device, so a service loads it once."""
+    import torch
+    from cellpose import models
+
+    key = (str(model_path), device)
+    if _NETWORK.get("key") != key:
+        if device == "cuda":
+            # Full float32 without TF32 and deterministic kernels, to stay as close
+            # as possible to the validated CPU results and reproducible run to run.
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = False
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+            torch.use_deterministic_algorithms(True, warn_only=True)
+        network = models.CellposeModel(pretrained_model=str(model_path), device=torch.device(device),
+                                       gpu=device == "cuda", use_bfloat16=False)
+        _NETWORK.clear()
+        _NETWORK.update(key=key, network=network)
+    return _NETWORK["network"]
+
+
+def infer(parameters: dict, image, nuclei, model_path: Path, versions: dict):
+    """Raw Cellpose labels and receipt for one field; prepare_runtime must run first."""
+    import numpy as np
+    import torch
+
+    p = parameters
     if image.ndim != 2 or image.dtype not in (np.uint8, np.uint16):
         raise RuntimeError("cellpose_input_invalid")
     selection = p["compute_device"]
@@ -218,21 +263,18 @@ def run(request_path: Path) -> dict:
         raise RuntimeError("cellpose_gpu_unavailable")
     device = "cuda" if has_cuda and selection != "cpu" else "cpu"
     torch.set_num_threads(min(8, max(1, os.cpu_count() or 1)))
-    # CPU uses float32, avoiding unsupported/slow CPU bfloat16 kernels.
-    network = models.CellposeModel(pretrained_model=str(model_path),
-                                  device=torch.device(device), gpu=device == "cuda",
-                                  use_bfloat16=device == "cuda")
+    network = load_network(model_path, device)
+    execution = {"device": device, "precision": "float32"}
+    if device == "cuda":
+        execution.update(tf32=False, deterministic_algorithms=True, gpu=torch.cuda.get_device_name(0))
     if p["engine"] == "cellpose-sam-ncl-parent" and p["protocol_version"] in ("4.2.0", "4.2.1", "4.3.0"):
-        if "parent_path" not in request:
+        if nuclei is None:
             raise RuntimeError("cellpose_adopted_nuclei_required")
-        nuclei = np.load(request["parent_path"], allow_pickle=False)
         labels, details = parent_conditioned_inference(image, nuclei, p, network)
-        np.save(request["output_path"], labels, allow_pickle=False)
-        return {"status": "succeeded", "runtime_packages": versions, "device": device,
-                "precision": "bfloat16" if device == "cuda" else "float32", **details,
-                "input_channels": "one NCL plane conditioned within each adopted nucleus plus two zero planes",
-                "coordinate_transform": {"scale_x": 1, "scale_y": 1, "resample": True,
-                                         "dynamics_grid": "original image", "crop_offsets_restored": True}}
+        return labels, {"status": "succeeded", "runtime_packages": versions, **execution, **details,
+                        "input_channels": "one NCL plane conditioned within each adopted nucleus plus two zero planes",
+                        "coordinate_transform": {"scale_x": 1, "scale_y": 1, "resample": True,
+                                                 "dynamics_grid": "original image", "crop_offsets_restored": True}}
     detection, preprocessing = prepare_detection_input(image, p)
     # One explicitly selected stain, plus two zero channels. No channel order
     # inference, hidden DAPI input, display LUT, or measurement transformation.
@@ -253,13 +295,27 @@ def run(request_path: Path) -> dict:
         raise RuntimeError("cellpose_output_invalid")
     if int(labels.max()) > np.iinfo(np.uint32).max:
         raise RuntimeError("cellpose_output_invalid")
-    np.save(request["output_path"], labels.astype(np.uint32), allow_pickle=False)
-    return {"status": "succeeded", "runtime_packages": versions, "device": device,
-            "precision": "bfloat16" if device == "cuda" else "float32",
-            "normalization": normalization, "preprocessing": preprocessing,
-            "input_channels": "one explicitly selected plane plus two zero planes",
-            "coordinate_transform": {"scale_x": 1, "scale_y": 1,
-                                     "resample": True, "dynamics_grid": "original image"}}
+    return labels.astype(np.uint32), {
+        "status": "succeeded", "runtime_packages": versions, **execution,
+        "normalization": normalization, "preprocessing": preprocessing,
+        "input_channels": "one explicitly selected plane plus two zero planes",
+        "coordinate_transform": {"scale_x": 1, "scale_y": 1, "resample": True, "dynamics_grid": "original image"}}
+
+
+def run(request_path: Path) -> dict:
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    model_path = Path(request["model_path"])
+    versions = prepare_runtime(model_path)
+    import numpy as np
+
+    p = request["parameters"]
+    image = np.load(request["input_path"], allow_pickle=False)
+    nuclei = None
+    if p["engine"] == "cellpose-sam-ncl-parent" and "parent_path" in request:
+        nuclei = np.load(request["parent_path"], allow_pickle=False)
+    labels, receipt = infer(p, image, nuclei, model_path, versions)
+    np.save(request["output_path"], labels, allow_pickle=False)
+    return receipt
 
 
 def main():

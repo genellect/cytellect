@@ -2,11 +2,18 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
+import io
 import json
 import os
 import subprocess
+import time
+import urllib.error
+import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import numpy as np
 from pydantic import Field, FiniteFloat, model_validator
@@ -109,7 +116,7 @@ def _verify_release_assets(root: Path, assets: Path):
         files = release.get("files")
         if not isinstance(files, list) or any(not isinstance(entry, dict) for entry in files):
             raise ValueError(error)
-        for name in ("runtime.lock.json", "runner.py", "requirements.lock"):
+        for name in ("runtime.lock.json", "gpu.lock.json", "runner.py", "requirements.lock"):
             relative = f"engines/cellpose/{name}"
             entries = [entry for entry in files if entry.get("path") == relative]
             path = assets / name
@@ -129,9 +136,119 @@ def _verify_release_assets(root: Path, assets: Path):
         raise ValueError(error) from exception
 
 
+REMOTE_WAIT_SECONDS = 900
+REMOTE_REQUEST_TIMEOUT_SECONDS = 1800
+REMOTE_RESPONSE_LIMIT = 512 * 1024 * 1024
+
+
+def remote_endpoint() -> str | None:
+    """Configured GPU inference service; https only, except a loopback test service."""
+    url = os.environ.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip()
+    if not url:
+        return None
+    parts = urlsplit(url)
+    loopback = parts.hostname in {"127.0.0.1", "localhost", "::1"}
+    if (parts.scheme not in {"https", "http"} or (parts.scheme == "http" and not loopback) or not parts.hostname
+            or parts.username or parts.password or parts.query or parts.fragment):
+        raise ValueError("cellpose_remote_url_invalid")
+    return url.rstrip("/")
+
+
+def _remote_status(assets: Path) -> dict:
+    lock = json.loads((assets / "runtime.lock.json").read_text(encoding="utf-8"))
+    gpu = json.loads((assets / "gpu.lock.json").read_text(encoding="utf-8"))
+    _verify_file(assets / "runner.py", lock["runner_sha256"], None, "cellpose_adapter_integrity_failed")
+    if gpu["runner_sha256"] != lock["runner_sha256"] or gpu["model"]["sha256"] != MODEL_SHA256:
+        raise ValueError("cellpose_adapter_integrity_failed")
+    return {"available": True, "backend": "remote", "model": "cpsam_v2", "model_sha256": MODEL_SHA256,
+            "packages": gpu["packages"], "python": "3.12", "runtime_downloads": False}
+
+
+def _remote_error(error: urllib.error.HTTPError) -> str:
+    if error.code in (401, 403):
+        return "cellpose_remote_rejected"
+    try:
+        code = json.loads(error.read(4096).decode("utf-8")).get("error", "")
+    except (OSError, ValueError, AttributeError):
+        code = ""
+    return code if isinstance(code, str) and code.startswith("cellpose_") and len(code) < 80 else "cellpose_remote_failed"
+
+
+def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: CellposeParameters) -> tuple[np.ndarray, dict]:
+    """Run the same pinned runner on the remote service; only raw labels come back.
+
+    Binding to nuclei, refinement and measurement stay local. The service must
+    report the runner, model and package lock this release expects.
+    """
+    url = remote_endpoint()
+    if url is None:
+        raise ValueError("cellpose_remote_url_invalid")
+    assets = _assets()
+    lock = json.loads((assets / "runtime.lock.json").read_text(encoding="utf-8"))
+    gpu = json.loads((assets / "gpu.lock.json").read_text(encoding="utf-8"))
+    parameters = detector.model_dump(mode="json")
+    # compute_device states a preference; the remote service uses its GPU and the
+    # receipt records the device actually used next to the requested value.
+    requested_device, parameters["compute_device"] = parameters["compute_device"], "auto"
+    request = json.dumps({"parameters": parameters}).encode("utf-8")
+    stream = io.BytesIO()
+    if parent is None:
+        np.savez_compressed(stream, request=np.frombuffer(request, dtype=np.uint8), image=image)
+    else:
+        np.savez_compressed(stream, request=np.frombuffer(request, dtype=np.uint8), image=image, parent=parent)
+    headers = {"Content-Type": "application/octet-stream", "Accept": "application/octet-stream",
+               # Hugging Face holds the request while a scaled-to-zero endpoint starts.
+               "X-Scale-Up-Timeout": str(REMOTE_WAIT_SECONDS)}
+    if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN"):
+        headers["Authorization"] = "Bearer " + os.environ["CYTELLECT_CELLPOSE_REMOTE_TOKEN"]
+    if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_SECRET"):
+        headers["X-Cytellect-Secret"] = os.environ["CYTELLECT_CELLPOSE_REMOTE_SECRET"]
+    deadline, delay = time.monotonic() + REMOTE_WAIT_SECONDS, 5.0
+    while True:
+        try:
+            outgoing = urllib.request.Request(url + "/v1/cellpose", data=stream.getvalue(), headers=headers, method="POST")
+            with urllib.request.urlopen(outgoing, timeout=REMOTE_REQUEST_TIMEOUT_SECONDS) as response:
+                content = response.read(REMOTE_RESPONSE_LIMIT + 1)
+            break
+        except urllib.error.HTTPError as error:
+            # 502-504 while the endpoint starts or restarts; anything else is final.
+            if error.code not in (502, 503, 504) or time.monotonic() + delay > deadline:
+                raise ValueError(_remote_error(error) if error.code not in (502, 503, 504)
+                                 else "cellpose_remote_unavailable") from None
+        except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError):
+            if time.monotonic() + delay > deadline:
+                raise ValueError("cellpose_remote_unreachable") from None
+        time.sleep(delay)
+        delay = min(delay * 2, 30.0)
+    if len(content) > REMOTE_RESPONSE_LIMIT:
+        raise ValueError("cellpose_remote_output_invalid")
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            if sum(item.file_size for item in archive.infolist()) > REMOTE_RESPONSE_LIMIT * 4:
+                raise ValueError("cellpose_remote_output_invalid")
+        with np.load(io.BytesIO(content), allow_pickle=False) as arrays:
+            if set(arrays.files) != {"labels", "receipt"}:
+                raise ValueError("cellpose_remote_output_invalid")
+            raw, receipt = arrays["labels"], json.loads(arrays["receipt"].tobytes().decode("utf-8"))
+    except (zipfile.BadZipFile, OSError, ValueError, UnicodeDecodeError) as error:
+        if isinstance(error, ValueError) and str(error).startswith("cellpose_"):
+            raise
+        raise ValueError("cellpose_remote_output_invalid") from error
+    service = receipt.get("service") if isinstance(receipt, dict) else None
+    if (not isinstance(service, dict) or service.get("runner_sha256") != lock["runner_sha256"]
+            or service.get("model_sha256") != MODEL_SHA256
+            or service.get("requirements_sha256") not in {lock["requirements_sha256"], gpu["requirements_sha256"]}):
+        raise ValueError("cellpose_remote_version_mismatch")
+    receipt["execution_backend"] = {"kind": "remote", "host": urlsplit(url).hostname,
+                                    "requested_compute_device": requested_device}
+    return raw, receipt
+
+
 def runtime_status() -> dict:
     """Sanitized capability probe, without loading Torch or making requests."""
     try:
+        if remote_endpoint():
+            return _remote_status(_assets())
         assets = _assets()
         lock = json.loads((assets / "runtime.lock.json").read_text(encoding="utf-8"))
         python = os.environ.get("CYTELLECT_CELLPOSE_PYTHON")
@@ -256,29 +373,35 @@ def detect_cellpose(image: np.ndarray, detector: CellposeDetectorSpec | NclCellp
     output_dir.mkdir(parents=True, exist_ok=True)
     source, raw_path = output_dir / "cellpose-input.npy", output_dir / "cellpose-raw-labels.npy"
     request_path, receipt_path = output_dir / "cellpose-request.json", output_dir / "cellpose-receipt.json"
-    np.save(source, image, allow_pickle=False)
     parent_path = output_dir / "cellpose-parent-input.npy"
-    request = {"input_path": str(source.resolve()),
-                                      "output_path": str(raw_path.resolve()),
-                                      "model_path": str((Path(os.environ["CYTELLECT_CELLPOSE_MODEL_DIR"]) /
-                                                         "cpsam_v2").resolve()),
-                                      "parameters": detector.model_dump(mode="json")}
-    if isinstance(detector, NclParentCellposeDetectorSpec):
-        assert nuclei is not None
-        np.save(parent_path, nuclei, allow_pickle=False)
-        request["parent_path"] = str(parent_path.resolve())
-    request_path.write_text(json.dumps(request), encoding="utf-8")
-    environment = os.environ.copy()
-    environment.update({"HF_HUB_OFFLINE": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1"})
-    environment.pop("PYTHONPATH", None)
+    parent = nuclei if isinstance(detector, NclParentCellposeDetectorSpec) else None
     try:
-        result = subprocess.run([os.environ["CYTELLECT_CELLPOSE_PYTHON"], "-I", str(assets / "runner.py"),
-                                 str(request_path.resolve()), str(receipt_path.resolve())],
-                                capture_output=True, env=environment, timeout=1800, check=False)
+        if capability.get("backend") == "remote":
+            remote_raw, remote_receipt = _remote_inference(image, parent, detector)
+            np.save(raw_path, remote_raw, allow_pickle=False)
+            receipt_path.write_text(json.dumps(remote_receipt), encoding="utf-8")
+            returncode = 0
+        else:
+            np.save(source, image, allow_pickle=False)
+            request = {"input_path": str(source.resolve()), "output_path": str(raw_path.resolve()),
+                       "model_path": str((Path(os.environ["CYTELLECT_CELLPOSE_MODEL_DIR"]) / "cpsam_v2").resolve()),
+                       "parameters": detector.model_dump(mode="json")}
+            if isinstance(detector, NclParentCellposeDetectorSpec):
+                assert nuclei is not None
+                np.save(parent_path, nuclei, allow_pickle=False)
+                request["parent_path"] = str(parent_path.resolve())
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            environment = os.environ.copy()
+            environment.update({"HF_HUB_OFFLINE": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1"})
+            environment.pop("PYTHONPATH", None)
+            result = subprocess.run([os.environ["CYTELLECT_CELLPOSE_PYTHON"], "-I", str(assets / "runner.py"),
+                                     str(request_path.resolve()), str(receipt_path.resolve())],
+                                    capture_output=True, env=environment, timeout=1800, check=False)
+            returncode = result.returncode
         if not receipt_path.is_file():
             raise ValueError("cellpose_inference_failed")
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if result.returncode or receipt.get("status") != "succeeded":
+        if returncode or receipt.get("status") != "succeeded":
             code = receipt.get("error", "cellpose_inference_failed")
             raise ValueError(code if code.startswith("cellpose_") and len(code) < 80 else "cellpose_inference_failed")
         raw = np.load(raw_path, allow_pickle=False)

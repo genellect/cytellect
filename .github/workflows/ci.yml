@@ -249,6 +249,13 @@ jobs:
             --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 5g \
             -v /tmp/cytellect-container-smoke:/data \
             cytellect-worker-ci python /app/scripts/container_smoke.py
+      - name: Remote Cellpose service returns exactly the local labels (CPU, offline container)
+        run: |
+          docker run --rm --network none --read-only --user 10001:10001 \
+            --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 6g \
+            -v /tmp/cytellect-container-smoke:/data -v "$PWD/fixtures/public/bbbc013:/fixtures:ro" \
+            cytellect-worker-ci python /app/scripts/cellpose_remote_check.py --image /fixtures/A01-dapi.tif \
+            --crop 320 --start-service --require-identical --receipt /data/cellpose-remote-check.json
       - name: Build and verify local browser delivery
         env:
           CYTELLECT_TEST_LOCAL: "1"
@@ -264,6 +271,34 @@ jobs:
             sleep 1
           done
           pnpm --filter @cytellect/web exec playwright test tests/local-workspace.spec.ts
+  cellpose-gpu-image:
+    needs: changes
+    if: needs.changes.outputs.fiji == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Free disk space for the CUDA wheels
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --dev
+      - name: Build the remote GPU inference image
+        run: docker build -f infra/Dockerfile.cellpose-gpu -t cytellect-cellpose-gpu-ci .
+      - name: The CUDA image, served on CPU, returns exactly the CPU runtime's labels
+        run: |
+          uv run python scripts/cellpose_setup.py /tmp/cellpose-runtime --model-cache /tmp/cellpose-models --runtime-only
+          docker run -d --name cellpose-gpu-ci -p 127.0.0.1:8080:8080 -e CYTELLECT_REQUIRE_GPU=0 \
+            --read-only --tmpfs /tmp:rw,size=512m --cap-drop ALL --security-opt no-new-privileges cytellect-cellpose-gpu-ci
+          for i in $(seq 1 150); do curl -fs http://127.0.0.1:8080/health >/dev/null && break; sleep 2; done
+          CYTELLECT_CELLPOSE_PYTHON=/tmp/cellpose-runtime/bin/python CYTELLECT_CELLPOSE_MODEL_DIR=/tmp/cellpose-models \
+          CYTELLECT_CELLPOSE_REMOTE_URL=http://127.0.0.1:8080 \
+            uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A01-dapi.tif --crop 320 \
+            --require-identical --receipt /tmp/cellpose-gpu-image-check.json
+      - name: Service log carries no request content
+        if: always()
+        run: docker logs cellpose-gpu-ci 2>&1 | tail -5
   local-windows:
     needs: changes
     if: needs.changes.outputs.windows == 'true'
