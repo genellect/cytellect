@@ -12,10 +12,10 @@ landing-page copy and repeated feature-card layouts.
   accessible analytical decisions and communication through a figure. Feature
   categories such as "images and measurements" are not benefit headlines.
 - The current art direction is light and readable (approved in #59). The
-  visual standard and its open revision are recorded in the
-  [LP design record](lp-optical-preview.md) and the
-  [art direction proposal](lp-art-direction.md): science and the world view are
-  carried by real data and real footage rather than hand-authored objects.
+  [art direction](lp-art-direction.md) (approved 2026-10-23) is the canonical
+  visual standard: science and the world view are carried by photoreal
+  laboratory footage with a clean, bright grade, not by hand-authored objects.
+  The [LP design record](lp-optical-preview.md) keeps the layout history.
   Keep the copy and actions in the first viewport, including short windows and
   mobile. Avoid generic nested glass spheres, star fields and decorative
   particles. Record authored or rendered artwork separately from measured
