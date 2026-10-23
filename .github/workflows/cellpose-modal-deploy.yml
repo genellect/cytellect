@@ -1,0 +1,28 @@
+name: Cellpose Modal deploy
+# Deploys the remote Cellpose GPU server (infra/modal_cellpose.py) to Modal from
+# main. This is a paid-service release step: run it only on the owner's explicit
+# instruction. The Modal deploy token lives only in the repository secrets.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cellpose-modal-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install --require-hashes --no-deps -r infra/modal-requirements.txt
+      - name: Deploy and record the server URL
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          modal deploy infra/modal_cellpose.py | tee deploy.log
+          grep -o 'https://[A-Za-z0-9.-]*\.modal\.run' deploy.log | sort -u | sed 's/^/Server: /' >> "$GITHUB_STEP_SUMMARY"
