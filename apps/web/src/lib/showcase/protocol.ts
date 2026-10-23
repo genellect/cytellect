@@ -12,6 +12,11 @@ export interface RuntimeConfig {
   wheels: Array<{file: string; sha256: string}>; fonts: Array<{file: string; sha256: string}>;
 }
 
+/** `snapshot/journal.json`: the demo tour recorded in order through the in-browser API.
+ *  `body` is the request body (JSON text) with client-generated identifiers written as "*"; null matches any body. */
+export interface JournalEntry {method: string; path: string; body: string | null; status: number; headers: HeaderList; file: string | null}
+export interface Journal {version: 1; entries: JournalEntry[]}
+
 /** `snapshot/index.json`: recorded initial GET responses. */
 export interface SnapshotIndex {version: 1; entries: Record<string, {status: number; headers: HeaderList; file: string}>}
 
@@ -26,6 +31,6 @@ export type WorkerOutbound =
 /** Codes the UI shows as information, never as an error. */
 export const SHOWCASE_NOTICE_CODES = [
   "showcase_detection_not_recorded", "showcase_proposal_not_recorded", "showcase_upload_disabled",
-  "showcase_engine_unavailable", "showcase_unavailable",
+  "showcase_engine_unavailable", "showcase_unavailable", "showcase_action_not_recorded",
 ] as const;
 export type ShowcaseNoticeCode = typeof SHOWCASE_NOTICE_CODES[number];

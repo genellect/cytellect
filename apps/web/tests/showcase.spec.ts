@@ -366,9 +366,10 @@ test("demo: image, outline, measurement, statistics and figure features run with
     await examples.getByRole("button").first().click();
     await idle(page);
   }
-  await composer.fill("公開デモで記録されていない指示");
+  // A request this dataset cannot answer is told what it can, with the examples to try.
+  await composer.fill("ミトコンドリアを数えたい");
   await page.getByRole("button", {name: "AIへ送信"}).click();
-  await expect(page.getByRole("status").filter({hasText: "記録した指示の例だけに応答します"})).toBeVisible({timeout: live});
+  await expect(page.getByText("この公開画像（核を染めた Hoechst と、核小体の NPM1）では")).toBeVisible({timeout: live});
   await page.getByRole("button", {name: "パネルを閉じる"}).click();
   expect(await alerts(page)).toEqual([]);
 
@@ -461,21 +462,51 @@ test("deep links open the requested step without the guide", async ({page}) => {
   await noErrors(page, watch);
 });
 
-test("phones keep the recorded view and explain changes instead of failing", async ({page}) => {
+test("phones run the guided operations from the recorded tour", async ({page}) => {
+  test.skip(!!DEV, "The recorded tour is part of the published demo files.");
   await page.addInitScript(() => Object.defineProperty(navigator, "deviceMemory", {value: 2}));
   await page.setViewportSize({width: 390, height: 844});
   const watch = await openDemo(page);
+  const header = page.locator("header");
   await expect(stage(page)).toBeVisible({timeout: live});
   await expect(regions(page).first()).toBeAttached({timeout: live});
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.locator("header").getByRole("button", {name: "測定", exact: true}).click();
-  await expect(page.getByRole("status").filter({hasText: "この操作はPCのブラウザで試せます"})).toBeVisible({timeout: live});
-  await expect(page.locator("header [data-showcase-engine=unavailable]")).toBeAttached();
-  // Saved statistics come from the recorded responses.
+  // Measuring the opened field returns as it did in the browser API, without starting it here.
+  const measure = header.getByRole("button", {name: "測定", exact: true});
+  await measure.click();
+  // The narrow header has no progress text; the run is over when measuring can start again.
+  await page.waitForTimeout(800);
+  await expect(measure).toBeEnabled({timeout: live});
+  await expect(page.getByRole("status").filter({hasText: "この操作はPCのブラウザで試せます"})).toHaveCount(0);
+  await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
+  expect(await alerts(page)).toEqual([]);
+
+  // Statistics, its figure and the publication package, as 「使い方」 leads.
   await page.goto("/demo?step=statistics");
-  await expect(page.getByRole("region", {name: "測定結果の統計解析"}).locator("table").first()).toBeVisible({timeout: live});
-  expect(DEV ? watch.requests.filter(url => url.endsWith("/handle")) : []).toEqual([]);
-  await noOverflow(page);
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await expect(results.locator("table").first()).toBeVisible({timeout: live});
+  const reviewed = results.getByLabel("測定領域と採用する視野を確認した");
+  if (!await reviewed.isChecked()) await reviewed.check();
+  await results.getByRole("button", {name: "計算", exact: true}).click();
+  await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
+  expect(await alerts(page)).toEqual([]);
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  const figure = page.getByRole("region", {name: "図の作成・保存"});
+  const update = figure.getByRole("button", {name: "図を更新", exact: true});
+  await update.click();
+  await expect(update).toBeEnabled({timeout: live});
+  const download = page.waitForEvent("download", {timeout: live});
+  await figure.getByRole("button", {name: "保存", exact: true}).click();
+  expect((await download).suggestedFilename()).toBe("Cytellect-publication.zip");
+  expect(await alerts(page)).toEqual([]);
+
+  // A setting outside the tour is explained, not failed.
+  await figure.getByRole("combobox", {name: "図の幅", exact: true}).selectOption("custom");
+  await figure.getByRole("spinbutton", {name: "幅 / mm"}).fill("120");
+  await update.click();
+  await expect(page.getByRole("status").filter({hasText: "公開デモに記録していません"})).toBeVisible({timeout: live});
+  // The phone never downloaded the in-browser API.
+  expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
   await noErrors(page, watch);
 });
 

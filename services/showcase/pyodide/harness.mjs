@@ -9,13 +9,16 @@
 //   {"method": "GET", "url": "/v1/...", "body": {...}, "headers": [[name, value]], "save": "name"}
 //   {"settle": true}                       wait until queued jobs have run
 //   {"poll": "/v1/jobs/{x.job_id}", "until": "state", "in": ["succeeded", "failed"]}
+//   {"python": "code", "save": "name"}     run code in the runtime; a JSON string result is saved
+//   {"copy_out": "{name.root}", "items": "{name.dirs}", "to": "DIR"}  copy those directories
+//                                          from the runtime's file system to DIR (replacing them)
 // Any step may carry "label". "{name.a.0.b}" inside a url or string body value is replaced
 // from a saved JSON response; a string that is exactly "{name.a}" becomes that JSON value.
 // One JSON line ({step, status, type, bytes, sha256, json}) is printed per response; the
 // last line reports timing and memory. Network access is needed only for the Pyodide CDN
 // (Node: NODE_USE_ENV_PROXY=1 behind a proxy); --cache keeps downloaded packages.
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -103,7 +106,30 @@ async function request(method, url, body, headers) {
   return { status: response.status, type, bytes: bytes.length, sha256: sha256(bytes), json };
 }
 
+function copyOut(from, to) {
+  rmSync(to, { recursive: true, force: true });
+  mkdirSync(to, { recursive: true });
+  for (const name of pyodide.FS.readdir(from)) {
+    if (name === "." || name === "..") continue;
+    const source = `${from}/${name}`;
+    if (pyodide.FS.isDir(pyodide.FS.stat(source).mode)) copyOut(source, join(to, name));
+    else writeFileSync(join(to, name), pyodide.FS.readFile(source));
+  }
+}
+
 for (const step of JSON.parse(readFileSync(args.requests, "utf8"))) {
+  if (step.python !== undefined) {
+    const value = await pyodide.runPythonAsync(step.python);
+    const json = typeof value === "string" ? JSON.parse(value) : null;
+    if (step.save) saved[step.save] = json;
+    console.log(JSON.stringify({ step: step.label ?? "python", json }));
+    continue;
+  }
+  if (step.copy_out !== undefined) {
+    const from = fill(step.copy_out);
+    for (const item of fill(step.items)) copyOut(`${from}/${item}`, join(resolve(step.to), item));
+    continue;
+  }
   if (step.settle) {
     await runtime.settle();
     continue;

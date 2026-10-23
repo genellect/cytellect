@@ -9,10 +9,14 @@ Stages (each writes only outside the checkout until ``publish``):
    endpoints with the same requests the workspace UI sends.
 3. ``grid``     on a copy of the seeded data directory, run preview runs for a
    small grid of detector settings the UI exposes, recording each detection.
-4. ``publish``  export ``seed.zip`` (deterministic), ``recorded-options.json``,
+4. ``publish``  export ``seed.zip`` (deterministic), recompute its saved statistics and
+   figures inside the in-browser runtime (``rederive.py``) and export it again, ``recorded-options.json``,
    proposals and the manifest into ``apps/web/public/showcase``.
 5. ``snapshot`` serve the seeded copy with uvicorn and record every GET response
    the real web UI makes (``snapshot.mjs``, Playwright/Chromium).
+6. ``journal``  build the public site, serve ``/demo`` with the published seed and record the guided
+   operations through the in-browser API (``journal.mjs``) for devices that cannot
+   run it.
 
 Measurements, statistics and figures come only from the shared API/worker
 implementation. No value is computed or edited here.
@@ -870,6 +874,27 @@ def deterministic_zip(target: Path, entries: dict[str, Path | bytes]) -> None:
 ENGINE_FILE_LIMIT = 1024 * 1024
 
 
+def rederive_in_browser(seed_zip: Path, seed_data: Path, work: Path) -> dict:
+    """Replace the seed's saved statistics and figures with the in-browser runtime's (``rederive.py``)."""
+    harness = REPO / "services" / "showcase" / "pyodide" / "harness.mjs"
+    if not (harness.parent / "node_modules" / "pyodide").is_dir():
+        raise SystemExit("install the pinned Pyodide first: pnpm --dir services/showcase/pyodide install")
+    steps = work / "rederive-steps.json"
+    steps.write_text(json.dumps([
+        {"python": "import json; from cytellect_showcase.rederive import rederive_in_place; json.dumps(rederive_in_place())",
+         "save": "redo", "label": "rederive"},
+        {"copy_out": "{redo.root}", "items": "{redo.dirs}", "to": str(seed_data)},
+    ]))
+    done = subprocess.run(["node", str(harness), "--seed", str(seed_zip), "--requests", str(steps),
+                           "--cache", str(work / "pyodide-cache")], cwd=harness.parent, capture_output=True, text=True,
+                          env={**os.environ, "NODE_USE_ENV_PROXY": "1"}, timeout=3600)
+    if done.returncode:
+        sys.stderr.write(done.stdout[-4000:] + done.stderr[-4000:])
+        raise SystemExit("rederive in the in-browser runtime failed")
+    result = next(json.loads(line) for line in done.stdout.splitlines() if line.startswith('{"step":"rederive"'))["json"]
+    return {key: result[key] for key in ("statistics", "figure_render")}
+
+
 def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dict, target: Path) -> dict:
     staging = data_dir.parent / "seed-db.sqlite"
     sqlite_copy(data_dir / "cytellect.sqlite", staging)
@@ -1045,6 +1070,7 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
         shutil.rmtree(web / ".next-showcase", ignore_errors=True)
     target = out / "snapshot"
     keep = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json"}
+    # The journal stage records again after every snapshot; its files go with the snapshot's.
     if target.exists():
         for path in target.iterdir():
             if path.name not in keep:
@@ -1054,6 +1080,57 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
         shutil.copyfile(path, target / path.name)
     shutil.copyfile(destination / "index.json", target / "index.json")
     return report
+
+
+def journal(work: Path, origin_port: int, out: Path) -> dict:
+    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``."""
+    origin = f"http://127.0.0.1:{origin_port}"
+    web = REPO / "apps" / "web"
+    preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
+    env = {key: value for key, value in os.environ.items() if key not in ("NEXT_PUBLIC_API_ORIGIN", "NEXT_PUBLIC_SHOWCASE_DEV_BACKEND")}
+    env.update({"CYTELLECT_NEXT_DIST_DIR": ".next-showcase-journal", "NEXT_TELEMETRY_DISABLED": "1", "PORT": str(origin_port)})
+    destination = work / "journal-out"
+    # The public build (no analysis API) is the one that serves /demo; `next dev` defaults to a local API.
+    built = subprocess.run(["pnpm", "exec", "next", "build"], cwd=web, env=env, capture_output=True, text=True)
+    if built.returncode:
+        for name, content in preserved.items():
+            (web / name).write_bytes(content)
+        sys.stderr.write(built.stdout[-4000:] + built.stderr[-4000:])
+        raise SystemExit("journal: web build failed")
+    nextjs = subprocess.Popen(["pnpm", "exec", "next", "start", "--hostname", "127.0.0.1", "--port", str(origin_port)],
+                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              start_new_session=True)
+    try:
+        for _ in range(240):
+            try:
+                urllib.request.urlopen(f"{origin}/demo", timeout=30)
+                break
+            except OSError:
+                time.sleep(1)
+        if destination.exists():
+            shutil.rmtree(destination)
+        config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"),
+                  "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
+        result = subprocess.run(["node", str(Path(__file__).with_name("journal.mjs"))], input=json.dumps(config),
+                                text=True, cwd=work, capture_output=True, timeout=7200)
+        sys.stdout.write(result.stdout[-4000:])
+        if result.returncode:
+            sys.stderr.write(result.stderr[-4000:])
+            raise SystemExit("journal walk failed")
+        report = json.loads((destination / "journal-report.json").read_text())
+        if report["alerts"] or report["consoleErrors"]:
+            raise SystemExit(f"journal walk reported problems: {json.dumps(report, ensure_ascii=False)[:2000]}")
+    finally:
+        os.killpg(nextjs.pid, 15)
+        nextjs.wait(30)
+        for name, content in preserved.items():
+            (web / name).write_bytes(content)
+        shutil.rmtree(web / ".next-showcase-journal", ignore_errors=True)
+    target = out / "snapshot"
+    for path in (destination / "files").iterdir():
+        shutil.copyfile(path, target / path.name)
+    shutil.copyfile(destination / "journal.json", target / "journal.json")
+    return {key: report[key] for key in ("entries", "scenes")}
 
 
 def _owner_session(app, workspace_id: str) -> str:
@@ -1210,7 +1287,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--cache", type=Path, required=True, help="download cache outside the checkout")
     parser.add_argument("--fiji", required=True, help="pinned Fiji installation (scripts/fiji_setup.py)")
     parser.add_argument("--out", type=Path, default=PUBLIC)
-    parser.add_argument("--stages", default="prepare,scenario,grid,proposals,publish,snapshot,qa")
+    parser.add_argument("--stages", default="prepare,scenario,grid,proposals,publish,snapshot,journal,qa")
     parser.add_argument("--web-port", type=int, default=3217)
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
@@ -1287,6 +1364,10 @@ def main(argv: list[str] | None = None) -> None:
         state["snapshot"] = report
         state_path.write_text(json.dumps(state, indent=1))
         write_manifest(args, manifest, state)
+    if "journal" in stages:
+        state["journal"] = journal(work, args.web_port, args.out)
+        state_path.write_text(json.dumps(state, indent=1))
+        write_manifest(args, manifest, state)
     if "manifest" in stages:
         write_manifest(args, manifest, state)
     if "qa" in stages:
@@ -1322,6 +1403,10 @@ def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path
     showcase = {"version": 1, "workspace_id": scenario_state["workspace_id"], "owner": scenario_state["owner"],
                 "dataset": manifest["id"], "retention_seconds": RETENTION_SECONDS}
     state["seed"] = export_seed(seed_data, recordings, proposals, showcase, out / "seed.zip")
+    # A visitor's publication package recomputes these in the browser and requires them unchanged.
+    state["rederive"] = rederive_in_browser(out / "seed.zip", seed_data, args.work)
+    log("rederived in the browser runtime", state["rederive"])
+    state["seed"] = export_seed(seed_data, recordings, proposals, showcase, out / "seed.zip")
     (args.work / "state.json").write_text(json.dumps(state, indent=1))
     write_manifest(args, manifest, state)
 
@@ -1355,6 +1440,7 @@ def write_manifest(args, manifest: dict, state: dict) -> None:
         "generated_from_commit": git_commit(),
         "runtime": runtime_versions(args.fiji),
         "scenario": {key: state["scenario"].get(key) for key in ("timings", "statistics", "renders")},
+        "journal": state.get("journal"),
         "grid": {"options": state.get("grid", {}).get("options"), "timings": state.get("grid", {}).get("timings")},
         "detections_recorded": len(json.loads((args.work / "recordings" / "index.json").read_text())["entries"])
         if (args.work / "recordings" / "index.json").is_file() else 0,

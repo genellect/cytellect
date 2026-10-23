@@ -224,6 +224,41 @@
     "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
     "license": "Pexels License"
   },
+  "apps/web/public/marketing/lp-pipetting.webp": {
+    "sha256": "f9c39056535c20971e87fa10c74f7e16f8421006e67f55b5eac78cb930d10377",
+    "source": "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/lp-dish.webp": {
+    "sha256": "aaf6a2ff6b5f28f94fe466c819d9792d8df5de4094cd4af7bbc4f0a6ef8a7600",
+    "source": "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/lp-field.webp": {
+    "sha256": "08ed04a7a70aa864d31b0705fc85d73c3d73450bfb2e532c9a90866e3facee33",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-field-mobile.webp": {
+    "sha256": "9ea89fcee9d511a9a1f2c5b71d0a74e7b195f70a26b0df2effea35a0f64182cf",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-workspace.webp": {
+    "sha256": "f015acdbf9b2a721d98f803da9142f2a1c54272dc87e225f09cd3c29727e7743",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-figure.svg": {
+    "sha256": "5db7db2d7905c2dc59d15595840fb930bf0b1e0dee170a21b40691c6c3e21193",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-workspace-mobile.webp": {
+    "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
   "apps/web/public/showcase/runtime/typing_extensions-4.16.0-py3-none-any.whl": {
     "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
     "source": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
@@ -290,7 +325,7 @@
     "license": "PSF-2.0"
   },
   "apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl": {
-    "sha256": "62dd067dae266c412b9f939dda80d013ac9afa75ee6525aeb9eab75751b3d7e5",
+    "sha256": "50b8253c27e6ca1c3eb0c19b807211030e2c4492c8f488de39ace79d1580ca80",
     "source": "Built from this repository by scripts/build_showcase_runtime.py",
     "license": "Apache-2.0"
   },
@@ -311,7 +346,7 @@
     "license": "Apache-2.0 AND MIT AND BSD-3-Clause AND PSF-2.0 AND OFL-1.1"
   },
   "apps/web/public/showcase/seed.zip": {
-    "sha256": "23a3214a35e0272f93177bbeaa3b0306db4883416a8347b28e8016b47eaef694",
+    "sha256": "fde7273358c5f112b305abbf5d56e124e986a787aae05f7c6da3dc82775ea246",
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -336,6 +371,12 @@
   },
   "apps/web/public/showcase/snapshot/151d398f78c9fab183f9a610.png": {
     "sha256": "151d398f78c9fab183f9a610d4c452d1eb96a24a2476e04c5aaf7a8dd19842dd",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0",
+    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
+  "apps/web/public/showcase/snapshot/34bca155b5a9b21d149fd4ea.zip": {
+    "sha256": "34bca155b5a9b21d149fd4ea591c1e4349959ea68793efbd78967c3c7d1152f7",
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -387,40 +428,5 @@
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
-  "apps/web/public/marketing/lp-pipetting.webp": {
-    "sha256": "f9c39056535c20971e87fa10c74f7e16f8421006e67f55b5eac78cb930d10377",
-    "source": "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/",
-    "license": "Pexels License"
-  },
-  "apps/web/public/marketing/lp-dish.webp": {
-    "sha256": "aaf6a2ff6b5f28f94fe466c819d9792d8df5de4094cd4af7bbc4f0a6ef8a7600",
-    "source": "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE",
-    "license": "Unsplash License"
-  },
-  "apps/web/public/marketing/lp-field.webp": {
-    "sha256": "08ed04a7a70aa864d31b0705fc85d73c3d73450bfb2e532c9a90866e3facee33",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-field-mobile.webp": {
-    "sha256": "9ea89fcee9d511a9a1f2c5b71d0a74e7b195f70a26b0df2effea35a0f64182cf",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-workspace.webp": {
-    "sha256": "f015acdbf9b2a721d98f803da9142f2a1c54272dc87e225f09cd3c29727e7743",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-figure.svg": {
-    "sha256": "5db7db2d7905c2dc59d15595840fb930bf0b1e0dee170a21b40691c6c3e21193",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-workspace-mobile.webp": {
-    "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
   }
 }

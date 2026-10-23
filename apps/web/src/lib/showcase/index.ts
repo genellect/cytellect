@@ -3,7 +3,7 @@ import runtimeConfig from "./runtime-config.json";
 import {createWorkerEngine} from "./engine";
 import type {RuntimeConfig, ShowcaseNoticeCode} from "./protocol";
 import {SHOWCASE_NOTICE_CODES} from "./protocol";
-import {createShowcaseTransport, type ShowcaseTransport} from "./transport";
+import {createShowcaseTransport, type RecordedExchange, type ShowcaseTransport} from "./transport";
 
 /** Loopback-only development forwarder (scripts/dev_showcase_backend.py); unset in every published build. */
 export const DEV_BACKEND = (() => {
@@ -23,6 +23,17 @@ export function liveCapable(environment: {navigator: Navigator; matchMedia?: (qu
   return !(touch && environment.innerWidth < 1024);
 }
 
+/** Present only in the build-time tour recorder, which defines it before the page loads. */
+function recorder(): ((exchange: RecordedExchange) => void) | undefined {
+  const hook = typeof window === "undefined" ? undefined : (window as Window & {__cytellectShowcaseRecord?: (exchange: unknown) => void}).__cytellectShowcaseRecord;
+  if (typeof hook !== "function") return undefined;
+  return exchange => {
+    let binary = "";
+    new Uint8Array(exchange.bytes).forEach(byte => {binary += String.fromCharCode(byte);});
+    hook({...exchange, bytes: btoa(binary)});
+  };
+}
+
 let transport: ShowcaseTransport | null = null;
 export function activateShowcase() {
   transport ??= createShowcaseTransport({
@@ -30,6 +41,7 @@ export function activateShowcase() {
     createEngine: () => createWorkerEngine(runtimeConfig as RuntimeConfig, DEV_BACKEND),
     capable: () => liveCapable(),
     snapshotBase,
+    record: recorder(),
   });
   return transport;
 }
@@ -42,6 +54,7 @@ export const showcaseNotices: Record<ShowcaseNoticeCode, string> = {
   showcase_upload_disabled: "公開デモでは画像を追加できません。Windows版・Docker版をご利用ください。",
   showcase_engine_unavailable: "この操作はPCのブラウザで試せます。この端末では保存済みの解析結果を表示しています。",
   showcase_unavailable: "公開デモのデータを読み込めませんでした。時間をおいて再読み込みしてください。",
+  showcase_action_not_recorded: "この設定での結果は、公開デモに記録していません。「使い方」の手順の操作は、どの端末でもそのまま試せます。",
 };
 export const isShowcaseNoticeCode = (code: string): code is ShowcaseNoticeCode => (SHOWCASE_NOTICE_CODES as readonly string[]).includes(code);
 /** A displayed message that only reports a demo limitation (shown as information, not as an error). */

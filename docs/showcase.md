@@ -61,6 +61,7 @@
 | `seed.zip` | データディレクトリ（`cytellect.sqlite`、`workspaces/` ほか。`tmp/` と再生成できる重複を除く）、`recordings/`、`proposals.json`、`showcase.json`（`workspace_id`、所有者 `owner`、`regenerate`。ビルド時のセッションは削除済みで、実行時はこの `owner` のセッションを作成する） |
 | `snapshot/dataset.json` | データセットの題名、出典、ライセンス、帰属表示、加工内容、注意事項（UI が表示する） |
 | `snapshot/index.json` | `{"version": 1, "entries": {"GET <パスとクエリ>": {"status": 200, "headers": [[...]], "file": "<ファイル名>"}}}` |
+| `snapshot/journal.json` | 案内の操作を、公開した初期状態からブラウザ内の API で順に実行した記録。`{"version": 1, "entries": [{"method", "path", "body", "status", "headers", "file"}]}`。変更の要求の `body` では、来訪ごとに変わる値（`request_id`・`version`・`spec_version` と、記録中に API が作った識別子＝初期状態のスナップショットにない UUID）を `"*"` にする。保存する解析設定（`PUT analysis-spec`）は記録しない |
 | `runtime/` | 自前のホイールと純 Python の依存。Pyodide 本体と同梱パッケージは、版を固定した CDN から読み込む |
 
 `apps/web/src/lib/showcase/runtime-config.json` に、Pyodide の版と読み込み元、読み込むパッケージ、ホイールの一覧を記録します。
@@ -113,11 +114,18 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 - Matplotlib 3.10 の SVG 出力は数値の太さ（400 など）で失敗します。3.11 と同じく数値をそのまま使うよう、ブラウザ内でだけ `font_manager.weight_dict` に 0–1000 の数値を加えます。
 - 日本語の図は Noto Sans JP（公式の可変フォント、SHA-256 `c2f3b4d4…fc68f`、OFL-1.1）を fontTools で太さ 400 の静的フォントにしたもの（`NotoSansJP-Regular.ttf`）を使います。サーバーは Noto Sans CJK JP なので、図の font の記録と文字の配置は異なります。英語の図はどちらも DejaVu Sans です。
-- 版の文字列（`scipy_version` など）は結果に記録されたまま異なります。測定値・統計・図の元データの一致は、`tests/test_showcase_runtime.py` が同じ要求をハーネスと CPython で実行して相対誤差 1e-9 で照合しています（公開画像 BBBC013 の切り出し 4 視野、試験用の閾値検出）。
+- 論文用パッケージの作成時は、解析版のすべての統計結果をブラウザ内で計算し直し、保存した結果と完全に一致することを確かめます。CPython で作った初期状態の結果は、記録する `scipy_version` と、一部の浮動小数点数の最後の桁（相関係数で 1e-16 程度）がブラウザ内と異なります。この食い違いのため、以前は初期状態の解析版で ZIP を保存すると `region_export_statistics_source_mismatch` で失敗していました。そこで、ビルドの `publish` 段階では、書き出した `seed.zip` を Pyodide のハーネスで起動し、保存済みの統計と図をブラウザ内で計算し直したもの（`cytellect_showcase.rederive`）に置き換えてから、もう一度書き出します。計算し直した値が、相対誤差 1e-9（絶対誤差 1e-12）を超えて変わった場合、または版の文字列以外の項目が変わった場合は、ビルドを止めます。図の描き方の記録（`figure`。使ったフォントなど）は照合せず、描き直した図と一緒に置き換えます。ブラウザ内と CPython とで、測定値・統計・図の元データが一致することは、`tests/test_showcase_runtime.py` が同じ要求をハーネスと CPython で実行して、相対誤差 1e-9 で照合しています（公開画像 BBBC013 の切り出し 4 視野、試験用の閾値検出）。
 
 ### ビルドと検査
 
 `uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。
+
+公開デモの作り直し（`services/showcase/src/cytellect_showcase/build.py`）は、`publish` → `snapshot` → `journal` の順に実行します。`journal` は、公開ビルドと同じ `/demo` をブラウザ内の API で開き、次の操作を初期状態から 1 場面ずつ実行して記録します。警告や想定外のエラーが 1 件でも出れば失敗します。
+
+- 案内どおりの統計・図・ZIP 保存
+- 核・核小体・核質ごとの統計（指標と解析の組み合わせ、図の種類と幅）
+- 視野ごとの測定と、全視野の測定
+- AI の指示の例
 
 ### 測定値（Node 24、このリポジトリの開発環境）
 
@@ -142,8 +150,9 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 - 公開ビルド（API 未設定）の `/demo` だけが `activateShowcase()` で切り替えを有効にし、`lib/api.ts` の `request`・`fetchPrivateResponse`（`download`・`fetchBlob` を含む）がこの経路を使う。API を設定したビルドとローカル版の通信は変わらない。`/workspace` は公開ビルドでは `/demo` へ転送する。
 - 記録の再生：`GET <パスとクエリ>` が `snapshot/index.json` にあれば、その本文を返す。最初の変更操作より後、またはブラウザ内の API が起動した後は、すべての要求を Web Worker へ送る。記録にない GET は起動を待つ。要求は発行順に1件ずつ処理する。
+- 操作の記録の再生：API を起動しない端末（スマホ、メモリが少ない PC、起動に失敗した PC）では、`snapshot/journal.json` が変更の要求に答える。まず前回答えた位置より後で、一致する記録を探す。見つからなければ先頭から探す（場面はどれも初期状態から始まるため）。答えた後の GET には、記録上でその変更の後に API が返した応答を順に返す（ジョブの進行も記録どおり）。保存する解析設定は端末側で保持し、版を 1 つ進めて返す。記録にない変更には `showcase_action_not_recorded`（409）を返す。記録を使い始めた後は、Worker の API を使わない。API を起動する PC は、記録を使わずに起動を待つ。これは、記録とその PC の API の状態が食い違わないようにするため。
 - 起動：PC のブラウザ（`navigator.deviceMemory` が分かる場合は 4 以上、狭いタッチ端末を除く）では、初回表示の後に Worker を起動する。Worker は `seed.zip` を先に取得し、`runtime/` の各ファイルを `runtime-config.json` の SHA-256 と照合してから導入する（URL に `?sha256=` を付け、長期キャッシュでも別ビルドの内容を使わない）。Pyodide 本体は `indexURL` の `pyodide.mjs` から読み込む。ホイールは site-packages に展開し、フォントは `/showcase/fonts/`（`runtime.DEFAULT_FONT_DIR`、Node の検証ハーネスと同じ場所）に置き、`boot` の `font_dir` で渡す。
-- 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（端末で起動しない・起動に失敗した）、`showcase_unavailable`（記録やランタイムが公開されていない）。`role="alert"` ではなく情報表示にし、再読み込みではなく「閉じる」で消せる。
+- 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（端末で起動しない・起動に失敗した）、`showcase_unavailable`（記録やランタイムが公開されていない）、`showcase_action_not_recorded`（操作の記録にない設定）。`role="alert"` ではなく情報表示にし、再読み込みではなく「閉じる」で消せる。
 - 任意のファイル（なければ本番と同じ表示）：`snapshot/recorded-options.json` のキーは検出器の `engine`（例 `fiji-stardist-2d`、`cytellect-nucleolar-v2`、`cellpose-sam`）、その中のキーは検出器の項目名で、核の `detection_max_side_px`（`null` は自動）も `fiji-stardist-2d` に含める。記載のある項目は記録した値の選択肢になり、記載のない項目は変更できない。記載のない検出器は選択肢として選べない。`snapshot/proposal-examples.json` は AI の指示の例、`snapshot/dataset.json`（`title`、`attribution`、`licence`、`licenceUrl`、`sourceUrl`、`caveats`）はデモ表示と案内の最後の手順に出典として表示する。
 - 初回表示：読み込み中は画像追加の画面ではなく読み込み中の案内を出す。統計とグラフは、計算前でも保存済みの最新の結果（シナリオの最後の計算）を開く（本番は「保存した図」から選ぶまで空のまま）。
 - HTTP ヘッダー：公開ビルドの CSP は `'wasm-unsafe-eval'`、`indexURL` のオリジン（script-src・connect-src）、`worker-src 'self' blob:` を加える。`/showcase/runtime/*` は長期・immutable、`seed.zip`・`manifest.json`・`snapshot/*` は毎回再検証、それ以外は従来どおり `no-store`。

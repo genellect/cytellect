@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {fetchVerified, IntegrityError, sha256Hex} from "./digest";
 import type {ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
-import {createShowcaseTransport, snapshotKey, type ShowcaseEngine} from "./transport";
+import {createShowcaseTransport, journalBodyMatches, journalPathMatches, snapshotKey, type ShowcaseEngine} from "./transport";
 import {bootPyodideRuntime} from "./worker-runtime";
 
 const encoder = new TextEncoder();
@@ -121,6 +121,104 @@ describe("showcase transport", () => {
     const response = await transport({engine}).fetch("/v1/workspaces/w/runs", {method: "POST", body: "{}"});
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({detail: "showcase_detection_not_recorded"});
+  });
+});
+
+describe("recorded tour", () => {
+  const entry = (method: string, path: string, body: string | null, file: string | null, status = 200) =>
+    ({method, path, body, status, headers: [["content-type", "application/json"]] as Array<[string, string]>, file});
+  function tour(capable: boolean, engine = fakeEngine()) {
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/jobs/j")]: {status: 200, headers: [], file: "s0.json"}}},
+      "s0.json": {state: "snapshot"},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/w/statistics", JSON.stringify({request_id: "*", metric: "area"}), "a.json", 202),
+        entry("GET", "/v1/workspaces/w/jobs/j", null, "b.json"),
+        entry("GET", "/v1/workspaces/w/jobs/j", null, "c.json"),
+        entry("PUT", "/v1/workspaces/w/selection", null, "d.json"),
+        entry("GET", "/v1/workspaces/w/jobs/j", null, "e.json"),
+      ]},
+      "a.json": {job: "j"}, "b.json": {state: "running"}, "c.json": {state: "done"}, "d.json": {version: 2}, "e.json": {state: "after"},
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    return {engine, subject: createShowcaseTransport({fetchStatic, createEngine: () => engine, capable: () => capable, snapshotBase: "/showcase/snapshot/"})};
+  }
+  const post = (subject: ReturnType<typeof tour>["subject"], metric: string) =>
+    subject.fetch("/v1/workspaces/w/statistics", {method: "POST", body: JSON.stringify({metric, request_id: crypto.randomUUID()})});
+
+  it("answers a recorded change and the reads after it on a device without the engine", async () => {
+    const {subject, engine} = tour(false);
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "snapshot"});
+    const started = await post(subject, "area");
+    expect(started.status).toBe(202);
+    expect(await started.json()).toEqual({job: "j"});
+    // A job polled after the change finishes as it did when recorded, then stays finished.
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "running"});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
+    expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "after"});
+    expect(engine.start).not.toHaveBeenCalled();
+  });
+
+  it("orders a read issued during a recorded change after that change", async () => {
+    const {subject} = tour(false);
+    const [, read] = await Promise.all([post(subject, "area"), subject.fetch("/v1/workspaces/w/jobs/j")]);
+    expect(await read.json()).toEqual({state: "running"});
+  });
+
+  it("explains a change the tour does not hold, without starting the engine", async () => {
+    const {subject, engine} = tour(false);
+    await post(subject, "area");
+    const other = await post(subject, "intensity");
+    expect(other.status).toBe(409);
+    expect(await other.json()).toEqual({detail: "showcase_action_not_recorded"});
+    expect(engine.start).not.toHaveBeenCalled();
+  });
+
+  it("leaves every change to the engine on devices that run it", async () => {
+    const {subject, engine} = tour(true);
+    expect(await (await post(subject, "area")).json()).toEqual({live: "/v1/workspaces/w/statistics"});
+    expect(engine.handled).toHaveLength(1);
+  });
+
+  it("finds a recorded change taken out of the recorded order", async () => {
+    const {subject} = tour(false);
+    expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
+    expect((await post(subject, "area")).status).toBe(202);
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "running"});
+  });
+
+  it("keeps the saved analysis settings on the device", async () => {
+    const {subject} = tour(false);
+    const saved = await subject.fetch("/v1/workspaces/w/analysis-spec", {method: "PUT", body: JSON.stringify({version: 3, spec: {target: "nucleoli"}})});
+    expect(await saved.json()).toEqual({version: 4, spec: {target: "nucleoli"}});
+    expect(await (await subject.fetch("/v1/workspaces/w/analysis-spec")).json()).toEqual({version: 4, spec: {target: "nucleoli"}});
+  });
+
+  it("matches recorded paths with identifiers the API generated while recording", () => {
+    expect(journalPathMatches("/v1/jobs/*/figure-render", "/v1/jobs/abc/figure-render")).toBe(true);
+    expect(journalPathMatches("/v1/jobs/*/figure-render", "/v1/jobs/abc/export")).toBe(false);
+    expect(journalPathMatches("/v1/x?a=1", "/v1/x?a=2")).toBe(false);
+  });
+
+  it("matches recorded bodies exactly except for client-generated values", () => {
+    expect(journalBodyMatches('{"a":"*","b":[1,{"c":2}]}', '{"b":[1,{"c":2}],"a":"x"}')).toBe(true);
+    expect(journalBodyMatches('{"a":"*"}', '{"a":1}')).toBe(true);
+    expect(journalBodyMatches('{"a":"*"}', '{}')).toBe(false);
+    expect(journalBodyMatches('{"a":1}', '{"a":1,"b":2}')).toBe(false);
+    expect(journalBodyMatches(null, "anything")).toBe(true);
+  });
+
+  it("hands every exchange with the engine to the build-time recorder", async () => {
+    const record = vi.fn();
+    const engine = fakeEngine();
+    const subject = createShowcaseTransport({fetchStatic: staticFiles({}), createEngine: () => engine, capable: () => true, snapshotBase: "/showcase/snapshot/", record});
+    await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: '{"v":1}'});
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({method: "PUT", path: "/v1/workspaces/w/selection", body: '{"v":1}', status: 200}));
   });
 });
 
