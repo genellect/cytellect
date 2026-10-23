@@ -102,6 +102,6 @@ export default function PublicLanding() {
         </div>
       </section>
     </main>
-    <footer className={lp.footer}><div className={lp.sectionShell}><a href="#top" className={lp.footerBrand}>cytellect</a><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={lp.copyright}>&copy; 2026 Yuto Matsui. All rights reserved.</p></div></footer>
+    <footer className={lp.footer}><div className={lp.sectionShell}><a href="#top" className={lp.footerBrand}>cytellect</a><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect">GitHub <Arrow /></a><a href="https://github.com/genellect/cytellect/blob/main/SECURITY.md">セキュリティ <Arrow /></a><a href="/marketing/provenance.json">画像・映像の出典 <Arrow /></a></nav><p className={lp.copyright}>&copy; 2026 Genellect Inc. All rights reserved.</p></div></footer>
   </div>;
 }
