@@ -5,6 +5,9 @@ Source for the optional LLM proposal described in [workspace redesign](workspace
 Use the [disabled deployment runbook](proposal-deployment.md) for pinned tooling,
 remote D1 migrations, no-paid-call acceptance and rollback conditions.
 
+The same Worker also redeems the operator's access codes for installations and relays
+Cellpose GPU requests; see [paid access](paid-access.ja.md).
+
 ```text
 Browser → local API POST /v1/workspaces/{id}/proposal-drafts   {"goal": "…"} (optional)
             local API derives ProposalContext from the workspace

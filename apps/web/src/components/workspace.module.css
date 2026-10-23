@@ -88,3 +88,7 @@
 .app .editor>h3{font-size:14px;font-weight:600;margin:0 0 12px}
 
 .app .regionTools{padding:9px 12px;margin:0;border-bottom:1px solid var(--ui-line);background:#f8fafc}.app .regionTools button{min-height:30px;padding:6px 9px}
+
+.paidAccessStatus{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:12px 0}
+.paidAccessStatus dt{color:var(--ui-muted);font-weight:600}
+.paidAccessStatus dd{margin:0}

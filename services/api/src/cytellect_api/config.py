@@ -50,6 +50,9 @@ class Settings:
     proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
     desktop_owner: bool = False
     workspace_retention_mode: str = "ttl"
+    # This installation's redeemed access code (local launcher); used when no
+    # proposal service is configured explicitly.
+    paid_access_file: Path | None = None
 
     def __post_init__(self):
         if self.workspace_retention_mode not in {"ttl", "manual"}:
@@ -59,6 +62,15 @@ class Settings:
         if (self.workspace_retention_mode == "manual"
                 and urlsplit(self.app_origin).hostname not in {"127.0.0.1", "localhost", "::1"}):
             raise ValueError("workspace_retention_manual_requires_loopback")
+
+    def proposal_service(self) -> tuple[str, str]:
+        """(URL, device token) of the proposal service; empty when none is available."""
+        if self.proposal_url or self.proposal_token or self.paid_access_file is None:
+            return self.proposal_url, self.proposal_token
+        from cytellect_analysis import paid_access
+
+        credential = paid_access.read(self.paid_access_file)
+        return (credential.service, credential.token) if credential else ("", "")
 
     @property
     def retention_policy(self):
