@@ -73,7 +73,7 @@ Hugging Face の設定で、細かく権限を選べるトークン（fine-grain
 
 Cytellect を開き直すと、Cellpose の検出がクラウド GPU で行われます。
 
-**Docker 版**：worker に環境変数 `CYTELLECT_CELLPOSE_REMOTE_URL` と `CYTELLECT_CELLPOSE_REMOTE_TOKEN` を設定します。
+**Docker 版**：現時点では使えません。Docker 版の worker は、研究画像を外へ出さないため、ネットワークから切り離しています（`compose.yaml` の `network_mode: none`）。worker にクラウド GPU の接続を許す設定は、安全設計の見直しとあわせて別に用意します。
 
 ### 5. 動作を確かめる
 
