@@ -19,7 +19,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     // Recovery is limited to this exact four-field synthetic fixture by raw-byte hashes.
     const session = execFileSync(python, ["-B", "-c", [
       "import os,sys,time,secrets,hashlib", "from pathlib import Path", "from cytellect_api.db import Store,workspaces,fields,sessions,digest",
-      "store=Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']));wid=sys.argv[1];w=store.one(workspaces,id=wid)",
+      "store=Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl'));wid=sys.argv[1];w=store.one(workspaces,id=wid)",
       "assert w and not w['deleted']; fs=store.rows(fields,workspace_id=wid);assert len(fs)==4",
       "hashes=lambda files: sorted(hashlib.sha256(p.read_bytes()).hexdigest() for p in files)",
       "assert hashes(store.safe_path('workspaces',wid,'fields').glob('*/*.tif'))==hashes(Path(sys.argv[2]).glob('*.tif'))",
@@ -27,7 +27,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     ].join("\n"), resume, path.join(output, "inputs")], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
     await page.context().addCookies([{name: "cytellect_dev", value: session, url: api, httpOnly: true, sameSite: "Strict"}]);
   } else {
-    const token = execFileSync(python, ["-B", "-c", "import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR'])).invite(3600))"], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
+    const token = execFileSync(python, ["-B", "-c", "import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl')).invite(3600))"], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
     expect((await page.request.post(`${api}/v1/invitations/redeem`, {headers: {Origin: origin, "X-Cytellect-Request": "1"}, data: {token}})).ok()).toBeTruthy();
   }
   const writes: string[] = []; page.on("request", request => {if (request.method() === "POST") writes.push(new URL(request.url()).pathname);});
