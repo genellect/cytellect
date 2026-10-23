@@ -54,6 +54,7 @@ export const showcaseNotices: Record<ShowcaseNoticeCode, string> = {
   showcase_upload_disabled: "公開デモでは画像を追加できません。Windows版・Docker版をご利用ください。",
   showcase_engine_unavailable: "この操作はPCのブラウザで試せます。この端末では保存済みの解析結果を表示しています。",
   showcase_unavailable: "公開デモのデータを読み込めませんでした。時間をおいて再読み込みしてください。",
+  showcase_tour_reset: "この操作は記録していないため、ブラウザ内で計算します。記録した結果の表示を公開時の状態に戻しました。もう一度操作すると計算を始めます（初回は準備に30秒ほどかかります）。",
   showcase_action_not_recorded: "この設定での結果は、公開デモに記録していません。「使い方」の手順の操作は、どの端末でもそのまま試せます。",
 };
 export const isShowcaseNoticeCode = (code: string): code is ShowcaseNoticeCode => (SHOWCASE_NOTICE_CODES as readonly string[]).includes(code);

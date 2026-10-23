@@ -98,12 +98,13 @@ describe("showcase transport", () => {
     expect(engine.peak()).toBe(1);
   });
 
-  it("uses the engine for reads once the background start has finished", async () => {
+  it("never starts the API in the background: recorded results answer", async () => {
     const engine = fakeEngine();
     const subject = transport({entries: {"/v1/session": {authenticated: true}}, engine});
     subject.prepare();
-    await vi.waitFor(() => expect(subject.state().engine).toBe("active"));
-    expect(await (await subject.fetch("/v1/session")).json()).toEqual({live: "/v1/session"});
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(engine.start).not.toHaveBeenCalled();
+    expect(await (await subject.fetch("/v1/session")).json()).toEqual({authenticated: true});
   });
 
   it("answers changes with a notice on devices that do not run the engine", async () => {
@@ -198,10 +199,31 @@ describe("recorded tour", () => {
     expect(engine.start).not.toHaveBeenCalled();
   });
 
-  it("leaves every change to the engine on devices that run it", async () => {
+  it("answers recorded changes on devices that run the API, and starts it only for an unrecorded one", async () => {
     const {subject, engine} = tour(true);
-    expect(await (await post(subject, "area")).json()).toEqual({live: "/v1/workspaces/w/statistics"});
-    expect(engine.handled).toHaveLength(1);
+    expect((await post(subject, "area")).status).toBe(202);
+    expect(engine.start).not.toHaveBeenCalled();
+    // The API starts from the published state, so the view first returns there.
+    const reset = await post(subject, "intensity");
+    expect(await reset.json()).toEqual({detail: "showcase_tour_reset"});
+    expect(subject.state().resets).toBe(1);
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "snapshot"});
+    expect(await (await post(subject, "intensity")).json()).toEqual({live: "/v1/workspaces/w/statistics"});
+    expect(engine.handled.map(request => request.url)).toEqual(["/v1/workspaces/w/statistics"]);
+  });
+
+  it("carries the device's settings to the API that takes over, mapping their versions", async () => {
+    const engine = fakeEngine(request => request.url.endsWith("analysis-spec")
+      ? {status: 200, headers: [["content-type", "application/json"]], body: json(request.method === "PUT" ? {version: 12, spec: {}} : {version: 11, spec: {}})}
+      : {spec_version: 12});
+    const {subject} = tour(true, engine);
+    await subject.fetch("/v1/workspaces/w/analysis-spec", {method: "PUT", body: JSON.stringify({version: 20, spec: {target: "nuclei"}})});
+    const started = await subject.fetch("/v1/workspaces/w/runs", {method: "POST", body: JSON.stringify({spec_version: 21})});
+    expect(await started.json()).toEqual({spec_version: 21});
+    const [read, written, run] = engine.handled;
+    expect([read.method, written.method, run.url]).toEqual(["GET", "PUT", "/v1/workspaces/w/runs"]);
+    expect(JSON.parse(new TextDecoder().decode(written.body!))).toEqual({version: 11, spec: {target: "nuclei"}});
+    expect(JSON.parse(new TextDecoder().decode(run.body!))).toEqual({spec_version: 12});
   });
 
   it("finds a recorded change taken out of the recorded order", async () => {
@@ -222,6 +244,32 @@ describe("recorded tour", () => {
     expect(journalPathMatches("/v1/jobs/*/figure-render", "/v1/jobs/abc/figure-render")).toBe(true);
     expect(journalPathMatches("/v1/jobs/*/figure-render", "/v1/jobs/abc/export")).toBe(false);
     expect(journalPathMatches("/v1/x?a=1", "/v1/x?a=2")).toBe(false);
+  });
+
+  it("answers a recorded run only under the settings it was measured with", async () => {
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/analysis-spec")]: {status: 200, headers: [], file: "seed.json"}}},
+      "seed.json": {version: 3, spec: {target: "nuclei", settings: {background: "raw"}}},
+      "journal.json": {version: 1, entries: [
+        {...entry("POST", "/v1/workspaces/w/runs", JSON.stringify({request_id: "*", target: "nuclei"}), "raw.json", 202), scene: "a"},
+        {...entry("PUT", "/v1/workspaces/w/analysis-spec", JSON.stringify({version: "*", spec: {target: "nuclei", settings: {background: "automatic"}}}), null), scene: "b"},
+        {...entry("POST", "/v1/workspaces/w/runs", JSON.stringify({request_id: "*", target: "nuclei"}), "automatic.json", 202), scene: "b"},
+      ]},
+      "raw.json": {run: "raw"}, "automatic.json": {run: "automatic"},
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    const run = (subject: ReturnType<typeof createShowcaseTransport>) => subject.fetch("/v1/workspaces/w/runs", {method: "POST", body: JSON.stringify({request_id: "x", target: "nuclei"})});
+    const fresh = () => createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"});
+    expect(await (await run(fresh())).json()).toEqual({run: "raw"});
+    const automatic = fresh();
+    await automatic.fetch("/v1/workspaces/w/analysis-spec", {method: "PUT", body: JSON.stringify({version: 3, spec: {target: "nuclei", settings: {background: "automatic"}}})});
+    expect(await (await run(automatic)).json()).toEqual({run: "automatic"});
+    const other = fresh();
+    await other.fetch("/v1/workspaces/w/analysis-spec", {method: "PUT", body: JSON.stringify({version: 3, spec: {target: "nuclei", settings: {background: "confirmed_roi"}}})});
+    expect((await run(other)).status).not.toBe(202);
   });
 
   it("matches recorded bodies exactly except for client-generated values", () => {

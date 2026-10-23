@@ -17,7 +17,8 @@
 import type {HeaderList, Journal, JournalEntry, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
 
 export type EngineState = "idle" | "preparing" | "active" | "unavailable";
-export interface ShowcaseState {engine: EngineState; reason: "device" | "failed" | "unpublished" | null}
+/** `resets` counts returns to the published state, after which the view reloads. */
+export interface ShowcaseState {engine: EngineState; reason: "device" | "failed" | "unpublished" | null; resets?: number}
 export interface ShowcaseEngine {start(): Promise<void>; handle(request: ShowcaseRequest): Promise<ShowcaseResponse>}
 export interface TransportDependencies {
   /** Same-origin static files (snapshot index and bodies). */
@@ -76,6 +77,35 @@ export function journalPathMatches(recorded: string, actual: string): boolean {
   return query === otherQuery && left.length === right.length && left.every((segment, index) => segment === right[index] || (segment === "*" && right[index] !== ""));
 }
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
+const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
+/** The parts of the saved settings a measurement depends on. */
+export function conditions(spec: unknown): unknown {
+  const value = spec as Record<string, unknown> | null;
+  if (!value || typeof value !== "object") return null;
+  return Object.fromEntries(["target", "settings", "processing", "measurement", "backgrounds", "confirmed_channel_ids"].map(key => [key, value[key] ?? null]));
+}
+/** The settings the scene of entry `position` had saved before it, or undefined when it saved none. */
+function recordedSettings(entries: JournalEntry[], position: number): unknown {
+  for (let index = position - 1; index >= 0 && entries[index].scene === entries[position].scene; index--) {
+    const entry = entries[index];
+    if (entry.method === "PUT" && SETTINGS.test(entry.path)) {try {return (JSON.parse(entry.body ?? "null") as {spec?: unknown})?.spec;} catch {return undefined;}}
+  }
+  return undefined;
+}
+/** Adds `delta` to the settings version a body carries (`version` of the settings, `spec_version` of runs). */
+export function shiftVersions(body: ArrayBuffer | null, path: string, delta: number): ArrayBuffer | null {
+  if (!body || !delta) return body;
+  let value: unknown;
+  try {value = JSON.parse(new TextDecoder().decode(body));} catch {return body;}
+  const key = SETTINGS.test(path.split("?")[0]) ? "version" : "spec_version";
+  let changed = false;
+  const shift = (item: unknown) => {
+    const record = item as Record<string, unknown> | null;
+    if (record && typeof record === "object" && typeof record[key] === "number") {record[key] = (record[key] as number) + delta; changed = true;}
+  };
+  if (Array.isArray(value)) value.forEach(shift); else shift(value);
+  return changed ? new TextEncoder().encode(JSON.stringify(value)).buffer as ArrayBuffer : body;
+}
 const reading = (method: string) => method === "GET" || method === "HEAD";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -94,11 +124,13 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1;
   let gate: Promise<unknown> = Promise.resolve();
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
-  let settings: {version: number; spec: unknown} | null = null;
+  let settings: {version: number; spec: unknown} | null = null, settingsPath = "";
+  // After a switch to the API, the client keeps counting settings versions from the device's copy.
+  let versionOffset = 0;
   const served = new Map<string, number>();
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<() => void>();
-  const publish = (next: ShowcaseState) => {state = next; listeners.forEach(listener => listener());};
+  const publish = (next: Partial<ShowcaseState>) => {state = {...state, ...next}; listeners.forEach(listener => listener());};
 
   // The small workspace records the opening view walks through one after another are requested
   // together as soon as the index arrives, and kept; other recorded bodies are read when asked.
@@ -167,24 +199,41 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     }
     return new Response(body, {status: entry.status, headers: entry.headers});
   }
+  let seedSpec: Promise<unknown> | null = null;
+  /** The published workspace's saved settings (the opening snapshot). */
+  function seedSettings() {
+    seedSpec ??= snapshot().then(async value => {
+      const key = Object.keys(value?.entries ?? {}).find(name => SETTINGS.test(name.slice(4)));
+      const response = key ? await recorded(key.slice(4)) : null;
+      return response ? ((await response.json()) as {spec?: unknown}).spec ?? null : null;
+    }).catch(() => null);
+    return seedSpec;
+  }
   /** The recorded tour's answer, or null when the tour holds none for this request. */
   async function fromJournal(method: string, path: string, body: string | null): Promise<Response | null> {
+    if (SETTINGS.test(path) && (method === "PUT" || (method === "GET" && settings))) {
+      if (method === "PUT") {
+        let written: {version?: unknown; spec?: unknown} | null = null;
+        try {written = JSON.parse(body ?? "null");} catch {return null;}
+        if (!written || typeof written.version !== "number" || written.spec === undefined) return null;
+        settings = {version: written.version + 1, spec: written.spec}; settingsPath = path;
+      }
+      return new Response(JSON.stringify(settings), {status: 200, headers: {"content-type": "application/json"}});
+    }
     // Until a change has been answered, reads come from the opening snapshot without the tour.
     if (reading(method) && !journaled) return null;
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
-    if (SETTINGS.test(path) && (method === "PUT" || (method === "GET" && settings))) {
-      if (method === "PUT") {
-        const written = JSON.parse(body ?? "null") as {version?: unknown; spec?: unknown} | null;
-        if (!written || typeof written.version !== "number" || written.spec === undefined) return null;
-        settings = {version: written.version + 1, spec: written.spec}; journaled = true;
-      }
-      return new Response(JSON.stringify(settings), {status: 200, headers: {"content-type": "application/json"}});
-    }
     if (!reading(method)) {
       // The next matching change, else the first one: scenes of the tour each start from the seed.
-      const matches = (entry: JournalEntry) => entry.method === method && journalPathMatches(entry.path, path) && journalBodyMatches(entry.body, body);
-      let index = entries.findIndex((entry, position) => position > cursor && matches(entry));
+      // A run is measured under the saved settings, which its request does not carry: a recorded
+      // run answers only when the settings it was recorded under are the visitor's.
+      const current = RUNS.test(path) ? JSON.stringify(conditions(settings?.spec ?? await seedSettings())) : null;
+      const matches = (entry: JournalEntry, position: number) => entry.method === method && !SETTINGS.test(entry.path)
+        && journalPathMatches(entry.path, path) && journalBodyMatches(entry.body, body)
+        && (current === null || journalBodyMatches(JSON.stringify(conditions(recordedSettings(entries, position) ?? seed)), current));
+      const seed = current === null ? null : await seedSettings();
+      let index = entries.findIndex((entry, position) => position > cursor && matches(entry, position));
       if (index < 0) index = entries.findIndex(matches);
       if (index < 0) return null;
       cursor = index; journaled = true;
@@ -218,6 +267,20 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     engine.catch(() => undefined);
     return engine;
   }
+  /** The device's saved settings, written to the API that takes over; versions are mapped from then on. */
+  function carrySettings(local: {version: number; spec: unknown}) {
+    const json: HeaderList = [["content-type", "application/json"], ["x-cytellect-request", "1"]];
+    return serialized(async () => {
+      const running = await ensureEngine();
+      const current = await running.handle({method: "GET", url: settingsPath, headers: [], body: null});
+      const version = (JSON.parse(new TextDecoder().decode(current.body)) as {version?: number}).version;
+      if (current.status !== 200 || typeof version !== "number") return;
+      const written = await running.handle({method: "PUT", url: settingsPath, headers: json,
+        body: new TextEncoder().encode(JSON.stringify({version, spec: local.spec})).buffer as ArrayBuffer});
+      const saved = (JSON.parse(new TextDecoder().decode(written.body)) as {version?: number}).version;
+      if (written.status === 200 && typeof saved === "number") versionOffset = local.version - saved;
+    }).catch(() => undefined);
+  }
   function serialized<T>(task: () => Promise<T>): Promise<T> {
     const result = queue.then(task, task);
     queue = result.catch(() => undefined);
@@ -227,10 +290,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   return {
     state: () => state,
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener);};},
-    /** Background start after the first paint; devices that do not run the API load the recorded tour instead. */
+    /** After the first paint: the recorded tour is loaded; the API starts only when an operation needs it. */
     prepare() {
-      if (!dependencies.capable()) {void loadJournal(); return;}
-      if (state.engine === "idle") void ensureEngine().catch(() => undefined);
+      // The build-time recorder runs every operation through the API, so it starts the API at once.
+      if (dependencies.record) {void ensureEngine().catch(() => undefined); return;}
+      void loadJournal();
     },
     async fetch(path: string, init: RequestInit = {}): Promise<Response> {
       const signal = init.signal;
@@ -238,26 +302,34 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const method = (init.method || "GET").toUpperCase();
       if (typeof FormData !== "undefined" && init.body instanceof FormData) return noticeResponse("showcase_upload_disabled", 403);
       const isRead = reading(method);
-      // The recorded tour answers before the in-browser API is running, and keeps answering once used.
-      // Decisions are taken in request order, so a read issued after a change sees that change.
-      const decided = gate.then(async (): Promise<Response | "notice" | null> => {
-        if (live || (!journaled && dependencies.capable() && state.reason !== "failed")) return null;
-        const text = isRead || init.body === undefined || init.body === null ? null : new TextDecoder().decode((await bodyBytes(init.body)) ?? undefined);
-        const hit = await fromJournal(method, path, text);
-        return hit ?? (journaled && !isRead ? "notice" : null);
+      const text = async () => isRead || init.body === undefined || init.body === null ? null : new TextDecoder().decode((await bodyBytes(init.body)) ?? undefined);
+      // Recorded results answer first on every device; the in-browser API starts only for an
+      // operation they do not hold. Decisions are taken in request order, so a read issued after a
+      // change sees that change.
+      const decided = gate.then(async (): Promise<Response | "live" | "snapshot" | "unrecorded" | "reset"> => {
+        if (live || dependencies.record) return "live";
+        const hit = await fromJournal(method, path, await text());
+        if (hit) return hit;
+        if (isRead && (!journaled || (await snapshot())?.entries[snapshotKey(path)])) return "snapshot";
+        if (!dependencies.capable() || state.reason === "failed") return journaled ? "unrecorded" : "live";
+        // A change the recording does not hold. The API starts from the published state; results
+        // the recording returned since then are not in it, so the view returns to that state first.
+        if (journaled) {journaled = false; cursor = -1; served.clear(); publish({resets: (state.resets ?? 0) + 1}); return "reset";}
+        live = true;
+        if (settings) void carrySettings(settings);
+        return "live";
       });
       gate = decided.catch(() => null);
-      const recordedTour = await decided;
+      const decision = await decided;
       if (signal?.aborted) throw abortError();
-      if (recordedTour === "notice") return noticeResponse("showcase_action_not_recorded", 409);
-      if (recordedTour) return recordedTour;
-      // While the tour answers, the engine (whose state lacks its changes) is never used.
-      if (isRead && (journaled || (!live && !active))) {
+      if (decision instanceof Response) return decision;
+      if (decision === "reset") return noticeResponse("showcase_tour_reset", 409);
+      if (decision === "unrecorded") return noticeResponse("showcase_action_not_recorded", 409);
+      if (decision === "snapshot" || (isRead && !live && !active)) {
         const hit = await recorded(path);
         if (signal?.aborted) throw abortError();
-        if (hit || journaled) return hit ?? noticeResponse("showcase_action_not_recorded", 409);
+        if (hit) return hit;
       }
-      // After the first change, later reads must observe it: route them all live.
       if (!isRead) live = true;
       // Queued at call time, so the engine sees requests in the order the client issued them.
       const response = await serialized(async (): Promise<ShowcaseResponse | ShowcaseNoticeCode> => {
@@ -265,7 +337,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         try {running = await ensureEngine();}
         catch (error) {return (error as Error).message === "showcase_unavailable" ? "showcase_unavailable" : "showcase_engine_unavailable";}
         const request: ShowcaseRequest = {method, url: path, headers: headerList(init.headers), body: isRead ? null : await bodyBytes(init.body)};
-        return running.handle(request);
+        if (!versionOffset) return running.handle(request);
+        request.body = shiftVersions(request.body, path, -versionOffset);
+        const answered = await running.handle(request);
+        return {...answered, body: shiftVersions(answered.body, path, versionOffset) ?? answered.body};
       }).catch(() => "showcase_engine_unavailable" as const);
       if (typeof response === "string") return noticeResponse(response, 503);
       if (dependencies.record) {

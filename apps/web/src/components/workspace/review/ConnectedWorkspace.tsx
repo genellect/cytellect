@@ -19,7 +19,7 @@ import {imageStageLayout} from "./image-stage-layout";
 import {emptyMetadata} from "./connected-results-model";
 import {initialPanelState,panelReducer} from "./panel-state";
 import styles from "./connected-workspace.module.css";
-import {DemoBadge,DemoGuide,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,recordedKind,recordedValues,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
+import {DemoBadge,DemoGuide,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,useShowcaseState,recordedKind,recordedValues,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
 import showcaseStyles from "./showcase.module.css";
 
 type Mode="image"|"statistics"|"figure";
@@ -61,7 +61,7 @@ function WorkspaceRoute(){
 function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoStep}){
   const data=r.data;const fields=useMemo(()=>data?.fields||[],[data]);
   const showcase=useShowcaseUi(),demo=showcase.enabled;
-  const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>(demo?"nucleoli":"nuclei"),[region,setRegion]=useState<number>();
+  const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>("nuclei"),[region,setRegion]=useState<number>();
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
   const [metric,setMetric]=useState("mean"),[range,setRange]=useState("selected"),[compare,setCompare]=useState(false),[picked,setPicked]=useState<string[]>([]),[picker,setPicker]=useState(false),[table,setTable]=useState(false);
   const [panelState,dispatchPanel]=useReducer(panelReducer,initialPanelState,state=>demo&&typeof window!=="undefined"&&window.matchMedia("(max-width: 900px)").matches?{view:"closed",returnView:"closed"} as typeof state:state);
@@ -93,6 +93,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // The in-browser API downloads after the recorded view has painted (capable devices only).
   const loaded=!!data;
   useEffect(()=>{if(!demo||!loaded)return;const timer=setTimeout(()=>activateShowcase().prepare(),1500);return()=>clearTimeout(timer);},[demo,loaded]);
+  // The demo returned to its published state (an operation the recording does not hold): show that state.
+  const showcaseResets=useShowcaseState().resets??0;
+  useEffect(()=>{if(demo&&showcaseResets)void r.reload().catch(()=>undefined);},[demo,showcaseResets]); // eslint-disable-line react-hooks/exhaustive-deps
   const recorded=(kind:string,key:string)=>demo?recordedValues(showcase.options,kind,key):undefined;
   const allowed=(...kinds:string[])=>!demo||recordedKind(showcase.options,...kinds);
   function chooseFiles(folder=false){if(demo){showcase.requestUpload("image");return;}(folder?folderInput:fileInput).current?.click();}
@@ -188,11 +191,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const previewSettings=JSON.stringify([r.settings,r.processing]);
   const nucleolarKind=r.settings.nucleolarDefinition.source!=="ncl"?"cytellect-nucleolar-v2":nclAlgorithm==="objects"?"cytellect-ncl-objects":"fiji-nucleolar-compartments";
   useEffect(()=>{if(!previewRequest||busy)return;const timer=setTimeout(()=>void previewNow(previewRequest),650);return()=>clearTimeout(timer);},[previewRequest,busy,previewSettings]);
-  // The demo opens on the nucleoli of the saved analysis; later target changes follow the runtime as in production.
-  const demoOpening=useRef(demo);
-  useEffect(()=>{if(demoOpening.current&&r.activeTarget==="nuclei")return;demoOpening.current=false;setTarget(r.activeTarget);setRegion(undefined);},[r.activeTarget]);
-  // Statistics and figures open on the saved analysis (its target), as in production.
-  useEffect(()=>{if(!demoOpening.current||mode==="image")return;demoOpening.current=false;setTarget(r.activeTarget);setRegion(undefined);},[mode,r.activeTarget]);
+  useEffect(()=>{setTarget(r.activeTarget);setRegion(undefined);},[r.activeTarget]);
   async function classify(result:GfpGateResult,filter:WorkspaceGfpFilter){await act(async()=>{await r.saveSelection({field_ids:nuclearFields.map(value=>value.fieldId),gfp:filter});setGfpSaved({signature:nuclearSignature,result,filter});});}
   async function saveBackground(polygon:Point[]){
     if(!backgroundDraw)return;
@@ -202,7 +201,6 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     setBackgroundDraw(null);queuePreview();
   }
   function changeTarget(value:ReviewTarget){
-    demoOpening.current=false;
     ++sourceRequest.current;setPreviewRequest(null);setHistorical(null);setTarget(value);setRegion(undefined);
     if(value==="cell"&&r.settings.cellDefinition?.source!=="cellpose"&&field&&!field.results.cell&&!busy)void act(()=>r.run("cell",field.id));
   }
@@ -332,6 +330,7 @@ function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,
           canUndo={!r.busy&&r.canUndo(plane.field.id,target)} canRedo={!r.busy&&r.canRedo(plane.field.id,target)}
           backgroundPolygon={backgrounds[plane.field.id]?.[plane.channel.id]?.polygon} backgroundEdit={single&&backgroundDraw?.field===plane.field.id?backgroundDraw:undefined} onEditingChange={onEditing} viewport={viewport[plane.field.id]} onViewportChange={value=>onViewport(plane.field.id,value)}
           style={{width:tile.width,height:tile.imageHeight,flex:"none"}}
+          outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"}
           layers={single&&composite?plane.field.channels.filter(ch=>plane.field.previews[ch.id]).map(ch=>({src:plane.field.previews[ch.id],color:ch.id===plane.field.nuclearChannelId||ch.role==="nuclear"?"#3f86ff":"#ff4fb3"})):undefined}
           context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined}
           initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}

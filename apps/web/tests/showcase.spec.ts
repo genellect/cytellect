@@ -144,10 +144,11 @@ test("demo: image, outline, measurement, statistics and figure features run with
   }
   await expect(stage(page)).toBeVisible({timeout: live});
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  // The demo opens on nucleoli, with nuclear outlines, over a colour merge of the two stains.
-  await expect(page.locator("[class*=measureToggle] span")).toHaveText("核小体");
+  // The demo opens on nuclei over a colour merge of the two stains, without starting the in-browser API.
+  await expect(page.locator("[class*=measureToggle] span")).toHaveText("核");
   await expect(page.getByRole("button", {name: "重ねて表示", exact: true})).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("svg polygon[class*=context]").first()).toBeAttached();
+  await expect(page.locator("[data-composite=nuclear]").first()).toBeAttached();
+  await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
   await noOverflow(page);
 
   // The guide stays closed so the image and results show at once; 「使い方」 walks the real tabs.
@@ -165,7 +166,6 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(guide).toHaveCount(0);
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await page.getByRole("button", {name: /^測定値/}).click();
-  await expect(header.locator("[data-showcase-engine=active]")).toBeAttached({timeout: live});
 
   // Image intake is explained, never attempted.
   const fieldList = page.getByRole("complementary", {name: "視野一覧"});
@@ -205,14 +205,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await page.getByRole("button", {name: "輪郭の表示", exact: true}).first().click();
   await expect(regions(page).first()).toBeAttached();
 
-  // The nuclear corrections below work on whole nuclei.
-  {
-    const settings = page.getByRole("button", {name: "設定パネル"});
-    if (await settings.getAttribute("aria-pressed") !== "true") await settings.click();
-    await page.getByRole("combobox", {name: "領域", exact: true}).first().selectOption("nuclei");
-    await idle(page);
-    await page.getByRole("button", {name: "画像全体を表示", exact: true}).first().click();
-  }
+  await page.getByRole("button", {name: "画像全体を表示", exact: true}).first().click();
 
   // Region selection is shared by the image and the table.
   const drawer = page.getByRole("button", {name: /^測定値/});
@@ -511,10 +504,6 @@ test("phones run the guided operations from the recorded tour", async ({page}) =
   await noErrors(page, watch);
 });
 
-/** Waits for the in-browser API (every change needs it). */
-async function liveEngine(page: Page) {
-  await expect(page.locator("header [data-showcase-engine=active]")).toBeAttached({timeout: live});
-}
 async function openSettings(page: Page) {
   const inspector = page.getByRole("complementary", {name: "画像解析"});
   if (!(await inspector.count())) await page.locator("header").getByRole("button", {name: "設定パネル"}).click();
@@ -551,9 +540,7 @@ test("automatic background (measurement protocol 4.0.0) flows into statistics an
   const watch = await openDemo(page);
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  await liveEngine(page);
   const inspector = await openSettings(page);
-  // This scenario measures whole nuclei (the demo opens on nucleoli).
   await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
   await idle(page);
   await inspector.getByRole("combobox", {name: "背景補正", exact: true}).selectOption("automatic");
@@ -589,7 +576,6 @@ test("comparing a subset of groups renders and reorders its figure; a value open
   const header = page.locator("header");
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   await expect(results).toBeVisible({timeout: live});
-  await liveEngine(page);
   await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
   await results.getByRole("combobox", {name: "対応", exact: true}).selectOption({label: "独立した実験"});
   // A third group: two fields relabelled in the experimental information.
@@ -630,7 +616,6 @@ test("each preset AI instruction returns a settings draft that applies like a re
   const watch = await openDemo(page);
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  await liveEngine(page);
   const notRecorded = page.getByRole("status").filter({hasText: "記録した指示の例だけに応答します"});
   const composer = page.getByLabel("AIへの指示");
   await composer.click();

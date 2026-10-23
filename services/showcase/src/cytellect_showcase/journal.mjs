@@ -7,7 +7,8 @@
 // A visitor's requests differ from the recorded ones only in values generated per visit, so
 // changes are kept with "*" for: request identifiers and document versions, and identifiers
 // the API generated while recording (any UUID absent from the seed's snapshot). The saved
-// analysis settings (PUT analysis-spec) are held on the device and are not recorded.
+// analysis settings (PUT analysis-spec) are held on the device; they are kept here only as the
+// conditions later recorded runs were measured under. Each entry names its scene.
 import {createHash} from "node:crypto";
 import {mkdir, readdir, readFile, writeFile} from "node:fs/promises";
 import {createRequire} from "node:module";
@@ -40,26 +41,27 @@ function keep(exchange) {
   const file = bytes.length ? `${createHash("sha256").update(bytes).digest("hex").slice(0, 24)}${EXTENSIONS[type] || ".bin"}` : null;
   if (file) bodies.set(file, bytes);
   const change = !["GET", "HEAD"].includes(exchange.method);
-  if (change && SETTINGS.test(exchange.path)) return;
   let body = exchange.body, where = exchange.path;
   if (change) {
     if (body !== null) {try {body = JSON.stringify(wildcard(JSON.parse(body)));} catch {}}
     const [route, query] = where.split("?");
     where = route.split("/").map(segment => generated(segment) ? "*" : segment).join("/") + (query === undefined ? "" : `?${query}`);
   }
-  entries.push({method: exchange.method, path: where, body, status: exchange.status,
-    headers: KEEP_HEADERS.filter(name => headers[name] !== undefined).map(name => [name, headers[name]]), file});
+  const settings = change && SETTINGS.test(exchange.path);
+  entries.push({scene: current, method: exchange.method, path: where, body, status: exchange.status,
+    headers: KEEP_HEADERS.filter(name => headers[name] !== undefined).map(name => [name, headers[name]]), file: settings ? null : file});
 }
 
 const browser = await chromium.launch({executablePath: config.chromium, headless: true});
+let current = "";
 async function scene(name, walk) {
+  current = name;
   const context = await browser.newContext({viewport: {width: 1440, height: 900}, acceptDownloads: true});
   const page = await context.newPage();
   const start = entries.length, started = Date.now();
   await page.exposeFunction("__cytellectShowcaseRecord", keep);
   page.on("console", message => {if (message.type() === "error") report.consoleErrors.push(`${name}: ${message.text().slice(0, 300)}`);});
   page.on("pageerror", error => report.consoleErrors.push(`${name}: ${String(error).slice(0, 300)}`));
-  await page.addInitScript(() => {try {localStorage.setItem("cytellect-demo-guide", "dismissed");} catch {}});
   try {
     await page.goto(`${config.origin}/demo`, {waitUntil: "domcontentloaded", timeout: LIVE});
     await page.locator("[data-showcase-engine=active]").waitFor({state: "attached", timeout: LIVE});

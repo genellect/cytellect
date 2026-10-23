@@ -8,12 +8,12 @@
 本番の API とワーカー（実際の Fiji/StarDist・Cellpose）で公開画像を処理する
   └─ 検出の記録・初期状態（SQLite と全ファイル）・初期表示の GET 応答を書き出す（ビルド時、CPython）
         │
-        ├─ ① 応答の再生：初期表示の GET を記録から返す。すぐ開き、スマートフォンでも動く
+        ├─ ① 応答の再生：初期表示の GET と、案内の操作を②で実行した記録を返す。どの端末でもすぐ動く
         └─ ② ブラウザ内の API：同じ初期状態から、Pyodide 上で実際の API・ワーカー・解析パッケージを動かす
               検出だけは記録を返し、測定・統計・作図・保存は同じ Python 実装が計算する
 ```
 
-- 最初の変更操作から先は、すべて②が処理する。②が使えない環境（スマートフォン、メモリ不足）では、変更操作の代わりに案内を表示する。
+- どの端末でも、まず①が答える。②は自動では起動せず、記録にない操作を PC のブラウザで行ったときに初めて起動する（初回は 30 秒ほど）。②が使えない環境（スマートフォン、メモリ不足）では、記録にない操作の代わりに案内を表示する。
 - 検出（StarDist/Fiji、Cellpose）はブラウザで実行しない。記録した条件以外の検出は行わず、入力欄は記録した値の範囲に揃える。
 - 測定値と統計は、API と解析パッケージの共通実装だけが生成する。ブラウザ内の計算結果は、同じ操作のサーバー出力と CI で照合する。
 - 有料サービス（LLM）は呼ばない。AI の提案は、記録したモデル出力か、指示の例ごとにデモ用に用意した設定案（`showcase-authored`）だけを返す。
@@ -150,10 +150,11 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 - 公開ビルド（API 未設定）の `/demo` だけが `activateShowcase()` で切り替えを有効にし、`lib/api.ts` の `request`・`fetchPrivateResponse`（`download`・`fetchBlob` を含む）がこの経路を使う。API を設定したビルドとローカル版の通信は変わらない。`/workspace` は公開ビルドでは `/demo` へ転送する。
 - 最初の表示：`index.json` が届いた時点で、ワークスペースの記録（セッション、視野一覧、解析版、採用状態、染色設定、解析設定など）と、先頭の視野のプレビュー・輪郭・測定値をまとめて並行して取得する。ワークスペースは先頭の視野を表示してから、残りの視野を読み込む（公開デモに限らず、本番の画面も同じ）。案内は自動では開かず、「使い方」から開く。
-- 記録の再生：`GET <パスとクエリ>` が `snapshot/index.json` にあれば、その本文を返す。最初の変更操作より後、またはブラウザ内の API が起動した後は、すべての要求を Web Worker へ送る。記録にない GET は起動を待つ。要求は発行順に1件ずつ処理する。
-- 操作の記録の再生：API を起動しない端末（スマホ、メモリが少ない PC、起動に失敗した PC）では、`snapshot/journal.json` が変更の要求に答える。まず前回答えた位置より後で、一致する記録を探す。見つからなければ先頭から探す（場面はどれも初期状態から始まるため）。答えた後の GET には、記録上でその変更の後に API が返した応答を順に返す（ジョブの進行も記録どおり）。保存する解析設定は端末側で保持し、版を 1 つ進めて返す。記録にない変更には `showcase_action_not_recorded`（409）を返す。記録を使い始めた後は、Worker の API を使わない。API を起動する PC は、記録を使わずに起動を待つ。これは、記録とその PC の API の状態が食い違わないようにするため。
-- 起動：PC のブラウザ（`navigator.deviceMemory` が分かる場合は 4 以上、狭いタッチ端末を除く）では、初回表示の後に Worker を起動する。Worker は `seed.zip` を先に取得し、`runtime/` の各ファイルを `runtime-config.json` の SHA-256 と照合してから導入する（URL に `?sha256=` を付け、長期キャッシュでも別ビルドの内容を使わない）。Pyodide 本体は `indexURL` の `pyodide.mjs` から読み込む。ホイールは site-packages に展開し、フォントは `/showcase/fonts/`（`runtime.DEFAULT_FONT_DIR`、Node の検証ハーネスと同じ場所）に置き、`boot` の `font_dir` で渡す。
-- 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（端末で起動しない・起動に失敗した）、`showcase_unavailable`（記録やランタイムが公開されていない）、`showcase_action_not_recorded`（操作の記録にない設定）。`role="alert"` ではなく情報表示にし、再読み込みではなく「閉じる」で消せる。
+- 記録の再生：`GET <パスとクエリ>` が `snapshot/index.json` にあれば、その本文を返す。ブラウザ内の API を使い始めた後は、すべての要求を Web Worker へ送り、発行順に 1 件ずつ処理する。
+- 操作の記録の再生：どの端末でも、`snapshot/journal.json` が変更の要求に答える。まず前回答えた位置より後で、一致する記録を探す。見つからなければ先頭から探す（場面はどれも初期状態から始まるため）。答えた後の GET には、記録上でその変更の後に API が返した応答を順に返す（ジョブの進行も記録どおり）。保存する解析設定は端末側で保持し、版を 1 つ進めて返す。
+- 記録にない操作：API を動かせない端末では `showcase_action_not_recorded`（409）を返す。PC では、ブラウザ内の API をその場で起動して処理する。API は公開時の状態から始まるので、端末側で保持した解析設定を API に書き込み、以後は設定の版の差を要求と応答で読み替える（解析設定の `version`、測定の `spec_version`）。記録が答えた変更（統計・測定など）の結果は API にないため、その場合は表示を公開時の状態に戻して `showcase_tour_reset`（409）で知らせ、画面を読み込み直す。もう一度同じ操作をすると API で計算する。
+- 起動：記録にない操作を PC のブラウザ（`navigator.deviceMemory` が分かる場合は 4 以上、狭いタッチ端末を除く）で行ったときに Worker を起動し、準備中であることを画面に表示する。Worker は `seed.zip` を先に取得し、`runtime/` の各ファイルを `runtime-config.json` の SHA-256 と照合してから導入する（URL に `?sha256=` を付け、長期キャッシュでも別ビルドの内容を使わない）。Pyodide 本体は `indexURL` の `pyodide.mjs` から読み込む。ホイールは site-packages に展開し、フォントは `/showcase/fonts/`（`runtime.DEFAULT_FONT_DIR`、Node の検証ハーネスと同じ場所）に置き、`boot` の `font_dir` で渡す。
+- 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（端末で起動しない・起動に失敗した）、`showcase_unavailable`（記録やランタイムが公開されていない）、`showcase_action_not_recorded`（操作の記録にない設定）、`showcase_tour_reset`（記録から API に切り替えるため表示を戻した）。`role="alert"` ではなく情報表示にし、再読み込みではなく「閉じる」で消せる。
 - 任意のファイル（なければ本番と同じ表示）：`snapshot/recorded-options.json` のキーは検出器の `engine`（例 `fiji-stardist-2d`、`cytellect-nucleolar-v2`、`cellpose-sam`）、その中のキーは検出器の項目名で、核の `detection_max_side_px`（`null` は自動）も `fiji-stardist-2d` に含める。記載のある項目は記録した値の選択肢になり、記載のない項目は変更できない。記載のない検出器は選択肢として選べない。`snapshot/proposal-examples.json` は AI の指示の例、`snapshot/dataset.json`（`title`、`attribution`、`licence`、`licenceUrl`、`sourceUrl`、`caveats`）はデモ表示と案内の最後の手順に出典として表示する。
 - 初回表示：読み込み中は画像追加の画面ではなく読み込み中の案内を出す。統計とグラフは、計算前でも保存済みの最新の結果（シナリオの最後の計算）を開く（本番は「保存した図」から選ぶまで空のまま）。
 - HTTP ヘッダー：公開ビルドの CSP は `'wasm-unsafe-eval'`、`indexURL` のオリジン（script-src・connect-src）、`worker-src 'self' blob:` を加える。`/showcase/runtime/*` は長期・immutable、`seed.zip`・`manifest.json`・`snapshot/*` は毎回再検証、それ以外は従来どおり `no-store`。

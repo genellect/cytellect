@@ -38,6 +38,8 @@ export interface ReviewImageCanvasProps {
   backgroundEdit?: {requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};
   /** Display-only colour merge of grayscale channel previews (screen blend); `src` stays the measured channel. */
   layers?: Array<{src: string; color: string}>;
+  /** Outline colour over colour layers: apart from the nuclear stain ("nuclear") or from the marker ("marker"). */
+  outlineTone?: "nuclear" | "marker";
   /** Display-only outlines of an enclosing structure (e.g. nuclei around nucleoli); not selectable. */
   context?: Array<{id: number; points: Point[]}>;
   /** Initial magnification relative to the whole-image fit (display only). */
@@ -106,7 +108,7 @@ function Icon({kind}: {kind: keyof typeof iconPaths}) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;
 }
 
-export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, initialZoom, initialFocus}: ReviewImageCanvasProps) {
+export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, initialZoom, initialFocus}: ReviewImageCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<Size>({width: 0, height: 0});
   const [manual, setManual] = useState<{source: string; camera: Camera} | null>(null);
@@ -242,7 +244,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
     drag.current = null; setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
-  return <div className={[styles.frame, className].filter(Boolean).join(" ")} style={{aspectRatio: `${width} / ${height}`, ...style}} data-composite={!!layers?.length || undefined} aria-busy={loading || saving} onKeyDown={event => {
+  return <div className={[styles.frame, className].filter(Boolean).join(" ")} style={{aspectRatio: `${width} / ${height}`, ...style}} data-composite={layers?.length ? outlineTone ?? "marker" : undefined} aria-busy={loading || saving} onKeyDown={event => {
     if (event.key === "Escape" && draft) {event.preventDefault(); cancelEdit(); return;}
     if (interactionBlocked || stale) return;
     if (draft) {

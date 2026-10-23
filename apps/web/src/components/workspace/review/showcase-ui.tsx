@@ -40,10 +40,12 @@ export function useShowcaseState(): ShowcaseState {
   return useSyncExternalStore(listener => showcaseTransport()?.subscribe(listener) ?? (() => undefined),
     () => showcaseTransport()?.state() ?? idle, () => idle);
 }
-/** Not shown: researchers see the analysis, not the runtime. Tests and support read the state from the attribute. */
+/** Shown only while an operation the recording does not hold waits for the in-browser API.
+ *  Tests and support read the state from the attribute. */
 export function LiveStatus() {
   const state = useShowcaseState();
-  return <span hidden data-showcase-engine={state.engine} data-showcase-reason={state.reason ?? undefined}/>;
+  return <span role={state.engine === "preparing" ? "status" : undefined} hidden={state.engine !== "preparing"}
+    data-showcase-engine={state.engine} data-showcase-reason={state.reason ?? undefined}>ブラウザ内で計算する準備をしています（初回のみ30秒ほど）</span>;
 }
 
 export function UploadDialog({kind, onClose}: {kind: "image" | "csv" | null; onClose: () => void}) {
@@ -89,7 +91,7 @@ export function DemoBadge({dataset}: {dataset: ShowcaseDataset | null}) {
 }
 
 const steps: Array<{mode: DemoStep; title: string; text: string; table?: boolean}> = [
-  {mode: "image", title: "画像と輪郭", text: "核（青）と核小体（桃）は検出済みです。輪郭を選ぶと値が分かり、ずれていればその場で直せます。"},
+  {mode: "image", title: "画像と輪郭", text: "核は検出済みです。輪郭を選ぶと値が分かり、ずれていればその場で直せます。「領域」で核小体・核質にも切り替えられます。"},
   {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を表で確認できます。", table: true},
   {mode: "statistics", title: "統計", text: "視野や群をまとめて計算します。"},
   {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIPで保存できます。"},
