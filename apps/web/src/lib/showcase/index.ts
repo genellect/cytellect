@@ -74,3 +74,26 @@ export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | 
     !!value && typeof value.label === "string" && typeof value.instruction === "string" && !!value.instruction.trim()).slice(0, 8) : [];
   return {options: validOptions, examples: validExamples, dataset: validDataset(dataset)};
 }
+
+/** Topics a visitor's request can name, and the words that signal them (Japanese and English). */
+const TOPICS: Record<string, RegExp> = {
+  area: /面積|大きさ|サイズ|広さ|形|area|size|shape/i,
+  distribution: /分布|ばらつき|ヒストグラム|視野ごと|分散|distribution|histogram|spread/i,
+  intensity: /輝度|量|発現|強さ|明るさ|シグナル|蛍光|NPM1|intensity|expression|signal|level/i,
+  comparison: /比較|比べ|違い|差|変化|有意|検定|ActD|処理|未処理|条件間|compare|difference|versus|vs|treat/i,
+  association: /関係|相関|関連|依存|散布|association|correlat|relationship|scatter/i,
+};
+const topicsOf = (text: string) => new Set(Object.entries(TOPICS).filter(([, pattern]) => pattern.test(text)).map(([topic]) => topic));
+/** The demo AI maps a free-form request onto the closest recorded example (no paid model is called).
+ *  Returns null when the request names none of the analyses this public dataset supports. */
+export function closestExample(text: string, examples: ProposalExample[]): ProposalExample | null {
+  const asked = topicsOf(text);
+  if (!asked.size) return null;
+  let best: ProposalExample | null = null, score = 0;
+  for (const example of examples) {
+    const offered = topicsOf(example.instruction);
+    const shared = [...asked].filter(topic => offered.has(topic)).length - [...offered].filter(topic => !asked.has(topic)).length * 0.25;
+    if (shared > score) {score = shared; best = example;}
+  }
+  return best;
+}
