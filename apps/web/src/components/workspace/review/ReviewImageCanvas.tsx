@@ -113,6 +113,9 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const [masksEnabled, setMasksEnabled] = useState(true);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const [loadedSource, setLoadedSource] = useState<string | null>(null);
+  // Colour layers stay mounted when the measured channel changes, so each layer's load is remembered.
+  const [loadedLayers, setLoadedLayers] = useState<ReadonlySet<string>>(new Set());
+  const ready = loadedSource === src || loadedLayers.has(src);
   const [dragging, setDragging] = useState(false);
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -126,14 +129,16 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const identity = `${editingKey ?? ""}:${source}`;
   const imageSize = {width, height};
   const whole = reviewImageFit(imageSize, available);
-  const zoomed = initialZoom && initialZoom > 1 ? whole.scale * initialZoom : 0;
+  // 画像全体を表示 switches to the whole-image fit, which keeps following viewport size changes.
+  const [wholeView, setWholeView] = useState(false);
+  const zoomed = initialZoom && initialZoom > 1 && !wholeView ? whole.scale * initialZoom : 0;
   const fit = zoomed ? boundedCamera(initialFocus
     ? {scale: zoomed, x: available.width / 2 - initialFocus[0] * zoomed, y: available.height / 2 - initialFocus[1] * zoomed}
     : reviewImageZoom(whole, zoomed, {x: available.width / 2, y: available.height / 2}), imageSize, available) : whole;
   const camera = sharedViewport !== undefined ? sharedViewport === null ? fit : boundedCamera(reviewViewportCamera(sharedViewport, available), imageSize, available) : manual?.source === source ? boundedCamera(manual.camera, imageSize, available) : fit;
   const zoomLabel = reviewImageZoomLabel(camera, imageSize, available), measured = zoomLabel !== null;
   const visible = showMasks && (masksEnabled || !!draft);
-  const interactionBlocked = loading || loadedSource !== src || failedSource === src || saving;
+  const interactionBlocked = loading || !ready || failedSource === src || saving;
   const blocked = interactionBlocked || (editDisabled && draft?.operation !== "background");
   // While a save is in flight the adopted revision changes before the draft closes; that is not a stale edit.
   const stale = !!draft && !saving && draft.identity !== identity;
@@ -166,14 +171,14 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
 
   const revealSelection=useEffectEvent(()=>{
     if(selected===undefined){focusedSelection.current="";return;}
-    if(!selectedAnchor||loadedSource!==src||available.width<=0||available.height<=0||draft)return;
+    if(!selectedAnchor||!ready||available.width<=0||available.height<=0||draft)return;
     const key=`${identity}:${selected}`;
     if(focusedSelection.current===key)return;
     focusedSelection.current=key;
     const revealed=reviewImageReveal(camera,selectedAnchor,imageSize,available);
     if(revealed!==camera)publishCamera(revealed);
   });
-  useEffect(()=>{revealSelection();},[selected,selectedAnchor?.x,selectedAnchor?.y,identity,loadedSource,available.width,available.height]);
+  useEffect(()=>{revealSelection();},[selected,selectedAnchor?.x,selectedAnchor?.y,identity,ready,available.width,available.height]);
 
   const changeZoom = (factor: number, anchor = {x: available.width / 2, y: available.height / 2}) => {
     const scale = Math.max(whole.scale, Math.min(Math.max(8, whole.scale * 8), camera.scale * factor));
@@ -278,7 +283,8 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
             <defs>{layers.map((layer, index) => <filter key={layer.src} id={`tint-${index}-${layer.color.slice(1)}`} colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values={tint(layer.color)}/></filter>)}</defs>
             <rect width={width} height={height} fill="#000"/>
             {layers.map((layer, index) => <image key={layer.src} href={layer.src} width={width} height={height} preserveAspectRatio="xMidYMid meet" filter={`url(#tint-${index}-${layer.color.slice(1)})`} style={{mixBlendMode: "screen"}}
-              {...(layer.src === src ? {onLoad: () => {setLoadedSource(src); setFailedSource(null);}, onError: () => setFailedSource(src)} : {})}/>)}
+              onLoad={() => {setLoadedLayers(previous => new Set(previous).add(layer.src)); if (layer.src === src) setFailedSource(null);}}
+              onError={() => {if (layer.src === src) setFailedSource(src);}}/>)}
             {!layers.some(layer => layer.src === src) && <image href={src} width={0} height={0} onLoad={() => {setLoadedSource(src); setFailedSource(null);}} onError={() => setFailedSource(src)}/>}
           </> : <image href={src} width={width} height={height} preserveAspectRatio="xMidYMid meet" onLoad={() => {setLoadedSource(src);setFailedSource(null);}} onError={() => setFailedSource(src)}/>}
           {visible && context?.map(outline => <polygon key={`context-${outline.id}`} points={outline.points.map(point => point.join(",")).join(" ")} className={styles.context} vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
@@ -299,7 +305,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       <button type="button" title="縮小" aria-label="縮小" disabled={!measured || camera.scale <= whole.scale} onClick={() => changeZoom(1 / 1.5)}>−</button>
       <span className={styles.zoom}>{zoomLabel ?? "–"}</span>
       <button type="button" title="拡大" aria-label="拡大" disabled={!measured} onClick={() => changeZoom(1.5)}>＋</button>
-      <button type="button" title="画像全体を表示" aria-label="画像全体を表示" onClick={() => publishCamera(initialZoom && initialZoom > 1 ? whole : null)}><Icon kind="fit"/></button>
+      <button type="button" title="画像全体を表示" aria-label="画像全体を表示" onClick={() => {setWholeView(true); publishCamera(null);}}><Icon kind="fit"/></button>
       <button type="button" title="輪郭の表示" aria-label="輪郭の表示" aria-pressed={visible} disabled={!showMasks || regions.length === 0} onClick={() => setMasksEnabled(value => !value)}><Icon kind="layers"/></button>
       {onOpen && <button type="button" title="この画像を大きく表示" aria-label="この画像を大きく表示" disabled={!!draft} onClick={onOpen}><Icon kind="open"/></button>}
     </div>

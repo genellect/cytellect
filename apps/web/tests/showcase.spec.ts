@@ -193,11 +193,22 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 40, {steps: 5}); await page.mouse.up();
   await page.getByRole("button", {name: "画像全体を表示", exact: true}).first().click();
-  await expect(zoom).toHaveText(before!);
+  // The demo opens magnified on a group of cells; 画像全体を表示 shows the whole field (smaller scale).
+  await expect.poll(async () => parseInt(await zoom.textContent() || "0", 10)).toBeLessThan(parseInt(before!, 10));
   await page.getByRole("button", {name: "輪郭の表示", exact: true}).first().click();
   await expect(regions(page)).toHaveCount(0);
   await page.getByRole("button", {name: "輪郭の表示", exact: true}).first().click();
   await expect(regions(page).first()).toBeAttached();
+
+  // The demo opens on nucleoli over a colour merge; the nuclear corrections below work on whole nuclei.
+  await expect(page.locator("[class*=measureToggle] span")).toHaveText("核小体");
+  {
+    const settings = page.getByRole("button", {name: "設定パネル"});
+    if (await settings.getAttribute("aria-pressed") !== "true") await settings.click();
+    await page.getByRole("combobox", {name: "領域", exact: true}).first().selectOption("nuclei");
+    await idle(page);
+    await page.getByRole("button", {name: "画像全体を表示", exact: true}).first().click();
+  }
 
   // Region selection is shared by the image and the table.
   const drawer = page.getByRole("button", {name: /^測定値/});
