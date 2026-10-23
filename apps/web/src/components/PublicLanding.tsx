@@ -95,8 +95,8 @@ export default function PublicLanding() {
           <div id="launch" className={lp.prose}><h3>インストール済みの方</h3><p>デスクトップの「Cytellect」を開くと、解析画面がブラウザに表示されます。起動済みの場合は、Cytellectの起動画面で「ブラウザで開く」を選択してください。</p><p>再ダウンロード・再インストールは不要です。</p><Link data-lp-event="workspace" href="/workspace" className={lp.button}>解析画面を開く <Forward /></Link></div>
           <div id="scope" className={lp.prose}>
             <details><summary>対応する画像と解析</summary><p>核と核小体は、機械学習モデルで自動検出します。GFPなどのシグナルは、検出した核での測定や、しきい値・手動の輪郭・整数ラベルで領域にして測れます。</p><p>読み込めるのは、8／16-bitグレースケールのチャンネル別2D TIFFと、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）です。大きな画像は検出用に縮小した複製で検出し、測定は元の画素で行います。3D、時系列、細胞全体の境界の自動検出には、まだ対応していません。</p></details>
-            <details><summary>インストールと動作環境</summary><p>Windows 10／11の64ビット版で動作します。メモリは8 GB以上（16 GBを推奨）、空き容量は5 GB以上を推奨します。初回のセットアップでは、解析に使うPythonとFijiをCytellect専用のフォルダーに取得します。システムのPythonや既存のFijiは変更しません。</p><p>解析はPC内で実行します。読み込んだ研究画像が、この公開サイトに送られることはありません。</p></details>
-            <details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存します。公開サイトや外部AIには送信しません。</p><p>作業データの保存期限は最後の明示的な操作から24時間です。終了中に期限を迎えたデータは次回起動時に削除します。</p><p>必要な結果は保存機能から書き出してください。作業の削除はワークスペース内から実行できます。</p></details>
+            <details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。Cellposeの検出だけは、管理者が設定したクラウドGPUで実行できます。アップロードした研究画像が、この公開サイトに送られることはありません。</p><a data-lp-event="setup" href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details>
+            <details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存し、公開サイトには送信しません。PCの外へ画像を送るのは、管理者がCellpose用のクラウドGPUを設定した場合（検出に使う画像をそのGPUへ送り、クラウド側には保存しません）と、AIによる解析提案で画像の送信も有効にした場合（縮小した代表画像を送ります）だけです。</p><p>作業は、既定ではワークスペースで削除するまで保持します。セットアップで選択を外した場合は、最後の明示的な操作から24時間で削除します。</p><p>必要な結果は保存機能から書き出し、別の媒体にもバックアップしてください。作業の削除はワークスペース内から実行できます。</p></details>
           </div>
         </div>
       </section>

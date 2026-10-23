@@ -18,7 +18,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  // What Cytellect does is split into tabs; each opens the matching step of the public demo.
  const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
  await expect(features.getByRole("tab")).toHaveText(["解析の流れ","自動検出","AIによる設定","統計と論文の図"]);
- for(const [tab,title,link,href] of [["自動検出",/^汎用のAIでは見つからない構造も、/,"この画像をデモで解析する","/demo?step=image"],["AIによる設定",/^やりたいことを一文で。/,"デモでAIに頼む","/demo"],["統計と論文の図",/^統計の検定も、論文に載せる図も、/,"デモで統計と図を作る","/demo?step=figure"],["解析の流れ",/^画像を入れるだけ。/,"デモで操作する","/demo"]] as const){
+ for(const [tab,title,link,href] of [["自動検出",/^汎用のAIでは見つからない構造も、/,"この画像をデモで解析する","/demo?step=image"],["AIによる設定",/^やりたいことを一文で。/,"デモを体験する","/demo"],["統計と論文の図",/^統計の検定も、論文に載せる図も、/,"デモを体験する","/demo"],["解析の流れ",/^画像を入れるだけ。/,"デモで操作する","/demo"]] as const){
   await features.getByRole("tab",{name:tab,exact:true}).click();
   const panel=page.getByRole("tabpanel",{name:tab,exact:true});
   await expect(panel.getByRole("heading",{name:title})).toBeVisible();

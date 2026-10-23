@@ -1,83 +1,28 @@
 {
-  "fixtures/public/bbbc039/image/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.tif": {
-    "sha256": "51787b533f38efc0d934a9cc0f760e704ef5fca97d561aa868f2099f2e6bb1ce",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
+  "apps/web/public/fonts/Inter-LICENSE.txt": {
+    "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+    "source": "https://github.com/rsms/inter/releases/tag/v4.1",
+    "license": "OFL-1.1"
   },
-  "fixtures/public/bbbc039/image/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.tif": {
-    "sha256": "d49d90f12cde7176191b0acbf2ed783c39fe8bdf0caf968ca5f8a1627429b8f1",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
+  "apps/web/public/fonts/InterVariable.woff2": {
+    "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+    "source": "https://github.com/rsms/inter/releases/tag/v4.1",
+    "license": "OFL-1.1"
   },
-  "fixtures/public/bbbc039/image/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.tif": {
-    "sha256": "69329412d32aff2e6ce272576062f54d43453d4126313bae405389091c79843a",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
+  "apps/web/public/fonts/NotoSansJP-OFL.txt": {
+    "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1"
   },
-  "fixtures/public/bbbc039/image/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.tif": {
-    "sha256": "fbc992000fe626926d56ece5f1731af9284add61d1b8096b3d99e943a47435e5",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
+  "apps/web/public/fonts/NotoSansJPVariable.woff2": {
+    "sha256": "f09faa7681849f011d7a2dba2d30170fb19679c269e237d4e39abf84faaccadb",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1"
   },
-  "fixtures/public/bbbc039/image/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.tif": {
-    "sha256": "f6c668b78aa2f19af2ed936b758e024d00ffc1a2db091ee04d8f6c6ced342003",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
-  },
-  "fixtures/public/bbbc039/mask/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.png": {
-    "sha256": "bf9897059aa3c4de8ce94b583eee7285dc9f9f90fc7848cf9a4b5f74ba4e2471",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
-  },
-  "fixtures/public/bbbc039/mask/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.png": {
-    "sha256": "471aa3c33f45be0ca829d7de49acebcc0fa4bcbf2d4dbadc2d6de0665d45c9c9",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
-  },
-  "fixtures/public/bbbc039/mask/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.png": {
-    "sha256": "d5075a936788df5ebc48880685681949e74c33a26c3bdf6023e682a102830ad3",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
-  },
-  "fixtures/public/bbbc039/mask/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.png": {
-    "sha256": "a4ae99ca8c53fbe14bcd8ed769a5216317f69cbf8eff570062b9022cf3ce08e0",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
-  },
-  "fixtures/public/bbbc039/mask/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.png": {
-    "sha256": "371e8efd02fa55ebee8d0fe34433bd36a402d52c496f5f230aebc39445b86db5",
-    "source": "https://bbbc.broadinstitute.org/BBBC039",
-    "license": "CC0-1.0"
-  },
-  "fixtures/public/bbbc013/A01-gfp.tif": {
-    "sha256": "ef0bd8c6903d78fb5145e65eae8f7dd8aa721cbe7693783799b9a965c19e1616",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "fixtures/public/bbbc013/A01-dapi.tif": {
-    "sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "fixtures/public/bbbc013/A06-gfp.tif": {
-    "sha256": "16806dcfa7db483270393b3596d3a621c9bd3a884301fe2f6fffd38a6803145c",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "fixtures/public/bbbc013/A06-dapi.tif": {
-    "sha256": "6b9a76bce10d42d378f974ee0b92d37d9b85e426eb142b1cbd8b81bdbd14b37a",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "fixtures/public/bbbc013/A12-gfp.tif": {
-    "sha256": "20d3d969bc265752cb408e965818afb3ac73badd9338b401eeb9701f3b85b371",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
-  },
-  "fixtures/public/bbbc013/A12-dapi.tif": {
-    "sha256": "ce90a36a347e1dc0c9ca7323070ae5eebb410c04960e8e22d5133da2f730a88e",
-    "source": "https://bbbc.broadinstitute.org/BBBC013",
-    "license": "CC-BY-3.0"
+  "apps/web/public/fonts/subset-manifest.json": {
+    "sha256": "0f7ab6f5d77da1298384302f0f1358edfdc962315fe6f2022da04f0e352639e8",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1"
   },
   "apps/web/public/marketing/figure-caption.md": {
     "sha256": "f8c49f106fb19c5057ac1ae3e52edd7ae867b4eaaf8cb95cd3d521a716c61a76",
@@ -104,6 +49,21 @@
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
   },
+  "apps/web/public/marketing/hero-film-poster.webp": {
+    "sha256": "7b631a40c17183de7492e84fd8ac3b82b78e94639ecf30174e1490179d1dd645",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/hero-film.mp4": {
+    "sha256": "a89411c1275dc95071b3b835409e1a31677e7bc0a4c63f3f9bf86f328d54f5b3",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/hero-film.webm": {
+    "sha256": "f34fb944fc3c2ed3b9ccc23e46e505254ec9524192febb24e2781f809aa357ca",
+    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
+    "license": "Pexels License"
+  },
   "apps/web/public/marketing/hero-microscopy-poster.webp": {
     "sha256": "bd867683ecb925bacdf88f7fd39010d977fd4d3c08455f9ebf563edd6bd58288",
     "source": "https://data.4dnucleome.org/files-microscopy/4DNFI7FAWT6C/",
@@ -113,6 +73,81 @@
     "sha256": "0757d235736968f1dedff2276375764653eb2620fbe858fce841e50ff89ca083",
     "source": "https://data.4dnucleome.org/files-microscopy/4DNFI7FAWT6C/",
     "license": "4DN open data usage policy: freely download, analyze and publish results"
+  },
+  "apps/web/public/marketing/lp-dish.webp": {
+    "sha256": "aaf6a2ff6b5f28f94fe466c819d9792d8df5de4094cd4af7bbc4f0a6ef8a7600",
+    "source": "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/lp-field-mobile.webp": {
+    "sha256": "9ea89fcee9d511a9a1f2c5b71d0a74e7b195f70a26b0df2effea35a0f64182cf",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-field.webp": {
+    "sha256": "08ed04a7a70aa864d31b0705fc85d73c3d73450bfb2e532c9a90866e3facee33",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-figure.svg": {
+    "sha256": "5db7db2d7905c2dc59d15595840fb930bf0b1e0dee170a21b40691c6c3e21193",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-pipetting.webp": {
+    "sha256": "f9c39056535c20971e87fa10c74f7e16f8421006e67f55b5eac78cb930d10377",
+    "source": "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/",
+    "license": "Pexels License"
+  },
+  "apps/web/public/marketing/lp-workspace-mobile.webp": {
+    "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-workspace.webp": {
+    "sha256": "f015acdbf9b2a721d98f803da9142f2a1c54272dc87e225f09cd3c29727e7743",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/optical-assembly.glb": {
+    "sha256": "982e1809f9fec399d4b97ff0fe95ee2b60a3d8ad23e6b9c1326c2b3a6fdfcb63",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/optical-mobile-poster.webp": {
+    "sha256": "3d50874d38f26a6f4735d8de1e2fb0d3161e75e5cc76df92e90deb915dfc129f",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/optical-poster.webp": {
+    "sha256": "56c556fa2eeac403d52e8c37513f7615099a222726d071c609765cb2b61a569c",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/optical-provenance.json": {
+    "sha256": "047060a6136cf0d739e2e7b7ab00599b1979990f69072ade5ac189c7d3496f2d",
+    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/marketing/photo-lab-automation.webp": {
+    "sha256": "9c637e664885ecae4b3e2ee580f26a2efcc8d976c707490f862708623aac9d13",
+    "source": "https://unsplash.com/photos/gray-laboratory-machine-to8o0bqOA6Q",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/photo-microscope.webp": {
+    "sha256": "6e74ec3546d2dc874c927447dc96ad9633f6627753a42ecd6deadda1b610f0cb",
+    "source": "https://unsplash.com/photos/white-and-black-microscope-on-white-surface-JdtUKqGdqw8",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/photo-pipetting.webp": {
+    "sha256": "cfd204cdef893de7e17a9e5b57bba085e3f75601c273ea7d31fd35971b53cebd",
+    "source": "https://unsplash.com/photos/person-using-pipette-in-laboratory-wDxFn_dBEC0",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/photo-provenance.json": {
+    "sha256": "2cfb04bac2cc9468ab10e019b54dd78e6874e35ae517e67d9952d2c6770f6ead",
+    "source": "https://unsplash.com/license",
+    "license": "Source metadata; image-specific licenses recorded in manifest"
   },
   "apps/web/public/marketing/planning-public.png": {
     "sha256": "5ec6dabd6210b872c46283022a17c3839557e623b8f4c2926b83c5e77292099e",
@@ -139,195 +174,10 @@
     "source": "https://bbbc.broadinstitute.org/BBBC013",
     "license": "CC-BY-3.0 (public images/derived measurements); Apache-2.0 (Cytellect UI)"
   },
-  "apps/web/public/fonts/Inter-LICENSE.txt": {
-    "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
-    "source": "https://github.com/rsms/inter/releases/tag/v4.1",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/InterVariable.woff2": {
-    "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
-    "source": "https://github.com/rsms/inter/releases/tag/v4.1",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/NotoSansJP-OFL.txt": {
+  "apps/web/public/showcase/runtime/NotoSansJP-OFL.txt": {
     "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
     "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
     "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/NotoSansJPVariable.woff2": {
-    "sha256": "f09faa7681849f011d7a2dba2d30170fb19679c269e237d4e39abf84faaccadb",
-    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/subset-manifest.json": {
-    "sha256": "0f7ab6f5d77da1298384302f0f1358edfdc962315fe6f2022da04f0e352639e8",
-    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/marketing/optical-assembly.glb": {
-    "sha256": "982e1809f9fec399d4b97ff0fe95ee2b60a3d8ad23e6b9c1326c2b3a6fdfcb63",
-    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/marketing/optical-mobile-poster.webp": {
-    "sha256": "3d50874d38f26a6f4735d8de1e2fb0d3161e75e5cc76df92e90deb915dfc129f",
-    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/marketing/optical-poster.webp": {
-    "sha256": "56c556fa2eeac403d52e8c37513f7615099a222726d071c609765cb2b61a569c",
-    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/marketing/optical-provenance.json": {
-    "sha256": "047060a6136cf0d739e2e7b7ab00599b1979990f69072ade5ac189c7d3496f2d",
-    "source": "https://github.com/genellect/cytellect/blob/main/scripts/create_optical_hero.py",
-    "license": "Apache-2.0"
-  },
-  "docs/images/4dn-ncl-preview.png": {
-    "sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
-    "source": "https://registry.opendata.aws/4dnucleome/",
-    "license": "4DN public-data use policy; source-attributed derived results"
-  },
-  "apps/web/public/marketing/photo-lab-automation.webp": {
-    "sha256": "9c637e664885ecae4b3e2ee580f26a2efcc8d976c707490f862708623aac9d13",
-    "source": "https://unsplash.com/photos/gray-laboratory-machine-to8o0bqOA6Q",
-    "license": "Unsplash License"
-  },
-  "apps/web/public/marketing/photo-pipetting.webp": {
-    "sha256": "cfd204cdef893de7e17a9e5b57bba085e3f75601c273ea7d31fd35971b53cebd",
-    "source": "https://unsplash.com/photos/person-using-pipette-in-laboratory-wDxFn_dBEC0",
-    "license": "Unsplash License"
-  },
-  "apps/web/public/marketing/photo-microscope.webp": {
-    "sha256": "6e74ec3546d2dc874c927447dc96ad9633f6627753a42ecd6deadda1b610f0cb",
-    "source": "https://unsplash.com/photos/white-and-black-microscope-on-white-surface-JdtUKqGdqw8",
-    "license": "Unsplash License"
-  },
-  "apps/web/public/marketing/photo-provenance.json": {
-    "sha256": "2cfb04bac2cc9468ab10e019b54dd78e6874e35ae517e67d9952d2c6770f6ead",
-    "source": "https://unsplash.com/license",
-    "license": "Source metadata; image-specific licenses recorded in manifest"
-  },
-  "apps/web/public/marketing/hero-film.mp4": {
-    "sha256": "a89411c1275dc95071b3b835409e1a31677e7bc0a4c63f3f9bf86f328d54f5b3",
-    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
-    "license": "Pexels License"
-  },
-  "apps/web/public/marketing/hero-film-poster.webp": {
-    "sha256": "7b631a40c17183de7492e84fd8ac3b82b78e94639ecf30174e1490179d1dd645",
-    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
-    "license": "Pexels License"
-  },
-  "apps/web/public/marketing/hero-film.webm": {
-    "sha256": "f34fb944fc3c2ed3b9ccc23e46e505254ec9524192febb24e2781f809aa357ca",
-    "source": "Edited by scripts/lp_film/build_film.py; sources in scripts/lp_film/sources.json",
-    "license": "Pexels License"
-  },
-  "apps/web/public/marketing/lp-pipetting.webp": {
-    "sha256": "f9c39056535c20971e87fa10c74f7e16f8421006e67f55b5eac78cb930d10377",
-    "source": "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/",
-    "license": "Pexels License"
-  },
-  "apps/web/public/marketing/lp-dish.webp": {
-    "sha256": "aaf6a2ff6b5f28f94fe466c819d9792d8df5de4094cd4af7bbc4f0a6ef8a7600",
-    "source": "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE",
-    "license": "Unsplash License"
-  },
-  "apps/web/public/marketing/lp-field.webp": {
-    "sha256": "08ed04a7a70aa864d31b0705fc85d73c3d73450bfb2e532c9a90866e3facee33",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-field-mobile.webp": {
-    "sha256": "9ea89fcee9d511a9a1f2c5b71d0a74e7b195f70a26b0df2effea35a0f64182cf",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-workspace.webp": {
-    "sha256": "f015acdbf9b2a721d98f803da9142f2a1c54272dc87e225f09cd3c29727e7743",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-figure.svg": {
-    "sha256": "5db7db2d7905c2dc59d15595840fb930bf0b1e0dee170a21b40691c6c3e21193",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-workspace-mobile.webp": {
-    "sha256": "b54e4d2457ff54af65736a0ce2da6593d34198389191c1a627b4b52ad9a9d4f7",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/showcase/runtime/typing_extensions-4.16.0-py3-none-any.whl": {
-    "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
-    "source": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
-    "license": "PSF-2.0"
-  },
-  "apps/web/public/showcase/runtime/idna-3.20-py3-none-any.whl": {
-    "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
-    "source": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/anyio-4.15.1-py3-none-any.whl": {
-    "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
-    "source": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/starlette-1.7.0-py3-none-any.whl": {
-    "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
-    "source": "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/annotated_doc-0.0.5-py3-none-any.whl": {
-    "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
-    "source": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/opentelemetry_api-1.45.1-py3-none-any.whl": {
-    "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
-    "source": "https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/showcase/runtime/fastapi-0.142.2-py3-none-any.whl": {
-    "sha256": "bd5f4d81f1e93a88bcd77caf4dfe3c2dbffc3805407a0007e9a114c18b3a670b",
-    "source": "https://files.pythonhosted.org/packages/a0/b6/78aaf9141fb46742928c113f3cf6ef2259d538cb02b604b7656c1dc9883c/fastapi-0.142.2-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/python_multipart-0.0.32-py3-none-any.whl": {
-    "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
-    "source": "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/showcase/runtime/mako-1.4.3-py3-none-any.whl": {
-    "sha256": "723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f",
-    "source": "https://files.pythonhosted.org/packages/6d/a0/053d6af3e8f871e0073b4a36732d9e65be77a72e5434c31b94f6af78a6bb/mako-1.4.3-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/alembic-1.20.0-py3-none-any.whl": {
-    "sha256": "77eb101048d95f982c0353e9233404889dcd7a6fc244c107836c0e2fc9cf7d9d",
-    "source": "https://files.pythonhosted.org/packages/3f/27/78a89b55b0904d222183164e079b4ca56208e94eff1d35ad1f1ad5be9b06/alembic-1.20.0-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/tifffile-2026.9.20-py3-none-any.whl": {
-    "sha256": "9b913167b8f66a57f2e7c0454486c4c4607196d494797461226166bd0755c0e6",
-    "source": "https://files.pythonhosted.org/packages/05/bf/04f3e61cb20a03678ca43f29bae9a7d0b7d9f563b86f5f600b2d8fba9712/tifffile-2026.9.20-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/roifile-2026.9.22-py3-none-any.whl": {
-    "sha256": "2bde74e084c4f2f07edd0d54df41fc3b482a548044ed43fbbed3e0db6b77363e",
-    "source": "https://files.pythonhosted.org/packages/9b/dc/4b2843b4d5f7ce8f328f8c17616f76f3d935b313047ca1c67e4c6d31392a/roifile-2026.9.22-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/defusedxml-0.7.1-py2.py3-none-any.whl": {
-    "sha256": "a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61",
-    "source": "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl",
-    "license": "PSF-2.0"
-  },
-  "apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl": {
-    "sha256": "50b8253c27e6ca1c3eb0c19b807211030e2c4492c8f488de39ace79d1580ca80",
-    "source": "Built from this repository by scripts/build_showcase_runtime.py",
-    "license": "Apache-2.0"
   },
   "apps/web/public/showcase/runtime/NotoSansJP-Regular.ttf": {
     "sha256": "a66655d7b24ac6f793f73914c60ad44522b9fbd9e5f9b3706220b66c44fdaad2",
@@ -335,15 +185,80 @@
     "license": "OFL-1.1",
     "derivation": "fontTools wght=400 static instance of NotoSansJP[wght].ttf sha256 c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f"
   },
-  "apps/web/public/showcase/runtime/NotoSansJP-OFL.txt": {
-    "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
-    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
-    "license": "OFL-1.1"
-  },
   "apps/web/public/showcase/runtime/THIRD_PARTY_NOTICES.txt": {
     "sha256": "78594b0a7d839bc1e470f37f37f67363de4c7490b7386bd8db860e0b5be7e80f",
     "source": "Generated by scripts/build_showcase_runtime.py",
     "license": "Apache-2.0 AND MIT AND BSD-3-Clause AND PSF-2.0 AND OFL-1.1"
+  },
+  "apps/web/public/showcase/runtime/alembic-1.20.0-py3-none-any.whl": {
+    "sha256": "77eb101048d95f982c0353e9233404889dcd7a6fc244c107836c0e2fc9cf7d9d",
+    "source": "https://files.pythonhosted.org/packages/3f/27/78a89b55b0904d222183164e079b4ca56208e94eff1d35ad1f1ad5be9b06/alembic-1.20.0-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/annotated_doc-0.0.5-py3-none-any.whl": {
+    "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+    "source": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/anyio-4.15.1-py3-none-any.whl": {
+    "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+    "source": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl": {
+    "sha256": "50b8253c27e6ca1c3eb0c19b807211030e2c4492c8f488de39ace79d1580ca80",
+    "source": "Built from this repository by scripts/build_showcase_runtime.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/showcase/runtime/defusedxml-0.7.1-py2.py3-none-any.whl": {
+    "sha256": "a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61",
+    "source": "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl",
+    "license": "PSF-2.0"
+  },
+  "apps/web/public/showcase/runtime/fastapi-0.142.2-py3-none-any.whl": {
+    "sha256": "bd5f4d81f1e93a88bcd77caf4dfe3c2dbffc3805407a0007e9a114c18b3a670b",
+    "source": "https://files.pythonhosted.org/packages/a0/b6/78aaf9141fb46742928c113f3cf6ef2259d538cb02b604b7656c1dc9883c/fastapi-0.142.2-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/idna-3.20-py3-none-any.whl": {
+    "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+    "source": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/mako-1.4.3-py3-none-any.whl": {
+    "sha256": "723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f",
+    "source": "https://files.pythonhosted.org/packages/6d/a0/053d6af3e8f871e0073b4a36732d9e65be77a72e5434c31b94f6af78a6bb/mako-1.4.3-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/opentelemetry_api-1.45.1-py3-none-any.whl": {
+    "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+    "source": "https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/showcase/runtime/python_multipart-0.0.32-py3-none-any.whl": {
+    "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+    "source": "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/showcase/runtime/roifile-2026.9.22-py3-none-any.whl": {
+    "sha256": "2bde74e084c4f2f07edd0d54df41fc3b482a548044ed43fbbed3e0db6b77363e",
+    "source": "https://files.pythonhosted.org/packages/9b/dc/4b2843b4d5f7ce8f328f8c17616f76f3d935b313047ca1c67e4c6d31392a/roifile-2026.9.22-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/starlette-1.7.0-py3-none-any.whl": {
+    "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+    "source": "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/tifffile-2026.9.20-py3-none-any.whl": {
+    "sha256": "9b913167b8f66a57f2e7c0454486c4c4607196d494797461226166bd0755c0e6",
+    "source": "https://files.pythonhosted.org/packages/05/bf/04f3e61cb20a03678ca43f29bae9a7d0b7d9f563b86f5f600b2d8fba9712/tifffile-2026.9.20-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/typing_extensions-4.16.0-py3-none-any.whl": {
+    "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+    "source": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+    "license": "PSF-2.0"
   },
   "apps/web/public/showcase/seed.zip": {
     "sha256": "fde7273358c5f112b305abbf5d56e124e986a787aae05f7c6da3dc82775ea246",
@@ -428,5 +343,90 @@
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
+  "docs/images/4dn-ncl-preview.png": {
+    "sha256": "ff7cb346f2509ed39231acf7c23a2fdc6814e88ea7428e41a1162db79cf84d6f",
+    "source": "https://registry.opendata.aws/4dnucleome/",
+    "license": "4DN public-data use policy; source-attributed derived results"
+  },
+  "fixtures/public/bbbc013/A01-dapi.tif": {
+    "sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0"
+  },
+  "fixtures/public/bbbc013/A01-gfp.tif": {
+    "sha256": "ef0bd8c6903d78fb5145e65eae8f7dd8aa721cbe7693783799b9a965c19e1616",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0"
+  },
+  "fixtures/public/bbbc013/A06-dapi.tif": {
+    "sha256": "6b9a76bce10d42d378f974ee0b92d37d9b85e426eb142b1cbd8b81bdbd14b37a",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0"
+  },
+  "fixtures/public/bbbc013/A06-gfp.tif": {
+    "sha256": "16806dcfa7db483270393b3596d3a621c9bd3a884301fe2f6fffd38a6803145c",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0"
+  },
+  "fixtures/public/bbbc013/A12-dapi.tif": {
+    "sha256": "ce90a36a347e1dc0c9ca7323070ae5eebb410c04960e8e22d5133da2f730a88e",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0"
+  },
+  "fixtures/public/bbbc013/A12-gfp.tif": {
+    "sha256": "20d3d969bc265752cb408e965818afb3ac73badd9338b401eeb9701f3b85b371",
+    "source": "https://bbbc.broadinstitute.org/BBBC013",
+    "license": "CC-BY-3.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.tif": {
+    "sha256": "51787b533f38efc0d934a9cc0f760e704ef5fca97d561aa868f2099f2e6bb1ce",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.tif": {
+    "sha256": "d49d90f12cde7176191b0acbf2ed783c39fe8bdf0caf968ca5f8a1627429b8f1",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.tif": {
+    "sha256": "69329412d32aff2e6ce272576062f54d43453d4126313bae405389091c79843a",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.tif": {
+    "sha256": "fbc992000fe626926d56ece5f1731af9284add61d1b8096b3d99e943a47435e5",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/image/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.tif": {
+    "sha256": "f6c668b78aa2f19af2ed936b758e024d00ffc1a2db091ee04d8f6c6ced342003",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A09_s1_w1CE70AD49-290D-4312-82E6-CDC717F32637.png": {
+    "sha256": "bf9897059aa3c4de8ce94b583eee7285dc9f9f90fc7848cf9a4b5f74ba4e2471",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A12_s7_w1EAEEA614-51ED-43B3-A4FF-088730911E4C.png": {
+    "sha256": "471aa3c33f45be0ca829d7de49acebcc0fa4bcbf2d4dbadc2d6de0665d45c9c9",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A16_s2_w15AF20A10-82AE-48FA-AC50-7AE8AC3AA544.png": {
+    "sha256": "d5075a936788df5ebc48880685681949e74c33a26c3bdf6023e682a102830ad3",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_A22_s8_w1E2AFE190-831D-4D9C-961E-3AA2ECB3599D.png": {
+    "sha256": "a4ae99ca8c53fbe14bcd8ed769a5216317f69cbf8eff570062b9022cf3ce08e0",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
+  },
+  "fixtures/public/bbbc039/mask/IXMtest_B02_s9_w124B5080D-EBE1-47D2-B147-C0F342039EDF.png": {
+    "sha256": "371e8efd02fa55ebee8d0fe34433bd36a402d52c496f5f230aebc39445b86db5",
+    "source": "https://bbbc.broadinstitute.org/BBBC039",
+    "license": "CC0-1.0"
   }
 }

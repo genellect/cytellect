@@ -22,6 +22,18 @@ def test_each_area_follows_what_its_jobs_build_or_run():
     assert areas_for("tests/test_statistics.py") == {"python", "fiji", "windows"}
 
 
+def test_landing_page_changes_select_only_the_public_site_checks():
+    for path in ["apps/web/src/components/PublicLanding.tsx", "apps/web/src/components/LandingFeatures.tsx",
+                 "apps/web/src/components/HeroFilm.tsx", "apps/web/src/components/optical-landing.module.css",
+                 "apps/web/public/lp-metrics.js", "apps/web/tests/marketing.spec.ts", "apps/web/tests/lp-analytics.spec.ts"]:
+        assert areas_for(path) == {"web"}, path
+    assert areas_for("apps/web/public/marketing/hero-film.webm") == {"python", "web"}
+    assert areas_for("fixtures/public/allowlist.json") == {"python", "web"}
+    assert areas_for("scripts/lp_film/build_film.py") == frozenset()
+    # Other web components still run the real-API browser workflow.
+    assert areas_for("apps/web/src/components/WorkspaceApp.tsx") == {"web", "fiji"}
+
+
 def test_unlisted_paths_and_shared_configuration_select_everything():
     for path in [".github/workflows/ci.yml", "pyproject.toml", "uv.lock", "pnpm-lock.yaml", "package.json",
                  "fixtures/public/bbbc007/README.md", "apps-new/x.ts"]:

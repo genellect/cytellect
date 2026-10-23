@@ -47,13 +47,13 @@ const features: Feature[] = [
     label: "AIによる設定",
     title: "やりたいことを一文で。解析の設定は、AIが組み立てます。",
     lead: "どの値を、どの群で、どの検定で比べるか。メニューを一つずつ選ぶ必要はありません。",
-    link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモでAIに頼む <Forward /></Link>,
+    link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモを体験する <Forward /></Link>,
     visual: <figure className={lp.prompt}>
       <p className={lp.before}><span>これまで</span>処理の選択、組み合わせ、条件の調整を、すべて自分で。</p>
       <p className={lp.ask}><span>Cytellect</span>GFPが核に移った細胞の割合を、薬の濃度ごとに比べたい</p>
       <span className={lp.arrow} aria-hidden="true">↓</span>
       <dl className={lp.answer} aria-label="AIが組み立てた設定">{proposal.map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl>
-      <figcaption>一文から組み立てた設定の例。採用するかはあなたが決め、計算はCytellectの解析処理が行います。AIに送るのは入力した文だけで、画像や測定値は送りません。</figcaption>
+      <figcaption>一文から組み立てた設定の例。採用するかはあなたが決め、計算はCytellectの解析処理が行います。</figcaption>
     </figure>,
   },
   {
@@ -62,7 +62,7 @@ const features: Feature[] = [
     title: "統計の検定も、論文に載せる図も、クリックだけで。",
     lead: "nは細胞の数ではなく、独立した実験の数。統計の落とし穴を、Cytellectが避けます。",
     extra: <ul className={lp.formats} aria-label="書き出せる形式"><li>SVG</li><li>PDF</li><li>CSV</li></ul>,
-    link: <Link data-lp-event="demo_figure" href="/demo?step=figure" className={lp.button}>デモで統計と図を作る <Forward /></Link>,
+    link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモを体験する <Forward /></Link>,
     visual: <figure className={lp.paper}>
       <a href="/marketing/lp-figure.svg" aria-label="図を拡大"><img src="/marketing/lp-figure.svg" alt="デモから書き出した図。反復ごとに、未処理とアクチノマイシンD処理の核のNPM1平均輝度を線で結んでいる" width={518.74} height={283.46} /></a>
       <figcaption>デモから書き出した図（核のNPM1平均輝度、反復ごとに未処理とActD処理を結んだもの、n = 3）。この公開データの反復は同じ日の撮影で、独立性は出典に記載がありません。</figcaption>

@@ -666,12 +666,11 @@ test("each preset AI instruction returns a settings draft that applies like a re
   await calculate(page);
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
-  // Free text gets the demo notice, which the visitor can dismiss.
+  // Free text this dataset cannot answer is told what it can, without a notice or an error.
   await header.getByRole("button", {name: "画像", exact: true}).click();
-  await composer.fill("公開デモで記録されていない指示");
+  await composer.fill("ミトコンドリアを数えたい");
   await page.getByRole("button", {name: "AIへ送信"}).click();
-  await expect(notRecorded).toBeVisible({timeout: live});
-  await notRecorded.getByRole("button", {name: "案内を閉じる"}).click();
+  await expect(page.getByText("この公開画像（核を染めた Hoechst と、核小体の NPM1）では")).toBeVisible({timeout: live});
   await expect(notRecorded).toHaveCount(0);
   await noErrors(page, watch);
 });

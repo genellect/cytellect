@@ -7,7 +7,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 対象 | 状況 |
 |---|---|
 | 公開サイト | [cytellect.vercel.app](https://cytellect.vercel.app/)。LP、`/demo`、`/plan` で構成する。`/demo` は本番と同じ解析ワークスペースを、登録済みの公開画像でサーバーレスに動かす（[公開デモ](showcase.md)）。画像の追加は Windows 版・Docker 版だけで行い、公開サイトは研究画像を受け付けない。公開サイトの `/workspace` は `/demo` へ転送する。`main` へのマージで自動デプロイ |
-| Windows 版 | [0.1.0-local.17](local-release-0.1.0-local.17.md)。画像・統計・グラフを一つにつないだワークスペース |
+| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU で実行できる（クラウド GPU は未作成のため、現時点では使えない） |
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
 | 核小体検出 | NCL の protocol 4.3.0（追加学習した Cellpose-SAM と境界補正）。[計算仕様](methods.md) |

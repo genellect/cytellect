@@ -100,9 +100,9 @@ test("the analysis workspace and other routes, standalone frame, localhost and p
 test("blocking Google leaves navigation usable", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!, true);
   await page.goto(origin + "/");
-  await page.getByRole("tab", { name: "統計と論文の図", exact: true }).click();
-  await page.locator('[data-lp-event="demo_figure"]').click();
-  await expect(page).toHaveURL(`${origin}/demo?step=figure`);
+  await page.getByRole("tab", { name: "自動検出", exact: true }).click();
+  await page.locator('[data-lp-event="demo_image"]').click();
+  await expect(page).toHaveURL(`${origin}/demo?step=image`);
   await expect(page.getByRole("link", { name: "cytellect" }).first()).toBeVisible();
   expect(await commands(page)).toEqual([]);
 });

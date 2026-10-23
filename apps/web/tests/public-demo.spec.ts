@@ -14,7 +14,8 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
   await expect(page.getByText(/Windows 10／11（64ビット）・空き容量 5 GB 以上を推奨/)).toBeVisible();
   await page.getByText("保存先と削除について",{exact:true}).click();
-  await expect(page.getByText(/終了中に期限を迎えたデータは次回起動時に削除します。/)).toBeVisible();
+  await expect(page.getByText(/作業は、既定ではワークスペースで削除するまで保持します。/)).toBeVisible();
+  await expect(page.getByText(/PCの外へ画像を送るのは、管理者がCellpose用のクラウドGPUを設定した場合/)).toBeVisible();
  }else{
   await expect(page.locator("#download").getByRole("link",{name:"デモを体験する",exact:true})).toBeVisible();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
