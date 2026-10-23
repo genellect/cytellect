@@ -1,5 +1,5 @@
 /** Real workspace transport. Pixels, masks, summaries and figures remain server-owned. */
-import { API, errorCodeMessage, fetchBlob, post, request } from "../api";
+import { API, ApiError, errorCodeMessage, fetchBlob, post, request } from "../api";
 import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-view";
 import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
@@ -89,6 +89,8 @@ export interface Transport {
 }
 const defaults: Transport = {request, post, blob: fetchBlob, wait: () => new Promise(resolve => setTimeout(resolve, 1200))};
 class TerminalJobError extends Error {}
+/** The server answered and refused the write (4xx), so nothing was accepted and it may be sent again. */
+export const refusedWrite = (error: unknown) => error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408;
 export function assertWorkspaceConnection(host: string, origin: string) {
   const loopback = (name: string) => ["localhost", "127.0.0.1", "[::1]", "::1"].includes(name);
   if (origin && loopback(new URL(origin, `https://${host}`).hostname) && !loopback(host)) throw new Error("公開サイトからローカルの解析サーバーには接続できません。ランチャーから開いてください。");
@@ -255,7 +257,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         runs.set(key, "uncertain");
         const accepted = await client.post<{job_id: string; revision_id: string}>(`/v1/workspaces/${workspace}/region-analyses`, {
           field_ids: [field], recipe, measurement, backgrounds: {}, exclusions: [],
-        });
+        }).catch(error => {if (refusedWrite(error)) runs.delete(key); throw error;});
         created = {...accepted, recipe: JSON.stringify(recipe)}; runs.set(key, created);
       }
       try {await waitJob(workspace, created.job_id, onState); onState?.("reading_results"); const saved = await readResult(created.revision_id, field, recipe); return options.adopt === false ? saved : await adopt(workspace, saved);}

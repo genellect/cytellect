@@ -1,4 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
+import {ApiError} from "../api";
 import {comparisonRequest, createComparisonAdapter, type ComparisonChoices, type ComparisonSource} from "./comparison-adapter";
 import type {Transport} from "./api-adapter";
 const choices: ComparisonChoices = {metric: "area_px", channel: null, regionSet: "nuclei", design: "independent", method: "rank", unitDefinition: "independent culture", pairingBasis: "", contrasts: [["A", "B"]], independence: true, acquisition: true, sampling: true, missingness: true, kind: "box", width: 178, height: 76, yLabel: ""};
@@ -65,6 +66,12 @@ describe("workspace inference boundaries", () => {
     });
     await expect(adapter.cohort("w", sources, {})).rejects.toThrow("offline");
     expect(await adapter.cohort("w", sources, {})).toBe("cohort"); expect(post).toHaveBeenCalledTimes(1);
+  });
+  it("sends a write again after the server refused it", async () => {
+    const refused = fake(async () => ({active_revision: null}), async () => {throw new ApiError("cohort_compartments_unresolved", 409);});
+    await expect(refused.adapter.cohort("w", sources, {})).rejects.toThrow("cohort_compartments_unresolved");
+    await expect(refused.adapter.cohort("w", sources, {})).rejects.toThrow("cohort_compartments_unresolved");
+    expect(refused.post).toHaveBeenCalledTimes(2);
   });
   it("does not issue silent duplicate jobs after uncertain writes and rejects mismatched result provenance", async () => {
     const uncertain = fake(async () => ({active_revision: null}), async () => {throw new TypeError("offline");});

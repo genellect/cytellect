@@ -108,10 +108,16 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
             try:
                 report = read_json(root / "measurements.json")
                 validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
-                if config["recipe"].get("source") == "fiji_nuclear_compartment":
-                    assert_complete_compartments(config, report, read_json(root / "provenance.json"), [fid])
+                provenance = read_json(root / "provenance.json") if config["recipe"].get("source") == "fiji_nuclear_compartment" else None
             except (ValueError, OSError):
                 raise HTTPException(409, "cohort_source_invalid") from None
+            if provenance is not None:
+                # A nucleus whose nucleolus was not found (or not resolved) leaves the compartment
+                # incomplete; the researcher has to see which condition blocks the statistics.
+                try:
+                    assert_complete_compartments(config, report, provenance, [fid])
+                except ValueError:
+                    raise HTTPException(409, "cohort_compartments_unresolved") from None
             if fid not in report["field_tables"] or fid not in report["field_masks"]:
                 raise HTTPException(409, "cohort_source_field_not_measured")
             original = config["field_snapshot"][fid]

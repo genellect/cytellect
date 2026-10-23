@@ -105,6 +105,7 @@ const messages:Record<string,string> = {
  planning_measurement_mismatch:"計画の面積・輝度の測定範囲と今回の設定が一致しません。測定する量を確認してください。",
  planning_revision_record_mismatch:"解析版の計画記録が一致しません。採用中の条件を確認してください。",
  descriptive_failure_exclusion_mismatch:"失敗した視野の除外記録が解析条件と一致しません。除外理由を確認した解析版で再測定してください。",
+ cohort_compartments_unresolved:"核小体を確定できない核（核小体が見つからなかった核など）を含む視野があるため、核小体に関わる統計（核小体・核質の領域、核小体数・面積割合）は計算できません。",
  region_export_statistics_source_mismatch:"統計結果と出力する解析版の条件が一致しません。採用中の版で比較や図を作成し直してください。",
  region_comparison_review_required:"領域・背景・失敗や除外を確認した解析版で比較してください。",
  region_comparison_source_mismatch:"測定値と解析版の出典が一致しません。採用中の版を再確認してください。",
