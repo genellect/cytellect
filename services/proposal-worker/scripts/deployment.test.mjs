@@ -18,6 +18,8 @@ test("disabled configuration is account-bound, secret-free and never overwritten
     const config = JSON.parse(text);
     assert.equal(config.vars.MONTHLY_BUDGET_USD, "0");
     assert.equal(config.vars.DEVICE_MONTHLY_REQUESTS, "0");
+    assert.equal(config.vars.MONTHLY_CELLPOSE_FIELDS, "0");
+    assert.equal("CELLPOSE_UPSTREAM_TOKEN" in config.vars, false);
     assert.equal(config.observability.enabled, false);
     assert.equal(config.account_id, "a".repeat(32));
     assert.equal("OPENAI_API_KEY" in config.vars, false);

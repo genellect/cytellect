@@ -1,10 +1,12 @@
 /**
- * Cytellect proposal service (Cloudflare Workers + D1).
+ * Cytellect paid-feature service (Cloudflare Workers + D1).
  *
- * Holds the operator's OpenAI key as a secret, authenticates installations by
- * invitation-issued device tokens, reserves budget before every model call and
- * returns an unvalidated draft that the local API validates. Request bodies,
- * goals and images are never logged or stored.
+ * Holds the operator's OpenAI key and Cellpose GPU (Modal) token as secrets and
+ * authenticates installations by device tokens redeemed from one-use access
+ * codes (invitations). Proposals reserve budget before every model call and
+ * return an unvalidated draft that the local API validates. Cellpose requests
+ * are relayed unchanged to the GPU service after a per-device and service-wide
+ * monthly field count. Request bodies, goals and images are never logged or stored.
  */
 import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
@@ -25,10 +27,20 @@ export interface Env {
   LOW_EFFORT_EVALUATED?: string;
   PRICE_CACHED_INPUT_USD_PER_MTOK?: string;
   PRICE_CACHE_WRITE_USD_PER_MTOK?: string;
+  CELLPOSE_UPSTREAM_URL?: string;
+  CELLPOSE_UPSTREAM_TOKEN?: string;
+  DEVICE_MONTHLY_CELLPOSE_FIELDS?: string;
+  MONTHLY_CELLPOSE_FIELDS?: string;
+  /** Optional Workers rate-limiting binding, keyed by client address. */
+  LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
 export const LIMITS = {
   bodyBytes: 6 * 1024 * 1024,
+  // Same ceiling as engines/cellpose/server.py; the platform's own limit may be lower.
+  cellposeBytes: 256 * 1024 * 1024,
+  cellposeSeconds: 1500,
+  labelChars: 60,
   goalChars: 2000,
   channels: 6,
   previews: 6,
@@ -85,9 +97,26 @@ export function readConfig(env: Env): Config | null {
   };
 }
 
+interface CellposeConfig { url: string; token: string; deviceFields: number; totalFields: number }
+
+/** The GPU relay is disabled unless the upstream, its token and both monthly field limits are set. */
+export function readCellposeConfig(env: Env): CellposeConfig | null {
+  const deviceFields = positive(env.DEVICE_MONTHLY_CELLPOSE_FIELDS);
+  const totalFields = positive(env.MONTHLY_CELLPOSE_FIELDS);
+  let url: URL;
+  try { url = new URL(env.CELLPOSE_UPSTREAM_URL ?? ""); } catch { return null; }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !env.CELLPOSE_UPSTREAM_TOKEN
+    || !deviceFields || !Number.isInteger(deviceFields) || !totalFields || !Number.isInteger(totalFields)) return null;
+  return { url: url.href.replace(/\/+$/, ""), token: env.CELLPOSE_UPSTREAM_TOKEN, deviceFields, totalFields };
+}
+
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function deviceId(): string {
+  return [...crypto.getRandomValues(new Uint8Array(8))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function token(): string {
@@ -159,27 +188,110 @@ export function worstCaseUsd(config: Config, context: unknown, previews: Preview
 
 const month = (now: number) => new Date(now).toISOString().slice(0, 7);
 
+const cellposeFailure = (status: number, code: string) => json(status, { error: code });
+
+/** Relay one field to the GPU service; the field counts only if inference returns labels. */
+async function relayCellpose(request: Request, config: CellposeConfig, store: Store, deviceHash: string, period: string,
+  fetcher: typeof fetch): Promise<Response> {
+  const length = Number(request.headers.get("content-length") ?? "");
+  if (!Number.isInteger(length) || length <= 0) return cellposeFailure(411, "cellpose_remote_input_invalid");
+  if (length > LIMITS.cellposeBytes) return cellposeFailure(413, "cellpose_remote_input_too_large");
+  if (!(await store.reserveCellpose(deviceHash, period, config.deviceFields, config.totalFields))) {
+    return cellposeFailure(429, "cellpose_quota_exhausted");
+  }
+  let upstream: Response;
+  try {
+    upstream = await fetcher(`${config.url}/v1/cellpose`, {
+      method: "POST", body: request.body,
+      headers: { "content-type": "application/octet-stream", accept: "application/octet-stream",
+        "content-length": String(length), authorization: `Bearer ${config.token}` },
+      signal: AbortSignal.timeout(LIMITS.cellposeSeconds * 1000),
+    });
+  } catch {
+    await store.releaseCellpose(deviceHash, period);
+    return cellposeFailure(502, "cellpose_remote_unavailable");
+  }
+  if (upstream.status === 200) {
+    return new Response(upstream.body, { status: 200, headers: { "content-type": "application/octet-stream", "cache-control": "no-store" } });
+  }
+  await store.releaseCellpose(deviceHash, period);
+  // The GPU service's own codes pass through; its proxy pages and auth failures do not.
+  let code = "";
+  try {
+    const value = JSON.parse((await upstream.text()).slice(0, 4096));
+    code = typeof value?.error === "string" && /^cellpose_[a-z_]{1,70}$/.test(value.error) ? value.error : "";
+  } catch { /* non-JSON proxy response */ }
+  if ([502, 503, 504].includes(upstream.status)) return cellposeFailure(upstream.status, code || "cellpose_remote_unavailable");
+  if (upstream.status === 401 || upstream.status === 403) return cellposeFailure(500, "cellpose_service_unavailable");
+  return cellposeFailure(upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502, code || "cellpose_remote_failed");
+}
+
+async function admin(request: Request, env: Env): Promise<boolean> {
+  const presented = bearer(request);
+  return Boolean(env.ADMIN_TOKEN && presented && equal(presented, env.ADMIN_TOKEN));
+}
+
 export async function handle(request: Request, env: Env, store: Store, options: { fetcher?: typeof fetch; now?: () => number } = {}): Promise<Response> {
   const now = options.now?.() ?? Date.now();
   const url = new URL(request.url);
   if (request.method !== "POST") return failure(405, "method_not_allowed");
+  if (env.LIMITER && !(await env.LIMITER.limit({ key: request.headers.get("cf-connecting-ip") ?? "unknown" })).success) {
+    return failure(429, "rate_limited");
+  }
+  const period = month(now);
 
   if (url.pathname === "/v1/admin/invitations") {
-    const presented = bearer(request);
-    if (!env.ADMIN_TOKEN || !presented || !equal(presented, env.ADMIN_TOKEN)) return failure(401, "unauthorized");
+    if (!(await admin(request, env))) return failure(401, "unauthorized");
     const invitation = token();
     const hours = Math.min(168, Math.max(1, Number(url.searchParams.get("hours") ?? "24") || 24));
-    await store.createInvitation(await sha256(invitation), now + hours * 3_600_000);
+    const label = (url.searchParams.get("label") ?? "").trim();
+    if (label.length > LIMITS.labelChars || /[\u0000-\u001f\u007f]/.test(label)) return failure(400, "label_invalid");
+    await store.createInvitation(await sha256(invitation), now + hours * 3_600_000, label || null);
     return json(201, { invitation, expires_in_hours: hours });
+  }
+
+  if (url.pathname === "/v1/admin/devices") {
+    if (!(await admin(request, env))) return failure(401, "unauthorized");
+    return json(200, { month: period, devices: await store.listDevices(period) });
+  }
+
+  if (url.pathname === "/v1/admin/devices/revoke") {
+    if (!(await admin(request, env))) return failure(401, "unauthorized");
+    const body = await readJson(request);
+    const id = typeof body?.id === "string" ? body.id : "";
+    if (!/^[0-9a-f]{16}$/.test(id)) return failure(400, "device_id_invalid");
+    return (await store.revokeDevice(id, now)) ? json(200, { revoked: id }) : failure(404, "device_not_found");
   }
 
   if (url.pathname === "/v1/devices") {
     const body = await readJson(request);
     const invitation = typeof body?.invitation === "string" ? body.invitation : "";
     if (!/^[A-Za-z0-9_-]{20,200}$/.test(invitation)) return failure(400, "invitation_invalid");
-    const device = token();
-    if (!(await store.redeemInvitation(await sha256(invitation), await sha256(device), now))) return failure(403, "invitation_invalid");
-    return json(201, { device_token: device });
+    const device = token(), id = deviceId();
+    if (!(await store.redeemInvitation(await sha256(invitation), await sha256(device), now, id))) return failure(403, "invitation_invalid");
+    return json(201, { device_token: device, device_id: id });
+  }
+
+  if (url.pathname === "/v1/status") {
+    const presented = bearer(request);
+    const record = presented ? await store.deviceStatus(await sha256(presented), period) : null;
+    if (!record) return failure(401, "unauthorized");
+    const proposals = readConfig(env), cellpose = readCellposeConfig(env);
+    return json(200, {
+      device_id: record.id, label: record.label, month: period,
+      proposals: { enabled: proposals !== null, used: record.proposals, limit: proposals?.deviceRequests ?? 0 },
+      cellpose: { enabled: cellpose !== null, used: record.cellpose_fields, limit: cellpose?.deviceFields ?? 0 },
+    });
+  }
+
+  if (url.pathname === "/v1/cellpose") {
+    const presented = bearer(request);
+    const deviceHash = presented ? await sha256(presented) : null;
+    if (!deviceHash || !(await store.deviceActive(deviceHash))) return cellposeFailure(401, "cellpose_remote_rejected");
+    const config = readCellposeConfig(env);
+    // Not 503: the client retries 502-504 while a GPU starts, and this is not transient.
+    if (!config) return cellposeFailure(409, "cellpose_service_disabled");
+    return relayCellpose(request, config, store, deviceHash, period, options.fetcher ?? fetch);
   }
 
   if (url.pathname === "/v1/proposals") {
@@ -199,7 +311,6 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const requestId = request.headers.get("idempotency-key");
     if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return failure(400, "request_id_required");
     if (!(await store.claimRequest(deviceHash, requestId.toLowerCase(), now))) return failure(409, "duplicate_request");
-    const period = month(now);
     if (!(await store.countDeviceRequest(deviceHash, period, config.deviceRequests))) return failure(429, "device_quota_exhausted");
     const reservation = crypto.randomUUID();
     const amount = worstCaseUsd(modelConfig, checked.context, checked.previews);

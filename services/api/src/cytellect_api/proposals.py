@@ -65,8 +65,9 @@ class ProposalServiceError(Exception):
 
 
 def service_url(settings) -> str | None:
-    url = (settings.proposal_url or "").rstrip("/")
-    if not url or not settings.proposal_token:
+    url, token = settings.proposal_service()
+    url = (url or "").rstrip("/")
+    if not url or not token:
         return None
     parts = urlsplit(url)
     local = parts.hostname in ("127.0.0.1", "localhost")
@@ -80,9 +81,10 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
     url = service_url(settings)
     if url is None:
         raise ProposalServiceError(503, "proposal_service_disabled")
+    token = settings.proposal_service()[1]
     body = json.dumps({"context": context.model_dump(mode="json"), "prompt_version": settings.proposal_prompt_version}).encode("utf-8")
     request = urllib.request.Request(f"{url}/v1/proposals", data=body, method="POST", headers={
-        "authorization": f"Bearer {settings.proposal_token}", "content-type": "application/json",
+        "authorization": f"Bearer {token}", "content-type": "application/json",
         "user-agent": "Cytellect/0.1",
         "Idempotency-Key": request_id or str(uuid.uuid4())})
     try:
@@ -373,7 +375,7 @@ def register_proposal_routes(api, store, settings, owner, workspace):
         source_stamp = _source_stamp(store, wid)
         identity = {"context": context_sha256(context), "protocol": PROPOSAL_PROTOCOL,
                     "model": settings.proposal_model, "prompt": settings.proposal_prompt_version,
-                    "service": settings.proposal_url, "channels": [link.model_dump() for link in links], "source": source_stamp}
+                    "service": settings.proposal_service()[0], "channels": [link.model_dump() for link in links], "source": source_stamp}
         key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         request_id = str(uuid.uuid4())
         now = time.time()

@@ -141,11 +141,31 @@ REMOTE_REQUEST_TIMEOUT_SECONDS = 1800
 REMOTE_RESPONSE_LIMIT = 512 * 1024 * 1024
 
 
-def remote_endpoint() -> str | None:
-    """Configured GPU inference service; https only, except a loopback test service."""
+def _paid_access():
+    from . import paid_access
+
+    return paid_access.read(os.environ.get(paid_access.FILE_ENV))
+
+
+def _remote_target() -> tuple[str, str] | None:
+    """The GPU service and its bearer token: this installation's redeemed access code
+    (the operator's access service) first, else an explicitly configured service."""
+    credential = _paid_access()
+    if credential is not None:
+        return credential.service, credential.token
     url = os.environ.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip()
     if not url:
         return None
+    return _validated_remote_url(url), os.environ.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN", "")
+
+
+def remote_endpoint() -> str | None:
+    target = _remote_target()
+    return None if target is None else target[0]
+
+
+def _validated_remote_url(url: str) -> str:
+    """https only, except a loopback test service."""
     parts = urlsplit(url)
     loopback = parts.hostname in {"127.0.0.1", "localhost", "::1"}
     if (parts.scheme not in {"https", "http"} or (parts.scheme == "http" and not loopback) or not parts.hostname
@@ -180,9 +200,10 @@ def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: Ce
     Binding to nuclei, refinement and measurement stay local. The service must
     report the runner, model and package lock this release expects.
     """
-    url = remote_endpoint()
-    if url is None:
+    target = _remote_target()
+    if target is None:
         raise ValueError("cellpose_remote_url_invalid")
+    url, token = target
     assets = _assets()
     lock = json.loads((assets / "runtime.lock.json").read_text(encoding="utf-8"))
     gpu = json.loads((assets / "gpu.lock.json").read_text(encoding="utf-8"))
@@ -199,8 +220,8 @@ def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: Ce
     headers = {"Content-Type": "application/octet-stream", "Accept": "application/octet-stream",
                # Hugging Face holds the request while a scaled-to-zero endpoint starts.
                "X-Scale-Up-Timeout": str(REMOTE_WAIT_SECONDS)}
-    if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN"):
-        headers["Authorization"] = "Bearer " + os.environ["CYTELLECT_CELLPOSE_REMOTE_TOKEN"]
+    if token:
+        headers["Authorization"] = "Bearer " + token
     if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_SECRET"):
         headers["X-Cytellect-Secret"] = os.environ["CYTELLECT_CELLPOSE_REMOTE_SECRET"]
     deadline, delay = time.monotonic() + REMOTE_WAIT_SECONDS, 5.0

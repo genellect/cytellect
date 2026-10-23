@@ -177,6 +177,10 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
                                 samesite="strict", max_age=7 * 86400, path="/")
         return {"authenticated": True, "mode": "local", **settings.retention_policy, "demo": settings.demo}
 
+    if settings.paid_access_file is not None:
+        from .paid_access_local import register
+
+        register(app, settings.paid_access_file)
     app.mount("/", StaticFiles(directory=web_dir, html=True, follow_symlink=False), name="local-ui")
     return app
 
@@ -298,6 +302,10 @@ class WorkerSupervisor:
             env.setdefault(key, value)
         if sys.dont_write_bytecode:
             env["PYTHONDONTWRITEBYTECODE"] = "1"
+        if self.settings.paid_access_file is not None:
+            # The worker reads the redeemed access code per Cellpose request, so a code
+            # entered while the application runs applies without a restart.
+            env["CYTELLECT_PAID_ACCESS_FILE"] = str(self.settings.paid_access_file)
         env.update(CYTELLECT_DATA_DIR=str(self.settings.data_dir),
                    CYTELLECT_APP_ORIGIN=self.settings.app_origin, CYTELLECT_SECURE_COOKIES="false",
                    CYTELLECT_DEMO=str(self.settings.demo).lower(),
@@ -545,7 +553,8 @@ def main(argv=None):
         raise SystemExit(2)
     settings = Settings(args.data_dir.resolve(), app_origin=f"http://127.0.0.1:{args.port}",
                         workspace_retention_mode=local_retention_mode(args.data_dir.resolve()),
-                        secure_cookies=False, fiji_executable=args.fiji)
+                        secure_cookies=False, fiji_executable=args.fiji,
+                        paid_access_file=args.data_dir.resolve().parent / "settings" / "paid-access.json")
     os.environ.pop("CYTELLECT_CODE_REVISION", None)
     revision = installed_source_revision()
     if revision:

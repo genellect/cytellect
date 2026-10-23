@@ -27,6 +27,20 @@ refinement, measurement and statistics remain local.
 
 The PoC deployment (`infra/modal_cellpose.py`) is a Modal Server: per Modal, Server request and response payloads are proxied to the container and not stored, unlike Web Functions, whose inputs are kept up to 7 days. It uses no Volume or memory snapshot, requires a Modal proxy-auth token, runs at most one L4 container and is deployed only from `main` by a workflow whose deploy token is a repository secret. The workspace spend limit is set to zero. The main residual risk is takeover of the Modal account or deploy token, which could replace the server with one that records inputs; the account uses GitHub sign-in with two-factor authentication and no other members.
 
+With an access code ([paid access](paid-access.ja.md)), the installation instead holds
+a per-device token (Windows: DPAPI-protected `settings/paid-access.json`) and sends
+Cellpose requests to the operator's access service (`services/proposal-worker`, a
+Cloudflare Worker). The Worker authenticates the device, counts the field against
+per-device and service-wide monthly limits, and relays the unchanged request body to
+the GPU service with the Modal token, which exists only as a Worker secret. It stores
+no request content and has logging (observability) disabled; relaying is covered by
+tests that check the upstream receives the unchanged body and the operator's token,
+never the device token. This adds Cloudflare as a transit processor for the detection
+plane; a takeover of the Cloudflare account or the administrator token carries the same
+class of risk as a Modal takeover, and the Modal spend limit remains the last guard.
+The same device token authorizes proposals when no proposal service is configured
+explicitly. Devices are revoked individually by the operator.
+
 The URL must be https (loopback http only for tests), without credentials, query or
 fragment in it. The access token travels in the Authorization header and never
 appears in errors. The service (`engines/cellpose/server.py`) holds request content

@@ -1,5 +1,6 @@
 # Copy to wrangler.toml, then fill in the D1 database ID created by the operator.
-# Secrets (never commit): wrangler secret put OPENAI_API_KEY / ADMIN_TOKEN
+# Secrets (never commit): wrangler secret put OPENAI_API_KEY / ADMIN_TOKEN / CELLPOSE_UPSTREAM_TOKEN
+# CELLPOSE_UPSTREAM_TOKEN is the Modal proxy-auth token as "wk-….ws-…"; PCs never receive it.
 name = "cytellect-proposal"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
@@ -26,6 +27,16 @@ REASONING_EFFORT = "medium"
 LOW_EFFORT_EVALUATED = "false"
 # Includes reasoning and visible JSON; validate this ceiling with public-only evaluation.
 MAX_OUTPUT_TOKENS = "8000"
+# Cellpose GPU relay: disabled until the upstream URL, its token and both limits are set.
+CELLPOSE_UPSTREAM_URL = ""
+DEVICE_MONTHLY_CELLPOSE_FIELDS = ""
+MONTHLY_CELLPOSE_FIELDS = ""
+
+# Per-client-address limit on every route (Workers rate limiting binding).
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+simple = { limit = 120, period = 60 }
 
 [observability]
 enabled = false

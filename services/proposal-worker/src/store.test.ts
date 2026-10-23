@@ -13,9 +13,11 @@ async function database(): Promise<D1Database> {
   db.exec(readFileSync(new URL("../migrations/0001_init.sql", import.meta.url), "utf8"));
   db.exec(readFileSync(new URL("../migrations/0002_usage_integrity.sql", import.meta.url), "utf8"));
   db.exec(readFileSync(new URL("../migrations/0003_budget_reconciliation.sql", import.meta.url), "utf8"));
+  db.exec(readFileSync(new URL("../migrations/0004_access_codes.sql", import.meta.url), "utf8"));
   const statement = (query: string, values: unknown[] = []) => ({
     bind: (...next: unknown[]) => statement(query, next),
     first: async () => db.prepare(query).get(...values) ?? null,
+    all: async () => ({ results: db.prepare(query).all(...values) }),
     run: async () => ({ meta: { changes: Number(db.prepare(query).run(...values).changes) } }),
   });
   return { prepare: (query: string) => statement(query) } as unknown as D1Database;
@@ -134,5 +136,27 @@ describe("D1Store SQL", () => {
     await store.settle("c", "2026-10", 0.5);
     expect(await store.reserve("e", "2026-10", 0.25, 1, 3)).toBe(true);
     expect(await store.reserve("f", "2026-11", 0.9, 1, 4)).toBe(true);
+  });
+
+  it("records labelled devices, revokes by id and bounds Cellpose fields per device and service-wide", async () => {
+    const store = new D1Store(await database());
+    await store.createInvitation("inv-a", 10, "PC-A");
+    await store.createInvitation("inv-b", 10);
+    expect(await store.redeemInvitation("inv-a", "hash-a", 1, "aaaaaaaaaaaaaaaa")).toBe(true);
+    expect(await store.redeemInvitation("inv-b", "hash-b", 2, "bbbbbbbbbbbbbbbb")).toBe(true);
+    const fields = [];
+    for (let index = 0; index < 3; index += 1) fields.push(await store.reserveCellpose("hash-a", "2026-10", 2, 3));
+    expect(fields).toEqual([true, true, false]);
+    expect(await store.reserveCellpose("hash-b", "2026-10", 2, 3)).toBe(true);
+    expect(await store.reserveCellpose("hash-b", "2026-10", 2, 3)).toBe(false);
+    await store.releaseCellpose("hash-b", "2026-10");
+    expect(await store.reserveCellpose("hash-b", "2026-10", 2, 3)).toBe(true);
+    expect(await store.deviceStatus("hash-a", "2026-10")).toEqual({ id: "aaaaaaaaaaaaaaaa", label: "PC-A", created_at: 1,
+      revoked_at: null, proposals: 0, cellpose_fields: 2 });
+    expect(await store.revokeDevice("aaaaaaaaaaaaaaaa", 5)).toBe(true);
+    expect(await store.revokeDevice("aaaaaaaaaaaaaaaa", 6)).toBe(false);
+    expect(await store.deviceStatus("hash-a", "2026-10")).toBeNull();
+    expect((await store.listDevices("2026-10")).map((device) => [device.id, device.label, device.revoked_at, device.cellpose_fields]))
+      .toEqual([["aaaaaaaaaaaaaaaa", "PC-A", 5, 2], ["bbbbbbbbbbbbbbbb", null, null, 1]]);
   });
 });

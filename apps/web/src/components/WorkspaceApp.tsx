@@ -11,6 +11,7 @@ import GenericWorkbench from "./GenericWorkbench";
 import styles from "./workspace.module.css";
 import { WINDOWS_RELEASE_URL } from "@/lib/release";
 import WindowsDownload from "./WindowsDownload";
+import PaidAccessCard from "./PaidAccessCard";
 
 import PlanAdoptionCard,{type ProposedPlan} from "./PlanAdoptionCard";
 import {usePlanMemory} from "./PlanMemory";
@@ -71,7 +72,7 @@ function Application(){
   <main className={styles.home}><div className={styles.homeHero}><h1>実験ワークスペース</h1><p>新しい作業を作成するか、保存中の作業を選択してください。</p></div>
    <div className={styles.homeGrid}><section className={styles.card}><h2>作業の新規作成</h2><form onSubmit={createWorkspace}><label>作業名<input value={title} onChange={e=>setTitle(e.target.value)} required maxLength={100} placeholder="例：処置前後の蛍光強度"/></label><label>解析の種類<select aria-label="解析の種類" disabled={!!proposed} value={workflow} onChange={e=>setWorkflow(e.target.value as Workflow)}><option value="regions">領域・輝度解析</option><option value="nuclear">核・核小体解析</option></select></label><p className={styles.small}>{workflow==="regions"?"任意の標識・1〜3チャンネル。核染色からの自動検出、手動領域、ラベルTIFFで面積・輝度を測定します。":"核染色とNCL・GFP。Fijiによる自動検出、修正、定量と群間比較を行います。"}</p><PlanAdoptionCard onChange={(value,blocked)=>{setProposed(value);setPlanBlocked(blocked);const candidate=value?.snapshot.decision.candidates.find(item=>item.id===value.candidateId);if(candidate)setWorkflow(candidate.workflow);}}/><button className={styles.primary} disabled={busy||planBlocked}>作業を作成</button></form></section>
     <section className={styles.card}><h2>保存中の作業</h2>{!spaces.data?.length?<p className={styles.muted}>保存中の作業はありません。</p>:<div className={styles.workspaceList}>{spaces.data.map(w=><button key={w.id} onClick={()=>{setInitialWorkflow(undefined);setWorkspaceId(w.id);}}><span><b>{w.title}</b><small>{workspaceDeadline(w.expires)}</small></span><span>→</span></button>)}</div>}{spaces.error&&<p role="alert">{errorMessage(spaces.error)}</p>}</section>
-   </div><p className={styles.footerNote}>開発プレビュー · 解析結果は研究目的と実験条件に照らして確認してください。</p>
+   </div>{LOCAL_MODE&&!session.data.demo&&<div className={styles.homeGrid}><PaidAccessCard/></div>}<p className={styles.footerNote}>開発プレビュー · 解析結果は研究目的と実験条件に照らして確認してください。</p>
   </main>}
  </div>;
 }
