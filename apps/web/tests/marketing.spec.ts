@@ -36,7 +36,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
-  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^核と核小体の定量を、/,/^Windows版は無料。研究画像はPCの外に/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
+  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^核と核小体の定量を、/,/^Windows版は無料。測定も保存も、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
   if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').filter({visible:true}).all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
  }
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));

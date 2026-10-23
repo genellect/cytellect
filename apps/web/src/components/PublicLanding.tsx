@@ -49,15 +49,14 @@ export default function PublicLanding() {
 
       <section className={[lp.section, lp.loopSection].join(" ")} aria-labelledby="loop-title">
         <div className={lp.wide}>
-          <Display id="loop-title" text="研究者の修正が、次のAIになる。" />
-          <p className={lp.loopLead}>使われるほど、検出できる構造が増えていきます。</p>
-          <ol className={lp.loop} aria-label="検出AIが育つ仕組み">
-            <li><b>研究者が輪郭を直す</b><span>ずれた輪郭を、画面の上でなぞり直すだけ。</span></li>
-            <li><b>修正が教師データになる</b><span>染色画像と、直した輪郭が組になって残ります。</span></li>
-            <li><b>AIを追加学習</b><span>大規模な画像AIを土台に、核小体や細胞質まで学習します。</span></li>
-            <li><b>クラウドのGPUで検出</b><span>PCのCPUでは1視野に数十分かかる検出を、高性能なGPUで。</span></li>
+          <Display id="loop-title" text="核小体まで見分けるAIを、どのPCからでも。" />
+          <p className={lp.loopLead}>あなたがするのは、画像を入れて、結果を確かめることだけ。</p>
+          <ol className={lp.loop} aria-label="検出の仕組み">
+            <li><b>核を一つずつ切り分ける</b><span>核の検出で広く使われるAI（StarDist）が、接した核も一つずつ分けます。</span></li>
+            <li><b>核の中から、核小体を探す</b><span>大規模な画像AI（Cellpose-SAM）を、研究者が確かめた輪郭で核小体向けに追加学習。核の内側だけを探します。</span></li>
+            <li><b>計算はクラウドのGPUで</b><span>PCのCPUでは1視野に数十分かかる計算を、GPUで。送るのは検出に使う1色の画像だけです。</span></li>
+            <li><b>測定は、あなたのPCで</b><span>元の画像の画素値から測ります。輪郭は元の画像に重ねて確かめられます。</span></li>
           </ol>
-          <p className={lp.loopBack}><span aria-hidden="true">↺</span> 次の画像から、より正確に。</p>
         </div>
       </section>
 
@@ -72,7 +71,7 @@ export default function PublicLanding() {
 
       <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
-          <Display id="download-title" text="Windows版は無料。研究画像はPCの外に出ません。" />
+          <Display id="download-title" text="Windows版は無料。測定も保存も、あなたのPCで。" />
           <div className={lp.prose}><p>コマンド入力も管理者権限も不要。解析のコードは公開しています。</p></div>
           <div className={lp.install}>
             <div>

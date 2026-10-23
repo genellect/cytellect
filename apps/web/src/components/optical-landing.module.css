@@ -116,8 +116,6 @@
 .loop li:not(:last-child)::after{content:"→";position:absolute;top:50%;right:calc(-1 * clamp(12px,1.6vw,24px));width:clamp(12px,1.6vw,24px);text-align:center;transform:translateY(-50%);font-size:18px}
 .loop b{font-size:clamp(17px,1.4vw,20px);font-weight:600;line-height:1.5}
 .loop span{font-size:15px;line-height:1.75}
-.loopBack{display:flex;align-items:center;gap:12px;margin:20px 0 0;padding:14px 20px;border:1px solid var(--rule);border-radius:999px;width:fit-content;font-size:16px;font-weight:500}
-.loopBack span{font-size:22px;line-height:1}
 .screen{overflow:hidden;border:1px solid #17262120;border-radius:8px;box-shadow:0 40px 100px -40px #17262150}
 .screen img{width:100%;height:auto}
 .paper{padding:clamp(16px,3vw,48px);border-radius:8px;background:#fff}
