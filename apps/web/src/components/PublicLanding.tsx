@@ -80,19 +80,17 @@ export default function PublicLanding() {
 
       <section id="download" className={[lp.section, lp.download, lp.reference].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
-          <Display id="download-title" text="Windows版は無料。測定も保存も、あなたのPCで。" />
-          <div className={lp.prose}><p>コマンド入力も管理者権限も不要。解析のコードは公開しています。</p></div>
-          <div className={lp.install}>
+          <div className={lp.setup}>
             <div>
+              <Display id="download-title" text="Windows版は無料。測定も保存も、あなたのPCで。" />
+              <p className={lp.setupLead}>画面の案内どおりに進めるだけ。コマンド入力も管理者権限も要りません。</p>
               {WINDOWS_RELEASE_URL?<a className={lp.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>:<Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link>}
-              {WINDOWS_RELEASE_URL&&<p className={lp.meta}>ZIP{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL?`・${Math.round(PUBLISHED_RELEASE.size_bytes/1e6)} MB・v${PUBLISHED_RELEASE.version}`:""}<br />Windows 10／11（64ビット）・空き容量 5 GB 以上を推奨</p>}
-              {WINDOWS_RELEASE_URL&&<Link data-lp-event="example" href="/demo" className={lp.button}>インストールの前にデモを体験する <Forward /></Link>}
+              {WINDOWS_RELEASE_URL&&<p className={lp.meta}>ZIP{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL?`・${Math.round(PUBLISHED_RELEASE.size_bytes/1e6)} MB・v${PUBLISHED_RELEASE.version}`:""}・Windows 10／11（64ビット）</p>}
             </div>
-            <ol className={lp.steps} aria-label="インストールの手順">
-              <li><b>ダウンロードしたZIPを右クリックし、「すべて展開」</b><span>展開先はそのままで大丈夫です。</span></li>
-              <li><b>展開したフォルダーの「Cytellect Setup」をダブルクリック</b><span>青い画面が出たら「詳細情報」→「実行」を押します。</span></li>
-              <li><b>「セットアップ」を押して、待つ</b><span>初回だけ5〜20分かかります。インターネットにつないでおいてください。</span></li>
-              <li><b>「開く」を押すと、解析画面が開きます</b><span>次からは、デスクトップの「Cytellect」から開けます。</span></li>
+            <ol className={lp.setupSteps} aria-label="はじめかた">
+              <li><b>ダウンロードして、展開する</b></li>
+              <li><b>「Cytellect Setup」を開く</b></li>
+              <li><b>「セットアップ」を押す</b><span>準備ができたら、解析画面が開きます</span></li>
             </ol>
           </div>
         </div>

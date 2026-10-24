@@ -122,41 +122,42 @@
 .paper a{display:block;max-width:760px;margin-inline:auto;cursor:zoom-in}
 .paper img{width:100%;height:auto}
 .paper figcaption{max-width:760px;margin:20px auto 0;font-size:14px;line-height:1.7}
-/* Impact: one composition from what a researcher measures to the people who wait. */
+/* Impact: research leading to patients, in one compact panel. */
 .impact{padding-top:var(--section-space)}
-.impactTitle{margin:0;font-size:clamp(40px,4.8vw,80px);font-weight:450;line-height:1.2;letter-spacing:-.04em;word-break:auto-phrase}
+.impactPanel{display:grid;gap:clamp(28px,3vw,44px);padding:clamp(32px,4vw,60px);border-radius:16px;background:radial-gradient(55% 120% at 92% 110%,#2f6f5880,#2f6f5800 70%),#15241f;color:#f2f3ef}
+.impactTitle{margin:0;font-size:clamp(32px,3.8vw,60px);font-weight:450;line-height:1.3;letter-spacing:-.03em;word-break:auto-phrase}
 .impactTitle>span{display:block}
-.journey{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:minmax(clamp(150px,12vw,190px),auto);gap:12px;margin:clamp(40px,4vw,64px) 0 0;padding:0;list-style:none}
-.journey>li{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;padding:clamp(22px,2.4vw,36px);border-radius:14px;background:#1b2b25;color:#f2f3ef;grid-column:8 / span 5}
-.journey>li>span{font-size:clamp(16px,1.3vw,19px);line-height:1.5}
-.journey>li>b{font-size:clamp(28px,2.8vw,46px);font-weight:450;line-height:1.2;letter-spacing:-.03em}
-.journey>li::after{content:"";position:absolute;inset:auto -20% -60% 30%;height:120%;background:radial-gradient(closest-side,#4f9a7c40,#4f9a7c00);pointer-events:none}
-.stepIndex{position:absolute;top:clamp(18px,2vw,28px);left:clamp(22px,2.4vw,36px);font-size:13px!important;font-weight:600;letter-spacing:.08em;color:#a9bdb4}
-.measureStep{grid-column:1 / span 7!important;grid-row:1 / span 3;justify-content:space-between!important;padding-top:clamp(64px,6vw,96px)!important;background:radial-gradient(90% 80% at 80% 100%,#2f6f58 0%,#2f6f5800 70%),#15241f!important}
-.measureStep ul{display:flex;flex-wrap:wrap;gap:12px;margin:0;padding:0;list-style:none}
-.measureStep ul li{padding:12px 22px;border:1px solid #f2f3ef4d;border-radius:999px;font-size:clamp(24px,2.5vw,40px);line-height:1.3;letter-spacing:-.01em;transition:background .5s,color .5s,border-color .5s}
-.measureStep ul li[data-active="true"]{background:#f2f3ef;border-color:#f2f3ef;color:#15241f}
-.measureStep>b{font-size:clamp(40px,4.4vw,72px)!important}
-.deliverStep{background:linear-gradient(160deg,#d9efe4 0%,#f3dcd2 100%)!important;color:#15241f!important}
-.deliverStep .stepIndex{color:#40594f}
-.deliverStep::after{display:none}
+.path{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;padding:0;list-style:none;border-top:1px solid #ffffff26}
+.path li{display:flex;flex-direction:column;gap:4px;padding:20px clamp(12px,1.6vw,24px) 0 0}
+.path li+li{padding-left:clamp(12px,1.6vw,24px);border-left:1px solid #ffffff26}
+.path span{font-size:14px;line-height:1.6;color:#c9d4ce}
+.path b{font-size:clamp(22px,2.2vw,34px);font-weight:450;line-height:1.3;letter-spacing:-.02em}
+.path li:last-child b{color:#bfe6d4}
 /* Invitation: the page's last scene. */
-.invite{padding:var(--section-space) var(--gutter) 0}
-.inviteInner{position:relative;isolation:isolate;overflow:hidden;width:min(100%,1360px);margin-inline:auto;padding:clamp(48px,7vw,112px) clamp(28px,6vw,96px) clamp(120px,14vw,220px);border-radius:16px;background:#15241f;color:#f5f5f2}
+.invite{padding:clamp(56px,6vw,96px) var(--gutter) 0}
+.inviteInner{position:relative;isolation:isolate;overflow:hidden;width:min(100%,1360px);margin-inline:auto;padding:clamp(40px,5vw,72px) clamp(28px,5vw,80px) clamp(72px,8vw,120px);border-radius:16px;background:#15241f;color:#f5f5f2}
 .inviteInner::before{content:"";position:absolute;z-index:-1;width:70%;height:130%;right:-12%;top:-30%;background:radial-gradient(closest-side,#3f8f6f80,#3f8f6f00)}
 .inviteInner::after{content:"";position:absolute;z-index:-1;width:50%;height:90%;left:18%;bottom:-40%;background:radial-gradient(closest-side,#e7b8a455,#e7b8a400)}
-.inviteTitle{margin:0;font-size:clamp(42px,5.2vw,88px);font-weight:450;line-height:1.18;letter-spacing:-.04em;word-break:auto-phrase}
+.inviteTitle{margin:0;font-size:clamp(36px,4.2vw,68px);font-weight:450;line-height:1.18;letter-spacing:-.04em;word-break:auto-phrase}
 .inviteTitle>span{display:block}
 .inviteLead{margin:clamp(20px,2vw,28px) 0 0;font-size:clamp(18px,1.5vw,22px);line-height:1.7;color:#d5ddd8}
 .inviteActions{display:flex;align-items:center;flex-wrap:wrap;gap:16px 32px;margin-top:clamp(32px,3.4vw,52px)}
 .invite .primary{min-height:62px;padding:16px 28px;background:#f5f5f2;border-color:#f5f5f2;color:#11171e!important;font-size:16px}
 .invite .primary:hover{background:#fff}
-.inviteMark{position:absolute;z-index:-1;left:clamp(20px,4vw,72px);bottom:clamp(-60px,-4vw,-24px);font-size:clamp(96px,17vw,280px);font-weight:650;letter-spacing:-.06em;line-height:1;color:#f5f5f20f;white-space:nowrap;pointer-events:none}
-/* Reference: download, install and questions, after the invitation. */
-.reference .install{grid-template-columns:minmax(0,1fr);gap:40px}
-.reference .steps{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
-.reference .steps li{grid-template-columns:1fr;row-gap:12px;align-content:start;padding:22px;border:1px solid var(--rule);border-radius:12px;background:#fbfbf9}
-.reference .steps li::before{grid-row:auto}
+.inviteMark{position:absolute;z-index:-1;left:clamp(20px,4vw,72px);bottom:clamp(-60px,-4vw,-24px);font-size:clamp(80px,13vw,210px);font-weight:650;letter-spacing:-.06em;line-height:1;color:#f5f5f20f;white-space:nowrap;pointer-events:none}
+/* Reference: a short install pitch for beginners, then guides and questions. */
+.reference{padding-top:clamp(56px,6vw,96px)}
+.setup{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:clamp(28px,4vw,72px);align-items:center;padding:clamp(28px,3.4vw,52px);border-radius:16px;background:#fbfbf9;border:1px solid #17262118}
+.setup .display{font-size:clamp(24px,2.3vw,34px)}
+.setupLead{margin:14px 0 24px;font-size:clamp(16px,1.2vw,18px);line-height:1.8}
+.setup .meta{margin:12px 0 0;font-size:13px;color:var(--muted)}
+.setupSteps{display:grid;gap:8px;margin:0;padding:0;list-style:none;counter-reset:setup}
+.setupSteps li{position:relative;display:grid;gap:2px;padding:16px 18px 16px 64px;border-radius:10px;background:#fff;border:1px solid #17262114;counter-increment:setup}
+.setupSteps li::before{content:counter(setup);position:absolute;left:18px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#172621;color:#f5f5f2;font-size:14px;font-weight:600}
+.setupSteps b{font-size:17px;font-weight:600;line-height:1.6}
+.setupSteps span{font-size:14px;line-height:1.7;color:#2b3d36}
+.reference .guide{margin-top:clamp(48px,5vw,72px)}
+.reference .details{margin-top:40px}
 .demoBar{display:none}
 .download{padding-bottom:96px}
 .download .actions{display:flex;align-items:center;flex-wrap:wrap;gap:20px 40px;margin-top:40px}
@@ -238,13 +239,10 @@
   .download .actions{align-items:stretch;flex-direction:column;gap:12px}.download .actions .primary{width:100%}.download .actions .button{align-self:flex-start}
   .guide nav{flex-direction:column;gap:0}.guide nav a{padding:14px 0;border-bottom:1px solid var(--rule)}
   .details{grid-template-columns:1fr;gap:36px;margin-top:48px}.download{padding-bottom:64px}.footerPrimary{flex-direction:column}
-  .impactTitle{font-size:clamp(30px,8.6vw,40px)}
-  .journey{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:auto;gap:10px}
-  .journey>li{grid-column:span 2;min-height:128px}
-  .measureStep{grid-column:span 2!important;grid-row:auto;min-height:300px;gap:28px!important}
-  .journey>li>b{font-size:26px}.measureStep>b{font-size:40px!important}.measureStep ul li{font-size:18px;padding:8px 14px}
-  .invite{padding:var(--section-space) 12px 0}.inviteInner{padding:44px 24px 140px}.inviteTitle{font-size:clamp(32px,9vw,44px)}
-  .reference .steps{grid-template-columns:1fr}
+  .impactPanel{padding:28px 22px}.impactTitle{font-size:clamp(26px,7.4vw,34px)}
+  .path{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:20px}.path li:nth-child(3){padding-left:0;border-left:0}
+  .invite{padding:56px 12px 0}.inviteInner{padding:36px 22px 84px}.inviteTitle{font-size:clamp(32px,9vw,44px)}
+  .setup{grid-template-columns:1fr;padding:24px 18px}
   .footer{padding-bottom:104px}
   .demoBar{position:fixed;z-index:40;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));display:block;transform:translateY(calc(100% + 32px));transition:transform .35s cubic-bezier(.22,.7,.12,1)}
   .demoBar[data-shown="true"]{transform:none}
