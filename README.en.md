@@ -96,9 +96,27 @@ The Windows edition builds a dedicated Python/Fiji environment and verifies sign
 
 ## Development and validation
 
-Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Setting up and running a development environment is covered in [CONTRIBUTING](CONTRIBUTING.md) (Japanese). Development uses Python 3.12, Node.js 24, pnpm and uv on Linux or Windows. `python3 scripts/dev.py check` runs the same checks as pull-request CI, and a test confirms that the two command sets match.
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Detailed setup steps are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
 
-CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation. Windows releases are built only from commits on which all seven CI jobs have passed, including real Fiji with browser integration, containers and a fresh install and update on Windows.
+Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. Figure output requires a Japanese font (`fonts-noto-cjk` on Linux). To start on Linux:
+
+```bash
+uv sync --locked --dev
+pnpm install --frozen-lockfile
+uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
+
+export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
+uv run cytellect invite --hours 24
+uv run cytellect serve      # terminal 1
+uv run cytellect-worker     # terminal 2 (same environment variables)
+pnpm dev                    # terminal 3
+```
+
+CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
+
+```bash
+python3 scripts/dev.py check
+```
 
 ## License
 
