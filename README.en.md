@@ -2,7 +2,7 @@
 
 **Get your microscopy publication-ready.**
 
-[![A pipette dispensing medium into a six-well plate (from the Cytellect website)](apps/web/public/marketing/hero-film-poster.webp)](https://cytellect.vercel.app/)
+[![The Cytellect website](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
 
 [日本語](README.md) · [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
 

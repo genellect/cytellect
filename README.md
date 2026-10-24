@@ -2,7 +2,7 @@
 
 **Get your microscopy publication-ready.**
 
-[![実験台の 6 穴プレートに培地を分注するピペット（Cytellect の公開サイトより）](apps/web/public/marketing/hero-film-poster.webp)](https://cytellect.vercel.app/)
+[![Cytellect の公開サイト](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
 
 [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析)
 
