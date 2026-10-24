@@ -1,0 +1,43 @@
+{
+  "services": {
+    "data-init": {
+      "image": "", "platform": "linux/amd64", "user": "0:0",
+      "entrypoint": ["python", "-c"],
+      "command": ["import os; from pathlib import Path; p=Path('/data'); assert p.stat().st_uid in (0,10001), 'Unexpected volume owner'; p.chmod(0o700); os.chown(p,10001,10001)"],
+      "volumes": [{"type": "volume", "source": "research", "target": "/data"}],
+      "network_mode": "none", "read_only": true, "cap_drop": ["ALL"],
+      "cap_add": ["CHOWN", "FOWNER"], "security_opt": ["no-new-privileges:true"], "restart": "no"
+    },
+    "api": {
+      "image": "", "platform": "linux/amd64", "user": "10001:10001",
+      "environment": {
+        "CYTELLECT_DATA_DIR": "/data", "CYTELLECT_APP_ORIGIN": "http://127.0.0.1:3087",
+        "CYTELLECT_DESKTOP_OWNER": "true", "CYTELLECT_SECURE_COOKIES": "false",
+        "CYTELLECT_DEMO": "false", "CYTELLECT_FIJI_EXECUTABLE": "/opt/fiji",
+        "CYTELLECT_CODE_REVISION": "", "CYTELLECT_WORKSPACE_RETENTION_MODE": "manual"
+      },
+      "volumes": [{"type": "volume", "source": "research", "target": "/data"}],
+      "ports": [{"target": 8000, "published": "8001", "host_ip": "127.0.0.1", "protocol": "tcp"}],
+      "networks": {"edge": {}, "private": {}}, "read_only": true,
+      "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"], "restart": "unless-stopped",
+      "healthcheck": {"test": ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/v1/health')"], "interval": "20s", "timeout": "5s", "retries": 5},
+      "depends_on": {"data-init": {"condition": "service_completed_successfully"}}
+    },
+    "worker": {
+      "image": "", "platform": "linux/amd64", "user": "10001:10001",
+      "environment": {"CYTELLECT_DATA_DIR": "/data", "CYTELLECT_JOB_TIMEOUT_SECONDS": "3600", "CYTELLECT_WORKER_MEMORY_MB": "4096", "CYTELLECT_CODE_REVISION": "", "CYTELLECT_WORKSPACE_RETENTION_MODE": "manual"},
+      "volumes": [{"type": "volume", "source": "research", "target": "/data"}],
+      "network_mode": "none", "read_only": true, "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"], "mem_limit": "5g", "pids_limit": 512,
+      "init": true, "restart": "unless-stopped", "depends_on": {"api": {"condition": "service_healthy"}}
+    },
+    "web": {
+      "image": "", "platform": "linux/amd64", "environment": {"NEXT_TELEMETRY_DISABLED": "1"},
+      "ports": [{"target": 3000, "published": "3087", "host_ip": "127.0.0.1", "protocol": "tcp"}],
+      "networks": {"edge": {}}, "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"], "restart": "unless-stopped"
+    }
+  },
+  "networks": {"private": {"internal": true}, "edge": {}},
+  "volumes": {"research": {"external": true, "name": ""}}
+}
