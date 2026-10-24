@@ -235,6 +235,9 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
     if (!reading(method)) {
+      // Switching which adopted revision a field shows is answered by the device first: a recorded
+      // adoption matches any revision the recording generated, and would bring that scene's state.
+      if (method === "POST" && SELECTION.test(path)) {const adopted = await adoptOnDevice(path, body); if (adopted) return adopted;}
       // The next matching change, else the first one: scenes of the tour each start from the seed.
       // A run is measured under the saved settings, which its request does not carry: a recorded
       // run answers only when the settings it was recorded under are the visitor's.
@@ -257,7 +260,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       };
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
-      if (index < 0) return method === "POST" && SELECTION.test(path) ? adoptOnDevice(path, body) : null;
+      if (index < 0) return null;
       if (!journalPathMatches(entries[index].path, path) && !journalPathMatches(entries[index].path, translated)) learn(entries[index].path, path);
       cursor = index; journaled = true;
       // The device now holds what this change wrote, not what it read before.
