@@ -1,38 +1,35 @@
-# CI design
+# CI の構成
 
-How pull-request and `main` CI select jobs, and the integration checks CI runs. Local commands are in [CONTRIBUTING](../CONTRIBUTING.md); `python3 scripts/dev.py check` runs the same commands as the `python` and `web` jobs.
+PR と `main` で実行される CI のジョブと、その選ばれ方をまとめています。手元では `python3 scripts/dev.py check` で、PR の `python` ジョブと `web` ジョブと同じ検査を実行できます（[CONTRIBUTING](../CONTRIBUTING.md)）。
 
-## Job selection
+## PR で実行されるジョブ
 
-Pull requests run only the jobs their changed paths can affect. `scripts/ci_changes.py` maps paths to five areas:
+PR では、変更したファイルが影響しうるジョブだけを実行します。どのファイルがどの領域に当たるかは、`scripts/ci_changes.py` が決めます。
 
-| Area | Jobs | Selected by |
+| 領域 | 主な内容 | 選ばれる変更 |
 |---|---|---|
-| `python` | Ruff, mypy, Linux test suite, planning/proposal checks, dependency audit and SBOM | analysis, API, worker, scripts, tests, engines, infra |
-| `web` | contract regeneration, Next.js checks and build, proposal Worker, public-site browser tests | `apps/web`, contracts, proposal Worker, analysis/API/worker |
-| `lp` | Next.js checks and build, landing-page browser tests (`marketing`, `public-demo`, `lp-*`) | landing-page components, media and tests only; dropped whenever `web` is selected |
-| `fiji` | real Fiji, API/browser workflow, containers, local web bundle | `apps/web`, contracts, analysis/API/worker, scripts, tests, Fiji engine, infra |
-| `windows` | Windows setup/launcher tests and the Python 3.14 Windows suite | analysis/API/worker, scripts, tests, engines, local-export scripts |
+| `python` | Ruff、mypy、Linux でのテスト一式、解析計画と解析提案の検査、依存パッケージの監査と SBOM | 解析、API、ワーカー、`scripts`、`tests`、`engines`、`infra` |
+| `web` | API 契約の再生成、Next.js の検査とビルド、解析提案の Worker、公開サイトのブラウザ試験 | `apps/web`、契約、解析提案の Worker、解析・API・ワーカー |
+| `lp` | Next.js の検査とビルド、LP のブラウザ試験 | LP の部品・素材・試験だけ。`web` が選ばれたときは実行しない |
+| `fiji` | 実際の Fiji、API とブラウザの連携、コンテナ、ローカル版の Web | `apps/web`、契約、解析・API・ワーカー、`scripts`、`tests`、Fiji、`infra` |
+| `windows` | Windows のセットアップとランチャーの試験、Python 3.14 でのテスト一式 | 解析・API・ワーカー、`scripts`、`tests`、`engines`、ローカル版の書き出し |
 
-The public landing page is the exception within `apps/web`: its components (`PublicLanding`, `Landing*`, `HeroFilm`, `optical-landing.module.css`), `lp-metrics` and its browser tests (`marketing`, `lp-*`) select only `lp`; its media (`apps/web/public/marketing/**`) and `fixtures/public/allowlist.json` select `python` and `lp`, because the media ship in the Windows bundle whose boundary the Python suite checks. The `lp` job skips contract regeneration, the proposal Worker, the demo browser tests and the dependency evidence, and restores the pnpm store and the test browser from cache. Because the `web` job runs the same landing-page tests, `lp` is dropped whenever `web` is selected, including every push to `main`. The offline hero-film scripts (`scripts/lp_film/**`) select no area.
+**LP だけの変更**：LP の部品（`PublicLanding`、`Landing*`、`HeroFilm`、`optical-landing.module.css`）、`lp-metrics`、LP のブラウザ試験（`marketing`、`lp-*`）は `lp` だけを選びます。LP の素材（`apps/web/public/marketing/**`）と `fixtures/public/allowlist.json` は Windows 版の配布物にも含まれるため、`python` と `lp` を選びます。`lp` は API 契約の再生成、解析提案の Worker、デモのブラウザ試験、依存の記録を省き、pnpm のストアと試験用のブラウザをキャッシュから復元します。`web` も同じ LP の試験を実行するため、`web` が選ばれたとき（`main` への push を含む）は `lp` を実行しません。ヒーロー映像の制作用スクリプト（`scripts/lp_film/**`）は、どの領域も選びません。
 
-Documentation (`docs/**`, root-level Markdown, `LICENSE`, `NOTICE`) selects no area. The public-tree check, documentation links and the full-history secret scan always run, and the packaged-documentation tests run whenever the Python suite does not. Skipped jobs report success to branch protection.
+**文書だけの変更**：`docs/**`、ルートの Markdown、`LICENSE`、`NOTICE` は、どの領域も選びません。
 
-Workflows, lockfiles, package manifests, the rest of `fixtures/` and any unlisted path select every area. So do every merge-queue run, every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.
+**すべての領域を選ぶ変更**：workflow、lockfile、パッケージの定義、`fixtures/` のその他のファイル、規則にないパスです。トップレベルのディレクトリを追加するときは、`scripts/ci_changes.py` の規則とその試験も更新してください。
 
-The three integration jobs — `fiji-browser` (real Fiji, API/browser workflow, containers, local web bundle), `cellpose-gpu-image` and `windows-installed` (fresh install and update of the packaged Windows release) — do not run on pull requests. They run on every push to `main`, in the merge queue and on manual runs. The Windows release workflow requires all seven jobs, these three included, to have passed on the exact `main` commit it releases, so a release is never built from a commit they did not verify. A failure on `main` is fixed or reverted before the next release.
+公開ツリーの検査、文書のリンク検査、全履歴のシークレット走査は、どの変更でも実行します。Python のテスト一式が選ばれないときは、配布物に含める文書の試験を実行します。実行しなかったジョブは、ブランチ保護には成功として報告されます。
 
-## Integration checks
+## main で実行される統合試験
 
-CI runs the public-site browser tests (`pnpm --filter @cytellect/web exec playwright test …` against `pnpm build` output), the real-Fiji browser workflow, containers and the Windows jobs.
+`fiji-browser`（実際の Fiji、API とブラウザの連携、コンテナ、ローカル版の Web）、`cellpose-gpu-image`、`windows-installed`（配布 ZIP の新規導入と更新）の 3 つの統合試験は、PR では実行しません。`main` への push、マージキュー、手動実行のときに、すべての領域とあわせて実行します。
 
-## Dependency inventory and secret scan
+Windows 版は、この 3 つを含む 7 つのジョブが、配布する `main` のコミットですべて成功している場合にだけ配布します。`main` で失敗した場合は、次の配布までに修正するか取り消します。
 
-The secret scanner requires full Git history, verifies its pinned tool archive,
-and scans history plus the tracked working files. CI uses `fetch-depth: 0` and
-retains aggregate counts/rule IDs only. Missing Python license evidence or a
-missing direct Web license text fails the inventory gate; classification and
-notice collection are evidence checks, not legal compatibility approval. See
-[OSS management](oss.md) for scope. Safe dependency/notice and scanner-summary
-artifacts expire after seven days; never add raw findings, logs or research data
-to artifact upload paths.
+## 依存パッケージの記録とシークレット走査
+
+シークレット走査は、固定版の gitleaks を検証してから、Git の全履歴と追跡中のファイルを調べます。そのため CI は `fetch-depth: 0` で checkout し、保存するのは件数と規則 ID だけです。
+
+依存パッケージの記録は、Python パッケージのライセンスの根拠や、Web の直接依存のライセンス本文が欠けていると失敗します。この分類と表示の収集は根拠の確認であって、法的な適合性の判断ではありません。範囲は [OSS の管理](oss.md) を参照してください。依存の記録とシークレット走査の要約は 7 日で消えます。生の検出結果、ログ、研究データを、成果物のアップロード対象に加えないでください。

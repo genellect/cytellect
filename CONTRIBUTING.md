@@ -2,11 +2,7 @@
 
 Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に沿って進めます。開発の流れ、Git とレビューの運用、研究データの扱い、AI エージェントとの協働まで、まずはこちらに目を通してください。この文書では、開発環境を立ち上げて最初の PR を出すまでを案内します。
 
-あわせて読む文書：
-
-- [要件](docs/requirements.md)と [Development standards](docs/development-standards.md)：実装の目標と、計算・統計・UI・データの技術基準
-- [AGENTS.md](AGENTS.md)：AI エージェントへの指示
-- [CI の構成](docs/ci.md)：PR と `main` で動くジョブと統合試験
+計算・統計・データ・画面に関わる変更では[開発の技術基準](docs/development-standards.md)を、PR でどの CI ジョブが実行されるかは[CI の構成](docs/ci.md)を参照してください。
 
 ## 必要な環境
 
@@ -58,4 +54,4 @@ python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既�
 python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-ブラウザ、コンテナ、Windows の統合試験は CI が担います（[CI の構成](docs/ci.md)）。PR の説明は[テンプレート](.github/pull_request_template.md)に沿って、変更の内容、科学的な影響、検証、残る課題を書きます。計算や統計に関わる変更は、[Development standards](docs/development-standards.md) の基準に従います。
+ブラウザ、コンテナ、Windows の統合試験は CI が担います（[CI の構成](docs/ci.md)）。PR の説明は[テンプレート](.github/pull_request_template.md)に沿って、変更の内容、科学的な影響、検証、残る課題を書きます。
