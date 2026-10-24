@@ -50,6 +50,6 @@ The three integration jobs — `fiji-browser` (real Fiji, API/browser workflow, 
 
 ## Workflow and toolchain pins
 
-Workflows reference every action by full commit SHA with its release as a comment, and checkouts set `persist-credentials: false`. Dependabot (`.github/dependabot.yml`) proposes action updates weekly in one PR and raises security-only updates for Python and pnpm dependencies. The `Weekly audit` workflow re-runs `pip-audit`, `pnpm audit` and the full-history secret scan every Monday, because pull-request CI audits only the areas a change selects.
+Workflows reference every action by full commit SHA with its release as a comment, and checkouts set `persist-credentials: false`. Dependabot (`.github/dependabot.yml`) proposes action updates weekly in one PR and raises security updates for Python and pnpm dependencies. The `Weekly audit` workflow re-runs `pip-audit`, `pnpm audit` and the full-history secret scan every Monday, because pull-request CI audits only the areas a change selects.
 
-Node is pinned in `.node-version`, pnpm in `package.json` `packageManager`, uv in `scripts/build_local_bundle.py` and Linux Python in the Docker base images (`.python-version` names only the minor version, because uv cannot always download the newest patch). `tests/test_toolchain_versions.py` fails when any workflow, Dockerfile or setup script disagrees.
+Node is pinned in `.node-version`, pnpm in `package.json` `packageManager`, uv in `scripts/build_local_bundle.py` and Linux Python in the Docker base images (`.python-version` names the minor version, which every supported uv release can provision). `tests/test_toolchain_versions.py` fails when any workflow, Dockerfile or setup script disagrees.
