@@ -13,7 +13,7 @@ Cytellect の文書の索引です。概要は [README](../README.md)（[English
 
 ## 計画と要件 / Plans and requirements
 
-- [ロードマップ](roadmap.md) — 現在の計画と未完了の受入条件
+- [ロードマップ](roadmap.md) — 現在の提供状況と今後の計画
 - [Accepted requirements](requirements.md)
 - [Researcher workflow and continuous improvement](research-workflow.md)
 - [Cytellect 解析機能（2026年10月）](implementation-overview.ja.md)
@@ -36,7 +36,7 @@ Cytellect の文書の索引です。概要は [README](../README.md)（[English
 - 測定と図 / Measurement and figures: [Descriptive measurements and figures](descriptive.md) · [Figure export contract](figures.md) · [Image display and stored pixel values](display.md)
 - 検出 / Detection: [Fixed Fiji image engine](fiji.md) · [NCL candidate compartments](nucleolar-compartments.md) · [Fluorescence-positive candidate regions](positive-regions.md) · [GFP nuclear selection](gfp-exploratory-gates.md) · [Nuclear-recipe channel guidance](native-recipe-guidance.md)
 - 領域と比較 / Regions and comparisons: [Generic region measurements](generic-regions.md) · [Generic region comparisons](region-comparisons.md) · [Saved-field cohorts](region-cohorts.md) · [全視野の品質一覧](region-quality-overview.md)
-- 解析計画とワークスペース / Planning and workspace: [Analysis planning](analysis-planning.md) · [Source-bound workspace settings](workspace-source-settings.md) · [Single workspace prototype](workspace-prototype.md) · [Workspace redesign](workspace-redesign.md)
+- 解析計画とワークスペース / Planning and workspace: [Analysis planning](analysis-planning.md) · [Source-bound workspace settings](workspace-source-settings.md) · [Single workspace](workspace-prototype.md) · [Workspace redesign](workspace-redesign.md)
 
 ## 検証 / Validation
 
