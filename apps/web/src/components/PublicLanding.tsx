@@ -90,7 +90,7 @@ export default function PublicLanding() {
             <ol className={lp.setupSteps} aria-label="はじめかた">
               <li><b>ダウンロードして、展開する</b></li>
               <li><b>「Cytellect Setup」を開く</b></li>
-              <li><b>「セットアップ」を押す</b><span>準備ができたら、解析画面が開きます</span></li>
+              <li><b>「セットアップ」を押し、終わったら「開く」</b><span>解析画面がブラウザで開きます</span></li>
             </ol>
           </div>
         </div>
