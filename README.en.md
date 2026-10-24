@@ -58,7 +58,7 @@ API data types are defined with Pydantic, and the frontend TypeScript types are 
 
 Nuclei are detected with StarDist in Fiji; nucleoli and cell regions with Cellpose-SAM in PyTorch. Cellpose-SAM is built on SAM ViT-L and separates individual objects from a flow field and a foreground probability.
 
-For NCL-stained images, a background-estimated and normalized image is prepared for each nucleus and passed to Cellpose-SAM. After inference, candidates that capture the whole nucleus are removed, and boundaries are refined with Multi-Otsu, a distance transform and Watershed.
+Subcellular structures are detected by hierarchical instance segmentation inside already-detected parent regions. Cellpose-SAM runs on each parent's background-estimated, normalized crop; candidates that capture the parent itself are discarded, and Multi-Otsu, distance transforms and watershed refine the boundaries.
 
 Detection masks are stored as integer labels in the same coordinate system as the original image. Each nucleolus carries its parent nucleus ID, and outline display, manual correction and area/intensity calculations all refer to these labels. Detection and display images are kept separate from the original measurement pixels, so background removal or normalization applied to the detection copy does not change the measurement input.
 
