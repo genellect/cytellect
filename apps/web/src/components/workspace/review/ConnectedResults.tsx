@@ -93,11 +93,14 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const pairs=conditions.flatMap((a,index)=>conditions.slice(index+1).map(b=>[a,b]));
   const channels=[...new Set(sources.flatMap(source=>source.result.rows.map(row=>row.channel_id)))];
   // Only choices the calculation accepts are offered: an association needs two different region measurements.
-  const canAssociate=associationSupported({regionSet,metric,channel,gfp});
   const saturated=saturatedSignal(sources,metric,channel);
-  const xAxes=associationAxes(metric,channel,xChannel);
+  // The horizontal axis needs a stain for brightness; one without saturated pixels is offered first.
+  const xStain=channels.find(value=>value===xChannel&&!saturatedSignal(sources,"mean",value))??channels.find(value=>!saturatedSignal(sources,"mean",value))??null;
+  const xAxes=associationAxes(metric,channel,xStain).filter(value=>value.startsWith("area_")||!!xStain);
+  const canAssociate=associationSupported({regionSet,metric,channel,gfp})&&!saturated&&xAxes.length>0;
   useEffect(()=>{if((operation==="association"&&!canAssociate)||(operation==="comparison"&&saturated))setOperation("distribution");},[operation,canAssociate,saturated]);
-  useEffect(()=>{if(!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
   const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp};
   const sourceIdentity=JSON.stringify([target,sources.map(source=>[source.field,source.revision])]);
   useEffect(()=>{setReviewed(false);setConfirmed(false);},[sourceIdentity]);
@@ -202,7 +205,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
         {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
-        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution">分布</option><option value="comparison" disabled={saturated}>{saturated?"群間比較（飽和した画素があるため選べません）":"群間比較"}</option><option value="association" disabled={!canAssociate}>{canAssociate?"相関":"相関（面積・輝度で選べます）"}</option></select></label>
+        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution">分布</option><option value="comparison" disabled={saturated}>{saturated?"群間比較（飽和した画素があるため選べません）":"群間比較"}</option><option value="association" disabled={!canAssociate}>{canAssociate?"相関":saturated?"相関（飽和した画素があるため選べません）":"相関（面積・輝度で選べます）"}</option></select></label>
         {operation!=="distribution"&&<>
           <div className={styles.row}><label>方法<select value={rank?"rank":"parametric"} disabled={demo} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
           {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} disabled={demo} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
