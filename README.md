@@ -40,6 +40,30 @@ flowchart TB
 
 API のデータ型は Pydantic で定義し、OpenAPI からフロントエンドの TypeScript 型を生成しています。解析設定、マスク、測定値、統計結果、図はバージョンで関連付けられ、モデルや設定を変更した後も、以前の結果とその計算条件が残ります。
 
+### ディレクトリ構成
+
+測定値と統計は `packages/analysis` だけが生成し、API・ワーカー・Windows 版が同じ実装を共有します。計算を変えるときは `packages/analysis`、画面を変えるときは `apps/web` から読み始めてください。
+
+```text
+apps/web/                 Web ワークスペースと公開サイト（Next.js）。ブラウザの試験は tests/
+packages/
+  analysis/               検出・測定・統計・作図の共通実装
+  contracts/              OpenAPI と既定レシピ。Web の TypeScript 型はここから生成
+services/
+  api/                    解析 API（FastAPI）と cytellect コマンド
+  worker/                 計算ワーカー。ジョブごとに子プロセスで実行
+  proposal-worker/        LLM の中継と利用額の管理（Cloudflare Workers・D1）
+engines/
+  fiji/                   Fiji 上の検出処理と、固定版の記録
+  cellpose/               Cellpose-SAM の実行アダプタと、固定版の記録
+  python/                 Windows 版に同梱する Python の固定版
+infra/                    Dockerfile、Compose、クラウド GPU の構成
+scripts/                  セットアップ、配布物の作成、検証
+tests/                    Python の試験
+fixtures/public/          出典とハッシュを登録した公開画像
+docs/                     仕様、手順、運用の文書
+```
+
 ## 画像認識と測定
 
 核の検出には Fiji 上の StarDist、核小体・細胞領域には PyTorch 上の Cellpose-SAM を使っています。Cellpose-SAM は SAM ViT-L を基盤とし、フロー場と前景確率から個々の対象を分割するモデルです。

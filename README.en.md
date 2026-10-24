@@ -40,6 +40,30 @@ flowchart TB
 
 API data types are defined with Pydantic, and the frontend TypeScript types are generated from OpenAPI. Analysis settings, masks, measurements, statistics and figures are linked by version, so earlier results and their calculation conditions remain available after a model or setting changes.
 
+### Repository layout
+
+Measurements and statistics are produced only by `packages/analysis`, which the API, the worker and the Windows edition share. Start in `packages/analysis` to change a calculation and in `apps/web` to change the interface.
+
+```text
+apps/web/                 Web workspace and public site (Next.js); browser tests in tests/
+packages/
+  analysis/               Shared detection, measurement, statistics and figure code
+  contracts/              OpenAPI and default recipes; source of the Web TypeScript types
+services/
+  api/                    Analysis API (FastAPI) and the cytellect command
+  worker/                 Calculation worker; runs each job in a child process
+  proposal-worker/        LLM relay and spending control (Cloudflare Workers, D1)
+engines/
+  fiji/                   Detection on Fiji and its pinned runtime record
+  cellpose/               Cellpose-SAM runner adapter and its pinned runtime record
+  python/                 Pinned Python bundled with the Windows edition
+infra/                    Dockerfiles, Compose and cloud GPU configuration
+scripts/                  Setup, packaging and verification
+tests/                    Python tests
+fixtures/public/          Public images registered with source and hash
+docs/                     Specifications, procedures and operations
+```
+
 ## Image recognition and measurement
 
 Nuclei are detected with StarDist in Fiji; nucleoli and cell regions with Cellpose-SAM in PyTorch. Cellpose-SAM is built on SAM ViT-L and separates individual objects from a flow field and a foreground probability.
