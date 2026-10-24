@@ -108,7 +108,7 @@ Settings updates are checked against the requester's version and return `409` on
 
 Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
 
-Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start.
+Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
 ## Distribution
 
