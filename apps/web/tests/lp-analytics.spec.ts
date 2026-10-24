@@ -114,6 +114,7 @@ test("the LP and the analysis screen are separate, and /product moves to the LP"
   await isolatedSite(page, baseURL!);
   await page.goto(origin + "/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("publication-ready");
+  await page.locator("#launch summary").click();
   await page.getByRole("link", { name: "解析画面を開く" }).click();
   await expect(page).toHaveURL(`${origin}/workspace`);
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);

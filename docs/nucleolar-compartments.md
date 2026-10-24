@@ -97,6 +97,13 @@ adoption drops (or, when active, rejects with `workspace_derived_revision_stale`
 a nucleoplasm revision whose `nucleolar_revision_id` is not the adopted nucleoli
 revision. Historical revisions without the field keep their original meaning.
 
+Statistics on nucleoli or nucleoplasm require a complete compartment for every
+selected field: each parent nucleus must be a `candidate` and no parent may be
+missing. Otherwise assembling a cohort is refused with
+`cohort_compartments_unresolved` (409), which the workspace explains. This also
+applies to per-nucleus nucleolar summaries (nucleolar count, area fraction),
+which read the same compartment revisions.
+
 Nucleolar edits (`region-edits` on a compartment revision) are restricted to
 exactly one saved parent nucleus: an added or redrawn nucleolus that leaves its
 parent or spans two nuclei is rejected (`nucleolus_outside_parent`), and a merge

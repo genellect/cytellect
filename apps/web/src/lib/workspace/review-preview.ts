@@ -61,7 +61,7 @@ export function releaseReviewPreview(data: ReviewData) {
   for (const url of new Set(data.fields.flatMap(field => Object.values(field.previews)))) URL.revokeObjectURL(url);
 }
 
-export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonly string[]): Promise<ReviewData> {
+export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonly string[], options: {limit?: number} = {}): Promise<ReviewData> {
   await ensureSession();
   if (!workspaceId) {
     // API returns a bare, unsorted list; created is in WorkspaceView's response.
@@ -78,9 +78,11 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
   catch {data.warnings!.push("保存した染色設定を取得できません。登録時の名称を表示しています。");}
   let links:import("./api-adapter").FieldLinks={version:0,entries:[]};
   try{links=await adapter.getFieldLinks(workspaceId);}catch{data.warnings!.push("補助画像の対応を取得できません。");}
-  try {
-    for (const [index, input] of saved.fields.entries()) {
-      if (fieldIds && !fieldIds.includes(input.id)) continue;
+  // Fields, their saved results and their channel previews load concurrently; the order of
+  // fields, channels and warnings stays the registered order. `limit` loads only the first fields.
+  const inputs = [...saved.fields.entries()].filter(([, input]) => !fieldIds || fieldIds.includes(input.id)).slice(0, options.limit);
+  const loaded: Array<{field: ReviewField; channels: ReviewField["channels"]}> = [];
+  async function loadField(index: number, input: (typeof saved.fields)[number]) {
       const errors: string[] = [];
       const assigned=new Map(effectiveChannelAssignments(assignments,input.id).map(value=>[value.channel_id,value]));
       const link=links.entries.find(value=>value.field_id===input.id);
@@ -92,26 +94,35 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
       const displayName = input.metadata.display_name;
       const field: ReviewField = {id: input.id, label: typeof displayName === "string" && displayName.trim() ? displayName : `視野 ${index + 1}`,
         metadata: input.metadata,kind:link?.kind??"analysis",referenceFor:link?.reference_for_field_id??null, width: input.image_info.shape[1], height: input.image_info.shape[0], channels, previews: {}, previewDisplay: {}, results: {}};
-      data.fields.push(field);
       const entry = saved.selection.entries.find(value => value.field_id === input.id);
       if (entry?.exclusion_reason) field.exclusionReason = entry.exclusion_reason;
       if (!entry) errors.push("保存された解析対象への登録が完了していません。");
       const selectedIds = new Set(Object.values(entry?.target_revisions ?? {}));
       if (entry?.revision_id) selectedIds.add(entry.revision_id);
       const recipes: Partial<Record<ReviewTarget, Recipe>> = {};
-      for (const id of selectedIds) {
+      const results = [...selectedIds].map(async id => {
         const revision = saved.revisions.find(value => value.id === id);
-        if (!revision || !revision.config.field_ids.includes(input.id)) {errors.push("採用した解析版の出典を確認できません。"); continue;}
+        if (!revision || !revision.config.field_ids.includes(input.id)) {errors.push("採用した解析版の出典を確認できません。"); return;}
         const target = biologicalTarget(revision.config.recipe);
-        if (!target) continue;
+        if (!target) return;
         const mapped = entry?.target_revisions?.[target];
-        if (mapped && mapped !== id) continue;
-        if (revision.state !== "succeeded") {errors.push("採用した解析版はまだ完了していません。"); continue;}
+        if (mapped && mapped !== id) return;
+        if (revision.state !== "succeeded") {errors.push("採用した解析版はまだ完了していません。"); return;}
         try {
           field.results[target] = await adapter.readResult(id, input.id, revision.config.recipe);
           recipes[target] = revision.config.recipe;
         } catch {errors.push("採用した領域または測定値を読み込めません。");}
-      }
+      });
+      const previews = channels.map(async channel => {
+        try {
+          const response = await fetchPrivateResponse(`/v1/region-fields/${encodeURIComponent(input.id)}/preview?channel_id=${encodeURIComponent(channel.id)}&gain=1`);
+          const receipt = readPreviewDisplay(response.headers.get(PREVIEW_DISPLAY_HEADER), {fieldId: input.id, channel: channel.id, gain: 1, composite: false});
+          field.previews[channel.id] = URL.createObjectURL(await response.blob());
+          field.previewDisplay![channel.id] = receipt;
+        } catch {errors.push("画像プレビューを読み込めません。");}
+      });
+      loaded.push({field, channels});
+      await Promise.all([...results, ...previews]);
       for (const target of ["nucleoli", "nucleoplasm"] as const) {
         const recipe = recipes[target];
         if (recipe && (recipe.nuclear_revision_id !== field.results.nuclei?.revision ||
@@ -125,18 +136,19 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
         channels.some(channel => channel.id === recipes.nuclei!.defining_channel_id)) {
         field.nuclearChannelId = recipes.nuclei.defining_channel_id;
       }
-      for (const channel of channels) {
-        try {
-          const response = await fetchPrivateResponse(`/v1/region-fields/${encodeURIComponent(input.id)}/preview?channel_id=${encodeURIComponent(channel.id)}&gain=1`);
-          const receipt = readPreviewDisplay(response.headers.get(PREVIEW_DISPLAY_HEADER), {fieldId: input.id, channel: channel.id, gain: 1, composite: false});
-          field.previews[channel.id] = URL.createObjectURL(await response.blob());
-          field.previewDisplay![channel.id] = receipt;
-        } catch {errors.push("画像プレビューを読み込めません。");}
-        const existing = data.channels.find(value => value.id === channel.id);
-        if (!existing) data.channels.push(channel);
-        else if (existing.stain !== channel.stain) data.warnings!.push("同じチャンネルの登録名称が視野間で異なります。各画像の名称を確認してください。");
-      }
       if (errors.length) field.error = [...new Set(errors)].join(" ");
+  }
+  try {
+    const settled = await Promise.allSettled(inputs.map(([index, input]) => loadField(index, input)));
+    const order = new Map(inputs.map(([, input], position) => [input.id, position]));
+    loaded.sort((left, right) => order.get(left.field.id)! - order.get(right.field.id)!);
+    data.fields = loaded.map(value => value.field);
+    const failed = settled.find(value => value.status === "rejected");
+    if (failed) throw (failed as PromiseRejectedResult).reason;
+    for (const {channels} of loaded) for (const channel of channels) {
+      const existing = data.channels.find(value => value.id === channel.id);
+      if (!existing) data.channels.push(channel);
+      else if (existing.stain !== channel.stain) data.warnings!.push("同じチャンネルの登録名称が視野間で異なります。各画像の名称を確認してください。");
     }
     data.warnings = [...new Set(data.warnings)];
     return data;

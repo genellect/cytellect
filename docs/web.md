@@ -36,7 +36,8 @@ Numeric CSV import handles already measured assays; no instrument-specific proce
 ## Data boundary
 
 Research pixels go directly from browser to API. No Next.js server action, image
-optimization, analytics, service worker, persistent Query cache, or localStorage is used.
+optimization, analytics, service worker, persistent Query cache, or localStorage is used
+(the public demo stores only its guide dismissal and never handles research data).
 Blob URLs are revoked when preview/result components change or unmount. Logout clears
 in-memory queries. All API fetches use `credentials: include` and `cache: no-store`;
 mutation requests add `X-Cytellect-Request: 1`. The server validates Origin.
@@ -52,20 +53,44 @@ Run API and worker, start the Web server, then `pnpm test:e2e`.
 No invitation, cookie, or private research content is printed or recorded in test artifacts.
 Browser tests cannot establish real-image scientific validity or production-host security.
 
-## Public image explorer
+## Public demo (/demo)
 
-The /demo route uses saved measurements and display derivatives from public microscopy datasets.
-It does not run Fiji in the browser or accept uploads. Without NEXT_PUBLIC_API_ORIGIN,
-production makes no local/API request and disables invitation submission. Public results
-remain available without a session; the protected private API and its research data are separate.
+The public build (no `NEXT_PUBLIC_API_ORIGIN`) serves `/demo`: the production workspace
+(`ConnectedWorkspace` in showcase mode) on registered public images that are already detected
+and measured, with saved statistics and figures. Everything except adding images works as in
+production and is computed by the same API and analysis package, serverless. The architecture,
+the shared contracts and the demo files are described in [the showcase document](showcase.md).
+`/workspace` on the public build redirects to `/demo`; installations with an API (local package,
+Docker, development) keep their workspace at `/` and `/workspace` and have no `/demo`.
 
-- 4DN Sceptic DAPI/NCL: raw compartment means and recorded StarDist/ImageJ/MorphoLibJ labels.
-  No GFP. The portal/OME channel-order discrepancy is visible in the inspector and retained
-  in the derivative manifest; mapping is provisional and no independent detection accuracy is claimed.
-- BBBC039 Hoechst DNA: raw DNA mean/integral in recorded StarDist nuclei; no NCL/GFP claims.
-  Potential DSB2018 model-training overlap is retained in provenance.
-- Source links, attribution, original hashes, permitted-use policy and derivative file lists
-  live beside public/demo assets. These datasets are not relicensed as Cytellect source code.
+- Transport: `lib/showcase` answers visitors from recordings only, on every device and without
+  waiting: the recorded GET responses (`/showcase/snapshot/`, every field, region and channel)
+  paint the view, and the recorded tour (`snapshot/journal.json`) answers changes. The in-browser
+  API (Pyodide) is never fetched or started for visitors; it runs only for the build-time recorder.
+  No request reaches `/v1` on any server or a local service.
+- An operation the recording does not hold (a hand-drawn outline correction, a measurement under
+  unrecorded settings) shows an information notice at once ("公開デモに記録していません"), never
+  the error banner. Unrecorded detection conditions, unrecorded AI instructions and uploads are
+  notices too.
+- Detection inputs offer only recorded values (`snapshot/recorded-options.json`); the AI composer
+  offers the recorded instructions (`snapshot/proposal-examples.json`) as examples. The header
+  shows a デモ badge with the image source and limits (`snapshot/dataset.json`) and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that
+  points to the Windows/Docker versions.
+- `?step=image|statistics|figure` opens that tab. A dismissible four-step guide (画像と輪郭 →
+  測定値 → 統計 → グラフと書き出し) appears on the first visit; its dismissal is the only
+  `localStorage` value, kept on this public page only. Missing optional demo files leave the
+  matching controls as in production.
+- Development without the demo build: `scripts/dev_showcase_backend.py` serves the same
+  boot/handle contract from a local CPython API with a threshold stand-in for detection, for
+  builds made with `NEXT_PUBLIC_SHOWCASE_DEV_BACKEND=http://127.0.0.1:8000` (loopback only; never
+  for a published build). Its numbers are not results. `tests/showcase.spec.ts` walks the
+  features against either backend (`CYTELLECT_SHOWCASE_DEV_BACKEND` for the development one) and
+  skips with a message when neither is available.
+
+The demo numbers illustrate the software on public images; they establish neither detection
+accuracy nor scientific validity on laboratory images. The former explorer
+(`apps/web/public/demo/bbbc013`, `bbbc039`, `4dn-ncl`) and the recorded-output prototype were
+removed. The landing page shows images and figures recorded from this demo (`apps/web/public/marketing/lp-*`).
 
 UI reference: [QuPath first steps](https://qupath.readthedocs.io/en/stable/docs/starting/first_steps.html)
 object selection, annotations and measurement inspection; [OMERO](https://www.openmicroscopy.org/omero/)
@@ -75,8 +100,7 @@ for image-centred browser organization. No upstream UI code or assets were copie
 
 The image viewer offers pointer polygon placement and equivalent numeric coordinate input.
 Native labelled controls expose mask layer, selected IDs and parent nucleus ID.
-The public explorer offers keyboard-accessible nucleus polygons, numeric ID selection,
-channel previews, overlay toggle and source-table downloads at desktop/mobile widths.
+The public demo uses the same workspace controls at desktop/mobile widths.
 Public previews are display transforms; their pixel values never replace raw measurements.
 
 ## Verified checkpoint (2026-10-02)
@@ -111,7 +135,7 @@ NCL. Images are attributed to Ilya Ravkin under CC BY 3.0. Published 8-bit BMP
 samples were preserved in TIFF containers; this is not a claim of validated
 camera-native FRM intensities. The public page shows precomputed raw measurements
 and actual Fiji contours, with the precise ImageJ comparison scope in its notes.
-See `apps/web/public/demo/bbbc013/manifest.json` for sources and derived asset hashes.
+Its former derived assets (`apps/web/public/demo/bbbc013/manifest.json`) remain in Git history.
 
 Figure controls offer Nature single-column (89 mm), double-column (183 mm) and
 custom widths. Nature presets constrain type to 5–7 pt and height to 170 mm;

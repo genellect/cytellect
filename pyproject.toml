@@ -39,7 +39,10 @@ build = ["hatchling==1.32.4", "trove-classifiers==2026.9.21.13", "tomlkit==0.15.
          "pluggy==1.6.0", "pathspec==1.1.1", "packaging==26.3"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["packages/analysis/src/cytellect_analysis", "services/api/src/cytellect_api", "services/worker/src/cytellect_worker"]
+packages = ["packages/analysis/src/cytellect_analysis", "services/api/src/cytellect_api", "services/worker/src/cytellect_worker",
+            "services/showcase/src/cytellect_showcase"]
+# The showcase's Node helpers (snapshot/proposal recording) run from the checkout at build time only.
+exclude = ["services/showcase/src/cytellect_showcase/*.mjs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

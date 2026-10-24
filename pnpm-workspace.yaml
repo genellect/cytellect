@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - services/proposal-worker
+  - services/showcase/pyodide
 allowBuilds:
   esbuild: false
   unrs-resolver: true

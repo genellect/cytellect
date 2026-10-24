@@ -11,23 +11,15 @@ landing-page copy and repeated feature-card layouts.
   hierarchy. Lead with the researcher's ambition, then reduced repetitive work,
   accessible analytical decisions and communication through a figure. Feature
   categories such as "images and measurements" are not benefit headlines.
-- Dark and Blue are mandatory art direction: deep midnight-blue space,
-  saturated blue illumination, strong dark/light contrast and generous scale.
-  Charcoal alone, a blue button or a background gradient does not satisfy this
-  direction. Reserve large white surfaces for real application screens and
-  exported figures, rather than alternating pale explanatory panels.
-- Use Blender for the hero's authored organic form, surface detail, materials
-  and static render; use Three.js for its browser scene, lighting and motion.
-  On desktop and portrait tablet, compose one complete subject beside or below
-  the exact hero copy, clear of the navigation. Keep the copy and actions in
-  the first viewport, including short windows. On mobile (up to 760 px), use
-  the owner-requested integrated composition: a full-height cell background
-  behind the copy, with intentional cover cropping for visual impact. Mobile
-  copy and actions must still fit together in the first viewport.
-  Avoid generic nested glass spheres, star fields and decorative particles.
-  Record authored artwork separately from measured microscopy in provenance.
-  A three-dimensional figure card made with CSS does not meet the 3D hero
-  requirement. Reuse COMPASS renderer lifecycle and cleanup where applicable.
+- The current art direction is light and readable (approved in #59). The
+  [art direction](lp-art-direction.md) (approved 2026-10-23) is the canonical
+  visual standard: science and the world view are carried by photoreal
+  laboratory footage with a clean, bright grade, not by hand-authored objects.
+  The [LP design record](lp-optical-preview.md) keeps the layout history.
+  Keep the copy and actions in the first viewport, including short windows and
+  mobile. Avoid generic nested glass spheres, star fields and decorative
+  particles. Record authored or rendered artwork separately from measured
+  microscopy in provenance.
 - Review the actual rendered silhouette, texture, lighting and composition
   before calling the hero complete. Keep a matching static fallback, respect
   reduced motion and pause rendering offscreen; performance work must preserve
@@ -35,7 +27,7 @@ landing-page copy and repeated feature-card layouts.
 - Use the actual photography, composition, whitespace and typography to carry
   the visual identity. Do not explain the intended atmosphere in the copy.
 - Below the hero, take Lila's design and emotional pull, not its grid
-  (`lp-sections.module.css`): no section titles or English labels. Each
+  (`optical-landing.module.css`): no section titles or English labels. Each
   section opens with its own first sentence set large (weight 400), followed
   by body text in the same single column; pictures use wide rounded panels,
   and a pale panel marks the exported figure and the download. The owner's

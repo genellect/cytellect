@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect,useLayoutEffect,useMemo,useRef,useState} from "react";
+import {useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState} from "react";
 import {ApiError,download,errorCodeMessage,errorMessage,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
@@ -9,8 +9,9 @@ import {commonWarnings} from "@/lib/common-statistics";
 import {createComparisonAdapter,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
-import {checkedPlot,emptyMetadata,resultRequest,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {checkedPlot,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
+import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
@@ -84,7 +85,10 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
   const fields=Object.fromEntries(sources.map(source=>[source.field,source.metadata]));
   const regionSet=sources[0]?.result.regionSet||target;
-  const identity=JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,selection]);
+  // 計算 adopts the sources' revisions through the adapter; the selection it wrote is current until a newer one arrives.
+  const [written,setWritten]=useState<WorkspaceSelection|null>(null);
+  const currentSelection=written&&written.version>(selection?.version??-1)?written:selection;
+  const identity=JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,currentSelection]);
   const conditions=[...new Set(Object.values(fields).map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
   const pairs=conditions.flatMap((a,index)=>conditions.slice(index+1).map(b=>[a,b]));
   const channels=[...new Set(sources.flatMap(source=>source.result.rows.map(row=>row.channel_id)))];
@@ -110,8 +114,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
   function openPoint(source:FigureSource){if(!saved)return;if(source.field_id){if(!resultSources(saved.result).some(field=>field.field_id===source.field_id))return;onSource(source.field_id,source.region_id??source.nucleus_id,saved.revision,saved.target,savedChannel);}else if(source.experimental_unit){setPointSource({job:saved.figureJob,source});}}
-  const series=saved?.historical?(saved.operation==="distribution"?(saved.sources||[]).map(source=>source.field):saved.result.spec?.conditions||[]):operation==="distribution"?sources.map(source=>source.field):conditions;
-  const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax},(saved?.historical?saved.operation:operation)==="association"),point_size:pointSize,group_order:order.length?[...order.filter(key=>series.includes(key)),...series.filter(key=>!order.includes(key))]:[],style:{version:"1.0.0",series_colors:colors,show_legend:legend}});
+  const series=saved?.historical?(saved.operation==="distribution"?(saved.sources||[]).map(source=>source.field):saved.result.spec?.conditions||[]):resultSeries(operation,sources.map(source=>source.field),conditions,contrasts);
+  const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax},(saved?.historical?saved.operation:operation)==="association"),point_size:pointSize,group_order:seriesOrder(order,series),style:{version:"1.0.0",series_colors:colors,show_legend:legend}});
   async function repairUnsupported(){if(!onSaveDraft)return;const additional=initialSpec?.additional_analyses??[],indexes=new Map<number,number>();let next=1;indexes.set(0,0);additional.forEach((value,index)=>{if(!invalidMethod(value))indexes.set(index+1,next++);});
     const primaryInvalid=invalidMethod(initialSpec?.statistics?.method??undefined);
     const statistics=primaryInvalid?{...initialSpec?.statistics,method:{kind:"descriptive",test:null,omnibus:null,association:null,x:null,y:null},x_metric:null,x_channel_id:null}:initialSpec?.statistics;
@@ -138,6 +142,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       if(sources.some(source=>(source.result.regionSet||target)!==regionSet))throw new Error("同じ領域の測定結果を選択してください。");
       let adopted=beforePrepare?await beforePrepare():selection;
       if(!beforePrepare){for(const source of sources)await adapter.selectRevision(workspace,source.revision,source.field);adopted=adapter.selection();}
+      setWritten(adopted);
       const revision=sources.length===1?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted);
       // For inferential requests the cohort persists the entered experimental metadata.
       if(operation!=="distribution"&&sources.length<2)throw new Error("統計解析には複数視野の測定結果と実験情報が必要です。");
@@ -163,6 +168,11 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   }
   function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setConfirmed(false);}
   function restoreFigure(selected:Saved){setSaved(selected);setFigureKind(selected.plot.kind);setWidth(selected.plot.width_inches*25.4);setHeight(selected.plot.height_inches*25.4);setFont(selected.plot.font_size);setXLabel(selected.plot.x_label);setYLabel(selected.plot.y_label);setYMin(selected.plot.y_min==null?"":String(selected.plot.y_min));setYMax(selected.plot.y_max==null?"":String(selected.plot.y_max));setPointSize(selected.plot.point_size??18);setColors(selected.plot.style?.series_colors||{});setLegend(selected.plot.style?.show_legend??true);setOrder(selected.plot.group_order);setXAxis({min:selected.plot.axes?.x_min==null?"":String(selected.plot.axes.x_min),max:selected.plot.axes?.x_max==null?"":String(selected.plot.axes.x_max),step:selected.plot.axes?.x_tick_step==null?"":String(selected.plot.axes.x_tick_step),scale:selected.plot.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:selected.plot.y_tick_step==null?"":String(selected.plot.y_tick_step),scale:selected.plot.axes?.y_scale||"linear"});}
+  // The public demo opens on the latest saved result (as a researcher's own session would
+  // have left it) instead of an empty view; production keeps the explicit choice.
+  const demo=useShowcaseUi().enabled,openedSaved=useRef(false);
+  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(!saved)restoreFigure(entry);});
+  useEffect(()=>{if(!demo||openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[demo,history]);
   const shownTarget=saved?.historical?saved.target:target;const shownMetric=saved?.historical?(saved.result.metric||saved.result.y_source?.metric||saved.result.spec?.selection?.metric||""):metric;const shownChannel=saved?.historical?(saved.result.channel?.channel_id||saved.result.y_source?.channel?.channel_id||saved.result.spec?.selection?.channel_id||null):channel;
   const savedChannel=saved?.result.channel?.channel_id??saved?.result.y_source?.channel?.channel_id??saved?.result.spec?.selection?.channel_id??null;
   const tableRows=saved?.operation==="comparison"?saved.result.comparisons:saved?.operation==="association"?saved.result.associations:saved?.result.field_summary;
@@ -186,9 +196,9 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
           <label>独立実験単位<input value={unit} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
           {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}
           {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{pair.join(" / ")}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
-          <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した</label>
+          <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した</label>
         </>}
-        <label className={styles.check}><input type="checkbox" checked={reviewed} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
+        <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
         <button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>
       </>:<>
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
@@ -197,13 +207,13 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {part==="x"&&<><label>横軸ラベル<input value={xLabel} maxLength={120} onChange={event=>setXLabel(event.target.value)}/></label><AxisControls axis="x" value={xAxis} onChange={setXAxis} numeric={(saved?.operation||operation)==="association"}/></>}
         {part==="y"&&<><label>縦軸ラベル<input value={yLabel} maxLength={120} onChange={event=>setYLabel(event.target.value)}/></label><AxisControls axis="y" value={{...yAxis,min:yMin,max:yMax}} onChange={value=>{setYAxis(value);setYMin(value.min);setYMax(value.max);}}/></>}
         {part==="figure"&&<><div className={styles.row}><label>幅 / mm<input type="number" min={76.2} max={406.4} value={width} onChange={event=>setWidth(Number(event.target.value))}/></label><label>高さ / mm<input type="number" min={25.4} max={170} value={height} onChange={event=>setHeight(Number(event.target.value))}/></label></div><label>文字 / pt<input type="number" min={5} max={24} value={font} onChange={event=>setFont(Number(event.target.value))}/></label><label className={styles.check}><input type="checkbox" checked={legend} onChange={event=>setLegend(event.target.checked)}/>凡例を表示</label></>}
-        {part==="series"&&<><label>系列<select value={selectedSeries||series[0]||""} onChange={event=>setSelectedSeries(event.target.value)}>{(order.length?order:series).map(key=><option key={key} value={key}>{sources.find(source=>source.field===key)?.label||key}</option>)}</select></label><label>色<input type="color" value={colors[selectedSeries||series[0]]||"#0072b2"} onChange={event=>setColors(previous=>({...previous,[selectedSeries||series[0]]:event.target.value}))}/></label><label>点の大きさ<input type="number" min={1} max={400} value={pointSize} onChange={event=>setPointSize(Number(event.target.value))}/></label><div className={styles.row}>{[-1,1].map(direction=><button key={direction} onClick={()=>{const current=order.length?[...order]:[...series];const index=current.indexOf(selectedSeries||series[0]);if(index+direction<0||index+direction>=current.length)return;[current[index],current[index+direction]]=[current[index+direction],current[index]];setOrder(current);}}>{direction<0?"前へ":"後へ"}</button>)}</div>{operation==="distribution"&&<button onClick={()=>onSource(selectedSeries||series[0],undefined,saved?.revision,saved?.target,savedChannel)}>元の視野を表示</button>}</>}
+        {part==="series"&&<><label>系列<select value={selectedSeries||series[0]||""} onChange={event=>setSelectedSeries(event.target.value)}>{(order.length?seriesOrder(order,series):series).map(key=><option key={key} value={key}>{sources.find(source=>source.field===key)?.label||key}</option>)}</select></label><label>色<input type="color" value={colors[selectedSeries||series[0]]||"#0072b2"} onChange={event=>setColors(previous=>({...previous,[selectedSeries||series[0]]:event.target.value}))}/></label><label>点の大きさ<input type="number" min={1} max={400} value={pointSize} onChange={event=>setPointSize(Number(event.target.value))}/></label><div className={styles.row}>{[-1,1].map(direction=><button key={direction} onClick={()=>{const current=order.length?seriesOrder(order,series):[...series];const index=current.indexOf(selectedSeries||series[0]);if(index+direction<0||index+direction>=current.length)return;[current[index],current[index+direction]]=[current[index+direction],current[index]];setOrder(current);}}>{direction<0?"前へ":"後へ"}</button>)}</div>{operation==="distribution"&&<button onClick={()=>onSource(selectedSeries||series[0],undefined,saved?.revision,saved?.target,savedChannel)}>元の視野を表示</button>}</>}
         <button className={styles.primary} disabled={!canRender} onClick={()=>void render()}>{busy||"図を更新"}</button>
         {!saved&&<p>統計画面で計算すると、結果を使って図を編集できます。</p>}
       </>}
       {missing>0&&<><p role="status">{missing} 視野の測定が未完了です。</p>{onPrepareMissing&&<button disabled={!!busy||disabled} onClick={()=>{setBusy("必要な測定値を計算中…");void onPrepareMissing().catch(cause=>setError(fail(cause))).finally(()=>setBusy(""));}}>必要な測定値を計算</button>}</>}
       {stale&&<p role="status">測定結果または解析条件が変わりました。再計算してください。</p>}
-      {error&&<p role="alert">{error}</p>}
+      {error&&<ErrorText text={error}/>}
       {saved&&<div className={styles.downloads}>{mode==="figure"&&<label className={styles.check}><input type="checkbox" checked={includeRaw} disabled={!!busy||stale} onChange={event=>setRawExport({revision:saved.revision,included:event.target.checked})}/>元画像を含める</label>}<button disabled={!!busy||stale} onClick={()=>void render(true)}>保存</button></div>}
     </div>
     <div className={styles.output} ref={outputRef}>
