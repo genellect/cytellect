@@ -407,3 +407,28 @@ describe("recorded tour across scenes", () => {
     expect((await write("nuc", 4)).status).toBe(409);
   });
 });
+
+describe("adoption after a recorded change", () => {
+  it("keeps the device's adoption over the reads recorded for the change before it", async () => {
+    const before = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};
+    const measured = {version: 5, entries: [{...before.entries[0], revision_id: "nol"}]};
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "before.json"}}},
+      "before.json": before, "measured.json": measured, "accept.json": {ok: true},
+      "journal.json": {version: 1, entries: [
+        {method: "POST", path: "/v1/workspaces/w/runs/r/accept", body: null, status: 200, headers: [], file: "accept.json", scene: "measure"},
+        {method: "GET", path: "/v1/workspaces/w/selection", body: null, status: 200, headers: [], file: "measured.json", scene: "measure"},
+      ]},
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    const transport = createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"});
+    await transport.fetch("/v1/workspaces/w/runs/r/accept", {method: "POST"});
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual(measured);
+    const adopted = await (await transport.fetch("/v1/workspaces/w/selection", {method: "POST", body: JSON.stringify({version: 5, entries: [{...measured.entries[0], revision_id: "nuc"}]})})).json();
+    expect(adopted.version).toBe(6);
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual(adopted);
+  });
+});

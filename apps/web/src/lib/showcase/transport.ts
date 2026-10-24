@@ -77,6 +77,10 @@ export function journalPathMatches(recorded: string, actual: string): boolean {
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
 const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
+/** Statistics and figures of an analysis version (a cohort) or a job: the same request on another
+ * cohort or job of identical content is the same calculation. */
+const ANALYSIS = /^(\/v1\/(?:revisions\/[0-9a-f-]{36}\/(?:review|descriptive|common-statistics|export)|jobs\/[0-9a-f-]{36}\/(?:figure-render|publication-package)))$/;
+const analysisPattern = (path: string) => ANALYSIS.test(path) ? path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/, "*") : undefined;
 /** The parts of the saved settings a measurement depends on. */
 export function conditions(spec: unknown): unknown {
   const value = spec as Record<string, unknown> | null;
@@ -111,7 +115,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
   let settings: {version: number; spec: unknown} | null = null;
   // What this device was last given for each read, as a recorded file (snapshot or tour).
-  const seen = new Map<string, JournalEntry | "snapshot" | {device: unknown}>();
+  const seen = new Map<string, JournalEntry | "snapshot" | {device: unknown; at: number}>();
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<() => void>();
   const publish = (next: Partial<ShowcaseState>) => {state = {...state, ...next}; listeners.forEach(listener => listener());};
@@ -247,7 +251,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => matches(entry, position, entry.path, translated));
       // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
       // same request recorded in another scene is found by its pattern, only when no path matches.
-      const patterned = (entry: JournalEntry, position: number) => !!entry.pattern && matches(entry, position, entry.pattern);
+      const patterned = (entry: JournalEntry, position: number) => {
+        const pattern = entry.pattern ?? analysisPattern(entry.path);
+        return !!pattern && matches(entry, position, pattern);
+      };
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
       if (index < 0) return method === "POST" && SELECTION.test(path) ? adoptOnDevice(path, body) : null;
@@ -265,6 +272,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     const translated = recordedIds(path);
     const read = (index: number) => entries[index].method === "GET" && (entries[index].path === path || entries[index].path === translated);
     const previous = seen.get(path);
+    // What this device wrote after the last recorded change is newer than anything recorded for it.
+    if (previous && typeof previous === "object" && "device" in previous && previous.at === cursor) return heldRead(path);
     // The last recorded read of this path after the answered change and before the next one (a job
     // has finished, a document is settled), so repeated reads agree.
     let after = -1;
@@ -316,7 +325,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       entries.push({...before, revision_id: after.revision_id});
     }
     const next = {version: current.version + 1, entries};
-    seen.set(path, {device: next});
+    seen.set(path, {device: next, at: cursor});
     return new Response(JSON.stringify(next), {status: 200, headers: {"content-type": "application/json"}});
   }
   function remember(path: string, entry: JournalEntry) {
