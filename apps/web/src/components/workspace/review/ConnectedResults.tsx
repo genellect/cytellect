@@ -9,7 +9,7 @@ import {commonWarnings} from "@/lib/common-statistics";
 import {createComparisonAdapter,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
-import {associationAxes,associationSupported,checkedPlot,saturatedSignal,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
@@ -93,12 +93,18 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const pairs=conditions.flatMap((a,index)=>conditions.slice(index+1).map(b=>[a,b]));
   const channels=[...new Set(sources.flatMap(source=>source.result.rows.map(row=>row.channel_id)))];
   // Only choices the calculation accepts are offered: an association needs two different region measurements.
-  const saturated=saturatedSignal(sources,metric,channel);
+  // Groups with saturated brightness are not analysed. With a GFP filter the analysed nuclei are not
+  // known here, so the API decides.
+  const saturatedIn=(value:string,stain:string|null)=>gfp?new Set<string>():saturatedGroups(sources,fields,value,stain);
+  const saturatedSet=saturatedIn(metric,channel),saturatedKey=[...saturatedSet].sort().join("\n");
+  const unsaturatedPair=(pair:string[])=>pair.every(value=>!saturatedSet.has(value));
+  const saturated=saturatedSet.size>0&&!pairs.some(unsaturatedPair);
   // The horizontal axis needs a stain for brightness; one without saturated pixels is offered first.
-  const xStain=channels.find(value=>value===xChannel&&!saturatedSignal(sources,"mean",value))??channels.find(value=>!saturatedSignal(sources,"mean",value))??null;
+  const xStain=channels.find(value=>value===xChannel&&!saturatedIn("mean",value).size)??channels.find(value=>!saturatedIn("mean",value).size)??null;
   const xAxes=associationAxes(metric,channel,xStain).filter(value=>value.startsWith("area_")||!!xStain);
-  const canAssociate=associationSupported({regionSet,metric,channel,gfp})&&!saturated&&xAxes.length>0;
+  const canAssociate=associationSupported({regionSet,metric,channel,gfp})&&!saturatedSet.size&&xAxes.length>0;
   useEffect(()=>{if((operation==="association"&&!canAssociate)||(operation==="comparison"&&saturated))setOperation("distribution");},[operation,canAssociate,saturated]);
+  useEffect(()=>{if(saturatedKey&&contrasts.some(pair=>!unsaturatedPair(pair)))setContrasts(previous=>previous.filter(unsaturatedPair));},[saturatedKey,contrasts]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
   const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp};
@@ -205,14 +211,14 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
         {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
-        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution">分布</option><option value="comparison" disabled={saturated}>{saturated?"群間比較（飽和した画素があるため選べません）":"群間比較"}</option><option value="association" disabled={!canAssociate}>{canAssociate?"相関":saturated?"相関（飽和した画素があるため選べません）":"相関（面積・輝度で選べます）"}</option></select></label>
+        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution">分布</option><option value="comparison" disabled={saturated}>{saturated?"群間比較（飽和した画素があるため選べません）":"群間比較"}</option><option value="association" disabled={!canAssociate}>{canAssociate?"相関":saturatedSet.size?"相関（飽和した画素があるため選べません）":"相関（面積・輝度で選べます）"}</option></select></label>
         {operation!=="distribution"&&<>
           <div className={styles.row}><label>方法<select value={rank?"rank":"parametric"} disabled={demo} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
           {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} disabled={demo} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
 
           <label>独立実験単位<input value={unit} readOnly={demo} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
           {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} readOnly={demo} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}
-          {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{pair.join(" / ")}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
+          {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo||!unsaturatedPair(pair)} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{pair.join(" / ")}{unsaturatedPair(pair)?"":"（飽和した画素があるため選べません）"}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
           <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した</label>
         </>}
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>

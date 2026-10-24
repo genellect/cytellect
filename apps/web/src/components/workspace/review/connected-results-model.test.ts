@@ -1,5 +1,5 @@
 import {describe,it,expect} from "vitest";
-import {associationAxes,associationSupported,checkedPlot,saturatedSignal,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,seriesOrder,type ResultDesign} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,seriesOrder,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
@@ -72,14 +72,17 @@ describe("association choices", () => {
 
 describe("saturated signal", () => {
   const row = (region_id: number, channel_id: string, saturation: number) => ({region_id, channel_id, area_px: 1, area_um2: null, mean: 1, median: 1, integrated: 1, storage_limit_fraction: 0, acquisition_saturation_fraction: saturation});
-  const source = (rows: ReturnType<typeof row>[], excluded: number[] = []) => ({result: {rows, exclusions: excluded.map(region_id => ({region_id}))}});
-  it("withholds a brightness comparison when an adopted region is saturated in that channel", () => {
-    expect(saturatedSignal([source([row(1, "hoechst", 0.02), row(1, "npm1", 0)])], "mean", "hoechst")).toBe(true);
-    expect(saturatedSignal([source([row(1, "hoechst", 0.02), row(1, "npm1", 0)])], "mean", "npm1")).toBe(false);
+  const source = (field: string, rows: ReturnType<typeof row>[], excluded: number[] = []) => ({field, result: {rows, exclusions: excluded.map(region_id => ({region_id}))}});
+  const fields = {a: {condition: "A"}, b: {condition: "B "}, c: {condition: "C"}};
+  it("names the groups whose adopted regions are saturated in that channel", () => {
+    const sources = [source("a", [row(1, "npm1", 0)]), source("b", [row(1, "hoechst", 0.02)]), source("c", [row(1, "hoechst", 0)])];
+    expect([...saturatedGroups(sources, fields, "mean", "hoechst")]).toEqual(["B"]);
+    expect([...saturatedGroups(sources, fields, "mean", "npm1")]).toEqual([]);
   });
-  it("ignores excluded regions, areas and per-nucleus counts", () => {
-    expect(saturatedSignal([source([row(1, "hoechst", 0.02)], [1])], "mean", "hoechst")).toBe(false);
-    expect(saturatedSignal([source([row(1, "hoechst", 0.02)])], "area_px", "hoechst")).toBe(false);
-    expect(saturatedSignal([source([row(1, "hoechst", 0.02)])], "nucleolar_count", null)).toBe(false);
+  it("ignores excluded regions, areas, per-nucleus counts and fields without a group", () => {
+    expect(saturatedGroups([source("a", [row(1, "hoechst", 0.02)], [1])], fields, "mean", "hoechst").size).toBe(0);
+    expect(saturatedGroups([source("a", [row(1, "hoechst", 0.02)])], fields, "area_px", "hoechst").size).toBe(0);
+    expect(saturatedGroups([source("a", [row(1, "hoechst", 0.02)])], fields, "nucleolar_count", null).size).toBe(0);
+    expect(saturatedGroups([source("x", [row(1, "hoechst", 0.02)])], fields, "mean", "hoechst").size).toBe(0);
   });
 });

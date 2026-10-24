@@ -32,9 +32,11 @@ initially selected because synthetic controls and treatments share pair IDs. Con
 the experimental units explicitly. Matplotlib figures and source CSVs are downloaded
 through authenticated API requests. Export ZIPs exclude originals unless opted in.
 The panel offers only analyses the API accepts: an association needs two different region
-measurements (per-nucleus nucleolar summaries cannot be an axis), and a brightness comparison is
-withheld, with its reason, when an adopted region holds saturated or storage-limit pixels in that
-channel (the API refuses it as `region_comparison_saturated_signal`).
+measurements (per-nucleus nucleolar summaries cannot be an axis), and brightness of a group whose
+adopted regions hold saturated or storage-limit pixels in that channel is not analysed (the API
+refuses it as `region_comparison_saturated_signal`): pairs with such a group are not offered for a
+comparison, and an association, which analyses every group, is withheld, each with its reason.
+With a GFP nucleus filter the analysed nuclei are known only to the API, which then decides.
 Numeric CSV import handles already measured assays; no instrument-specific processing.
 
 ## Data boundary

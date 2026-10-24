@@ -36,15 +36,19 @@ export function associationSupported(design: Pick<ResultDesign,"regionSet"|"metr
 export function associationAxes(metric: string, channel: string|null, xChannel: string|null) {
   return ["area_px","mean","median","integrated"].filter(value=>value!==metric||(!value.startsWith("area_")&&xChannel!==channel));
 }
-/** The API refuses to compare brightness when an adopted region holds saturated or storage-limit
- * pixels in that channel (region_comparison_saturated_signal); the comparison is not offered then. */
-export function saturatedSignal(sources: Array<{result?: {rows: MeasurementRow[]; exclusions?: Array<{region_id: number | null}>}}>, metric: string, channel: string | null) {
-  if (!channel || metric.startsWith("area_") || ["nucleolar_count","nucleolar_area_fraction"].includes(metric)) return false;
-  return sources.some(source => {
+/** The API refuses brightness when an analysed region holds saturated or storage-limit pixels in that
+ * channel (region_comparison_saturated_signal). The groups whose adopted regions do; a comparison
+ * analyses only the groups of its pairs, an association every group. */
+export function saturatedGroups(sources: Array<{field: string; result?: {rows: MeasurementRow[]; exclusions?: Array<{region_id: number | null}>}}>, fields: Record<string, {condition?: string | null}>, metric: string, channel: string | null) {
+  const groups = new Set<string>();
+  if (!channel || metric.startsWith("area_") || ["nucleolar_count","nucleolar_area_fraction"].includes(metric)) return groups;
+  for (const source of sources) {
+    const group = fields[source.field]?.condition?.trim();
     const excluded = new Set((source.result?.exclusions ?? []).map(item => item.region_id));
-    return (source.result?.rows ?? []).some(row => row.channel_id === channel && !excluded.has(row.region_id)
-      && ((row.storage_limit_fraction ?? 0) > 0 || (row.acquisition_saturation_fraction ?? 0) > 0));
-  });
+    if (group && (source.result?.rows ?? []).some(row => row.channel_id === channel && !excluded.has(row.region_id)
+      && ((row.storage_limit_fraction ?? 0) > 0 || (row.acquisition_saturation_fraction ?? 0) > 0))) groups.add(group);
+  }
+  return groups;
 }
 /** Figure series are exactly the analysed groups: fields for a distribution, the
  * checked groups for a comparison (as sent in the request), all groups for an association. */
