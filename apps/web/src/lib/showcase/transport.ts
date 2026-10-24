@@ -178,6 +178,19 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       }).catch(() => null);
     return journal;
   }
+  // Identifiers another scene's recording generated for what this visitor already has (its cohort,
+  // its job): recorded -> visitor, and back. Answers from that scene read with the visitor's ones.
+  const aliases = new Map<string, string>(), reverse = new Map<string, string>();
+  const UUIDS = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+  const recordedIds = (text: string) => reverse.size ? text.replace(UUIDS, id => reverse.get(id) ?? id) : text;
+  function learn(recorded: string, visitor: string) {
+    const left = recorded.split("/"), right = visitor.split("/");
+    left.forEach((segment, index) => {
+      if (segment !== right[index] && /^[0-9a-f-]{36}$/.test(segment) && /^[0-9a-f-]{36}$/.test(right[index] ?? "")) {
+        aliases.set(segment, right[index]); reverse.set(right[index], segment);
+      }
+    });
+  }
   async function answer(entry: JournalEntry): Promise<Response | null> {
     let body: ArrayBuffer | null = null;
     if (entry.file !== null && !nullBody(entry.status)) {
@@ -185,6 +198,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${entry.file}`).catch(() => null);
       if (!response?.ok) {await response?.text().catch(() => ""); return null;}
       body = await response.arrayBuffer();
+      if (aliases.size && entry.file.endsWith(".json")) {
+        const text = new TextDecoder().decode(body).replace(UUIDS, id => aliases.get(id) ?? id);
+        body = new TextEncoder().encode(text).buffer as ArrayBuffer;
+      }
     }
     return new Response(body, {status: entry.status, headers: entry.headers});
   }
@@ -218,18 +235,23 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       // A run is measured under the saved settings, which its request does not carry: a recorded
       // run answers only when the settings it was recorded under are the visitor's.
       const current = RUNS.test(path) ? JSON.stringify(conditions(settings?.spec ?? await seedSettings())) : null;
-      const matches = (entry: JournalEntry, position: number, recorded = entry.path) => entry.method === method && !SETTINGS.test(entry.path)
-        && journalPathMatches(recorded, path) && journalBodyMatches(entry.body, body)
+      const matches = (entry: JournalEntry, position: number, recorded = entry.path, requested = path) => entry.method === method && !SETTINGS.test(entry.path)
+        && journalPathMatches(recorded, requested) && journalBodyMatches(entry.body, body)
         && (current === null || journalBodyMatches(JSON.stringify(conditions(recordedSettings(entries, position) ?? seed)), current));
       const seed = current === null ? null : await seedSettings();
       let index = entries.findIndex((entry, position) => position > cursor && matches(entry, position));
       if (index < 0) index = entries.findIndex((entry, position) => matches(entry, position));
+      // A request naming what another scene's answer gave this visitor is that scene's request.
+      const translated = recordedIds(path);
+      if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => position > cursor && matches(entry, position, entry.path, translated));
+      if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => matches(entry, position, entry.path, translated));
       // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
       // same request recorded in another scene is found by its pattern, only when no path matches.
       const patterned = (entry: JournalEntry, position: number) => !!entry.pattern && matches(entry, position, entry.pattern);
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
       if (index < 0) return method === "POST" && SELECTION.test(path) ? adoptOnDevice(path, body) : null;
+      if (!journalPathMatches(entries[index].path, path) && !journalPathMatches(entries[index].path, translated)) learn(entries[index].path, path);
       cursor = index; journaled = true;
       // The device now holds what this change wrote, not what it read before.
       seen.delete(path);
@@ -240,7 +262,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     if (!journaled) return null;
     const next = entries.findIndex((entry, position) => position > cursor && !reading(entry.method));
     const end = next < 0 ? entries.length : next;
-    const read = (index: number) => entries[index].method === "GET" && entries[index].path === path;
+    const translated = recordedIds(path);
+    const read = (index: number) => entries[index].method === "GET" && (entries[index].path === path || entries[index].path === translated);
     const previous = seen.get(path);
     // The last recorded read of this path after the answered change and before the next one (a job
     // has finished, a document is settled), so repeated reads agree.

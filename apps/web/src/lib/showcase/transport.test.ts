@@ -367,21 +367,28 @@ describe("recorded tour across scenes", () => {
     });
     return createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"});
   }
-  it("finds a request recorded in another scene under that scene's generated identifier", async () => {
+  it("finds a request recorded in another scene and answers it with this visitor's identifiers", async () => {
+    const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002", JOB = "cccccccc-0000-4000-8000-000000000003";
     const transport = subject({
       "index.json": {version: 1, entries: {}},
       "journal.json": {version: 1, entries: [
         entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({metric: "x"}), "cohort-a.json", "area"),
-        entry("POST", "/v1/revisions/rev-a/descriptive", JSON.stringify({metric: "area"}), "area.json", "area", "/v1/revisions/*/descriptive"),
+        entry("POST", `/v1/revisions/${A}/descriptive`, JSON.stringify({metric: "area"}), "area.json", "area", "/v1/revisions/*/descriptive"),
         entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({metric: "x"}), "cohort-b.json", "mean"),
-        entry("POST", "/v1/revisions/rev-b/descriptive", JSON.stringify({metric: "mean"}), "mean.json", "mean", "/v1/revisions/*/descriptive"),
+        entry("POST", `/v1/revisions/${B}/descriptive`, JSON.stringify({metric: "mean"}), "mean.json", "mean", `/v1/revisions/*/descriptive`),
+        entry("GET", `/v1/jobs/${JOB}/result`, null, "result.json", "mean"),
+        entry("POST", `/v1/revisions/${B}/export`, null, "export.json", "mean", "/v1/revisions/*/export"),
       ]},
-      "cohort-a.json": {revision_id: "rev-a"}, "cohort-b.json": {revision_id: "rev-b"}, "area.json": {job: "area"}, "mean.json": {job: "mean"},
+      "cohort-a.json": {revision_id: A}, "cohort-b.json": {revision_id: B}, "area.json": {job_id: "area"},
+      "mean.json": {job_id: JOB}, "result.json": {revision_id: B, value: 1}, "export.json": {revision_id: B, job_id: "export"},
     });
-    expect(await (await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({metric: "x"})})).json()).toEqual({revision_id: "rev-a"});
+    expect(await (await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({metric: "x"})})).json()).toEqual({revision_id: A});
     // The exact path answers first; the other scene's request is found by its pattern.
-    expect(await (await transport.fetch("/v1/revisions/rev-a/descriptive", {method: "POST", body: JSON.stringify({metric: "area"})})).json()).toEqual({job: "area"});
-    expect(await (await transport.fetch("/v1/revisions/rev-a/descriptive", {method: "POST", body: JSON.stringify({metric: "mean"})})).json()).toEqual({job: "mean"});
+    expect(await (await transport.fetch(`/v1/revisions/${A}/descriptive`, {method: "POST", body: JSON.stringify({metric: "area"})})).json()).toEqual({job_id: "area"});
+    expect(await (await transport.fetch(`/v1/revisions/${A}/descriptive`, {method: "POST", body: JSON.stringify({metric: "mean"})})).json()).toEqual({job_id: JOB});
+    // That scene's answers name this visitor's cohort, and its later requests are found through it.
+    expect(await (await transport.fetch(`/v1/jobs/${JOB}/result`)).json()).toEqual({revision_id: A, value: 1});
+    expect(await (await transport.fetch(`/v1/revisions/${A}/export`, {method: "POST"})).json()).toEqual({revision_id: A, job_id: "export"});
   });
   it("switches a field to a revision it already adopted on the device, and nothing else", async () => {
     const selection = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};
