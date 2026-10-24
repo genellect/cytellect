@@ -84,9 +84,10 @@ Docker, development) keep their workspace at `/` and `/workspace` and have no `/
   points to the Windows/Docker versions.
 - `?step=image|statistics|figure` opens that tab. A four-step guide (画像と輪郭 → 測定値 → 統計 →
   グラフと書き出し) opens from 「使い方」; it never opens by itself, so the image and results show at once.
-- Controls whose results cannot be recorded are fixed to the recorded values with a short note
-  (statistics method and design, experiment information, figure labels, axes, colours and sizes,
-  detection conditions, nuclear stain, background); cell ROIs and GFP, absent from the dataset, are not offered. Missing optional demo files leave the
+- Controls whose results cannot be recorded are fixed to the recorded values with a short note and
+  shown as locked (statistics method and design, experiment information, figure labels, axes,
+  colours and sizes). The detection conditions, nuclear stain and background correction are shown
+  as the recorded settings of the adopted result (text, not controls); cell ROIs and GFP, absent from the dataset, are not offered. Missing optional demo files leave the
   matching controls as in production.
 - Development without the demo build: `scripts/dev_showcase_backend.py` serves the same
   boot/handle contract from a local CPython API with a threshold stand-in for detection, for

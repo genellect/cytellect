@@ -406,10 +406,15 @@ test("operations the recording does not hold are explained at once, without the 
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const inspector = await openSettings(page);
-  // Conditions the recording cannot cover are fixed to the recorded ones, with a note.
-  await expect(inspector.getByRole("combobox", {name: "背景補正", exact: true})).toBeDisabled();
-  await expect(inspector.getByRole("combobox", {name: "核染色", exact: true})).toBeDisabled();
-  await expect(inspector.getByText("公開デモでは、記録した検出条件で解析します。")).toBeVisible();
+  // Conditions the recording cannot cover are shown as the recorded settings, with a note, not as
+  // controls that cannot answer.
+  await expect(inspector.getByRole("combobox", {name: "背景補正", exact: true})).toHaveCount(0);
+  await expect(inspector.getByRole("combobox", {name: "核染色", exact: true})).toHaveCount(0);
+  await expect(inspector.getByText(/公開デモでは、記録した次の検出条件で解析します/)).toBeVisible();
+  const recorded = inspector.locator("dl").filter({hasText: "確率閾値"});
+  await expect(recorded).toContainText("Hoechst · hoechst");
+  await expect(recorded).toContainText("0.5");
+  await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
   // A hand correction of an outline is explained at once.
   await selectRegion(page, (await largestRegion(page)).id);
