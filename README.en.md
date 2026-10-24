@@ -96,9 +96,9 @@ Each run uses its own working directory and child processes. Cancellation or exc
 
 Settings updates are checked against the requester's version and return `409` on conflict. Mask corrections are saved as new versions, and the measurements, statistics and figures that depend on that mask are marked for update.
 
-Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
+Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests. See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
-Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
+Images and results that users load are stored in a data area separate from the application code, and the worker manages their retention and deletion ([data protection and operations](docs/security.md)).
 
 ## Distribution
 
