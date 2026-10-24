@@ -1,8 +1,10 @@
 """Select CI job areas from the files a pull request changes.
 
 Areas: python (Linux lint/types/tests/SBOM), web (contracts, Next.js, proposal
-Worker, public-site browser tests), fiji (real Fiji, API/browser workflow,
-containers), windows (Windows setup/launcher and Python 3.14 suite).
+Worker, public-site browser tests), lp (the landing page only: Next.js checks and
+build, landing-page browser tests), fiji (real Fiji, API/browser workflow,
+containers), windows (Windows setup/launcher and Python 3.14 suite). The web job
+already runs the landing-page tests, so lp is dropped whenever web is selected.
 
 Pushes to main, merge-queue runs, manual runs, an unreadable diff and any path not listed below
 select every area, so each main commit keeps the full evidence the Windows
@@ -16,8 +18,8 @@ import subprocess
 import sys
 from fnmatch import fnmatchcase
 
-AREAS = ("python", "web", "fiji", "windows")
-ALL = frozenset(AREAS)
+AREAS = ("python", "web", "lp", "fiji", "windows")
+ALL = frozenset(AREAS) - {"lp"}  # the web job already covers the landing page
 PY_STACK = frozenset({"python", "web", "fiji", "windows"})  # API/analysis feed contracts and every runtime
 
 # First matching pattern wins. Order from specific to general.
@@ -26,16 +28,16 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("LICENSE", frozenset()),
     ("NOTICE", frozenset()),
     ("apps/web/scripts/*", frozenset({"web", "fiji", "windows"})),
-    # The public landing page is covered by the public-site browser tests; its media
+    # The public landing page is covered by the landing-page browser tests; its media
     # also ship in the Windows bundle, whose boundary the Python suite checks.
-    ("apps/web/public/marketing/*", frozenset({"python", "web"})),
-    ("apps/web/public/lp-metrics*", frozenset({"web"})),
-    ("apps/web/src/components/PublicLanding.tsx", frozenset({"web"})),
-    ("apps/web/src/components/Landing*.tsx", frozenset({"web"})),
-    ("apps/web/src/components/HeroFilm.tsx", frozenset({"web"})),
-    ("apps/web/src/components/optical-landing.module.css", frozenset({"web"})),
-    ("apps/web/tests/marketing.spec.ts", frozenset({"web"})),
-    ("apps/web/tests/lp-*.spec.ts", frozenset({"web"})),
+    ("apps/web/public/marketing/*", frozenset({"python", "lp"})),
+    ("apps/web/public/lp-metrics*", frozenset({"lp"})),
+    ("apps/web/src/components/PublicLanding.tsx", frozenset({"lp"})),
+    ("apps/web/src/components/Landing*.tsx", frozenset({"lp"})),
+    ("apps/web/src/components/HeroFilm.tsx", frozenset({"lp"})),
+    ("apps/web/src/components/optical-landing.module.css", frozenset({"lp"})),
+    ("apps/web/tests/marketing.spec.ts", frozenset({"lp"})),
+    ("apps/web/tests/lp-*.spec.ts", frozenset({"lp"})),
     ("apps/web/*", frozenset({"web", "fiji"})),
     ("packages/contracts/*", frozenset({"web", "fiji"})),
     ("services/proposal-worker/*", frozenset({"web"})),
@@ -50,7 +52,7 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("scripts/*", frozenset({"python", "fiji", "windows"})),
     ("tests/*", frozenset({"python", "fiji", "windows"})),
     ("validation/*", frozenset({"python"})),
-    ("fixtures/public/allowlist.json", frozenset({"python", "web"})),
+    ("fixtures/public/allowlist.json", frozenset({"python", "lp"})),
     ("infra/*", frozenset({"python", "fiji"})),
     ("compose.yaml", frozenset({"python", "fiji"})),
 )
@@ -65,13 +67,18 @@ def areas_for(path: str) -> frozenset[str]:
     return ALL  # workflows, lockfiles, manifests and anything unlisted
 
 
+def normalize(selected: frozenset[str]) -> frozenset[str]:
+    """The web job includes the landing-page tests, so lp runs only without web."""
+    return selected - {"lp"} if "web" in selected else selected
+
+
 def select(paths: list[str]) -> frozenset[str]:
     if not paths:
         return ALL
     selected: set[str] = set()
     for path in paths:
         selected |= areas_for(path)
-    return frozenset(selected)
+    return normalize(frozenset(selected))
 
 
 def main() -> None:

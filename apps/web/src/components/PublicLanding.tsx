@@ -7,6 +7,9 @@ import { HeroFilm } from "./HeroFilm";
 import { LandingFeatures } from "./LandingFeatures";
 import { LandingStory } from "./LandingStory";
 import { LandingHomeLink } from "./LandingHomeLink";
+import { LandingImpact } from "./LandingImpact";
+import { LandingInvite } from "./LandingInvite";
+import { LandingDemoBar } from "./LandingDemoBar";
 import styles from "./product.module.css";
 import lp from "./optical-landing.module.css";
 
@@ -21,7 +24,6 @@ function Display({ id, text }: { id: string; text: string }) {
 const CREDITS: { label: string; sources: [string, string][]; note?: ReactNode }[] = [
   { label: "ヒーロー映像", sources: [["CDC / Pexels", "https://www.pexels.com/photo/person-doing-an-experiment-3992927/"], ["Thirdman / Pexels", "https://www.pexels.com/video/close-up-of-a-machine-putting-liquid-on-vials-8940765/"], ["Pressmaster / Pexels", "https://www.pexels.com/video/drops-of-liquid-on-a-tray-to-be-use-as-samples-3195394/"], ["Tima Miroshnichenko / Pexels", "https://www.pexels.com/video/man-and-a-woman-using-microscope-9573740/"]] },
   { label: "ピペット", sources: [["Thirdman / Pexels", "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/"]] },
-  { label: "シャーレ", sources: [["Girl with red hat / Unsplash", "https://unsplash.com/photos/clear-plastic-round-container-on-white-table-dst8x5ScJPE"]] },
   { label: "デモの蛍光画像", sources: [["Schmidt HB, Rohatgi R, Brandman O (2022) / Zenodo", "https://doi.org/10.5281/zenodo.6643470"]],
     note: <>（<a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>。表示用にコントラストを調整し、Cytellectが検出した輪郭を重ねています）</> },
 ];
@@ -69,47 +71,39 @@ export default function PublicLanding() {
         </div>
       </section>
 
-      <figure className={[lp.band, lp.bandLow].join(" ")}><img src="/marketing/lp-dish.webp" alt="淡いミント色の面に置いたシャーレとガラス管" width={2400} height={1597} loading="lazy" /></figure>
+      <LandingImpact />
 
-      <section className={lp.section} aria-labelledby="impact-title">
-        <div className={lp.column}>
-          <Display id="impact-title" text="核と核小体の定量を、がん・ALS・認知症・老化の研究へ。" />
-          <div className={lp.prose}><p>同じ基準で測れれば、研究室をまたいで比べられます。</p></div>
-        </div>
-      </section>
+      <LandingInvite />
 
-      <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
+      <section id="download" className={[lp.section, lp.download, lp.reference].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
-          <Display id="download-title" text="Windows版は無料。測定も保存も、あなたのPCで。" />
-          <div className={lp.prose}><p>コマンド入力も管理者権限も不要。解析のコードは公開しています。</p></div>
-          <div className={lp.install}>
+          <div className={lp.setup}>
             <div>
+              <Display id="download-title" text="Windows版は無料。測定も保存も、あなたのPCで。" />
+              <p className={lp.setupLead}>画面の案内どおりに進めるだけ。コマンド入力も管理者権限も要りません。</p>
               {WINDOWS_RELEASE_URL?<a className={lp.primary} data-lp-event="download" href={WINDOWS_RELEASE_URL} rel="noreferrer">Windows版をダウンロード <span aria-hidden="true">↓</span></a>:<Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link>}
               {WINDOWS_RELEASE_URL&&<p className={lp.meta}>ZIP{PUBLISHED_RELEASE?.url===WINDOWS_RELEASE_URL?`・${Math.round(PUBLISHED_RELEASE.size_bytes/1e6)} MB・v${PUBLISHED_RELEASE.version}`:""}<br />Windows 10／11（64ビット）・空き容量 5 GB 以上を推奨</p>}
-              {WINDOWS_RELEASE_URL&&<Link data-lp-event="example" href="/demo" className={lp.button}>インストールの前にデモを体験する <Forward /></Link>}
             </div>
-            <ol className={lp.steps} aria-label="インストールの手順">
-              <li><b>ダウンロードしたZIPを右クリックし、「すべて展開」</b><span>展開先はそのままで大丈夫です。</span></li>
-              <li><b>展開したフォルダーの「Cytellect Setup」をダブルクリック</b><span>青い画面が出たら「詳細情報」→「実行」を押します。</span></li>
-              <li><b>「セットアップ」を押して、待つ</b><span>初回だけ5〜20分かかります。インターネットにつないでおいてください。</span></li>
-              <li><b>「開く」を押すと、解析画面が開きます</b><span>次からは、デスクトップの「Cytellect」から開けます。</span></li>
+            <ol className={lp.setupSteps} aria-label="はじめかた">
+              <li><b>ダウンロードして、展開する</b></li>
+              <li><b>「Cytellect Setup」を開く</b></li>
+              <li><b>「セットアップ」を押し、終わったら「開く」</b><span>解析画面がブラウザで開きます</span></li>
             </ol>
           </div>
         </div>
-        <div id="guide" className={[lp.wide, lp.guide].join(" ")}>
-          <h2 className={lp.label}>使い方と解析方法</h2>
-          <nav aria-label="使い方と解析方法"><a data-lp-event="quickstart" href={docs+"quickstart.ja.md"}>はじめての解析 <Arrow /></a><a data-lp-event="methods" href={docs+"methods.md"}>測定値と統計の定義 <Arrow /></a><a data-lp-event="setup" href="#download">インストールの手順 <span aria-hidden="true">↑</span></a><a data-lp-event="figures" href={docs+"figures.md"}>出力できる図と形式 <Arrow /></a></nav>
-        </div>
-        <div className={[lp.wide, lp.details].join(" ")}>
-          <div id="launch" className={lp.prose}><h3>インストール済みの方</h3><p>デスクトップの「Cytellect」を開くと、解析画面がブラウザに表示されます。起動済みの場合は、Cytellectの起動画面で「ブラウザで開く」を選択してください。</p><p>再ダウンロード・再インストールは不要です。</p><Link data-lp-event="workspace" href="/workspace" className={lp.button}>解析画面を開く <Forward /></Link></div>
-          <div id="scope" className={lp.prose}>
+        <div id="guide" className={[lp.wide, lp.more].join(" ")}>
+          <nav aria-label="使い方と解析方法"><span>使い方と解析方法</span><a data-lp-event="quickstart" href={docs+"quickstart.ja.md"}>はじめての解析 <Arrow /></a><a data-lp-event="methods" href={docs+"methods.md"}>測定値と統計の定義 <Arrow /></a><a data-lp-event="figures" href={docs+"figures.md"}>出力できる図と形式 <Arrow /></a></nav>
+          <div id="scope" className={lp.moreDetails}>
+            <details id="launch"><summary>インストール済みの方</summary><p>デスクトップの「Cytellect」を開くと、解析画面がブラウザに表示されます。起動済みの場合は、Cytellectの起動画面で「ブラウザで開く」を選択してください。</p><p>再ダウンロード・再インストールは不要です。</p><Link data-lp-event="workspace" href="/workspace" className={lp.button}>解析画面を開く <Forward /></Link></details>
             <details><summary>対応する画像と解析</summary><p>核と核小体は、機械学習モデルで自動検出します。GFPなどのシグナルは、検出した核での測定や、しきい値・手動の輪郭・整数ラベルで領域にして測れます。</p><p>読み込めるのは、8／16-bitグレースケールのチャンネル別2D TIFFと、対応範囲の単一シリーズOME-TIFF（Z=1、T=1）です。大きな画像は検出用に縮小した複製で検出し、測定は元の画素で行います。3D、時系列、細胞全体の境界の自動検出には、まだ対応していません。</p></details>
             <details><summary>インストールと動作環境</summary><p>Windows x64用のZIPを展開し、Cytellect Setup.cmdを開いてください。初回はインターネットに接続して解析環境を取得します。その後はショートカットから起動できます。</p><p>解析はPC内で実行します。Cellposeの検出だけは、管理者が設定したクラウドGPUで実行できます。アップロードした研究画像が、この公開サイトに送られることはありません。</p><a data-lp-event="setup" href={docs+"local.md"}>詳しいセットアップ手順 <Arrow /></a></details>
             <details><summary>保存先と削除について</summary><p>画像と解析結果はPC内のCytellect専用フォルダーに保存し、公開サイトには送信しません。PCの外へ画像を送るのは、管理者がCellpose用のクラウドGPUを設定した場合（検出に使う画像をそのGPUへ送り、クラウド側には保存しません）と、AIによる解析提案で画像の送信も有効にした場合（縮小した代表画像を送ります）だけです。</p><p>作業は、既定ではワークスペースで削除するまで保持します。セットアップで選択を外した場合は、最後の明示的な操作から24時間で削除します。</p><p>必要な結果は保存機能から書き出し、別の媒体にもバックアップしてください。作業の削除はワークスペース内から実行できます。</p></details>
           </div>
         </div>
       </section>
+
     </main>
+    <LandingDemoBar />
     <footer className={lp.footer}><div className={lp.sectionShell}>
       <div className={lp.footerPrimary}><div><a href="#top" className={lp.footerBrand}>cytellect</a><span>顕微鏡画像の解析から統計、論文用グラフの作成まで</span></div><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect" target="_blank" rel="noopener noreferrer">GitHub <Arrow /></a><a href="#top">ページの先頭へ <span aria-hidden="true">↑</span></a></nav></div>
       <details className={lp.credits}><summary>画像・映像の出典</summary><p>{CREDITS.map(({ label, sources, note }, index) => <span key={label}>{index > 0 && " · "}{label}：{sources.map(([name, href], i) => <span key={href}>{i > 0 && "、"}<a href={href} target="_blank" rel="noopener noreferrer">{name}</a></span>)}{note}</span>)}</p></details>
