@@ -31,6 +31,10 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
  // The page closes on a three-screen chapter whose last screen offers the demo as its main action.
  expect(await page.locator("main > :is(section,figure,div)").evaluateAll(nodes=>nodes.at(-1)?.querySelector(":scope > section:last-child")?.id)).toBe("start");
+ // What can be measured turns over in one place; with reduced motion every word stays on screen.
+ const future=page.getByRole("region",{name:"治せない病気を、過去のものに。",exact:true});
+ await expect(future).toContainText("核、核小体、細胞質、蛍光シグナル、見たいものを測る。病気を解き明かし、新しい薬を見つける。");
+ for(const word of ["核小体","細胞質","蛍光シグナル","見たいもの"])await expect(future.locator("[aria-hidden=true]").getByText(word,{exact:true})).toBeVisible();
  const finale=page.getByRole("region",{name:"その未来を、あなたの研究から。",exact:true});
  await expect(finale.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(finale.getByRole("link",{name:"Windows版をダウンロード",exact:true})).toHaveAttribute("href","#download");
