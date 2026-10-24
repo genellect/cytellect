@@ -3,44 +3,6 @@ import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import published from "../src/lib/published-release.json";
-test("public real-image viewer: selection, channels, measurements, mobile",async({page})=>{
- const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));page.on("console",m=>{if(m.type()==="error")errors.push(m.text());});
- await page.goto("/demo");
- await expect(page.getByAltText(/4DN.*公開実画像/)).toBeVisible();
- await expect(page.getByRole("heading",{name:"Nucleus 01",exact:true})).toBeVisible();
- await page.getByRole("button",{name:"DAPI",exact:true}).click();
- await expect(page.getByAltText(/4DN.*公開実画像/)).toHaveAttribute("src",/demo-dapi/);
- await page.getByRole("button",{name:"DAPI + NCL",exact:true}).click();
- await page.getByRole("button",{name:"次の核",exact:true}).click();
- await expect(page.getByRole("heading",{name:"Nucleus 02",exact:true})).toBeVisible();
- await page.getByLabel("輪郭",{exact:true}).uncheck();
- await page.getByLabel("輪郭",{exact:true}).check();
- const dir=process.env.CYTELLECT_SCREENSHOT_DIR;
- if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,"public-demo-desktop.png"),fullPage:true});}
- await page.getByRole("button",{name:/02 測定値/}).click();
- await expect(page.locator("tbody tr")).toHaveCount(100);
- const downloaded=page.waitForEvent("download");await page.getByRole("button",{name:"CSV ↓",exact:true}).click();expect((await downloaded).suggestedFilename()).toContain("4DN");
- await page.getByRole("button",{name:/01 画像と領域/}).click();
- await page.setViewportSize({width:390,height:844});
- expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
- if(dir)await page.screenshot({path:path.join(dir,"public-demo-mobile.png"),fullPage:true});
- await page.getByLabel("画像",{exact:true}).selectOption("bbbc039");
- await expect(page.getByAltText(/BBBC039.*公開実画像/)).toBeVisible();
- await page.getByLabel("画像",{exact:true}).selectOption("bbbc013");
- await expect(page.getByAltText(/BBBC013v1.*公開実画像/)).toBeVisible();
- await expect(page.getByText("GFP 平均輝度（原値）",{exact:true})).toBeVisible();
- await page.getByRole("button",{name:"DRAQ · 核染色",exact:true}).click();
- await expect(page.getByAltText(/BBBC013v1.*公開実画像/)).toHaveAttribute("src",/demo-dapi/);
- expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
- if(dir)await page.screenshot({path:path.join(dir,"public-gfp-mobile.png"),fullPage:true});
- await page.setViewportSize({width:1440,height:900});
- if(dir)await page.screenshot({path:path.join(dir,"public-gfp-desktop.png"),fullPage:true});
- await page.getByRole("button",{name:/02 測定値/}).click();
- await expect(page.locator("tbody tr")).toHaveCount(350);
- const gfpCsv=page.waitForEvent("download");await page.getByRole("button",{name:"CSV ↓",exact:true}).click();expect((await gfpCsv).suggestedFilename()).toContain("BBBC013v1");
- expect(errors).toEqual([]);
-});
-
 test("unconfigured public build makes no analysis connection",async({page})=>{
  await page.emulateMedia({reducedMotion:"reduce"});
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");
@@ -65,9 +27,11 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   if(process.env.CYTELLECT_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.CYTELLECT_SCREENSHOT_DIR,`public-download-${width}.png`),fullPage:true});
  }
  const hero=page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true});
+ await expect(hero.getByRole("link",{name:"デモを体験する",exact:true})).toBeVisible();
  await hero.getByRole("link",{name:"デモを体験する",exact:true}).click();
+ // The example is the production workspace on the serverless demo transport (tests/showcase.spec.ts).
  await expect(page).toHaveURL(/\/demo(\?|$)/);
- await expect(page.getByAltText(/4DN.*公開実画像/)).toBeVisible();
+ await expect(page.getByText("デモ",{exact:true})).toBeVisible();
  if(release){await page.setViewportSize({width:1440,height:900});await page.getByRole("link",{name:"ダウンロード",exact:true}).click();await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);}
  expect(connections).toEqual([]);
 });

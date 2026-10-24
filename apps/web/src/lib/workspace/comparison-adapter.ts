@@ -4,7 +4,7 @@ import {defaultFigureEdits} from "../figure-controls";
 import {comparisonMethod, type CommonComparisonRequest, type CommonPlotKind} from "../common-statistics";
 import type {components} from "../generated";
 import type {Job} from "../types";
-import {assertWorkspaceConnection, type SavedResult, type Transport, type WorkspaceSelection} from "./api-adapter";
+import {assertWorkspaceConnection, refusedWrite, type SavedResult, type Transport, type WorkspaceSelection} from "./api-adapter";
 
 export type ComparisonResult = components["schemas"]["CommonComparisonView"];
 export type Metadata = components["schemas"]["RegionFieldMetadata"];
@@ -75,7 +75,11 @@ export function createComparisonAdapter(overrides: Partial<Transport> = {}) {
   async function accepted(workspace: string, path: string, body: unknown, identity: unknown = body) {
     check(); const key = JSON.stringify([path, identity]); let record = pending.get(key);
     if (record === "uncertain") throw new Error("受付状態が不明です。再読み込みで保存済みの処理を確認してください。");
-    if (!record) {pending.set(key, "uncertain"); record = await client.post<{job_id: string; revision_id?: string}>(path, body); pending.set(key, record);}
+    if (!record) {
+      pending.set(key, "uncertain");
+      record = await client.post<{job_id: string; revision_id?: string}>(path, body).catch(error => {if (refusedWrite(error)) pending.delete(key); throw error;});
+      pending.set(key, record);
+    }
     for (;;) {
       const jobs = await client.request<Job[]>(`/v1/workspaces/${workspace}/jobs`);
       const job = jobs.find(value => value.id === record.job_id);

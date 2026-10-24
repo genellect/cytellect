@@ -249,7 +249,22 @@ def test_real_gitleaks_public_checksum_exceptions_are_exact_and_do_not_hide_adja
 
 
 def test_public_preview_checksum_exception_matches_the_actual_allowlisted_png():
+    # The former public explorer's manifest stays in history, so its reviewed
+    # checksum is still needed by the history scan; it must match the published PNG.
     root = Path(__file__).parents[1]
     exception = json.loads(scanner.LOCK.read_text())["reviewed_non_secrets"][1]
-    public_preview = root / "apps/web/public/demo/bbbc013/demo-dapi.png"
-    assert hashlib.sha256(public_preview.read_bytes()).hexdigest() == exception["sha256"]
+    name = "apps/web/public/demo/bbbc013/demo-dapi.png"
+    public_preview = root / name
+    if public_preview.exists():
+        data = public_preview.read_bytes()
+    else:
+        command = ["git", "-c", f"safe.directory={root.as_posix()}", "-C", str(root)]
+        removal = subprocess.run([*command, "rev-list", "-1", "HEAD", "--", name],
+                                 capture_output=True, text=True).stdout.strip()
+        if not removal:
+            pytest.skip("the removed public preview needs full Git history")
+        # The last commit touching the path removed it (or still has it before the removal is committed).
+        shown = subprocess.run([*command, "show", f"{removal}:{name}"], capture_output=True)
+        data = shown.stdout if shown.returncode == 0 else subprocess.run(
+            [*command, "show", f"{removal}^:{name}"], capture_output=True, check=True).stdout
+    assert hashlib.sha256(data).hexdigest() == exception["sha256"]

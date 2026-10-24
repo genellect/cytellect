@@ -8,6 +8,27 @@ from urllib.parse import urlsplit
 from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION
 
 
+def checkout_root(module_file: str | Path | None = None) -> Path | None:
+    """The source checkout that private data must stay outside, if any.
+
+    In a checkout this module lives at ``services/api/src/cytellect_api``, four
+    levels below the repository. An installed wheel only resolves to the
+    filesystem root when site-packages is itself four levels deep (Pyodide's
+    ``/lib/python3.x/site-packages``); every path would then count as inside the
+    repository. A filesystem root is still treated as a checkout when it holds
+    the project file, so a repository copied to ``/`` keeps its protection.
+    """
+    candidate = Path(module_file if module_file is not None else __file__).resolve().parents[4]
+    if candidate == Path(candidate.anchor) and not (candidate / "pyproject.toml").is_file():
+        return None
+    return candidate
+
+
+def _inside_checkout(path: Path) -> bool:
+    checkout = checkout_root()
+    return checkout is not None and (path == checkout or path.is_relative_to(checkout))
+
+
 def _proposal_token_from_env() -> str:
     """An optional Docker-mounted device credential; never a provider API key."""
     direct = os.environ.get("CYTELLECT_PROPOSAL_TOKEN", "")
@@ -18,8 +39,7 @@ def _proposal_token_from_env() -> str:
         raise ValueError("proposal_token_sources_conflict")
     try:
         path = Path(secret_file).expanduser().resolve()
-        checkout = Path(__file__).resolve().parents[4]
-        if path == checkout or checkout in path.parents or not path.is_file():
+        if _inside_checkout(path) or not path.is_file():
             raise ValueError("invalid_source")
         with path.open("rb") as source:
             raw = source.read(257)
@@ -76,8 +96,7 @@ class Settings:
         if not configured:
             raise ValueError("CYTELLECT_DATA_DIR must explicitly name a private runtime volume")
         root = Path(configured).resolve()
-        checkout = Path(__file__).resolve().parents[4]
-        if root == checkout or checkout in root.parents:
+        if _inside_checkout(root):
             raise ValueError("Research data must be outside the repository")
         return cls(
             root,
@@ -103,8 +122,7 @@ class Settings:
 def configure_private_tmp(settings: Settings) -> Path:
     """Multipart and library scratch stays in the private runtime volume."""
     root = settings.data_dir.resolve()
-    checkout = Path(__file__).resolve().parents[4]
-    if root == checkout or root.is_relative_to(checkout):
+    if _inside_checkout(root):
         raise ValueError("Research data must be outside the repository")
     temporary = root / "tmp"
     if temporary.is_symlink() or temporary.resolve().parent != root:

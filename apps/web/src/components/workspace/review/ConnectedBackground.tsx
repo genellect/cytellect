@@ -2,6 +2,7 @@
 
 import {useState} from "react";
 import type {Point} from "@/lib/types";
+import {ErrorText} from "./showcase-ui";
 
 export type WorkspaceBackgrounds = Record<string,Record<string,{polygon:Point[];confirmed:true}>>;
 export interface ConnectedBackgroundProps {
@@ -27,6 +28,6 @@ export function ConnectedBackground({fieldId,fieldLabel,channels,backgrounds,con
     <button type="button" disabled={disabled||drawing||busy||!selected.length} onClick={()=>onDraw(selected)}>{drawing?"背景を描画中":"背景を描く"}</button>
     <small>細胞や検出領域を含まない場所を囲み、画像上で保存します。対象チャンネルも一緒に記録します。</small>
     {!!existing.length&&<button type="button" disabled={disabled||drawing||busy} onClick={()=>void remove()}>選択した背景ROIを削除</button>}
-    {error&&<p role="alert">{error}</p>}
+    {error&&<ErrorText text={error}/>}
   </section>;
 }

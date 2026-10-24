@@ -77,7 +77,6 @@
 .numbers p{margin:0;padding-top:20px;border-top:1px solid var(--rule)}
 .numbers strong{display:block;font-size:clamp(40px,4.4vw,64px);font-weight:400;line-height:1.1;letter-spacing:-.03em;white-space:nowrap}
 .numbers span{display:block;margin-top:12px;font-size:15px;line-height:1.6}
-.page .bandLow{height:clamp(220px,24vw,400px)}
 .tabs{margin-top:48px}
 .tablist{display:flex;gap:8px;overflow-x:auto;border-bottom:1px solid var(--rule);scrollbar-width:none}
 .tab{flex:none;padding:14px 4px;margin-right:24px;border:0;border-bottom:2px solid transparent;background:none;color:inherit;font-size:17px;line-height:1.4;cursor:pointer;white-space:nowrap}
@@ -122,6 +121,54 @@
 .paper a{display:block;max-width:760px;margin-inline:auto;cursor:zoom-in}
 .paper img{width:100%;height:auto}
 .paper figcaption{max-width:760px;margin:20px auto 0;font-size:14px;line-height:1.7}
+/* Impact: research leading to patients, in one compact panel. */
+.impact{padding-top:var(--section-space)}
+.impactPanel{display:grid;gap:clamp(28px,3vw,44px);padding:clamp(32px,4vw,60px);border-radius:16px;background:radial-gradient(55% 120% at 92% 110%,#2f6f5880,#2f6f5800 70%),#15241f;color:#f2f3ef}
+.impactTitle{margin:0;font-size:clamp(32px,3.8vw,60px);font-weight:450;line-height:1.3;letter-spacing:-.03em;word-break:auto-phrase}
+.impactTitle>span{display:block}
+.path{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;padding:0;list-style:none;border-top:1px solid #ffffff26}
+.path li{display:flex;flex-direction:column;gap:4px;padding:20px clamp(12px,1.6vw,24px) 0 0}
+.path li+li{padding-left:clamp(12px,1.6vw,24px);border-left:1px solid #ffffff26}
+.path span{font-size:14px;line-height:1.6;color:#c9d4ce}
+.path b{font-size:clamp(22px,2.2vw,34px);font-weight:450;line-height:1.3;letter-spacing:-.02em}
+.path li:last-child b{color:#bfe6d4}
+/* Invitation: the page's last scene. */
+.invite{padding:clamp(56px,6vw,96px) var(--gutter) 0}
+.inviteInner{position:relative;isolation:isolate;overflow:hidden;width:min(100%,1360px);margin-inline:auto;padding:clamp(40px,5vw,72px) clamp(28px,5vw,80px) clamp(72px,8vw,120px);border-radius:16px;background:#15241f;color:#f5f5f2}
+.inviteInner::before{content:"";position:absolute;z-index:-1;width:70%;height:130%;right:-12%;top:-30%;background:radial-gradient(closest-side,#3f8f6f80,#3f8f6f00)}
+.inviteInner::after{content:"";position:absolute;z-index:-1;width:50%;height:90%;left:18%;bottom:-40%;background:radial-gradient(closest-side,#e7b8a455,#e7b8a400)}
+.inviteTitle{margin:0;font-size:clamp(36px,4.2vw,68px);font-weight:450;line-height:1.18;letter-spacing:-.04em;word-break:auto-phrase}
+.inviteTitle>span{display:block}
+.inviteLead{margin:clamp(20px,2vw,28px) 0 0;font-size:clamp(18px,1.5vw,22px);line-height:1.7;color:#d5ddd8}
+.inviteActions{display:flex;align-items:center;flex-wrap:wrap;gap:16px 32px;margin-top:clamp(32px,3.4vw,52px)}
+.invite .primary{min-height:62px;padding:16px 28px;background:#f5f5f2;border-color:#f5f5f2;color:#11171e!important;font-size:16px}
+.invite .primary:hover{background:#fff}
+.inviteMark{position:absolute;z-index:-1;left:clamp(20px,4vw,72px);bottom:clamp(-60px,-4vw,-24px);font-size:clamp(80px,13vw,210px);font-weight:650;letter-spacing:-.06em;line-height:1;color:#f5f5f20f;white-space:nowrap;pointer-events:none}
+/* Reference: a short install pitch for beginners, then guides and questions. */
+.reference{padding-top:clamp(56px,6vw,96px)}
+.setup{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:clamp(28px,4vw,72px);align-items:center;padding:clamp(28px,3.4vw,52px);border-radius:16px;background:#fbfbf9;border:1px solid #17262118}
+.setup .display{font-size:clamp(24px,2.3vw,34px)}
+.setupLead{margin:14px 0 24px;font-size:clamp(16px,1.2vw,18px);line-height:1.8}
+.setup .meta{margin:12px 0 0;font-size:13px;color:var(--muted)}
+.setupSteps{display:grid;gap:8px;margin:0;padding:0;list-style:none;counter-reset:setup}
+.setupSteps li{position:relative;display:grid;gap:2px;padding:16px 18px 16px 64px;border-radius:10px;background:#fff;border:1px solid #17262114;counter-increment:setup}
+.setupSteps li::before{content:counter(setup);position:absolute;left:18px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#172621;color:#f5f5f2;font-size:14px;font-weight:600}
+.setupSteps b{font-size:17px;font-weight:600;line-height:1.6}
+.setupSteps span{font-size:14px;line-height:1.7;color:#2b3d36}
+.more{display:grid;gap:8px;margin-top:clamp(28px,3vw,40px)}
+.more nav{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 28px;font-size:15px}
+.more nav>span{font-size:13px;font-weight:600;color:var(--muted)}
+.more nav a{padding:6px 0}
+.moreDetails{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 24px;align-items:start}
+.moreDetails details{border-top:1px solid var(--rule)}
+.moreDetails summary{display:flex;justify-content:space-between;gap:12px;padding:14px 0;font-size:15px;cursor:pointer;list-style:none}
+.moreDetails summary::-webkit-details-marker{display:none}
+.moreDetails summary::after{content:"+";color:var(--muted)}
+.moreDetails details[open] summary::after{content:"−"}
+.moreDetails details>:not(summary){margin:0 0 14px;font-size:14px;line-height:1.8}
+.moreDetails details>a{display:inline-flex;gap:12px;text-decoration:underline}
+.moreDetails .button{min-height:auto;margin:0 0 14px;padding:4px 0;font-size:14px}
+.demoBar{display:none}
 .download{padding-bottom:96px}
 .download .actions{display:flex;align-items:center;flex-wrap:wrap;gap:20px 40px;margin-top:40px}
 .download .actions .button{margin-top:0}
@@ -197,11 +244,21 @@
   .page .band{width:100%;height:280px;margin-top:var(--section-space);border-radius:0}.band img{object-position:72% 62%}
     .panel{grid-template-columns:1fr;padding-top:32px;gap:28px}.tab{font-size:15px;margin-right:16px}.panel .numbers{grid-template-columns:1fr}
   .loop{grid-template-columns:1fr;gap:12px}
-  .numbers{grid-template-columns:1fr;gap:20px;margin-top:32px}.numbers strong{font-size:clamp(34px,10vw,44px)}.numbers span{font-size:14px}.page .bandLow{height:200px}.specimen figcaption{padding:0 4px 4px}
+  .numbers{grid-template-columns:1fr;gap:20px;margin-top:32px}.numbers strong{font-size:clamp(34px,10vw,44px)}.numbers span{font-size:14px}.specimen figcaption{padding:0 4px 4px}
   .install{grid-template-columns:1fr;gap:40px}.install .primary{max-width:none}.steps li{grid-template-columns:36px minmax(0,1fr)}.steps li::before{width:30px;height:30px;font-size:14px}
   .download .actions{align-items:stretch;flex-direction:column;gap:12px}.download .actions .primary{width:100%}.download .actions .button{align-self:flex-start}
   .guide nav{flex-direction:column;gap:0}.guide nav a{padding:14px 0;border-bottom:1px solid var(--rule)}
   .details{grid-template-columns:1fr;gap:36px;margin-top:48px}.download{padding-bottom:64px}.footerPrimary{flex-direction:column}
+  .impactPanel{padding:28px 22px}.impactTitle{font-size:clamp(26px,7.4vw,34px)}
+  .path{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:20px}.path li:nth-child(3){padding-left:0;border-left:0}
+  .invite{padding:56px 12px 0}.inviteInner{padding:36px 22px 84px}.inviteTitle{font-size:clamp(32px,9vw,44px)}
+  .setup{grid-template-columns:1fr;padding:24px 18px}
+  .moreDetails{grid-template-columns:1fr}.more nav{gap:4px 20px}
+  .footer{padding-bottom:104px}
+  .demoBar{position:fixed;z-index:40;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));display:block;transform:translateY(calc(100% + 32px));transition:transform .35s cubic-bezier(.22,.7,.12,1)}
+  .demoBar[data-shown="true"]{transform:none}
+  .demoBar a{display:flex;align-items:center;justify-content:space-between;min-height:54px;padding:14px 20px;border:1px solid #ffffff20;border-radius:8px;background:#15241fee;color:#f5f5f2!important;font-size:15px;font-weight:550;backdrop-filter:blur(20px)}
+  .demoBar a span{font-size:20px}
 }
 @media(min-width:761px) and (max-aspect-ratio:1/1){
   .hero{align-items:flex-start;padding-top:150px}.hero h1{font-size:clamp(64px,8vw,88px)}.poster img{object-fit:cover;object-position:84% center}.heroShade{background:linear-gradient(180deg,#0a1311b3 0%,#0a131166 38%,#0a131100 70%)}
