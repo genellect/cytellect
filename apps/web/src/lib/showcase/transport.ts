@@ -191,6 +191,15 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   const aliases = new Map<string, string>(), reverse = new Map<string, string>();
   const UUIDS = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
   const recordedIds = (text: string) => reverse.size ? text.replace(UUIDS, id => reverse.get(id) ?? id) : text;
+  /**
+   * The recorded form of a requested path. Several of this visitor's cohorts of identical content
+   * can stand for one recorded cohort; the one this request names is the one answers name.
+   */
+  function recordedPath(path: string) {
+    const translated = recordedIds(path);
+    if (translated !== path) for (const id of path.match(UUIDS) ?? []) {const original = reverse.get(id); if (original) aliases.set(original, id);}
+    return translated;
+  }
   function learn(recorded: string, visitor: string) {
     const left = recorded.split("/"), right = visitor.split("/");
     left.forEach((segment, index) => {
@@ -253,7 +262,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       let index = entries.findIndex((entry, position) => position > cursor && matches(entry, position));
       if (index < 0) index = entries.findIndex((entry, position) => matches(entry, position));
       // A request naming what another scene's answer gave this visitor is that scene's request.
-      const translated = recordedIds(path);
+      const translated = recordedPath(path);
       if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => position > cursor && matches(entry, position, entry.path, translated));
       if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => matches(entry, position, entry.path, translated));
       // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
@@ -277,7 +286,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     // The answered change's reads end at the scene's next change, or where the next scene begins.
     let end = cursor + 1;
     while (end < entries.length && reading(entries[end].method) && entries[end].scene === entries[cursor].scene) end++;
-    const translated = recordedIds(path);
+    const translated = recordedPath(path);
     const read = (index: number) => entries[index].method === "GET" && (entries[index].path === path || entries[index].path === translated);
     const previous = seen.get(path);
     // What this device wrote after the last recorded change is newer than anything recorded for it.
@@ -288,10 +297,12 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     for (let index = end - 1; index > cursor && after < 0; index--) if (read(index)) after = index;
     if (after >= 0) {
       // Scenes start from the seed, so a visitor's earlier changes may come from another scene. A
-      // document the answered change left as it was keeps what this device already has.
+      // document the answered change left as it was keeps what this device already has. The scene's
+      // document before the change is its last read, or a write answered with the document itself.
       const scene = entries[cursor].scene;
+      const wrote = (index: number) => !reading(entries[index].method) && entries[index].path === entries[after].path && entries[index].file === entries[after].file;
       let before: {file: string | null; status: number} | null = null;
-      for (let index = cursor - 1; index >= 0 && !before && entries[index].scene === scene; index--) if (read(index)) before = entries[index];
+      for (let index = cursor - 1; index >= 0 && !before && entries[index].scene === scene; index--) if (read(index) || wrote(index)) before = entries[index];
       before ??= (await snapshot())?.entries[snapshotKey(path)] ?? null;
       const unchanged = before !== null && before.file === entries[after].file && before.status === entries[after].status;
       if (!(unchanged && previous)) return remember(path, entries[after]);

@@ -429,6 +429,44 @@ describe("recorded tour across scenes", () => {
     // Scene "b" read another adoption before its own first change; this device keeps its own.
     expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
   });
+  it("answers with the visitor's cohort the request names, when two of them stand for one recorded cohort", async () => {
+    const R = "aaaaaaaa-0000-4000-8000-000000000001", V1 = "bbbbbbbb-0000-4000-8000-000000000002", V2 = "cccccccc-0000-4000-8000-000000000003";
+    const transport = subject({
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "x"}), "c1.json", "m1"),
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "y"}), "c2.json", "m2"),
+        entry("POST", `/v1/revisions/${R}/descriptive`, JSON.stringify({metric: "a"}), "job.json", "s", "/v1/revisions/*/descriptive"),
+        entry("GET", "/v1/jobs/j/result", null, "result.json", "s"),
+      ]},
+      "c1.json": {revision_id: V1}, "c2.json": {revision_id: V2}, "job.json": {job_id: "j"}, "result.json": {revision_id: R},
+    });
+    const describe = async (cohort: string) => {
+      await transport.fetch(`/v1/revisions/${cohort}/descriptive`, {method: "POST", body: JSON.stringify({metric: "a"})});
+      return (await (await transport.fetch("/v1/jobs/j/result")).json() as {revision_id: string}).revision_id;
+    };
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "x"})});
+    expect(await describe(V1)).toBe(V1);
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "y"})});
+    expect(await describe(V2)).toBe(V2);
+    expect(await describe(V1)).toBe(V1);
+  });
+  it("keeps the device's document when the answered change left the scene's one as the scene wrote it", async () => {
+    const transport = subject({
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "seed.json"}}},
+      "journal.json": {version: 1, entries: [
+        entry("GET", "/v1/workspaces/w/selection", null, "s1.json", "a"),
+        entry("POST", "/v1/workspaces/w/selection", JSON.stringify({version: "*"}), "s2.json", "a"),
+        entry("POST", "/v1/jobs/j/figure-render", JSON.stringify({width: 89}), "render.json", "a"),
+        entry("GET", "/v1/workspaces/w/selection", null, "s2.json", "a"),
+      ]},
+      "seed.json": {version: 1}, "s1.json": {version: 1}, "s2.json": {version: 2}, "render.json": {job: "r"},
+    });
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+    await transport.fetch("/v1/jobs/j/figure-render", {method: "POST", body: JSON.stringify({width: 89})});
+    // The figure changed no adoption; the scene's own adoption before it is not this device's.
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+  });
   it("switches a field to a revision it already adopted on the device, and nothing else", async () => {
     const selection = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};
     const transport = subject({
