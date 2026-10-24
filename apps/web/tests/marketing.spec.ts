@@ -31,7 +31,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
  // The latter half runs from research to the patients waiting, then invites to the demo before the reference material.
  await expect(page.getByRole("list",{name:"研究から患者さんまで",exact:true}).getByRole("listitem").locator("b")).toHaveText(["測る","解き明かす","見つける","届ける"]);
- expect(await page.locator("main > :is(section,figure)").evaluateAll(nodes=>nodes.slice(-4).map(node=>node.id||node.tagName))).toEqual(["FIGURE","impact","start","download"]);
+ expect(await page.locator("main > :is(section,figure)").evaluateAll(nodes=>nodes.slice(-3).map(node=>node.id))).toEqual(["impact","start","download"]);
  const invite=page.getByRole("region",{name:"その未来を、あなたの研究から。",exact:true});
  await expect(invite.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(invite.getByRole("link",{name:"Windows版（無料）",exact:true})).toHaveAttribute("href","#download");
@@ -149,7 +149,7 @@ test("the footer credits every image and video at its source and has no security
  const credits=footer.locator("details");
  await expect(credits).not.toHaveAttribute("open");
  await credits.getByText("画像・映像の出典",{exact:true}).click();
- await expect(credits.getByRole("link")).toHaveCount(8);
+ await expect(credits.getByRole("link")).toHaveCount(7);
  await expect(credits.getByRole("link",{name:"Schmidt HB, Rohatgi R, Brandman O (2022) / Zenodo",exact:true})).toHaveAttribute("href","https://doi.org/10.5281/zenodo.6643470");
  await expect(credits.getByRole("link",{name:"CC BY 4.0",exact:true})).toHaveAttribute("href","https://creativecommons.org/licenses/by/4.0/deed.ja");
  expect(await credits.getByRole("link").evaluateAll(links=>links.every(link=>/^https:\/\/(www\.pexels\.com|unsplash\.com|doi\.org|creativecommons\.org)\//.test((link as HTMLAnchorElement).href)&&(link as HTMLAnchorElement).rel.includes("noopener")))).toBe(true);

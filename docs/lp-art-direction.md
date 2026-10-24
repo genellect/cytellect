@@ -113,7 +113,7 @@ Lila は品質の参照先であり、その素材、画面、配色を複製し
 | ヒーロー | `px-p-3992927` | 写真。安全キャビネット内の 6 穴プレートと桃色の培地、ピペットの先端（CDC） | Pexels |
 | ヒーロー | `px-v-9573740` | 4K 動画。明るい研究室で顕微鏡に向かう研究者の遠景（Tima Miroshnichenko） | Pexels |
 | 雰囲気 | `us-0Em3L8ddLFI`、`us-dst8x5ScJPE` | 逆光のウェルプレート、淡いミント色の面のシャーレ | Unsplash |
-| 本文 | `px-p-8940473`、`us-dst8x5ScJPE` | 研究の営みと信頼の場面（`lp-pipetting.webp`、`lp-dish.webp`。記録は `photo-provenance.json`） | Pexels、Unsplash |
+| 本文 | `px-p-8940473` | 研究の営みの場面（`lp-pipetting.webp`。記録は `photo-provenance.json`）。シャーレの写真（`us-dst8x5ScJPE`）は 2026-10-24 にオーナーの判定で LP から外した | Pexels、Unsplash |
 | 予備 | `us-WCEOtVmk2VY`、`px-p-18959104`（水滴。却下）、`us-6Uu8CSP38AI`（光とガラス。不採用）、`us-tGYrlchfObE`、`us-lQGJCMY5qcM`、`us-UeBFFAPwuj8` | 研究の営みの章と、カットの差し替え候補 | Pexels、Unsplash |
 
 LP で既に使っている写真（`photo-lab-automation.webp`、`photo-pipetting.webp`、`photo-microscope.webp`）は [`photo-provenance.json`](../apps/web/public/marketing/photo-provenance.json) に記録がある。
