@@ -7,7 +7,7 @@ import { HeroFilm } from "./HeroFilm";
 import { LandingFeatures } from "./LandingFeatures";
 import { LandingStory } from "./LandingStory";
 import { LandingHomeLink } from "./LandingHomeLink";
-import { LandingFinale } from "./LandingFinale";
+import { LandingClosing } from "./LandingClosing";
 import { LandingDemoBar } from "./LandingDemoBar";
 import styles from "./product.module.css";
 import lp from "./optical-landing.module.css";
@@ -71,17 +71,6 @@ export default function PublicLanding() {
         </div>
       </section>
 
-      <figure className={[lp.band, lp.bandLow].join(" ")}><img src="/marketing/lp-dish.webp" alt="淡いミント色の面に置いたシャーレとガラス管" width={2400} height={1597} loading="lazy" /></figure>
-
-      <section className={[lp.section, lp.impact].join(" ")} aria-labelledby="impact-title">
-        <div className={lp.column}>
-          <h2 id="impact-title" className={lp.statement} aria-label="生命の謎も、病気の治し方も。答えは、細胞の中にある。"><span><span>生命の謎も、</span><span>病気の治し方も。</span></span><span><span>答えは、</span><span>細胞の中にある。</span></span></h2>
-          <p className={lp.statementLead}>核も、核小体も、細胞質も、蛍光で光る細胞も。見たいものを数値にして、病気の解明と、新しい薬づくりへ。</p>
-        </div>
-      </section>
-
-      <LandingFinale />
-
       <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
           <Display id="download-title" text="Windows版は無料。測定も保存も、あなたのPCで。" />
@@ -113,6 +102,10 @@ export default function PublicLanding() {
           </div>
         </div>
       </section>
+
+      <figure className={[lp.band, lp.bandLow].join(" ")}><img src="/marketing/lp-dish.webp" alt="淡いミント色の面に置いたシャーレとガラス管" width={2400} height={1597} loading="lazy" /></figure>
+
+      <LandingClosing />
     </main>
     <LandingDemoBar />
     <footer className={lp.footer}><div className={lp.sectionShell}>

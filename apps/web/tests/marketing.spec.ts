@@ -29,8 +29,9 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toBeFocused();
  await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toHaveAttribute("aria-selected","true");
  await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
- // The page closes on the hero film with the demo as its one main action.
- const finale=page.getByRole("region",{name:"次の発見は、あなたの顕微鏡画像から。",exact:true});
+ // The page closes on a three-screen chapter whose last screen returns to the hero film with the demo as its main action.
+ expect(await page.locator("main > :is(section,figure,div)").evaluateAll(nodes=>nodes.at(-1)?.querySelector(":scope > section:last-child")?.id)).toBe("start");
+ const finale=page.getByRole("region",{name:"その未来を、あなたの研究から。",exact:true});
  await expect(finale.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(finale.getByRole("link",{name:"Windows版をダウンロード",exact:true})).toHaveAttribute("href","#download");
  await expect(finale.locator("video")).toHaveCount(0);
@@ -42,7 +43,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
-  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^生命の謎も、病気の治し方も。答えは、細胞の中にある。$/,/^次の発見は、あなたの顕微鏡画像から。$/,/^Windows版は無料。測定も保存も、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
+  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^治せない病気を、過去のものに。$/,/^その日を、待っている人がいる。$/,/^その未来を、あなたの研究から。$/,/^Windows版は無料。測定も保存も、/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
   if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').filter({visible:true}).all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
  }
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));
@@ -155,7 +156,7 @@ test("the footer credits every image and video at its source and has no security
  expect(await credits.getByRole("link").evaluateAll(links=>links.every(link=>/^https:\/\/(www\.pexels\.com|unsplash\.com|doi\.org|creativecommons\.org)\//.test((link as HTMLAnchorElement).href)&&(link as HTMLAnchorElement).rel.includes("noopener")))).toBe(true);
 });
 
-test("on phones a demo bar follows the reader between the hero and the closing scene",async({page})=>{
+test("on phones a demo bar follows the reader between the hero and the closing chapter",async({page})=>{
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.setViewportSize({width:390,height:844});await page.goto("/");
  const bar=page.getByTestId("demo-bar");
@@ -164,7 +165,7 @@ test("on phones a demo bar follows the reader between the hero and the closing s
  await expect(bar).toHaveAttribute("data-shown","true");
  await expect(bar.locator("a")).toHaveAttribute("href","/demo");await expect(bar.locator("a")).toHaveText("デモを体験する →");
  await expect(bar.locator("a")).toBeInViewport();
- await page.locator("#start").scrollIntoViewIfNeeded();
+ await page.locator("#future").scrollIntoViewIfNeeded();
  await expect(bar).toHaveAttribute("data-shown","false");
  await page.setViewportSize({width:1440,height:900});
  await expect(bar).toBeHidden();
