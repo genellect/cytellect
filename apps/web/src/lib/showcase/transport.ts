@@ -76,6 +76,7 @@ export function journalPathMatches(recorded: string, actual: string): boolean {
 }
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
+const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
 /** The parts of the saved settings a measurement depends on. */
 export function conditions(spec: unknown): unknown {
   const value = spec as Record<string, unknown> | null;
@@ -110,7 +111,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
   let settings: {version: number; spec: unknown} | null = null;
   // What this device was last given for each read, as a recorded file (snapshot or tour).
-  const seen = new Map<string, JournalEntry | "snapshot">();
+  const seen = new Map<string, JournalEntry | "snapshot" | {device: unknown}>();
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<() => void>();
   const publish = (next: Partial<ShowcaseState>) => {state = {...state, ...next}; listeners.forEach(listener => listener());};
@@ -209,7 +210,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       return new Response(JSON.stringify(settings), {status: 200, headers: {"content-type": "application/json"}});
     }
     // Until a change has been answered, reads come from the opening snapshot without the tour.
-    if (reading(method) && !journaled) return null;
+    if (reading(method) && !journaled) {const held = seen.get(path); return held && typeof held === "object" && "device" in held ? heldRead(path) : null;}
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
     if (!reading(method)) {
@@ -217,13 +218,18 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       // A run is measured under the saved settings, which its request does not carry: a recorded
       // run answers only when the settings it was recorded under are the visitor's.
       const current = RUNS.test(path) ? JSON.stringify(conditions(settings?.spec ?? await seedSettings())) : null;
-      const matches = (entry: JournalEntry, position: number) => entry.method === method && !SETTINGS.test(entry.path)
-        && journalPathMatches(entry.path, path) && journalBodyMatches(entry.body, body)
+      const matches = (entry: JournalEntry, position: number, recorded = entry.path) => entry.method === method && !SETTINGS.test(entry.path)
+        && journalPathMatches(recorded, path) && journalBodyMatches(entry.body, body)
         && (current === null || journalBodyMatches(JSON.stringify(conditions(recordedSettings(entries, position) ?? seed)), current));
       const seed = current === null ? null : await seedSettings();
       let index = entries.findIndex((entry, position) => position > cursor && matches(entry, position));
-      if (index < 0) index = entries.findIndex(matches);
-      if (index < 0) return null;
+      if (index < 0) index = entries.findIndex((entry, position) => matches(entry, position));
+      // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
+      // same request recorded in another scene is found by its pattern, only when no path matches.
+      const patterned = (entry: JournalEntry, position: number) => !!entry.pattern && matches(entry, position, entry.pattern);
+      if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
+      if (index < 0) index = entries.findIndex(patterned);
+      if (index < 0) return method === "POST" && SELECTION.test(path) ? adoptOnDevice(path, body) : null;
       cursor = index; journaled = true;
       // The device now holds what this change wrote, not what it read before.
       seen.delete(path);
@@ -250,13 +256,45 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const unchanged = before !== null && before.file === entries[after].file && before.status === entries[after].status;
       if (!(unchanged && previous)) return remember(path, entries[after]);
     }
-    if (previous) return previous === "snapshot" ? recorded(path) : answer(previous);
+    if (previous) return heldRead(path);
     // Else the scene's next read of it (what the change wrote), else the latest recorded read before,
     // else one recorded later (a resource another scene created).
     for (let index = end; index < entries.length && entries[index].scene === entries[cursor].scene; index++) if (read(index)) return remember(path, entries[index]);
     for (let index = end - 1; index >= 0; index--) if (read(index)) return remember(path, entries[index]);
     for (let index = end; index < entries.length; index++) if (read(index)) return remember(path, entries[index]);
     return null;
+  }
+  /** What this device already has for a read: the opening snapshot, a recorded read, or its own adoption. */
+  function heldRead(path: string): Promise<Response | null> {
+    const value = seen.get(path);
+    if (value === "snapshot") return recorded(path);
+    if (value && "device" in value) return Promise.resolve(new Response(JSON.stringify(value.device), {status: 200, headers: {"content-type": "application/json"}}));
+    return value ? answer(value) : Promise.resolve(null);
+  }
+  /**
+   * Adoption is bookkeeping of which adopted revision each field shows; it measures nothing. When no
+   * recorded adoption matches (the visitor's measurements and analyses came in another order), the
+   * device applies the API's rule for the one case the replay can: each field switches to a revision
+   * it has already adopted for some target, with the same fields, identities and exclusions.
+   */
+  async function adoptOnDevice(path: string, body: string | null): Promise<Response | null> {
+    const held = await heldRead(path) ?? (journaled ? null : await recorded(path));
+    if (!held || !held.ok) return null;
+    type Entry = {id?: string; field_id?: string; revision_id?: string | null; exclusion_reason?: string | null; target_revisions?: Record<string, string>};
+    let current: {version: number; entries: Entry[]}, written: {version?: unknown; entries?: Entry[]};
+    try {current = await held.json(); written = JSON.parse(body ?? "null");} catch {return null;}
+    if (!written || written.version !== current.version || !Array.isArray(written.entries) || written.entries.length !== current.entries.length) return null;
+    const entries: Entry[] = [];
+    for (const [index, before] of current.entries.entries()) {
+      const after = written.entries[index];
+      if (after.id !== before.id || after.field_id !== before.field_id || (after.exclusion_reason ?? null) !== (before.exclusion_reason ?? null)) return null;
+      const adopted = Object.values(before.target_revisions ?? {});
+      if (after.revision_id !== before.revision_id && !adopted.includes(after.revision_id ?? "")) return null;
+      entries.push({...before, revision_id: after.revision_id});
+    }
+    const next = {version: current.version + 1, entries};
+    seen.set(path, {device: next});
+    return new Response(JSON.stringify(next), {status: 200, headers: {"content-type": "application/json"}});
   }
   function remember(path: string, entry: JournalEntry) {
     seen.set(path, entry);

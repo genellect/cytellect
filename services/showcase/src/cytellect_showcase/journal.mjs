@@ -61,7 +61,11 @@ function keep(entries, scene, exchange) {
     }
   }
   const settings = change && SETTINGS.test(exchange.path);
-  entries.push({scene, method: exchange.method, path: where, body, status: exchange.status,
+  // Identifiers the API generated in this scene (a cohort, a job) differ between scenes; the replay
+  // matches a change by its exact path first and by this pattern only when none matches.
+  const pattern = change && UUID.test(where) ? where.replace(UUID, id => generated(id) ? "*" : id) : undefined;
+  UUID.lastIndex = 0;
+  entries.push({scene, method: exchange.method, path: where, ...(pattern && pattern !== where ? {pattern} : {}), body, status: exchange.status,
     headers: KEEP_HEADERS.filter(name => headers[name] !== undefined).map(name => [name, headers[name]]), file: settings ? null : file});
 }
 

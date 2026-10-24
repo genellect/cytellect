@@ -15,7 +15,7 @@ export interface RuntimeConfig {
 /** `snapshot/journal.json`: the demo tour recorded in order through the in-browser API, scene by scene.
  *  `body` is the request body (JSON text) with client-generated identifiers written as "*"; null matches any body.
  *  `PUT .../analysis-spec` entries record the settings later runs of the scene were measured under. */
-export interface JournalEntry {scene?: string; method: string; path: string; body: string | null; status: number; headers: HeaderList; file: string | null}
+export interface JournalEntry {scene?: string; method: string; path: string; pattern?: string; body: string | null; status: number; headers: HeaderList; file: string | null}
 export interface Journal {version: 1; entries: JournalEntry[]}
 
 /** `snapshot/index.json`: recorded initial GET responses. */
