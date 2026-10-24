@@ -447,13 +447,15 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associatio
     await expect(results.locator("table").first()).toBeVisible();
     await expect(notRecorded(page)).toHaveCount(0);
   }
+  // The last result's figure.
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  await renderFigure(page);
   // Brightness with saturated pixels is not offered for comparison, with its reason, instead of failing.
+  await header.getByRole("button", {name: "統計", exact: true}).click();
   await side.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
   await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("mean");
   await side.getByRole("combobox", {name: "染色", exact: true}).selectOption("hoechst");
-  await expect(operation.locator("option[value=comparison]")).toBeDisabled();
-  await header.getByRole("button", {name: "グラフ", exact: true}).click();
-  await renderFigure(page);
+  await expect(operation.locator("option[value=comparison]")).toHaveAttribute("disabled", "");
   await noErrors(page, watch);
 });
 
