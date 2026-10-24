@@ -1,6 +1,6 @@
 # LP の美術方針：サイエンスと世界観を世界一流の表現にする
 
-状態：オーナー承認済み（2026-10-23）。LP の見た目と素材に関する正本。[interface-design.md](interface-design.md)、[development-standards.md](development-standards.md)、[lp-optical-preview.md](lp-optical-preview.md) と食い違う場合は、この文書に従う。
+状態：オーナー承認済み（2026-10-23）。LP の見た目と素材に関する正本。[interface-design.md](interface-design.md)、[開発の原則](development-principles.md)、[lp-optical-preview.md](lp-optical-preview.md) と食い違う場合は、この文書に従う。
 
 この文書は、人とエージェント（Claude Code、Codex）が同じ前提で作業するための引き継ぎも兼ねる。作業を始める前に全体を読むこと。
 

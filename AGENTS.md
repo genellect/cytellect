@@ -18,7 +18,7 @@ Cytellect は、顕微鏡画像の解析から統計、論文用グラフの作�
 
 ## 作業の手順
 
-1. この文書、[CLAUDE.md](CLAUDE.md) などツール固有の指示、対象ディレクトリの指示を読む。動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[データ保護](docs/security.md)と、[Development standards](docs/development-standards.md) の該当する節も読む。
+1. この文書、[CLAUDE.md](CLAUDE.md) などツール固有の指示、対象ディレクトリの指示を読む。[開発の原則](docs/development-principles.md)は、作業に関係する節を必ず読む。動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[データ保護](docs/security.md)の該当する節も読む。
 2. `git status` で未コミットの作業を確認し、`git fetch origin main` を実行する。新しいブランチは最新の `origin/main` から作成し、名前は `<種類>/<内容>`（種類は `feat`、`fix`、`docs`、`test`、`chore`）とする。継続中のブランチには merge または安全な rebase で `main` を取り込む。他者の変更や未コミットの作業は保持する。
 3. タスクごとの worktree または独立した checkout で作業し、他の人やエージェントが使用中の checkout は編集しない。並行作業では、割り当てられたファイルの範囲だけを変更する。
 4. 1 つの目的に絞って変更し、関連する仕様・テスト・文書を同じ PR で更新する。無関係な修正は混ぜない。

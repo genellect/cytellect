@@ -4,7 +4,7 @@
 
 ## 日本語
 
-Cytellect の開発に参加するメンバーのためのルールです。開発の進め方、Git の運用、研究データの扱いを定めます。セットアップと検証コマンドは [CONTRIBUTING.md](../CONTRIBUTING.md)、技術上の基準は [Development standards](development-standards.md) を参照してください。AI エージェント向けの指示は [AGENTS.md](../AGENTS.md) にあり、この文書と同じ内容を前提にしています。
+Cytellect の開発に参加するメンバーのためのルールです。開発の進め方、Git の運用、研究データの扱いを定めます。人も AI エージェントも守る原則は[開発の原則](development-principles.md)、開発環境の構築と起動は [CONTRIBUTING](../CONTRIBUTING.md) にまとめています。AI エージェント向けの指示は [AGENTS.md](../AGENTS.md) にあり、この文書と同じ内容を前提にしています。
 
 ### 1. 役割
 
@@ -82,7 +82,7 @@ Cytellect の開発に参加するメンバーのためのルールです。開�
 
 ## English
 
-These rules apply to everyone contributing to Cytellect. They define how we work, how we use Git and how we handle research data. See [CONTRIBUTING.md](../CONTRIBUTING.md) for setup and validation commands and [Development standards](development-standards.md) for technical standards. Instructions for AI agents are in [AGENTS.md](../AGENTS.md) and are consistent with this document.
+These rules apply to everyone contributing to Cytellect. They define how we work, how we use Git and how we handle research data. The principles that people and AI agents follow are in [Development principles](development-principles.md) (Japanese), and setting up a development environment is covered in [CONTRIBUTING](../CONTRIBUTING.md) (Japanese). Instructions for AI agents are in [AGENTS.md](../AGENTS.md) and are consistent with this document.
 
 ### 1. Roles
 
