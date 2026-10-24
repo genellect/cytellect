@@ -393,6 +393,27 @@ describe("recorded tour across scenes", () => {
     // A figure or package names no content of its own: another job's recording never answers it.
     expect((await transport.fetch(`/v1/jobs/${JOB}/figure-render`, {method: "POST", body: JSON.stringify({width: 89})})).status).toBe(409);
   });
+  it("keeps listing a job another scene gave this visitor, so a reused cohort is still found", async () => {
+    const transport = subject({
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/jobs")]: {status: 200, headers: [], file: "seed.json"}}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "nucleoplasm"}), "cohort-a.json", "count"),
+        entry("GET", "/v1/workspaces/w/jobs", null, "jobs-a.json", "count"),
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "nucleoli"}), "cohort-b.json", "mean"),
+        entry("GET", "/v1/workspaces/w/jobs", null, "jobs-b.json", "mean"),
+      ]},
+      "seed.json": [{id: "seed", state: "succeeded"}],
+      "cohort-a.json": {job_id: "a"}, "jobs-a.json": [{id: "seed", state: "succeeded"}, {id: "a", state: "succeeded"}],
+      "cohort-b.json": {job_id: "b"}, "jobs-b.json": [{id: "seed", state: "succeeded"}, {id: "b", state: "succeeded"}],
+    });
+    const ids = async () => ((await (await transport.fetch("/v1/workspaces/w/jobs")).json()) as Array<{id: string}>).map(job => job.id);
+    expect(await ids()).toEqual(["seed"]);
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "nucleoplasm"})});
+    expect(await ids()).toEqual(["seed", "a"]);
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "nucleoli"})});
+    // Scene "mean" recorded no job "a"; the API would still list it, and the client may reuse it.
+    expect(await ids()).toEqual(["seed", "b", "a"]);
+  });
   it("switches a field to a revision it already adopted on the device, and nothing else", async () => {
     const selection = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};
     const transport = subject({

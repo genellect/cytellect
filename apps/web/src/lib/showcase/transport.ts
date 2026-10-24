@@ -77,6 +77,7 @@ export function journalPathMatches(recorded: string, actual: string): boolean {
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
 const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
+const JOBS = /^\/v1\/workspaces\/[^/?]+\/jobs$/;
 /** Statistics of an analysis version (a cohort): the request names what it calculates, so the same
  * request on another cohort of identical content is the same calculation. Figures and packages are
  * not: their request does not say which result they draw or package. */
@@ -117,6 +118,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let settings: {version: number; spec: unknown} | null = null;
   // What this device was last given for each read, as a recorded file (snapshot or tour).
   const seen = new Map<string, JournalEntry | "snapshot" | {device: unknown; at: number}>();
+  // Every job a workspace's job list has shown this device, by list path and job id.
+  const jobs = new Map<string, Map<string, unknown>>();
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<() => void>();
   const publish = (next: Partial<ShowcaseState>) => {state = {...state, ...next}; listeners.forEach(listener => listener());};
@@ -300,6 +303,23 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     for (let index = end; index < entries.length; index++) if (read(index)) return remember(path, entries[index]);
     return null;
   }
+  /**
+   * The API keeps every job of a workspace, and a client may reuse a job it was given earlier (the
+   * same cohort for another measure of the same revisions). A list recorded in another scene lacks
+   * the jobs of this visitor's earlier scenes, so the jobs it showed this device stay listed.
+   */
+  async function withKnownJobs(path: string, response: Response | null): Promise<Response | null> {
+    if (!response?.ok || !JOBS.test(path)) return response;
+    let listed: unknown;
+    try {listed = await response.json();} catch {return null;}
+    if (!Array.isArray(listed)) return null;
+    const known = jobs.get(path) ?? new Map<string, unknown>();
+    jobs.set(path, known);
+    const ids = new Set<string>();
+    for (const job of listed as Array<{id?: unknown}>) if (typeof job?.id === "string") {ids.add(job.id); known.set(job.id, job);}
+    const merged = [...listed, ...[...known].filter(([id]) => !ids.has(id)).map(([, job]) => job)];
+    return new Response(JSON.stringify(merged), {status: response.status, headers: {"content-type": "application/json"}});
+  }
   /** What this device already has for a read: the opening snapshot, a recorded read, or its own adoption. */
   function heldRead(path: string): Promise<Response | null> {
     const value = seen.get(path);
@@ -374,7 +394,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const text = async () => isRead || init.body === undefined || init.body === null ? null : new TextDecoder().decode((await bodyBytes(init.body)) ?? undefined);
       if (!dependencies.record) {
         // Decisions are taken in request order, so a read issued after a change sees that change.
-        const decided = gate.then(async () => await fromJournal(method, path, await text()) ?? (isRead ? await fromSnapshot(path) : null));
+        const decided = gate.then(async () => {
+          const found = await fromJournal(method, path, await text()) ?? (isRead ? await fromSnapshot(path) : null);
+          return isRead ? withKnownJobs(path, found) : found;
+        });
         gate = decided.catch(() => null);
         const answered = await decided;
         if (signal?.aborted) throw abortError();
