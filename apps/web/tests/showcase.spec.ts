@@ -302,11 +302,9 @@ test("phones run the guided operations from the recorded tour", async ({page}) =
   expect((await download).suggestedFilename()).toBe("Cytellect-publication.zip");
   expect(await alerts(page)).toEqual([]);
 
-  // A setting outside the tour is explained, not failed.
-  await figure.getByRole("combobox", {name: "図の幅", exact: true}).selectOption("custom");
-  await figure.getByRole("spinbutton", {name: "幅 / mm"}).fill("120");
-  await update.click();
-  await expect(page.getByRole("status").filter({hasText: "公開デモに記録していません"})).toBeVisible({timeout: live});
+  // Free figure sizes cannot be recorded, so the demo offers the recorded widths only.
+  await expect(figure.getByRole("combobox", {name: "図の幅", exact: true}).locator("option[value=custom]")).toHaveCount(0);
+  await expect(figure.getByRole("spinbutton", {name: "幅 / mm"})).toBeDisabled();
   // The phone never downloaded the in-browser API.
   expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
   await noErrors(page, watch);
@@ -408,14 +406,54 @@ test("operations the recording does not hold are explained at once, without the 
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const inspector = await openSettings(page);
-  // Measured under settings the recording does not hold.
-  await inspector.getByRole("combobox", {name: "背景補正", exact: true}).selectOption("automatic");
+  // Conditions the recording cannot cover are fixed to the recorded ones, with a note.
+  await expect(inspector.getByRole("combobox", {name: "背景補正", exact: true})).toBeDisabled();
+  await expect(inspector.getByRole("combobox", {name: "核染色", exact: true})).toBeDisabled();
+  await expect(inspector.getByText("公開デモでは、記録した検出条件で解析します。")).toBeVisible();
+  await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
+  // A hand correction of an outline is explained at once.
+  await selectRegion(page, (await largestRegion(page)).id);
   const started = Date.now();
-  await header.getByRole("button", {name: "測定", exact: true}).click();
+  await page.getByRole("button", {name: "選択領域を削除", exact: true}).click();
   await expect(notRecorded(page)).toBeVisible({timeout: 5000});
   expect(Date.now() - started).toBeLessThan(5000);
   await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
   expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
+  await noErrors(page, watch);
+});
+
+test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associations, show results without errors", async ({page}) => {
+  test.setTimeout(600_000);
+  const watch = await openDemo(page);
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  await header.getByRole("button", {name: "統計", exact: true}).click();
+  const side = page.getByRole("complementary", {name: "解析対象"});
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await expect(results.locator("table").first()).toBeVisible({timeout: live});
+  const operation = results.getByRole("combobox", {name: "解析", exact: true});
+  const cases: Array<[string, string, string | null, string]> = [
+    ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],
+    ["nucleoplasm", "mean", "npm1", "distribution"], ["nuclei", "nucleolar_count", null, "comparison"],
+    ["nuclei", "nucleolar_area_fraction", null, "distribution"], ["nuclei", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
+    ["nuclei", "mean", "npm1", "association"], ["nuclei", "area_px", null, "association"],
+  ];
+  for (const [region, metric, channel, kind] of cases) {
+    await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
+    await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
+    if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
+    await operation.selectOption(kind);
+    await calculate(page);
+    await expect(results.locator("table").first()).toBeVisible();
+    await expect(notRecorded(page)).toHaveCount(0);
+  }
+  // Brightness with saturated pixels is not offered for comparison, with its reason, instead of failing.
+  await side.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
+  await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("mean");
+  await side.getByRole("combobox", {name: "染色", exact: true}).selectOption("hoechst");
+  await expect(operation.locator("option[value=comparison]")).toBeDisabled();
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  await renderFigure(page);
   await noErrors(page, watch);
 });
 
