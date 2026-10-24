@@ -12,7 +12,7 @@ Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に
 
 Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意します。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使います。図の描画には日本語フォントを使うため、Linux では `fonts-noto-cjk` も入れておきます。
 
-研究室の未発表データは checkout の外で管理し、開発環境や CI、開発用の AI には渡しません（[チーム開発ルール §6](docs/team-development.md)）。
+非公開の研究データ（研究室の未発表画像、正解の輪郭、測定表など）は checkout の外で管理し、コード、CI、開発用の AI には含めません。認証情報も同じです。区分と扱いは[チーム開発ルール §6](docs/team-development.md#6-研究データの扱い)で定めています。
 
 ## ローカルで動かす
 
@@ -46,7 +46,7 @@ Claude Code や Codex のクラウド環境では、環境の設定にセット�
 
 Claude Code では、作業を始めるシェルで `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行すると、固定版の Node.js とブラウザの試験に使う Chromium が使えるようになります。Fiji も必要なら、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップします。図の描画に使う日本語フォント（`fonts-noto-cjk`）も、環境の設定で導入しておきます。
 
-クラウド環境で扱うのは、公開パッケージと公開データです。研究データや認証情報は置きません。
+クラウド環境で扱うのは、公開パッケージと公開データです。非公開の研究データや認証情報は置きません。
 
 ## PR を出す前に
 
