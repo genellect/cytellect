@@ -1,50 +1,57 @@
-# Contributing
+# 開発への参加
 
-Read the [team development rules](docs/team-development.md) and [requirements](docs/requirements.md). AI agents also follow [AGENTS.md](AGENTS.md). Keep all unpublished research data outside the checkout and CI. Public published data must have a source, accurate channel metadata and a documented use scope. Publicly redistributed assets additionally require a verified redistribution basis and SHA-256 entry.
+Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に沿って進めます。開発の流れ、Git とレビューの運用、研究データの扱い、AI エージェントとの協働まで、まずはこちらに目を通してください。この文書では、開発環境を立ち上げて最初の PR を出すまでを案内します。
 
-Install Python 3.12 / Node.js 24, then `uv sync --locked --dev` and `pnpm install --frozen-lockfile`. Run `uv run pytest -m "not fiji"`, `uv run ruff check .`, `uv run mypy packages/analysis/src services`, `pnpm check`, `pnpm test`, and `pnpm build`. Engine changes also require `CYTELLECT_FIJI_EXECUTABLE` and `uv run pytest -m fiji`.
+計算・統計・データ・画面に関わる変更では[開発の技術基準](docs/development-standards.md)を、PR でどの CI ジョブが実行されるかは[CI の構成](docs/ci.md)を参照してください。
 
-Regenerate the API contract and default recipe with `uv run cytellect openapi --output packages/contracts/openapi.json --recipe-defaults apps/web/src/lib/recipe-defaults.json` using a scratch runtime, then `pnpm contracts`. Commit OpenAPI, the default recipe JSON and generated TypeScript together.
+## 必要な環境
 
-Dependency and public-source checks use the same locked environment. Choose
-private output/cache directories outside the checkout for these commands:
+Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意します。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使います。図の描画には日本語フォントを使うため、Linux では `fonts-noto-cjk` も入れておきます。
 
-```sh
-uv run python scripts/check_public_tree.py
-uv run python scripts/check_docs.py
-uv run python scripts/sbom.py --output /private/checks/dependency-inventory.json --web-notices /private/checks/THIRD_PARTY_WEB_NOTICES.txt
-uv run pip-audit --local --format cyclonedx-json --output /private/checks/python.cdx.json
-pnpm audit --prod --audit-level high
-uv run python scripts/scan_secrets.py --repo . --cache-dir /private/security-tools --output /private/checks/secrets.json
+研究データと認証情報は、[チーム開発ルール §6](docs/team-development.md#6-研究データの扱い)に従って扱います。
+
+## ローカル開発
+
+依存パッケージと Fiji は一つのコマンドで揃います。Cellpose-SAM（約 2.5 GB）も使う場合は、続けて導入します。導入先はどちらも checkout の外を指定します。
+
+```bash
+python3 scripts/dev.py setup --fiji ~/cytellect-fiji
+python3 scripts/dev.py setup --cellpose ~/cytellect-cellpose
 ```
 
-The secret scanner requires full Git history, verifies its pinned tool archive,
-and scans history plus the tracked working files. CI uses `fetch-depth: 0` and
-retains aggregate counts/rule IDs only. Missing Python license evidence or a
-missing direct Web license text fails the inventory gate; classification and
-notice collection are evidence checks, not legal compatibility approval. See
-[OSS management](docs/oss.md) for scope. Safe dependency/notice and scanner-summary
-artifacts expire after seven days; never add raw findings, logs or research data
-to artifact upload paths.
+API、計算ワーカー、Web は、それぞれ別の端末で起動します。API とワーカーの端末では、最初に同じ環境変数を設定してください。
 
-PRs describe purpose, scientific impact, checks performed and remaining limitations. Scientific behavior changes need a versioned recipe/method explanation and numerical tests. Do not replace independent experiment replication with cell counts, tune thresholds for significance, or silently omit failed fields.
+```bash
+export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
+uv run cytellect invite --hours 24   # 招待コードを発行（初回のみ）
+uv run cytellect serve               # 端末 1：API
+uv run cytellect-worker              # 端末 2：計算ワーカー
+pnpm dev                             # 端末 3：Web
+```
 
-## CI scope
+ブラウザで `http://localhost:3000/workspace` を開き、招待コードを入力すればワークスペースに入れます。API は接続元の Origin を厳密に照合するため、アドレスは `127.0.0.1` ではなく `localhost` を使います。Cellpose-SAM を導入した場合は、`setup` が最後に表示する `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` も、API とワーカーの端末で設定します。
 
-Pull requests run only the jobs their changed paths can affect. `scripts/ci_changes.py` maps paths to five areas:
+## クラウド開発
 
-| Area | Jobs | Selected by |
-|---|---|---|
-| `python` | Ruff, mypy, Linux test suite, planning/proposal/asset checks, dependency audit and SBOM | analysis, API, worker, scripts, tests, engines, infra |
-| `web` | contract regeneration, Next.js checks and build, proposal Worker, public-site browser tests | `apps/web`, contracts, proposal Worker, analysis/API/worker |
-| `lp` | Next.js checks and build, landing-page browser tests (`marketing`, `public-demo`, `lp-*`) | landing-page components, media and tests only; dropped whenever `web` is selected |
-| `fiji` | real Fiji, API/browser workflow, containers, local web bundle | `apps/web`, contracts, analysis/API/worker, scripts, tests, Fiji engine, infra |
-| `windows` | Windows setup/launcher tests and the Python 3.14 Windows suite | analysis/API/worker, scripts, tests, engines, local-export scripts |
+Claude Code や Codex のクラウド環境では、環境の設定にセットアップスクリプトを登録しておくと、依存パッケージが揃った状態で作業を始められます。
 
-The public landing page is the exception within `apps/web`: its components (`PublicLanding`, `Landing*`, `HeroFilm`, `optical-landing.module.css`), `lp-metrics` and its browser tests (`marketing`, `lp-*`) select only `lp`; its media (`apps/web/public/marketing/**`) and `fixtures/public/allowlist.json` select `python` and `lp`, because the media ship in the Windows bundle whose boundary the Python suite checks. The `lp` job skips contract regeneration, the proposal Worker, the demo browser tests and the dependency evidence, and restores the pnpm store and the test browser from cache. Because the `web` job runs the same landing-page tests, `lp` is dropped whenever `web` is selected, including every push to `main`. The offline hero-film scripts (`scripts/lp_film/**`) select no area.
+| ツール | セットアップスクリプト |
+|---|---|
+| Claude Code | `bash .claude/cloud-setup.sh` |
+| Codex | `bash .codex/setup.sh` |
 
-Documentation (`docs/**`, root-level Markdown, `LICENSE`, `NOTICE`) selects no area. The public-tree check, documentation links and the full-history secret scan always run, and the packaged-documentation tests run whenever the Python suite does not. Skipped jobs report success to branch protection.
+Claude Code では、作業を始めるシェルで `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行すると、固定版の Node.js とブラウザの試験に使う Chromium が使えるようになります。Fiji も必要なら、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップします。図の描画に使う日本語フォント（`fonts-noto-cjk`）も、環境の設定で導入しておきます。
 
-Workflows, lockfiles, package manifests, the rest of `fixtures/` and any unlisted path select every area. So do every merge-queue run, every push to `main` and every manual run, so each `main` commit keeps the complete evidence that the Windows release workflow requires. When adding a top-level directory, add it to the rules and their tests.
 
-The three integration jobs — `fiji-browser` (real Fiji, API/browser workflow, containers, local web bundle), `cellpose-gpu-image` and `windows-installed` (fresh install and update of the packaged Windows release) — do not run on pull requests. They run on every push to `main`, in the merge queue and on manual runs. The Windows release workflow requires all seven jobs, these three included, to have passed on the exact `main` commit it releases, so a release is never built from a commit they did not verify. A failure on `main` is fixed or reverted before the next release.
+## PR を出す前に
+
+`check` は、PR の CI と同じ検査を手元で再現します。変更の内容に応じて、次のコマンドを実行してください。
+
+```bash
+python3 scripts/dev.py check           # すべての変更で（python や web に絞ることもできます）
+python3 scripts/dev.py check --fiji    # 解析エンジンを変えたとき、実際の Fiji での試験も
+python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既定レシピ、TypeScript の型を一緒にコミット）
+python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
+```
+
+ブラウザ、コンテナ、Windows の統合試験は CI が担います（[CI の構成](docs/ci.md)）。PR の説明は[テンプレート](.github/pull_request_template.md)に沿って、変更の内容、科学的な影響、検証、残る課題を書きます。

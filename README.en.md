@@ -2,7 +2,9 @@
 
 **Get your microscopy publication-ready.**
 
-[日本語](README.md) · [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
+[![Cytellect](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
+
+[日本語](README.md) · [Product site](https://cytellect.vercel.app/) · [Live demo](https://cytellect.vercel.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md) · [Documentation](docs/README.md)
 
 Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
 
@@ -38,17 +40,31 @@ flowchart TB
 
 API data types are defined with Pydantic, and the frontend TypeScript types are generated from OpenAPI. Analysis settings, masks, measurements, statistics and figures are linked by version, so earlier results and their calculation conditions remain available after a model or setting changes.
 
+### Repository layout
+
+| Directory | Contents |
+|---|---|
+| `apps/web` | Web workspace and public site (Next.js) |
+| `packages/analysis` | Shared detection, measurement, statistics and figure code |
+| `packages/contracts` | API type definitions (OpenAPI) |
+| `services` | Analysis API, calculation worker and LLM relay |
+| `engines` | Fiji and Cellpose-SAM runtimes |
+| `infra` | Docker configuration |
+| `scripts` | Setup and verification |
+| `tests` | Tests |
+| `docs` | Specifications and operations |
+
 ## Image recognition and measurement
 
 Nuclei are detected with StarDist in Fiji; nucleoli and cell regions with Cellpose-SAM in PyTorch. Cellpose-SAM is built on SAM ViT-L and separates individual objects from a flow field and a foreground probability.
 
-For NCL-stained images, a background-estimated and normalized image is prepared for each nucleus and passed to Cellpose-SAM. After inference, candidates that capture the whole nucleus are removed, and boundaries are refined with Multi-Otsu, a distance transform and Watershed.
+Subcellular structures are detected by hierarchical instance segmentation inside already-detected parent regions. Cellpose-SAM runs on each parent's background-estimated, normalized crop; candidates that capture the parent itself are discarded, and Multi-Otsu, distance transforms and watershed refine the boundaries.
 
 Detection masks are stored as integer labels in the same coordinate system as the original image. Each nucleolus carries its parent nucleus ID, and outline display, manual correction and area/intensity calculations all refer to these labels. Detection and display images are kept separate from the original measurement pixels, so background removal or normalization applied to the detection copy does not change the measurement input.
 
 The Fiji/TensorFlow Java and Cellpose-SAM/PyTorch inference environments are independent. Each pins its dependencies and models and verifies their hashes at run time.
 
-**Fine-tuning** uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
+Fine-tuning uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
 
 ## Web workspace
 
@@ -57,8 +73,6 @@ Image editing runs on SVG and uses the original image coordinates, including dur
 The graph editor imports Matplotlib SVG and maps axis and series selections to an editing panel. Changing colors or axes only redraws the figure; it does not rerun measurements or tests. Imported SVG is stripped of executable elements and external references, and element IDs are separated so that multiple figures do not collide.
 
 Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
-
-The public site uses Three.js/WebGL. The rendering code is loaded lazily, stops rendering while hidden and releases GPU resources when disposed.
 
 ## LLM and analysis settings
 
@@ -82,9 +96,9 @@ Each run uses its own working directory and child processes. Cancellation or exc
 
 Settings updates are checked against the requester's version and return `409` on conflict. Mask corrections are saved as new versions, and the measurements, statistics and figures that depend on that mask are marked for update.
 
-Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
+Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests. See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
-Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start.
+Images and results that users load are stored in a data area separate from the application code, and the worker manages their retention and deletion ([data protection and operations](docs/security.md)).
 
 ## Distribution
 
@@ -94,30 +108,38 @@ The Docker edition runs the web UI, API and calculation worker in separate conta
 
 The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
-## Development and validation
+## Development
 
-Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling.
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Detailed steps are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
+
+### Local development
 
 Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. To start on Linux:
 
 ```bash
-uv sync --locked --dev
-pnpm install --frozen-lockfile
-uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
+python3 scripts/dev.py setup --fiji ~/cytellect-fiji
 
 export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
 uv run cytellect invite --hours 24
-uv run cytellect serve & uv run cytellect-worker & pnpm dev
+uv run cytellect serve      # terminal 1
+uv run cytellect-worker     # terminal 2 (same environment variables)
+pnpm dev                    # terminal 3
 ```
 
 CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
 
 ```bash
-uv run pytest
-uv run ruff check .
-pnpm check
-pnpm test
+python3 scripts/dev.py check
 ```
+
+### Cloud development
+
+In Claude Code or Codex cloud environments, register the setup script below in the environment settings. Detailed steps, including installing Fiji, are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
+
+| Tool | Setup script |
+|---|---|
+| Claude Code | `bash .claude/cloud-setup.sh` |
+| Codex | `bash .codex/setup.sh` |
 
 ## License
 
