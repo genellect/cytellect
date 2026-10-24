@@ -5,12 +5,12 @@
 - [チーム開発ルール](docs/team-development.md)：開発の流れ、ブランチと PR、レビュー、研究データの区分
 - [要件](docs/requirements.md)と [Development standards](docs/development-standards.md)：実装の目標と、計算・統計・UI・データなど領域ごとの技術基準
 - [AGENTS.md](AGENTS.md)：AI エージェント向けの指示
-- [CI の範囲と検査](docs/ci.md)：PR と `main` で実行されるジョブ、CI だけで行う検査
+- [CI の範囲と検査](docs/ci.md)：PR と `main` で実行されるジョブと統合試験
 
 ## 必要なもの
 
 - Python 3.12、Node.js 24（版は `.node-version`）、pnpm 11.19.0、uv 0.12.2
-- Linux x64 または Windows x64（Fiji の固定版はこの 2 つだけです）
+- Linux x64 または Windows x64（Fiji の固定版を両方に用意しています）
 - 日本語フォント：図の出力とテストに必要です。Linux では `fonts-noto-cjk` を導入してください。
 - 非公開の研究データは checkout の外に置き、開発環境・CI・開発用 AI に渡しません（[チーム開発ルール §6](docs/team-development.md)）。
 
@@ -46,8 +46,8 @@ pnpm dev                             # 端末 3：Web（http://localhost:3000）
 
 - Claude Code では、作業するシェルで最初に `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行します。固定版の Node.js と、環境が用意する Chromium の場所が設定されます。
 - Fiji は既定では導入しません。必要な場合は、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップします。
-- セットアップスクリプトは日本語フォントを導入しません。フォントがない環境では、図を出力するテスト（約 20 件）が `figure_font_glyphs_unavailable` で失敗します。
-- 使ってよいのは公開パッケージと公開データだけです。非公開の研究データや認証情報を、クラウド環境に置かないでください。
+- 図の出力とテストには日本語フォント（`fonts-noto-cjk`）を使います。環境の設定で導入してください。
+- クラウド環境では、公開パッケージと公開データを使います。非公開の研究データや認証情報は置きません。
 
 ## PR を出す前に
 
@@ -60,4 +60,4 @@ python3 scripts/dev.py contracts       # API を変更した場合（OpenAPI・�
 python3 scripts/dev.py audit           # 依存パッケージを変更した場合（結果は checkout の外に出力）
 ```
 
-ブラウザ・コンテナ・Windows の試験は CI だけで実行します（[CI の範囲と検査](docs/ci.md)）。PR は [PR テンプレート](.github/pull_request_template.md)に沿って、変更内容、科学的な影響、検証、残る制約を書きます。計算や統計を変える場合の基準は [Development standards](docs/development-standards.md) に従います。
+ブラウザ・コンテナ・Windows の統合試験は CI で実行します（[CI の範囲と検査](docs/ci.md)）。PR は [PR テンプレート](.github/pull_request_template.md)に沿って、変更内容、科学的な影響、検証、残る制約を書きます。計算や統計を変える場合の基準は [Development standards](docs/development-standards.md) に従います。

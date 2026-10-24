@@ -1,6 +1,6 @@
 # CI scope and checks
 
-How pull-request and `main` CI select jobs, and which checks run only in CI. Local commands are in [CONTRIBUTING](../CONTRIBUTING.md); `python3 scripts/dev.py check` runs the same commands as the `python` and `web` jobs.
+How pull-request and `main` CI select jobs, and the integration checks CI runs. Local commands are in [CONTRIBUTING](../CONTRIBUTING.md); `python3 scripts/dev.py check` runs the same commands as the `python` and `web` jobs.
 
 ## Job selection
 
@@ -22,9 +22,9 @@ Workflows, lockfiles, package manifests, the rest of `fixtures/` and any unliste
 
 The three integration jobs — `fiji-browser` (real Fiji, API/browser workflow, containers, local web bundle), `cellpose-gpu-image` and `windows-installed` (fresh install and update of the packaged Windows release) — do not run on pull requests. They run on every push to `main`, in the merge queue and on manual runs. The Windows release workflow requires all seven jobs, these three included, to have passed on the exact `main` commit it releases, so a release is never built from a commit they did not verify. A failure on `main` is fixed or reverted before the next release.
 
-## CI-only checks
+## Integration checks
 
-The public-site browser tests (`pnpm --filter @cytellect/web exec playwright test …` against `pnpm build` output), the real-Fiji browser workflow, containers and the Windows jobs run only in CI.
+CI runs the public-site browser tests (`pnpm --filter @cytellect/web exec playwright test …` against `pnpm build` output), the real-Fiji browser workflow, containers and the Windows jobs.
 
 ## Dependency inventory and secret scan
 
