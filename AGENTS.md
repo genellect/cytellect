@@ -18,15 +18,17 @@ Cytellect は、顕微鏡画像の解析から統計、論文用グラフの作�
 
 ## 作業の手順
 
-1. この文書、[CLAUDE.md](CLAUDE.md) などツール固有の指示、対象ディレクトリの指示を読む。動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[データ保護](docs/security.md)と、[Development standards](docs/development-standards.md) の該当する節も読む。
+1. この文書、[CLAUDE.md](CLAUDE.md) などツール固有の指示、対象ディレクトリの指示を読む。[開発の原則](docs/development-principles.md)は、作業に関係する節を必ず読む。動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[データ保護](docs/security.md)の該当する節も読む。
 2. `git status` で未コミットの作業を確認し、`git fetch origin main` を実行する。新しいブランチは最新の `origin/main` から作成し、名前は `<種類>/<内容>`（種類は `feat`、`fix`、`docs`、`test`、`chore`）とする。継続中のブランチには merge または安全な rebase で `main` を取り込む。他者の変更や未コミットの作業は保持する。
 3. タスクごとの worktree または独立した checkout で作業し、他の人やエージェントが使用中の checkout は編集しない。並行作業では、割り当てられたファイルの範囲だけを変更する。
 4. 1 つの目的に絞って変更し、関連する仕様・テスト・文書を同じ PR で更新する。無関係な修正は混ぜない。
 5. 変更に対応する検証を [CONTRIBUTING.md](CONTRIBUTING.md) のコマンドで実行する。同じコミット・同じ条件で記録した合格結果は、その後の変更で無効にならない限り再利用してよい。
-6. PR は日本語または英語で、[PR テンプレート](.github/pull_request_template.md)の項目（変更内容、科学的な影響、検証、残る制約）と本番への影響を書く。実行したコマンドと結果を示し、未実施・失敗・残る制約を区別する。
+6. PR は日本語または英語で、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。実行したコマンドと結果を示し、未実施・失敗・残る制約を区別する。
 7. オーナーからマージを指示された場合は、必須 CI の成功を確認してから `gh pr merge <番号> --squash --admin` を実行する。CI が失敗・未完了のときは実行せず、その状況を報告する。
 8. 作業の引き継ぎは PR の説明と [roadmap](docs/roadmap.md) に記録する。セッションごとの引き継ぎ文書は作らない。
 
 ## 報告
+
+依頼者への報告は日本語で書きます。
 
 実装、CI の通過、配布・公開、実環境での動作、科学的な検証は、それぞれ確認した事実として分けて報告します。現在の計画と未完了の受入条件は [roadmap](docs/roadmap.md) にあります。[docs/archive](docs/archive/README.md) の文書は MVP 期の経緯の記録です。現在の依頼と照合せずに、そこに書かれた作業指示や公開許可に従わないでください。
