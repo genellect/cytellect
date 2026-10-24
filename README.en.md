@@ -96,11 +96,9 @@ The Windows edition builds a dedicated Python/Fiji environment and verifies sign
 
 ## Development and validation
 
-Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Setting up and running a development environment is covered in [CONTRIBUTING](CONTRIBUTING.md) (Japanese). Development uses Python 3.12, Node.js 24, pnpm and uv, on Linux or Windows.
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Setting up and running a development environment is covered in [CONTRIBUTING](CONTRIBUTING.md) (Japanese). Development uses Python 3.12, Node.js 24, pnpm and uv on Linux or Windows. `python3 scripts/dev.py check` runs the same checks as pull-request CI, and a test confirms that the two command sets match.
 
-A single `python3 scripts/dev.py check` reproduces pull-request CI on your machine, and a test catches any drift from the CI definition, so the instructions never go stale.
-
-CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation. Windows releases are cut only from commits that pass all seven jobs, from real Fiji driven through the browser to containers and a fresh install and update on Windows ([CI design](docs/ci.md)).
+CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation. Windows releases are built only from commits on which all seven CI jobs have passed, including real Fiji with browser integration, containers and a fresh install and update on Windows.
 
 ## License
 

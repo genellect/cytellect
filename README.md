@@ -96,11 +96,9 @@ Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物の
 
 ## 開発・検証
 
-開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。開発環境の構築と起動は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。Python 3.12、Node.js 24、pnpm、uv を使い、Linux と Windows のどちらでも開発できます。
+開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。開発環境の構築と起動は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。Python 3.12、Node.js 24、pnpm、uv を使い、Linux と Windows で開発できます。`python3 scripts/dev.py check` は PR の CI と同じ検査を実行し、両者のコマンドが一致していることはテストで確認しています。
 
-`python3 scripts/dev.py check` 一つで、PR の CI と同じ検査を手元で再現できます。CI の定義とのずれはテストが検出するため、手順は常に最新に保たれます。
-
-CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。Windows 版は、実際の Fiji とブラウザによる操作、コンテナ、Windows への導入と更新までを検証する 7 つのジョブをすべて通過したコミットからのみ配布します（[CI の構成](docs/ci.md)）。
+CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。Windows 版は、実 Fiji とブラウザの連携、コンテナ、Windows への導入と更新を含む 7 つの CI ジョブがすべて成功したコミットからのみ配布します。
 
 ## ライセンス
 
