@@ -1,0 +1,18 @@
+# GitHub Actions are pinned to commit SHAs; Dependabot proposes their updates in one weekly PR.
+# Python (uv) and pnpm dependencies receive security updates only: a zero limit disables version
+# updates, while security updates require "Dependabot security updates" in the repository settings.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+    groups:
+      github-actions: {patterns: ["*"]}
+  - package-ecosystem: uv
+    directory: /
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 0
+  - package-ecosystem: npm
+    directory: /
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 0

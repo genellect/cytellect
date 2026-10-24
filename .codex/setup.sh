@@ -9,8 +9,8 @@ fi
 if ! command -v node >/dev/null 2>&1 || ! node -e "if(process.versions.node.split('.')[0]!=='24')process.exit(1)"; then
   if [ -s "$HOME/.nvm/nvm.sh" ]; then
     . "$HOME/.nvm/nvm.sh"
-    nvm install 24.18.0
-    nvm use 24.18.0
+    nvm install "$(cat .node-version)"
+    nvm use "$(cat .node-version)"
   else
     echo "Provision Node.js24 before setup; do not start an offline task with incomplete dependencies." >&2
     exit 1
