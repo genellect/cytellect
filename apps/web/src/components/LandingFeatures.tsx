@@ -23,7 +23,7 @@ const features: Feature[] = [
     label: "解析の流れ",
     title: "画像を入れるだけ。検出から論文の図まで、一つの画面で。",
     lead: "輪郭を手で描く、表に写す、統計ソフトに移す。その作業がなくなります。",
-    extra: <ol className={lp.flow} aria-label="解析の流れ"><li>画像を読み込む</li><li>核と核小体を自動で検出</li><li>統計</li><li>論文の図</li></ol>,
+    extra: <ol className={lp.flow} aria-label="解析の流れ"><li>画像を読み込む</li><li>細胞構造を自動検出</li><li>統計</li><li>論文の図</li></ol>,
     link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモで操作する <Forward /></Link>,
     visual: <figure className={lp.screen}><picture><source media="(max-width: 760px)" srcSet="/marketing/lp-workspace-mobile.webp" width={1080} height={871} /><img src="/marketing/lp-workspace.webp" alt="Cytellectのデモ。視野の一覧、核の輪郭を重ねた蛍光画像、核ごとの測定値、解析の設定が一つの画面に並ぶ" width={2880} height={1800} /></picture></figure>,
   },
