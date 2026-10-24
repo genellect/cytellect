@@ -96,30 +96,9 @@ Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物の
 
 ## 開発・検証
 
-開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。
+開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。開発環境の起動（ローカル・クラウド）と、PR を出す前の検査は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。開発には Python 3.12、Node.js 24、pnpm、uv を使い、Linux x64 または Windows x64 で動作します。
 
-Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。Linux での起動手順は次のとおりです。
-
-```bash
-uv sync --locked --dev
-pnpm install --frozen-lockfile
-uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
-
-export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
-uv run cytellect invite --hours 24
-uv run cytellect serve & uv run cytellect-worker & pnpm dev
-```
-
-ブラウザで `http://localhost:3000/workspace` を開き、`invite` が表示した招待コードを入力します。API は Origin を `CYTELLECT_APP_ORIGIN`（既定値 `http://localhost:3000`）と完全一致で照合するため、`127.0.0.1` ではなく `localhost` で開いてください。
-
-CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
-
-```bash
-uv run pytest
-uv run ruff check .
-pnpm check
-pnpm test
-```
+CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。実 Fiji・Cellpose のイメージ・Windows 版の導入の統合試験は、PR では実行せず、`main` への取り込み後に実行します（[CI の範囲と検査](docs/ci.md)）。
 
 ## ライセンス
 

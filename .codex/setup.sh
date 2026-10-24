@@ -17,8 +17,7 @@ if ! command -v node >/dev/null 2>&1 || ! node -e "if(process.versions.node.spli
   fi
 fi
 command -v pnpm >/dev/null || npm install --global pnpm@11.19.0
-uv sync --locked --dev --python 3.12
-pnpm install --frozen-lockfile
+python3 scripts/dev.py setup
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || [ "${PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD:-}" = "1" ]; then
   # Hosted environments provide Chromium and forbid browser downloads; tests use
   # CYTELLECT_CHROMIUM_EXECUTABLE (see apps/web/playwright.config.ts).
@@ -28,9 +27,7 @@ else
 fi
 if [ "${CYTELLECT_SETUP_FIJI:-0}" = "1" ]; then
   : "${CYTELLECT_FIJI_EXECUTABLE:?Set an absolute runtime directory outside checkout}"
-  if [ ! -d "$CYTELLECT_FIJI_EXECUTABLE" ]; then
-    uv run python scripts/fiji_setup.py "$CYTELLECT_FIJI_EXECUTABLE" --platform linux-x64
-  fi
+  python3 scripts/dev.py setup --fiji "$CYTELLECT_FIJI_EXECUTABLE"
   uv run pytest -m fiji
 fi
 uv run python -m compileall -q packages services
