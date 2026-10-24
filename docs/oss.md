@@ -3,6 +3,13 @@
 Cytellect's original source is Apache-2.0. That license does not replace the
 licenses of Fiji, Java, plugins, model weights, dependencies or datasets.
 
+The [MSIX builder](msix.md) now assembles those third-party runtimes into a
+redistributable package, rather than downloading them on the user's PC. It keeps
+the full pinned runtime trees, Python wheel notices, Web notices and a generated
+`THIRD_PARTY_INVENTORY.json`. Store release remains gated on review of the actual
+assembled components and any corresponding-source/replacement obligations;
+generating a package or inventory does not complete that review.
+
 The [fixed runtime manifest](../engines/fiji/runtime.lock.json) records official
 artifact URLs, versions through their filenames, SHA-256, license identifiers and
 upstream source links. Setup writes a complete installed jar/JDK hash inventory

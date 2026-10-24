@@ -30,7 +30,8 @@ RUNTIME_RECORDS = {"engines/python/windows-runtime.lock.json", "engines/python/w
 RUNTIME_DATA = "engines/python/windows-tcltk-9.0.4-data.zip"
 INSTALL_REQUIREMENTS = "engines/python/windows-requirements.txt"
 INSTALL_MANIFEST = "engines/python/windows-install.json"
-DOCS = {"docs/oss.md", "docs/local.md", "docs/security.md", "docs/hosting-costs.ja.md", "docs/windows-runtime.md"}
+DOCS = {"docs/oss.md", "docs/local.md", "docs/security.md", "docs/hosting-costs.ja.md", "docs/windows-runtime.md",
+        "docs/msix.md"}
 DATA_NOTICES = {"fixtures/public/allowlist.json"}
 WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".svg", ".woff2", ".woff", ".ttf",
                 ".ico", ".png", ".jpg", ".jpeg", ".webp"}

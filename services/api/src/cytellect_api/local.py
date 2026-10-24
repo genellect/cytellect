@@ -41,6 +41,8 @@ def installed_source_revision(root: Path | None = None) -> str | None:
     execution_file = Path(__file__).absolute()
     root = root or execution_file.parents[4]
     site_packages = root / ".venv/Lib/site-packages"
+    if execution_file == (root / "runtime/Lib/site-packages/cytellect_api/local.py").absolute():
+        site_packages = root / "runtime/Lib/site-packages"
     wheel_execution = execution_file == (site_packages / "cytellect_api/local.py").absolute()
     manifest = root / "local-release.json"
     if not manifest.is_file():
