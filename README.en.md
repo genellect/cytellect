@@ -50,7 +50,7 @@ Detection masks are stored as integer labels in the same coordinate system as th
 
 The Fiji/TensorFlow Java and Cellpose-SAM/PyTorch inference environments are independent. Each pins its dependencies and models and verifies their hashes at run time.
 
-**Fine-tuning** uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
+Fine-tuning uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
 
 ## Web workspace
 
