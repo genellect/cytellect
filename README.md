@@ -2,15 +2,17 @@
 
 **Get your microscopy publication-ready.**
 
-[Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析)
+[![Cytellect](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
 
-Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のためのWebアプリケーションです。画像処理には学習済みの深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用しています。※現在は開発中のプロトタイプです。
+[プロダクト LP](https://cytellect.vercel.app/) · [公開デモ](https://cytellect.vercel.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析)
+
+Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のための Web アプリケーションです。画像処理には学習済みの深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用しています。※現在は開発中のプロトタイプです。
 
 ## アーキテクチャ
 
-フロントエンドは主に Next.js、サーバーサイドは主にFastAPIが担当しています。ブラウザから解析要求を受けると、API が設定とジョブを DB に保存し、ワーカーが推論・測定・統計・作図を実行します。ブラウザは API から進捗と結果を取得し、画像や図の編集を受け持ちます。
+フロントエンドは主に Next.js、サーバーサイドは主に FastAPI が担当しています。ブラウザから解析要求を受けると、API が設定とジョブを DB に保存し、ワーカーが推論・測定・統計・作図を実行します。ブラウザは API から進捗と結果を取得し、画像や図の編集を受け持ちます。
 
-LLM （現行採用モデルはGPT-6.1 Sol）は Cloudflare Workers 上の AI サービスから呼び出します。生成した解析設定は API で検証し、手動設定と同じジョブ処理へ渡す構成です。Windows 版と Docker 版にも、共通の API と計算コードを使用しています。
+LLM（現行採用モデルは GPT-6.1 Sol）は Cloudflare Workers 上の AI サービスから呼び出します。生成した解析設定は API で検証し、手動設定と同じジョブ処理へ渡す構成です。Windows 版と Docker 版にも、共通の API と計算コードを使用しています。
 
 ```mermaid
 flowchart TB
@@ -38,6 +40,30 @@ flowchart TB
 
 API のデータ型は Pydantic で定義し、OpenAPI からフロントエンドの TypeScript 型を生成しています。解析設定、マスク、測定値、統計結果、図はバージョンで関連付けられ、モデルや設定を変更した後も、以前の結果とその計算条件が残ります。
 
+### ディレクトリ構成
+
+測定値と統計は `packages/analysis` だけが生成し、API・ワーカー・Windows 版が同じ実装を共有します。計算を変えるときは `packages/analysis`、画面を変えるときは `apps/web` から読み始めてください。
+
+```text
+apps/web/                 Web ワークスペースと公開サイト（Next.js）。ブラウザの試験は tests/
+packages/
+  analysis/               検出・測定・統計・作図の共通実装
+  contracts/              OpenAPI と既定レシピ。Web の TypeScript 型はここから生成
+services/
+  api/                    解析 API（FastAPI）と cytellect コマンド
+  worker/                 計算ワーカー。ジョブごとに子プロセスで実行
+  proposal-worker/        LLM の中継と利用額の管理（Cloudflare Workers・D1）
+engines/
+  fiji/                   Fiji 上の検出処理と、固定版の記録
+  cellpose/               Cellpose-SAM の実行アダプタと、固定版の記録
+  python/                 Windows 版に同梱する Python の固定版
+infra/                    Dockerfile、Compose、クラウド GPU の構成
+scripts/                  セットアップ、配布物の作成、検証
+tests/                    Python の試験
+fixtures/public/          出典とハッシュを登録した公開画像
+docs/                     仕様、手順、運用の文書
+```
+
 ## 画像認識と測定
 
 核の検出には Fiji 上の StarDist、核小体・細胞領域には PyTorch 上の Cellpose-SAM を使っています。Cellpose-SAM は SAM ViT-L を基盤とし、フロー場と前景確率から個々の対象を分割するモデルです。
@@ -48,7 +74,7 @@ NCL 染色画像では、核ごとに背景を推定・正規化した画像を 
 
 推論環境は Fiji／TensorFlow Java と Cellpose-SAM／PyTorch で独立しています。それぞれ依存パッケージとモデルを固定し、実行時にハッシュを照合する方式です。
 
-**Fine-tuning（追加学習）**には、正解ラベルを付けた染色画像と修正済みのインスタンスマスクを使用しています。Cellpose-SAM を核小体・細胞質ごとに調整し、試料・撮影バッチを分けて輪郭精度、過分割、結合誤りを評価します。学習データ、重み、推論条件を一組としてバージョン管理する設計です。
+追加学習（Fine-tuning）には、正解ラベルを付けた染色画像と修正済みのインスタンスマスクを使用しています。Cellpose-SAM を核小体・細胞質ごとに調整し、試料・撮影バッチを分けて輪郭精度、過分割、結合誤りを評価します。学習データ、重み、推論条件を一組としてバージョン管理する設計です。
 
 ## Web ワークスペース
 
@@ -57,8 +83,6 @@ NCL 染色画像では、核ごとに背景を推定・正規化した画像を 
 グラフエディタは Matplotlib の SVG を取り込み、軸や系列の選択を編集パネルに対応付けたものです。色や軸の変更で実行するのは再描画だけで、測定や検定をやり直すことはありません。取り込む SVG は実行可能要素と外部参照を除去し、複数の図で衝突しないよう要素 ID を分けています。
 
 非同期応答は、解析対象と設定バージョンが現在の画面に一致したものだけを表示します。設定変更前の計算が遅れて完了しても、編集中の結果を上書きしません。
-
-公開サイトには Three.js／WebGL を使用しています。描画コードを遅延読み込みし、非表示時には描画を停止、破棄時には GPU リソースを解放します。
 
 ## LLM と解析設定
 
@@ -84,7 +108,7 @@ LLM に渡すのは、指示文、染色とチャンネルの対応、画像寸�
 
 認証は `HttpOnly`・`SameSite=Strict` Cookie を使用し、トークンはハッシュで保存しています。API ではリソースの所有権を確認し、更新要求には Origin の検証を行います。
 
-研究データの保存先はコードと別の非公開領域です。既定では最終操作から24時間を保存期限とし、期限切れのデータはワーカーが削除します。停止中に期限を迎えた場合は、次回起動後の削除になります。研究者自身の PC（Windows 版・ループバックの Docker 版）では、削除操作まで保持する方式も選べます。
+研究データの保存先はコードと別の非公開領域です。既定では最終操作から24時間を保存期限とし、期限切れのデータはワーカーが削除します。停止中に期限を迎えた場合は、次回起動後の削除になります。研究者自身の PC（Windows 版・ループバックの Docker 版）では、削除操作まで保持する方式も選べます。脆弱性の報告方法は [SECURITY.md](SECURITY.md) にまとめています。
 
 ## 配布
 
@@ -120,4 +144,4 @@ python3 scripts/dev.py check
 
 ## ライセンス
 
-コードはApache License 2.0でOSS公開しています。Fiji、モデルの重み、データセットには、それぞれのライセンスが適用されます。
+コードは Apache License 2.0 で OSS として公開しています。Fiji、モデルの重み、データセットには、それぞれのライセンスが適用されます。

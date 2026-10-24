@@ -2,7 +2,9 @@
 
 **Get your microscopy publication-ready.**
 
-[日本語](README.md) · [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
+[![Cytellect](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
+
+[日本語](README.md) · [Product site](https://cytellect.vercel.app/) · [Live demo](https://cytellect.vercel.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
 
 Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
 
@@ -38,6 +40,30 @@ flowchart TB
 
 API data types are defined with Pydantic, and the frontend TypeScript types are generated from OpenAPI. Analysis settings, masks, measurements, statistics and figures are linked by version, so earlier results and their calculation conditions remain available after a model or setting changes.
 
+### Repository layout
+
+Measurements and statistics are produced only by `packages/analysis`, which the API, the worker and the Windows edition share. Start in `packages/analysis` to change a calculation and in `apps/web` to change the interface.
+
+```text
+apps/web/                 Web workspace and public site (Next.js); browser tests in tests/
+packages/
+  analysis/               Shared detection, measurement, statistics and figure code
+  contracts/              OpenAPI and default recipes; source of the Web TypeScript types
+services/
+  api/                    Analysis API (FastAPI) and the cytellect command
+  worker/                 Calculation worker; runs each job in a child process
+  proposal-worker/        LLM relay and spending control (Cloudflare Workers, D1)
+engines/
+  fiji/                   Detection on Fiji and its pinned runtime record
+  cellpose/               Cellpose-SAM runner adapter and its pinned runtime record
+  python/                 Pinned Python bundled with the Windows edition
+infra/                    Dockerfiles, Compose and cloud GPU configuration
+scripts/                  Setup, packaging and verification
+tests/                    Python tests
+fixtures/public/          Public images registered with source and hash
+docs/                     Specifications, procedures and operations
+```
+
 ## Image recognition and measurement
 
 Nuclei are detected with StarDist in Fiji; nucleoli and cell regions with Cellpose-SAM in PyTorch. Cellpose-SAM is built on SAM ViT-L and separates individual objects from a flow field and a foreground probability.
@@ -48,7 +74,7 @@ Detection masks are stored as integer labels in the same coordinate system as th
 
 The Fiji/TensorFlow Java and Cellpose-SAM/PyTorch inference environments are independent. Each pins its dependencies and models and verifies their hashes at run time.
 
-**Fine-tuning** uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
+Fine-tuning uses stained images with ground-truth labels and corrected instance masks. Cellpose-SAM is adapted separately for nucleoli and cytoplasm and evaluated for boundary accuracy, over-segmentation and merge errors with specimens and imaging batches kept apart. Training data, weights and inference settings are versioned together.
 
 ## Web workspace
 
@@ -57,8 +83,6 @@ Image editing runs on SVG and uses the original image coordinates, including dur
 The graph editor imports Matplotlib SVG and maps axis and series selections to an editing panel. Changing colors or axes only redraws the figure; it does not rerun measurements or tests. Imported SVG is stripped of executable elements and external references, and element IDs are separated so that multiple figures do not collide.
 
 Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
-
-The public site uses Three.js/WebGL. The rendering code is loaded lazily, stops rendering while hidden and releases GPU resources when disposed.
 
 ## LLM and analysis settings
 
@@ -84,7 +108,7 @@ Settings updates are checked against the requester's version and return `409` on
 
 Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
 
-Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start.
+Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
 ## Distribution
 
