@@ -8,6 +8,7 @@ Cytellect の文書の索引です。概要は [README](../README.md)（[English
 - [Windows 版のインストールと更新](install-windows.ja.md)
 - [Docker Desktop でのブラウザ操作](docker-desktop.md)
 - [Local browser delivery](local.md)
+- [公開デモ（サーバーレスのショーケース）](showcase.md)
 - [CZI をオフラインで定量用 TIFF へ変換する](converting-czi.md)
 - [クラウド GPU で Cellpose を動かす](cloud-gpu.ja.md)
 
@@ -24,7 +25,7 @@ Cytellect の文書の索引です。概要は [README](../README.md)（[English
 - [Development standards](development-standards.md)
 - [Runtime and API](architecture.md)
 - [Web interface](web.md) · [Interface direction](interface-design.md)
-- [Git-driven publication](deployment.md)
+- [CI の構成](ci.md) · [Git-driven publication](deployment.md)
 - [Analysis proposal service](proposal-service.md) · [Proposal Worker deployment](proposal-deployment.md)
 - [Windows runtime composition](windows-runtime.md)
 - [Local resource benchmark](resource-benchmark.md) · [解析基盤の費用と制約](hosting-costs.ja.md)
@@ -36,7 +37,7 @@ Cytellect の文書の索引です。概要は [README](../README.md)（[English
 - 測定と図 / Measurement and figures: [Descriptive measurements and figures](descriptive.md) · [Figure export contract](figures.md) · [Image display and stored pixel values](display.md)
 - 検出 / Detection: [Fixed Fiji image engine](fiji.md) · [NCL candidate compartments](nucleolar-compartments.md) · [Fluorescence-positive candidate regions](positive-regions.md) · [GFP nuclear selection](gfp-exploratory-gates.md) · [Nuclear-recipe channel guidance](native-recipe-guidance.md)
 - 領域と比較 / Regions and comparisons: [Generic region measurements](generic-regions.md) · [Generic region comparisons](region-comparisons.md) · [Saved-field cohorts](region-cohorts.md) · [全視野の品質一覧](region-quality-overview.md)
-- 解析計画とワークスペース / Planning and workspace: [Analysis planning](analysis-planning.md) · [Source-bound workspace settings](workspace-source-settings.md) · [Single workspace](workspace-prototype.md) · [Workspace redesign](workspace-redesign.md)
+- 解析計画とワークスペース / Planning and workspace: [Analysis planning](analysis-planning.md) · [Source-bound workspace settings](workspace-source-settings.md) · [Workspace redesign](workspace-redesign.md)
 
 ## 検証 / Validation
 

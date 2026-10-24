@@ -120,14 +120,10 @@ Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物の
 
 ## 開発・検証
 
-開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。開発環境の詳しい手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。
-
-Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。図の出力には日本語フォント（Linux では `fonts-noto-cjk`）が必要です。Linux での起動手順は次のとおりです。
+開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。必要な環境と、クラウドでの開発や Cellpose-SAM の導入を含む詳しい手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。Linux での最小限の起動手順は次のとおりです。
 
 ```bash
-uv sync --locked --dev
-pnpm install --frozen-lockfile
-uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
+python3 scripts/dev.py setup --fiji ~/cytellect-fiji
 
 export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
 uv run cytellect invite --hours 24
@@ -136,7 +132,7 @@ uv run cytellect-worker     # 端末 2（同じ環境変数を設定）
 pnpm dev                    # 端末 3
 ```
 
-CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
+CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。PR の CI と同じ検査は、次のコマンドで実行できます。CI の構成は [docs/ci.md](docs/ci.md) にまとめています。
 
 ```bash
 python3 scripts/dev.py check

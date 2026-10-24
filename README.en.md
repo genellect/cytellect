@@ -120,14 +120,10 @@ The Windows edition builds a dedicated Python/Fiji environment and verifies sign
 
 ## Development and validation
 
-Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Detailed setup steps are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
-
-Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. Figure output requires a Japanese font (`fonts-noto-cjk` on Linux). To start on Linux:
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Requirements and detailed steps, including cloud development and installing Cellpose-SAM, are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese). The minimal steps to start on Linux are:
 
 ```bash
-uv sync --locked --dev
-pnpm install --frozen-lockfile
-uv run python scripts/fiji_setup.py ~/cytellect-fiji --platform linux-x64
+python3 scripts/dev.py setup --fiji ~/cytellect-fiji
 
 export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
 uv run cytellect invite --hours 24
@@ -136,7 +132,7 @@ uv run cytellect-worker     # terminal 2 (same environment variables)
 pnpm dev                    # terminal 3
 ```
 
-CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
+CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation. The same checks as pull-request CI run with the command below; the CI design is described in [docs/ci.md](docs/ci.md).
 
 ```bash
 python3 scripts/dev.py check
