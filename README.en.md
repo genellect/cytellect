@@ -40,7 +40,7 @@ API data types are defined with Pydantic, and the frontend TypeScript types are 
 
 ## Image recognition and measurement
 
-Nuclei are detected with StarDist in Fiji and cell regions with Cellpose-SAM in PyTorch. Nucleoli are detected either with Cellpose-SAM (protocol 4.3.0) or with per-nucleus thresholding in Fiji. Cellpose-SAM is built on SAM ViT-L and separates individual objects from a flow field and a foreground probability.
+Nuclei are detected with StarDist in Fiji; nucleoli and cell regions with Cellpose-SAM in PyTorch. Cellpose-SAM is built on SAM ViT-L and separates individual objects from a flow field and a foreground probability.
 
 For NCL-stained images, a background-estimated and normalized image is prepared for each nucleus and passed to Cellpose-SAM. After inference, candidates that capture the whole nucleus are removed, and boundaries are refined with Multi-Otsu, a distance transform and Watershed.
 
@@ -58,7 +58,7 @@ The graph editor imports Matplotlib SVG and maps axis and series selections to a
 
 Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
 
-The public landing page uses live-action film. A still frame renders first; the film is not loaded under reduced-motion settings, pauses off screen or in a hidden tab, and falls back to the still frame if it cannot load.
+The public landing page is built on live-action film. A still frame renders first; playback stays off under reduced-motion settings, off screen and in hidden tabs, and the still frame remains if the film cannot load.
 
 ## LLM and analysis settings
 
@@ -84,15 +84,15 @@ Settings updates are checked against the requester's version and return `409` on
 
 Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
 
-Research data is stored in a private area separate from the code. In the Docker edition and development environments, data expires 24 hours after the last action by default and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. The Windows edition keeps data until the researcher deletes it by default; a loopback Docker installation can be configured the same way.
+Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. The Windows edition, which runs on the researcher's own PC, keeps data until it is deleted by default; a loopback Docker installation can use the same mode.
 
 ## Distribution
 
-The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The public site's `/demo` replays records of registered public images processed by the production pipeline, reproducing the production workspace without an analysis server ([public demo](docs/showcase.md)). The public site accepts no research images; image analysis runs in the Docker and Windows editions.
+The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The analysis API and calculation environment are deployed separately and distributed with Docker and a Windows launcher. The public site's `/demo` runs the production analysis workspace serverlessly on registered public images ([public demo](docs/showcase.md)).
 
 The Docker edition runs the web UI, API and calculation worker in separate containers, with a non-root user, a read-only root filesystem and reduced privileges. The calculation worker has no network access.
 
-The Windows edition builds a dedicated Python/Fiji environment and verifies the bundled Python's signatures and the hash of every packaged file. Cellpose inference alone can run on a cloud GPU configured by an administrator; it then sends the single detection channel and the detection settings (for nucleoli, the adopted nuclear masks) ([cloud GPU](docs/cloud-gpu.ja.md)). The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
+The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. PCs without a GPU can run Cellpose inference alone on a cloud GPU. Only the minimum needed for detection is sent (one channel, the detection settings and, for nucleoli, the nuclear masks); measurement runs on the original pixels on the PC ([cloud GPU](docs/cloud-gpu.ja.md)). The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
 ## Development and validation
 
