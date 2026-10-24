@@ -1124,7 +1124,7 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
             (web / name).write_bytes(content)
         shutil.rmtree(web / ".next-showcase", ignore_errors=True)
     target = out / "snapshot"
-    keep = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json"}
+    keep = SNAPSHOT_KEEP
     # The journal stage records again after every snapshot; its files go with the snapshot's.
     if target.exists():
         for path in target.iterdir():
@@ -1135,6 +1135,10 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
         shutil.copyfile(path, target / path.name)
     shutil.copyfile(destination / "index.json", target / "index.json")
     return report
+
+
+# Files of the snapshot directory that no index or journal entry names.
+SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json"}
 
 
 def journal(work: Path, origin_port: int, out: Path) -> dict:
@@ -1185,6 +1189,12 @@ def journal(work: Path, origin_port: int, out: Path) -> dict:
     for path in (destination / "files").iterdir():
         shutil.copyfile(path, target / path.name)
     shutil.copyfile(destination / "journal.json", target / "journal.json")
+    # The previous recording's answers that this one no longer names are not published.
+    named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
+    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    for path in target.iterdir():
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
+            path.unlink()
     return {key: report[key] for key in ("entries", "scenes")}
 
 

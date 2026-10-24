@@ -5,7 +5,8 @@
 // Config arrives as JSON on stdin: {web, origin, chromium, snapshot, out, only?}.
 //
 // A visitor's requests differ from the recorded ones only in values generated per visit, so
-// change bodies are kept with "*" for: request identifiers and document versions, identifiers
+// change bodies are kept with "*" for: request identifiers, document versions and the active
+// revision a cohort expects, identifiers
 // the API generated while recording (any UUID absent from the seed's snapshot), and the context
 // an AI example carries (its prepared draft depends only on the instruction). Paths stay exact:
 // the client addresses what the recording returned to it. The saved
@@ -21,7 +22,9 @@ const require = createRequire(path.join(config.web, "package.json"));
 const {chromium} = require("@playwright/test");
 const KEEP_HEADERS = ["content-type", "x-cytellect-preview-display", "content-disposition"];
 const EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv", "application/pdf": ".pdf", "application/zip": ".zip"};
-const PER_VISIT = new Set(["request_id", "version", "spec_version"]);
+// The active revision a cohort request expects is a precondition (the visitor's last cohort), not
+// what the cohort holds: its sources, metadata and selection.
+const PER_VISIT = new Set(["request_id", "version", "spec_version", "expected_active_revision_id"]);
 const AI_CONTEXT = new Set(["current_processing", "previous_goal", "previous_proposal", "field_id"]);
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
@@ -282,6 +285,27 @@ scenes["ai-in-order"] = async page => {
   await page.getByLabel("AIへの指示").click();
   for (let index = 0; index < EXAMPLES; index++) await example(page, index);
   await statisticsAfter(page);
+};
+// An example previews the nuclei of the field shown, so each field is shown for one. Its settings
+// differ from the seed's in form only; measuring after an example is recorded under them.
+async function closePanel(page) {
+  const close = page.getByRole("button", {name: "パネルを閉じる"});
+  if (await close.isVisible()) {await close.click(); await idle(page);}
+}
+scenes["ai-fields"] = async page => {
+  const cards = page.locator("[class*=fieldCard]");
+  for (let index = 1; index < await cards.count(); index++) {
+    await cards.nth(index).click(); await idle(page);
+    await page.getByLabel("AIへの指示").click();
+    await example(page, index % EXAMPLES);
+    await closePanel(page);
+  }
+};
+for (const target of ["nuclei", "nucleoli", "nucleoplasm"]) scenes[`ai-measure-${target}`] = async page => {
+  await page.getByLabel("AIへの指示").click();
+  await example(page, 0);
+  await closePanel(page);
+  await measureScene(target)(page);
 };
 await mkdir(config.out, {recursive: true});
 // Scenes are independent (each starts from the seed), so several run at once.

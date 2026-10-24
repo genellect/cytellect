@@ -457,6 +457,57 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associatio
   await noErrors(page, watch);
 });
 
+test("an AI example on another field, then measuring and statistics of each region, keep showing results", async ({page}) => {
+  test.setTimeout(900_000);
+  const watch = await openDemo(page);
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  const side = page.getByRole("complementary", {name: "解析対象"});
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  const statistics = async (region: string, metric: string, channel: string | null, kind: string) => {
+    await header.getByRole("button", {name: "統計", exact: true}).click();
+    await expect(results.locator("table").first()).toBeVisible({timeout: live});
+    await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
+    await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
+    if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
+    await results.getByRole("combobox", {name: "解析", exact: true}).selectOption(kind);
+    await calculate(page);
+    await expect(notRecorded(page)).toHaveCount(0);
+  };
+  const measure = async (target: string, range: "all" | "selected") => {
+    await header.getByRole("button", {name: "画像", exact: true}).click();
+    const inspector = await openSettings(page);
+    await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption(target);
+    await header.getByLabel("測定する視野").selectOption(range);
+    await header.getByRole("button", {name: "測定", exact: true}).click();
+    await idle(page);
+    await expect(notRecorded(page)).toHaveCount(0);
+    expect(await alerts(page)).toEqual([]);
+  };
+  // The example previews the nuclei of the field shown; it is adopted as after a real proposal.
+  await page.locator("[class*=fieldCard]").nth(2).click();
+  await idle(page);
+  await page.getByLabel("AIへの指示").click();
+  await page.getByRole("group", {name: "指示の例"}).getByRole("button").first().click();
+  await idle(page);
+  const adopt = page.getByRole("button", {name: "候補を採用", exact: true});
+  if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
+  await expect(notRecorded(page)).toHaveCount(0);
+  await page.getByRole("button", {name: "パネルを閉じる"}).click();
+  // Measuring under the example's settings, and statistics after one cohort and another.
+  await measure("nucleoli", "all");
+  await statistics("nucleoplasm", "mean", "npm1", "comparison");
+  // The recorded experiment information is shown as recorded.
+  await expect(results.locator("details").filter({hasText: "実験情報"}).locator("input").first()).toHaveAttribute("readonly", "");
+  await statistics("nucleoli", "area_px", null, "distribution");
+  await measure("nuclei", "selected");
+  await statistics("nuclei", "area_px", null, "association");
+  await statistics("nucleoplasm", "mean_corrected", "npm1", "association");
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  await renderFigure(page);
+  await noErrors(page, watch);
+});
+
 test("each preset AI instruction returns a settings draft that applies like a real proposal", async ({page}) => {
   test.setTimeout(900_000);
   const watch = await openDemo(page);
