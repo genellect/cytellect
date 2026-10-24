@@ -1,6 +1,6 @@
-# Development standards
+# 開発の原則
 
-[チーム開発ルール](team-development.md)と [AGENTS.md](../AGENTS.md) に加え、変更する領域に以下の基準を適用します。セットアップと検証コマンドは [CONTRIBUTING.md](../CONTRIBUTING.md) を参照してください。
+Cytellect の開発で、人も AI エージェントも守る原則です。作業を始める前に関係する節を必ず読み、判断に迷ったときはここに立ち返ってください。開発の進め方は[チーム開発ルール](team-development.md)、開発環境の構築と起動は [CONTRIBUTING](../CONTRIBUTING.md) にまとめています。
 
 ## 計算とデータの整合性
 

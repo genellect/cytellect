@@ -8,6 +8,16 @@
 
 Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
 
+## For contributors
+
+When you join, read these three documents in order, and check the relevant sections for each task. AI agents follow the same documents.
+
+1. [Team development rules](docs/team-development.md#english): workflow, Git and review, research data handling
+2. [CONTRIBUTING](CONTRIBUTING.md) (Japanese): setting up and running a development environment, checks before a pull request
+3. [Development principles](docs/development-principles.md) (Japanese): principles for calculations, statistics, data, the interface and releases
+
+Other documents are listed in the [documentation index](docs/README.md).
+
 ## Architecture
 
 The frontend is built mainly with Next.js and the server side mainly with FastAPI. When the browser requests an analysis, the API stores the settings and job in a database, and a worker runs inference, measurement, statistics and figure generation. The browser retrieves progress and results from the API and handles image and figure editing.
@@ -44,15 +54,15 @@ API data types are defined with Pydantic, and the frontend TypeScript types are 
 
 | Directory | Contents |
 |---|---|
-| `apps/web` | Web workspace and public site (Next.js) |
-| `packages/analysis` | Shared detection, measurement, statistics and figure code |
-| `packages/contracts` | API type definitions (OpenAPI) |
-| `services` | Analysis API, calculation worker and LLM relay |
-| `engines` | Fiji and Cellpose-SAM runtimes |
-| `infra` | Docker configuration |
-| `scripts` | Setup and verification |
-| `tests` | Tests |
-| `docs` | Specifications and operations |
+| [`apps/web`](apps/web) | Web workspace and public site (Next.js) |
+| [`packages/analysis`](packages/analysis) | Shared detection, measurement, statistics and figure code |
+| [`packages/contracts`](packages/contracts) | API type definitions (OpenAPI) |
+| [`services`](services) | Analysis API, calculation worker and LLM relay |
+| [`engines`](engines) | Fiji and Cellpose-SAM runtimes |
+| [`infra`](infra) | Docker configuration |
+| [`scripts`](scripts) | Setup and verification |
+| [`tests`](tests) | Tests |
+| [`docs`](docs) | Specifications and operations |
 
 ## Image recognition and measurement
 
@@ -109,8 +119,6 @@ The Docker edition runs the web UI, API and calculation worker in separate conta
 The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
 ## Development
-
-Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Detailed steps are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
 
 ### Local development
 

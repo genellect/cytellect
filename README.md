@@ -8,6 +8,16 @@
 
 Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のための Web アプリケーションです。画像処理には学習済みの深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用しています。※現在は開発中のプロトタイプです。
 
+## 開発に参加する方へ
+
+開発に参加するときは次の 3 つを順に読み、作業のたびに関係する節を確認してください。AI エージェントも同じ文書に従います。
+
+1. [チーム開発ルール](docs/team-development.md)：開発の進め方、Git とレビュー、研究データの扱い
+2. [CONTRIBUTING](CONTRIBUTING.md)：開発環境の構築と起動、PR を出す前の検査
+3. [開発の原則](docs/development-principles.md)：計算・統計・データ・画面・リリースで守る原則
+
+そのほかの文書は[ドキュメント](docs/README.md)から探せます。
+
 ## アーキテクチャ
 
 フロントエンドは主に Next.js、サーバーサイドは主に FastAPI が担当しています。ブラウザから解析要求を受けると、API が設定とジョブを DB に保存し、ワーカーが推論・測定・統計・作図を実行します。ブラウザは API から進捗と結果を取得し、画像や図の編集を受け持ちます。
@@ -44,15 +54,15 @@ API のデータ型は Pydantic で定義し、OpenAPI からフロントエン�
 
 | ディレクトリ | 内容 |
 |---|---|
-| `apps/web` | Web ワークスペースと公開サイト（Next.js） |
-| `packages/analysis` | 検出・測定・統計・作図の共通実装 |
-| `packages/contracts` | API の型定義（OpenAPI） |
-| `services` | 解析 API、計算ワーカー、LLM の中継 |
-| `engines` | Fiji と Cellpose-SAM の実行環境 |
-| `infra` | Docker の構成 |
-| `scripts` | セットアップと検証 |
-| `tests` | 試験 |
-| `docs` | 仕様と運用の文書 |
+| [`apps/web`](apps/web) | Web ワークスペースと公開サイト（Next.js） |
+| [`packages/analysis`](packages/analysis) | 検出・測定・統計・作図の共通実装 |
+| [`packages/contracts`](packages/contracts) | API の型定義（OpenAPI） |
+| [`services`](services) | 解析 API、計算ワーカー、LLM の中継 |
+| [`engines`](engines) | Fiji と Cellpose-SAM の実行環境 |
+| [`infra`](infra) | Docker の構成 |
+| [`scripts`](scripts) | セットアップと検証 |
+| [`tests`](tests) | 試験 |
+| [`docs`](docs) | 仕様と運用の文書 |
 
 ## 画像認識と測定
 
@@ -109,8 +119,6 @@ Docker 版は Web、API、計算ワーカーを別コンテナで動かす構成
 Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物のハッシュを検証します。ランチャーは `127.0.0.1` で待ち受け、所有者のセッションを確立します。更新時も研究データはそのまま保持し、新版の起動確認が終わるまで旧版を残す方式です。
 
 ## 開発
-
-開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。詳しい手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。
 
 ### ローカル開発
 
