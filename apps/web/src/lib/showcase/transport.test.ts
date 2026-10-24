@@ -378,9 +378,10 @@ describe("recorded tour across scenes", () => {
         entry("POST", `/v1/revisions/${B}/descriptive`, JSON.stringify({metric: "mean"}), "mean.json", "mean", `/v1/revisions/*/descriptive`),
         entry("GET", `/v1/jobs/${JOB}/result`, null, "result.json", "mean"),
         entry("POST", `/v1/revisions/${B}/export`, null, "export.json", "mean", "/v1/revisions/*/export"),
+        entry("POST", `/v1/jobs/${B}/figure-render`, JSON.stringify({width: 89}), "render.json", "mean", "/v1/jobs/*/figure-render"),
       ]},
       "cohort-a.json": {revision_id: A}, "cohort-b.json": {revision_id: B}, "area.json": {job_id: "area"},
-      "mean.json": {job_id: JOB}, "result.json": {revision_id: B, value: 1}, "export.json": {revision_id: B, job_id: "export"},
+      "mean.json": {job_id: JOB}, "result.json": {revision_id: B, value: 1}, "export.json": {revision_id: B, job_id: "export"}, "render.json": {job: "other"},
     });
     expect(await (await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({metric: "x"})})).json()).toEqual({revision_id: A});
     // The exact path answers first; the other scene's request is found by its pattern.
@@ -389,6 +390,8 @@ describe("recorded tour across scenes", () => {
     // That scene's answers name this visitor's cohort, and its later requests are found through it.
     expect(await (await transport.fetch(`/v1/jobs/${JOB}/result`)).json()).toEqual({revision_id: A, value: 1});
     expect(await (await transport.fetch(`/v1/revisions/${A}/export`, {method: "POST"})).json()).toEqual({revision_id: A, job_id: "export"});
+    // A figure or package names no content of its own: another job's recording never answers it.
+    expect((await transport.fetch(`/v1/jobs/${JOB}/figure-render`, {method: "POST", body: JSON.stringify({width: 89})})).status).toBe(409);
   });
   it("switches a field to a revision it already adopted on the device, and nothing else", async () => {
     const selection = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};

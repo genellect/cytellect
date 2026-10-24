@@ -77,9 +77,10 @@ export function journalPathMatches(recorded: string, actual: string): boolean {
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
 const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
-/** Statistics and figures of an analysis version (a cohort) or a job: the same request on another
- * cohort or job of identical content is the same calculation. */
-const ANALYSIS = /^(\/v1\/(?:revisions\/[0-9a-f-]{36}\/(?:review|descriptive|common-statistics|export)|jobs\/[0-9a-f-]{36}\/(?:figure-render|publication-package)))$/;
+/** Statistics of an analysis version (a cohort): the request names what it calculates, so the same
+ * request on another cohort of identical content is the same calculation. Figures and packages are
+ * not: their request does not say which result they draw or package. */
+const ANALYSIS = /^\/v1\/revisions\/[0-9a-f-]{36}\/(?:review|descriptive|common-statistics)$/;
 const analysisPattern = (path: string) => ANALYSIS.test(path) ? path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/, "*") : undefined;
 /** The parts of the saved settings a measurement depends on. */
 export function conditions(spec: unknown): unknown {
@@ -255,7 +256,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
       // same request recorded in another scene is found by its pattern, only when no path matches.
       const patterned = (entry: JournalEntry, position: number) => {
-        const pattern = entry.pattern ?? analysisPattern(entry.path);
+        const pattern = analysisPattern(entry.path);
         return !!pattern && matches(entry, position, pattern);
       };
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
