@@ -12,9 +12,9 @@ Cytellect is a web application for life-science researchers that takes microscop
 
 When you join, read these three documents in order, and check the relevant sections for each task. AI agents follow the same documents.
 
-1. [Development principles](docs/development-principles.md) (Japanese): principles for calculations, statistics, data, the interface and releases
-2. [Team development rules](docs/team-development.md#english): workflow, Git and review, research data handling
-3. [CONTRIBUTING](CONTRIBUTING.md) (Japanese): setting up and running a development environment, checks before a pull request
+1. [Team development rules](docs/team-development.md#english): workflow, Git and review, research data handling
+2. [CONTRIBUTING](CONTRIBUTING.md) (Japanese): setting up and running a development environment, checks before a pull request
+3. [Development principles](docs/development-principles.md) (Japanese): principles for calculations, statistics, data, the interface and releases
 
 Other documents are listed in the [documentation index](docs/README.md).
 

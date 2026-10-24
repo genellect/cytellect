@@ -4,9 +4,9 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 
 ## 開発メンバーが最初に読む文書
 
-1. [開発の原則](development-principles.md)：人も AI エージェントも守る原則。作業に関係する節を必ず読む
-2. [チーム開発ルール](team-development.md)：開発の流れ、Git とレビュー、研究データの扱い
-3. [CONTRIBUTING](../CONTRIBUTING.md)：開発環境の構築と起動、PR を出す前の検査
+1. [チーム開発ルール](team-development.md)：開発の流れ、Git とレビュー、研究データの扱い
+2. [CONTRIBUTING](../CONTRIBUTING.md)：開発環境の構築と起動、PR を出す前の検査
+3. [開発の原則](development-principles.md)：人も AI エージェントも守る原則。作業に関係する節を必ず読む
 4. [CI の構成](ci.md)：PR と `main` で実行されるジョブ
 
 ## 使う

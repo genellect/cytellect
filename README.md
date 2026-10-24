@@ -12,9 +12,9 @@ Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力ま�
 
 開発に参加するときは次の 3 つを順に読み、作業のたびに関係する節を確認してください。AI エージェントも同じ文書に従います。
 
-1. [開発の原則](docs/development-principles.md)：計算・統計・データ・画面・リリースで守る原則
-2. [チーム開発ルール](docs/team-development.md)：開発の進め方、Git とレビュー、研究データの扱い
-3. [CONTRIBUTING](CONTRIBUTING.md)：開発環境の構築と起動、PR を出す前の検査
+1. [チーム開発ルール](docs/team-development.md)：開発の進め方、Git とレビュー、研究データの扱い
+2. [CONTRIBUTING](CONTRIBUTING.md)：開発環境の構築と起動、PR を出す前の検査
+3. [開発の原則](docs/development-principles.md)：計算・統計・データ・画面・リリースで守る原則
 
 そのほかの文書は[ドキュメント](docs/README.md)から探せます。
 
