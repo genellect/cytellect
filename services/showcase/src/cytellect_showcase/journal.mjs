@@ -176,7 +176,7 @@ const METRICS = ["area_px", "mean", "median", "integrated", "mean_corrected", "i
 const choices = select => select.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value).filter(Boolean));
 // Every statistic the panel offers for one region and metric, from the seed: each stain, each
 // analysis it allows and, for an association, each horizontal axis, with their figures.
-function statisticsScene(region, metric) {
+function statisticsScene(region, metric, kinds = null) {
   return async page => {
     await tab(page, "統計");
     await statistics(page).waitFor({timeout: LIVE});
@@ -187,6 +187,7 @@ function statisticsScene(region, metric) {
       if (channel) {await stain.selectOption(channel); await idle(page);}
       const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
       for (const kind of await choices(operation)) {
+        if (kinds && !kinds.includes(kind)) continue;
         await operation.selectOption(kind); await idle(page);
         const axis = statistics(page).getByRole("combobox", {name: "横軸", exact: true});
         for (const x of kind === "association" ? await choices(axis) : [null]) {
@@ -306,6 +307,15 @@ for (const target of ["nuclei", "nucleoli", "nucleoplasm"]) scenes[`ai-measure-$
   await example(page, 0);
   await closePanel(page);
   await measureScene(target)(page);
+};
+// Rank-based methods an example chooses stay for the statistics that follow, so every comparison
+// and association the panel offers is recorded under them too (a distribution does not use them).
+const RANK = config.rank_examples ?? [];
+if (RANK.length) for (const region of ["nuclei", "nucleoli", "nucleoplasm"]) for (const metric of METRICS) scenes[`rank-${region}-${metric}`] = async page => {
+  await page.getByLabel("AIへの指示").click();
+  await example(page, RANK[0]);
+  await closePanel(page);
+  await statisticsScene(region, metric, ["comparison", "association"])(page);
 };
 await mkdir(config.out, {recursive: true});
 // Scenes are independent (each starts from the seed), so several run at once.

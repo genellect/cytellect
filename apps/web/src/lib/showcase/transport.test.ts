@@ -414,6 +414,21 @@ describe("recorded tour across scenes", () => {
     // Scene "mean" recorded no job "a"; the API would still list it, and the client may reuse it.
     expect(await ids()).toEqual(["seed", "b", "a"]);
   });
+  it("reads after a scene's last change never come from the next scene's opening", async () => {
+    const transport = subject({
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "seed.json"}}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/jobs/j/figure-render", JSON.stringify({width: 89}), "render.json", "a"),
+        entry("GET", "/v1/workspaces/w/selection", null, "other.json", "b"),
+        entry("POST", "/v1/workspaces/w/proposal-drafts", JSON.stringify({goal: "x"}), "draft.json", "b"),
+      ]},
+      "seed.json": {version: 1}, "other.json": {version: 14}, "render.json": {job: "r"}, "draft.json": {draft: true},
+    });
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+    await transport.fetch("/v1/jobs/j/figure-render", {method: "POST", body: JSON.stringify({width: 89})});
+    // Scene "b" read another adoption before its own first change; this device keeps its own.
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+  });
   it("switches a field to a revision it already adopted on the device, and nothing else", async () => {
     const selection = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};
     const transport = subject({

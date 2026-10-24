@@ -274,8 +274,9 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       return answer(entries[index]);
     }
     if (!journaled) return null;
-    const next = entries.findIndex((entry, position) => position > cursor && !reading(entry.method));
-    const end = next < 0 ? entries.length : next;
+    // The answered change's reads end at the scene's next change, or where the next scene begins.
+    let end = cursor + 1;
+    while (end < entries.length && reading(entries[end].method) && entries[end].scene === entries[cursor].scene) end++;
     const translated = recordedIds(path);
     const read = (index: number) => entries[index].method === "GET" && (entries[index].path === path || entries[index].path === translated);
     const previous = seen.get(path);

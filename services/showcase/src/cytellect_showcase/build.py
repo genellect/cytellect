@@ -1141,7 +1141,19 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
 SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json"}
 
 
-def journal(work: Path, origin_port: int, out: Path) -> dict:
+RANK_TESTS = {"mann-whitney-u", "wilcoxon", "kruskal-wallis"}
+
+
+def rank_examples(manifest: dict) -> list[int]:
+    """The AI examples whose draft chooses rank-based methods, which later statistics keep."""
+    presets = (manifest["scenario"].get("proposals") or {}).get("presets", [])
+    return [index for index, item in enumerate(presets)
+            if item["draft"]["statistics"].get("test") in RANK_TESTS
+            or item["draft"]["statistics"].get("omnibus") in RANK_TESTS
+            or item["draft"]["statistics"].get("association") == "spearman"]
+
+
+def journal(work: Path, origin_port: int, out: Path, rank: list[int]) -> dict:
     """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``."""
     origin = f"http://127.0.0.1:{origin_port}"
     web = REPO / "apps" / "web"
@@ -1168,7 +1180,7 @@ def journal(work: Path, origin_port: int, out: Path) -> dict:
                 time.sleep(1)
         if destination.exists():
             shutil.rmtree(destination)
-        config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"),
+        config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "rank_examples": rank,
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         result = subprocess.run(["node", str(Path(__file__).with_name("journal.mjs"))], input=json.dumps(config),
                                 text=True, cwd=work, capture_output=True, timeout=21600)
@@ -1430,7 +1442,7 @@ def main(argv: list[str] | None = None) -> None:
         state_path.write_text(json.dumps(state, indent=1))
         write_manifest(args, manifest, state)
     if "journal" in stages:
-        state["journal"] = journal(work, args.web_port, args.out)
+        state["journal"] = journal(work, args.web_port, args.out, rank_examples(manifest))
         state_path.write_text(json.dumps(state, indent=1))
         write_manifest(args, manifest, state)
     if "manifest" in stages:

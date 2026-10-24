@@ -507,6 +507,17 @@ test("an AI example on another field, then measuring and statistics of each regi
   await statistics("nucleoplasm", "mean_corrected", "npm1", "association");
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
+  // An example choosing rank-based methods: the statistics that follow keep them.
+  await header.getByRole("button", {name: "画像", exact: true}).click();
+  await page.getByLabel("AIへの指示").click();
+  await page.getByRole("group", {name: "指示の例"}).getByRole("button").nth(2).click();
+  await idle(page);
+  if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
+  await page.getByRole("button", {name: "パネルを閉じる"}).click();
+  await statistics("nucleoli", "nucleolar_area_fraction", null, "comparison");
+  await statistics("nucleoplasm", "mean", "npm1", "association");
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  await renderFigure(page);
   await noErrors(page, watch);
 });
 
