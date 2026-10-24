@@ -2,9 +2,15 @@
 
 **Get your microscopy publication-ready.**
 
+[![実験台の 6 穴プレートに培地を分注するピペット（Cytellect の公開サイトより）](apps/web/public/marketing/hero-film-poster.webp)](https://cytellect.vercel.app/)
+
 [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析)
 
 Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のためのWebアプリケーションです。画像処理には学習済みの深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用しています。※現在は開発中のプロトタイプです。
+
+[![公開デモの解析ワークスペース。StarDist で検出した核の輪郭と、核ごとの面積・平均輝度の表](apps/web/public/marketing/lp-workspace.webp)](https://cytellect.vercel.app/demo)
+
+<sub>公開デモの解析ワークスペース（[cytellect.vercel.app/demo](https://cytellect.vercel.app/demo)）。蛍光画像：Schmidt HB, Rohatgi R, Brandman O (2022), [Zenodo](https://doi.org/10.5281/zenodo.6643470), CC BY 4.0。</sub>
 
 ## アーキテクチャ
 
