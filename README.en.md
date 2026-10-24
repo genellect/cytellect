@@ -64,7 +64,7 @@ The graph editor imports Matplotlib SVG and maps axis and series selections to a
 
 Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
 
-The public landing page is built on live-action film. A still frame renders first; playback stays off under reduced-motion settings, off screen and in hidden tabs, and the still frame remains if the film cannot load.
+The public landing page is built on live-action film. A still frame renders first for a fast first view, and playback pauses under reduced-motion settings, off screen and in hidden tabs.
 
 ## LLM and analysis settings
 
@@ -98,7 +98,7 @@ The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The ana
 
 The Docker edition runs the web UI, API and calculation worker in separate containers, with a non-root user, a read-only root filesystem and reduced privileges. The calculation worker has no network access.
 
-The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. PCs without a GPU can run Cellpose inference alone on a cloud GPU. Only the minimum needed for detection is sent (one channel, the detection settings and, for nucleoli, the nuclear masks); measurement runs on the original pixels on the PC ([cloud GPU](docs/cloud-gpu.ja.md)). The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
+The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. Cellpose inference can also be offloaded from the lab PC to a cloud GPU. Detection receives the minimum it needs (one channel, the detection settings and, for nucleoli, the nuclear masks); measurement runs on the original pixels on the PC ([cloud GPU](docs/cloud-gpu.ja.md)). The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
 ## Development and validation
 
