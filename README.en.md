@@ -96,9 +96,9 @@ The Windows edition builds a dedicated Python/Fiji environment and verifies sign
 
 ## Development and validation
 
-Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Starting a development environment (local or cloud) and the checks to run before a PR are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese). Development uses Python 3.12, Node.js 24, pnpm and uv on Linux x64 or Windows x64.
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Starting a development environment (local or cloud) and the checks to run before a PR are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese). Development uses Python 3.12, Node.js 24, pnpm and uv on Linux x64 or Windows x64. `python3 scripts/dev.py check` runs the same checks as pull-request CI locally, and a test verifies that the two command sets match.
 
-CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation. The real-Fiji, Cellpose image and Windows installation integration jobs do not run on pull requests; they run after merge on `main` ([CI scope and checks](docs/ci.md)).
+CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation. A Windows release is built only from a commit on which all seven CI jobs, including real Fiji with browser integration, containers and a fresh install and update on Windows, have passed ([CI scope and checks](docs/ci.md)).
 
 ## License
 
