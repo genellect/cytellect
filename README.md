@@ -108,9 +108,11 @@ Docker 版は Web、API、計算ワーカーを別コンテナで動かす構成
 
 Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物のハッシュを検証します。ランチャーは `127.0.0.1` で待ち受け、所有者のセッションを確立します。更新時も研究データはそのまま保持し、新版の起動確認が終わるまで旧版を残す方式です。
 
-## ローカル開発
+## 開発
 
 開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。詳しい手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。
+
+### ローカル開発
 
 Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。Linux での起動手順は次のとおりです。
 
@@ -124,7 +126,13 @@ uv run cytellect-worker     # 端末 2（同じ環境変数を設定）
 pnpm dev                    # 端末 3
 ```
 
-## クラウド開発
+CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
+
+```bash
+python3 scripts/dev.py check
+```
+
+### クラウド開発
 
 Claude Code や Codex のクラウド環境では、次のセットアップスクリプトを環境の設定に登録します。Fiji の導入などの詳しい手順は [CONTRIBUTING](CONTRIBUTING.md#クラウド開発) にまとめています。
 
@@ -132,14 +140,6 @@ Claude Code や Codex のクラウド環境では、次のセットアップス�
 |---|---|
 | Claude Code | `bash .claude/cloud-setup.sh` |
 | Codex | `bash .codex/setup.sh` |
-
-## テストと CI
-
-CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
-
-```bash
-python3 scripts/dev.py check
-```
 
 ## ライセンス
 

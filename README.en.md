@@ -108,9 +108,11 @@ The Docker edition runs the web UI, API and calculation worker in separate conta
 
 The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
-## Local development
+## Development
 
 Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Detailed steps are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
+
+### Local development
 
 Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. To start on Linux:
 
@@ -124,7 +126,13 @@ uv run cytellect-worker     # terminal 2 (same environment variables)
 pnpm dev                    # terminal 3
 ```
 
-## Cloud development
+CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
+
+```bash
+python3 scripts/dev.py check
+```
+
+### Cloud development
 
 In Claude Code or Codex cloud environments, register the setup script below in the environment settings. Detailed steps, including installing Fiji, are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
 
@@ -132,14 +140,6 @@ In Claude Code or Codex cloud environments, register the setup script below in t
 |---|---|
 | Claude Code | `bash .claude/cloud-setup.sh` |
 | Codex | `bash .codex/setup.sh` |
-
-## Tests and CI
-
-CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
-
-```bash
-python3 scripts/dev.py check
-```
 
 ## License
 
