@@ -8,9 +8,9 @@
 
 Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
 
-[![The analysis workspace of the public demo: StarDist nuclear outlines with per-nucleus area and mean intensity](apps/web/public/marketing/lp-workspace.webp)](https://cytellect.vercel.app/demo)
+[![The Cytellect demo: field list, fluorescence image with nuclear outlines, per-nucleus measurements and analysis settings on one screen](apps/web/public/marketing/lp-workspace.webp)](https://cytellect.vercel.app/demo)
 
-<sub>The analysis workspace of the public demo ([cytellect.vercel.app/demo](https://cytellect.vercel.app/demo)). Fluorescence images: Schmidt HB, Rohatgi R, Brandman O (2022), [Zenodo](https://doi.org/10.5281/zenodo.6643470), CC BY 4.0.</sub>
+<sub>A public image from the demo, with the nuclear outlines and measurements Cytellect produced. Image: Schmidt, Rohatgi, Brandman (2022), [Zenodo](https://doi.org/10.5281/zenodo.6643470), CC BY 4.0</sub>
 
 ## Architecture
 
@@ -64,7 +64,7 @@ The graph editor imports Matplotlib SVG and maps axis and series selections to a
 
 Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
 
-The public landing page is built on live-action film. A still frame renders first for a fast first view, and playback pauses under reduced-motion settings, off screen and in hidden tabs.
+The website opens on live-action film. A still frame paints first so nothing waits on the video, and playback rests for visitors who prefer reduced motion or when the film is off screen.
 
 ## LLM and analysis settings
 
@@ -90,15 +90,15 @@ Settings updates are checked against the requester's version and return `409` on
 
 Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
 
-Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. The Windows edition, which runs on the researcher's own PC, keeps data until it is deleted by default; a loopback Docker installation can use the same mode.
+Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. On the Windows edition, which runs on the researcher's own PC, data stays until the researcher deletes it; a loopback Docker installation can work the same way.
 
 ## Distribution
 
-The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The analysis API and calculation environment are deployed separately and distributed with Docker and a Windows launcher. The public site's `/demo` runs the production analysis workspace serverlessly on registered public images ([public demo](docs/showcase.md)).
+The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The analysis API and calculation environment are deployed separately and distributed with Docker and a Windows launcher. The website's [demo](https://cytellect.vercel.app/demo) is the production workspace, [reproduced serverlessly](docs/showcase.md): detection, statistics and publication figures in the browser, with nothing to install.
 
 The Docker edition runs the web UI, API and calculation worker in separate containers, with a non-root user, a read-only root filesystem and reduced privileges. The calculation worker has no network access.
 
-The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. Cellpose inference can also be offloaded from the lab PC to a cloud GPU. Detection receives the minimum it needs (one channel, the detection settings and, for nucleoli, the nuclear masks); measurement runs on the original pixels on the PC ([cloud GPU](docs/cloud-gpu.ja.md)). The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
+The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. Cellpose inference can run on a [cloud GPU](docs/cloud-gpu.ja.md), bringing practical detection speed to PCs without one. Only the images and settings detection needs leave the PC, and measurement is completed locally. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
 ## Development and validation
 
