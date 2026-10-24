@@ -40,29 +40,7 @@ flowchart TB
 
 API のデータ型は Pydantic で定義し、OpenAPI からフロントエンドの TypeScript 型を生成しています。解析設定、マスク、測定値、統計結果、図はバージョンで関連付けられ、モデルや設定を変更した後も、以前の結果とその計算条件が残ります。
 
-### ディレクトリ構成
-
-測定値と統計は `packages/analysis` だけが生成し、API・ワーカー・Windows 版が同じ実装を共有します。計算を変えるときは `packages/analysis`、画面を変えるときは `apps/web` から読み始めてください。
-
-```text
-apps/web/                 Web ワークスペースと公開サイト（Next.js）。ブラウザの試験は tests/
-packages/
-  analysis/               検出・測定・統計・作図の共通実装
-  contracts/              OpenAPI と既定レシピ。Web の TypeScript 型はここから生成
-services/
-  api/                    解析 API（FastAPI）と cytellect コマンド
-  worker/                 計算ワーカー。ジョブごとに子プロセスで実行
-  proposal-worker/        LLM の中継と利用額の管理（Cloudflare Workers・D1）
-engines/
-  fiji/                   Fiji 上の検出処理と、固定版の記録
-  cellpose/               Cellpose-SAM の実行アダプタと、固定版の記録
-  python/                 Windows 版に同梱する Python の固定版
-infra/                    Dockerfile、Compose、クラウド GPU の構成
-scripts/                  セットアップ、配布物の作成、検証
-tests/                    Python の試験
-fixtures/public/          出典とハッシュを登録した公開画像
-docs/                     仕様、手順、運用の文書
-```
+コードは、Web ワークスペース（`apps/web`）、検出・測定・統計・作図の共通実装（`packages/analysis`）、解析 API・計算ワーカー・LLM の中継（`services`）、Fiji と Cellpose-SAM の実行環境（`engines`）、Docker の構成（`infra`）に分かれています。
 
 ## 画像認識と測定
 
@@ -120,7 +98,9 @@ Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物の
 
 ## 開発・検証
 
-開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。必要な環境と、クラウドでの開発や Cellpose-SAM の導入を含む詳しい手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。Linux での最小限の起動手順は次のとおりです。
+開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。詳しい手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。
+
+Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用します。Linux での起動手順は次のとおりです。
 
 ```bash
 python3 scripts/dev.py setup --fiji ~/cytellect-fiji
@@ -132,7 +112,7 @@ uv run cytellect-worker     # 端末 2（同じ環境変数を設定）
 pnpm dev                    # 端末 3
 ```
 
-CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。PR の CI と同じ検査は、次のコマンドで実行できます。CI の構成は [docs/ci.md](docs/ci.md) にまとめています。
+CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
 
 ```bash
 python3 scripts/dev.py check

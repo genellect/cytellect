@@ -40,29 +40,7 @@ flowchart TB
 
 API data types are defined with Pydantic, and the frontend TypeScript types are generated from OpenAPI. Analysis settings, masks, measurements, statistics and figures are linked by version, so earlier results and their calculation conditions remain available after a model or setting changes.
 
-### Repository layout
-
-Measurements and statistics are produced only by `packages/analysis`, which the API, the worker and the Windows edition share. Start in `packages/analysis` to change a calculation and in `apps/web` to change the interface.
-
-```text
-apps/web/                 Web workspace and public site (Next.js); browser tests in tests/
-packages/
-  analysis/               Shared detection, measurement, statistics and figure code
-  contracts/              OpenAPI and default recipes; source of the Web TypeScript types
-services/
-  api/                    Analysis API (FastAPI) and the cytellect command
-  worker/                 Calculation worker; runs each job in a child process
-  proposal-worker/        LLM relay and spending control (Cloudflare Workers, D1)
-engines/
-  fiji/                   Detection on Fiji and its pinned runtime record
-  cellpose/               Cellpose-SAM runner adapter and its pinned runtime record
-  python/                 Pinned Python bundled with the Windows edition
-infra/                    Dockerfiles, Compose and cloud GPU configuration
-scripts/                  Setup, packaging and verification
-tests/                    Python tests
-fixtures/public/          Public images registered with source and hash
-docs/                     Specifications, procedures and operations
-```
+The code is organized into the web workspace (`apps/web`), the shared detection, measurement, statistics and figure code (`packages/analysis`), the analysis API, calculation worker and LLM relay (`services`), the Fiji and Cellpose-SAM runtimes (`engines`) and the Docker configuration (`infra`).
 
 ## Image recognition and measurement
 
@@ -120,7 +98,9 @@ The Windows edition builds a dedicated Python/Fiji environment and verifies sign
 
 ## Development and validation
 
-Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Requirements and detailed steps, including cloud development and installing Cellpose-SAM, are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese). The minimal steps to start on Linux are:
+Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Detailed steps are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
+
+Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. To start on Linux:
 
 ```bash
 python3 scripts/dev.py setup --fiji ~/cytellect-fiji
@@ -132,7 +112,7 @@ uv run cytellect-worker     # terminal 2 (same environment variables)
 pnpm dev                    # terminal 3
 ```
 
-CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation. The same checks as pull-request CI run with the command below; the CI design is described in [docs/ci.md](docs/ci.md).
+CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
 
 ```bash
 python3 scripts/dev.py check
