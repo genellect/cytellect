@@ -15,7 +15,8 @@
   "Nucleoli are defined from NPM1 with the workspace's nucleolar-marker definition (default parameters). Under ActD, NPM1 partly relocates to the nucleoplasm, so marker-defined nucleoli reflect NPM1 distribution, not nucleolar structure alone.",
   "Hoechst saturates (value 65535) in a small fraction of pixels in some fields; counts are listed in manifest.json (selection.results[].saturated_pixels).",
   "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images.",
-  "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
+  "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。",
+  "Before the nucleolar analysis, the demo's researcher review deleted small objects that StarDist segmented as nuclei but that are fragments (smaller than 0.6 x the field's median nuclear area) and in which no nucleolus could be established; the deleted objects are listed in manifest.json (fragment_review)."
  ],
  "fields": [
   {
