@@ -2,15 +2,15 @@
 
 **Get your microscopy publication-ready.**
 
-[![The Cytellect website](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
+[![Cytellect](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
 
 [日本語](README.md) · [Web](https://cytellect.vercel.app/) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md)
 
 Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
 
-[![The Cytellect demo: field list, fluorescence image with nuclear outlines, per-nucleus measurements and analysis settings on one screen](apps/web/public/marketing/lp-workspace.webp)](https://cytellect.vercel.app/demo)
+[![Cytellect demo](apps/web/public/marketing/lp-workspace.webp)](https://cytellect.vercel.app/demo)
 
-<sub>A public image from the demo, with the nuclear outlines and measurements Cytellect produced. Image: Schmidt, Rohatgi, Brandman (2022), [Zenodo](https://doi.org/10.5281/zenodo.6643470), CC BY 4.0</sub>
+<sub>Image: Schmidt, Rohatgi, Brandman (2022), [Zenodo](https://doi.org/10.5281/zenodo.6643470), CC BY 4.0</sub>
 
 ## Architecture
 
