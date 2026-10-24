@@ -33,6 +33,7 @@ import json
 import os
 import shutil
 import sqlite3
+import statistics
 import subprocess
 import sys
 import threading
@@ -689,6 +690,53 @@ def import_fields(space: Workspace, manifest: dict, prepared: list[dict]) -> Non
 # Scenario
 # ---------------------------------------------------------------------------
 
+def review_fragments(space: Workspace, rule: dict | None) -> list[dict]:
+    """The researcher's review of nuclei whose nucleolus could not be established.
+
+    A nucleus without an established nucleolus leaves its field's compartments unresolved, which
+    blocks every nucleolar statistic. The review deletes such an object from the nuclei mask (as the
+    workspace's 選択領域を削除 does, through ``region-edits``) only when it is a fragment: smaller
+    than ``max_area_fraction`` of its field's median nuclear area. Any other unresolved nucleus stops
+    the build, so nothing is removed silently. The removed objects are listed in the manifest.
+    """
+    if not rule:
+        return []
+    from cytellect_api.db import revisions
+
+    store = space.api.app.state.store
+    fraction = float(rule["max_area_fraction"])
+    nuclei, removed = space.adopted("nuclei"), []
+    for fid, nucleolar_id in space.adopted("nucleoli").items():
+        row = store.one(revisions, id=nucleolar_id)
+        provenance = json.loads((store.safe_path(row["result_dir"]) / "provenance.json").read_text())
+        states = provenance["fields"][fid]["detector"]["engine"].get("nucleolar_states") or {}
+        unresolved = sorted(int(parent) for parent, state in states.items() if state != "candidate")
+        if not unresolved:
+            continue
+        nuclear_id = nuclei[fid]
+        table = space.api.get(f"/v1/revisions/{nuclear_id}/region-measurements")["field_tables"][fid]
+        areas = {int(item["region_id"]): float(item["area_px"]) for item in table["rows"]}
+        median = statistics.median(areas.values())
+        for parent in unresolved:
+            if areas[parent] >= fraction * median:
+                raise ValueError(f"fragment review: field {fid} nucleus {parent} ({areas[parent]:.0f} px) has no "
+                                 f"nucleolus and is not a fragment (< {fraction} x median {median:.0f} px)")
+        masks = space.api.get(f"/v1/revisions/{nuclear_id}/region-masks?field_id={fid}")
+        space.api.post(f"/v1/workspaces/{space.wid}/current", {"revision_id": nuclear_id})
+        created = space.api.post(f"/v1/revisions/{nuclear_id}/region-edits", {
+            "field_id": fid, "region_set_id": "nuclei", "operation": "delete", "ids": unresolved, "polygon": [],
+            "expected_mask_revision_id": masks["metadata"]["mask_revision_id"]})
+        drain(space.api)
+        current = space.selection()
+        space.api.post(f"/v1/workspaces/{space.wid}/selection", {"version": current["version"], "entries": [
+            {**entry, "revision_id": created["revision_id"]} if entry["field_id"] == fid else entry
+            for entry in current["entries"]]})
+        removed += [{"field_id": fid, "region_id": parent, "area_px": areas[parent], "field_median_area_px": median}
+                    for parent in unresolved]
+        log("fragment review", fid, unresolved)
+    return removed
+
+
 def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     plan = manifest["scenario"]
     created = api.post("/v1/workspaces", {"title": manifest.get("workspace_title", "画像解析")})
@@ -708,6 +756,9 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
         log(name, timings[name], "s")
         return value
 
+    # The demo fixes the measurement background (the workspace locks the control), so the opening
+    # measurements carry every metric the statistics offer, raw and background-corrected.
+    space.settings = {**space.settings, "background": plan.get("background", "raw")}
     timed("nuclei", lambda: space.run("nuclei"))
     marker = plan.get("nucleolar_marker")
     source = plan.get("nucleolar_definition", "ncl")
@@ -721,6 +772,10 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
         space.processing = ({**empty_processing(), "nucleoli": {"channel": marker, "detector": ncl_cellpose_detector()}}
                             if source == "ncl" else None)
     timed("nucleoli", lambda: space.run("nucleoli"))
+    removed = review_fragments(space, plan.get("fragment_review"))
+    if removed:
+        # The researcher removed fragments from the nuclei; their compartments follow the edit.
+        timed("nucleoli-after-review", lambda: space.run("nucleoli"))
     timed("nucleoplasm", lambda: space.run("nucleoplasm"))
     saved = {}
     # The comparison and its layouts first; the last calculation (the per-field distribution) is
@@ -744,7 +799,7 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     from cytellect_api.db import workspaces
 
     owner = api.app.state.store.one(workspaces, id=space.wid)["owner"]
-    return {"workspace_id": space.wid, "owner": owner, "fields": space.fields, "timings": timings,
+    return {"workspace_id": space.wid, "owner": owner, "fields": space.fields, "timings": timings, "fragment_review": removed,
             "statistics": {name: {"job": value["job"], "revision": value["revision"]} for name, value in saved.items()},
             "renders": renders, "spec_version": space.spec["version"], "space": space}
 
@@ -1069,7 +1124,7 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
             (web / name).write_bytes(content)
         shutil.rmtree(web / ".next-showcase", ignore_errors=True)
     target = out / "snapshot"
-    keep = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json"}
+    keep = SNAPSHOT_KEEP
     # The journal stage records again after every snapshot; its files go with the snapshot's.
     if target.exists():
         for path in target.iterdir():
@@ -1082,7 +1137,23 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
     return report
 
 
-def journal(work: Path, origin_port: int, out: Path) -> dict:
+# Files of the snapshot directory that no index or journal entry names.
+SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json"}
+
+
+RANK_TESTS = {"mann-whitney-u", "wilcoxon", "kruskal-wallis"}
+
+
+def rank_examples(manifest: dict) -> list[int]:
+    """The AI examples whose draft chooses rank-based methods, which later statistics keep."""
+    presets = (manifest["scenario"].get("proposals") or {}).get("presets", [])
+    return [index for index, item in enumerate(presets)
+            if item["draft"]["statistics"].get("test") in RANK_TESTS
+            or item["draft"]["statistics"].get("omnibus") in RANK_TESTS
+            or item["draft"]["statistics"].get("association") == "spearman"]
+
+
+def journal(work: Path, origin_port: int, out: Path, rank: list[int]) -> dict:
     """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``."""
     origin = f"http://127.0.0.1:{origin_port}"
     web = REPO / "apps" / "web"
@@ -1109,10 +1180,10 @@ def journal(work: Path, origin_port: int, out: Path) -> dict:
                 time.sleep(1)
         if destination.exists():
             shutil.rmtree(destination)
-        config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"),
+        config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "rank_examples": rank,
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         result = subprocess.run(["node", str(Path(__file__).with_name("journal.mjs"))], input=json.dumps(config),
-                                text=True, cwd=work, capture_output=True, timeout=7200)
+                                text=True, cwd=work, capture_output=True, timeout=21600)
         sys.stdout.write(result.stdout[-4000:])
         if result.returncode:
             sys.stderr.write(result.stderr[-4000:])
@@ -1130,6 +1201,12 @@ def journal(work: Path, origin_port: int, out: Path) -> dict:
     for path in (destination / "files").iterdir():
         shutil.copyfile(path, target / path.name)
     shutil.copyfile(destination / "journal.json", target / "journal.json")
+    # The previous recording's answers that this one no longer names are not published.
+    named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
+    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    for path in target.iterdir():
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
+            path.unlink()
     return {key: report[key] for key in ("entries", "scenes")}
 
 
@@ -1365,7 +1442,7 @@ def main(argv: list[str] | None = None) -> None:
         state_path.write_text(json.dumps(state, indent=1))
         write_manifest(args, manifest, state)
     if "journal" in stages:
-        state["journal"] = journal(work, args.web_port, args.out)
+        state["journal"] = journal(work, args.web_port, args.out, rank_examples(manifest))
         state_path.write_text(json.dumps(state, indent=1))
         write_manifest(args, manifest, state)
     if "manifest" in stages:
@@ -1427,7 +1504,7 @@ def write_manifest(args, manifest: dict, state: dict) -> None:
                       if key not in ("cells", "checksums")},
         "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
             "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
-            "statistics_amendment", "grid_notes")},
+            "statistics_amendment", "grid_notes", "fragment_review")},
         "seed": state.get("seed"),
         "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
                        "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],
@@ -1439,7 +1516,7 @@ def write_manifest(args, manifest: dict, state: dict) -> None:
                    for item in state.get("prepared", [])],
         "generated_from_commit": git_commit(),
         "runtime": runtime_versions(args.fiji),
-        "scenario": {key: state["scenario"].get(key) for key in ("timings", "statistics", "renders")},
+        "scenario": {key: state["scenario"].get(key) for key in ("timings", "statistics", "renders", "fragment_review")},
         "journal": state.get("journal"),
         "grid": {"options": state.get("grid", {}).get("options"), "timings": state.get("grid", {}).get("timings")},
         "detections_recorded": len(json.loads((args.work / "recordings" / "index.json").read_text())["entries"])
