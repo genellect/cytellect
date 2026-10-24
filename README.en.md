@@ -60,8 +60,6 @@ The graph editor imports Matplotlib SVG and maps axis and series selections to a
 
 Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
 
-The public site uses live-action film and shows a still frame first. The film does not play under reduced-motion settings or off screen.
-
 ## LLM and analysis settings
 
 The LLM receives the instruction text, the mapping between stains and channels, image dimensions and the current settings. The normal application path does not send original images or measurements.
@@ -86,15 +84,15 @@ Settings updates are checked against the requester's version and return `409` on
 
 Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests.
 
-Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start. The Windows edition keeps data until it is deleted by default, and a loopback Docker installation can use the same mode.
+Research data is stored in a private area separate from the code. Data expires 24 hours after the last action and is deleted by the worker. Data that expires while the application is stopped is deleted after the next start.
 
 ## Distribution
 
-The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The analysis API and calculation environment are deployed separately and distributed with Docker and a Windows launcher. The public site's `/demo` runs the production workspace without an analysis server, using processed public images.
+The web UI is hosted on Vercel and the AI service on Cloudflare Workers. The analysis API and calculation environment are deployed separately and distributed with Docker and a Windows launcher.
 
 The Docker edition runs the web UI, API and calculation worker in separate containers, with a non-root user, a read-only root filesystem and reduced privileges. The calculation worker has no network access.
 
-The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. Cellpose inference can also run on a cloud GPU; only the images and settings used for detection are sent, and measurement stays on the PC. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
+The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
 ## Development and validation
 
