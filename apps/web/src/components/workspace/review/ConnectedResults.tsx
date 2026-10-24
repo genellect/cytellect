@@ -9,7 +9,7 @@ import {commonWarnings} from "@/lib/common-statistics";
 import {createComparisonAdapter,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
-import {checkedPlot,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedSignal,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
@@ -92,6 +92,12 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const conditions=[...new Set(Object.values(fields).map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
   const pairs=conditions.flatMap((a,index)=>conditions.slice(index+1).map(b=>[a,b]));
   const channels=[...new Set(sources.flatMap(source=>source.result.rows.map(row=>row.channel_id)))];
+  // Only choices the calculation accepts are offered: an association needs two different region measurements.
+  const canAssociate=associationSupported({regionSet,metric,channel,gfp});
+  const saturated=saturatedSignal(sources,metric,channel);
+  const xAxes=associationAxes(metric,channel,xChannel);
+  useEffect(()=>{if((operation==="association"&&!canAssociate)||(operation==="comparison"&&saturated))setOperation("distribution");},[operation,canAssociate,saturated]);
+  useEffect(()=>{if(!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp};
   const sourceIdentity=JSON.stringify([target,sources.map(source=>[source.field,source.revision])]);
   useEffect(()=>{setReviewed(false);setConfirmed(false);},[sourceIdentity]);
@@ -136,7 +142,9 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   async function calculate(){
     if(lock.current||!ready)return;lock.current=true;setBusy("解析中…");setError("");
     try{
-      const display=plot();const base=resultRequest(design,fields,display);const chosenKind=operation==="association"?"scatter":operation==="distribution"?"distribution":figureKind==="scatter"?"distribution":figureKind;
+      // The public demo calculates with the default figure (recorded for every result); a width the
+      // visitor chose beforehand is drawn right after (below).
+      const display=demo?{...plot(),width_inches:183/25.4}:plot();const base=resultRequest(design,fields,display);const chosenKind=operation==="association"?"scatter":operation==="distribution"||demo?"distribution":figureKind==="scatter"?"distribution":figureKind;
       const spec={...base,plot:{...base.plot,kind:chosenKind}};
       await persist();
       if(sources.some(source=>(source.result.regionSet||target)!==regionSet))throw new Error("同じ領域の測定結果を選択してください。");
@@ -156,14 +164,18 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     }catch(cause){setError(fail(cause));}finally{lock.current=false;setBusy("");}
   }
   async function render(downloadZip=false){
-    if(lock.current||!saved||!canRender)return;lock.current=true;setBusy("図を更新中…");setError("");
+    if(lock.current||!saved||!canRender)return;lock.current=true;setBusy("図を更新中…");setError("");setSavedNote("");
     try{if(!saved.historical)await persist();const display={...plot(),kind:figureKind};const key=JSON.stringify([saved.job,display]);let rendered=renderCache.current.get(key);
       if(!rendered){let requestId=renderIds.current.get(key);if(!requestId){requestId=crypto.randomUUID();renderIds.current.set(key,requestId);}
         const accepted=await post<{job_id:string}>(`/v1/jobs/${saved.job}/figure-render`,{request_id:requestId,plot:{...display,y_min:display.y_min??null,y_max:display.y_max??null}});await waitJob(accepted.job_id);
         const output=await request<{source_job_id:string;figure:ResultPayload["figure"]}>(`/v1/jobs/${accepted.job_id}/figure-render`);
         if(output.source_job_id!==saved.job)throw new Error("図の元データが一致しません。");rendered={job:accepted.job_id,figure:output.figure};renderCache.current.set(key,rendered);}
       const updated={...saved,plot:display,figureJob:rendered.job,figure:rendered.figure};setSaved(updated);setHistory(previous=>[updated,...previous.filter(value=>value.figureJob!==updated.figureJob)]);
-      if(downloadZip){setBusy("保存ファイルを作成中…");const exported=await post<{job_id:string}>(`/v1/revisions/${saved.revision}/export${includeRaw?"?include_raw=true":""}`,{});await waitJob(exported.job_id);const packaged=await post<{job_id:string}>(`/v1/jobs/${rendered.job}/publication-package`,{analysis_job_id:exported.job_id,request_id:crypto.randomUUID()});await waitJob(packaged.job_id);await download(`/v1/jobs/${packaged.job_id}/files/publication.zip`,"Cytellect-publication.zip");}
+      if(downloadZip){setBusy("保存ファイルを作成中…");try{const exported=await post<{job_id:string}>(`/v1/revisions/${saved.revision}/export${includeRaw?"?include_raw=true":""}`,{});await waitJob(exported.job_id);const packaged=await post<{job_id:string}>(`/v1/jobs/${rendered.job}/publication-package`,{analysis_job_id:exported.job_id,request_id:crypto.randomUUID()});await waitJob(packaged.job_id);await download(`/v1/jobs/${packaged.job_id}/files/publication.zip`,"Cytellect-publication.zip");}catch(cause){
+        // The public demo records the publication package for the guided result only; any other
+        // result saves the figure it shows, which is recorded.
+        if(!demo||!(cause instanceof ApiError)||cause.code!=="showcase_action_not_recorded")throw cause;
+        const file=rendered.figure.source_files.find(name=>name.endsWith(".svg"))||"figure-001.svg";await download(`/v1/jobs/${rendered.job}/files/${encodeURIComponent(file)}`,"Cytellect-figure.svg");setSavedNote("図（SVG）を保存しました。論文用パッケージ（ZIP）は、お手元の画像で Windows 版から作成できます。");}}
     }catch(cause){setError(fail(cause));}finally{lock.current=false;setBusy("");}
   }
   function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setConfirmed(false);}
@@ -171,6 +183,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   // The public demo opens on the latest saved result (as a researcher's own session would
   // have left it) instead of an empty view; production keeps the explicit choice.
   const demo=useShowcaseUi().enabled,openedSaved=useRef(false);
+  const [savedNote,setSavedNote]=useState("");
+  useEffect(()=>{if(demo&&saved&&!saved.historical&&Math.abs(saved.plot.width_inches*25.4-width)>.5)void render();},[saved?.job]);// eslint-disable-line react-hooks/exhaustive-deps
   const openLatestSaved=useEffectEvent((entry:Saved)=>{if(!saved)restoreFigure(entry);});
   useEffect(()=>{if(!demo||openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[demo,history]);
   const shownTarget=saved?.historical?saved.target:target;const shownMetric=saved?.historical?(saved.result.metric||saved.result.y_source?.metric||saved.result.spec?.selection?.metric||""):metric;const shownChannel=saved?.historical?(saved.result.channel?.channel_id||saved.result.y_source?.channel?.channel_id||saved.result.spec?.selection?.channel_id||null):channel;
@@ -188,33 +202,35 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
         {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
-        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution">分布</option><option value="comparison">群間比較</option><option value="association">相関</option></select></label>
+        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution">分布</option><option value="comparison" disabled={saturated}>{saturated?"群間比較（飽和した画素があるため選べません）":"群間比較"}</option><option value="association" disabled={!canAssociate}>{canAssociate?"相関":"相関（面積・輝度で選べます）"}</option></select></label>
         {operation!=="distribution"&&<>
-          <div className={styles.row}><label>方法<select value={rank?"rank":"parametric"} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
-          {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{["area_px","mean","median","integrated"].map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
+          <div className={styles.row}><label>方法<select value={rank?"rank":"parametric"} disabled={demo} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
+          {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} disabled={demo} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
 
-          <label>独立実験単位<input value={unit} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
-          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}
-          {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{pair.join(" / ")}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
+          <label>独立実験単位<input value={unit} readOnly={demo} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
+          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} readOnly={demo} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}
+          {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{pair.join(" / ")}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
           <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した</label>
         </>}
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
         <button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>
       </>:<>
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
-        {part==="figure"&&<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(previous=>Math.min(previous,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option><option value="custom">指定する</option></select></label>}
+        {part==="figure"&&<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(previous=>Math.min(previous,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option>{!demo&&<option value="custom">指定する</option>}</select></label>}
         {saved?.operation==="comparison"&&<label>図のレイアウト<select value={figureKind} onChange={event=>setFigureKind(event.target.value as RenderPlot["kind"])}><option value="distribution">点と分布</option><option value="box">箱ひげ図</option><option value="violin">バイオリン図</option><option value="histogram">ヒストグラム</option>{paired&&<option value="paired">対応する点を結ぶ</option>}</select></label>}
-        {part==="x"&&<><label>横軸ラベル<input value={xLabel} maxLength={120} onChange={event=>setXLabel(event.target.value)}/></label><AxisControls axis="x" value={xAxis} onChange={setXAxis} numeric={(saved?.operation||operation)==="association"}/></>}
-        {part==="y"&&<><label>縦軸ラベル<input value={yLabel} maxLength={120} onChange={event=>setYLabel(event.target.value)}/></label><AxisControls axis="y" value={{...yAxis,min:yMin,max:yMax}} onChange={value=>{setYAxis(value);setYMin(value.min);setYMax(value.max);}}/></>}
-        {part==="figure"&&<><div className={styles.row}><label>幅 / mm<input type="number" min={76.2} max={406.4} value={width} onChange={event=>setWidth(Number(event.target.value))}/></label><label>高さ / mm<input type="number" min={25.4} max={170} value={height} onChange={event=>setHeight(Number(event.target.value))}/></label></div><label>文字 / pt<input type="number" min={5} max={24} value={font} onChange={event=>setFont(Number(event.target.value))}/></label><label className={styles.check}><input type="checkbox" checked={legend} onChange={event=>setLegend(event.target.checked)}/>凡例を表示</label></>}
-        {part==="series"&&<><label>系列<select value={selectedSeries||series[0]||""} onChange={event=>setSelectedSeries(event.target.value)}>{(order.length?seriesOrder(order,series):series).map(key=><option key={key} value={key}>{sources.find(source=>source.field===key)?.label||key}</option>)}</select></label><label>色<input type="color" value={colors[selectedSeries||series[0]]||"#0072b2"} onChange={event=>setColors(previous=>({...previous,[selectedSeries||series[0]]:event.target.value}))}/></label><label>点の大きさ<input type="number" min={1} max={400} value={pointSize} onChange={event=>setPointSize(Number(event.target.value))}/></label><div className={styles.row}>{[-1,1].map(direction=><button key={direction} onClick={()=>{const current=order.length?seriesOrder(order,series):[...series];const index=current.indexOf(selectedSeries||series[0]);if(index+direction<0||index+direction>=current.length)return;[current[index],current[index+direction]]=[current[index+direction],current[index]];setOrder(current);}}>{direction<0?"前へ":"後へ"}</button>)}</div>{operation==="distribution"&&<button onClick={()=>onSource(selectedSeries||series[0],undefined,saved?.revision,saved?.target,savedChannel)}>元の視野を表示</button>}</>}
+        {part==="x"&&<fieldset className={styles.plain} disabled={demo}><label>横軸ラベル<input value={xLabel} maxLength={120} onChange={event=>setXLabel(event.target.value)}/></label><AxisControls axis="x" value={xAxis} onChange={setXAxis} numeric={(saved?.operation||operation)==="association"}/></fieldset>}
+        {part==="y"&&<fieldset className={styles.plain} disabled={demo}><label>縦軸ラベル<input value={yLabel} maxLength={120} onChange={event=>setYLabel(event.target.value)}/></label><AxisControls axis="y" value={{...yAxis,min:yMin,max:yMax}} onChange={value=>{setYAxis(value);setYMin(value.min);setYMax(value.max);}}/></fieldset>}
+        {part==="figure"&&<><div className={styles.row}><label>幅 / mm<input type="number" disabled={demo} min={76.2} max={406.4} value={width} onChange={event=>setWidth(Number(event.target.value))}/></label><label>高さ / mm<input type="number" disabled={demo} min={25.4} max={170} value={height} onChange={event=>setHeight(Number(event.target.value))}/></label></div><label>文字 / pt<input type="number" disabled={demo} min={5} max={24} value={font} onChange={event=>setFont(Number(event.target.value))}/></label><label className={styles.check}><input type="checkbox" disabled={demo} checked={legend} onChange={event=>setLegend(event.target.checked)}/>凡例を表示</label></>}
+        {part==="series"&&<><fieldset className={styles.plain} disabled={demo}><label>系列<select value={selectedSeries||series[0]||""} onChange={event=>setSelectedSeries(event.target.value)}>{(order.length?seriesOrder(order,series):series).map(key=><option key={key} value={key}>{sources.find(source=>source.field===key)?.label||key}</option>)}</select></label><label>色<input type="color" value={colors[selectedSeries||series[0]]||"#0072b2"} onChange={event=>setColors(previous=>({...previous,[selectedSeries||series[0]]:event.target.value}))}/></label><label>点の大きさ<input type="number" min={1} max={400} value={pointSize} onChange={event=>setPointSize(Number(event.target.value))}/></label><div className={styles.row}>{[-1,1].map(direction=><button key={direction} onClick={()=>{const current=order.length?seriesOrder(order,series):[...series];const index=current.indexOf(selectedSeries||series[0]);if(index+direction<0||index+direction>=current.length)return;[current[index],current[index+direction]]=[current[index+direction],current[index]];setOrder(current);}}>{direction<0?"前へ":"後へ"}</button>)}</div></fieldset>{operation==="distribution"&&<button onClick={()=>onSource(selectedSeries||series[0],undefined,saved?.revision,saved?.target,savedChannel)}>元の視野を表示</button>}</>}
         <button className={styles.primary} disabled={!canRender} onClick={()=>void render()}>{busy||"図を更新"}</button>
         {!saved&&<p>統計画面で計算すると、結果を使って図を編集できます。</p>}
       </>}
+      {savedNote&&<p role="status" className={styles.demoNote}>{savedNote}</p>}
+      {demo&&<p className={styles.demoNote}>公開デモでは、記録した解析の範囲で操作できます。方法・ラベル・軸・色などの変更は、お手元の画像で Windows 版から行えます。</p>}
       {missing>0&&<><p role="status">{missing} 視野の測定が未完了です。</p>{onPrepareMissing&&<button disabled={!!busy||disabled} onClick={()=>{setBusy("必要な測定値を計算中…");void onPrepareMissing().catch(cause=>setError(fail(cause))).finally(()=>setBusy(""));}}>必要な測定値を計算</button>}</>}
       {stale&&<p role="status">測定結果または解析条件が変わりました。再計算してください。</p>}
       {error&&<ErrorText text={error}/>}
-      {saved&&<div className={styles.downloads}>{mode==="figure"&&<label className={styles.check}><input type="checkbox" checked={includeRaw} disabled={!!busy||stale} onChange={event=>setRawExport({revision:saved.revision,included:event.target.checked})}/>元画像を含める</label>}<button disabled={!!busy||stale} onClick={()=>void render(true)}>保存</button></div>}
+      {saved&&<div className={styles.downloads}>{mode==="figure"&&<label className={styles.check}><input type="checkbox" checked={includeRaw} disabled={!!busy||stale||demo} onChange={event=>setRawExport({revision:saved.revision,included:event.target.checked})}/>元画像を含める</label>}<button disabled={!!busy||stale} onClick={()=>void render(true)}>保存</button></div>}
     </div>
     <div className={styles.output} ref={outputRef}>
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}

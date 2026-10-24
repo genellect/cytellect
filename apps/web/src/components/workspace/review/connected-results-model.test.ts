@@ -1,5 +1,5 @@
 import {describe,it,expect} from "vitest";
-import {checkedPlot,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,seriesOrder,type ResultDesign} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedSignal,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,seriesOrder,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
@@ -53,5 +53,33 @@ describe("connected result contracts",()=>{
   it("rejects invalid axis ranges and preserves explicit negative bounds",()=>{
     expect(()=>checkedPlot(178,100,7,"","","10","1")).toThrow();
     expect(checkedPlot(178,100,7,"Field","Intensity","-10","20")).toMatchObject({y_min:-10,y_max:20,x_label:"Field",y_label:"Intensity"});
+  });
+});
+
+describe("association choices", () => {
+  it("offers an association only for region measurements, never for per-nucleus nucleolar summaries", () => {
+    expect(associationSupported({regionSet:"nuclei",metric:"mean",channel:"npm1",gfp:null})).toBe(true);
+    expect(associationSupported({regionSet:"nuclei",metric:"area_px",channel:null,gfp:null})).toBe(true);
+    expect(associationSupported({regionSet:"nuclei",metric:"nucleolar_count",channel:null,gfp:null})).toBe(false);
+    expect(associationSupported({regionSet:"nuclei",metric:"log2_nucleoplasm_over_nucleolus",channel:"npm1",gfp:null})).toBe(false);
+  });
+  it("never offers the vertical measurement as the horizontal axis", () => {
+    expect(associationAxes("area_px",null,"npm1")).toEqual(["mean","median","integrated"]);
+    expect(associationAxes("mean","npm1","npm1")).toEqual(["area_px","median","integrated"]);
+    expect(associationAxes("mean","npm1","hoechst")).toEqual(["area_px","mean","median","integrated"]);
+  });
+});
+
+describe("saturated signal", () => {
+  const row = (region_id: number, channel_id: string, saturation: number) => ({region_id, channel_id, area_px: 1, area_um2: null, mean: 1, median: 1, integrated: 1, storage_limit_fraction: 0, acquisition_saturation_fraction: saturation});
+  const source = (rows: ReturnType<typeof row>[], excluded: number[] = []) => ({result: {rows, exclusions: excluded.map(region_id => ({region_id}))}});
+  it("withholds a brightness comparison when an adopted region is saturated in that channel", () => {
+    expect(saturatedSignal([source([row(1, "hoechst", 0.02), row(1, "npm1", 0)])], "mean", "hoechst")).toBe(true);
+    expect(saturatedSignal([source([row(1, "hoechst", 0.02), row(1, "npm1", 0)])], "mean", "npm1")).toBe(false);
+  });
+  it("ignores excluded regions, areas and per-nucleus counts", () => {
+    expect(saturatedSignal([source([row(1, "hoechst", 0.02)], [1])], "mean", "hoechst")).toBe(false);
+    expect(saturatedSignal([source([row(1, "hoechst", 0.02)])], "area_px", "hoechst")).toBe(false);
+    expect(saturatedSignal([source([row(1, "hoechst", 0.02)])], "nucleolar_count", null)).toBe(false);
   });
 });

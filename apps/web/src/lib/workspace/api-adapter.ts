@@ -24,6 +24,7 @@ export interface MeasurementRow {
   mean: number | null; median: number | null; integrated: number | null;
   mean_corrected?: number | null; median_corrected?: number | null; integrated_corrected?: number | null;
   area_missing_reason?: string | null; intensity_missing_reason?: string | null; correction_missing_reason?: string | null;
+  storage_limit_fraction?: number; acquisition_saturation_fraction?: number | null;
 }
 export interface SavedResult {
   regionSet?: string; revision: string; field: string; rows: MeasurementRow[];

@@ -1,6 +1,7 @@
 import {comparisonRequest, comparisonSelection, type ComparisonChoices, type Metadata, type RegionComparisonMetric, type CompartmentComparisonMetric, type GfpSelectionChoice} from "../../../lib/workspace/comparison-adapter";
 import {defaultFigureEdits} from "../../../lib/figure-controls";
 import type {AssociationRequest} from "../../../lib/common-statistics";
+import type {MeasurementRow} from "../../../lib/workspace/api-adapter";
 
 export type ResultOperation = "distribution" | "comparison" | "association";
 export const emptyMetadata: Metadata = {condition:null,sample:null,experimental_unit:null,pair:null,acquisition_date:null,repeat_length:null};
@@ -26,6 +27,24 @@ export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"
   if (!metrics.has(design.metric)) throw new Error("対応する測定項目を選択してください。");
   return comparisonSelection(design.regionSet, design.metric as RegionComparisonMetric | CompartmentComparisonMetric,
     design.metric.startsWith("area_") || ["nucleolar_count","nucleolar_area_fraction"].includes(design.metric) ? null : design.channel,design.gfp??null);
+}
+/** An association plots two region measurements; per-nucleus nucleolar summaries cannot be an axis. */
+export function associationSupported(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp">) {
+  try {return resultSelection(design).source === "region";} catch {return false;}
+}
+/** Horizontal-axis measurements that differ from the vertical one. */
+export function associationAxes(metric: string, channel: string|null, xChannel: string|null) {
+  return ["area_px","mean","median","integrated"].filter(value=>value!==metric||(!value.startsWith("area_")&&xChannel!==channel));
+}
+/** The API refuses to compare brightness when an adopted region holds saturated or storage-limit
+ * pixels in that channel (region_comparison_saturated_signal); the comparison is not offered then. */
+export function saturatedSignal(sources: Array<{result?: {rows: MeasurementRow[]; exclusions?: Array<{region_id: number | null}>}}>, metric: string, channel: string | null) {
+  if (!channel || metric.startsWith("area_") || ["nucleolar_count","nucleolar_area_fraction"].includes(metric)) return false;
+  return sources.some(source => {
+    const excluded = new Set((source.result?.exclusions ?? []).map(item => item.region_id));
+    return (source.result?.rows ?? []).some(row => row.channel_id === channel && !excluded.has(row.region_id)
+      && ((row.storage_limit_fraction ?? 0) > 0 || (row.acquisition_saturation_fraction ?? 0) > 0));
+  });
 }
 /** Figure series are exactly the analysed groups: fields for a distribution, the
  * checked groups for a comparison (as sent in the request), all groups for an association. */

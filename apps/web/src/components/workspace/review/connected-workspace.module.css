@@ -14,3 +14,6 @@
 .fieldMenu{flex-shrink:0}.fieldMenu summary{list-style:none;padding:0 8px!important;font-size:22px!important}.fieldMenu[open]{position:relative}.fieldMenu>label{position:fixed;z-index:12;top:108px;right:300px;width:230px;margin:0;padding:12px;background:white;border:1px solid var(--line);box-shadow:0 6px 18px #0002}.fieldMenu>label+label{top:195px}.importIssues{position:relative;font-size:14px;flex-shrink:0}.importIssues summary{white-space:nowrap}.importIssues ul{position:absolute;z-index:12;bottom:36px;left:0;width:min(440px,65vw);max-height:200px;overflow:auto;padding:12px 12px 12px 30px;background:white;border:1px solid var(--line);box-shadow:0 -4px 18px #0002}.importIssues li{overflow-wrap:anywhere;margin:8px 0}
 
 .detectorSettings{border:0;min-width:0;margin:12px 0 0;padding:0}
+
+.plain{border:0;margin:0;padding:0;min-width:0}
+.demoNote{margin:0 0 8px;font-size:12px;line-height:1.5;color:#66717f}

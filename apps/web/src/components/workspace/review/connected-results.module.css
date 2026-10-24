@@ -8,3 +8,6 @@
 .output{grid-column:1;grid-row:1;overflow:auto;padding:20px;min-width:0;background:#fafbfc}.figure{display:block;width:100%;height:auto;background:#fff;margin-bottom:20px}.empty{display:grid;place-items:center;min-height:280px;color:#66717f}.output>details{margin:18px 0}.output>details>button{margin:6px}
 @media(max-width:850px){.root{grid-template-columns:1fr;height:auto}.settings{grid-column:1;grid-row:1;border-left:0;border-bottom:1px solid #e0e5eb}.output{grid-column:1;grid-row:2;min-height:300px}}
 .figureParts{display:flex;gap:3px}.figureParts button{padding:6px;flex:1;font-size:14px}.figureParts button[aria-pressed=true]{background:#eaf1fb;border-color:#2468cc}.editableFigure{background:white;cursor:pointer;outline:1px solid transparent}.editableFigure:focus-visible{outline:2px solid #2468cc}.editableFigure svg{width:100%;height:auto;display:block}.editableFigure svg *{stroke-linejoin:round;stroke-linecap:butt}.editableFigure [data-figure-id^="matplotlib.axis_"]:hover{opacity:.65}.figureHistory{max-width:300px;margin-bottom:16px}
+
+.plain{border:0;margin:0;padding:0;min-width:0;display:contents}
+.demoNote{margin:0;font-size:12px;line-height:1.5;color:#66717f}
