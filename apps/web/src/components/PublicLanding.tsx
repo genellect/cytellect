@@ -7,6 +7,8 @@ import { HeroFilm } from "./HeroFilm";
 import { LandingFeatures } from "./LandingFeatures";
 import { LandingStory } from "./LandingStory";
 import { LandingHomeLink } from "./LandingHomeLink";
+import { LandingFinale } from "./LandingFinale";
+import { LandingDemoBar } from "./LandingDemoBar";
 import styles from "./product.module.css";
 import lp from "./optical-landing.module.css";
 
@@ -71,12 +73,14 @@ export default function PublicLanding() {
 
       <figure className={[lp.band, lp.bandLow].join(" ")}><img src="/marketing/lp-dish.webp" alt="淡いミント色の面に置いたシャーレとガラス管" width={2400} height={1597} loading="lazy" /></figure>
 
-      <section className={lp.section} aria-labelledby="impact-title">
+      <section className={[lp.section, lp.impact].join(" ")} aria-labelledby="impact-title">
         <div className={lp.column}>
-          <Display id="impact-title" text="核と核小体の定量を、がん・ALS・認知症・老化の研究へ。" />
-          <div className={lp.prose}><p>同じ基準で測れれば、研究室をまたいで比べられます。</p></div>
+          <h2 id="impact-title" className={lp.statement} aria-label="生命の謎も、病気の治し方も。答えは、細胞の中にある。"><span><span>生命の謎も、</span><span>病気の治し方も。</span></span><span><span>答えは、</span><span>細胞の中にある。</span></span></h2>
+          <p className={lp.statementLead}>核も、核小体も、細胞質も、蛍光で光る細胞も。見たいものを数値にして、病気の解明と、新しい薬づくりへ。</p>
         </div>
       </section>
+
+      <LandingFinale />
 
       <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
@@ -110,6 +114,7 @@ export default function PublicLanding() {
         </div>
       </section>
     </main>
+    <LandingDemoBar />
     <footer className={lp.footer}><div className={lp.sectionShell}>
       <div className={lp.footerPrimary}><div><a href="#top" className={lp.footerBrand}>cytellect</a><span>顕微鏡画像の解析から統計、論文用グラフの作成まで</span></div><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect" target="_blank" rel="noopener noreferrer">GitHub <Arrow /></a><a href="#top">ページの先頭へ <span aria-hidden="true">↑</span></a></nav></div>
       <details className={lp.credits}><summary>画像・映像の出典</summary><p>{CREDITS.map(({ label, sources, note }, index) => <span key={label}>{index > 0 && " · "}{label}：{sources.map(([name, href], i) => <span key={href}>{i > 0 && "、"}<a href={href} target="_blank" rel="noopener noreferrer">{name}</a></span>)}{note}</span>)}</p></details>

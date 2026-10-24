@@ -15,7 +15,7 @@
   } catch { return; }
   const names = {
     download: "download_click", download_section: "download_section_click",
-    launch: "launch_help_click", example: "example_click", planning: "planning_click", guide: "guide_click",
+    launch: "launch_help_click", example: "example_click", example_final: "example_click", example_sticky: "example_click", planning: "planning_click", guide: "guide_click",
     quickstart: "guide_click", methods: "guide_click", setup: "guide_click", figures: "guide_click",
     workspace: "workspace_click", story: "story_open",
     demo_image: "demo_step_click", demo_statistics: "demo_step_click", demo_figure: "demo_step_click",
