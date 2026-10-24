@@ -1,4 +1,4 @@
-# CI scope and checks
+# CI design
 
 How pull-request and `main` CI select jobs, and the integration checks CI runs. Local commands are in [CONTRIBUTING](../CONTRIBUTING.md); `python3 scripts/dev.py check` runs the same commands as the `python` and `web` jobs.
 
