@@ -29,13 +29,11 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toBeFocused();
  await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toHaveAttribute("aria-selected","true");
  await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
- // The page closes on a three-screen chapter whose last screen returns to the hero film with the demo as its main action.
+ // The page closes on a three-screen chapter whose last screen offers the demo as its main action.
  expect(await page.locator("main > :is(section,figure,div)").evaluateAll(nodes=>nodes.at(-1)?.querySelector(":scope > section:last-child")?.id)).toBe("start");
  const finale=page.getByRole("region",{name:"その未来を、あなたの研究から。",exact:true});
  await expect(finale.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(finale.getByRole("link",{name:"Windows版をダウンロード",exact:true})).toHaveAttribute("href","#download");
- await expect(finale.locator("video")).toHaveCount(0);
- await expect(page.getByTestId("finale-film").locator("img")).toHaveAttribute("loading","lazy");
  const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir)fs.mkdirSync(dir,{recursive:true});
  for(const [width,height] of [[1440,900],[1280,800],[768,1024],[390,844],[360,800]]){
   await page.setViewportSize({width,height});
@@ -156,17 +154,3 @@ test("the footer credits every image and video at its source and has no security
  expect(await credits.getByRole("link").evaluateAll(links=>links.every(link=>/^https:\/\/(www\.pexels\.com|unsplash\.com|doi\.org|creativecommons\.org)\//.test((link as HTMLAnchorElement).href)&&(link as HTMLAnchorElement).rel.includes("noopener")))).toBe(true);
 });
 
-test("on phones a demo bar follows the reader between the hero and the closing chapter",async({page})=>{
- await page.emulateMedia({reducedMotion:"reduce"});
- await page.setViewportSize({width:390,height:844});await page.goto("/");
- const bar=page.getByTestId("demo-bar");
- await expect(bar).toHaveAttribute("data-shown","false");
- await page.locator("#workflow").scrollIntoViewIfNeeded();
- await expect(bar).toHaveAttribute("data-shown","true");
- await expect(bar.locator("a")).toHaveAttribute("href","/demo");await expect(bar.locator("a")).toHaveText("デモを体験する →");
- await expect(bar.locator("a")).toBeInViewport();
- await page.locator("#future").scrollIntoViewIfNeeded();
- await expect(bar).toHaveAttribute("data-shown","false");
- await page.setViewportSize({width:1440,height:900});
- await expect(bar).toBeHidden();
-});

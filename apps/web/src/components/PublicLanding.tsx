@@ -8,7 +8,6 @@ import { LandingFeatures } from "./LandingFeatures";
 import { LandingStory } from "./LandingStory";
 import { LandingHomeLink } from "./LandingHomeLink";
 import { LandingClosing } from "./LandingClosing";
-import { LandingDemoBar } from "./LandingDemoBar";
 import styles from "./product.module.css";
 import lp from "./optical-landing.module.css";
 
@@ -71,6 +70,8 @@ export default function PublicLanding() {
         </div>
       </section>
 
+      <figure className={[lp.band, lp.bandLow].join(" ")}><img src="/marketing/lp-dish.webp" alt="淡いミント色の面に置いたシャーレとガラス管" width={2400} height={1597} loading="lazy" /></figure>
+
       <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
         <div className={lp.wide}>
           <Display id="download-title" text="Windows版は無料。測定も保存も、あなたのPCで。" />
@@ -103,11 +104,8 @@ export default function PublicLanding() {
         </div>
       </section>
 
-      <figure className={[lp.band, lp.bandLow].join(" ")}><img src="/marketing/lp-dish.webp" alt="淡いミント色の面に置いたシャーレとガラス管" width={2400} height={1597} loading="lazy" /></figure>
-
       <LandingClosing />
     </main>
-    <LandingDemoBar />
     <footer className={lp.footer}><div className={lp.sectionShell}>
       <div className={lp.footerPrimary}><div><a href="#top" className={lp.footerBrand}>cytellect</a><span>顕微鏡画像の解析から統計、論文用グラフの作成まで</span></div><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect" target="_blank" rel="noopener noreferrer">GitHub <Arrow /></a><a href="#top">ページの先頭へ <span aria-hidden="true">↑</span></a></nav></div>
       <details className={lp.credits}><summary>画像・映像の出典</summary><p>{CREDITS.map(({ label, sources, note }, index) => <span key={label}>{index > 0 && " · "}{label}：{sources.map(([name, href], i) => <span key={href}>{i > 0 && "、"}<a href={href} target="_blank" rel="noopener noreferrer">{name}</a></span>)}{note}</span>)}</p></details>
