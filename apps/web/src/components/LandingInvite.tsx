@@ -9,7 +9,7 @@ export function LandingInvite() {
       <p className={lp.inviteLead}>画像を入れるところから、論文の図まで。</p>
       <div className={lp.inviteActions}>
         <Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <span aria-hidden="true">→</span></Link>
-        <a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>Windows版をダウンロード <span aria-hidden="true">↓</span></a>
+        <a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>Windows版（無料） <span aria-hidden="true">↓</span></a>
       </div>
       <span className={lp.inviteMark} aria-hidden="true">cytellect</span>
     </div>

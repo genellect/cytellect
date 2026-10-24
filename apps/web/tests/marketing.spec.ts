@@ -34,7 +34,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  expect(await page.locator("main > :is(section,figure)").evaluateAll(nodes=>nodes.slice(-4).map(node=>node.id||node.tagName))).toEqual(["FIGURE","impact","start","download"]);
  const invite=page.getByRole("region",{name:"その未来を、あなたの研究から。",exact:true});
  await expect(invite.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
- await expect(invite.getByRole("link",{name:"Windows版をダウンロード",exact:true})).toHaveAttribute("href","#download");
+ await expect(invite.getByRole("link",{name:"Windows版（無料）",exact:true})).toHaveAttribute("href","#download");
  const dir=process.env.CYTELLECT_SCREENSHOT_DIR;if(dir)fs.mkdirSync(dir,{recursive:true});
  for(const [width,height] of [[1440,900],[1280,800],[768,1024],[390,844],[360,800]]){
   await page.setViewportSize({width,height});
@@ -52,7 +52,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(nav.getByRole("link",{name:"About the Developer",exact:true})).toHaveAttribute("href","https://yuto-matsui.com/");
  await page.keyboard.press("Escape");await expect(toggle).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await toggle.click();await nav.getByRole("link",{name:"ガイド",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","false");
- await expect(page.getByRole("heading",{name:"使い方と解析方法",exact:true})).toBeVisible();
+ await expect(page.getByRole("navigation",{name:"使い方と解析方法",exact:true})).toBeInViewport();
  const images=page.locator('main img[src^="/marketing/"]').filter({visible:true});
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
  await page.getByRole("link",{name:"図を拡大",exact:true}).click();await expect(page).toHaveURL(/lp-figure\.svg$/);await page.goBack();await expect(hero.getByRole("heading",{level:1})).toBeVisible();

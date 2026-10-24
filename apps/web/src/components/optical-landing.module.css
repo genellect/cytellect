@@ -156,8 +156,19 @@
 .setupSteps li::before{content:counter(setup);position:absolute;left:18px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#172621;color:#f5f5f2;font-size:14px;font-weight:600}
 .setupSteps b{font-size:17px;font-weight:600;line-height:1.6}
 .setupSteps span{font-size:14px;line-height:1.7;color:#2b3d36}
-.reference .guide{margin-top:clamp(48px,5vw,72px)}
-.reference .details{margin-top:40px}
+.more{display:grid;gap:8px;margin-top:clamp(28px,3vw,40px)}
+.more nav{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 28px;font-size:15px}
+.more nav>span{font-size:13px;font-weight:600;color:var(--muted)}
+.more nav a{padding:6px 0}
+.moreDetails{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 24px;align-items:start}
+.moreDetails details{border-top:1px solid var(--rule)}
+.moreDetails summary{display:flex;justify-content:space-between;gap:12px;padding:14px 0;font-size:15px;cursor:pointer;list-style:none}
+.moreDetails summary::-webkit-details-marker{display:none}
+.moreDetails summary::after{content:"+";color:var(--muted)}
+.moreDetails details[open] summary::after{content:"−"}
+.moreDetails details>:not(summary){margin:0 0 14px;font-size:14px;line-height:1.8}
+.moreDetails details>a{display:inline-flex;gap:12px;text-decoration:underline}
+.moreDetails .button{min-height:auto;margin:0 0 14px;padding:4px 0;font-size:14px}
 .demoBar{display:none}
 .download{padding-bottom:96px}
 .download .actions{display:flex;align-items:center;flex-wrap:wrap;gap:20px 40px;margin-top:40px}
@@ -243,6 +254,7 @@
   .path{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:20px}.path li:nth-child(3){padding-left:0;border-left:0}
   .invite{padding:56px 12px 0}.inviteInner{padding:36px 22px 84px}.inviteTitle{font-size:clamp(32px,9vw,44px)}
   .setup{grid-template-columns:1fr;padding:24px 18px}
+  .moreDetails{grid-template-columns:1fr}.more nav{gap:4px 20px}
   .footer{padding-bottom:104px}
   .demoBar{position:fixed;z-index:40;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));display:block;transform:translateY(calc(100% + 32px));transition:transform .35s cubic-bezier(.22,.7,.12,1)}
   .demoBar[data-shown="true"]{transform:none}
