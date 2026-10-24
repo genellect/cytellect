@@ -60,6 +60,8 @@ The graph editor imports Matplotlib SVG and maps axis and series selections to a
 
 Asynchronous responses are displayed only when their analysis target and settings version match the current screen. A calculation started before a settings change that finishes late does not overwrite the result being edited.
 
+The public site's hero film paints its poster frame first and does not load the video when `prefers-reduced-motion` is set. IntersectionObserver and the Page Visibility API limit playback to while it is on screen.
+
 ## LLM and analysis settings
 
 The LLM receives the instruction text, the mapping between stains and channels, image dimensions and the current settings. The normal application path does not send original images or measurements.
