@@ -54,4 +54,4 @@ python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既�
 python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-ブラウザ、コンテナ、Windows の統合試験は CI が担います（[CI の構成](docs/ci.md)）。PR の説明は[テンプレート](.github/pull_request_template.md)に沿って、変更の内容、科学的な影響、検証、残る課題を書きます。
+ブラウザ、コンテナ、Windows の統合試験は CI が担います（[CI の構成](docs/ci.md)）。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書きます。
