@@ -40,7 +40,19 @@ flowchart TB
 
 API のデータ型は Pydantic で定義し、OpenAPI からフロントエンドの TypeScript 型を生成しています。解析設定、マスク、測定値、統計結果、図はバージョンで関連付けられ、モデルや設定を変更した後も、以前の結果とその計算条件が残ります。
 
-コードは、Web ワークスペース（`apps/web`）、検出・測定・統計・作図の共通実装（`packages/analysis`）、解析 API・計算ワーカー・LLM の中継（`services`）、Fiji と Cellpose-SAM の実行環境（`engines`）、Docker の構成（`infra`）に分かれています。
+### ディレクトリ構成
+
+```text
+apps/web/             Web ワークスペースと公開サイト（Next.js）
+packages/analysis/    検出・測定・統計・作図の共通実装
+packages/contracts/   API の型定義（OpenAPI）
+services/             解析 API、計算ワーカー、LLM の中継
+engines/              Fiji と Cellpose-SAM の実行環境
+infra/                Docker の構成
+scripts/              セットアップと検証
+tests/                試験
+docs/                 仕様と運用の文書
+```
 
 ## 画像認識と測定
 

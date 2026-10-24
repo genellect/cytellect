@@ -40,7 +40,19 @@ flowchart TB
 
 API data types are defined with Pydantic, and the frontend TypeScript types are generated from OpenAPI. Analysis settings, masks, measurements, statistics and figures are linked by version, so earlier results and their calculation conditions remain available after a model or setting changes.
 
-The code is organized into the web workspace (`apps/web`), the shared detection, measurement, statistics and figure code (`packages/analysis`), the analysis API, calculation worker and LLM relay (`services`), the Fiji and Cellpose-SAM runtimes (`engines`) and the Docker configuration (`infra`).
+### Repository layout
+
+```text
+apps/web/             Web workspace and public site (Next.js)
+packages/analysis/    Shared detection, measurement, statistics and figure code
+packages/contracts/   API type definitions (OpenAPI)
+services/             Analysis API, calculation worker and LLM relay
+engines/              Fiji and Cellpose-SAM runtimes
+infra/                Docker configuration
+scripts/              Setup and verification
+tests/                Tests
+docs/                 Specifications and operations
+```
 
 ## Image recognition and measurement
 
