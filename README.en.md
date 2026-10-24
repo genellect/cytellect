@@ -110,8 +110,6 @@ uv run cytellect invite --hours 24
 uv run cytellect serve & uv run cytellect-worker & pnpm dev
 ```
 
-Open `http://localhost:3000/workspace` and enter the invitation code printed by `invite`. The API requires the exact Origin in `CYTELLECT_APP_ORIGIN` (default `http://localhost:3000`), so use `localhost`, not `127.0.0.1`.
-
 CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
 
 ```bash
