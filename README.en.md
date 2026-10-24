@@ -124,6 +124,17 @@ uv run cytellect-worker     # terminal 2 (same environment variables)
 pnpm dev                    # terminal 3
 ```
 
+## Cloud development
+
+In Claude Code or Codex cloud environments, register the setup script below in the environment settings. Detailed steps, including installing Fiji, are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
+
+| Tool | Setup script |
+|---|---|
+| Claude Code | `bash .claude/cloud-setup.sh` |
+| Codex | `bash .codex/setup.sh` |
+
+## Tests and CI
+
 CI covers types and API contracts, numerical calculations, real Fiji with browser integration, Windows setup and dependency audits. Statistical results are checked against independent closed-form or exhaustive calculations. For the Windows edition, CI also installs the distributed ZIP and verifies browser operation and recalculation.
 
 ```bash

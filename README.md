@@ -124,6 +124,17 @@ uv run cytellect-worker     # 端末 2（同じ環境変数を設定）
 pnpm dev                    # 端末 3
 ```
 
+## クラウド開発
+
+Claude Code や Codex のクラウド環境では、次のセットアップスクリプトを環境の設定に登録します。Fiji の導入などの詳しい手順は [CONTRIBUTING](CONTRIBUTING.md#クラウド開発) にまとめています。
+
+| ツール | セットアップスクリプト |
+|---|---|
+| Claude Code | `bash .claude/cloud-setup.sh` |
+| Codex | `bash .codex/setup.sh` |
+
+## テストと CI
+
 CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査です。統計結果は独立した数式や全列挙による計算と照合しています。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認します。
 
 ```bash
