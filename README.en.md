@@ -42,17 +42,17 @@ API data types are defined with Pydantic, and the frontend TypeScript types are 
 
 ### Repository layout
 
-```text
-apps/web/             Web workspace and public site (Next.js)
-packages/analysis/    Shared detection, measurement, statistics and figure code
-packages/contracts/   API type definitions (OpenAPI)
-services/             Analysis API, calculation worker and LLM relay
-engines/              Fiji and Cellpose-SAM runtimes
-infra/                Docker configuration
-scripts/              Setup and verification
-tests/                Tests
-docs/                 Specifications and operations
-```
+| Directory | Contents |
+|---|---|
+| `apps/web` | Web workspace and public site (Next.js) |
+| `packages/analysis` | Shared detection, measurement, statistics and figure code |
+| `packages/contracts` | API type definitions (OpenAPI) |
+| `services` | Analysis API, calculation worker and LLM relay |
+| `engines` | Fiji and Cellpose-SAM runtimes |
+| `infra` | Docker configuration |
+| `scripts` | Setup and verification |
+| `tests` | Tests |
+| `docs` | Specifications and operations |
 
 ## Image recognition and measurement
 
@@ -108,7 +108,7 @@ The Docker edition runs the web UI, API and calculation worker in separate conta
 
 The Windows edition builds a dedicated Python/Fiji environment and verifies signatures and package hashes. The launcher listens on `127.0.0.1` and establishes the owner's session. Updates keep research data in place and retain the previous version until the new version has started successfully.
 
-## Development and validation
+## Local development
 
 Follow the [team development rules](docs/team-development.md) for workflow, Git and research data handling. Detailed steps are in [CONTRIBUTING](CONTRIBUTING.md) (Japanese).
 

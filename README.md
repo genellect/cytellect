@@ -42,17 +42,17 @@ API のデータ型は Pydantic で定義し、OpenAPI からフロントエン�
 
 ### ディレクトリ構成
 
-```text
-apps/web/             Web ワークスペースと公開サイト（Next.js）
-packages/analysis/    検出・測定・統計・作図の共通実装
-packages/contracts/   API の型定義（OpenAPI）
-services/             解析 API、計算ワーカー、LLM の中継
-engines/              Fiji と Cellpose-SAM の実行環境
-infra/                Docker の構成
-scripts/              セットアップと検証
-tests/                試験
-docs/                 仕様と運用の文書
-```
+| ディレクトリ | 内容 |
+|---|---|
+| `apps/web` | Web ワークスペースと公開サイト（Next.js） |
+| `packages/analysis` | 検出・測定・統計・作図の共通実装 |
+| `packages/contracts` | API の型定義（OpenAPI） |
+| `services` | 解析 API、計算ワーカー、LLM の中継 |
+| `engines` | Fiji と Cellpose-SAM の実行環境 |
+| `infra` | Docker の構成 |
+| `scripts` | セットアップと検証 |
+| `tests` | 試験 |
+| `docs` | 仕様と運用の文書 |
 
 ## 画像認識と測定
 
@@ -108,7 +108,7 @@ Docker 版は Web、API、計算ワーカーを別コンテナで動かす構成
 
 Windows 版は専用の Python／Fiji 環境を構築し、署名と配布物のハッシュを検証します。ランチャーは `127.0.0.1` で待ち受け、所有者のセッションを確立します。更新時も研究データはそのまま保持し、新版の起動確認が終わるまで旧版を残す方式です。
 
-## 開発・検証
+## ローカル開発
 
 開発の進め方、Git の運用、研究データの扱いは[チーム開発ルール](docs/team-development.md)に従います。詳しい手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめています。
 

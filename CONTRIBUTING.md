@@ -8,13 +8,13 @@ Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に
 - [AGENTS.md](AGENTS.md)：AI エージェントへの指示
 - [CI の構成](docs/ci.md)：PR と `main` で動くジョブと統合試験
 
-## 準備
+## 必要な環境
 
 Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意します。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使います。図の描画には日本語フォントを使うため、Linux では `fonts-noto-cjk` も入れておきます。
 
 研究データと認証情報は、[チーム開発ルール §6](docs/team-development.md#6-研究データの扱い)に従って扱います。
 
-## ローカルで動かす
+## ローカル開発
 
 依存パッケージと Fiji は一つのコマンドで揃います。Cellpose-SAM（約 2.5 GB）も使う場合は、続けて導入します。導入先はどちらも checkout の外を指定します。
 
@@ -35,7 +35,7 @@ pnpm dev                             # 端末 3：Web
 
 ブラウザで `http://localhost:3000/workspace` を開き、招待コードを入力すればワークスペースに入れます。API は接続元の Origin を厳密に照合するため、アドレスは `127.0.0.1` ではなく `localhost` を使います。Cellpose-SAM を導入した場合は、`setup` が最後に表示する `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` も、API とワーカーの端末で設定します。
 
-## クラウドで動かす
+## クラウド開発
 
 Claude Code や Codex のクラウド環境では、環境の設定にセットアップスクリプトを登録しておくと、依存パッケージが揃った状態で作業を始められます。
 
