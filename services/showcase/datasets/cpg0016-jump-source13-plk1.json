@@ -855,5 +855,59 @@
  },
  "derivation_amendment": "Amendment recorded before publication: the approved requirement D-08 asks for at least three fields per group and run, so sites 4 and 6 (with site 5 the centre row of the 3 x 3 sites; F004-F006 in the published file names) were added for every well. The site-5 nuclei-per-field result (Run1-Run3: 471/244/376 non-targeting, 37/44/45 PLK1) had been computed before this amendment; the added sites are fixed by position only, not by any measured value, and no site is removed. The comparison plan is unchanged.",
  "scene_label": "核数：PLK1 ノックアウトと対照（JUMP）",
- "channel_amendment": "Amendment recorded before publication: the RNA (SYTO 14) channel was dropped so that the published seed with two demo scenes stays within the repository's file-size limit. The planned comparison (nuclei per field) and the CellProfiler comparison use the DNA channel only; no RNA value had been used for any decision."
+ "channel_amendment": "Amendment recorded before publication: the RNA (SYTO 14) channel was dropped so that the published seed with two demo scenes stays within the repository's file-size limit. The planned comparison (nuclei per field) and the CellProfiler comparison use the DNA channel only; no RNA value had been used for any decision.",
+ "reference": {
+  "kind": "jump-cellprofiler",
+  "label": "CellProfiler（JUMP の公開した解析）",
+  "note": "JUMP Cell Painting consortium's CellProfiler pipeline on the same images (CC0): per-image Count_Nuclei (nuclei touching the border excluded) and each nucleus's centre and area. Matched to the demo's adopted nuclei by centre pixel (cytellect_analysis.reference_objects).",
+  "plates": [
+   {
+    "plate": "CP-CC9-R1-01",
+    "image_table": {
+     "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/workspace/analysis/20220914_Run1/CP-CC9-R1-01/analysis/CP-CC9-R1-01/Image.csv",
+     "sha256": "a0379b5e959270f12a0d1fd688b89202dc33df19ed258a47b2fdc5105868ca83",
+     "bytes": 78832420
+    },
+    "object_table_url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/workspace/analysis/20220914_Run1/CP-CC9-R1-01/analysis/CP-CC9-R1-01/Nuclei.csv"
+   },
+   {
+    "plate": "CP-CC9-R2-01",
+    "image_table": {
+     "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/workspace/analysis/20221009_Run2/CP-CC9-R2-01/analysis/CP-CC9-R2-01/Image.csv",
+     "sha256": "ebc957eeabbe2d36feb62a2e231f34d18624cd14eee6f2593fbdd2744a47fd28",
+     "bytes": 79791230
+    },
+    "object_table_url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/workspace/analysis/20221009_Run2/CP-CC9-R2-01/analysis/CP-CC9-R2-01/Nuclei.csv"
+   },
+   {
+    "plate": "CP-CC9-R3-01",
+    "image_table": {
+     "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/workspace/analysis/20221017_Run3/CP-CC9-R3-01/analysis/CP-CC9-R3-01/Image.csv",
+     "sha256": "c936fd462033b195ad6e98f2eec9af210090e129db120028bfc6f1d13878776f",
+     "bytes": 79794093
+    },
+    "object_table_url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/workspace/analysis/20221017_Run3/CP-CC9-R3-01/analysis/CP-CC9-R3-01/Nuclei.csv"
+   }
+  ],
+  "files": [
+   "CP-CC9-R1-01_A02_T0001F004L01A01Z01C01.tif",
+   "CP-CC9-R1-01_A02_T0001F005L01A01Z01C01.tif",
+   "CP-CC9-R1-01_A02_T0001F006L01A01Z01C01.tif",
+   "CP-CC9-R1-01_A23_T0001F004L01A01Z01C01.tif",
+   "CP-CC9-R1-01_A23_T0001F005L01A01Z01C01.tif",
+   "CP-CC9-R1-01_A23_T0001F006L01A01Z01C01.tif",
+   "CP-CC9-R2-01_A02_T0001F004L01A01Z01C01.tif",
+   "CP-CC9-R2-01_A02_T0001F005L01A01Z01C01.tif",
+   "CP-CC9-R2-01_A02_T0001F006L01A01Z01C01.tif",
+   "CP-CC9-R2-01_A23_T0001F004L01A01Z01C01.tif",
+   "CP-CC9-R2-01_A23_T0001F005L01A01Z01C01.tif",
+   "CP-CC9-R2-01_A23_T0001F006L01A01Z01C01.tif",
+   "CP-CC9-R3-01_A02_T0001F004L01A01Z01C01.tif",
+   "CP-CC9-R3-01_A02_T0001F005L01A01Z01C01.tif",
+   "CP-CC9-R3-01_A02_T0001F006L01A01Z01C01.tif",
+   "CP-CC9-R3-01_A23_T0001F004L01A01Z01C01.tif",
+   "CP-CC9-R3-01_A23_T0001F005L01A01Z01C01.tif",
+   "CP-CC9-R3-01_A23_T0001F006L01A01Z01C01.tif"
+  ]
+ }
 }

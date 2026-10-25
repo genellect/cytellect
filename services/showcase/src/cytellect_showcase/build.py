@@ -1181,7 +1181,7 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
     # The journal stage records again after every snapshot; its files go with the snapshot's.
     if target.exists() and fresh:
         for path in target.iterdir():
-            if path.name not in keep:
+            if path.name not in keep and not path.name.startswith(SNAPSHOT_KEEP_PREFIXES):
                 path.unlink()
     target.mkdir(parents=True, exist_ok=True)
     for path in (destination / "files").iterdir():
@@ -1196,6 +1196,8 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
 
 # Files of the snapshot directory that no index or journal entry names.
 SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json", "scenes.json"}
+# Static demo files besides the recorded responses (another method's objects for a scene).
+SNAPSHOT_KEEP_PREFIXES = ("reference-",)
 
 
 RANK_TESTS = {"mann-whitney-u", "wilcoxon", "kruskal-wallis"}
@@ -1262,7 +1264,8 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
     named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
     for path in target.iterdir():
-        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
+        if (path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}
+                and not path.name.startswith(SNAPSHOT_KEEP_PREFIXES)):
             path.unlink()
     return {key: report[key] for key in ("entries", "scenes")}
 
@@ -1427,6 +1430,38 @@ def uses_cellpose(manifest: dict) -> bool:
                 or "cellpose-sam" in grid_plan or "cellpose-sam-ncl-parent" in grid_plan)
 
 
+def reference_stage(manifest: dict, scenario_state: dict, seed_data: Path, cache: Path, work: Path, origin: str,
+                    fiji: str) -> dict:
+    """Another method's published objects for the same images, matched to the adopted nuclei."""
+    import numpy as np
+    from cytellect_api.db import revisions
+
+    from .cellprofiler import compare, reference
+
+    published = reference(manifest, cache / "cellprofiler")
+    api = open_api(seed_data, origin, fiji, scenario_state["owner"])
+    space = Workspace(api, scenario_state["workspace_id"], scenario_state["fields"])
+    adopted = space.adopted("nuclei")
+    store = api.app.state.store
+    nuclear = next(channel["channel_id"] for channel in manifest["channels"] if channel["role"] == "nuclear")
+    files = {item["id"]: manifest["sources"][item["planes"][nuclear]["source"]]["filename"] for item in manifest["fields"]}
+    labels, names = {}, {}
+    for item in scenario_state["fields"]:
+        row = store.one(revisions, id=adopted[item["id"]])
+        name = files[item["key"]]
+        labels[name] = np.load(store.safe_path(row["result_dir"], item["id"], "labels.npy"))
+        names[name] = item["id"]
+    api.client.close()
+    compared = compare(published["fields"], labels)
+    record = {"version": 1, "label": manifest["reference"]["label"], "note": manifest["reference"]["note"],
+              "reference_sha256": published["sha256"],
+              "fields": {names[name]: {"source_file": name, **value} for name, value in compared.items()}}
+    (work / f"reference-{manifest['id']}.json").write_text(json.dumps(record, ensure_ascii=False) + "\n")
+    log("reference", manifest["id"], {name: {key: value[key] for key in ("both", "split", "reference_only", "labels_only")}
+                                       for name, value in compared.items()})
+    return {"file": f"reference-{manifest['id']}.json", "reference_sha256": published["sha256"]}
+
+
 def scene_regions(manifest: dict) -> list[str]:
     return ["nuclei", "nucleoli", "nucleoplasm"] if manifest["scenario"].get("nucleoli", True) else ["nuclei"]
 
@@ -1501,6 +1536,12 @@ def main(argv: list[str] | None = None) -> None:
         uninstall()
         state["recorded_calls"] = recorder.calls
         save()
+    if "reference" in stages:
+        for _, manifest in manifests:
+            if manifest.get("reference"):
+                scenes[manifest["id"]]["reference"] = reference_stage(manifest, scenes[manifest["id"]]["scenario"],
+                                                                      seed_data, cache, work, origin, args.fiji)
+                save()
     if "grid" in stages:
         grid_data = work / "grid-data"
         if grid_data.exists():
@@ -1600,7 +1641,12 @@ def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Pat
         recorded_scene = proposals and "proposals" in scenes[manifest["id"]]
         examples = ([{"label": item["label"], "instruction": item["instruction"]}
                      for item in manifest["scenario"]["proposals"]["presets"]] if recorded_scene else [])
-        notes.append(scene_note(manifest, scenes[manifest["id"]], examples))
+        note = scene_note(manifest, scenes[manifest["id"]], examples)
+        reference_file = scenes[manifest["id"]].get("reference", {}).get("file")
+        if reference_file:
+            shutil.copyfile(args.work / reference_file, out / "snapshot" / reference_file)
+            note["reference"] = reference_file
+        notes.append(note)
     # The scene the demo opens keeps the single-scene files the page reads first.
     (out / "snapshot" / "proposal-examples.json").write_text(json.dumps(notes[0]["examples"], ensure_ascii=False, indent=1) + "\n")
     (out / "snapshot" / "dataset.json").write_text(json.dumps(notes[0], ensure_ascii=False, indent=1) + "\n")
