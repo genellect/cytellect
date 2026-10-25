@@ -528,8 +528,9 @@ the existing ledgers and the field → sample → unit aggregation (S02):
 - acquisition date = the field's own imaging date, else the run's, else unknown.
 
 `experiment_design.readiness` lists issues to resolve before inference: unassigned
-or unknown fields, no runs, no control, a run missing a group, and unconfirmed
-independence. Descriptions never wait for these issues (S09). The default pair
+or unknown fields, no runs, no control, a run missing a group, fields without an
+imaging date (needed for intensity comparisons, not for areas or counts), and
+unconfirmed independence. Descriptions never wait for these issues (S09). The default pair
 comparison is paired by run with contrast `[treatment, control]`, so the reported
 effect is treatment − control; the researcher still confirms the design (S10).
 

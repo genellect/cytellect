@@ -1,0 +1,61 @@
+.choice{margin:auto;max-width:720px;padding:32px 24px;text-align:center}
+.choice h1{font-size:24px;margin:0 0 8px}
+.choice p{color:#65707d;margin:0 0 20px}
+.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:20px}
+.choiceCard{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:20px;border:1px solid #dfe3e8;border-radius:10px;background:white;text-align:left;cursor:pointer}
+.choiceCard:hover:not(:disabled),.choiceCard:focus-visible{border-color:#2164cf;box-shadow:0 0 0 3px #2164cf22}
+.choiceCard strong{font-size:20px;color:#2164cf}
+.choiceCard span{font-weight:600}
+.choiceCard small{color:#65707d;font-size:14px;line-height:1.5}
+.inline{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px}
+.inline input{width:auto}
+.link{border:0;background:none;color:#2164cf;text-decoration:underline;padding:0;cursor:pointer}
+.setup{flex:1;overflow:auto;padding:20px 24px 32px;max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box}
+.setupHeader{display:flex;align-items:center;gap:16px;justify-content:space-between}
+.setupHeader h1{font-size:20px;margin:0}
+.lead{color:#4b5563;margin:6px 0 16px;font-size:15px}
+.grid{display:grid;border:1px solid #dfe3e8;border-radius:8px;background:white;overflow:hidden}
+.row{display:contents}
+.row>*{border-bottom:1px solid #dfe3e8;padding:12px;min-width:0}
+.corner{font-weight:600;color:#4b5563;align-self:end}
+.groupHead{display:flex;flex-direction:column;gap:6px;background:#f8fafc}
+.groupHead input{font-weight:600}
+.runHead{display:flex;flex-direction:column;gap:6px;background:#f8fafc;font-size:14px}
+.runHead label,.groupHead label{display:flex;flex-direction:column;gap:2px;font-size:13px;color:#4b5563}
+.check{flex-direction:row!important;align-items:center;gap:6px!important}
+.check input,.independence input{width:auto;flex:none;margin:3px 0 0}
+.cell{display:flex;flex-direction:column;gap:8px}
+.cell[data-empty=true]{background:#fffbeb}
+.count{margin:0;font-size:14px;color:#4b5563}
+.fieldList{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.fieldList li{display:flex;align-items:center}
+.fieldButton{display:flex;align-items:center;gap:6px;border:1px solid #dfe3e8;border-radius:6px;background:white;padding:2px 6px;max-width:220px;font-size:13px}
+.fieldButton img{width:28px;height:28px;object-fit:cover;border-radius:3px;background:#111}
+.fieldButton span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fieldButton small{color:#65707d}
+.remove{border:0;background:none;color:#65707d;padding:0 4px}
+.addRow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px}
+.sample{display:flex;flex-direction:column;gap:2px;font-size:13px;color:#4b5563;flex:1;min-width:120px}
+.addRun{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin:12px 0}
+.addRun label{display:flex;flex-direction:column;gap:2px;font-size:13px;color:#4b5563}
+.addRun small{color:#65707d}
+.independence{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:white;margin:12px 0;font-size:14px;line-height:1.5}
+.unassigned{margin:12px 0}
+.unassigned h2{font-size:16px;margin:0 0 6px}
+.unassigned ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+.unassigned li{display:flex;gap:10px;align-items:center}
+.issues{margin:12px 0;padding:12px 12px 12px 32px;border-radius:8px;background:#fff7ed;color:#7c2d12;font-size:14px;line-height:1.6}
+@media (min-width:701px){.cellGroup{display:none}}
+@media (max-width:700px){
+  .cellGroup{font-weight:600;color:#20252b}
+  .choices{grid-template-columns:1fr}
+  .setup{padding:16px}
+  .grid{display:block}
+  .row{display:block;border-bottom:2px solid #dfe3e8}
+}
+/* The workspace stacks labels and stretches inputs; these controls sit on one line. */
+.setup label,.choice label{margin:0}
+.setup .check,.setup .independence{flex-direction:row;align-items:flex-start}
+.setup .check{align-items:center}
+.setup input[type=radio],.setup input[type=checkbox],.choice .inline input{width:auto;flex:none}
+.setup .addRun label,.setup .sample,.setup .runHead label,.setup .groupHead label{gap:2px}

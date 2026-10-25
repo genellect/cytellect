@@ -99,7 +99,7 @@ D08: Independent scientific reviews record the source, scientific question, refe
 
 See [workspace redesign](workspace-redesign.md). These supersede the October 4 acceptance of the multi-panel workspace presentation; scientific requirements above are unchanged.
 
-U01: Routine use is add images → review one proposal → run → review/correct/export in one workspace. Adding images creates the workspace; no method choice or workspace form precedes it.
+U01: Routine use is add images → review one proposal → run → review/correct/export in one workspace. Adding images creates the workspace; no method choice or workspace form precedes it. (Amended 2026-10-25 by owner decision: a new workspace first chooses 1 screen or 2 screens — the experiment design of [group comparison](drafts/group-comparison/requirements.md) E-01 — and no other setting precedes adding images.)
 U02: Field/channel grouping is automatic from OME metadata, filenames and folders, with one set-wide correction. Ambiguity stays unresolved; file order, `c1`/`c2`, colour or morphology never establish a stain; folders never become independent units.
 U03: (2026-10-06) Nuclear detection runs automatically on every field once the nuclear channel is known; other steps follow a representative trial and one explicit apply. Original: Adopting a proposal starts detection, measurement, statistics and figures without user job chaining. Per-field state is committed independently; failures stay local to the affected field and successful results are kept.
 U04: Images, regions, table rows and figure points are cross-linked. Corrections invalidate only dependent results; styling changes never rerun analysis or tests.

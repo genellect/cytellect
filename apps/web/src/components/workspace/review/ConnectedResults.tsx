@@ -16,6 +16,7 @@ import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisContr
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
 import type {components} from "@/lib/generated";
+import {comparisonDefaults,fieldMetadata,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 
 export interface ConnectedResultItem {fieldId:string;label:string;result?:SavedResult;metadata?:Metadata;excluded?:boolean}
 export interface ConnectedResultsProps {
@@ -28,6 +29,9 @@ export interface ConnectedResultsProps {
   onMetricChange?:(metric:string,channel:string|null)=>void;
   onAnalysisTargetChange?:(target:ReviewTarget)=>void;
   onPrepareMissing?:()=>Promise<unknown>;
+  /** The declared experiment design; its derived metadata replaces per-field typing (E-08). */
+  experiment?:ExperimentDesign|null;
+  onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
 interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[]}
@@ -41,7 +45,8 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
+  const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   const comparison=useMemo(()=>createComparisonAdapter(),[]);
   const [csv,setCsv]=useState(false);
   const [operation,setOperation]=useState<ResultOperation>("distribution");
@@ -82,7 +87,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     const records=await Promise.all(completed.map(async job=>{try{const result=await request<ResultPayload>(`/v1/jobs/${job.id}/result`);if(result.source_kind!=="region-2d"||!result.figure)return null;const entry:Saved={job:result.source_job_id||job.id,revision:result.revision_id,result,identity:"history",requestIdentity:"history",plot:{...checkedPlot(183,100,7,"","","",""),...result.spec?.plot} as RenderPlot,figureJob:job.id,figure:result.figure,operation:result.analysis_kind==="region-comparison"?"comparison":result.analysis_kind==="region-association"?"association":"distribution",sources:resultSources(result).map(field=>({field:field.field_id,label:field.field_id})),historical:true,target:(["nuclei","nucleoli","nucleoplasm","cell"].includes(resultSources(result)[0]?.region_set?.region_set_id||"")?resultSources(result)[0]?.region_set?.region_set_id:undefined) as ReviewTarget|undefined};return entry;}catch{return null;}}));
     if(live)setHistory(previous=>[...previous,...records.filter((value):value is Saved=>!!value&&!previous.some(old=>old.figureJob===value.figureJob))]);
   }).catch(()=>undefined);return()=>{live=false;};},[workspace]);
-  const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
+  const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:derived[item.fieldId]??metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
   const fields=Object.fromEntries(sources.map(source=>[source.field,source.metadata]));
   const regionSet=sources[0]?.result.regionSet||target;
   // 計算 adopts the sources' revisions through the adapter; the selection it wrote is current until a newer one arrives.
@@ -90,7 +95,9 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const currentSelection=written&&written.version>(selection?.version??-1)?written:selection;
   const identity=JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,currentSelection]);
   const conditions=[...new Set(Object.values(fields).map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
-  const pairs=conditions.flatMap((a,index)=>conditions.slice(index+1).map(b=>[a,b]));
+  const declared=experiment?.layout==="pair"&&experiment.control_group_id?comparisonDefaults(experiment):null;
+  // The declared pair reads treatment − control; other pairs keep the order the groups appear in.
+  const pairs=conditions.flatMap((a,index)=>conditions.slice(index+1).map(b=>declared&&new Set([a,b,declared.control,declared.treatment]).size===2?declared.contrasts[0]:[a,b]));
   const channels=[...new Set(sources.flatMap(source=>source.result.rows.map(row=>row.channel_id)))];
   // Only choices the calculation accepts are offered: an association needs two different region measurements.
   // Groups with saturated brightness are not analysed. With a GFP filter the analysed nuclei are not
@@ -108,6 +115,13 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
   const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp};
+  // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
+  const designDefaults=declared;
+  const independenceMissing=!!experiment&&!experiment.independence_confirmed&&operation!=="distribution";
+  const needsDates=operation!=="distribution"&&(!metric.startsWith("area_")||(operation==="association"&&!xMetric.startsWith("area_")));
+  const datesMissing=!!experiment&&needsDates&&sources.some(source=>source.field in derived&&!source.metadata.acquisition_date?.trim());
+  useEffect(()=>{if(operation!=="comparison"||!designDefaults||contrasts.length)return;setPaired(true);setContrasts(designDefaults.contrasts);
+    if(!unit.trim())setUnit("独立に行った実験回（別々に播種・処理・染色した実験日）");if(!pairing.trim())setPairing("同じ実験回の対照と処理");},[operation,designDefaults?.contrasts.join("\n")]);// eslint-disable-line react-hooks/exhaustive-deps
   const sourceIdentity=JSON.stringify([target,sources.map(source=>[source.field,source.revision])]);
   useEffect(()=>{setReviewed(false);setConfirmed(false);},[sourceIdentity]);
   useEffect(()=>{
@@ -124,7 +138,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&!unsupportedAxes;
+  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&!unsupportedAxes&&!independenceMissing&&!datesMissing;
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
@@ -218,10 +232,12 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
 
           <label>独立実験単位<input value={unit} readOnly={demo} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
           {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} readOnly={demo} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}
-          {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo||!unsaturatedPair(pair)} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{pair.join(" / ")}{unsaturatedPair(pair)?"":"（飽和した画素があるため選べません）"}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
+          {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo||!unsaturatedPair(pair)} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{declared&&JSON.stringify(pair)===JSON.stringify(declared.contrasts[0])?`${pair[0]} − ${pair[1]}（処理 − 対照）`:pair.join(" / ")}{unsaturatedPair(pair)?"":"（飽和した画素があるため選べません）"}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
           <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した</label>
         </>}
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
+        {datesMissing&&<p role="status">輝度を比べるには撮影日が必要です。「実験」で各実験回の撮影日を入力してください（日付を推定して補いません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力する</button>}</p>}
+        {independenceMissing&&<p role="status">群間比較と相関の検定には、実験回が独立に行われたことの確認が必要です。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
         <button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>
       </>:<>
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
@@ -243,7 +259,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     </div>
     <div className={styles.output} ref={outputRef}>
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}
-      {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open><summary>実験情報</summary><div className={styles.tableScroll}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
+      {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
         {svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></section>}

@@ -16,4 +16,25 @@ Both owned PNG endpoints return ASCII-escaped JSON in `X-Cytellect-Preview-Displ
 
 The header is exposed only through the existing restricted CORS policy. PNGs and metadata retain authentication, ownership, expiry and `no-store` behavior. Metadata contains no original filename, filesystem path, experiment condition or credential. Browser state is in memory only.
 
-This stage does not add manual/common image ranges, a saved display recipe, or a new quantitative pipeline. The current gain control retains its behavior across views. Public precomputed samples have a separate display pipeline and are not assigned invented original-value ranges. Use measurement tables, with appropriate acquisition checks, for comparisons between images.
+Display protocol 1.0.0 adds no manual image range, saved display recipe or quantitative pipeline; the two-group view's shared range (below) is a separate display-only step. The current gain control retains its behavior across views. Public precomputed samples have a separate display pipeline and are not assigned invented original-value ranges. Use measurement tables, with appropriate acquisition checks, for comparisons between images.
+
+## Shared display range 1.0.0 (two groups side by side, 2026-10-25)
+
+When a two-group experiment design is shown side by side (the 2-screen view), both
+previews of the selected channel are redrawn in the browser on one shared scale.
+The shared black and white points are the lowest and highest of the two previews'
+own verified display points (`display_black_value`, `display_white_value`). Each
+preview's 8-bit values are mapped back to stored values with its own receipt and
+then to the shared scale (`apps/web/src/lib/shared-display.ts`), so equal screen
+brightness means equal stored values within 8-bit quantization. The view states
+the shared range. It refuses to guess: if either preview lacks a verified receipt
+or is a composite, both keep their own ranges and the view says that brightness
+must not be compared. Values a preview had already clipped stay at its own limit.
+
+This is display only. Original pixels, detection, masks, measurements, review
+state and statistics are unchanged, and the shared scale does not correct
+differences in exposure, gain or illumination between acquisitions (see the
+acquisition review in S10). The two fields are different cells; zoom and position
+are linked only when the researcher keeps "拡大と位置を連動" on, and that link
+implies no spatial correspondence. Zoom is matched in pixels, because the
+workspace images carry no confirmed calibration.

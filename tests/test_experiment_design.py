@@ -99,9 +99,15 @@ def test_readiness_reports_missing_combinations_and_unconfirmed_independence():
     assert readiness(incomplete, ["f1", "f2", "f3", "f9"]) == [
         {"code": "experiment_design_unassigned_fields", "field_ids": ["f9"]},
         {"code": "experiment_design_missing_combination", "run_id": "r2", "group_ids": ["drug"]},
+        {"code": "experiment_design_acquisition_dates_missing", "field_ids": ["f3"]},
         {"code": "experiment_design_independence_unconfirmed"},
     ]
-    assert readiness(design(), ["f1", "f2", "f3", "f4", "f5"]) == []
+    # Run r2 has no imaging date; its fields are reported, never given an invented date.
+    assert readiness(design(), ["f1", "f2", "f3", "f4", "f5"]) == [
+        {"code": "experiment_design_acquisition_dates_missing", "field_ids": ["f3", "f4", "f5"]}]
+    dated = design(runs=[{"id": "r1", "label": "2026-10-01", "acquired_on": "2026-10-02"},
+                         {"id": "r2", "label": "2026-10-08", "acquired_on": "2026-10-09"}])
+    assert readiness(dated, ["f1", "f2", "f3", "f4", "f5"]) == []
     no_control = design(control_group_id=None)
     assert {"code": "experiment_design_control_required"} in readiness(no_control, ["f1", "f2", "f3", "f4", "f5"])
 

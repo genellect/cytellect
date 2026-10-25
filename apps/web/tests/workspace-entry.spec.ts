@@ -28,6 +28,6 @@ test("the configured analysis screen requires a session and enters the workspace
   await expect(page.getByTestId("file-input")).toHaveCount(0);
   await page.getByLabel("招待コード",{exact:true}).fill(token);
   await page.getByRole("button",{name:"ワークスペースに接続",exact:true}).click();
-  await expect(page.getByRole("button",{name:"画像を追加",exact:true})).toBeEnabled();
+  await expect(page.getByRole("button",{name:/^2 画面/})).toBeEnabled();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
 });

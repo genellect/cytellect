@@ -130,6 +130,7 @@ def readiness(design: ExperimentDesign, registered_field_ids) -> list[dict]:
     Description (1 screen, S09) never waits for these issues.
     """
     registered = set(registered_field_ids)
+    runs_by_id = {run.id: run for run in design.runs}
     issues = []
     unassigned = sorted(registered - set(design.fields))
     if unassigned:
@@ -146,6 +147,11 @@ def readiness(design: ExperimentDesign, registered_field_ids) -> list[dict]:
         missing = [group.id for group in design.groups if (run.id, group.id) not in present]
         if missing:
             issues.append({"code": "experiment_design_missing_combination", "run_id": run.id, "group_ids": missing})
+    undated = sorted(fid for fid, a in design.fields.items()
+                     if fid in registered and not (a.acquired_on or runs_by_id[a.run_id].acquired_on))
+    if undated:
+        # Intensities need actual acquisition dates (S10); areas and counts do not.
+        issues.append({"code": "experiment_design_acquisition_dates_missing", "field_ids": undated})
     if not design.independence_confirmed:
         issues.append({"code": "experiment_design_independence_unconfirmed"})
     return issues
