@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "status": "planned_not_verified",
+  "baseline_commit": "40a6a0b9d0579c41d528cfd837e1d16733b74f4f",
+  "dataset": "cpg0016-jump/source_13",
+  "license": "CC0-1.0",
+  "selection": {
+    "plates": ["CP-CC9-R1-01", "CP-CC9-R2-01", "CP-CC9-R3-01"],
+    "wells": ["A02", "A23"],
+    "filename_fields": [4, 5, 6],
+    "rule": "Owner-fixed selection before reading counts; verify zero-based Metadata_Site with FileName_OrigDNA."
+  },
+  "ownership": [
+    "scripts/public_jump_cellprofiler.py",
+    "fixtures/public/jump-plk1/cellprofiler-reference.json",
+    "tests/test_public_jump_cellprofiler.py"
+  ],
+  "planned_validation": "Range-only Nuclei.csv extraction; reconcile ObjectNumber uniqueness and complete counts against Image.csv; retain raw row hashes and transfer receipts."
+}
