@@ -49,3 +49,4 @@ def test_descriptive_superplot_draws_unit_means_without_an_interval(tmp_path):
     assert len(data["unit_glyphs"]) == len(result["unit_summary"])
     caption = (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
     assert "no test or interval" in caption and "95% t interval" not in caption
+    assert "independent experimental units" not in caption and "independence not confirmed" in caption

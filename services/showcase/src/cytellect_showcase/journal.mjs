@@ -117,6 +117,9 @@ async function scene(name, walk, workspace) {
   for (const text of await page.getByRole("alert").allTextContents().catch(() => [])) if (text.trim() && !expected.has(text.trim().slice(0, 300))) report.alerts.push(`${name}: ${text.trim().slice(0, 300)}`);
   recorded.set(name, settled(entries));
   report.scenes.push({name, entries: recorded.get(name).length, seconds: Math.round((Date.now() - started) / 100) / 10});
+  // Progress on stderr, one line per walk, so a long recording can be followed while it runs.
+  console.error(JSON.stringify({progress: name, done: report.scenes.length, entries: recorded.get(name).length,
+    seconds: report.scenes.at(-1).seconds, alerts: report.alerts.length, at: new Date().toISOString()}));
   await context.close();
 }
 async function idle(page) {

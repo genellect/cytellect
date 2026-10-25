@@ -54,7 +54,9 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
         return <section key={pane.group.id} className={styles.pane} aria-label={`${pane.group.label}${pane.group.id===design.control_group_id?"（対照）":""}`}>
           <header className={styles.paneHead}>
             <strong>{pane.group.label}</strong>{pane.group.id===design.control_group_id&&<span className={styles.badge}>対照</span>}
-            {pane.ids.length>1&&<select aria-label={`${pane.group.label} の視野`} value={field?.id} onChange={event=>setChosen(previous=>({...previous,[pane.group.id]:event.target.value}))}>
+            {pane.ids.length>1&&<select aria-label={`${pane.group.label} の視野`} value={field?.id} onChange={event=>{const id=event.target.value;setChosen(previous=>({...previous,[pane.group.id]:id}));
+              // The chosen field is also the selected one, so measuring and candidates act on what is shown.
+              onSelect(id,channel);}}>
               {pane.ids.map(id=><option key={id} value={id}>{fields.find(item=>item.id===id)?.label??id}</option>)}</select>}
             <small>{pane.ids.length} 視野{value?` · 核 ${new Set(value.masks.regions.map(region=>region.id)).size}`:""}{field&&overlay?.[field.id]?` · ${overlay[field.id].caption}`:""}</small>
           </header>

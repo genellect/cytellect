@@ -95,7 +95,8 @@ def estimate_lines(estimates):
         return []
     unit = " (percentage points)" if estimates["scale"] == "fraction" else ""
     lines = [f"Estimates ({estimates['protocol']}): {estimates['treatment']} minus {estimates['control']}; "
-             f"n={estimates['n_treatment']} and {estimates['n_control']} independent units"
+             f"n={estimates['n_treatment']} and {estimates['n_control']} "
+             + ("recorded experimental units (independence not confirmed)" if estimates["test"] == "none" else "independent units")
              + (f", {estimates['n_pairs']} complete pairs" if estimates["n_pairs"] is not None else "") + "."]
     for name in ("difference", "ratio"):
         row = estimates[name]
@@ -113,17 +114,21 @@ def estimate_lines(estimates):
 def common_statistics_methods(result):
     spec = result["spec"]
     association = result["analysis_kind"] == "region-association"
+    # A descriptive comparison (test "none") never calls its units independent.
+    descriptive = not association and spec.get("test") == "none"
+    unit_noun = "recorded experimental unit" if descriptive else "independent experimental unit"
     lines = ["# Cytellect common-statistics Methods", "", "Review this saved-settings draft before publication.",
              "Methods template: cytellect-common-statistics-methods 1.0.0.",
              f"Source revision: {result['revision_id']}; fingerprint: {result['source_fingerprint']}.",
              f"Inference core: {result['inference_version']}; request protocol: {spec['version']}.",
-             f"The inferential unit was {spec['design']['unit_definition']}.",
+             (f"The experimental unit was {spec['design']['unit_definition']}; the researcher had not confirmed that "
+              "these units were independent." if descriptive else f"The inferential unit was {spec['design']['unit_definition']}."),
              ("Each field contributed one field value, then fields were reduced to an unweighted mean within each "
-              "sample and samples to an unweighted mean within each independent experimental unit. "
+              f"sample and samples to an unweighted mean within each {unit_noun}. "
               "Fields were not treated as independent replicates."
               if spec.get("selection", {}).get("source") == "field-summary" else
               "Region measurements were reduced to a median within each field, an unweighted mean of fields "
-              "within each sample, and an unweighted mean of samples within each independent experimental unit. "
+              f"within each sample, and an unweighted mean of samples within each {unit_noun}. "
               "Regions and fields were not treated as independent replicates."),
              "Conditions in the declared analysis: " + ", ".join(spec["conditions"]) + ".",
              "The researcher selected the method explicitly. No normality pretest or observed p-value selected a method.",
@@ -223,6 +228,13 @@ def _tables(result):
             tables["estimates-groups"] = estimates["groups"]
             tables["estimates-runs"] = estimates["runs"]
     return tables
+
+
+def _unit_axis(spec, ja):
+    """The x-axis title naming what n counts; a descriptive comparison does not call its units independent."""
+    if spec.get("test") == "none":
+        return "条件（n：記録した実験回。独立性は未確認）" if ja else "Condition (n: recorded runs, independence not confirmed)"
+    return "条件（n：独立実験単位）" if ja else "Condition (n: independent units)"
 
 
 def _unit_interval(values):
@@ -341,11 +353,12 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars)
                 ax.set_xticks(range(len(order)), [textwrap.fill(c, 16) + f"\nn={sum(r['condition'] == c for r in rows)}" for c in order])
                 ax.set_xlim(-.5, len(order) - .5)
-                ax.set_xlabel(plot["x_label"] or ("条件（n：独立実験単位）" if ja else "Condition (n: independent units)"))
+                ax.set_xlabel(plot["x_label"] or _unit_axis(spec, ja))
                 ax.set_ylabel(plot["y_label"] or _label(canonical, ja))
                 per_field = spec["selection"].get("source") == "field-summary"
-                note = ("Large points are independent experimental units (field values → sample mean → unit mean"
-                        if per_field else "Large points are independent experimental units (median per field → sample mean → unit mean")
+                units = "recorded experimental units, independence not confirmed" if spec["test"] == "none" else "independent experimental units"
+                note = (f"Large points are {units} (field values → sample mean → unit mean"
+                        if per_field else f"Large points are {units} (median per field → sample mean → unit mean")
                 note += "); the same marker marks the same run" + (" and lines join a run's units" if spec["design"]["kind"] == "paired" else "")
                 note += ". " if bars else "; small points are field values" + ("" if per_field else " (median of the field's observations)") + ". "
                 note += ("Bars show the mean of unit values" if bars else "Horizontal lines show the mean of unit values")
@@ -392,9 +405,10 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                     # Equal category margins must not depend on the random jitter,
                     # unit count, or whether a box/violin contributes to autoscaling.
                     ax.set_xlim(-.5, len(order) - .5)
-                ax.set_xlabel(plot["x_label"] or ("条件（n：独立実験単位）" if ja else "Condition (n: independent units)"))
+                ax.set_xlabel(plot["x_label"] or _unit_axis(spec, ja))
                 ax.set_ylabel(plot["y_label"] or _label(canonical, ja))
-                note = "Points are independent-unit summaries; jitter affects display only (seed 0). "
+                note = ("Points are summaries of recorded experimental units (independence not confirmed); jitter affects display only (seed 0). "
+                        if spec.get("test") == "none" else "Points are independent-unit summaries; jitter affects display only (seed 0). ")
                 if plot["kind"] == "box":
                     note += "Boxes show linear-interpolated quartiles and median; whiskers end at observations within 1.5 IQR. All units remain shown."
                 elif plot["kind"] == "violin":

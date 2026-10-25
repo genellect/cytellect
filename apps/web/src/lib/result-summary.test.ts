@@ -34,6 +34,7 @@ describe("result summary", () => {
     expect(summary.test).toBe("実験回 n = 3（対）、検定なし（記述のみ）");
     expect(summary.runs).toContain("r1 −20、r2 −23、r3 −17 µm²");
     expect(summary.cautions[0]).toContain("記述です");
+    expect(summary.cautions[1]).toBe("n は記録した実験回の数です（独立性は未確認）。核や視野の数は n ではありません。");
     expect(JSON.stringify(summary)).not.toContain("p ");
   });
 

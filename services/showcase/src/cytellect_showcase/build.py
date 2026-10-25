@@ -1161,7 +1161,8 @@ def serve(data_dir: Path, origin: str, fiji: str, port: int, *, worker: bool = F
 
 
 def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji: str, out: Path,
-             fields: list[dict], workspace_id: str, regions: list[str] | None = None, fresh: bool = True) -> dict:
+             fields: list[dict], workspace_id: str, regions: list[str] | None = None, fresh: bool = True,
+             opening: bool = True) -> dict:
     """Record the opening GETs of one workspace; ``fresh`` starts the snapshot directory anew,
     otherwise the entries are added to those of the scenes recorded before."""
     data = work / "snapshot-data"
@@ -1200,7 +1201,9 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
         if destination.exists():
             shutil.rmtree(destination)
         config = {"origin": origin, "api": api_origin, "token": token, "cookie": settings.cookie_name,
-                  "workspace": workspace_id,
+                  # The opening scene is recorded as a visitor opens /demo (no id: the newest workspace,
+                  # read from the workspace list); every other scene by its id.
+                  "workspace": None if opening else workspace_id,
                   "out": str(destination), "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE",
                                                                        "/opt/pw-browsers/chromium"),
                   "web": str(web), "fields": len(fields),
@@ -1286,11 +1289,27 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
             shutil.rmtree(destination)
         config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
-        result = subprocess.run(["node", str(Path(__file__).with_name("journal.mjs"))], input=json.dumps(config),
-                                text=True, cwd=work, capture_output=True, timeout=21600, env=browser_env())
-        sys.stdout.write(result.stdout[-4000:])
-        if result.returncode:
-            sys.stderr.write(result.stderr[-4000:])
+        # Each finished walk is logged as it completes (journal.mjs writes progress lines to stderr).
+        walker = subprocess.Popen(["node", str(Path(__file__).with_name("journal.mjs"))], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=work, env=browser_env())
+        assert walker.stdin is not None and walker.stderr is not None and walker.stdout is not None
+        walker.stdin.write(json.dumps(config))
+        walker.stdin.close()
+        errors: list[str] = []
+        deadline = time.monotonic() + 21600
+        for line in walker.stderr:
+            if line.startswith('{"progress"'):
+                log("journal", line.strip())
+            else:
+                errors.append(line)
+            if time.monotonic() > deadline:
+                walker.kill()
+                break
+        output = walker.stdout.read()
+        returncode = walker.wait()
+        sys.stdout.write(output[-4000:])
+        if returncode:
+            sys.stderr.write("".join(errors)[-4000:])
             raise SystemExit("journal walk failed")
         report = json.loads((destination / "journal-report.json").read_text())
         if report["alerts"] or report["consoleErrors"]:
@@ -1646,7 +1665,7 @@ def main(argv: list[str] | None = None) -> None:
             scenario_state = scenes[manifest["id"]]["scenario"]
             scenes[manifest["id"]]["snapshot"] = snapshot(
                 seed_data, work, args.web_port, args.api_port, args.fiji, args.out, scenario_state["fields"],
-                scenario_state["workspace_id"], scene_regions(manifest), fresh=index == 0)
+                scenario_state["workspace_id"], scene_regions(manifest), fresh=index == 0, opening=index == 0)
             save()
         write_manifest(args, manifests, state)
     if "journal" in stages:

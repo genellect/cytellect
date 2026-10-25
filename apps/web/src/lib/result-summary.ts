@@ -81,7 +81,7 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
   const units = paired ? estimates.n_pairs ?? 0 : Math.min(estimates.n_control, estimates.n_treatment);
   if (descriptive) cautions.push("実験回が独立に行われたことが確認されていないため、この比較は記述です。差の大きさと向きは各回の値で確かめ、検定の結果としては扱わないでください。");
   else if (units < 5) cautions.push(`実験回が少ないため（n = ${units}）、p 値だけで結論せず、各回の値と信頼区間を合わせて確かめてください。p が 0.05 以上でも「変化がない」ことを示すものではありません。`);
-  cautions.push("n は独立した実験回の数です。核や視野の数は n ではありません。");
+  cautions.push(descriptive ? "n は記録した実験回の数です（独立性は未確認）。核や視野の数は n ではありません。" : "n は独立した実験回の数です。核や視野の数は n ではありません。");
   return {headline, interval, test, runs, cautions};
 }
 

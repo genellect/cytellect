@@ -59,6 +59,8 @@ def test_descriptive_comparison_keeps_unit_values_and_run_differences_without_in
     assert "descriptive_comparison_no_test_or_interval" in result["warnings"]
     methods = common_statistics_methods(result)
     assert "no hypothesis test, p-value or confidence interval was calculated" in methods and "p=" not in methods
+    assert "independent experimental unit" not in methods and "independent units" not in methods
+    assert "had not confirmed that these units were independent" in methods
 
 
 def test_descriptive_comparison_takes_no_omnibus():

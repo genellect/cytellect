@@ -163,7 +163,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
     await page.getByLabel(`${channel.id}の役割`, {exact: true}).selectOption(channel.role);
   }
   await page.getByRole("button", {name: "保存", exact: true}).click();
-  await expect(page.getByRole("button", {name: "Hoechst · c01", exact: true})).toBeVisible();
+  // Saving reloads the previews of every field (30 × 4 channels); allow for that, not only the default wait.
+  await expect(page.getByRole("button", {name: "Hoechst · c01", exact: true})).toBeVisible({timeout: 300_000});
 
   // Measure every field with Fiji StarDist.
   await expect(page.getByRole("button", {name: "測定", exact: true})).toBeEnabled({timeout: 900_000});
@@ -218,6 +219,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(panel.getByRole("checkbox", {name: "PLK1 KO − Non-targeting（処理 − 対照）"})).toBeChecked();
   // E-08: the per-field table shows the same record as the experiment, read-only here.
   const metadata = panel.locator("details").filter({has: page.getByText("実験情報", {exact: true})});
+  // With a declared experiment the table starts folded; the researcher opens it to check the record.
+  if (!await metadata.evaluate(element => (element as HTMLDetailsElement).open)) await metadata.getByText("実験情報", {exact: true}).click();
   await expect(metadata.getByText("群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。")).toBeVisible();
   const conditions = metadata.locator('input[aria-label$=" condition"]'), units = metadata.locator('input[aria-label$=" experimental_unit"]'), pairs = metadata.locator('input[aria-label$=" pair"]');
   await expect(conditions).toHaveCount(registeredFields.length);
@@ -237,11 +240,43 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(panel.getByRole("button", {name: "計算", exact: true})).toBeEnabled();
   const described = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});
   await panel.getByRole("button", {name: "計算", exact: true}).click();
-  expect(((await described).request().postDataJSON() as {test: string}).test).toBe("none");
+  const describedResponse = await described;
+  expect((describedResponse.request().postDataJSON() as {test: string}).test).toBe("none");
+  const describedJob = ((await describedResponse.json()) as {job_id: string}).job_id;
   const descriptive = panel.getByRole("region", {name: "結果のまとめ"});
   await expect(descriptive.getByText("実験回 n = 3（対）、検定なし（記述のみ）", {exact: true})).toBeVisible({timeout: 300_000});
   await expect(descriptive.getByText(/^3 回中、PLK1 KOが少ない回 3/)).toBeVisible();
+  await expect(descriptive.getByText("n は記録した実験回の数です（独立性は未確認）。核や視野の数は n ではありません。", {exact: true})).toBeVisible();
   await expect(descriptive).not.toContainText("95% 信頼区間");
+  await expect(panel.getByRole("img", {name: "保存された解析結果のグラフ"})).toBeVisible({timeout: 120_000});
+  await expect.poll(() => panel.getByRole("img", {name: "保存された解析結果のグラフ"}).evaluate(image => (image as HTMLImageElement).naturalWidth), {timeout: 60_000}).toBeGreaterThan(0);
+  const descriptiveSentence = await descriptive.locator("p").allTextContents();
+  await page.screenshot({path: path.join(output, "comparison-descriptive.png"), fullPage: true});
+  // C1 is accepted on the unconfirmed design: the saved result, figure and Methods are descriptive throughout.
+  const describedResult = await (await page.request.get(`${api}/v1/jobs/${describedJob}/common-statistics`)).json() as {
+    spec: {test: string; plot: {kind: string}}; comparisons: unknown[]; estimates: {test: string; difference: {estimate: number | null; unavailable_reason: string | null}; runs: Array<{pair: string; control: number; treatment: number; difference: number}>}};
+  expect(describedResult.spec).toMatchObject({test: "none", plot: {kind: "superplot"}});
+  expect(describedResult.comparisons).toEqual([]);
+  expect(describedResult.estimates.difference).toMatchObject({estimate: null, unavailable_reason: "inference_not_requested"});
+  expect(describedResult.estimates.runs.map(run => run.pair).sort()).toEqual([...RUNS]);
+  expect(describedResult.estimates.runs.every(run => run.difference < 0)).toBe(true);
+  const descriptiveFiles: Record<string, string> = {};
+  for (const name of ["figure.svg", "methods.md", "estimates.csv", "estimates-runs.csv", "figure-caption.md"]) {
+    const file = await page.request.get(`${api}/v1/jobs/${describedJob}/files/${name}`);
+    expect(file.ok(), name).toBe(true);
+    descriptiveFiles[name] = await file.text();
+    await writeFile(path.join(output, `descriptive-${name}`), descriptiveFiles[name]);
+  }
+  expect(descriptiveFiles["methods.md"]).toContain("no hypothesis test, p-value or confidence interval was calculated");
+  expect(descriptiveFiles["methods.md"]).not.toContain("independent experimental unit");
+  expect(descriptiveFiles["figure-caption.md"]).toContain("independence not confirmed");
+  expect(descriptiveFiles["estimates.csv"]).toContain("inference_not_requested");
+  await writeFile(path.join(output, "receipt-descriptive.json"), JSON.stringify({
+    scope: "Goals C1 on the unconfirmed design (E-05): descriptive comparison, figure and Methods; workflow acceptance only, not detection accuracy or biological validation",
+    workspace, job: describedJob, sentence: descriptiveSentence, estimates: describedResult.estimates}, null, 2));
+
+  // A separate path: after the researcher confirms independence, the declared paired t test is offered.
+  // This checks the inferential route only; the JUMP source does not state that the runs are independent.
   await panel.getByRole("button", {name: "実験の形で確認する", exact: true}).first().click();
   await setup.getByRole("checkbox", {name: /各実験回は独立に行った/}).check();
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).toBeChecked();
@@ -293,8 +328,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   expect(dialogs).toEqual([]);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
-  await writeFile(path.join(output, "receipt.json"), JSON.stringify({
-    scope: "Goals C1 browser workflow on registered public JUMP cpg0016 source_13 images (CC0) with real API, worker and Fiji StarDist; workflow acceptance only, not detection accuracy or biological validation",
+  await writeFile(path.join(output, "receipt-inferential-route.json"), JSON.stringify({
+    scope: "Inferential route check only: the tester ticked independence to exercise the paired t test; the JUMP source does not state independent runs, so these test values are not a result of the dataset (see receipt-descriptive.json for C1)",
     workspace, job: job.id, revision: job.revision_id, fields: registeredFields.length, measured_seconds: measuredSeconds,
     headline, interval: await interval.textContent(), estimates: result.estimates, comparisons: result.comparisons, counts: result.counts,
     field_summary: result.field_summary, warnings: result.warnings ?? []}, null, 2));
