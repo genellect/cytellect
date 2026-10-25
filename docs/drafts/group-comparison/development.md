@@ -70,9 +70,10 @@
 | `apps/web/src/components/workspace/**`、`apps/web/src/lib/**`（生成された型を含む）、CSS | 主担当 |
 | `packages/contracts/**`、`packages/analysis/src/cytellect_analysis/*contracts*.py`、OpenAPI、既定レシピ | 主担当 |
 | `services/api/**`、`services/worker/**`（API の接続と実行処理） | 主担当 |
-| 指標・統計の登録口（WP0 で作る共有のファイル） | 主担当 |
-| WP3・WP4 で新しく作る解析パッケージのモジュールと、その試験 | 補助 |
-| `packages/analysis/src/cytellect_analysis/` の既存の統計・図のモジュール（`common_statistics*.py`、`common_unit_inference.py`、`region_comparison*.py`、`figures.py` など） | WP ごとに、着手前に所有者を決める（WP4 は補助、WP5 は主担当） |
+| WP0 の契約：`experiment_design.py`、`group_comparison_contracts.py`、`tests/test_experiment_design.py` | 主担当 |
+| WP3・WP4 の実装：`field_summary.py`、`nucleolar_shape.py`、`comparison_estimates.py`（WP0 で雛形を作成）と、その試験（`tests/test_field_summary.py`、`tests/test_nucleolar_shape.py`、`tests/test_comparison_estimates.py`） | 補助 |
+| WP10 の参照値：`tests/test_group_comparison_reference.py` | 主担当 |
+| `packages/analysis/src/cytellect_analysis/` の既存の統計・図・集計のモジュール（`common_statistics*.py`、`common_unit_inference.py`、`region_comparison*.py`、`compartment_*.py`、`figures.py` など）と、新しい部品をそれらへ接続する変更 | 主担当 |
 | `tests/conftest.py` など試験の共通設定 | 主担当 |
 | `uv.lock`、`pnpm-lock.yaml`、`pyproject.toml` | 主担当（依存の変更だけの PR で） |
 | `apps/web/public/showcase/**`、`services/showcase/**` | 主担当 |
@@ -82,13 +83,26 @@
 
 各 PR の着手前に、変更する予定のファイルと、共有の接続箇所（登録口、API の経路、試験の共通設定など）を PR の説明に書き、相手側が重なりを確かめます。
 
-### 4.3 所有の移管
+### 4.3 WP0 の成果と WP3・WP4 の着手点
+
+WP0 は、契約と雛形を次のように用意した。定義の正本は[計算仕様](../../methods.md)の「Group comparison contracts」の節。
+
+| 補助が実装する関数 | 契約 | 仕様の節 |
+|---|---|---|
+| `field_summary.field_summary_values(fields, selection)` | `FieldSummarySelection`、入出力の型は同じファイルの `FieldInput`・`FieldSummaryRow` | Field-summary selection 1.0.0 |
+| `nucleolar_shape.nucleolar_eccentricity(nuclei, nucleoli)` | 出力の型 `NucleolarShape`、選択は `CompartmentSummarySelectionV11` | Compartment-summary selection 1.1.0 |
+| `comparison_estimates.comparison_estimates(control, treatment, …)` | `ComparisonEstimates`、尺度は `metric_scale` | Comparison estimates 1.0.0 |
+
+- 補助は、関数の名前・引数・戻り値の型を変えない。変える必要がある場合は、着手前に PR のコメントで主担当に依頼する（契約は主担当の所有）。
+- 雛形の関数は `NotImplementedError` を送出する。新しい観測の元と推定値は、補助の実装がマージされた後に、主担当が API とワーカーへ接続する。それまで、API は受け付けず、画面にも出さない（N-07）。
+
+### 4.4 所有の移管
 
 - 所有を移すときは、移す範囲、基準のコミット、その時点の検証の結果を PR のコメントに書く。
-- 移している間、元の所有者はそのファイルを変えない。PR がマージされるか閉じられたら、所有は元に戻る。
+- 移している間、元の所有者はそのファイルを変えない。PR がマージされるか閉じられたら、所有は元に戻る。WP3・WP4 の PR の間、`docs/methods.md` の該当の節の文案の調整は補助が行う。
 - 生成物は、生成元と同じ PR で、所有者 1 人が作り直して整合させる。コンフリクトした生成物を手で統合しない。
 
-### 4.4 契約・版・マージの順序
+### 4.5 契約・版・マージの順序
 
 - **契約を先に決める。** WP0 で契約と仕様を固め、補助のレビューを経てから並行作業を始める。
 - **契約の追加は後方互換にする。** `main` へのマージは本番の自動デプロイを起動するため、先にマージする契約は既存の動作を変えず、実装が終わっていない機能を画面に出さない。

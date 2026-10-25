@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 
 from cytellect_analysis.common_statistics_contracts import AssociationPlot, CommonComparisonPlot
 from cytellect_analysis.descriptive_contracts import GfpFilter, LegacyMetric, RegionMetric
+from cytellect_analysis.experiment_design import ExperimentDesign
 from cytellect_analysis.proposal_contracts import (
     DraftCellProcessing,
     DraftFigure,
@@ -148,6 +149,8 @@ class AnalysisSpec(RegionModel):
     additional_analyses: list[SavedDraftStatistics] = Field(default_factory=list, max_length=3)
     figure_proposals: list[SavedDraftFigure] = Field(default_factory=list, max_length=8)
     figure: FigureDraft | None = None
+    # Experiment design 1.0.0 (additive): groups, runs and samples entered before analysis.
+    experiment: ExperimentDesign | None = None
 
     @model_validator(mode="after")
     def consistent_measurement(self):
@@ -216,6 +219,8 @@ def register_analysis_spec_routes(api, store, owner, workspace, touch):
                 referenced.update(getattr(body.spec.selection.gfp, "control_field_ids", []))
             if body.spec.statistics is not None:
                 referenced.update(body.spec.statistics.field_metadata)
+            if body.spec.experiment is not None:
+                referenced.update(body.spec.experiment.fields)
             if referenced - set(registered):
                 raise HTTPException(422, "analysis_spec_unknown_field")
             updated = {"version": body.version + 1, "spec": body.spec.model_dump(mode="json")}

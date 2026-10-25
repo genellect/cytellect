@@ -3676,6 +3676,16 @@
                 "type": "null"
               }
             ]
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentDesign"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -6607,6 +6617,154 @@
         ],
         "title": "Exclusion"
       },
+      "ExperimentDesign": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "single",
+              "pair"
+            ],
+            "title": "Layout"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentGroup"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Groups"
+          },
+          "control_group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Group Id"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentRun"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Runs"
+          },
+          "independence_confirmed": {
+            "type": "boolean",
+            "title": "Independence Confirmed",
+            "default": false
+          },
+          "fields": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/FieldAssignment"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "layout",
+          "groups"
+        ],
+        "title": "ExperimentDesign"
+      },
+      "ExperimentGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ExperimentGroup"
+      },
+      "ExperimentRun": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "performed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Performed On"
+          },
+          "acquired_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ExperimentRun",
+        "description": "One independently performed experiment (seeded, treated and stained separately)."
+      },
       "ExploratoryGfpGateFilter": {
         "additionalProperties": false,
         "description": "Nuclear-object mean gate; thresholds never classify individual image pixels.",
@@ -6684,6 +6842,56 @@
         ],
         "title": "ExploratoryGfpGateFilter",
         "type": "object"
+      },
+      "FieldAssignment": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Group Id"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Run Id"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 24,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          },
+          "acquired_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "group_id",
+          "run_id"
+        ],
+        "title": "FieldAssignment"
       },
       "FieldLinkWrite": {
         "properties": {

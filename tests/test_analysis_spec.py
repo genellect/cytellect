@@ -75,6 +75,26 @@ def test_unknown_field_is_not_saved(tmp_path):
     assert client.get(path).json()["spec"] is None
 
 
+def test_experiment_design_persists_and_never_names_unknown_fields(tmp_path):
+    client, _, _, _, path = setup(tmp_path)
+    experiment = {"version": "1.0.0", "layout": "pair",
+                  "groups": [{"id": "dmso", "label": "DMSO"}, {"id": "drug", "label": "Drug"}],
+                  "control_group_id": "dmso", "runs": [{"id": "r1", "label": "2026-10-01", "performed_on": "2026-10-01",
+                                                        "acquired_on": None}],
+                  "independence_confirmed": False, "fields": {}}
+    response = client.put(path, headers=HEADERS, json={"version": 0, "spec": {
+        "channel_assignment_version": 0, "experiment": experiment}})
+    assert response.status_code == 200, response.text
+    assert response.json()["spec"]["experiment"] == experiment
+    # A spec saved before experiment designs existed still reads back with no design.
+    assert AnalysisSpec.model_validate({"channel_assignment_version": 0}).experiment is None
+    foreign = {**experiment, "fields": {"other-workspace-field": {"group_id": "dmso", "run_id": "r1"}}}
+    response = client.put(path, headers=HEADERS, json={"version": 1, "spec": {
+        "channel_assignment_version": 0, "experiment": foreign}})
+    assert response.status_code == 422 and response.json()["detail"] == "analysis_spec_unknown_field"
+    assert client.get(path).json()["spec"]["experiment"] == experiment
+
+
 def test_scatter_and_axis_metrics_persist(tmp_path):
     client, _, _, _, path = setup(tmp_path)
     draft = {"channel_assignment_version": 0, "figure": {"plot": {"kind": "scatter"}},

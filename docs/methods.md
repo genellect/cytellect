@@ -485,3 +485,125 @@ Measurements use unchanged original pixels and the final integer labels. Existin
 replace researcher-adopted or corrected masks. Local private real-image acceptance
 compares complete label regions with the approved trial, independently checks
 original-pixel measurements, and is distinct from general biological validation.
+
+## Group comparison contracts (2026-10-25)
+
+The group-comparison workflow ([goals](drafts/group-comparison/goals.md),
+[requirements](drafts/group-comparison/requirements.md)) adds the contracts below.
+They are additive: no existing request, result, measurement or figure schema is
+changed, and every saved workspace, statistic, figure and public-demo recording
+replays under its original version. Until each implementation is connected, the
+new observation sources and estimates are not accepted by the descriptive or
+common-statistics endpoints, and the interface does not offer them.
+
+### Version and compatibility table
+
+| Contract | Version | Status | Compatibility |
+|---|---|---|---|
+| Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
+| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Contract defined; implementation pending (`field_summary.py`) | New source; existing sources unchanged |
+| Compartment-summary selection | 1.1.0 | Contract defined; implementation pending (`nucleolar_shape.py`, connection) | 1.0.0 requests and results unchanged |
+| Comparison estimates | `comparison-estimates/1.0.0` | Contract defined; implementation pending (`comparison_estimates.py`) | Added beside, never replacing, the saved test results |
+| Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
+
+### Experiment design 1.0.0
+
+A design records what the researcher declared: `layout` (`single`: one group
+described; `pair`: two groups compared), the groups (1 or 2), the control group
+(required before a pair comparison), the independent runs, each field's group,
+run and optional sample (coverslip or well), and whether the researcher confirmed
+that the runs were performed independently. Group, run and sample labels are at
+most 24 characters, without leading or trailing spaces, control characters or the
+separator `·`. Dates are ISO `YYYY-MM-DD`. Nothing is inferred from file names,
+folders, dates or plate labels.
+
+Derived per-field metadata (`experiment_design.field_metadata`), used unchanged by
+the existing ledgers and the field → sample → unit aggregation (S02):
+
+- condition = group label;
+- experimental unit = `run · group` (one unit per run and group, so independent and
+  paired designs both validate);
+- sample = `run · sample`, or the unit when the run has one sample per group;
+- pair = run label for `pair` designs, otherwise none;
+- acquisition date = the field's own imaging date, else the run's, else unknown.
+
+`experiment_design.readiness` lists issues to resolve before inference: unassigned
+or unknown fields, no runs, no control, a run missing a group, and unconfirmed
+independence. Descriptions never wait for these issues (S09). The default pair
+comparison is paired by run with contrast `[treatment, control]`, so the reported
+effect is treatment − control; the researcher still confirms the design (S10).
+
+### Field-summary selection 1.0.0
+
+One observation per field, computed from the adopted, non-excluded regions of the
+selected nuclear region set (`field_summary.field_summary_values`):
+
+- `nucleus_count`: the number of adopted nuclei, including nuclei touching the
+  image border; `border_count` reports how many touch it. A measured field with no
+  regions is an observed zero, not a missing value.
+- `nucleus_density_per_mm2`: `nucleus_count / (rows × columns × s² × 10⁻⁶)` with
+  the confirmed square pixel size `s` in µm; missing (`calibration_unknown`)
+  without calibration.
+- `positive_count` and `positive_fraction`: nuclei classified positive by the
+  recorded nucleus gate (`gfp-gate/2.0.0` negative-control or `gfp-gate/3.0.0`
+  manual/batch Otsu, `keep: "positive"`) on the judged channel. The denominator of
+  the fraction is the number of nuclei with a gate value (`evaluable_count`); the
+  total and the non-evaluable count are reported. No evaluable nucleus → fraction
+  missing (`no_evaluable_nuclei`); positive count 0.
+- Failed and explicitly excluded fields are not observations (`field_failed`,
+  `field_excluded`) and stay in the comparison ledger; their counts are unknown
+  (`null`), not zero.
+- `evaluable_count` and `positive_count` are reported only for `positive_*`
+  selections (otherwise `null`). `excluded_region_count` is the number of the
+  field's explicitly excluded regions, which are never counted as nuclei.
+- `field_area_mm2` is reported whenever the pixel size is known.
+- Aggregation is unchanged: the single field value is the field summary, then the
+  sample mean and the unit mean. The count is a count of imaged nuclei, not a
+  viability or proliferation measure, and it depends on field selection.
+
+### Compartment-summary selection 1.1.0
+
+Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
+(candidate-free nuclei are missing with `no_nucleolus`, never zero):
+
+- `nucleolar_area_px`, `nucleolar_area_um2`: pixel area of the nucleolar union of
+  the nucleus (calibration required for µm²).
+- `nucleolar_eccentricity` (`nucleolar_shape.nucleolar_eccentricity`): for each
+  nucleolar object of the nucleus, `e = sqrt(1 − λmin / λmax)`, where λ are the
+  eigenvalues of the population covariance of the object's pixel-centre
+  coordinates (equal to scikit-image `regionprops` eccentricity). A one-pixel
+  object (`λmax = 0`) is not measured; a one-pixel-wide line has `e = 1`. The nucleus value is the area-weighted mean of its measured objects;
+  if none is measurable it is missing (`degenerate_objects`). Larger values mean
+  more elongated nucleoli; rounder nucleoli have smaller values.
+
+### Comparison estimates 1.0.0
+
+Computed from the independent-unit values of a saved two-group comparison
+(`comparison_estimates.comparison_estimates`), always as treatment − control. The
+metric's scale (`group_comparison_contracts.metric_scale`) decides what is shown:
+
+| Scale | Metrics | Difference | Ratio |
+|---|---|---|---|
+| ratio | areas, counts, density, raw mean/median/integrated, nucleolar count and area | in the metric's unit | when every unit value is positive |
+| difference | background-corrected intensities, nucleolar eccentricity | in the metric's unit | not shown (`ratio_not_applicable`) |
+| fraction | positive fraction, nucleolar area fraction | in percentage points (×100) | not shown |
+| log2 | log2 nucleoplasm/nucleolus | in log2 units | not shown |
+
+- Paired t test: difference = mean of per-run differences, 95% t interval with
+  n_pairs − 1 degrees of freedom; ratio = `exp(mean(log(t_i / c_i)))` with the 95%
+  t interval of the mean log ratio, exponentiated. Fewer than two pairs →
+  `too_few_pairs`; zero variance → `zero_variance`.
+- Welch t test: difference of group means with the Welch–Satterthwaite interval;
+  ratio of geometric means, `exp(mean(log t) − mean(log c))`, with the Welch interval
+  on log values. A group with fewer than two units → `too_few_units`.
+- Rank tests (Mann–Whitney U, Wilcoxon): no difference or ratio interval
+  (`rank_test`); the result keeps the existing rank effect sizes, and paired
+  designs list the per-run values and differences descriptively.
+- Any non-positive unit value → ratio missing (`nonpositive_values`).
+- Group summaries: n, mean, sample SD and the 95% t interval of each group's unit
+  values (`too_few_units` below two units).
+- Paired designs list each run's control, treatment, difference and (for the ratio
+  scale with positive values) ratio, in the saved pair order.
+
+These are pointwise intervals for one declared contrast. The p value remains the
+declared test's; estimates never select or replace a test.

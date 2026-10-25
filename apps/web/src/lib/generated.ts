@@ -1230,6 +1230,7 @@ export interface components {
             /** Figure Proposals */
             figure_proposals?: components["schemas"]["SavedDraftFigure"][];
             figure?: components["schemas"]["FigureDraft"] | null;
+            experiment?: components["schemas"]["ExperimentDesign"] | null;
         };
         /** AnalysisSpecView */
         AnalysisSpecView: {
@@ -2360,6 +2361,56 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** ExperimentDesign */
+        ExperimentDesign: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /**
+             * Layout
+             * @enum {string}
+             */
+            layout: "single" | "pair";
+            /** Groups */
+            groups: components["schemas"]["ExperimentGroup"][];
+            /** Control Group Id */
+            control_group_id?: string | null;
+            /** Runs */
+            runs?: components["schemas"]["ExperimentRun"][];
+            /**
+             * Independence Confirmed
+             * @default false
+             */
+            independence_confirmed: boolean;
+            /** Fields */
+            fields?: {
+                [key: string]: components["schemas"]["FieldAssignment"];
+            };
+        };
+        /** ExperimentGroup */
+        ExperimentGroup: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * ExperimentRun
+         * @description One independently performed experiment (seeded, treated and stained separately).
+         */
+        ExperimentRun: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Performed On */
+            performed_on?: string | null;
+            /** Acquired On */
+            acquired_on?: string | null;
+        };
         /**
          * ExploratoryGfpGateFilter
          * @description Nuclear-object mean gate; thresholds never classify individual image pixels.
@@ -2404,6 +2455,17 @@ export interface components {
              * @enum {string}
              */
             keep: "positive" | "negative";
+        };
+        /** FieldAssignment */
+        FieldAssignment: {
+            /** Group Id */
+            group_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Sample */
+            sample?: string | null;
+            /** Acquired On */
+            acquired_on?: string | null;
         };
         /** FieldLinkWrite */
         FieldLinkWrite: {
