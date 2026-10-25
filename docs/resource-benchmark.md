@@ -1,6 +1,6 @@
 # Local resource benchmark
 
-## WP7: four-channel Windows benchmark (2026-10-25, in progress)
+## WP7: four-channel Windows benchmark (2026-10-25)
 
 The approved group-comparison specification is `a78a110b613684c3a352f99b625d20f94f488918`.
 The measurement base is main `11eb24419f2d8af5a3eec706e23985a038cc7f1d`.
@@ -18,8 +18,141 @@ All generated images, environments and runtime results remain outside the checko
 Pinned Fiji and Cellpose provisioning and execution are checked separately.
 An input or runtime that fails is not evidence for a larger supported limit.
 
+### Observed results
+
+Windows 11, Python 3.12.13, 12 physical / 16 logical CPUs, 31.73 GiB RAM.
+Each row is one fresh child process on the same interactive host, not repeated
+trials, a cold machine, or an isolated performance laboratory. No inference jobs
+were run concurrently. Documentation/tool activity continued on the host.
+
+| Square side / fields / channels | Registration sum (s) | Detection sum (s) | Measurement sum (s) | Total wall (s) | Sampled peak summed RSS (GiB) | Outcome |
+|---|---:|---:|---:|---:|---:|---|
+| 2048 / 1 / 4 | 0.625 | 63.366 | 2.074 | 74.143 | 1.823 | measured, 256 rows |
+| 2048 / 3 / 4 | 1.635 | 131.201 | 6.389 | 148.481 | 1.888 | all measured, 768 rows |
+| 4096 / 1 / 4 | 1.866 | 50.308 | 29.699 | 91.173 | 1.934 | measured, 1024 rows |
+| 4096 / 3 / 4 | 10.279 | 138.294 | 103.778 | 269.646 | 2.113 | all measured, 3072 rows |
+
+Rows are measurement rows across four channels, **not counts of biological
+cells**. The scenes are deterministic synthetic disks and foci, not real DAPI,
+GFP, NCL or CellMask images. Source array hashes matched stored arrays after every
+successful run. All four runs returned no field failures, with all requested fields
+in the `measured` outcome. Fresh local stores were used, never an existing user store.
+
+The script uses the real local-session/workspace/upload/enqueue HTTP handlers
+through FastAPI TestClient, then directly calls the common worker
+`run_region_analysis`. It does not time a browser, network transport, installer,
+supervisor scheduling, nucleolar/cell-boundary detection, or statistics. Timing
+wrappers forward to the original common scientific functions without changing
+their inputs or numerical results. The selected recipe is region-2d 1.1.0,
+`stardist_nuclear`; measurement is raw_intensity 1.1.0 on all four channels.
+
+**Both input sizes were detected at 1643×1643**, through the existing nuclear
+detection capacity resize (2,700,000 pixel ceiling). Masks were returned in
+original coordinates and measurement used original-resolution arrays. These
+results do not demonstrate full-resolution 4096 detection or the ability to
+resolve small nucleoli. Sixteen StarDist tiles were used in every field. The
+first field can include Java adapter compilation; detection timings are not
+steady-state throughput estimates.
+
+The controller samples summed RSS for the Python child and descendants including
+Fiji, with a 50 ms sleep plus sampling overhead. Samples: 773, 1529, 964, 2805 in
+table order. RSS access gaps: 0, 0, 0, 1. Shared pages may be double-counted and
+short spikes missed. This is an observed sampled peak, not a guaranteed memory
+maximum. Total time includes startup/generation/verification; stage times do not.
+Each case is bounded at 600 seconds and stops below 1 GiB available host RAM.
+
+Fiji provisioning succeeded using `scripts/fiji_setup.py` and the locked Windows
+archive stamp 20260929-1417 (archive SHA-256
+`8fff3fa8f202743bfd301066eb1e3611281e899e246fe9bef8fd0a30738260f0`).
+The detector model SHA-256 was
+`b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3`.
+The benchmark script SHA-256 for the four successful runs was
+`977eebe2dd90cce8d8f2a8cb96af419540dbc14366466403cff1447b57aeb39a`.
+
+An initial harness run failed before detection because it created the output
+directory that the worker itself creates. The harness was corrected to let the
+worker create it. Its 72.857 seconds / 0.356 GiB is a failed harness run, excluded
+from the successful table; no engine or product fix was needed.
+
+### Proposed limits for WP0 (owner/lead decision)
+
+1. Align I07/I09 wording to **1–4 channels per field**. At the measured main SHA,
+   `RegionFieldInput` and `RegionImageInfo` already allow four channels
+   in `packages/analysis/src/cytellect_analysis/region_contracts.py`; the draft's
+   claim that the generic contract allows only three is stale. Check the other
+   upload paths, generated contracts and UI separately before changing shared files.
+2. Do not raise the existing 100-field administrative ceiling or the 2 GiB
+   workspace upload quota on this evidence. **Only batches of 1 and 3 fields**
+   were measured. Keep per-field 256 MiB upload guards. State that the actual
+   admitted field count also depends on byte quota; 100 uncompressed 4096²×4×uint16
+   fields alone would be 12.5 GiB before headers, already above the quota.
+   Stored decoded arrays and analysis results consume additional disk beyond
+   uploaded bytes, so the quota is not a disk-space reservation.
+3. The measured CPU envelope is up to 4096² input / four channels / three sequential
+   fields for this **nuclear-only recipe**, with the existing detection resize.
+   This is a documented tested envelope, not a reason to silently reduce existing
+   workspace field limits or promise every 4096 workflow. An initial comparison
+   batch recommendation of three fields is supportable; broader supported limits
+   require 5/10/100-field runs, dense real-image workloads, simultaneous imports,
+   and other region recipes on the fixed integrated WP0 commit.
+4. Explain input resolution and detection resolution separately in the owning UI
+   and contract work. A maximum input-side setting alone is not a scientific
+   resolution guarantee. No limit, recipe, shared contract or statistical code is
+   changed in WP7.
+
+### Reproduction
+
+Run from the WP7 checkout, with each output directory new and outside the checkout:
+
+```powershell
+uv sync --locked --dev
+uv run python scripts/fiji_setup.py ../runtime-fiji
+uv run python scripts/benchmark_group_comparison.py --output ../benchmark-runs/2048-1-r2 --fiji ../runtime-fiji --side 2048 --fields 1
+uv run python scripts/benchmark_group_comparison.py --output ../benchmark-runs/2048-3 --fiji ../runtime-fiji --side 2048 --fields 3
+uv run python scripts/benchmark_group_comparison.py --output ../benchmark-runs/4096-1 --fiji ../runtime-fiji --side 4096 --fields 1
+uv run python scripts/benchmark_group_comparison.py --output ../benchmark-runs/4096-3 --fiji ../runtime-fiji --side 4096 --fields 3
+```
+
+Each case writes a host record, receipt, result and local child log; raw paths in
+local logs are not published. Receipt SHA-256 values in table order:
+
+```text
+abdf26d410f7f6da351f2b0b95c8831d30270f0444a74f3cd9da3e4f94e36efa
+4033e89c960fb7041a9896cafe583f3bf150200a98db19d874e7c9faf7c7c6c9
+66dade451bdf23ee5c620d941c670085c59457579bdcc0c7566d5bf048694630
+77b9b74dace837f9f07d0ddbd36e738d5ee15965f0dc05995a326252fddd03e0
+```
+
+### Cellpose execution probe
+
+The fixed isolated runtime was provisioned with `scripts/cellpose_setup.py`,
+Python 3.12, cellpose 4.2.1.1, torch 2.8.0+cpu and model cpsam_v2. Setup verified
+the model size (1,233,586,851 bytes) and locked SHA-256. The bounded CPU smoke
+script uses a 128² synthetic image, a fresh child and a 300-second guard. It
+clears remote-backend settings in that child and uses no paid service.
+The execution result is recorded below separately from successful installation.
+
+Execution succeeded: 102.441 s wall, 100.313 s in the common detector call,
+3.066 GiB sampled peak summed RSS, uint32 labels with the original 128×128 shape,
+and unchanged input pixels. One RSS access gap was recorded. This is one CPU
+smoke run, not a 2048/4096 Cellpose benchmark or an accuracy result. Model SHA-256:
+`0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667`.
+
+```powershell
+$py = (uv python find 3.12).Trim()
+uv run python scripts/cellpose_setup.py ../runtime-cellpose --model-cache ../cellpose-models --python $py
+uv run python scripts/benchmark_cellpose_smoke.py --output ../benchmark-runs/cellpose-128 --python ../runtime-cellpose/Scripts/python.exe --models ../cellpose-models
+```
+
+Provisioning used `UV_NO_CACHE=1` to limit disk use. Runtime/model downloads took
+place during setup only; the smoke inference used the fixed local files.
+Full-size Cellpose, combined nuclear/nucleolar recipes, 5+ field batches, browser
+operation, installer acceptance and the integrated WP0 build remain unverified.
+
 The earlier observations below are retained as historical evidence and are not
 new WP7 measurements.
+
+## Historical two/three-channel benchmark
 
 Status: the representative public image completed; the production-profile maximum-size case failed. An explicitly experimental 4 GiB Java-heap run also failed. This is a capacity observation, not cloud sizing certification or a detection-accuracy validation.
 
@@ -31,7 +164,7 @@ Each case runs in a fresh Python child. The controller samples that child's RSS 
 
 Each case has a 300-second wall-clock limit, including process startup, loading/generation, Java compilation, detection and Python compartment measurement. A host-available-memory guard stops the benchmark below 1 GiB to preserve interactive use; any such stop is recorded as a failed capacity observation. There is no container/cgroup memory limit in this local run. Runtime/measurement phases are separate; no private upload/API workload is benchmarked.
 
-The expensive capacity observations below predate the standard-2g automatic-detection admission guard. The current adapter rejects images above2048px on either side or2,700,000pixels before launching Fiji; rerunning the4096case now records that admission failure, without reproducing the historical allocation failure. No benchmark bypass is provided.
+The expensive capacity observations below predate the standard-2g automatic-detection admission guard. The legacy full-frame path rejects detection images above2048px on either side or2,700,000pixels before launching Fiji. The nuclear-only recipe in the WP7 section first creates an admitted smaller detection image; its successful4096input observation must not be confused with this historical full-frame failure. No benchmark bypass is provided.
 
 The pinned Java adapter currently requests -Xmx2g. Tile count grows through 1,4,16,... until nominal tile area is at most512². Tiling does not itself prove that full-frame prediction/output arrays fit in that heap. Default StarDist parameters and original-resolution measurement are retained.
 
