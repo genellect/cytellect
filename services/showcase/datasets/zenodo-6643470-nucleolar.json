@@ -1,0 +1,12 @@
+{
+  "schema": "cytellect-showcase-dataset/1",
+  "id": "zenodo-6643470-nucleolar",
+  "publishable": false,
+  "workspace_title": "ActD と未処理：核小体の転写と形",
+  "registration_status": "Metadata and hashes being verified; no measurement has been run for this scene.",
+  "owner_adoption": {"date": "2026-10-25", "status": "approved", "scope": "DS6a Untreated versus ActD1; mean nucleolar 5-EU and nucleolar eccentricity"},
+  "derivation_rule": "Reuse the measurement-independent selection committed in 75f02c032b69aabc02db3ab27bee298290e96fd6: lexicographically first three full-frame files in every source Rep1/Rep2/Rep3 and Untreated/ActD1 stratum. No field is chosen by a measured value. Original TIFF pixels are unchanged; C3 Hoechst, C1 NPM1, C2 5-EU will be selected.",
+  "acceptance": ["18 unique source files, 3 in each Rep by condition stratum", "Source sizes and MD5 verified, local SHA-256 recorded without measurements", "Figure 5B metrics and aggregation differences recorded", "Data S1 numeric source inspected or explicitly unverified", "Rep labels and same-day consecutive acquisition recorded without asserting independence"],
+  "sources": {},
+  "fields": []
+}
