@@ -24,7 +24,16 @@
 | [Potapova ら、eLife 88799](https://elifesciences.org/articles/88799)、[元データ案内](https://www.stowers.org/research/publications/libpb-2415) | Fig 2C、RPE1、BMH-21 は核で数えた細胞数を約 1/2 にする。1/10 µM、24 h のスクリーニング。公開候補の正確な濃度・well と図の対応は未固定 | 40×/NA 1.1、40 視野/well、16 bit。Stowers LIBPB-2415 の生画像の CC0/CC BY 許諾・独立性・画素寸法を未確認。データページは本環境の閲覧で HTTP 403。論文の CC BY を別配布の画像へ自動適用しない | 核数の優先追加確認候補。許諾と割付が確認できるまで取得対象に登録しない |
 | [Schmidt ら 2022 / DS6a](https://doi.org/10.1016/j.celrep.2022.111629)、[Zenodo 6643470](https://zenodo.org/records/6643470) | Fig 5A–B、U2OS、核小体の離心率と 5-EU | 下記参照。核面積や核数の再現の根拠ではない | 条件付き推薦 |
 
-## DS6a：何がメタデータで分かるか
+## 追加候補の確認
+
+追加検索（上記と同日）：`acschembio.2c00004 data Zenodo`、`nuclear area decreased images zenodo drug`、`Reduction in Nuclear Size by DHRS7 Data Availability` でも次を確認した。
+
+| 追加候補 | 定量の根拠 | 原画像の状況・判断 |
+|---|---|---|
+| [Rizzotto ら、Cells 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10778050/)、[所属機関の本文](https://www.research.ed.ac.uk/files/404848719/cells-13-00057.pdf) | Fig 3B、PC3、10 µM/36 h、in-plate DMSO に対し6薬剤で集団平均核面積が20%以上低下。estradiol propionate 等。H2B-mRFP / CellMask Deep Red、20視野/well。Fig 4 の体積とは区別 | Data availability は原画像を大学サーバーに保管し **upon request** とする。恒久的な公開画像 URL・再配布許諾・ハッシュを取得できず。実験回別割付、画素寸法/NA の fixture としての確認も未了。今回採用しない。著者への連絡はしていない |
+| [Palma ら 2025](https://www.nature.com/articles/s41467-024-55707-8) の BBBC021 再解析 | Fig 2B は Taxol 等について、実画像と生成画像の核で数えた細胞数・面積を比較する。実画像側は核数候補の追加根拠になるが、正確な効果量・濃度・視野の対応は未固定。核面積低下の記述には生成画像の補間が含まれる | **生成画像は科学的デモの原画像に採用しない**。実画像の切り出し・処理と BBBC021/Gallery の配布物の対応、画像単位のライセンス、反復の独立性、校正を固定するまで保留。実画像側の報告とモデル予測を混ぜない |
+
+## DS6a のメタデータ証拠
 
 原レコードの license は `{"id":"cc-by-4.0"}`。原文の名称は “Creative Commons Attribution 4.0 International”。[ライセンス本文](https://creativecommons.org/licenses/by/4.0/legalcode.en)を参照する。帰属表示案：**Schmidt, Broder; Rohatgi, Rajat; Brandman, Onn (2022), DS6a_5EU_Pulse_RawData, Zenodo 6643470, CC BY 4.0**。論文へのリンクを併記する。今回は原ファイルを変更していない。将来の表示変換・切り出しは変更内容として別途記録する。
 
