@@ -205,14 +205,12 @@ def test_synthetic_reversing_control_and_treatment(test):
 
 
 @pytest.mark.parametrize("metric", ["positive_fraction", "nucleolar_area_fraction"])
-@pytest.mark.xfail(strict=True, reason="31b3c22d: fraction difference/CI omit the specified x100; PR #101")
 def test_synthetic_fraction_interval_is_percentage_points(metric):
     result = _estimate([0.25, 0.5, 0.25], [0.5, 0.25, 0.75], metric=metric)
     _assert_interval(result.difference, FROZEN["numeric"]["fraction_difference"])
 
 
 @pytest.mark.parametrize("test", ["paired-t", "wilcoxon"])
-@pytest.mark.xfail(strict=True, reason="31b3c22d: per-run fraction differences omit x100; PR #101")
 def test_synthetic_fraction_run_differences_are_percentage_points(test):
     result = _estimate([0.25, 0.5, 0.25], [0.5, 0.25, 0.75], metric="positive_fraction", test=test)
     assert [r.difference for r in result.runs] == FROZEN["numeric"]["fraction_differences_pp"]
