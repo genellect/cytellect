@@ -1436,7 +1436,7 @@ def reference_stage(manifest: dict, scenario_state: dict, seed_data: Path, cache
     import numpy as np
     from cytellect_api.db import revisions
 
-    from .cellprofiler import compare, reference
+    from .cellprofiler import compare, group_summary, reference
 
     published = reference(manifest, cache / "cellprofiler")
     api = open_api(seed_data, origin, fiji, scenario_state["owner"])
@@ -1453,9 +1453,13 @@ def reference_stage(manifest: dict, scenario_state: dict, seed_data: Path, cache
         names[name] = item["id"]
     api.client.close()
     compared = compare(published["fields"], labels)
+    design = experiment_design(manifest, scenario_state["fields"])
+    pooled = ("reference_only_area_px", "both_area_px")
     record = {"version": 1, "label": manifest["reference"]["label"], "note": manifest["reference"]["note"],
               "reference_sha256": published["sha256"],
-              "fields": {names[name]: {"source_file": name, **value} for name, value in compared.items()}}
+              **(group_summary(compared, design, names) if design else {}),
+              "fields": {names[name]: {"source_file": name, **{key: value for key, value in values.items() if key not in pooled}}
+                         for name, values in compared.items()}}
     (work / f"reference-{manifest['id']}.json").write_text(json.dumps(record, ensure_ascii=False) + "\n")
     log("reference", manifest["id"], {name: {key: value[key] for key in ("both", "split", "reference_only", "labels_only")}
                                        for name, value in compared.items()})
@@ -1612,7 +1616,7 @@ def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
             "sourceUrl": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
             "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"),
-            "regions": scene_regions(manifest), "examples": examples,
+            "regions": scene_regions(manifest), "examples": examples, "assistantScope": manifest.get("assistant_scope"),
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}
                        for index, item in enumerate(scene.get("prepared", []))]}
 

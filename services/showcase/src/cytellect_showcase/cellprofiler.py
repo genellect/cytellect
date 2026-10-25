@@ -142,6 +142,9 @@ def compare(fields: dict, labels_by_name: dict) -> dict:
                      round(float(np.sqrt(areas[i] / np.pi)), 1), "labels_only"] for i in result["labels_only"]]
         reference_areas = Counter(status for status in result["reference"])
         out[name] = {**result["summary"], "count_nuclei": field["count_nuclei"],
+                     "reference_only_area_px": [o["area_px"] for o, s in zip(field["objects"], result["reference"], strict=True)
+                                                if s == "reference_only"],
+                     "both_area_px": [o["area_px"] for o, s in zip(field["objects"], result["reference"], strict=True) if s == "both"],
                      "count_nuclei_including_edges": field["count_nuclei_including_edges"],
                      "median_area_px": {
                          status: float(np.median([o["area_px"] for o, s in zip(field["objects"], result["reference"], strict=True)
@@ -150,3 +153,49 @@ def compare(fields: dict, labels_by_name: dict) -> dict:
                      "median_label_area_px": float(np.median(list(areas.values()))) if areas else None,
                      "markers": markers}
     return out
+
+
+def group_summary(compared: dict, design: dict, field_of: dict) -> dict:
+    """Per condition and per run: each method's mean nuclei per field (border-touching nuclei
+    excluded in both, as CellProfiler's Count_Nuclei does) and what only the reference method holds.
+
+    ``compared`` is :func:`compare` keyed by source file, ``field_of`` maps each file to its
+    workspace field id and ``design`` is the saved experiment design (control first).
+    """
+    import numpy as np
+
+    groups = sorted(design["groups"], key=lambda group: group["id"] != design.get("control_group_id"))
+    runs = design.get("runs") or []
+
+    def summary(names: list[str]) -> dict:
+        rows = [compared[name] for name in names]
+        pooled_only = [area for row in rows for area in row["reference_only_area_px"]]
+        pooled_both = [area for row in rows for area in row["both_area_px"]]
+        reference_objects = sum(row["reference_objects"] for row in rows)
+        return {"fields": len(rows),
+                "cytellect_per_field": float(np.mean([row["labels_away_from_border"] for row in rows])),
+                "cellprofiler_per_field": float(np.mean([row["count_nuclei"] for row in rows])),
+                "reference_only_per_field": float(np.mean([row["reference_only"] for row in rows])),
+                "split_per_field": float(np.mean([row["split"] for row in rows])),
+                "labels_only_per_field": float(np.mean([row["labels_only"] for row in rows])),
+                "matched_fraction": sum(row["both"] for row in rows) / reference_objects if reference_objects else None,
+                "reference_only_median_area_px": float(np.median(pooled_only)) if pooled_only else None,
+                "matched_median_area_px": float(np.median(pooled_both)) if pooled_both else None}
+
+    def names(group_id: str, run_id: str | None = None) -> list[str]:
+        return sorted(name for name, field_id in field_of.items() if name in compared
+                      and design["fields"][field_id]["group_id"] == group_id
+                      and (run_id is None or design["fields"][field_id]["run_id"] == run_id))
+
+    def ratio(rows: list[dict]) -> dict | None:
+        # Treatment ÷ control of the mean nuclei per field, for each method (display only).
+        if len(rows) != 2 or not rows[0]["cytellect_per_field"] or not rows[0]["cellprofiler_per_field"]:
+            return None
+        return {method: rows[1][f"{method}_per_field"] / rows[0][f"{method}_per_field"] for method in ("cytellect", "cellprofiler")}
+
+    overall = [{"id": group["id"], "label": group["label"], **summary(names(group["id"]))} for group in groups if names(group["id"])]
+    per_run = []
+    for run in runs:
+        rows = [{"id": group["id"], **summary(names(group["id"], run["id"]))} for group in groups if names(group["id"], run["id"])]
+        per_run.append({"id": run["id"], "label": run["label"], "groups": rows, "ratio": ratio(rows)})
+    return {"groups": overall, "ratio": ratio(overall), "runs": per_run}

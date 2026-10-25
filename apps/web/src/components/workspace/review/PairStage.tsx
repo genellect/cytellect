@@ -4,7 +4,7 @@ import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import type {useWorkspaceRuntime} from "@/lib/workspace/use-workspace-runtime";
 import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {planeRange,remapTable,remappedPreview,sharedRange} from "@/lib/shared-display";
-import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
+import {ReviewImageCanvas,type ReferenceMarker,type ReviewImageViewport} from "./ReviewImageCanvas";
 import styles from "./pair-stage.module.css";
 
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
@@ -12,11 +12,13 @@ interface Props {
   design:ExperimentDesign;fields:ReviewField[];runtime:Runtime;target:ReviewTarget;channel:string;
   selectedField?:string;onSelect:(fieldId:string,channel:string,region?:number)=>void;
   onEditing:(value:boolean)=>void;demo?:boolean;
+  /** Display-only reference objects per field, with a short caption for the pane header. */
+  overlay?:Record<string,{markers:ReferenceMarker[];caption:string}>;
 }
 
 /** Two groups of one independent run side by side (requirements V-01–V-04). Fields of different
  * groups are different cells: no position correspondence is assumed, and zoom is linked only on request. */
-export function PairStage({design,fields,runtime:r,target,channel,selectedField,onSelect,onEditing,demo=false}:Props){
+export function PairStage({design,fields,runtime:r,target,channel,selectedField,onSelect,onEditing,demo=false,overlay}:Props){
   const runs=(design.runs??[]).filter(run=>design.groups.some(group=>fieldsIn(design,group.id,run.id).length));
   const [runId,setRunId]=useState(runs[0]?.id??"");
   const run=runs.find(value=>value.id===runId)??runs[0];
@@ -52,7 +54,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
             <strong>{pane.group.label}</strong>{pane.group.id===design.control_group_id&&<span className={styles.badge}>対照</span>}
             {pane.ids.length>1&&<select aria-label={`${pane.group.label} の視野`} value={field?.id} onChange={event=>setChosen(previous=>({...previous,[pane.group.id]:event.target.value}))}>
               {pane.ids.map(id=><option key={id} value={id}>{fields.find(item=>item.id===id)?.label??id}</option>)}</select>}
-            <small>{pane.ids.length} 視野{value?` · 核 ${new Set(value.masks.regions.map(region=>region.id)).size}`:""}</small>
+            <small>{pane.ids.length} 視野{value?` · 核 ${new Set(value.masks.regions.map(region=>region.id)).size}`:""}{field&&overlay?.[field.id]?` · ${overlay[field.id].caption}`:""}</small>
           </header>
           {!field?<p className={styles.empty}>この実験回の画像がありません。</p>:urls[index]?<ReviewImageCanvas
             src={urls[index]!} width={field.width} height={field.height} contours={value?.masks.regions||[]}
@@ -64,7 +66,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
             onUndo={editable?()=>r.undo(field.id,target):undefined} onRedo={editable?()=>r.redo(field.id,target):undefined}
             canUndo={!r.busy&&r.canUndo(field.id,target)} canRedo={!r.busy&&r.canRedo(field.id,target)} onEditingChange={onEditing}
             viewport={view??null} onViewportChange={next=>setViewport(previous=>linked?{...previous,shared:next}:{...previous,[field.id]:next})}
-            outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"} className={styles.canvas}/>:<p className={styles.empty}>画像を読み込み中…</p>}
+            outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"} markers={overlay?.[field.id]?.markers} className={styles.canvas}/>:<p className={styles.empty}>画像を読み込み中…</p>}
         </section>;
       })}
     </div>

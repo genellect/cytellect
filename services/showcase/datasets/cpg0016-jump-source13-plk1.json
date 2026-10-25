@@ -855,6 +855,7 @@
  },
  "derivation_amendment": "Amendment recorded before publication: the approved requirement D-08 asks for at least three fields per group and run, so sites 4 and 6 (with site 5 the centre row of the 3 x 3 sites; F004-F006 in the published file names) were added for every well. The site-5 nuclei-per-field result (Run1-Run3: 471/244/376 non-targeting, 37/44/45 PLK1) had been computed before this amendment; the added sites are fixed by position only, not by any measured value, and no site is removed. The comparison plan is unchanged.",
  "scene_label": "核数：PLK1 ノックアウトと対照（JUMP）",
+ "assistant_scope": "この公開画像（核を染めた Hoechst）では、核の数・面積・輝度を、視野ごとや、対照（non-targeting）と PLK1 ノックアウトの間で比べられます。",
  "channel_amendment": "Amendment recorded before publication: the RNA (SYTO 14) channel was dropped so that the published seed with two demo scenes stays within the repository's file-size limit. The planned comparison (nuclei per field) and the CellProfiler comparison use the DNA channel only; no RNA value had been used for any decision.",
  "reference": {
   "kind": "jump-cellprofiler",
