@@ -135,7 +135,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(setup.getByRole("region", {name: "群と実験回が決まっていない視野"})).toHaveCount(0);
   // E-05: independence is the researcher's statement, never inferred from dates or plates.
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).not.toBeChecked();
-  await expect(issues).toContainText("実験回が独立に行われたこと（別々に播種・処理・染色したこと）を確認すると、群間比較の検定に進めます。");
+  await expect(issues).toContainText("実験回が独立に行われたこと（別々に播種・処理・染色したこと）を確認すると、群間比較の検定と信頼区間に進めます。");
   await noAlerts();
 
   // N-02: every field has the four channels, grouped from the file names only (no stain from names).

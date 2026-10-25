@@ -54,7 +54,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
     {onCsv&&<button className={styles.link} onClick={onCsv}>測定済みの数値（CSV）を使う</button>}
   </section>;
 
-  const issues=readiness(draft,fields.map(value=>value.id));
+  // One group is described, never tested: independence matters only once the design compares groups (E-01, T-05).
+  const issues=readiness(draft,fields.map(value=>value.id)).filter(issue=>draft.layout==="pair"||issue.code!=="experiment_design_independence_unconfirmed");
   const assigned=new Set(Object.keys(draft.fields??{}));
   const unassigned=fields.filter(value=>!assigned.has(value.id));
   const runs=draft.runs??[];

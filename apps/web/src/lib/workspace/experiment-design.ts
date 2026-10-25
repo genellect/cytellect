@@ -139,8 +139,10 @@ export function issueText(design:ExperimentDesign, issue:ReadinessIssue, fieldLa
     case "experiment_design_unknown_fields": return "登録されていない視野が割り当てに残っています。";
     case "experiment_design_no_runs": return "実験回（実験日）を追加してください。";
     case "experiment_design_control_required": return "どちらの群を対照にするか選んでください。";
-    case "experiment_design_missing_combination": return `${run(issue.run_id)} に ${issue.group_ids.map(group).join("、")} の画像がありません。この回は対にできません。`;
+    case "experiment_design_missing_combination": return design.layout === "pair"
+      ? `${run(issue.run_id)} に ${issue.group_ids.map(group).join("、")} の画像がありません。この回は対にできません。`
+      : `${run(issue.run_id)} に画像がありません。`;
     case "experiment_design_acquisition_dates_missing": return `撮影日が入っていない視野があります（${issue.field_ids.map(fieldLabel).join("、")}）。輝度を比べるには撮影日が必要です（面積や数には不要）。`;
-    case "experiment_design_independence_unconfirmed": return "実験回が独立に行われたこと（別々に播種・処理・染色したこと）を確認すると、群間比較の検定に進めます。";
+    case "experiment_design_independence_unconfirmed": return "実験回が独立に行われたこと（別々に播種・処理・染色したこと）を確認すると、群間比較の検定と信頼区間に進めます。確認がなくても、実験回ごとの値と差は示します。";
   }
 }
