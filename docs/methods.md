@@ -490,9 +490,9 @@ original-pixel measurements, and is distinct from general biological validation.
 
 The group-comparison workflow ([goals](drafts/group-comparison/goals.md),
 [requirements](drafts/group-comparison/requirements.md)) adds the contracts below.
-They are additive: no existing request, result, measurement or figure schema is
-changed, and every saved workspace, statistic, figure and public-demo recording
-replays under its original version. The new observation sources and estimates are
+They are additive: existing selections retain their request/result serialization
+and measurement/figure definitions. Saved workspaces, statistics, figures and
+public-demo recordings replay under their original versions. The new observation sources and estimates are
 accepted by the common-statistics comparison endpoint (two-screen comparisons).
 Field-summary 1.0.0 and compartment-summary 1.1.0 are also accepted by the
 descriptive endpoint (one-screen descriptions); comparison estimates remain comparison-only.
@@ -520,7 +520,11 @@ same source rules as comparisons. The redundant within-field median marker is
 omitted for this new source. Compartment-summary 1.1.0 uses the shared compartment
 adapter and the adopted-mask shape loader: one value per nucleus, with nuclei
 without an adopted nucleolus missing, never zero. These selections require reviewed
-sources and do not enable automatic previews. The existing figure versions retain
+sources and do not enable automatic previews. The 1.1.0 API/worker uses the same
+`assert_complete_compartments` admission check as comparisons: unresolved nuclear
+compartments must be resolved or explicitly excluded before queuing; the shared
+observation adapter still preserves missingness reasons. Historical 1.0.0
+admission behavior is unchanged. The existing figure versions retain
 their historical output for previously supported selections.
 
 ### Experiment design 1.0.0

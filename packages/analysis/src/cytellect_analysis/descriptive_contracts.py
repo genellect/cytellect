@@ -1,12 +1,14 @@
 """Explicit descriptive-only contracts; existing inferential requests are unchanged."""
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Discriminator,
     Field,
     FiniteFloat,
     StrictInt,
+    Tag,
     TypeAdapter,
     model_serializer,
     model_validator,
@@ -164,10 +166,79 @@ class NumericalSelection(StrictModel):
     metric: Literal["value"] = "value"
 
 
+FIELD_SUMMARY_VERSION: Literal["1.0.0"] = "1.0.0"
+COMPARTMENT_SUMMARY_SELECTION_V11: Literal["1.1.0"] = "1.1.0"
+
+FieldSummaryMetric = Literal["nucleus_count", "nucleus_density_per_mm2", "positive_count", "positive_fraction"]
+NucleolarSummaryMetric = Literal["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"]
+
+
+class FieldSummarySelection(StrictModel):
+    """One observation per field: nucleus counts and positivity among adopted nuclei.
+
+    Positivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0
+    or exploratory gfp-gate/3.0.0) with keep="positive"; the gate channel is the
+    channel that is judged, whatever its stain.
+    """
+    source: Literal["field-summary"]
+    version: Literal["1.0.0"] = FIELD_SUMMARY_VERSION
+    region_set_id: Id
+    metric: FieldSummaryMetric
+    positivity: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
+
+    @model_validator(mode="after")
+    def positivity_for_positive_metrics(self):
+        positive = self.metric.startswith("positive_")
+        if positive != (self.positivity is not None):
+            raise ValueError("field_summary_positivity_mismatch")
+        if self.positivity is not None and self.positivity.keep != "positive":
+            raise ValueError("field_summary_positivity_keep_positive_required")
+        return self
+
+
+class CompartmentSummarySelectionV11(_OptionalGate):
+    """Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.
+
+    Like 1.0.0, values describe nuclei with at least one adopted nucleolus; a
+    candidate-free nucleus is missing (no_nucleolus), never zero.
+    """
+    source: Literal["compartment-summary"]
+    version: Literal["1.1.0"]
+    region_set_id: Id
+    channel_id: Id | None = Field(default=None, json_schema_extra=_omit_default)
+    metric: CompartmentSummaryMetric | NucleolarSummaryMetric
+    gfp_gate: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
+
+    @model_validator(mode="after")
+    def channel_for_intensity_ratio_only(self):
+        if self.metric == "log2_nucleoplasm_over_nucleolus":
+            if self.channel_id is None:
+                raise ValueError("compartment_summary_channel_required")
+        elif self.channel_id is not None:
+            raise ValueError("compartment_summary_channel_must_be_unset")
+        return self
+
+
+def _selection_tag(value):
+    get = value.get if isinstance(value, dict) else lambda key, default=None: getattr(value, key, default)
+    source = get("source")
+    # Historical compartment 1.0.0 selections may omit their defaulted version.
+    return f"compartment-summary/{get('version', '1.0.0')}" if source == "compartment-summary" else source
+
+
+DescriptiveSelection = Annotated[
+    Union[Annotated[LegacySelection, Tag("legacy-cell")],
+          Annotated[RegionSelection, Tag("region")],
+          Annotated[NumericalSelection, Tag("numerical")],
+          Annotated[CompartmentSummarySelection, Tag("compartment-summary/1.0.0")],
+          Annotated[CompartmentSummarySelectionV11, Tag("compartment-summary/1.1.0")],
+          Annotated[FieldSummarySelection, Tag("field-summary")]],
+    Discriminator(_selection_tag)]
+
+
 class DescriptiveRequest(StrictModel):
     mode: Literal["descriptive"]
-    selection: Annotated[LegacySelection | RegionSelection | NumericalSelection | CompartmentSummarySelection,
-                         Field(discriminator="source")]
+    selection: DescriptiveSelection
     group_by: Literal["field"] = "field"
     plot: DescriptivePlot = Field(default_factory=DescriptivePlot)
 
@@ -202,7 +273,7 @@ class DescriptiveResult(StrictModel):
     descriptive_version: Literal["1.0.0"] = "1.0.0"
     spec: DescriptiveRequest
     source_kind: Literal["legacy-image-measurements", "region-2d", "measured-numerical-assay"]
-    observation_kind: Literal["nuclei", "regions", "observations"]
+    observation_kind: Literal["nuclei", "regions", "observations", "fields"]
     metric: str
     unit: str
     metric_definition: str

@@ -2114,8 +2114,8 @@ export interface components {
          */
         CompartmentSummarySelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "compartment-summary";
             /**
@@ -2269,7 +2269,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"] | components["schemas"]["CompartmentSummarySelectionV11"] | components["schemas"]["FieldSummarySelection"];
             /**
              * Group By
              * @default field
@@ -2917,8 +2917,8 @@ export interface components {
         /** LegacySelection */
         LegacySelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "legacy-cell";
             /**
@@ -3521,8 +3521,8 @@ export interface components {
         /** NumericalSelection */
         NumericalSelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "numerical";
             /**
@@ -3564,7 +3564,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"] | components["schemas"]["CompartmentSummarySelectionV11"] | components["schemas"]["FieldSummarySelection"];
             /**
              * Group By
              * @default field
@@ -5189,8 +5189,8 @@ export interface components {
         /** RegionSelection */
         RegionSelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "region";
             /** Region Set Id */
@@ -6012,7 +6012,7 @@ export interface components {
              * Observation Kind
              * @enum {string}
              */
-            observation_kind: "nuclei" | "regions" | "observations";
+            observation_kind: "nuclei" | "regions" | "observations" | "fields";
             /** Metric */
             metric: string;
             /** Unit */

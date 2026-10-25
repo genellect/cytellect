@@ -45,12 +45,25 @@ def run_descriptive(store, job, output):
     if request.selection.source == "compartment-summary":
         from cytellect_analysis.compartment_observations import describe_compartment_summary
 
-        from .compartment_sources import load_compartment_summaries
+        from .compartment_sources import load_compartment_summaries, load_nucleolar_shapes
 
         if not generic or preview:
             raise ValueError("descriptive_source_mismatch")
-        result = describe_compartment_summary(report, snapshot, request, load_compartment_summaries(store, rev, report),
-                                              nuclear=_gfp_source(store, rev, report, request))
+        from cytellect_analysis.compartment_review import assert_complete_compartments
+
+        if request.selection.version == "1.1.0":
+            assert_complete_compartments(rev["config"], report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
+        summaries = load_compartment_summaries(store, rev, report)
+        shapes = (load_nucleolar_shapes(store, rev, report, summaries)
+                  if request.selection.metric == "nucleolar_eccentricity" else None)
+        result = describe_compartment_summary(report, snapshot, request, summaries,
+                                              nuclear=_gfp_source(store, rev, report, request), shapes=shapes)
+    elif request.selection.source == "field-summary":
+        from cytellect_analysis.field_summary_source import describe_field_summary
+
+        if not generic or preview:
+            raise ValueError("descriptive_source_mismatch")
+        result = describe_field_summary(report, snapshot, request)
     elif generic:
         if preview and getattr(request.selection, "gfp_gate", None) is not None:
             raise ValueError("gfp_gate_preview_unsupported")

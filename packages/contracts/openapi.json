@@ -5941,31 +5941,33 @@
         "type": "object"
       },
       "CompartmentSummarySelectionV11": {
+        "additionalProperties": false,
+        "description": "Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.\n\nLike 1.0.0, values describe nuclei with at least one adopted nucleolus; a\ncandidate-free nucleus is missing (no_nucleolus), never zero.",
         "properties": {
           "source": {
-            "type": "string",
             "const": "compartment-summary",
-            "title": "Source"
+            "title": "Source",
+            "type": "string"
           },
           "version": {
-            "type": "string",
             "const": "1.1.0",
-            "title": "Version"
+            "title": "Version",
+            "type": "string"
           },
           "region_set_id": {
-            "type": "string",
             "maxLength": 80,
             "minLength": 1,
             "pattern": "^[A-Za-z0-9_-]+$",
-            "title": "Region Set Id"
+            "title": "Region Set Id",
+            "type": "string"
           },
           "channel_id": {
             "anyOf": [
               {
-                "type": "string",
                 "maxLength": 80,
                 "minLength": 1,
-                "pattern": "^[A-Za-z0-9_-]+$"
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
               },
               {
                 "type": "null"
@@ -5976,20 +5978,20 @@
           "metric": {
             "anyOf": [
               {
-                "type": "string",
                 "enum": [
                   "log2_nucleoplasm_over_nucleolus",
                   "nucleolar_area_fraction",
                   "nucleolar_count"
-                ]
+                ],
+                "type": "string"
               },
               {
-                "type": "string",
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
                   "nucleolar_eccentricity"
-                ]
+                ],
+                "type": "string"
               }
             ],
             "title": "Metric"
@@ -6009,8 +6011,6 @@
             "title": "Gfp Gate"
           }
         },
-        "additionalProperties": false,
-        "type": "object",
         "required": [
           "source",
           "version",
@@ -6018,7 +6018,7 @@
           "metric"
         ],
         "title": "CompartmentSummarySelectionV11",
-        "description": "Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.\n\nLike 1.0.0, values describe nuclei with at least one adopted nucleolus; a\ncandidate-free nucleus is missing (no_nucleolus), never zero."
+        "type": "object"
       },
       "ContourView": {
         "properties": {
@@ -6243,18 +6243,15 @@
               },
               {
                 "$ref": "#/components/schemas/CompartmentSummarySelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelectionV11"
+              },
+              {
+                "$ref": "#/components/schemas/FieldSummarySelection"
               }
             ],
-            "title": "Selection",
-            "discriminator": {
-              "propertyName": "source",
-              "mapping": {
-                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
-                "legacy-cell": "#/components/schemas/LegacySelection",
-                "numerical": "#/components/schemas/NumericalSelection",
-                "region": "#/components/schemas/RegionSelection"
-              }
-            }
+            "title": "Selection"
           },
           "group_by": {
             "type": "string",
@@ -7296,34 +7293,36 @@
         "title": "FieldMetadata"
       },
       "FieldSummarySelection": {
+        "additionalProperties": false,
+        "description": "One observation per field: nucleus counts and positivity among adopted nuclei.\n\nPositivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0\nor exploratory gfp-gate/3.0.0) with keep=\"positive\"; the gate channel is the\nchannel that is judged, whatever its stain.",
         "properties": {
           "source": {
-            "type": "string",
             "const": "field-summary",
-            "title": "Source"
+            "title": "Source",
+            "type": "string"
           },
           "version": {
-            "type": "string",
             "const": "1.0.0",
+            "default": "1.0.0",
             "title": "Version",
-            "default": "1.0.0"
+            "type": "string"
           },
           "region_set_id": {
-            "type": "string",
             "maxLength": 80,
             "minLength": 1,
             "pattern": "^[A-Za-z0-9_-]+$",
-            "title": "Region Set Id"
+            "title": "Region Set Id",
+            "type": "string"
           },
           "metric": {
-            "type": "string",
             "enum": [
               "nucleus_count",
               "nucleus_density_per_mm2",
               "positive_count",
               "positive_fraction"
             ],
-            "title": "Metric"
+            "title": "Metric",
+            "type": "string"
           },
           "positivity": {
             "anyOf": [
@@ -7340,15 +7339,13 @@
             "title": "Positivity"
           }
         },
-        "additionalProperties": false,
-        "type": "object",
         "required": [
           "source",
           "region_set_id",
           "metric"
         ],
         "title": "FieldSummarySelection",
-        "description": "One observation per field: nucleus counts and positivity among adopted nuclei.\n\nPositivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0\nor exploratory gfp-gate/3.0.0) with keep=\"positive\"; the gate channel is the\nchannel that is judged, whatever its stain."
+        "type": "object"
       },
       "FieldView": {
         "properties": {
@@ -9247,15 +9244,6 @@
             "type": "string"
           },
           "selection": {
-            "discriminator": {
-              "mapping": {
-                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
-                "legacy-cell": "#/components/schemas/LegacySelection",
-                "numerical": "#/components/schemas/NumericalSelection",
-                "region": "#/components/schemas/RegionSelection"
-              },
-              "propertyName": "source"
-            },
             "oneOf": [
               {
                 "$ref": "#/components/schemas/LegacySelection"
@@ -9268,6 +9256,12 @@
               },
               {
                 "$ref": "#/components/schemas/CompartmentSummarySelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelectionV11"
+              },
+              {
+                "$ref": "#/components/schemas/FieldSummarySelection"
               }
             ],
             "title": "Selection"
@@ -16372,7 +16366,8 @@
             "enum": [
               "nuclei",
               "regions",
-              "observations"
+              "observations",
+              "fields"
             ],
             "title": "Observation Kind",
             "type": "string"

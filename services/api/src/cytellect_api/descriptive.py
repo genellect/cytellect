@@ -44,11 +44,17 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
             raise HTTPException(409, "review_required")
         if not is_region(rev) and unresolved_nucleolar_failures(report, rev["config"]):
             raise HTTPException(409, "resolve_or_explicitly_exclude_failed_nucleoli")
-        expected_source = ("region", "compartment-summary") if is_region(rev) else ("legacy-cell",)
+        expected_source = ("region", "compartment-summary", "field-summary") if is_region(rev) else ("legacy-cell",)
         if body.selection.source not in expected_source:
             raise HTTPException(422, "descriptive_source_mismatch")
         if body.selection.source == "compartment-summary":
             require_compartment_revision(rev)
+            if body.selection.version == "1.1.0":
+                from cytellect_analysis.compartment_review import assert_complete_compartments
+                try:
+                    assert_complete_compartments(rev["config"], report, read_json(result_root(rev) / "provenance.json"))
+                except ValueError as exc:
+                    raise HTTPException(409, str(exc)) from None
         if is_region(rev):
             require_gfp_gate_source(rev, body.selection)
         with store.transaction() as conn:
