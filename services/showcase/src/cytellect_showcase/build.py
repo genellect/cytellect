@@ -1116,7 +1116,7 @@ def serve(data_dir: Path, origin: str, fiji: str, port: int, *, worker: bool = F
 
 
 def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji: str, out: Path,
-             fields: list[dict], workspace_id: str) -> dict:
+             fields: list[dict], workspace_id: str, regions: list[str] | None = None) -> dict:
     data = work / "snapshot-data"
     if data.exists():
         shutil.rmtree(data)
@@ -1156,7 +1156,8 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
                   "workspace": workspace_id,
                   "out": str(destination), "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE",
                                                                        "/opt/pw-browsers/chromium"),
-                  "web": str(web), "fields": len(fields)}
+                  "web": str(web), "fields": len(fields),
+                  "regions": regions or ["nuclei", "nucleoli", "nucleoplasm"]}
         script = Path(__file__).with_name("snapshot.mjs")
         result = subprocess.run(["node", str(script)], input=json.dumps(config), text=True, cwd=work,
                                 capture_output=True, timeout=1800)
@@ -1497,7 +1498,8 @@ def main(argv: list[str] | None = None) -> None:
         publish(args, manifest, state, seed_data, recordings, started)
     if "snapshot" in stages:
         report = snapshot(seed_data, work, args.web_port, args.api_port, args.fiji, args.out,
-                          state["scenario"]["fields"], state["scenario"]["workspace_id"])
+                          state["scenario"]["fields"], state["scenario"]["workspace_id"],
+                          None if manifest["scenario"].get("nucleoli", True) else ["nuclei"])
         state["snapshot"] = report
         state_path.write_text(json.dumps(state, indent=1))
         write_manifest(args, manifest, state)

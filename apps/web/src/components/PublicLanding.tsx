@@ -24,7 +24,7 @@ function Display({ id, text }: { id: string; text: string }) {
 const CREDITS: { label: string; sources: [string, string][]; note?: ReactNode }[] = [
   { label: "ヒーロー映像", sources: [["CDC / Pexels", "https://www.pexels.com/photo/person-doing-an-experiment-3992927/"], ["Thirdman / Pexels", "https://www.pexels.com/video/close-up-of-a-machine-putting-liquid-on-vials-8940765/"], ["Pressmaster / Pexels", "https://www.pexels.com/video/drops-of-liquid-on-a-tray-to-be-use-as-samples-3195394/"], ["Tima Miroshnichenko / Pexels", "https://www.pexels.com/video/man-and-a-woman-using-microscope-9573740/"]] },
   { label: "ピペット", sources: [["Thirdman / Pexels", "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/"]] },
-  { label: "デモの蛍光画像", sources: [["Schmidt HB, Rohatgi R, Brandman O (2022) / Zenodo", "https://doi.org/10.5281/zenodo.6643470"]],
+  { label: "核と核小体の蛍光画像", sources: [["Schmidt HB, Rohatgi R, Brandman O (2022) / Zenodo", "https://doi.org/10.5281/zenodo.6643470"]],
     note: <>（<a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>。表示用にコントラストを調整し、Cytellectが検出した輪郭を重ねています）</> },
 ];
 function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a data-lp-event="guide" href="#guide">ガイド</a><a href="https://yuto-matsui.com/">About the Developer</a><a data-lp-event="download_section" href="#download">ダウンロード</a><Link data-lp-event="example" href="/demo" className={lp.navDownload}>デモを体験 <span aria-hidden="true">→</span></Link></>;}

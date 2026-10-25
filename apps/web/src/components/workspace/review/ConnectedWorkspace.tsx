@@ -24,6 +24,7 @@ import {imageStageLayout} from "./image-stage-layout";
 import {emptyMetadata} from "./connected-results-model";
 import {initialPanelState,panelReducer} from "./panel-state";
 import styles from "./connected-workspace.module.css";
+import {usePrivateImage} from "@/lib/usePrivateImage";
 import {DemoBadge,DemoGuide,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,recordedKind,recordedValues,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
 import showcaseStyles from "./showcase.module.css";
 
@@ -31,6 +32,11 @@ type Mode="experiment"|"image"|"statistics"|"figure";
 const targets:Record<ReviewTarget,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
 const paths={stop:"M6 6h12v12H6z",plus:"M12 4v16M4 12h16",compare:"M3 4h7v16H3zM14 4h7v16h-7z",settings:"M4 7h16M4 17h16M8 4v6M16 14v6",close:"m6 6 12 12M6 18 18-12",back:"m10 5-7 7 7 7M3 12h18",ai:"M4 4h16v12H9l-5 4V4M8 8h8M8 12h5",send:"M12 20V4m-7 7 7-7 7 7"};
+/** The saved two-group result under the two screens: its sentence and figure (requirements X-01). */
+function PairResult({value,onOpen}:{value:{headline:string;figure:string|null};onOpen:()=>void}){
+  const url=usePrivateImage(value.figure);
+  return <section className={styles.pairResult} aria-label="比較の結果"><div><p>{value.headline}</p><button onClick={onOpen}>統計を開く</button></div>{url&&<img src={url} alt="比較の図"/>}</section>;
+}
 function Icon({name}:{name:keyof typeof paths}){return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d={paths[name]}/></svg>;}
 /** `showcase`: the public demo (/demo) — the same workspace on the serverless transport (docs/showcase.md). */
 export default function ConnectedWorkspace({showcase=false}:{showcase?:boolean}={}){
@@ -71,6 +77,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const regionOffered=(id:ReviewTarget)=>!demo||(id!=="cell"&&(!showcase.dataset?.regions||showcase.dataset.regions.includes(id)));
   const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>("nuclei"),[region,setRegion]=useState<number>();
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
+  const [pairResult,setPairResult]=useState<{headline:string;figure:string|null}|null>(null);
   const [metric,setMetric]=useState("mean"),[range,setRange]=useState("selected"),[compare,setCompare]=useState(false),[picked,setPicked]=useState<string[]>([]),[picker,setPicker]=useState(false),[table,setTable]=useState(false);
   const [panelState,dispatchPanel]=useReducer(panelReducer,initialPanelState,state=>demo&&typeof window!=="undefined"&&window.matchMedia("(max-width: 900px)").matches?{view:"closed",returnView:"closed"} as typeof state:state);
   // The demo opens on a colour merge of the stains; choosing one stain shows it alone, as in production.
@@ -218,7 +225,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     dispatchPanel("open-ai");setDemoReply("");
     if(demo&&!showcase.examples.some(example=>example.instruction===value.trim())){
       const example=closestExample(value,showcase.examples);
-      if(!example){setDemoReply("この公開画像（核を染めた Hoechst と、核小体の NPM1）では、核や核小体の面積・数・輝度を、視野ごとや未処理と ActD 処理の間で比べられます。たとえば下の指示で試せます。");return;}
+      if(!example){setDemoReply("この公開画像（核を染めた Hoechst と、RNA を染めた SYTO 14）では、核の数・面積・輝度を、視野ごとや、対照（non-targeting）と PLK1 ノックアウトの間で比べられます。たとえば下の指示で試せます。");return;}
       await act(()=>r.requestProposal(example.instruction,field?.id));return;
     }
     await act(()=>r.requestProposal(value,field?.id));
@@ -252,11 +259,12 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
           {assignments&&<AssignmentEditor key={field.id} field={field} runtime={r} onDone={()=>{setAssignments(false);queuePreview("nuclei");}} onError={setLocalError}/>}
           {picker&&<div className={styles.comparisonPicker}>{planes.map(value=><label key={value.key}><input type="checkbox" checked={picked.includes(value.key)} onChange={e=>setPicked(previous=>e.target.checked?[...previous,value.key]:previous.filter(key=>key!==value.key))}/>{value.field.label} · {value.channel.stain||value.channel.id}</label>)}<button className={styles.icon} aria-label="比較対象を閉じる" onClick={()=>setPicker(false)}><Icon name="close"/></button></div>}
           {pairActive?<PairStage design={experiment!} fields={fields} runtime={r} target={target} channel={actualChannel} selectedField={field.id} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onEditing={setEditing} demo={demo}/>:<ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} classification={target==="nuclei"||target==="cell"?classification:undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))} composite={demo&&composite&&!compare} demo={demo}/>}
+          {pairActive&&pairResult&&<PairResult value={pairResult} onOpen={()=>changeMode("statistics")}/>}
           <div className={styles.measureToggle}><button aria-expanded={table} onClick={()=>setTable(!table)}>測定値{rows.length?` · ${rows.length}`:""}</button><span>{targets[target]}{historicResult?" · 図の保存時の版":candidate?" · 検出候補":result?"":" · 未測定"}</span>{candidate&&<button disabled={busy} onClick={()=>void act(()=>r.acceptCandidates(field.id,target))}>候補を採用</button>}{field.exclusionReason?<button onClick={()=>void act(()=>r.excludeField(field.id,null))}>解析対象に戻す</button>:field.error?<button onClick={()=>void act(()=>r.excludeField(field.id,"利用者が解析対象から除外"))}>この視野を除外</button>:null}</div>
           {table&&<div className={styles.tableDrawer}><MeasurementTable rows={rows} selected={region} onSelect={setRegion}/></div>}
         </>}
       </section>
-      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}><ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} experiment={experiment} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,structure,ch)=>void openSource(id,n,revision,structure,ch)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
+      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}><ConnectedResults onHeadline={setPairResult} adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} experiment={experiment} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,structure,ch)=>void openSource(id,n,revision,structure,ch)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
     </div>
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>

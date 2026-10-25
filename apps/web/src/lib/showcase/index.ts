@@ -107,7 +107,7 @@ const TOPICS: Record<string, RegExp> = {
   area: /面積|大きさ|サイズ|広さ|形|area|size|shape/i,
   distribution: /分布|ばらつき|ヒストグラム|視野ごと|分散|distribution|histogram|spread/i,
   intensity: /輝度|量|発現|強さ|明るさ|シグナル|蛍光|NPM1|intensity|expression|signal|level/i,
-  comparison: /比較|比べ|違い|差|変化|有意|検定|ActD|処理|未処理|条件間|compare|difference|versus|vs|treat/i,
+  comparison: /比較|比べ|違い|差|変化|有意|検定|ActD|PLK1|ノックアウト|対照|処理|未処理|条件間|compare|difference|versus|vs|treat|knock/i,
   association: /関係|相関|関連|依存|散布|association|correlat|relationship|scatter/i,
 };
 const topicsOf = (text: string) => new Set(Object.entries(TOPICS).filter(([, pattern]) => pattern.test(text)).map(([topic]) => topic));

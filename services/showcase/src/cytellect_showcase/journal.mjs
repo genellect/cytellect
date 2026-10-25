@@ -30,6 +30,10 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const LIVE = 240000;
 
+// Region sets the demo recorded (snapshot/dataset.json); older recordings have all three.
+const dataset = JSON.parse(await readFile(path.join(config.snapshot, "dataset.json"), "utf8").catch(() => "{}"));
+const REGIONS = Array.isArray(dataset.regions) && dataset.regions.length ? dataset.regions : ["nuclei", "nucleoli", "nucleoplasm"];
+
 // Identifiers of the seed: everything the snapshot (the opening state) already contains.
 const stable = new Set();
 for (const name of await readdir(config.snapshot)) if (name.endsWith(".json")) for (const id of (await readFile(path.join(config.snapshot, name), "utf8")).match(UUID) ?? []) stable.add(id);
@@ -160,19 +164,30 @@ async function figures(page, comparison) {
   await tab(page, "グラフ");
   const width = figure(page).getByRole("combobox", {name: "図の幅", exact: true});
   const layout = figure(page).getByRole("combobox", {name: "図のレイアウト", exact: true});
+  // Every layout the panel offers for this result, at each width; then back to the first figure.
+  const first = comparison ? await layout.inputValue() : null;
+  const kinds = comparison ? await choices(layout) : [null];
   for (const value of ["183", "89"]) {
     await width.selectOption(value);
-    for (const kind of comparison ? ["distribution", "box", "violin", "histogram"] : [null]) {
+    for (const kind of kinds) {
       if (kind) await layout.selectOption(kind);
       await render(page);
     }
   }
   await width.selectOption("183");
-  if (comparison) await layout.selectOption("distribution");
+  if (comparison && first) await layout.selectOption(first);
   await tab(page, "統計");
 }
-const METRICS = ["area_px", "mean", "median", "integrated", "mean_corrected", "integrated_corrected", "nucleolar_count",
-  "nucleolar_area_fraction", "log2_nucleoplasm_over_nucleolus"];
+// Every metric of the catalog (metric-catalog.ts); a scene skips a metric the panel does not offer
+// for its region (the demo's recorded regions, a missing calibration).
+const METRICS = ["area_px", "area_um2", "nucleus_count", "nucleus_density_per_mm2", "mean", "median", "integrated",
+  "mean_corrected", "integrated_corrected", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity",
+  "nucleolar_count", "nucleolar_area_fraction", "log2_nucleoplasm_over_nucleolus"];
+// Metrics whose values come from a fixed region set; the panel then shows no region choice.
+const FIXED = {nucleus_count: "nuclei", nucleus_density_per_mm2: "nuclei", nucleolar_area_px: "nucleoplasm",
+  nucleolar_area_um2: "nucleoplasm", nucleolar_eccentricity: "nucleoplasm", nucleolar_count: "nucleoplasm",
+  nucleolar_area_fraction: "nucleoplasm", log2_nucleoplasm_over_nucleolus: "nucleoplasm"};
+const offered = (region, metric) => !FIXED[metric] || FIXED[metric] === region;
 const choices = select => select.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value).filter(Boolean));
 // Every statistic the panel offers for one region and metric, from the seed: each stain, each
 // analysis it allows and, for an association, each horizontal axis, with their figures.
@@ -180,10 +195,14 @@ function statisticsScene(region, metric, kinds = null) {
   return async page => {
     await tab(page, "統計");
     await statistics(page).waitFor({timeout: LIVE});
-    await sidebar(page).getByRole("combobox", {name: "領域", exact: true}).selectOption(region); await idle(page);
-    await sidebar(page).getByRole("combobox", {name: "指標", exact: true}).selectOption(metric); await idle(page);
+    const metrics = sidebar(page).getByRole("combobox", {name: "指標", exact: true});
+    if (!(await choices(metrics)).includes(metric)) return;
+    const regions = sidebar(page).getByRole("combobox", {name: "領域", exact: true});
+    if (await regions.count()) {await regions.selectOption(region); await idle(page);}
+    await metrics.selectOption(metric); await idle(page);
     const stain = sidebar(page).getByRole("combobox", {name: "染色", exact: true});
-    for (const channel of await stain.isEnabled() ? await choices(stain) : [null]) {
+    const stains = await stain.count() && await stain.isEnabled() ? await choices(stain) : [null];
+    for (const channel of stains) {
       if (channel) {await stain.selectOption(channel); await idle(page);}
       const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
       for (const kind of await choices(operation)) {
@@ -252,9 +271,7 @@ const scenes = {
     await idle(page);
   },
   "saved-figures": savedFigures,
-  "measure-nuclei": measureScene("nuclei"),
-  "measure-nucleoli": measureScene("nucleoli"),
-  "measure-nucleoplasm": measureScene("nucleoplasm"),
+  ...Object.fromEntries(REGIONS.map(region => [`measure-${region}`, measureScene(region)])),
 };
 // Each example from the seed, and all of them in their listed order; the detection preview
 // a draft brings is adopted, as a visitor does.
@@ -264,7 +281,7 @@ async function example(page, index) {
   const adopt = page.getByRole("button", {name: "候補を採用", exact: true});
   if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
 }
-for (const region of ["nuclei", "nucleoli", "nucleoplasm"]) for (const metric of METRICS) scenes[`statistics-${region}-${metric}`] = statisticsScene(region, metric);
+for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`statistics-${region}-${metric}`] = statisticsScene(region, metric);
 // After an example the statistics view holds the analysis the draft set up; each analysis it
 // offers is calculated, as a visitor continuing from the AI would.
 async function statisticsAfter(page) {
@@ -302,7 +319,7 @@ scenes["ai-fields"] = async page => {
     await closePanel(page);
   }
 };
-for (const target of ["nuclei", "nucleoli", "nucleoplasm"]) scenes[`ai-measure-${target}`] = async page => {
+for (const target of REGIONS) scenes[`ai-measure-${target}`] = async page => {
   await page.getByLabel("AIへの指示").click();
   await example(page, 0);
   await closePanel(page);
@@ -311,7 +328,7 @@ for (const target of ["nuclei", "nucleoli", "nucleoplasm"]) scenes[`ai-measure-$
 // Rank-based methods an example chooses stay for the statistics that follow, so every comparison
 // and association the panel offers is recorded under them too (a distribution does not use them).
 const RANK = config.rank_examples ?? [];
-if (RANK.length) for (const region of ["nuclei", "nucleoli", "nucleoplasm"]) for (const metric of METRICS) scenes[`rank-${region}-${metric}`] = async page => {
+if (RANK.length) for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`rank-${region}-${metric}`] = async page => {
   await page.getByLabel("AIへの指示").click();
   await example(page, RANK[0]);
   await closePanel(page);

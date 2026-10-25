@@ -25,6 +25,8 @@ export interface ConnectedResultItem {fieldId:string;label:string;result?:SavedR
 export interface ConnectedResultsProps {
   adapter:ApiAdapter;workspace:string;selection:WorkspaceSelection|null;items:ConnectedResultItem[];
   target:ReviewTarget;metric:string;channel:string|null;mode:"statistics"|"figure";
+  /** The saved two-group result in words and its figure, for the image view (requirements X-01). */
+  onHeadline?:(value:{headline:string;figure:string|null}|null)=>void;
   onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
   gfp?:GfpSelectionChoice|null;
   initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals">;
@@ -48,7 +50,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment,onHeadline}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   const comparison=useMemo(()=>createComparisonAdapter(),[]);
   const [csv,setCsv]=useState(false);
@@ -143,6 +145,10 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const excludedCount=items.filter(item=>item.excluded).length;
   const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&!unsupportedAxes&&!independenceMissing&&!datesMissing;
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
+  const headlineFigure=saved&&svgFiles[0]?`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(svgFiles[0])}`:null;
+  const headlineEstimates=saved?.operation==="comparison"?saved.result.estimates??null:null;
+  const headline=headlineEstimates?summarize(headlineEstimates,(saved?.result.comparisons?.[0]??{}) as SavedComparison,metricLabels[headlineEstimates.metric]||headlineEstimates.metric,saved?.result.unit||"").headline:null;
+  useEffect(()=>{onHeadline?.(headline?{headline,figure:headlineFigure}:null);},[headline,headlineFigure]);// eslint-disable-line react-hooks/exhaustive-deps
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
   function openPoint(source:FigureSource){if(!saved)return;if(source.field_id){if(!resultSources(saved.result).some(field=>field.field_id===source.field_id))return;onSource(source.field_id,source.region_id??source.nucleus_id,saved.revision,saved.target,savedChannel);}else if(source.experimental_unit){setPointSource({job:saved.figureJob,source});}}
