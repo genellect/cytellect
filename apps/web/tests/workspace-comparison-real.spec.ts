@@ -1,4 +1,5 @@
 import {expect, test} from "@playwright/test";
+import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
 import {mkdir, readFile, writeFile} from "node:fs/promises";
 import path from "node:path";
@@ -7,9 +8,13 @@ import path from "node:path";
 // images. Detection settings, common analysis and the editable export contract
 // remain owned by their existing modules; no biological replication is asserted.
 
-/** Real API/Fiji with seeded synthetic images: execution and statistics, never biological validity. */
-test("synthetic fields reach real independent-unit comparison and editable exports", async ({page}) => {
-  test.skip(process.env.CYTELLECT_COMPARISON_REAL !== "1", "Explicit isolated synthetic comparison acceptance");
+/** Real API/Fiji on the first four registered BBBC039 fields, selected before inference.
+ * The two groups and four unit labels exercise the legacy metadata ledger only:
+ * BBBC039 does not establish independent biological repeats or a treatment contrast.
+ * This is execution/export regression coverage, not C1 or detection-accuracy acceptance.
+ */
+test("public BBBC039 fields reach real unit-ledger comparison and editable exports", async ({page}) => {
+  test.skip(process.env.CYTELLECT_COMPARISON_REAL !== "1", "Explicit isolated public-image comparison acceptance");
   test.setTimeout(1200000);
   const python = process.env.CYTELLECT_TEST_PYTHON!;
   const output = process.env.CYTELLECT_REAL_OUTPUT!;
@@ -17,10 +22,26 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   const origin = process.env.CYTELLECT_WEB_URL!;
   for (const value of [python, output, api, origin, process.env.CYTELLECT_TEST_DATA_DIR]) expect(value).toBeTruthy();
   await mkdir(output, {recursive: true});
-  execFileSync(python, ["-B", "-c", ["import sys,numpy as np,tifffile", "from pathlib import Path", "from cytellect_analysis.synthetic import synthetic_field", "root=Path(sys.argv[1]);root.mkdir(parents=True,exist_ok=True)", "for i in range(4):", " channels,_,_=synthetic_field(seed=i)", " tifffile.imwrite(root/f'f{i+1}_c1.tif',channels['dapi'])", " tifffile.imwrite(root/f'f{i+1}_c2.tif',(channels['gfp'].astype(np.uint32)+i*500).astype(np.uint16))"].join("\n"), path.join(output, "inputs")], {env: process.env, stdio: "pipe"});
+  const fixtureRoot = path.resolve(__dirname, "../../../fixtures/public/bbbc039");
+  const manifest = JSON.parse(await readFile(path.join(fixtureRoot, "manifest.json"), "utf8"));
+  expect(manifest.dataset).toBe("BBBC039v1");
+  expect(manifest.license).toBe("CC0-1.0");
+  expect(manifest.channel).toBe("DNA (Hoechst), not DAPI/NCL/GFP");
+  const selected = manifest.images.slice(0, 4) as Array<{id: string; image: {path: string; sha256: string}}>;
+  expect(selected).toHaveLength(4);
+  const files: string[] = [];
+  await mkdir(path.join(output, "inputs"), {recursive: true});
+  for (const [index, field] of selected.entries()) {
+    const bytes = await readFile(path.join(fixtureRoot, field.image.path));
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(field.image.sha256);
+    // Rename for the existing channel parser; preserve original TIFF bytes exactly.
+    const file = path.join(output, "inputs", `f${index + 1}_c1.tif`);
+    await writeFile(file, bytes);
+    files.push(file);
+  }
   const resume = process.env.CYTELLECT_COMPARISON_RESUME;
   if (resume) {
-    // Recovery is limited to this exact four-field synthetic fixture by raw-byte hashes.
+    // Recovery is limited to these exact four public images by raw-byte hashes.
     const session = execFileSync(python, ["-B", "-c", [
       "import os,sys,time,secrets,hashlib", "from pathlib import Path", "from cytellect_api.db import Store,workspaces,fields,sessions,digest",
       "store=Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl'));wid=sys.argv[1];w=store.one(workspaces,id=wid)",
@@ -35,17 +56,14 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     expect((await page.request.post(`${api}/v1/invitations/redeem`, {headers: {Origin: origin, "X-Cytellect-Request": "1"}, data: {token}})).ok()).toBeTruthy();
   }
   const writes: string[] = []; page.on("request", request => {if (request.method() === "POST") writes.push(new URL(request.url()).pathname);});
-  const files = [1,2,3,4].flatMap(i => [1,2].map(c => path.join(output, "inputs", `f${i}_c${c}.tif`)));
   await page.goto(resume ? `/workspace?id=${resume}` : "/workspace");
   if (!resume) {
     await expect(page.getByTestId("file-input")).toBeEnabled();
     await page.getByTestId("file-input").setInputFiles(files);
     await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/未測定/})).toHaveCount(4, {timeout:120000});
     await page.getByRole("button", {name:"染色対応", exact:true}).click();
-    await page.getByLabel("c1の染色名", {exact:true}).fill("DAPI");
+    await page.getByLabel("c1の染色名", {exact:true}).fill("Hoechst");
     await page.getByLabel("c1の役割", {exact:true}).selectOption("nuclear");
-    await page.getByLabel("c2の染色名", {exact:true}).fill("GFP");
-    await page.getByLabel("c2の役割", {exact:true}).selectOption("measure");
     await page.getByRole("button", {name:"保存", exact:true}).click();
     await expect(page.getByRole("button", {name:"測定", exact:true})).toBeEnabled({timeout:900000});
     await page.getByLabel("測定する視野", {exact:true}).selectOption("all");
@@ -61,14 +79,14 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   const options=page.getByRole("complementary", {name:"解析対象"});
   await options.getByRole("combobox", {name:"領域",exact:true}).selectOption("nuclei");
   await options.getByRole("combobox", {name:"指標",exact:true}).selectOption("mean");
-  await options.getByRole("combobox", {name:"染色",exact:true}).selectOption("c2");
+  await options.getByRole("combobox", {name:"染色",exact:true}).selectOption("c1");
   await panel.getByRole("combobox", {name:"解析",exact:true}).selectOption("comparison");
-  await panel.getByLabel("独立実験単位", {exact:true}).fill("Synthetic independent-unit execution fixture; not biological replicates");
+  await panel.getByLabel("独立実験単位", {exact:true}).fill("Public BBBC039 software unit ledger; biological independence unverified");
   for (let i = 0; i < 4; i++) {
     await panel.locator('input[aria-label$=" condition"]').nth(i).fill(i < 2 ? "A" : "B");
-    await panel.locator('input[aria-label$=" sample"]').nth(i).fill(`synthetic-sample-${i}`);
-    await panel.locator('input[aria-label$=" experimental_unit"]').nth(i).fill(`synthetic-unit-${i}`);
-    await panel.locator('input[aria-label$=" acquisition_date"]').nth(i).fill("synthetic-batch");
+    await panel.locator('input[aria-label$=" sample"]').nth(i).fill(`fixture-sample-${i}`);
+    await panel.locator('input[aria-label$=" experimental_unit"]').nth(i).fill(`fixture-unit-${i}`);
+    await panel.locator('input[aria-label$=" acquisition_date"]').nth(i).fill("source-date-unverified");
   }
   // Source navigation preserves the editable experimental metadata.
   await panel.locator("details").filter({has:page.getByText("実験情報", {exact:true})}).getByRole("button").first().click();
@@ -96,7 +114,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   expect(result.counts.map((row: {experimental_units: number}) => row.experimental_units)).toEqual([2,2]);
   const report = await (await page.request.get(`${api}/v1/revisions/${job.revision_id}/region-measurements`)).json();
   for (const field of result.field_summary) {
-    const values = report.field_tables[field.field_id].rows.filter((row: {channel_id: string}) => row.channel_id === "c2").map((row: {mean: number}) => row.mean).sort((a: number,b: number) => a-b);
+    const values = report.field_tables[field.field_id].rows.filter((row: {channel_id: string}) => row.channel_id === "c1").map((row: {mean: number}) => row.mean).sort((a: number,b: number) => a-b);
     const median = values.length % 2 ? values[(values.length - 1)/2] : (values[values.length/2-1]+values[values.length/2])/2;
     expect(field.value ?? field.median ?? field.field_median).toBeCloseTo(median, 10);
   }
@@ -150,7 +168,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await page.reload();
   await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"統計", exact:true}).click();
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
-  await expect(panel.locator('input[aria-label$=" experimental_unit"]').first()).toHaveValue("synthetic-unit-0");
+  await expect(panel.locator('input[aria-label$=" experimental_unit"]').first()).toHaveValue("fixture-unit-0");
   await expect(panel.getByRole("button", {name:"計算", exact:true})).toBeDisabled();
-  await writeFile(path.join(output, "receipt.json"), JSON.stringify({recovery_bootstrap: !!resume, scope: "seeded synthetic images with real Fiji/API/browser; independent-unit arithmetic and editable export acceptance; no biological validation", workspace, job: job.id, revision: job.revision_id, counts: result.counts, comparisons: result.comparisons, replay, sizes, input_bytes: (await readFile(files[0])).length}, null, 2));
+  await writeFile(path.join(output, "receipt.json"), JSON.stringify({recovery_bootstrap: !!resume, scope: "Registered public BBBC039 images with real Fiji/API/browser; software unit-ledger and editable export regression, not biological replicates or detection-accuracy validation", fixture: {dataset: manifest.dataset, source: manifest.source, license: manifest.license, channel: manifest.channel, model_overlap: manifest.model_overlap, selected, group_assignment: "first two A, next two B; test ledger only, no biological treatment contrast", transformation: "filename only; original TIFF bytes preserved"}, workspace, job: job.id, revision: job.revision_id, counts: result.counts, comparisons: result.comparisons, replay, sizes, input_bytes: (await readFile(files[0])).length}, null, 2));
 });
