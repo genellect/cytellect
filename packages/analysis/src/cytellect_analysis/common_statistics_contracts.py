@@ -1,10 +1,10 @@
 """New opt-in contracts; historical generic comparison v1 remains unchanged."""
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, StrictBool, TypeAdapter, field_validator, model_validator
+from pydantic import Field, StrictBool, TypeAdapter, field_validator, model_serializer, model_validator
 
 from .contracts import PlotSpec
-from .descriptive_contracts import CompartmentSummarySelection, RegionSelection
+from .descriptive_contracts import CompartmentSummarySelection, RegionSelection, _omit_default
 from .region_comparison_contracts import (
     AcquisitionReview,
     ComparisonDesign,
@@ -12,6 +12,7 @@ from .region_comparison_contracts import (
     RegionComparisonRequest,
     RegionComparisonResult,
 )
+from .group_comparison_contracts import ComparisonEstimates
 from .regions import RegionModel
 
 
@@ -30,9 +31,21 @@ class RegionComparisonRequestV2(RegionComparisonRequest):
     test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon"]
     omnibus: Literal["welch-anova", "kruskal-wallis"] | None = None
     plot: CommonComparisonPlot = Field(default_factory=CommonComparisonPlot)  # type: ignore[assignment]
+    # Opt-in treatment − control estimates (comparison-estimates/1.0.0) for one declared
+    # contrast [treatment, control]. Absent from historical requests and their saved bytes.
+    estimates: Literal["comparison-estimates/1.0.0"] | None = Field(default=None, json_schema_extra=_omit_default)
+
+    @model_serializer(mode="wrap")
+    def omit_absent_estimates(self, handler):
+        value = handler(self)
+        if isinstance(value, dict) and self.estimates is None:
+            value.pop("estimates", None)
+        return value
 
     @model_validator(mode="after")
     def method_matches_design(self):
+        if self.estimates is not None and (len(self.conditions) != 2 or len(self.comparison_family.contrasts) != 1):
+            raise ValueError("comparison_estimates_single_contrast_required")
         if (self.test in ("paired-t", "wilcoxon")) != (self.design.kind == "paired"):
             raise ValueError("common_statistics_test_design_mismatch")
         if self.omnibus is not None and (self.design.kind != "independent" or len(self.conditions) < 3):
@@ -52,6 +65,14 @@ class RegionComparisonResultV2(RegionComparisonResult):
     spec: RegionComparisonRequestV2
     omnibus: dict[str, Any] | None
     method_settings: dict[str, Any]
+    estimates: ComparisonEstimates | None = Field(default=None, json_schema_extra=_omit_default)
+
+    @model_serializer(mode="wrap")
+    def omit_absent_estimates(self, handler):
+        value = handler(self)
+        if isinstance(value, dict) and self.estimates is None:
+            value.pop("estimates", None)
+        return value
 
 
 class AssociationPlot(PlotSpec):

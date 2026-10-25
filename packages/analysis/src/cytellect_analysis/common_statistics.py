@@ -15,6 +15,7 @@ from .common_unit_inference import (
     correlate_common_units,
     omnibus_common_units,
 )
+from .comparison_estimates import comparison_estimates
 from .compartment_observations import LOG2, acquisition_proxy, compartment_comparison_source
 from .compartment_observations import SAFE_ERROR_CODES as COMPARTMENT_ERRORS
 from .gfp_selection import SAFE_ERROR_CODES as GFP_GATE_ERRORS
@@ -36,6 +37,7 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | fr
     "common_statistics_result_required",
     "common_statistics_matched_gfp_selection_required", "common_statistics_matched_intensity_policy_required",
     "common_statistics_matched_observations_required",
+    "comparison_estimates_single_contrast_required", "comparison_estimates_unknown_metric",
 })
 
 
@@ -112,6 +114,7 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
     units = pd.DataFrame(data["unit_summary"])
     paired = request.design.kind == "paired"
     comparisons = []
+    estimates = None
     for a, b in request.comparison_family.contrasts:
         aa, bb = units[units.condition == a], units[units.condition == b]
         if paired:
@@ -123,6 +126,11 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
         else:
             va, vb = aa.value.to_numpy(), bb.value.to_numpy()
         comparisons.append({"group_a": a, "group_b": b, **compare_common_units(va, vb, request.test)})
+        if request.estimates is not None:
+            # The declared contrast [a, b] reports a − b: a is the treatment, b the control.
+            estimates = comparison_estimates(
+                vb, va, control_label=b, treatment_label=a, design=request.design.kind, test=request.test,
+                metric=request.selection.metric, pairs=[str(pair) for pair in joined.index] if paired else None)
     apply_holm(comparisons, request.comparison_family.family_id)
     omnibus = (omnibus_common_units([units[units.condition == c].value.to_numpy() for c in request.conditions],
                                     request.omnibus) if request.omnibus else None)
@@ -136,7 +144,7 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
               "ci_low": None, "ci_high": None, "interval": "not requested"} for c in request.conditions]
     return RegionComparisonResultV2(
         inference_version=VERSION, revision_id=report["revision_id"], source_fingerprint=source_fingerprint(report, config),
-        spec=request, comparisons=comparisons, means=means, counts=counts, omnibus=omnibus,
+        spec=request, comparisons=comparisons, means=means, counts=counts, omnibus=omnibus, estimates=estimates,
         method_settings={"test": request.test, "omnibus": request.omnibus, "correction": "Holm",
                          "family_id": request.comparison_family.family_id,
                          "family_size": len(comparisons), "contrast_policy": "all declared contrasts regardless of omnibus p",
