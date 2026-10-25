@@ -24,3 +24,4 @@
 .credit p{margin:0 0 6px;font-size:13px!important;line-height:1.6}.credit ul{margin:4px 0 8px;padding-left:18px;font-size:13px;line-height:1.6;color:#4c5663}.credit a{color:#1757b6}
 .sideCredit{margin:0;padding:6px 10px 0;font-size:12px;line-height:1.5;color:#65707d;overflow-wrap:anywhere}.sideCredit a{color:#1757b6}
 @media(max-width:620px){.sideCredit{display:none}.download,.guideButton,.live{display:none}.badge,.badgeMenu{margin-left:0}.badge{padding:0 6px;font-size:12px}}
+.scene{display:flex;align-items:center;gap:6px;font-size:13px;flex-shrink:0}.scene select{font-size:13px;max-width:220px}@media(max-width:700px){.scene select{max-width:140px}}

@@ -95,6 +95,18 @@ def test_experiment_design_persists_and_never_names_unknown_fields(tmp_path):
     assert client.get(path).json()["spec"]["experiment"] == experiment
 
 
+@pytest.mark.parametrize("metric", ["nucleus_count", "nucleus_density_per_mm2", "nucleolar_area_px",
+                                    "nucleolar_eccentricity"])
+def test_group_comparison_metrics_and_run_figures_persist(tmp_path, metric):
+    client, _, _, _, path = setup(tmp_path)
+    draft = {"channel_assignment_version": 0, "figure": {"metric": metric, "plot": {"kind": "superplot"}},
+             "statistics": {"metric": metric, "design": "paired", "comparisons": [["Drug", "DMSO"]]}}
+    response = client.put(path, headers=HEADERS, json={"version": 0, "spec": draft})
+    assert response.status_code == 200, response.text
+    assert response.json()["spec"]["statistics"]["metric"] == metric
+    assert response.json()["spec"]["figure"]["plot"]["kind"] == "superplot"
+
+
 def test_scatter_and_axis_metrics_persist(tmp_path):
     client, _, _, _, path = setup(tmp_path)
     draft = {"channel_assignment_version": 0, "figure": {"plot": {"kind": "scatter"}},

@@ -20,10 +20,17 @@ describe("workspace inference boundaries", () => {
     expect(() => comparisonRequest({...choices, design: "paired"})).toThrow("対応");
     expect(comparisonRequest({...choices, design: "paired", pairingBasis: "same culture before/after", kind: "paired"}).test).toBe("wilcoxon");
   });
+  it("compares nuclei per field as one value per field, needing equal sampling and no GFP filter", () => {
+    const request = comparisonRequest({...choices, metric: "nucleus_count", channel: "dapi"});
+    expect(request.selection).toEqual({source: "field-summary", version: "1.0.0", region_set_id: "nuclei", metric: "nucleus_count"});
+    expect(request.acquisition_review.basis).toBe("same-settings");
+    expect(() => comparisonRequest({...choices, metric: "nucleus_density_per_mm2", sampling: false})).toThrow("空間サンプリング");
+    expect(() => comparisonRequest({...choices, metric: "nucleus_count", gfp: {channel: "gfp", controls: ["f1"]}})).toThrow("GFP");
+  });
   it("selects per-nucleus compartment-summary metrics without inventing a channel", () => {
     const ratio = comparisonRequest({...choices, metric: "log2_nucleoplasm_over_nucleolus", regionSet: "nucleoplasm", channel: "ncl"});
     expect(ratio.selection).toEqual({source: "compartment-summary", version: "1.0.0", region_set_id: "nucleoplasm", metric: "log2_nucleoplasm_over_nucleolus", channel_id: "ncl"});
-    expect(comparisonRequest({...choices, metric: "nucleolar_count", channel: "ncl"}).selection.channel_id).toBeNull();
+    expect(comparisonRequest({...choices, metric: "nucleolar_count", channel: "ncl"}).selection).toMatchObject({channel_id: null});
     expect(() => comparisonRequest({...choices, metric: "nucleolar_area_fraction", sampling: false})).toThrow();
     expect(comparisonRequest(choices).selection).toEqual({source: "region", region_set_id: "nuclei", metric: "area_px", channel_id: null});
   });
@@ -46,8 +53,8 @@ describe("workspace inference boundaries", () => {
   });
   it("keeps the explicit cell ROI gate unit and refuses it for nuclear compartment summaries", () => {
     const gfp={version:"1.1.0" as const,gate_protocol:"gfp-gate/3.0.0" as const,gfp_channel_id:"gfp",method:"manual" as const,threshold:20,values:"corrected" as const,keep:"positive" as const};
-    expect(comparisonRequest({...choices,gfp}).selection.gfp_gate).toMatchObject({unit:"nucleus",threshold:20,values:"corrected"});
-    expect(comparisonRequest({...choices,regionSet:"cell",gfp:{...gfp,unit:"cell_roi"}}).selection.gfp_gate).toMatchObject({unit:"cell_roi"});
+    expect(comparisonRequest({...choices,gfp}).selection).toMatchObject({gfp_gate:{unit:"nucleus",threshold:20,values:"corrected"}});
+    expect(comparisonRequest({...choices,regionSet:"cell",gfp:{...gfp,unit:"cell_roi"}}).selection).toMatchObject({gfp_gate:{unit:"cell_roi"}});
     expect(()=>comparisonRequest({...choices,metric:"nucleolar_count",gfp:{...gfp,unit:"cell_roi"}})).toThrow("細胞ROI");
   });
   it("assembles exact saved sources with CAS; review is separate and explicit", async () => {
@@ -89,5 +96,14 @@ describe("stored cohort metadata restoration", () => {
     expect(await adapter.metadata("w", sources)).toEqual({revision: "current", fields: {f1: {condition: "current", experimental_unit: "declared-unit"}, f2: {condition: "B"}}});
     expect(await adapter.metadata("w", [sources[0]])).toBeNull();
     expect(post).not.toHaveBeenCalled();
+  });
+});
+
+describe("declared two-group comparisons", () => {
+  it("keep the treatment − control contrast and list the control first", () => {
+    const request = comparisonRequest({...choices, design: "paired", pairingBasis: "same run", contrasts: [["Drug", "DMSO"]], estimates: true});
+    expect(request.conditions).toEqual(["DMSO", "Drug"]);
+    expect(request.comparison_family.contrasts).toEqual([["Drug", "DMSO"]]);
+    expect(request.estimates).toBe("comparison-estimates/1.0.0");
   });
 });

@@ -1,4 +1,5 @@
-import {comparisonRequest, comparisonSelection, type ComparisonChoices, type Metadata, type RegionComparisonMetric, type CompartmentComparisonMetric, type GfpSelectionChoice} from "../../../lib/workspace/comparison-adapter";
+import {comparisonRequest, comparisonSelection, FIELD_SUMMARY_METRICS, type ComparisonChoices, type ComparisonMetric, type Metadata, type GfpSelectionChoice} from "../../../lib/workspace/comparison-adapter";
+import {metricUsesChannel} from "../../../lib/workspace/metric-catalog";
 import {defaultFigureEdits} from "../../../lib/figure-controls";
 import type {AssociationRequest} from "../../../lib/common-statistics";
 import type {MeasurementRow} from "../../../lib/workspace/api-adapter";
@@ -14,19 +15,20 @@ export interface ResultDesign {
   paired: boolean; rank: boolean; unit: string; pairing: string; confirmed: boolean;
   contrasts: string[][]; xMetric: string; xChannel: string | null;
   gfp?: GfpSelectionChoice | null;
+  /** Request treatment − control estimates (a declared two-group design). */
+  estimates?: boolean;
 }
 export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
-  kind: "distribution" | "paired" | "box" | "violin" | "scatter" | "histogram";
+  kind: "distribution" | "paired" | "box" | "violin" | "scatter" | "histogram" | "superplot" | "unit-mean-bar";
   preset: "custom"; language: "en"; y_min?: number; y_max?: number;point_size?:number;
   style?:{version:"1.0.0";series_colors:Record<string,string>;show_legend:boolean};
   y_tick_step?:number|null;
   axes?:{version:"1.0.0";x_scale:"linear"|"log10"|"log2";y_scale:"linear"|"log10"|"log2";x_min:number|null;x_max:number|null;x_tick_step:number|null};
 };
-const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus"]);
+const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity",...FIELD_SUMMARY_METRICS]);
 export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp">) {
   if (!metrics.has(design.metric)) throw new Error("対応する測定項目を選択してください。");
-  return comparisonSelection(design.regionSet, design.metric as RegionComparisonMetric | CompartmentComparisonMetric,
-    design.metric.startsWith("area_") || ["nucleolar_count","nucleolar_area_fraction"].includes(design.metric) ? null : design.channel,design.gfp??null);
+  return comparisonSelection(design.regionSet, design.metric as ComparisonMetric, metricUsesChannel(design.metric) ? design.channel : null, design.gfp??null);
 }
 /** An association plots two region measurements; per-nucleus nucleolar summaries cannot be an axis. */
 export function associationSupported(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp">) {
@@ -41,7 +43,7 @@ export function associationAxes(metric: string, channel: string|null, xChannel: 
  * analyses only the groups of its pairs, an association every group. */
 export function saturatedGroups(sources: Array<{field: string; result?: {rows: MeasurementRow[]; exclusions?: Array<{region_id: number | null}>}}>, fields: Record<string, {condition?: string | null}>, metric: string, channel: string | null) {
   const groups = new Set<string>();
-  if (!channel || metric.startsWith("area_") || ["nucleolar_count","nucleolar_area_fraction"].includes(metric)) return groups;
+  if (!channel || !metricUsesChannel(metric)) return groups;
   for (const source of sources) {
     const group = fields[source.field]?.condition?.trim();
     const excluded = new Set((source.result?.exclusions ?? []).map(item => item.region_id));
@@ -62,21 +64,26 @@ export function resultSeries(operation: ResultOperation, sourceFields: string[],
 export function seriesOrder(order: string[], series: string[]): string[] {
   return order.length ? [...new Set([...order.filter(key => series.includes(key)), ...series.filter(key => !order.includes(key))])] : [];
 }
+/** The first figure of a comparison: a declared two-group experiment is drawn by run (fields, run
+ * values, lines per run, mean and 95% CI; requirements F-01); other comparisons keep their default. */
+export function comparisonKind(design: Pick<ResultDesign, "paired" | "estimates">): "superplot" | "paired" | "distribution" {
+  return design.estimates ? "superplot" : design.paired ? "paired" : "distribution";
+}
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
   const selection = resultSelection(design);
   if (design.operation === "distribution") return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...plot,kind:"distribution"}};
   const conditions = [...new Set(Object.values(fields).map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
   if (!design.confirmed || !design.unit.trim()) throw new Error("独立実験単位と解析条件を確認してください。");
   if (Object.values(fields).some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
-    || ((!design.metric.startsWith("area_") || (design.operation === "association" && !design.xMetric.startsWith("area_"))) && !value.acquisition_date?.trim())
+    || ((metricUsesChannel(design.metric) || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
     || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・独立実験単位と、必要な撮影日・対応ペアを入力してください。");
   if (design.operation === "comparison") {
-    const choices: ComparisonChoices = {metric:design.metric as RegionComparisonMetric | CompartmentComparisonMetric,channel:design.channel,regionSet:design.regionSet,
+    const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
       contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
-      kind:design.paired?"paired":"distribution",width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp};
+      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,estimates:design.estimates};
     const request = comparisonRequest(choices);
-    return {...request,plot:{...request.plot,...plot,kind:design.paired?"paired":"distribution"}};
+    return {...request,plot:{...request.plot,...plot,kind:comparisonKind(design)}};
   }
   const x = resultSelection({...design,metric:design.xMetric,channel:design.xChannel});
   if (selection.source !== "region" || x.source !== "region") throw new Error("相関には同じ領域の面積・輝度を選択してください。");

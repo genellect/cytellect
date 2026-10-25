@@ -68,7 +68,7 @@ async function settle(label) {
 
 // Session of the workspace owner, created by the builder (never logged or saved).
 await context.addCookies([{name: config.cookie, value: config.token, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Strict"}]);
-await page.goto(`${config.origin}/workspace`, {waitUntil: "domcontentloaded", timeout: 180000});
+await page.goto(`${config.origin}/workspace${config.workspace ? `?id=${config.workspace}` : ""}`, {waitUntil: "domcontentloaded", timeout: 180000});
 const cards = page.locator("[class*=fieldCard]");
 try {await cards.first().waitFor({timeout: 180000});}
 catch (error) {
@@ -88,7 +88,7 @@ const channels = page.locator("[class*=channelBar] > button[aria-pressed]:not([a
 for (let index = 0; index < count; index++) {
   await step(`field ${index + 1}`, () => cards.nth(index).click());
   if (!(await region.isVisible())) await step("settings panel", () => page.getByRole("button", {name: "設定パネル"}).click());
-  for (const value of ["nuclei", "nucleoli", "nucleoplasm"]) {
+  for (const value of config.regions ?? ["nuclei", "nucleoli", "nucleoplasm"]) {
     await step(`field ${index + 1} region ${value}`, () => region.selectOption(value));
     const total = await channels.count();
     for (let channel = 0; channel < total; channel++) await step(`field ${index + 1} ${value} channel ${channel + 1}`, () => channels.nth(channel).click());

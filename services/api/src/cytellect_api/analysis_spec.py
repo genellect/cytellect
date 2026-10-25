@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from cytellect_analysis.common_statistics_contracts import AssociationPlot, CommonComparisonPlot
 from cytellect_analysis.descriptive_contracts import GfpFilter, LegacyMetric, RegionMetric
 from cytellect_analysis.experiment_design import ExperimentDesign
+from cytellect_analysis.group_comparison_contracts import FieldSummaryMetric, NucleolarSummaryMetric
 from cytellect_analysis.proposal_contracts import (
     DraftCellProcessing,
     DraftFigure,
@@ -88,9 +89,14 @@ class SavedDraftFigure(DraftFigure):
     channel: Id | None
 
 
+# Saved drafts name every metric the comparison accepts, including the field-summary and
+# compartment-summary 1.1.0 metrics of the group-comparison workflow.
+DraftOutcome = RegionMetric | LegacyMetric | FieldSummaryMetric | NucleolarSummaryMetric
+
+
 class StatisticsDraft(RegionModel):
     method: SavedDraftStatistics | None = None
-    metric: RegionMetric | LegacyMetric = "area_px"
+    metric: DraftOutcome = "area_px"
     channel_id: Id | None = None
     x_metric: RegionMetric | None = None
     x_channel_id: Id | None = None
@@ -105,7 +111,7 @@ class StatisticsDraft(RegionModel):
 
 
 class FigureDraft(RegionModel):
-    metric: RegionMetric | LegacyMetric = "area_px"
+    metric: DraftOutcome = "area_px"
     channel_id: Id | None = None
     plot: CommonComparisonPlot | AssociationPlot = Field(default_factory=CommonComparisonPlot)
 

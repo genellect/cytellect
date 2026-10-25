@@ -17,7 +17,7 @@ export interface FieldLinks {version:number;entries:Array<{field_id:string;kind:
 export interface ImportedField {
   id: string; workspace_id: string;
   metadata: Record<string, string | number | null>;
-  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null}>};
+  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
 }
 export interface MeasurementRow {
   region_id: number; channel_id: string; area_px: number; area_um2: number | null;

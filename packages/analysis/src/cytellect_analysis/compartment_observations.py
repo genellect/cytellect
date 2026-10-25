@@ -1,4 +1,4 @@
-"""Per-nucleus compartment-summary observations (selection 1.0.0).
+"""Per-nucleus compartment-summary observations (selections 1.0.0 and 1.1.0).
 
 Turns the saved ``compartment-summary.json`` of a nucleoplasm revision derived from
 adopted nucleoli into the same observation records the region adapters produce,
@@ -20,13 +20,16 @@ from .compartment_summary import PROTOCOL as SUMMARY_PROTOCOL
 from .descriptive import _metadata, prepare_region_observations
 from .descriptive_contracts import CompartmentSummarySelection, RegionSelection
 from .gfp_selection import GATE_KEYS, finish_gated_description, gate_source_observations
+from .group_comparison_contracts import CompartmentSummarySelectionV11
 
 SELECTION_VERSION = "1.0.0"
 LOG2 = "log2_nucleoplasm_over_nucleolus"
 GEOMETRY_KEYS = ("nucleus_area_px", "nucleolar_count", "nucleolar_area_px", "nucleoplasm_area_px")
 SUMMARY_REASONS = frozenset({"no_nucleolus", "no_nucleoplasm", "nonpositive_signal"})
+ECCENTRICITY = "nucleolar_eccentricity"
 UNITS = {LOG2: "log2 ratio", "nucleolar_area_fraction": "dimensionless",
-         "nucleolar_count": "count"}
+         "nucleolar_count": "count", "nucleolar_area_px": "px²", "nucleolar_area_um2": "µm²",
+         ECCENTRICITY: "dimensionless"}
 DEFINITIONS = {
     LOG2: ("log2(mean nucleoplasm intensity / mean nucleolar-union intensity) per parent nucleus, "
            "raw original pixels, no pseudocount (compartment-summary/1.0.0)"),
@@ -34,6 +37,12 @@ DEFINITIONS = {
                                 "adopted nucleolus (compartment-summary/1.0.0)"),
     "nucleolar_count": ("number of adopted nucleoli per nucleus with at least one adopted nucleolus "
                         "(compartment-summary/1.0.0)"),
+    "nucleolar_area_px": ("pixel area of the adopted nucleolar union per nucleus with at least one adopted nucleolus "
+                          "(compartment-summary selection 1.1.0)"),
+    "nucleolar_area_um2": ("adopted nucleolar-union pixel area × recorded X and Y pixel sizes per nucleus with at least "
+                           "one adopted nucleolus (compartment-summary selection 1.1.0)"),
+    ECCENTRICITY: ("area-weighted mean over the nucleus's adopted nucleoli of sqrt(1 − λmin/λmax) of each object's "
+                   "pixel-centre covariance; one-pixel objects are not measured (compartment-summary selection 1.1.0)"),
 }
 SAFE_ERROR_CODES = frozenset({
     "compartment_summary_source_required", "compartment_summary_unavailable",
@@ -42,6 +51,8 @@ SAFE_ERROR_CODES = frozenset({
     "compartment_summary_inconsistent", "compartment_summary_mask_mismatch",
     "compartment_summary_channel_required", "compartment_summary_channel_must_be_unset",
     "region_export_compartment_summary_unsupported",
+    "compartment_summary_calibration_required", "compartment_summary_shape_unavailable",
+    "compartment_summary_shape_mismatch",
 })
 
 
@@ -106,20 +117,32 @@ def _validated_rows(document, channel_ids):
     return tables
 
 
-def prepare_compartment_observations(report, field_snapshot, selector, summaries):
+def _selector(selector):
+    if isinstance(selector, (CompartmentSummarySelection, CompartmentSummarySelectionV11)):
+        return selector
+    raw = selector if isinstance(selector, dict) else selector.model_dump(mode="json")
+    model = CompartmentSummarySelectionV11 if raw.get("version") == "1.1.0" else CompartmentSummarySelection
+    return model.model_validate(raw)
+
+
+def prepare_compartment_observations(report, field_snapshot, selector, summaries, shapes=None):
     """Validate the reviewed nucleoplasm source and bind each field's summary to its mask.
 
     ``summaries`` maps every measured field to its saved compartment-summary.json.
+    ``shapes`` (field -> nucleus ID -> nucleolar_shape.NucleolarShape, from the same
+    adopted nuclear and nucleolar masks) is required only for nucleolar eccentricity.
     Returns ``(observations, source_fields, unit, excluded_failed_fields)`` with the
     same record shape as :func:`prepare_region_observations`.
     """
-    selector = CompartmentSummarySelection.model_validate(selector)
+    selector = _selector(selector)
     require_compartment_source(report.get("recipe"), selector.region_set_id)
     regions, fields, _, excluded = prepare_region_observations(report, field_snapshot, RegionSelection(
         source="region", region_set_id=selector.region_set_id, channel_id=None, metric="area_px"))
     summaries = summaries or {}
     if set(summaries) != {field["field_id"] for field in fields}:
         raise ValueError("compartment_summary_unavailable" if not summaries else "compartment_summary_coverage_mismatch")
+    if selector.metric == ECCENTRICITY and (shapes is None or set(shapes) != set(summaries)):
+        raise ValueError("compartment_summary_shape_unavailable")
     by_region = {(row["field_id"], row["region_id"]): row for row in regions}
     field_exclusions = {item["field_id"]: item["reason"] for item in report.get("exclusions", [])
                         if item.get("region_id") is None}
@@ -137,7 +160,7 @@ def prepare_compartment_observations(report, field_snapshot, selector, summaries
         if plasm != measured:
             raise ValueError("compartment_summary_mask_mismatch")
         field["compartment_summary"] = {
-            "protocol": SUMMARY_PROTOCOL, "selection_version": SELECTION_VERSION,
+            "protocol": SUMMARY_PROTOCOL, "selection_version": selector.version,
             "sha256": summary_sha256(document), "nucleolar_revision": document.get("nucleolar_revision"),
             "nuclei": len(rows)}
         for nid, row in sorted(rows.items()):
@@ -146,6 +169,18 @@ def prepare_compartment_observations(report, field_snapshot, selector, summaries
             elif row["nucleolar_area_px"] == 0:
                 # A candidate-free parent does not establish zero nucleoli (protocol 1.0.1).
                 value, reason = None, "no_nucleolus"
+            elif selector.metric == ECCENTRICITY:
+                shape = shapes[fid].get(nid)
+                # The shapes must describe exactly the nucleoli this summary counted.
+                if shape is None or shape["objects"] != row["nucleolar_count"]:
+                    raise ValueError("compartment_summary_shape_mismatch")
+                value, reason = shape["nucleolar_eccentricity"], shape["missing_reason"]
+            elif selector.metric == "nucleolar_area_um2":
+                calibration = field["calibration"]
+                if calibration is None:
+                    raise ValueError("compartment_summary_calibration_required")
+                value, reason = (float(row["nucleolar_area_px"]) * calibration["pixel_size_x_um"]
+                                 * calibration["pixel_size_y_um"]), None
             else:
                 value, reason = float(row[selector.metric]), None
             base = by_region.get((fid, nid))
@@ -161,14 +196,15 @@ def prepare_compartment_observations(report, field_snapshot, selector, summaries
     return observations, fields, UNITS[selector.metric], excluded
 
 
-def compartment_comparison_source(report, config, selection, summaries):
+def compartment_comparison_source(report, config, selection, summaries, shapes=None):
     """Same review/source gates as region comparisons, then compartment observations."""
     from .region_comparison import _source
 
     area = RegionSelection(source="region", region_set_id=selection.region_set_id, channel_id=None, metric="area_px")
     snapshot, *_ = _source(report, config, SimpleNamespace(selection=area))
     require_compartment_source(config.get("recipe"), selection.region_set_id)
-    observations, sources, unit, failed = prepare_compartment_observations(report, snapshot, selection, summaries)
+    observations, sources, unit, failed = prepare_compartment_observations(report, snapshot, selection, summaries,
+                                                                           shapes)
     return snapshot, observations, sources, unit, failed
 
 
@@ -176,10 +212,11 @@ def acquisition_proxy(request):
     """Acquisition review semantics: the ratio is an intensity outcome (batches, one
     dtype, no condition-confounded batches); count and fraction depend on sampling
     like pixel area (explicit equal-sampling confirmation, one calibration)."""
-    proxy = "mean" if request.selection.metric == LOG2 else "area_px"
+    metric = request.selection.metric
+    proxy = "mean" if metric == LOG2 else "area_um2" if metric == "nucleolar_area_um2" else "area_px"
     return SimpleNamespace(acquisition_review=request.acquisition_review, design=request.design,
                            conditions=request.conditions, comparison_family=request.comparison_family,
-                           selection=SimpleNamespace(metric=proxy, channel_id=request.selection.channel_id))
+                           selection=SimpleNamespace(metric=proxy, channel_id=getattr(request.selection, "channel_id", None)))
 
 
 def describe_compartment_summary(report, field_snapshot, request, summaries, nuclear=None):

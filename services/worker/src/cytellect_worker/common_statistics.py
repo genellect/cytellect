@@ -47,14 +47,16 @@ def run_common_statistics(store, job, output):
         raise ValueError("region_comparison_source_review_mismatch")
     request: RegionComparisonRequestV2 | RegionAssociationRequest = TypeAdapter(CommonStatisticsRequest).validate_python(payload)
     if isinstance(request, RegionComparisonRequestV2) and (
-            request.selection.source == "compartment-summary" or request.selection.gfp_gate is not None):
-        from .compartment_sources import load_compartment_summaries
+            request.selection.source == "compartment-summary" or getattr(request.selection, "gfp_gate", None) is not None):
+        from .compartment_sources import load_compartment_summaries, load_nucleolar_shapes
         from .gfp_sources import load_gfp_nuclear_source
 
         summaries = (load_compartment_summaries(store, rev, report)
                      if request.selection.source == "compartment-summary" else None)
-        nuclear = load_gfp_nuclear_source(store, rev, report) if request.selection.gfp_gate is not None else None
-        value = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear)
+        shapes = (load_nucleolar_shapes(store, rev, report, summaries)
+                  if request.selection.metric == "nucleolar_eccentricity" else None)
+        nuclear = load_gfp_nuclear_source(store, rev, report) if getattr(request.selection, "gfp_gate", None) is not None else None
+        value = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear, shapes=shapes)
     elif isinstance(request, RegionAssociationRequest) and request.x_selection.gfp_gate is not None:
         from .gfp_sources import load_gfp_nuclear_source
         nuclear = load_gfp_nuclear_source(store, rev, report)

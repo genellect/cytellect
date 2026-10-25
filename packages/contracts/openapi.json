@@ -5277,7 +5277,9 @@
               "paired",
               "histogram",
               "box",
-              "violin"
+              "violin",
+              "superplot",
+              "unit-mean-bar"
             ],
             "title": "Kind",
             "default": "distribution"
@@ -5602,6 +5604,16 @@
             "type": "object",
             "title": "Method Settings"
           },
+          "estimates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComparisonEstimates"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "figure": {
             "additionalProperties": true,
             "type": "object",
@@ -5685,6 +5697,122 @@
           "unit_definition"
         ],
         "title": "ComparisonDesign"
+      },
+      "ComparisonEstimates": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "comparison-estimates/1.0.0",
+            "title": "Protocol",
+            "default": "comparison-estimates/1.0.0"
+          },
+          "direction": {
+            "type": "string",
+            "const": "treatment_minus_control",
+            "title": "Direction",
+            "default": "treatment_minus_control"
+          },
+          "control": {
+            "type": "string",
+            "title": "Control"
+          },
+          "treatment": {
+            "type": "string",
+            "title": "Treatment"
+          },
+          "design": {
+            "type": "string",
+            "enum": [
+              "independent",
+              "paired"
+            ],
+            "title": "Design"
+          },
+          "test": {
+            "type": "string",
+            "enum": [
+              "welch-t",
+              "paired-t",
+              "mann-whitney-u",
+              "wilcoxon"
+            ],
+            "title": "Test"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "scale": {
+            "type": "string",
+            "enum": [
+              "ratio",
+              "difference",
+              "fraction",
+              "log2"
+            ],
+            "title": "Scale"
+          },
+          "n_control": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "N Control"
+          },
+          "n_treatment": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "N Treatment"
+          },
+          "n_pairs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Pairs"
+          },
+          "difference": {
+            "$ref": "#/components/schemas/EstimateInterval"
+          },
+          "ratio": {
+            "$ref": "#/components/schemas/EstimateInterval"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupEstimate"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunEstimate"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "control",
+          "treatment",
+          "design",
+          "test",
+          "metric",
+          "scale",
+          "n_control",
+          "n_treatment",
+          "n_pairs",
+          "difference",
+          "ratio",
+          "groups",
+          "runs"
+        ],
+        "title": "ComparisonEstimates"
       },
       "ComparisonFamily": {
         "properties": {
@@ -5810,6 +5938,86 @@
         ],
         "title": "CompartmentSummarySelection",
         "type": "object"
+      },
+      "CompartmentSummarySelectionV11": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "compartment-summary",
+            "title": "Source"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Version"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "log2_nucleoplasm_over_nucleolus",
+                  "nucleolar_area_fraction",
+                  "nucleolar_count"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
+                ]
+              }
+            ],
+            "title": "Metric"
+          },
+          "gfp_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gfp Gate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "version",
+          "region_set_id",
+          "metric"
+        ],
+        "title": "CompartmentSummarySelectionV11",
+        "description": "Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.\n\nLike 1.0.0, values describe nuclei with at least one adopted nucleolus; a\ncandidate-free nucleus is missing (no_nucleolus), never zero."
       },
       "ContourView": {
         "properties": {
@@ -6584,6 +6792,82 @@
         ],
         "title": "DraftStatistics"
       },
+      "EstimateInterval": {
+        "properties": {
+          "estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "confidence_level": {
+            "type": "number",
+            "maximum": 0.95,
+            "minimum": 0.95,
+            "title": "Confidence Level",
+            "default": 0.95
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estimate",
+          "ci_low",
+          "ci_high",
+          "basis",
+          "unavailable_reason"
+        ],
+        "title": "EstimateInterval"
+      },
       "Exclusion": {
         "properties": {
           "field_id": {
@@ -7010,6 +7294,61 @@
         ],
         "title": "FieldMetadata"
       },
+      "FieldSummarySelection": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "field-summary",
+            "title": "Source"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "nucleus_count",
+              "nucleus_density_per_mm2",
+              "positive_count",
+              "positive_fraction"
+            ],
+            "title": "Metric"
+          },
+          "positivity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positivity"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "region_set_id",
+          "metric"
+        ],
+        "title": "FieldSummarySelection",
+        "description": "One observation per field: nucleus counts and positivity among adopted nuclei.\n\nPositivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0\nor exploratory gfp-gate/3.0.0) with keep=\"positive\"; the gate channel is the\nchannel that is judged, whatever its stain."
+      },
       "FieldView": {
         "properties": {
           "id": {
@@ -7174,6 +7513,23 @@
                   "ncl_nucleoplasm_over_nucleoli",
                   "ncl_log2_nucleoplasm_over_nucleoli",
                   "ncl_legacy_release"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
                 ]
               }
             ],
@@ -7422,6 +7778,86 @@
           "fields"
         ],
         "title": "GfpGateRequest"
+      },
+      "GroupEstimate": {
+        "properties": {
+          "condition": {
+            "type": "string",
+            "title": "Condition"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "N"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "condition",
+          "n",
+          "mean",
+          "sd",
+          "ci_low",
+          "ci_high",
+          "unavailable_reason"
+        ],
+        "title": "GroupEstimate"
       },
       "HTTPValidationError": {
         "properties": {
@@ -10679,16 +11115,15 @@
               },
               {
                 "$ref": "#/components/schemas/CompartmentSummarySelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelectionV11"
+              },
+              {
+                "$ref": "#/components/schemas/FieldSummarySelection"
               }
             ],
-            "title": "Selection",
-            "discriminator": {
-              "propertyName": "source",
-              "mapping": {
-                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
-                "region": "#/components/schemas/RegionSelection"
-              }
-            }
+            "title": "Selection"
           },
           "design": {
             "$ref": "#/components/schemas/ComparisonDesign"
@@ -10754,6 +11189,18 @@
               }
             ],
             "title": "Omnibus"
+          },
+          "estimates": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "comparison-estimates/1.0.0"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimates"
           }
         },
         "additionalProperties": false,
@@ -13797,6 +14244,48 @@
         ],
         "title": "RevisionView"
       },
+      "RunEstimate": {
+        "properties": {
+          "pair": {
+            "type": "string",
+            "title": "Pair"
+          },
+          "control": {
+            "type": "number",
+            "title": "Control"
+          },
+          "treatment": {
+            "type": "number",
+            "title": "Treatment"
+          },
+          "difference": {
+            "type": "number",
+            "title": "Difference"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pair",
+          "control",
+          "treatment",
+          "difference",
+          "ratio"
+        ],
+        "title": "RunEstimate",
+        "description": "One independent run of a paired comparison, from the saved pair ledger."
+      },
       "RuntimeSettingsDraft": {
         "properties": {
           "nuclearMaxSide": {
@@ -14599,6 +15088,23 @@
                   "ncl_nucleoplasm_over_nucleoli",
                   "ncl_log2_nucleoplasm_over_nucleoli",
                   "ncl_legacy_release"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
                 ]
               }
             ],

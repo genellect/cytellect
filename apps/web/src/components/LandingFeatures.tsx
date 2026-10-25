@@ -38,8 +38,8 @@ const features: Feature[] = [
     </div>,
     link: <Link data-lp-event="demo_image" href="/demo?step=image" className={lp.button}>この画像をデモで解析する <Forward /></Link>,
     visual: <figure className={lp.specimen}>
-      <picture><source media="(max-width: 760px)" srcSet="/marketing/lp-field-mobile.webp" width={1080} height={1080} /><img src="/marketing/lp-field.webp" alt="デモの蛍光画像。青い核と桃色の核小体を、Cytellectが検出した輪郭が囲んでいる" width={1536} height={864} /></picture>
-      <figcaption>デモの公開画像と、Cytellectが検出した核（青）と核小体（桃）の輪郭。数値は研究室の画像と正解付きの公開画像で測ったもので、この画像の結果ではありません。画像：Schmidt, Rohatgi, Brandman (2022), Zenodo, CC BY 4.0</figcaption>
+      <picture><source media="(max-width: 760px)" srcSet="/marketing/lp-field-mobile.webp" width={1080} height={1080} /><img src="/marketing/lp-field.webp" alt="公開の蛍光画像。青い核と桃色の核小体を、Cytellectが検出した輪郭が囲んでいる" width={1536} height={864} /></picture>
+      <figcaption>公開画像と、Cytellectが検出した核（青）と核小体（桃）の輪郭。数値は研究室の画像と正解付きの公開画像で測ったもので、この画像の結果ではありません。画像：Schmidt, Rohatgi, Brandman (2022), Zenodo, CC BY 4.0</figcaption>
     </figure>,
   },
   {
@@ -64,8 +64,8 @@ const features: Feature[] = [
     extra: <ul className={lp.formats} aria-label="書き出せる形式"><li>SVG</li><li>PDF</li><li>CSV</li></ul>,
     link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモを体験する <Forward /></Link>,
     visual: <figure className={lp.paper}>
-      <a href="/marketing/lp-figure.svg" aria-label="図を拡大"><img src="/marketing/lp-figure.svg" alt="デモから書き出した図。反復ごとに、未処理とアクチノマイシンD処理の核のNPM1平均輝度を線で結んでいる" width={518.74} height={283.46} /></a>
-      <figcaption>デモから書き出した図（核のNPM1平均輝度、反復ごとに未処理とActD処理を結んだもの、n = 3）。この公開データの反復は同じ日の撮影で、独立性は出典に記載がありません。</figcaption>
+      <a href="/marketing/lp-figure.svg" aria-label="図を拡大"><img src="/marketing/lp-figure.svg" alt="公開画像から書き出した図。反復ごとに、未処理とアクチノマイシンD処理の核のNPM1平均輝度を線で結んでいる" width={518.74} height={283.46} /></a>
+      <figcaption>公開画像（Schmidt ら 2022）から書き出した図（核のNPM1平均輝度、反復ごとに未処理とActD処理を結んだもの、n = 3）。この公開データの反復は同じ日の撮影で、独立性は出典に記載がありません。</figcaption>
     </figure>,
   },
 ];

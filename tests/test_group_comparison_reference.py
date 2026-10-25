@@ -111,7 +111,9 @@ def test_scales_without_a_ratio_keep_the_difference(metric, scale):
     result = estimates(control, treatment, metric=metric)
     assert result.scale == scale
     assert result.ratio.estimate is None and result.ratio.unavailable_reason == "ratio_not_applicable"
-    assert result.difference.estimate == approx(mean([0.3, 0.15, 0.35]))
+    # A fraction's difference is in percentage points (×100); other scales keep the metric's unit.
+    factor = 100 if scale == "fraction" else 1
+    assert result.difference.estimate == approx(mean([0.3, 0.15, 0.35]) * factor)
     assert all(run.ratio is None for run in result.runs)
 
 
@@ -250,3 +252,20 @@ def test_area_weighted_eccentricity_and_missing_reasons():
     assert shapes[4]["nucleolar_eccentricity"] == approx(math.sqrt(0.8))
     assert (shapes[4]["objects"], shapes[4]["measured_objects"]) == (2, 1)
     assert shapes[5]["nucleolar_eccentricity"] == approx(1.0)
+
+
+def test_fraction_differences_are_percentage_points():
+    # Hand calculation: per-run differences 0.20, 0.15, 0.20 → 20, 15, 20 points; mean 18.333…
+    from cytellect_analysis.comparison_estimates import comparison_estimates
+
+    result = comparison_estimates([0.2, 0.3, 0.4], [0.4, 0.45, 0.6], control_label="C", treatment_label="T",
+                                  design="paired", test="paired-t", metric="positive_fraction",
+                                  pairs=["r1", "r2", "r3"]).model_dump(mode="json")
+    differences = [20.0, 15.0, 20.0]
+    mean = sum(differences) / 3
+    half = 4.303 * stats.tstd(differences) / 3 ** .5
+    assert result["difference"]["estimate"] == pytest.approx(mean)
+    assert result["difference"]["ci_low"] == pytest.approx(mean - half, rel=1e-3)
+    assert [run["difference"] for run in result["runs"]] == pytest.approx(differences)
+    assert result["groups"][0]["mean"] == pytest.approx(0.3)
+    assert "percentage points" in result["difference"]["basis"]

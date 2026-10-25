@@ -32,7 +32,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 
 ### 群間比較の UX 改善
 
-対照と処理の群を、独立した実験回を n として、入力から図まで迷わず比べられるようにします。デモでは 2 群を並べ、出典の論文が報告する核の縮小・核数・核小体の変化を示します。目標・要件・開発体制は、Codex の独立レビューを反映し、2026-10-25 にオーナーが承認した。Claude Code（主担当）と Codex（補助）で実装中。核の縮小を示す公開データはまだ確保できていない（[目標定義書](drafts/group-comparison/goals.md)、[要件定義書](drafts/group-comparison/requirements.md)、[開発体制](drafts/group-comparison/development.md)）。
+対照と処理の群を、独立した実験回を n として、入力から図まで迷わず比べられるようにします。デモでは 2 群を並べ、出典の論文が報告する核の縮小・核数・核小体の変化を示します。目標・要件・開発体制は、Codex の独立レビューを反映し、2026-10-25 にオーナーが承認した。Claude Code（主担当）と Codex（補助）で実装中。公開デモは JUMP Cell Painting（CC0）の PLK1 ノックアウトと対照の核数の比較（実験回 3）に置き換えた。核の縮小と核小体の場面は、条件を満たす公開データがないため公開しない（[目標定義書](drafts/group-comparison/goals.md)、[要件定義書](drafts/group-comparison/requirements.md)、[開発体制](drafts/group-comparison/development.md)）。
 
 ### 評価する項目
 

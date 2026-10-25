@@ -47,11 +47,26 @@ COMPARTMENT_LABELS = {
     "log2_nucleoplasm_over_nucleolus": ("Nucleoplasm / nucleolus mean", "核質 / 核小体 平均輝度比"),
     "nucleolar_area_fraction": ("Nucleolar area fraction of nucleus", "核に占める核小体面積比"),
     "nucleolar_count": ("Nucleoli per nucleus", "核あたりの核小体数"),
+    "nucleolar_area_px": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
+    "nucleolar_area_um2": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
+    "nucleolar_eccentricity": ("Nucleolar eccentricity", "核小体の離心率"),
+}
+FIELD_SUMMARY_LABELS = {
+    "nucleus_count": ("Nucleus count", "核数"),
+    "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
 }
 
 
-def compartment_methods_sentence(axis, metric):
-    return (f"{axis} is a per-nucleus compartment-summary value (selection 1.0.0): {COMPARTMENT_DEFINITIONS[metric]}. "
+def field_summary_methods_sentence(axis, metric):
+    from .field_summary_source import DEFINITIONS
+    return (f"{axis} is one value per field (field-summary selection 1.0.0): {DEFINITIONS[metric]}. "
+            "Fields, not nuclei, are the observations; explicitly excluded nuclei are not counted and excluded or "
+            "failed fields are not observations. A nucleus count is the number of imaged nuclei, not a viability or "
+            "proliferation measure, and it depends on how fields were chosen.")
+
+
+def compartment_methods_sentence(axis, metric, version="1.0.0"):
+    return (f"{axis} is a per-nucleus compartment-summary value (selection {version}): {COMPARTMENT_DEFINITIONS[metric]}. "
             "Nuclei, not regions, are the observations; the summary was bound to the reviewed nucleoplasm mask by "
             "exact nucleus identity and area. Missing values keep their recorded reason and were not replaced with zero.")
 
@@ -61,7 +76,7 @@ def _label(source, ja=False):
     metric = source["metric"]
     labels = {"area_px": ("Region area", "領域面積"), "area_um2": ("Region area", "領域面積"),
               "mean": ("Mean intensity", "平均輝度"), "median": ("Median intensity", "輝度中央値"),
-              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS}
+              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS}
     label = labels[metric.removesuffix("_corrected")][ja]
     if channel:
         label = f"{channel['label']}: {label}"
@@ -82,9 +97,13 @@ def common_statistics_methods(result):
              f"Source revision: {result['revision_id']}; fingerprint: {result['source_fingerprint']}.",
              f"Inference core: {result['inference_version']}; request protocol: {spec['version']}.",
              f"The inferential unit was {spec['design']['unit_definition']}.",
-             "Region measurements were reduced to a median within each field, an unweighted mean of fields "
-             "within each sample, and an unweighted mean of samples within each independent experimental unit. "
-             "Regions and fields were not treated as independent replicates.",
+             ("Each field contributed one field value, then fields were reduced to an unweighted mean within each "
+              "sample and samples to an unweighted mean within each independent experimental unit. "
+              "Fields were not treated as independent replicates."
+              if spec.get("selection", {}).get("source") == "field-summary" else
+              "Region measurements were reduced to a median within each field, an unweighted mean of fields "
+              "within each sample, and an unweighted mean of samples within each independent experimental unit. "
+              "Regions and fields were not treated as independent replicates."),
              "Conditions in the declared analysis: " + ", ".join(spec["conditions"]) + ".",
              "The researcher selected the method explicitly. No normality pretest or observed p-value selected a method.",
              "Reviewed original-coordinate regions and saved original-pixel measurements were used. "
@@ -96,7 +115,10 @@ def common_statistics_methods(result):
             ch = source["channel"]
             lines.append(f"{axis} channel ID: {ch['channel_id']}; declared stain: {ch.get('stain') or 'not recorded'}.")
         if source["metric"] in COMPARTMENT_DEFINITIONS:
-            lines.append(compartment_methods_sentence(axis, source["metric"]))
+            lines.append(compartment_methods_sentence(axis, source["metric"],
+                                                      spec.get("selection", {}).get("version", "1.0.0")))
+        elif source["metric"] in FIELD_SUMMARY_LABELS:
+            lines.append(field_summary_methods_sentence(axis, source["metric"]))
         elif source["metric"].endswith("_corrected"):
             automatic = any((item.get("measurement") or {}).get("mode") == "automatic_background" for item in source["source_fields"])
             basis = "saved automatic background candidate median" if automatic else "saved confirmed background ROI median"
@@ -167,6 +189,58 @@ def _tables(result):
     return tables
 
 
+def _unit_interval(values):
+    """Mean and 95% t interval of independent-unit values (descriptive; None below two units)."""
+    from scipy import stats
+
+    values = np.asarray(values, dtype=float)
+    mean = float(values.mean())
+    if len(values) < 2:
+        return mean, None, None
+    half = float(stats.t.ppf(.975, len(values) - 1) * values.std(ddof=1) / np.sqrt(len(values)))
+    return mean, mean - half, mean + half
+
+
+def _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars):
+    """Fields (small), independent units (large, one marker per run), lines joining a run's
+    units, and each group's unit mean with its 95% t interval (a bar when ``bars``)."""
+    rows, fields = canonical["unit_summary"], canonical["field_summary"]
+    paired = canonical["spec"]["design"]["kind"] == "paired"
+    runs = sorted({r["pair"] for r in rows if r.get("pair")}) if paired else []
+    rng = np.random.default_rng(0)
+    for i, group in enumerate(order):
+        color = series_color(plot, group, COLORS[i % len(COLORS)])
+        points = [r for r in rows if r["condition"] == group]
+        mean, low, high = _unit_interval([r["value"] for r in points])
+        graphical_summary.append({"condition": group, "mean": mean, "ci_low": low, "ci_high": high,
+                                  "n_units": len(points), "interval": "95% t interval of independent-unit values"})
+        # The summary sits beside the points so it never hides a unit.
+        summary_x = i if bars else i + .32
+        if bars:
+            ax.bar(i, mean, width=.55, color=color, alpha=.25, edgecolor=color, linewidth=.6, zorder=1)
+        else:
+            ax.hlines(mean, summary_x - .07, summary_x + .07, color="#222222", linewidth=1.1, zorder=4)
+        if low is not None:
+            ax.errorbar(summary_x, mean, yerr=[[mean - low], [high - mean]], fmt="none", ecolor="#222222",
+                        elinewidth=.8, capsize=3, zorder=4)
+        for j, unit in enumerate(points):
+            marker = MARKERS[(runs.index(unit["pair"]) if unit.get("pair") in runs else j) % len(MARKERS)]
+            if not bars:
+                below = [f["value"] for f in fields if f["condition"] == group
+                         and f["experimental_unit"] == unit["experimental_unit"]]
+                ax.scatter(i + rng.uniform(-.18, .18, len(below)), below, s=7, color=color, alpha=.45,
+                           marker=marker, linewidths=0, zorder=2)
+            bind_points(ax.scatter([i], [unit["value"]], s=40, color=color, marker=marker, edgecolor="#222222",
+                                   linewidth=.6, zorder=5), [unit])
+            glyphs.append({**unit, "display_x": float(i), "display_y": unit["value"]})
+    for pair in canonical["pair_ledger"] if paired else []:
+        if pair["status"] != "selected":
+            continue
+        values = [next(r["value"] for r in rows if r["condition"] == c and r["experimental_unit"] == pair["units"][c])
+                  for c in order]
+        ax.plot(range(len(order)), values, color="#888888", linewidth=.5, zorder=3)
+
+
 def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION):
     if figure_version not in ("1.0.0", "1.0.1"):
         raise ValueError("common_statistics_figure_version_unsupported")
@@ -220,6 +294,20 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 ax.set_ylabel(plot["y_label"] or ("独立実験単位数" if ja else "Independent-unit count"))
                 ax.legend(frameon=False)
                 note = "Histogram counts independent units using shared equal-width bins; rugs show every unit."
+            elif plot["kind"] in ("superplot", "unit-mean-bar"):
+                bars = plot["kind"] == "unit-mean-bar"
+                _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars)
+                ax.set_xticks(range(len(order)), [textwrap.fill(c, 16) + f"\nn={sum(r['condition'] == c for r in rows)}" for c in order])
+                ax.set_xlim(-.5, len(order) - .5)
+                ax.set_xlabel(plot["x_label"] or ("条件（n：独立実験単位）" if ja else "Condition (n: independent units)"))
+                ax.set_ylabel(plot["y_label"] or _label(canonical, ja))
+                per_field = spec["selection"].get("source") == "field-summary"
+                note = ("Large points are independent experimental units (field values → sample mean → unit mean"
+                        if per_field else "Large points are independent experimental units (median per field → sample mean → unit mean")
+                note += "); the same marker marks the same run" + (" and lines join a run's units" if spec["design"]["kind"] == "paired" else "")
+                note += ". " if bars else "; small points are field values" + ("" if per_field else " (median of the field's observations)") + ". "
+                note += ("Bars show the mean of unit values" if bars else "Horizontal lines show the mean of unit values")
+                note += " with its 95% t interval (error bars). n is the number of independent units, not fields or nuclei."
             else:
                 for i, group in enumerate(order):
                     points = [r for r in rows if r["condition"] == group]

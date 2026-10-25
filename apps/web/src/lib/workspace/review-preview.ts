@@ -22,6 +22,8 @@ export interface ReviewField {
   kind?:"analysis"|"reference";referenceFor?:string|null;
   width: number;
   height: number;
+  /** Confirmed XY pixel size in µm, or null when the field has none (I04). */
+  pixelSizeUm?: {x: number; y: number} | null;
   channels: ReviewChannel[];
   previews: Record<string, string>;
   previewDisplay?: Record<string, DisplayReceipt>;
@@ -93,7 +95,9 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
       });
       const displayName = input.metadata.display_name;
       const field: ReviewField = {id: input.id, label: typeof displayName === "string" && displayName.trim() ? displayName : `視野 ${index + 1}`,
-        metadata: input.metadata,kind:link?.kind??"analysis",referenceFor:link?.reference_for_field_id??null, width: input.image_info.shape[1], height: input.image_info.shape[0], channels, previews: {}, previewDisplay: {}, results: {}};
+        metadata: input.metadata,kind:link?.kind??"analysis",referenceFor:link?.reference_for_field_id??null, width: input.image_info.shape[1], height: input.image_info.shape[0],
+        pixelSizeUm: input.image_info.calibration?.confirmed ? {x: input.image_info.calibration.pixel_size_x_um, y: input.image_info.calibration.pixel_size_y_um} : null,
+        channels, previews: {}, previewDisplay: {}, results: {}};
       const entry = saved.selection.entries.find(value => value.field_id === input.id);
       if (entry?.exclusion_reason) field.exclusionReason = entry.exclusion_reason;
       if (!entry) errors.push("保存された解析対象への登録が完了していません。");

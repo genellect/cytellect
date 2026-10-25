@@ -480,10 +480,18 @@ def plot(operation: str, kind: str = "distribution") -> dict:
 
 
 COMPARTMENT_METRICS = ("log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count")
+FIELD_SUMMARY_METRICS = ("nucleus_count", "nucleus_density_per_mm2")
+
+
+def channel_neutral(metric: str) -> bool:
+    """metricUsesChannel() negated (metric-catalog.ts)."""
+    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *FIELD_SUMMARY_METRICS)
 
 
 def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
     """resultSelection/comparisonSelection without a GFP decision."""
+    if metric in FIELD_SUMMARY_METRICS:
+        return {"source": "field-summary", "version": "1.0.0", "region_set_id": region_set, "metric": metric}
     if metric in COMPARTMENT_METRICS:
         return {"source": "compartment-summary", "version": "1.0.0", "region_set_id": region_set, "metric": metric,
                 "channel_id": channel if metric == "log2_nucleoplasm_over_nucleolus" else None}
@@ -500,13 +508,15 @@ class Workspace:
     assignments_version: int = 0
     processing: dict | None = None
     settings: dict = field(default_factory=default_settings)
+    experiment: dict | None = None
 
     # -- analysis specification -------------------------------------------------
     def current_spec(self, target: str) -> dict:
         processing = ({**self.processing, "cells": self.processing.get("cells")} if self.processing else None)
         measurement = None if self.settings["background"] == "confirmed_roi" else (
             AUTOMATIC if self.settings["background"] == "automatic" else RAW)
-        return {**(self.spec["spec"] or {}), "channel_assignment_version": self.assignments_version,
+        return {**(self.spec["spec"] or {}), **({"experiment": self.experiment} if self.experiment else {}),
+                "channel_assignment_version": self.assignments_version,
                 "target": target, "settings": copy.deepcopy(self.settings),
                 "processing": copy.deepcopy(processing), "measurement": measurement}
 
@@ -546,6 +556,12 @@ class Workspace:
     def metadata(self) -> dict[str, dict]:
         empty = {"condition": None, "sample": None, "experimental_unit": None, "pair": None,
                  "acquisition_date": None, "repeat_length": None}
+        if self.experiment:
+            # The declared design decides the metadata (fieldMetadata() in experiment-design.ts).
+            from cytellect_analysis.experiment_design import ExperimentDesign, field_metadata
+
+            derived = field_metadata(ExperimentDesign.model_validate(self.experiment))
+            return {item["id"]: {**empty, **derived[item["id"]].model_dump(mode="json")} for item in self.fields}
         return {item["id"]: {**empty, **{key: item["metadata"].get(key) for key in empty}} for item in self.fields}
 
     def calculate(self, operation: str, target: str, metric: str, channel: str | None, unit: str,
@@ -559,10 +575,19 @@ class Workspace:
         fields = {fid: self.metadata()[fid] for fid, _ in sources}
         conditions = list(dict.fromkeys(value["condition"].strip() for value in fields.values() if value["condition"]))
         contrasts = [[a, b] for index, a in enumerate(conditions) for b in conditions[index + 1:]]
+        declared = bool(self.experiment and self.experiment.get("layout") == "pair")
+        if declared and operation == "comparison":
+            # comparisonDefaults(): one contrast [treatment, control], reported as treatment − control.
+            labels = {group["id"]: group["label"] for group in self.experiment["groups"]}
+            control = self.experiment["control_group_id"]
+            contrasts = [[next(label for gid, label in labels.items() if gid != control), labels[control]]]
         region_set = target
-        channel = None if metric.startswith("area_") else channel
+        channel = None if channel_neutral(metric) else channel
         x_channel = x_channel if x_channel is not None else channel
         display = plot(operation)
+        # comparisonKind(): a declared two-group experiment is first drawn by run.
+        kind = ("scatter" if operation == "association" else "superplot" if declared and operation == "comparison"
+                else "distribution")
         canonical = "ncl_log2_nucleoplasm_over_nucleoli" if metric == "log2_nucleoplasm_over_nucleolus" else metric
         region = "nucleus" if region_set == "nuclei" else "supplied" if region_set == "cell" else region_set
         method = {"kind": "descriptive" if operation == "distribution" else operation,
@@ -576,8 +601,7 @@ class Workspace:
                                 "unit_definition": unit, "pairing_basis": pairing if paired else "", "conditions": conditions,
                                 "comparisons": contrasts, "field_metadata": fields, "x_metric": x_metric,
                                 "x_channel_id": x_channel},
-                 "figure": {"metric": canonical, "channel_id": channel,
-                            "plot": {**display, "kind": "scatter" if operation == "association" else "distribution"}}}
+                 "figure": {"metric": canonical, "channel_id": channel, "plot": {**display, "kind": kind}}}
         self.persist(self.spec["spec"]["target"] if self.spec["spec"] else target, draft)
         selection = selection_for(region_set, metric, channel)
         request: dict[str, Any]
@@ -591,7 +615,9 @@ class Workspace:
                        "omnibus": "welch-anova" if len(conditions) >= 3 and not paired else None, "selection": selection,
                        "design": {"kind": "paired" if paired else "independent", "confirmed": True,
                                   "unit_definition": unit, "pairing_basis": pairing if paired else None},
-                       "conditions": list(dict.fromkeys(itertools.chain.from_iterable(contrasts))),
+                       # comparisonRequest(): a declared contrast [treatment, control] is drawn control first.
+                       "conditions": ([contrasts[0][1], contrasts[0][0]] if declared and len(contrasts) == 1
+                                      else list(dict.fromkeys(itertools.chain.from_iterable(contrasts)))),
                        "comparison_family": {"family_id": "workspace-planned", "kind": "planned", "control": None,
                                              "contrasts": contrasts},
                        "acquisition_review": {"confirmed": True,
@@ -599,7 +625,8 @@ class Workspace:
                                               "field_batches": {}, "spatial_sampling_confirmed": True},
                        "missingness_confirmed": True, "aggregation": "field-median_sample-mean_unit-mean-v1",
                        "missingness_policy": "available-observations_require-unexcluded-units-v1",
-                       "plot": {"histogram_bins": 10, **display, "kind": "distribution"}}
+                       "plot": {"histogram_bins": 10, **display, "kind": kind},
+                       **({"estimates": "comparison-estimates/1.0.0"} if declared and len(contrasts) == 1 else {})}
         else:
             request = {"mode": "region-association", "version": "1.0.0",
                        "x_selection": selection_for(region_set, x_metric, x_channel), "y_selection": selection,
@@ -737,6 +764,24 @@ def review_fragments(space: Workspace, rule: dict | None) -> list[dict]:
     return removed
 
 
+def experiment_design(manifest: dict, fields: list[dict]) -> dict | None:
+    """The researcher's declared design (ExperimentSetup in the workspace) for the uploaded fields."""
+    declared = manifest.get("experiment")
+    if not declared:
+        return None
+    groups = {group["label"]: group["id"] for group in declared["groups"]}
+    runs = {run["label"]: run["id"] for run in declared["runs"]}
+    design = {"version": "1.0.0", "layout": "pair" if len(declared["groups"]) == 2 else "single",
+              "groups": declared["groups"], "control_group_id": declared.get("control_group_id"),
+              "runs": [{key: run.get(key) for key in ("id", "label", "performed_on", "acquired_on")} for run in declared["runs"]],
+              "independence_confirmed": declared["independence_confirmed"],
+              "fields": {item["id"]: {"group_id": groups[item["metadata"]["condition"]], "run_id": runs[item["metadata"]["pair"]],
+                                      "sample": None, "acquired_on": None} for item in fields}}
+    from cytellect_analysis.experiment_design import ExperimentDesign
+
+    return ExperimentDesign.model_validate(design).model_dump(mode="json")
+
+
 def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     plan = manifest["scenario"]
     created = api.post("/v1/workspaces", {"title": manifest.get("workspace_title", "画像解析")})
@@ -747,6 +792,7 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
         {"channel_id": channel["channel_id"], "stain": channel.get("stain"), "role": channel["role"]}
         for channel in manifest["channels"]]})
     space.assignments_version = assignments["version"]
+    space.experiment = experiment_design(manifest, space.fields)
     timings: dict[str, float] = {}
 
     def timed(name, action):
@@ -762,7 +808,8 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     timed("nuclei", lambda: space.run("nuclei"))
     marker = plan.get("nucleolar_marker")
     source = plan.get("nucleolar_definition", "ncl")
-    if marker:
+    nucleoli = plan.get("nucleoli", True)
+    if marker and nucleoli:
         # selectNucleolarSource(source, marker): "ncl" defaults to Cellpose-SAM; "marker" is the
         # stable-marker definition (cytellect-nucleolar-v2), whose defaults the API supplies.
         space.settings = {**space.settings, "nucleolarDefinition": {**space.settings["nucleolarDefinition"],
@@ -771,17 +818,20 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
                           "nucleolarMaximumArea": None}
         space.processing = ({**empty_processing(), "nucleoli": {"channel": marker, "detector": ncl_cellpose_detector()}}
                             if source == "ncl" else None)
-    timed("nucleoli", lambda: space.run("nucleoli"))
-    removed = review_fragments(space, plan.get("fragment_review"))
-    if removed:
-        # The researcher removed fragments from the nuclei; their compartments follow the edit.
-        timed("nucleoli-after-review", lambda: space.run("nucleoli"))
-    timed("nucleoplasm", lambda: space.run("nucleoplasm"))
+    removed: list[dict] = []
+    if nucleoli:
+        timed("nucleoli", lambda: space.run("nucleoli"))
+        removed = review_fragments(space, plan.get("fragment_review"))
+        if removed:
+            # The researcher removed fragments from the nuclei; their compartments follow the edit.
+            timed("nucleoli-after-review", lambda: space.run("nucleoli"))
+        timed("nucleoplasm", lambda: space.run("nucleoplasm"))
     saved = {}
-    # The comparison and its layouts first; the last calculation (the per-field distribution) is
-    # what the statistics view restores on opening, as after a researcher's own session.
+    # The last calculation is what the statistics view restores on opening, as after a
+    # researcher's own session: the manifest's opening analysis (by default the distribution).
     renders = []
-    for name in ("comparison", "association", "distribution"):
+    opening = plan.get("opening", "distribution")
+    for name in [*(value for value in ("comparison", "association", "distribution") if value != opening), opening]:
         analysis = plan["statistics"].get(name)
         if not analysis:
             continue
@@ -1066,7 +1116,9 @@ def serve(data_dir: Path, origin: str, fiji: str, port: int, *, worker: bool = F
 
 
 def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji: str, out: Path,
-             fields: list[dict], workspace_id: str) -> dict:
+             fields: list[dict], workspace_id: str, regions: list[str] | None = None, fresh: bool = True) -> dict:
+    """Record the opening GETs of one workspace; ``fresh`` starts the snapshot directory anew,
+    otherwise the entries are added to those of the scenes recorded before."""
     data = work / "snapshot-data"
     if data.exists():
         shutil.rmtree(data)
@@ -1106,7 +1158,8 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
                   "workspace": workspace_id,
                   "out": str(destination), "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE",
                                                                        "/opt/pw-browsers/chromium"),
-                  "web": str(web), "fields": len(fields)}
+                  "web": str(web), "fields": len(fields),
+                  "regions": regions or ["nuclei", "nucleoli", "nucleoplasm"]}
         script = Path(__file__).with_name("snapshot.mjs")
         result = subprocess.run(["node", str(script)], input=json.dumps(config), text=True, cwd=work,
                                 capture_output=True, timeout=1800)
@@ -1126,19 +1179,23 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
     target = out / "snapshot"
     keep = SNAPSHOT_KEEP
     # The journal stage records again after every snapshot; its files go with the snapshot's.
-    if target.exists():
+    if target.exists() and fresh:
         for path in target.iterdir():
             if path.name not in keep:
                 path.unlink()
     target.mkdir(parents=True, exist_ok=True)
     for path in (destination / "files").iterdir():
         shutil.copyfile(path, target / path.name)
-    shutil.copyfile(destination / "index.json", target / "index.json")
+    recorded = json.loads((destination / "index.json").read_text())
+    if not fresh and (target / "index.json").is_file():
+        earlier = json.loads((target / "index.json").read_text())["entries"]
+        recorded["entries"] = dict(sorted({**earlier, **recorded["entries"]}.items()))
+    (target / "index.json").write_text(json.dumps(recorded, indent=1) + "\n")
     return report
 
 
 # Files of the snapshot directory that no index or journal entry names.
-SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json"}
+SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json", "scenes.json"}
 
 
 RANK_TESTS = {"mann-whitney-u", "wilcoxon", "kruskal-wallis"}
@@ -1153,7 +1210,7 @@ def rank_examples(manifest: dict) -> list[int]:
             or item["draft"]["statistics"].get("association") == "spearman"]
 
 
-def journal(work: Path, origin_port: int, out: Path, rank: list[int]) -> dict:
+def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict:
     """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``."""
     origin = f"http://127.0.0.1:{origin_port}"
     web = REPO / "apps" / "web"
@@ -1180,7 +1237,7 @@ def journal(work: Path, origin_port: int, out: Path, rank: list[int]) -> dict:
                 time.sleep(1)
         if destination.exists():
             shutil.rmtree(destination)
-        config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "rank_examples": rank,
+        config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         result = subprocess.run(["node", str(Path(__file__).with_name("journal.mjs"))], input=json.dumps(config),
                                 text=True, cwd=work, capture_output=True, timeout=21600)
@@ -1228,7 +1285,7 @@ PROPOSAL_URL = "https://proposals.showcase.invalid"
 
 
 def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: int, api_port: int, fiji: str,
-                     workspace_id: str) -> dict:
+                     workspace_id: str, fresh: bool = True) -> dict:
     """Record demo-authored drafts for preset instructions through the production route.
 
     The proposal service is never contacted: ``request_draft`` returns the authored draft for
@@ -1287,7 +1344,8 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
                 config = {"origin": origin, "api": api_origin, "token": _owner_session(app, workspace_id),
                           "cookie": settings.cookie_name, "web": str(web),
                           "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium"),
-                          "instructions": [plan["presets"][index]["instruction"] for index in sequence]}
+                          "instructions": [plan["presets"][index]["instruction"] for index in sequence],
+                          "workspace": workspace_id}
                 result = subprocess.run(["node", str(Path(__file__).with_name("proposals.mjs"))],
                                         input=json.dumps(config), text=True, cwd=work, capture_output=True,
                                         timeout=1800)
@@ -1308,8 +1366,11 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
         for name, content in preserved.items():
             (web / name).write_bytes(content)
         shutil.rmtree(web / ".next-showcase", ignore_errors=True)
-    recorded = {"version": 1, "entries": dict(sorted(entries.items()))}
-    (work / "proposals.json").write_text(json.dumps(recorded, ensure_ascii=False, indent=1) + "\n")
+    # Scenes add their entries to the same recording (contexts differ by workspace).
+    path = work / "proposals.json"
+    previous = json.loads(path.read_text())["entries"] if path.is_file() and not fresh else {}
+    recorded = {"version": 1, "entries": dict(sorted({**previous, **entries}.items()))}
+    path.write_text(json.dumps(recorded, ensure_ascii=False, indent=1) + "\n")
     return {"entries": len(entries), "walks": reports}
 
 
@@ -1357,9 +1418,23 @@ def overlays(data_dir: Path, qa: Path, fields: list[dict], limit: int | None = N
 # CLI
 # ---------------------------------------------------------------------------
 
+def uses_cellpose(manifest: dict) -> bool:
+    """Whether the scenario or the grid runs Cellpose (NCL-positive nucleoli or cell ROI)."""
+    plan = manifest.get("scenario", {})
+    grid_plan = plan.get("grid", {})
+    return bool((plan.get("nucleoli", True) and plan.get("nucleolar_marker")
+                 and plan.get("nucleolar_definition", "ncl") == "ncl")
+                or "cellpose-sam" in grid_plan or "cellpose-sam-ncl-parent" in grid_plan)
+
+
+def scene_regions(manifest: dict) -> list[str]:
+    return ["nuclei", "nucleoli", "nucleoplasm"] if manifest["scenario"].get("nucleoli", True) else ["nuclei"]
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("manifest", type=Path, help="dataset manifest JSON")
+    parser.add_argument("manifest", type=Path, nargs="+",
+                        help="dataset manifest JSON, one per demo scene; the first is the scene the demo opens")
     parser.add_argument("--work", type=Path, required=True, help="scratch directory outside the checkout")
     parser.add_argument("--cache", type=Path, required=True, help="download cache outside the checkout")
     parser.add_argument("--fiji", required=True, help="pinned Fiji installation (scripts/fiji_setup.py)")
@@ -1369,12 +1444,18 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
     work, cache = outside_checkout(args.work), outside_checkout(args.cache)
-    for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
-        if not os.environ.get(name):
-            raise SystemExit(f"{name} must name the pinned Cellpose runtime")
-    manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    if manifest.get("schema") != "cytellect-showcase-dataset/1":
-        raise SystemExit("unknown dataset manifest schema")
+    manifests = []
+    for path in args.manifest:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if manifest.get("schema") != "cytellect-showcase-dataset/1":
+            raise SystemExit("unknown dataset manifest schema")
+        manifests.append((path, manifest))
+    if len({manifest["id"] for _, manifest in manifests}) != len(manifests):
+        raise SystemExit("duplicate scene id")
+    if any(uses_cellpose(manifest) for _, manifest in manifests):
+        for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
+            if not os.environ.get(name):
+                raise SystemExit(f"{name} must name the pinned Cellpose runtime")
     stages = set(args.stages.split(","))
     work.mkdir(parents=True, exist_ok=True)
     state_path = work / "state.json"
@@ -1383,157 +1464,224 @@ def main(argv: list[str] | None = None) -> None:
 
     started = time.perf_counter()
     state: dict = json.loads(state_path.read_text()) if state_path.is_file() else {}
-    if "select" in stages:
-        manifest = select_fields(manifest, cache, work, args.fiji)
-        args.manifest.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-        log("selected", [item["id"] for item in manifest["fields"]])
-    if "prepare" in stages:
-        prepared = prepare(manifest, cache, work / "prepared")
-        state["prepared"] = [{**item, "files": {key: str(value) for key, value in item["files"].items()}}
-                             for item in prepared]
-        state_path.write_text(json.dumps(state, indent=1))
-    prepared = [{**item, "files": {key: Path(value) for key, value in item["files"].items()}}
-                for item in state.get("prepared", [])]
+    scenes: dict = state.setdefault("scenes", {})
+    save = lambda: state_path.write_text(json.dumps(state, indent=1))  # noqa: E731
+    for index, (path, manifest) in enumerate(manifests):
+        scene = scenes.setdefault(manifest["id"], {})
+        if "select" in stages:
+            manifest = select_fields(manifest, cache, work, args.fiji)
+            path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            manifests[index] = (path, manifest)
+            log("selected", [item["id"] for item in manifest["fields"]])
+        if "prepare" in stages:
+            prepared = prepare(manifest, cache, work / "prepared" / manifest["id"])
+            scene["prepared"] = [{**item, "files": {key: str(value) for key, value in item["files"].items()}}
+                                 for item in prepared]
+            save()
+
+    def prepared_of(manifest):
+        return [{**item, "files": {key: Path(value) for key, value in item["files"].items()}}
+                for item in scenes[manifest["id"]].get("prepared", [])]
+
     seed_data, recordings = work / "data", work / "recordings"
     if "scenario" in stages:
         for path in (seed_data, work / "grid-data"):
             if path.exists():
                 shutil.rmtree(path)
         recorder = install_recorder(recordings, reuse=True)
-        api = open_api(seed_data, origin, args.fiji)
-        result = scenario(api, manifest, prepared)
+        owner = None
+        # The first scene is created last: with no workspace named, the demo opens the newest one.
+        for _, manifest in reversed(manifests):
+            api = open_api(seed_data, origin, args.fiji, owner)
+            result = scenario(api, manifest, prepared_of(manifest))
+            result.pop("space")
+            owner = result["owner"]
+            scenes[manifest["id"]]["scenario"] = result
+            api.client.close()
         uninstall()
-        result.pop("space")
-        state["scenario"] = {**result, "recorded_calls": recorder.calls}
-        state_path.write_text(json.dumps(state, indent=1))
-        api.client.close()
+        state["recorded_calls"] = recorder.calls
+        save()
     if "grid" in stages:
         grid_data = work / "grid-data"
         if grid_data.exists():
             shutil.rmtree(grid_data)
         shutil.copytree(seed_data, grid_data, ignore=shutil.ignore_patterns("tmp"))
         recorder = install_recorder(recordings, reuse=True)
-        api = open_api(grid_data, origin, args.fiji, state["scenario"]["owner"])
-        scenario_state = state["scenario"]
-        space = Workspace(api, scenario_state["workspace_id"], scenario_state["fields"],
-                          api.get(f"/v1/workspaces/{scenario_state['workspace_id']}/analysis-spec"),
-                          api.get(f"/v1/workspaces/{scenario_state['workspace_id']}/channel-assignments")["version"])
-        saved_spec = space.spec["spec"]
-        space.settings = saved_spec["settings"]
-        space.processing = saved_spec["processing"]
-        result = grid(api, manifest, {"space": space})
+        for _, manifest in manifests:
+            scenario_state = scenes[manifest["id"]]["scenario"]
+            api = open_api(grid_data, origin, args.fiji, scenario_state["owner"])
+            wid = scenario_state["workspace_id"]
+            space = Workspace(api, wid, scenario_state["fields"], api.get(f"/v1/workspaces/{wid}/analysis-spec"),
+                              api.get(f"/v1/workspaces/{wid}/channel-assignments")["version"])
+            saved_spec = space.spec["spec"]
+            space.settings = saved_spec["settings"]
+            space.processing = saved_spec["processing"]
+            space.experiment = saved_spec.get("experiment")
+            scenes[manifest["id"]]["grid"] = grid(api, manifest, {"space": space})
+            api.client.close()
+            save()
         uninstall()
-        state["grid"] = {**result, "recorded_calls": recorder.calls}
-        state_path.write_text(json.dumps(state, indent=1))
-        api.client.close()
-    if "proposals" in stages and manifest["scenario"].get("proposals"):
+    if "proposals" in stages:
         recorder = install_recorder(recordings, reuse=True)
-        result = record_proposals(manifest, seed_data, work, args.web_port, args.api_port, args.fiji,
-                                  state["scenario"]["workspace_id"])
+        fresh = True
+        for _, manifest in manifests:
+            if not manifest["scenario"].get("proposals"):
+                continue
+            scenes[manifest["id"]]["proposals"] = record_proposals(
+                manifest, seed_data, work, args.web_port, args.api_port, args.fiji,
+                scenes[manifest["id"]]["scenario"]["workspace_id"], fresh=fresh)
+            fresh = False
+            save()
         uninstall()
-        state["proposals"] = {**result, "recorded_calls": recorder.calls}
-        state_path.write_text(json.dumps(state, indent=1))
     if "publish" in stages:
-        publish(args, manifest, state, seed_data, recordings, started)
+        publish(args, manifests, state, seed_data, recordings, started)
     if "snapshot" in stages:
-        report = snapshot(seed_data, work, args.web_port, args.api_port, args.fiji, args.out,
-                          state["scenario"]["fields"], state["scenario"]["workspace_id"])
-        state["snapshot"] = report
-        state_path.write_text(json.dumps(state, indent=1))
-        write_manifest(args, manifest, state)
+        for index, (_, manifest) in enumerate(manifests):
+            scenario_state = scenes[manifest["id"]]["scenario"]
+            scenes[manifest["id"]]["snapshot"] = snapshot(
+                seed_data, work, args.web_port, args.api_port, args.fiji, args.out, scenario_state["fields"],
+                scenario_state["workspace_id"], scene_regions(manifest), fresh=index == 0)
+            save()
+        write_manifest(args, manifests, state)
     if "journal" in stages:
-        state["journal"] = journal(work, args.web_port, args.out, rank_examples(manifest))
-        state_path.write_text(json.dumps(state, indent=1))
-        write_manifest(args, manifest, state)
+        state["journal"] = journal(work, args.web_port, args.out, [
+            {"id": manifest["id"] if len(manifests) > 1 else "", "workspace": scenes[manifest["id"]]["scenario"]["workspace_id"],
+             "regions": scene_regions(manifest),
+             "examples": len((manifest["scenario"].get("proposals") or {}).get("presets", [])),
+             "rank": rank_examples(manifest)} for _, manifest in manifests])
+        save()
+        write_manifest(args, manifests, state)
     if "manifest" in stages:
-        write_manifest(args, manifest, state)
+        write_manifest(args, manifests, state)
     if "qa" in stages:
-        written = overlays(work / "grid-data" if (work / "grid-data").exists() else seed_data, work / "qa",
-                           state["scenario"]["fields"])
-        log("qa overlays", len(written), work / "qa")
+        for _, manifest in manifests:
+            written = overlays(work / "grid-data" if (work / "grid-data").exists() else seed_data,
+                               work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
+            log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
 
 
-def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path, started: float) -> None:
-    out = args.out
-    (out / "snapshot").mkdir(parents=True, exist_ok=True)
-    # Python-only nucleolar definitions run in the browser and need no recording; they are
-    # listed without adjustable fields (docs/showcase.md: unlisted fields stay fixed).
-    options = {**manifest["scenario"].get("python_options", {"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}),
-               **state.get("grid", {}).get("options", {})}
-    (out / "snapshot" / "recorded-options.json").write_text(json.dumps(options, sort_keys=True, indent=1) + "\n")
-    recorded = args.work / "proposals.json"
-    proposals: dict = json.loads(recorded.read_text()) if recorded.is_file() and "proposals" in state else {}
-    examples = ([{"label": item["label"], "instruction": item["instruction"]}
-                 for item in manifest["scenario"]["proposals"]["presets"]] if proposals else [])
-    (out / "snapshot" / "proposal-examples.json").write_text(json.dumps(examples, ensure_ascii=False, indent=1) + "\n")
+def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
+    """What the demo shows about one scene's public images (snapshot/scenes.json, dataset.json)."""
     dataset = manifest.get("dataset", {})
-    note = {"version": 1, "title": dataset.get("name"), "attribution": dataset.get("attribution"),
+    return {"version": 1, "id": manifest["id"], "label": manifest.get("scene_label") or manifest.get("workspace_title"),
+            "workspaceId": scene["scenario"]["workspace_id"],
+            "title": dataset.get("name"), "attribution": dataset.get("attribution"),
             "licence": dataset.get("license"), "licenceUrl": dataset.get("license_url"),
             "sourceUrl": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
-            "caveats": dataset.get("caveats", []),
+            "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"),
+            "regions": scene_regions(manifest), "examples": examples,
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}
-                       for index, item in enumerate(state.get("prepared", []))]}
-    (out / "snapshot" / "dataset.json").write_text(json.dumps(note, ensure_ascii=False, indent=1) + "\n")
-    scenario_state = state["scenario"]
-    showcase = {"version": 1, "workspace_id": scenario_state["workspace_id"], "owner": scenario_state["owner"],
-                "dataset": manifest["id"], "retention_seconds": RETENTION_SECONDS}
+                       for index, item in enumerate(scene.get("prepared", []))]}
+
+
+def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Path, started: float) -> None:
+    out = args.out
+    (out / "snapshot").mkdir(parents=True, exist_ok=True)
+    scenes = state["scenes"]
+    # Python-only nucleolar definitions run in the browser and need no recording; they are
+    # listed without adjustable fields (docs/showcase.md: unlisted fields stay fixed).
+    options: dict = {}
+    for _, manifest in manifests:
+        nucleolar_defaults = ({"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}
+                              if manifest["scenario"].get("nucleoli", True) else {})
+        for source in (manifest["scenario"].get("python_options", nucleolar_defaults),
+                       scenes[manifest["id"]].get("grid", {}).get("options", {})):
+            for engine, fields in source.items():
+                merged = options.setdefault(engine, {})
+                for key, values in fields.items():
+                    merged[key] = sorted(set(merged.get(key, [])) | set(values), key=lambda value: (value is None, value))
+    (out / "snapshot" / "recorded-options.json").write_text(json.dumps(options, sort_keys=True, indent=1) + "\n")
+    recorded = args.work / "proposals.json"
+    proposals: dict = json.loads(recorded.read_text()) if recorded.is_file() else {}
+    notes = []
+    for _, manifest in manifests:
+        recorded_scene = proposals and "proposals" in scenes[manifest["id"]]
+        examples = ([{"label": item["label"], "instruction": item["instruction"]}
+                     for item in manifest["scenario"]["proposals"]["presets"]] if recorded_scene else [])
+        notes.append(scene_note(manifest, scenes[manifest["id"]], examples))
+    # The scene the demo opens keeps the single-scene files the page reads first.
+    (out / "snapshot" / "proposal-examples.json").write_text(json.dumps(notes[0]["examples"], ensure_ascii=False, indent=1) + "\n")
+    (out / "snapshot" / "dataset.json").write_text(json.dumps(notes[0], ensure_ascii=False, indent=1) + "\n")
+    (out / "snapshot" / "scenes.json").write_text(json.dumps({"version": 1, "scenes": notes}, ensure_ascii=False, indent=1) + "\n")
+    first = scenes[manifests[0][1]["id"]]["scenario"]
+    showcase = {"version": 1, "workspace_id": first["workspace_id"], "owner": first["owner"],
+                "dataset": manifests[0][1]["id"], "scenes": [note["workspaceId"] for note in notes],
+                "retention_seconds": RETENTION_SECONDS}
     state["seed"] = export_seed(seed_data, recordings, proposals, showcase, out / "seed.zip")
     # A visitor's publication package recomputes these in the browser and requires them unchanged.
     state["rederive"] = rederive_in_browser(out / "seed.zip", seed_data, args.work)
     log("rederived in the browser runtime", state["rederive"])
     state["seed"] = export_seed(seed_data, recordings, proposals, showcase, out / "seed.zip")
     (args.work / "state.json").write_text(json.dumps(state, indent=1))
-    write_manifest(args, manifest, state)
+    write_manifest(args, manifests, state)
 
 
-def write_manifest(args, manifest: dict, state: dict) -> None:
+def write_manifest(args, manifests: list, state: dict) -> None:
     out = args.out
     files = {}
     for path in sorted(out.rglob("*")):
         if path.is_file() and path.name != "manifest.json":
             files[path.relative_to(out).as_posix()] = {"sha256": sha256_file(path), "bytes": path.stat().st_size}
+    scenes = state.get("scenes", {})
+
+    def scene_record(manifest):
+        scene = scenes.get(manifest["id"], {})
+        scenario_state = scene.get("scenario", {})
+        return {
+            "id": manifest["id"],
+            "dataset": {key: manifest.get("dataset", {}).get(key) for key in (
+                "name", "source", "doi", "license", "license_quoted", "license_url", "attribution", "citation", "scope",
+                "modifications", "caveats", "reported_change")},
+            "derivation_rule": manifest.get("derivation_rule"),
+            "derivation_amendment": manifest.get("derivation_amendment"),
+            "selection": {key: value for key, value in manifest.get("selection", {}).items()
+                          if key not in ("cells", "checksums")},
+            "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
+                "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
+                "statistics_amendment", "grid_notes", "fragment_review", "comparison_plan", "opening")},
+            "experiment": manifest.get("experiment"),
+            "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
+                           "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],
+                           "recorded_contexts": scene.get("proposals", {}).get("entries", 0)}
+                          if manifest.get("scenario", {}).get("proposals") else None),
+            "sources": {key: {name: value.get(name) for name in ("url", "md5", "sha256", "bytes", "member", "member_sha256")}
+                        for key, value in manifest["sources"].items()},
+            "fields": [{"id": item["id"], "metadata": item["metadata"], "derivation": item["derivation"]}
+                       for item in scene.get("prepared", [])],
+            "workspace_id": scenario_state.get("workspace_id"),
+            "scenario": {key: scenario_state.get(key) for key in ("timings", "statistics", "renders", "fragment_review")},
+            "grid": {"options": scene.get("grid", {}).get("options"), "timings": scene.get("grid", {}).get("timings")},
+        }
     record = {
-        "schema": "cytellect-showcase-manifest/1",
-        "dataset": {key: manifest.get("dataset", {}).get(key) for key in (
-            "name", "source", "doi", "license", "license_quoted", "license_url", "attribution", "citation", "scope",
-            "modifications", "caveats")},
-        "derivation_rule": manifest.get("derivation_rule"),
-        "selection": {key: value for key, value in manifest.get("selection", {}).items()
-                      if key not in ("cells", "checksums")},
-        "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
-            "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
-            "statistics_amendment", "grid_notes", "fragment_review")},
+        "schema": "cytellect-showcase-manifest/2",
+        "scenes": [scene_record(manifest) for _, manifest in manifests],
         "seed": state.get("seed"),
-        "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
-                       "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],
-                       "recorded_contexts": state.get("proposals", {}).get("entries", 0)}
-                      if manifest.get("scenario", {}).get("proposals") else None),
-        "sources": {key: {name: value.get(name) for name in ("url", "md5", "sha256", "bytes", "member", "member_sha256")}
-                    for key, value in manifest["sources"].items()},
-        "fields": [{"id": item["id"], "metadata": item["metadata"], "derivation": item["derivation"]}
-                   for item in state.get("prepared", [])],
         "generated_from_commit": git_commit(),
         "runtime": runtime_versions(args.fiji),
-        "scenario": {key: state["scenario"].get(key) for key in ("timings", "statistics", "renders", "fragment_review")},
         "journal": state.get("journal"),
-        "grid": {"options": state.get("grid", {}).get("options"), "timings": state.get("grid", {}).get("timings")},
         "detections_recorded": len(json.loads((args.work / "recordings" / "index.json").read_text())["entries"])
         if (args.work / "recordings" / "index.json").is_file() else 0,
         "files": files,
         "limitations": "Public example images; numbers illustrate the software and do not establish scientific "
                        "validity for any laboratory's images.",
     }
+    previous = out / "manifest.json"
+    if previous.is_file():
+        # Written by scripts/build_showcase_runtime.py for the runtime/ files.
+        commit = json.loads(previous.read_text()).get("runtime_generated_from_commit")
+        if commit:
+            record["runtime_generated_from_commit"] = commit
     (out / "manifest.json").write_text(json.dumps(record, indent=1, ensure_ascii=False) + "\n")
     if out.resolve() == PUBLIC.resolve():
-        register_public_files(out, manifest)
+        register_public_files(out, [manifest for _, manifest in manifests])
 
 
 SENSITIVE = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".webp", ".pdf", ".zip", ".npy", ".npz", ".sqlite", ".db"}
 
 
-def register_public_files(out: Path, manifest: dict) -> None:
+def register_public_files(out: Path, manifests: list[dict]) -> None:
     """Allowlist entries (source, licence, SHA-256) for scripts/check_public_tree.py."""
     registry = REPO / "fixtures" / "public" / "allowlist.json"
     allowed = json.loads(registry.read_text(encoding="utf-8"))
@@ -1541,11 +1689,12 @@ def register_public_files(out: Path, manifest: dict) -> None:
     # runtime/ belongs to scripts/build_showcase_runtime.py, which registers its own files.
     allowed = {key: value for key, value in allowed.items()
                if not key.startswith(prefix) or key.startswith(prefix + "runtime/")}
-    dataset = manifest["dataset"]
+    sources = sorted({manifest["dataset"]["source"] for manifest in manifests})
+    licences = sorted({manifest["dataset"]["license"] for manifest in manifests})
     for path in sorted(out.rglob("*")):
         if path.is_file() and path.suffix.lower() in SENSITIVE and path.relative_to(out).parts[0] != "runtime":
             allowed[prefix + path.relative_to(out).as_posix()] = {
-                "sha256": sha256_file(path), "source": dataset["source"], "license": dataset["license"],
+                "sha256": sha256_file(path), "source": " ; ".join(sources), "license": " ; ".join(licences),
                 "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"}
     registry.write_text(json.dumps(allowed, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 

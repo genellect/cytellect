@@ -200,7 +200,12 @@ def _measurement(result):
     if result["spec"]["selection"].get("source") == "compartment-summary":
         from .common_statistics_figures import compartment_methods_sentence
 
-        lines.append(compartment_methods_sentence("The outcome", metric))
+        lines.append(compartment_methods_sentence("The outcome", metric,
+                                                  result["spec"]["selection"].get("version", "1.0.0")))
+    elif result["spec"]["selection"].get("source") == "field-summary":
+        from .common_statistics_figures import field_summary_methods_sentence
+
+        lines.append(field_summary_methods_sentence("The outcome", metric))
     elif "area_px" in metric or "area_um2" in metric:
         lines.append("Area is the number of original-coordinate mask pixels; calibrated area multiplies this count by "
                      "the recorded X and Y pixel sizes (or the square of the scalar pixel size in nuclear recipes). "

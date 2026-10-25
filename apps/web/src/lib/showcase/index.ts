@@ -66,7 +66,11 @@ export type RecordedOptions = Record<string, Record<string, Array<number | null>
 export interface ProposalExample {label: string; instruction: string}
 /** Optional files from the demo build; absence leaves the controls as they are. */
 /** `snapshot/dataset.json`: source and limits of the demo's public images. */
-export interface ShowcaseDataset {title: string; attribution: string; licence: string; licenceUrl: string; sourceUrl: string; caveats: string[]}
+export interface ShowcaseDataset {title: string; attribution: string; licence: string; licenceUrl: string; sourceUrl: string; caveats: string[];
+  /** Region sets the demo recorded; null keeps every region (older recordings). */
+  regions: Array<"nuclei" | "nucleoli" | "nucleoplasm"> | null;
+  /** The change the source reports, shown apart from the demo's own measurement (X-03). */
+  reported: {source: string; comparison: string; direction: string; quantity: string; scope: string; independence?: string} | null}
 const httpsUrl = (value: unknown) => {try {return typeof value === "string" && new URL(value).protocol === "https:" ? value : "";} catch {return "";}};
 export function validDataset(value: unknown): ShowcaseDataset | null {
   if (!value || typeof value !== "object") return null;
@@ -74,18 +78,41 @@ export function validDataset(value: unknown): ShowcaseDataset | null {
   const text = (key: string) => typeof record[key] === "string" ? (record[key] as string).trim() : "";
   if (!text("title") || !text("attribution")) return null;
   return {title: text("title"), attribution: text("attribution"), licence: text("licence"), licenceUrl: httpsUrl(record.licenceUrl), sourceUrl: httpsUrl(record.sourceUrl),
-    caveats: Array.isArray(record.caveats) ? record.caveats.filter((item): item is string => typeof item === "string" && !!item.trim()).slice(0, 8) : []};
+    caveats: Array.isArray(record.caveats) ? record.caveats.filter((item): item is string => typeof item === "string" && !!item.trim()).slice(0, 8) : [],
+    regions: Array.isArray(record.regions) ? record.regions.filter((item): item is "nuclei" | "nucleoli" | "nucleoplasm" => item === "nuclei" || item === "nucleoli" || item === "nucleoplasm") : null,
+    reported: reportedChange(record.reportedChange)};
 }
-export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null}> {
+function reportedChange(value: unknown): ShowcaseDataset["reported"] {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const keys = ["source", "comparison", "direction", "quantity", "scope"] as const;
+  if (!keys.every(key => typeof record[key] === "string" && (record[key] as string).trim())) return null;
+  const independence = typeof record.independence === "string" && record.independence.trim() ? {independence: record.independence.trim()} : {};
+  return {...Object.fromEntries(keys.map(key => [key, (record[key] as string).trim()])), ...independence} as NonNullable<ShowcaseDataset["reported"]>;
+}
+/** One demo scene (snapshot/scenes.json): a workspace with its own public images and examples. */
+export interface ShowcaseScene {id: string; label: string; workspaceId: string; dataset: ShowcaseDataset; examples: ProposalExample[]}
+const validExamplesOf = (value: unknown): ProposalExample[] => Array.isArray(value) ? value.filter((item): item is ProposalExample =>
+  !!item && typeof item.label === "string" && typeof item.instruction === "string" && !!item.instruction.trim()).slice(0, 8) : [];
+export function validScenes(value: unknown): ShowcaseScene[] {
+  const list = value && typeof value === "object" && Array.isArray((value as {scenes?: unknown}).scenes) ? (value as {scenes: unknown[]}).scenes : [];
+  return list.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    const dataset = validDataset(record);
+    const id = typeof record.id === "string" ? record.id : "", label = typeof record.label === "string" ? record.label.trim() : "";
+    const workspaceId = typeof record.workspaceId === "string" ? record.workspaceId : "";
+    return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples)}] : [];
+  });
+}
+export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]}> {
   const read = async (name: string) => {
     try {const response = await fetch(`${snapshotBase}${name}`, {credentials: "same-origin"}); if (!response.ok) {await response.text(); return null;} return await response.json() as unknown;}
     catch {return null;}
   };
-  const [options, examples, dataset] = await Promise.all([read("recorded-options.json"), read("proposal-examples.json"), read("dataset.json")]);
+  const [options, examples, dataset, scenes] = await Promise.all([read("recorded-options.json"), read("proposal-examples.json"), read("dataset.json"), read("scenes.json")]);
   const validOptions = options && typeof options === "object" && !Array.isArray(options) ? options as RecordedOptions : null;
-  const validExamples = Array.isArray(examples) ? examples.filter((value): value is ProposalExample =>
-    !!value && typeof value.label === "string" && typeof value.instruction === "string" && !!value.instruction.trim()).slice(0, 8) : [];
-  return {options: validOptions, examples: validExamples, dataset: validDataset(dataset)};
+  return {options: validOptions, examples: validExamplesOf(examples), dataset: validDataset(dataset), scenes: validScenes(scenes)};
 }
 
 /** Topics a visitor's request can name, and the words that signal them (Japanese and English). */
@@ -93,7 +120,7 @@ const TOPICS: Record<string, RegExp> = {
   area: /面積|大きさ|サイズ|広さ|形|area|size|shape/i,
   distribution: /分布|ばらつき|ヒストグラム|視野ごと|分散|distribution|histogram|spread/i,
   intensity: /輝度|量|発現|強さ|明るさ|シグナル|蛍光|NPM1|intensity|expression|signal|level/i,
-  comparison: /比較|比べ|違い|差|変化|有意|検定|ActD|処理|未処理|条件間|compare|difference|versus|vs|treat/i,
+  comparison: /比較|比べ|違い|差|変化|有意|検定|ActD|PLK1|ノックアウト|対照|処理|未処理|条件間|compare|difference|versus|vs|treat|knock/i,
   association: /関係|相関|関連|依存|散布|association|correlat|relationship|scatter/i,
 };
 const topicsOf = (text: string) => new Set(Object.entries(TOPICS).filter(([, pattern]) => pattern.test(text)).map(([topic]) => topic));

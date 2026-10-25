@@ -2,17 +2,23 @@
 
 These additive contracts are defined before their implementations so that the
 metric modules (field_summary.py, nucleolar_shape.py) and the estimate module
-(comparison_estimates.py) can be built and reviewed in parallel. They are not yet
-accepted by the descriptive or common-statistics request unions; requests keep
-their historical schemas until the implementations are connected. Definitions
-are in docs/methods.md, "Group comparison contracts".
+(comparison_estimates.py) can be built and reviewed in parallel. The common-statistics
+comparison request accepts them (ComparisonSelection); the descriptive request does
+not yet. Definitions are in docs/methods.md, "Group comparison contracts".
 """
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Union
 
-from pydantic import Field, FiniteFloat, model_validator
+from pydantic import Discriminator, Field, FiniteFloat, Tag, model_validator
 
 from .contracts import StrictModel
-from .descriptive_contracts import CompartmentSummaryMetric, GfpFilter, _omit_default, _OptionalGate
+from .descriptive_contracts import (
+    CompartmentSummaryMetric,
+    CompartmentSummarySelection,
+    GfpFilter,
+    RegionSelection,
+    _omit_default,
+    _OptionalGate,
+)
 from .regions import Id, RegionModel
 
 FIELD_SUMMARY_VERSION: Literal["1.0.0"] = "1.0.0"
@@ -67,6 +73,22 @@ class CompartmentSummarySelectionV11(_OptionalGate):
         elif self.channel_id is not None:
             raise ValueError("compartment_summary_channel_must_be_unset")
         return self
+
+
+def _selection_tag(value):
+    get = value.get if isinstance(value, dict) else lambda key, default=None: getattr(value, key, default)
+    source = get("source")
+    # Historical compartment 1.0.0 selections may omit their defaulted version.
+    return f"compartment-summary/{get('version', '1.0.0')}" if source == "compartment-summary" else source
+
+
+# The comparison observation sources; compartment summaries are chosen by their own version.
+ComparisonSelection = Annotated[
+    Union[Annotated[RegionSelection, Tag("region")],
+          Annotated[CompartmentSummarySelection, Tag("compartment-summary/1.0.0")],
+          Annotated[CompartmentSummarySelectionV11, Tag("compartment-summary/1.1.0")],
+          Annotated[FieldSummarySelection, Tag("field-summary")]],
+    Discriminator(_selection_tag)]
 
 
 MetricScale = Literal["ratio", "difference", "fraction", "log2"]

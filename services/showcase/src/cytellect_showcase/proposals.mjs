@@ -33,7 +33,7 @@ async function settle() {
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 
-await page.goto(`${config.origin}/workspace`, {waitUntil: "domcontentloaded", timeout: 180000});
+await page.goto(`${config.origin}/workspace${config.workspace ? `?id=${config.workspace}` : ""}`, {waitUntil: "domcontentloaded", timeout: 180000});
 await page.locator("[class*=fieldCard]").first().waitFor({timeout: 180000});
 await settle();
 for (const instruction of config.instructions) {
