@@ -1469,8 +1469,8 @@ def uses_cellpose(manifest: dict) -> bool:
                 or "cellpose-sam" in grid_plan or "cellpose-sam-ncl-parent" in grid_plan)
 
 
-def reference_stage(manifest: dict, scenario_state: dict, seed_data: Path, cache: Path, work: Path, origin: str,
-                    fiji: str) -> dict:
+def reference_stage(manifest: dict, scenario_state: dict, prepared: list[dict], seed_data: Path, cache: Path, work: Path,
+                    origin: str, fiji: str) -> dict:
     """Another method's published objects for the same images, matched to the adopted nuclei."""
     import numpy as np
     from cytellect_api.db import revisions
@@ -1491,9 +1491,12 @@ def reference_stage(manifest: dict, scenario_state: dict, seed_data: Path, cache
         labels[name] = np.load(store.safe_path(row["result_dir"], item["id"], "labels.npy"))
         names[name] = item["id"]
     api.client.close()
-    compared = compare(published["fields"], labels)
+    import tifffile
+
+    images = {files[item["id"]]: tifffile.imread(item["files"][nuclear]) for item in prepared}
+    compared = compare(published["fields"], labels, images)
     design = experiment_design(manifest, scenario_state["fields"])
-    pooled = ("reference_only_area_px", "both_area_px")
+    pooled = ("reference_only_area_px", "both_area_px", "labels_only_area_px")
     record = {"version": 1, "label": manifest["reference"]["label"], "note": manifest["reference"]["note"],
               "reference_sha256": published["sha256"],
               **(group_summary(compared, design, names) if design else {}),
@@ -1583,7 +1586,8 @@ def main(argv: list[str] | None = None) -> None:
         for _, manifest in manifests:
             if manifest.get("reference"):
                 scenes[manifest["id"]]["reference"] = reference_stage(manifest, scenes[manifest["id"]]["scenario"],
-                                                                      seed_data, cache, work, origin, args.fiji)
+                                                                      prepared_of(manifest), seed_data, cache, work, origin,
+                                                                      args.fiji)
                 save()
     if "grid" in stages:
         grid_data = work / "grid-data"

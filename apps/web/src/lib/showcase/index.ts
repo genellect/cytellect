@@ -135,7 +135,10 @@ export interface ReferenceField {
 /** One group's means per field, computed by the demo build (services/showcase cellprofiler.py). */
 export interface ReferenceGroup {id: string; label: string; fields: number; cytellect: number; cellprofiler: number;
   referenceOnly: number; split: number; labelsOnly: number; matchedFraction: number | null;
-  referenceOnlyMedianAreaPx: number | null; matchedMedianAreaPx: number | null}
+  referenceOnlyMedianAreaPx: number | null; matchedMedianAreaPx: number | null;
+  /** Matched nuclei per field; the median area of objects only the demo adopted; the share of
+   * reference-only centres where the nuclear stain is at background level. */
+  both: number | null; labelsOnlyMedianAreaPx: number | null; referenceOnlyWithoutSignal: number | null}
 export interface ReferenceRatio {cytellect: number; cellprofiler: number}
 export interface ShowcaseReference {label: string; note: string; fields: Record<string, ReferenceField>;
   groups: ReferenceGroup[]; ratio: ReferenceRatio | null; runs: Array<{id: string; label: string; ratio: ReferenceRatio | null}>}
@@ -167,7 +170,8 @@ export function validReference(value: unknown): ShowcaseReference | null {
     if (typeof item.id !== "string" || typeof item.label !== "string" || values.some(value => value === null)) return [];
     const [fieldCount, cytellect, cellprofiler, referenceOnly, split, labelsOnly] = values as number[];
     return [{id: item.id, label: item.label, fields: fieldCount, cytellect, cellprofiler, referenceOnly, split, labelsOnly,
-      matchedFraction: count(item.matched_fraction), referenceOnlyMedianAreaPx: count(item.reference_only_median_area_px), matchedMedianAreaPx: count(item.matched_median_area_px)}];
+      matchedFraction: count(item.matched_fraction), referenceOnlyMedianAreaPx: count(item.reference_only_median_area_px), matchedMedianAreaPx: count(item.matched_median_area_px),
+      both: count(item.both_per_field), labelsOnlyMedianAreaPx: count(item.labels_only_median_area_px), referenceOnlyWithoutSignal: count(item.reference_only_without_signal_fraction)}];
   }) : [];
   const runs = Array.isArray(record.runs) ? record.runs.flatMap(raw => {
     const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};

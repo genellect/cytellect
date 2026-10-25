@@ -35,7 +35,8 @@ def test_group_summary_keeps_control_first_and_pools_reference_only_areas():
 
     def row(interior, count, only, areas):
         return {"labels_away_from_border": interior, "count_nuclei": count, "reference_only": only, "split": 0, "labels_only": 1,
-                "both": count - only, "reference_objects": count, "reference_only_area_px": areas, "both_area_px": [900.0]}
+                "both": count - only, "reference_objects": count, "reference_only_area_px": areas, "both_area_px": [900.0],
+                "labels_only_area_px": [90.0], "reference_only_without_signal": only - 1}
 
     design = {"control_group_id": "control", "groups": [{"id": "treatment", "label": "KO"}, {"id": "control", "label": "NT"}],
               "runs": [{"id": "run1", "label": "Run1"}],
@@ -48,5 +49,21 @@ def test_group_summary_keeps_control_first_and_pools_reference_only_areas():
     assert treatment["fields"] == 2 and treatment["cytellect_per_field"] == 15 and treatment["cellprofiler_per_field"] == 35
     assert treatment["reference_only_median_area_px"] == 330.0
     assert treatment["matched_fraction"] == 30 / 70
+    assert treatment["reference_only_without_signal_fraction"] == 38 / 40 and treatment["labels_only_median_area_px"] == 90.0
     assert [group["id"] for group in summary["runs"][0]["groups"]] == ["control", "treatment"]
     assert summary["ratio"] == {"cytellect": 15 / 100, "cellprofiler": 35 / 102}
+
+
+def test_compare_marks_reference_only_centres_without_dna_signal():
+    import numpy as np
+    from cytellect_showcase.cellprofiler import compare
+
+    labels = np.zeros((40, 40), dtype=np.int32)
+    labels[5:15, 5:15] = 1
+    image = np.full((40, 40), 100.0)
+    image[5:15, 5:15] = 1000.0
+    image[30:33, 30:33] = 500.0  # a stained spot the labels do not hold
+    field = {"count_nuclei": 3, "count_nuclei_including_edges": 3,
+             "objects": [{"x": 10, "y": 10, "area_px": 100}, {"x": 31, "y": 31, "area_px": 9}, {"x": 25, "y": 5, "area_px": 9}]}
+    result = compare({"f.tif": field}, {"f.tif": labels}, {"f.tif": image})["f.tif"]
+    assert (result["both"], result["reference_only"], result["reference_only_without_signal"]) == (1, 2, 1)

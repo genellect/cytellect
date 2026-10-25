@@ -123,8 +123,16 @@ def reference(manifest: dict, cache: Path) -> dict:
     return {"fields": fields, "sha256": digest}
 
 
-def compare(fields: dict, labels_by_name: dict) -> dict:
-    """Match each field's CellProfiler centres to the demo's adopted nuclear labels."""
+# A reference centre "without DNA signal": the nuclear stain at the centre (3 x 3 mean) is below
+# this multiple of the field's median, which in these fields lies in the background.
+NO_SIGNAL = 1.2
+
+
+def compare(fields: dict, labels_by_name: dict, images_by_name: dict | None = None) -> dict:
+    """Match each field's CellProfiler centres to the demo's adopted nuclear labels.
+
+    With the nuclear images, each reference-only centre is also checked for DNA signal (NO_SIGNAL).
+    """
     import numpy as np
     from cytellect_analysis.reference_objects import match_reference_centres
     from scipy import ndimage
@@ -141,7 +149,18 @@ def compare(fields: dict, labels_by_name: dict) -> dict:
         markers += [[round(float(centres[i][1]), 1), round(float(centres[i][0]), 1),
                      round(float(np.sqrt(areas[i] / np.pi)), 1), "labels_only"] for i in result["labels_only"]]
         reference_areas = Counter(status for status in result["reference"])
+        signal = []
+        if images_by_name is not None:
+            image = images_by_name[name].astype(float)
+            background = float(np.median(image))
+            for o, status in zip(field["objects"], result["reference"], strict=True):
+                if status == "reference_only":
+                    row, column = int(round(o["y"])), int(round(o["x"]))
+                    patch = image[max(row - 1, 0):row + 2, max(column - 1, 0):column + 2]
+                    signal.append(float(patch.mean()) / background if background > 0 else float("inf"))
         out[name] = {**result["summary"], "count_nuclei": field["count_nuclei"],
+                     "reference_only_without_signal": sum(value < NO_SIGNAL for value in signal) if images_by_name is not None else None,
+                     "labels_only_area_px": [float(areas[i]) for i in result["labels_only"]],
                      "reference_only_area_px": [o["area_px"] for o, s in zip(field["objects"], result["reference"], strict=True)
                                                 if s == "reference_only"],
                      "both_area_px": [o["area_px"] for o, s in zip(field["objects"], result["reference"], strict=True) if s == "both"],
@@ -171,6 +190,9 @@ def group_summary(compared: dict, design: dict, field_of: dict) -> dict:
         rows = [compared[name] for name in names]
         pooled_only = [area for row in rows for area in row["reference_only_area_px"]]
         pooled_both = [area for row in rows for area in row["both_area_px"]]
+        pooled_labels_only = [area for row in rows for area in row["labels_only_area_px"]]
+        without_signal = [row["reference_only_without_signal"] for row in rows]
+        reference_only = sum(row["reference_only"] for row in rows)
         reference_objects = sum(row["reference_objects"] for row in rows)
         return {"fields": len(rows),
                 "cytellect_per_field": float(np.mean([row["labels_away_from_border"] for row in rows])),
@@ -180,7 +202,11 @@ def group_summary(compared: dict, design: dict, field_of: dict) -> dict:
                 "labels_only_per_field": float(np.mean([row["labels_only"] for row in rows])),
                 "matched_fraction": sum(row["both"] for row in rows) / reference_objects if reference_objects else None,
                 "reference_only_median_area_px": float(np.median(pooled_only)) if pooled_only else None,
-                "matched_median_area_px": float(np.median(pooled_both)) if pooled_both else None}
+                "matched_median_area_px": float(np.median(pooled_both)) if pooled_both else None,
+                "both_per_field": float(np.mean([row["both"] for row in rows])),
+                "labels_only_median_area_px": float(np.median(pooled_labels_only)) if pooled_labels_only else None,
+                "reference_only_without_signal_fraction": (sum(without_signal) / reference_only
+                                                           if reference_only and None not in without_signal else None)}
 
     def names(group_id: str, run_id: str | None = None) -> list[str]:
         return sorted(name for name, field_id in field_of.items() if name in compared

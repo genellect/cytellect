@@ -43,10 +43,10 @@ describe("reference objects", () => {
   it("reads the build's group means and ratios", () => {
     const reference = validReference({version: 1, label: "CellProfiler", fields: {f1: {both: 1, split: 0, reference_only: 0, labels_only: 0, labels: 1, markers: []}},
       groups: [{id: "control", label: "NT", fields: 9, cytellect_per_field: 300, cellprofiler_per_field: 310, reference_only_per_field: 2, split_per_field: 1, labels_only_per_field: 3,
-        matched_fraction: 0.95, reference_only_median_area_px: 250, matched_median_area_px: 900}, {id: "bad", label: "x"}],
+        matched_fraction: 0.95, reference_only_median_area_px: 250, matched_median_area_px: 900, both_per_field: 290, labels_only_median_area_px: 91, reference_only_without_signal_fraction: 0.9}, {id: "bad", label: "x"}],
       ratio: {cytellect: 0.18, cellprofiler: 0.25}, runs: [{id: "run1", label: "Run1", ratio: null}]});
     expect(reference!.groups).toHaveLength(1);
-    expect(reference!.groups[0]).toMatchObject({cytellect: 300, cellprofiler: 310, matchedFraction: 0.95});
+    expect(reference!.groups[0]).toMatchObject({cytellect: 300, cellprofiler: 310, matchedFraction: 0.95, both: 290, labelsOnlyMedianAreaPx: 91, referenceOnlyWithoutSignal: 0.9});
     expect(reference!.ratio).toEqual({cytellect: 0.18, cellprofiler: 0.25});
     expect(reference!.runs).toEqual([{id: "run1", label: "Run1", ratio: null}]);
   });
