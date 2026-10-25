@@ -42,7 +42,8 @@ function Icon({name}:{name:keyof typeof paths}){return <svg width="20" height="2
 /** `showcase`: the public demo (/demo) — the same workspace on the serverless transport (docs/showcase.md). */
 export default function ConnectedWorkspace({showcase=false}:{showcase?:boolean}={}){
   const route=<Suspense fallback={<p>読み込み中…</p>}><WorkspaceRoute/></Suspense>;
-  return showcase?<ShowcaseProvider>{route}</ShowcaseProvider>:route;
+  // The provider reads the scene from the query, so it renders inside the same boundary.
+  return showcase?<Suspense fallback={<p>読み込み中…</p>}><ShowcaseProvider>{route}</ShowcaseProvider></Suspense>:route;
 }
 function ShowcaseProvider({children}:{children:ReactNode}){
   // Activated during render so the first runtime request already uses the demo transport.
