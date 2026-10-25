@@ -46,6 +46,8 @@ Zenodo API は 180 ファイル（6 条件 × Rep1–3 × 各 10 視野）と各
 
 追加の一次根拠：[著者の 5EU_Pulse_Step1_Quantification.ipynb](https://github.com/RohatgiLab/2022_Schmidt_Oxaliplatin/blob/620fb6e32fb7c59c0aaf6697a851e2c627147947/5EU_Pulse_Step1_Quantification.ipynb)（コミット `620fb6e32fb7c59c0aaf6697a851e2c627147947`）。index 1 で領域を作り index 2 の平均を測る点はコードで確認できる。index 0 の `ubtf` は論文の細胞株説明との不一致が残る。著者のコードは閲覧のみで実行・移植していない。NPM1 の平滑化・閾値・境界除外を使う著者の処理と Cytellect の検出も異なるため、同じ数値になるとの保証はしない。
 
+**5-EU の照合は追加確認が必要。** 同じコミットの [Step2_Plotting.nb](https://github.com/RohatgiLab/2022_Schmidt_Oxaliplatin/blob/620fb6e32fb7c59c0aaf6697a851e2c627147947/5EU_Pulse_Step2_Plotting.nb) は CSV の第 8 列を第 5 列で割って `NormEU` とする。Step1 の pandas 出力をそのまま読むなら、先頭の index 列を含めて「5-EU 平均 / NPM1 平均」に相当するという推定になる。これは単なる核小体内 5-EU 平均と同じ指標ではない。実際に図へ投入した CSV・列の対応は未入手で、論文の誤りと断定しない。濃度の図ラベルは 1 µM ActD を確認できるが、生ファイルへの処理表はない。採用前に、図との照合を mean 5-EU の方向確認に限るか、著者の図の正規化まで再現するかを決め、必要な出典を確保する。後者を既存の mean 指標として実装しない。
+
 ## 測定前の比較計画（X-03 / X-04 / Q-01）
 
 | 場面 | 固定する比較 | 集約・照合 | 開始を止める不足 |
