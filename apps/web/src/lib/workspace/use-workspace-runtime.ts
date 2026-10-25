@@ -11,7 +11,7 @@ import {applicableProcessing, savedProcessing, withProcessingSettings, type Prop
 import {loadReviewPreview, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
-import type {ExperimentDesign} from "./experiment-design";
+import {fieldsIn,type ExperimentDesign} from "./experiment-design";
 
 export interface RuntimeSettings {
   nuclearMaxSide: number | null; nuclearProbability: number; nuclearNms: number;
@@ -32,6 +32,15 @@ type Adapter = ReturnType<typeof createApiAdapter>;
 export interface RuntimeCandidate {result:SavedResult;recipe:Recipe;settingsFingerprint:string;runId?:string;runState?:WorkspaceRun["state"];backgroundPending?:boolean}
 type RuntimeTargets = Partial<Record<ReviewTarget, TargetResult>>;
 export interface RuntimeSpecification {version:number; spec:({channel_assignment_version:number;target:ReviewTarget;settings:RuntimeSettings;processing:ProposalProcessing|null;measurement:typeof rawMeasurement|null;selection?:unknown;statistics?:unknown;figure?:unknown;metrics?:unknown[];additional_analyses?:unknown[];figure_proposals?:unknown[];experiment?:ExperimentDesign|null;backgrounds?:Record<string,Record<string,{polygon:Point[];confirmed:true}>>;confirmed_channel_ids?:string[]})|null}
+/** The fields a two-group design shows first: the first run's first field of each group, control first
+ * (the order PairStage opens on). Empty for other designs. */
+export function openingPair(design:ExperimentDesign|null):string[]{
+  if(!design||design.layout!=="pair")return [];
+  const groups=[...design.groups].sort((a,b)=>Number(b.id===design.control_group_id)-Number(a.id===design.control_group_id));
+  const run=(design.runs??[]).find(value=>groups.some(group=>fieldsIn(design,group.id,value.id).length));
+  return run?groups.flatMap(group=>fieldsIn(design,group.id,run.id).slice(0,1).map(([id])=>id)):[];
+}
+
 type Dependencies = {adapter?:Adapter; loadPreview?:typeof loadReviewPreview; releasePreview?:typeof releaseReviewPreview;
   readSpecification?:(workspace:string)=>Promise<RuntimeSpecification>; writeSpecification?:(workspace:string,value:RuntimeSpecification)=>Promise<RuntimeSpecification>};
 const emptyData = (): ReviewData => ({workspaceId:"",title:"画像解析",fields:[],channels:[]});
@@ -140,9 +149,9 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   function bound(field:string,target:ReviewTarget,revision?:string){const result=currentTargets.get(field)?.[target];if(!result || (revision && result.result.revision!==revision))throw new Error("操作対象の解析版が変更されています。再読み込みしてください。");return result;}
   /** Lets the browser draw what was just published before more loading occupies it. */
   const painted=()=>new Promise<void>(resolve=>typeof requestAnimationFrame==="function"?requestAnimationFrame(()=>setTimeout(resolve,0)):resolve());
-  async function refresh(id?:string,restoreSettings=false,limit?:number){
+  async function refresh(id?:string,restoreSettings=false,limit?:number,fieldIds?:readonly string[]){
     const ticket=++epoch;let next:ReviewData;
-    try{next=await loadPreview(id || state.data?.workspaceId || undefined,undefined,limit===undefined?undefined:{limit});}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
+    try{next=await loadPreview(id || state.data?.workspaceId || undefined,fieldIds,limit===undefined?undefined:{limit});}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
     if(closed || ticket!==epoch){releasePreview(next);return;}
     try{
       const saved=await adapter.restore(next.workspaceId),assignments=await adapter.getChannelAssignments(next.workspaceId);
@@ -338,7 +347,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     async load(id?:string){closed=false;publish({busy:true,error:"",operation:"画像と保存結果を読み込み中"});
       // The first field shows as soon as it has loaded; the others follow in the background.
       try{await refresh(id,true,1);}catch(error){publish({busy:false,operation:"",error:message(error)});throw error;}
-      try{if(registered.size>1){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}},
+      try{
+        // A two-group design opens side by side: the first run's field of each group comes next (V-01).
+        const opening=openingPair(specification.spec?.experiment??null);
+        if(registered.size>2&&opening.length>1&&!opening.every(id=>state.data?.fields.some(field=>field.id===id))){await painted();await refresh(workspace(),false,undefined,opening);}
+        if(registered.size>1){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}},
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
