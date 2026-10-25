@@ -114,8 +114,8 @@ def child(args):
                 stream = io.BytesIO()
                 tifffile.imwrite(stream, plane, photometric="minisblack")
                 files[f"ch{index}"] = (f"public-ds6a-{index}.tif", stream.getvalue(), "image/tiff")
-            spec = {"channels": [{"channel_id": role, "label": label,
-                      "stain": stain, "identity_confirmed": confirmed}
+            spec = {"version": "1.1.0", "channels": [{"channel_id": role, "label": label,
+                      "stain": stain, **({"identity_confirmed": True} if confirmed else {"identity_source": "unresolved"})}
                      for role, label, stain, confirmed in CHANNELS],
                     "metadata": {"condition": "capacity-only", "sample": "DS6a repeated field"}}
             phase("registration")
