@@ -3,6 +3,10 @@ import {execFileSync} from "node:child_process";
 import {mkdir, readFile, writeFile} from "node:fs/promises";
 import path from "node:path";
 
+// Ownership: this test alone is being migrated to registered public BBBC039
+// images. Detection settings, common analysis and the editable export contract
+// remain owned by their existing modules; no biological replication is asserted.
+
 /** Real API/Fiji with seeded synthetic images: execution and statistics, never biological validity. */
 test("synthetic fields reach real independent-unit comparison and editable exports", async ({page}) => {
   test.skip(process.env.CYTELLECT_COMPARISON_REAL !== "1", "Explicit isolated synthetic comparison acceptance");
