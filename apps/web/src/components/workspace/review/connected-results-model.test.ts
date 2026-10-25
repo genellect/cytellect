@@ -1,5 +1,5 @@
 import {describe,it,expect} from "vitest";
-import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,seriesOrder,type ResultDesign} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
@@ -84,5 +84,17 @@ describe("saturated signal", () => {
     expect(saturatedGroups([source("a", [row(1, "hoechst", 0.02)])], fields, "area_px", "hoechst").size).toBe(0);
     expect(saturatedGroups([source("a", [row(1, "hoechst", 0.02)])], fields, "nucleolar_count", null).size).toBe(0);
     expect(saturatedGroups([source("x", [row(1, "hoechst", 0.02)])], fields, "mean", "hoechst").size).toBe(0);
+  });
+});
+
+describe("run table", () => {
+  it("lays saved field medians out by run and group, control first, without combining them", () => {
+    const design = {groups:[{id:"t",label:"ActD"},{id:"c",label:"Untreated"}], control_group_id:"c",
+      runs:[{id:"r1",label:"Rep1"},{id:"r2",label:"Rep2"},{id:"r3",label:"Rep3"}],
+      fields:{a:{group_id:"c",run_id:"r1"},b:{group_id:"c",run_id:"r1"},d:{group_id:"t",run_id:"r1"},e:{group_id:"t",run_id:"r2"}}};
+    const table = runTable(design, [{field_id:"a",median:10},{field_id:"b",median:12},{field_id:"d",median:2},{field_id:"e",median:null},{field_id:"x",median:5}]);
+    expect(table!.groups.map(group => group.label)).toEqual(["Untreated", "ActD"]);
+    expect(table!.runs).toEqual([{id:"r1",label:"Rep1",cells:[[10,12],[2]]},{id:"r2",label:"Rep2",cells:[[],[null]]}]);
+    expect(runTable({...design, groups:[design.groups[0]]}, [])).toBeNull();
   });
 });

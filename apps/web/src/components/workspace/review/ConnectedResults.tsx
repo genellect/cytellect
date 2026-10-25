@@ -10,7 +10,7 @@ import {createComparisonAdapter,type Metadata,type ComparisonSource,type GfpSele
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricUsesChannel} from "@/lib/workspace/metric-catalog";
-import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import type {ShowcaseDataset} from "@/lib/showcase";
@@ -273,6 +273,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={saved.result.unit||""} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
           reported={showcaseDataset?.reported??null}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}/>}
+        {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={metricLabels[saved.result.metric||""]||saved.result.metric||""} unit={saved.result.unit||""} reported={showcaseDataset?.reported??null}/>}
         {svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></section>}
         {!svgFiles.length&&<p>この設定では図を表示できません。測定表と出力条件を確認してください。</p>}
@@ -295,6 +296,20 @@ function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];f
   const names:Record<string,string>={field_id:"視野",region_id:"領域番号",nucleus_id:"親核番号",value:"測定値",condition:"群",input_rows:"入力領域数",excluded:"除外領域数",gate_unselected:"GFP選別の対象外数",missing_metric_selected:"採用対象の測定値欠測数",selected_rows:"採用領域数",mean:"平均値",median:"中央値",q1:"第1四分位",q3:"第3四分位",minimum:"最小値",maximum:"最大値",p_value:"p 値",p_adjusted:"補正 p 値",p_holm:"Holm補正 p 値",estimate:"推定値",coefficient:"相関係数",ci_low:"95% CI 下限",ci_high:"95% CI 上限",n:"対象数",missing_reason:"欠測理由",reason:"理由",group_a:"群 A",group_b:"群 B",observations:"採用領域数",input_fields:"入力視野数",selected_fields:"採用視野数",excluded_failed_fields:"除外した失敗視野数",samples:"試料数",input_units:"入力独立実験単位数",experimental_units:"採用独立実験単位数",explicitly_excluded_units:"除外独立実験単位数",complete_pairs:"完全ペア数",effect:"効果量",effect_name:"効果量の種類",method:"方法",scope:"対象",status:"状態"};
   const statuses:Record<string,string>={selected:"採用",no_regions:"領域なし",no_selected_values:"採用できる測定値なし",excluded:"除外",missing:"欠測"};
   return <div className={styles.tableScroll}><table><thead><tr>{keys.map(key=><th key={key} scope="col" style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{names[key]||key}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={index}>{keys.map(key=><td key={key}>{key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:key==="status"&&typeof row[key]==="string"?statuses[row[key]]||row[key]:row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key])}</td>)}</tr>)}</tbody></table></div>;
+}
+
+/** A distribution of a two-group design read by run: each saved field median in its run and group.
+ * No value is combined and nothing is tested, so it stays available before independence is confirmed. */
+function RunMedians({design,summary,metricLabel,unit,reported}:{design:ExperimentDesign;summary:Array<Record<string,unknown>>;metricLabel:string;unit:string;reported:ShowcaseDataset["reported"]}){
+  const table=runTable(design,summary);
+  if(!table)return null;
+  return <section className={styles.summary} aria-label="実験回と群ごとの値">
+    {reported&&<p className={styles.reported}><strong>出典の報告</strong>{reported.comparison}：{reported.direction}。{reported.quantity}（{reported.source}）<br/><strong>このデモでの測定</strong>以下は、この公開画像を Cytellect で測った値です。{reported.scope}{reported.independence&&<><br/><strong>実験回の独立性</strong>{reported.independence}</>}</p>}
+    <p className={styles.headline}>{metricLabel}：視野ごとの中央値{unit?`（${unit}）`:""}を、実験回と群ごとに並べています。</p>
+    <table><thead><tr><th scope="col">実験回</th>{table.groups.map(group=><th key={group.id} scope="col">{group.label}{group.id===design.control_group_id?"（対照）":""}</th>)}</tr></thead>
+      <tbody>{table.runs.map(run=><tr key={run.id}><th scope="row">{run.label}</th>{run.cells.map((cell,index)=><td key={table.groups[index].id}>{cell.length?cell.map(value=>formatValue(value)).join("、"):"—"}</td>)}</tr>)}</tbody></table>
+    <p>{design.independence_confirmed?"群の差と信頼区間は「群間比較」で計算します。":"実験回が独立に行われたことが確認されていないため、差の推定と検定は行いません。"}</p>
+  </section>;
 }
 
 /** The comparison stated in words first (S-01–S-07); every number is the saved result's. */

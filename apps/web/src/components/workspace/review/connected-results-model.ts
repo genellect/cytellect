@@ -103,3 +103,16 @@ export function checkedPlot(width:number,height:number,fontSize:number,xLabel:st
   return {...defaultFigureEdits(),kind:"distribution",preset:"custom",language:"en",width_inches:width/25.4,height_inches:height/25.4,font_size:fontSize,x_label:xLabel,y_label:yLabel,
     ...(min!==undefined?{y_min:min}:{}),...(max!==undefined?{y_max:max}:{})};
 }
+
+/** Saved per-field medians laid out by independent run and group (control first). Presentation
+ * only: no value is combined, so a design whose independence is unconfirmed can still be read. */
+export interface RunTable {groups:Array<{id:string;label:string}>;runs:Array<{id:string;label:string;cells:Array<Array<number|null>>}>}
+export function runTable(design:{groups:Array<{id:string;label:string}>;control_group_id?:string|null;runs?:Array<{id:string;label:string}>|null;fields?:Record<string,{group_id:string;run_id:string}>|null},
+  summary:Array<Record<string,unknown>>):RunTable|null{
+  const groups=[...design.groups].sort((a,b)=>Number(b.id===design.control_group_id)-Number(a.id===design.control_group_id));
+  const assigned=design.fields??{};
+  const runs=(design.runs??[]).map(run=>({id:run.id,label:run.label,cells:groups.map(group=>summary
+    .filter(row=>typeof row.field_id==="string"&&assigned[row.field_id]?.run_id===run.id&&assigned[row.field_id]?.group_id===group.id)
+    .map(row=>typeof row.median==="number"&&Number.isFinite(row.median)?row.median:null))})).filter(run=>run.cells.some(cell=>cell.length));
+  return groups.length>1&&runs.length?{groups,runs}:null;
+}
