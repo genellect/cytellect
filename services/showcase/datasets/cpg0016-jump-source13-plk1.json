@@ -10,7 +10,7 @@
   "license": "CC0-1.0",
   "license_quoted": "Cell Painting Gallery README: \"All the data is released with CC0 1.0 Universal (CC0 1.0).\"",
   "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-  "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, site 5 of wells A02 and A23; DNA and RNA channels only.",
+  "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA and RNA channels only.",
   "citation": "Chandrasekaran SN et al. Morphological map of under- and overexpression of genes in human cells. Nature Methods 22, 1742-1752 (2025). doi:10.1038/s41592-025-02753-9",
   "scope": "U2OS-311 (Cas9) cells, 96 h after transfection with pooled CRISPR guides; Cell Painting. Yokogawa CV7000, confocal, NA 0.75, 0.65 um/px (JUMP microscope_config.csv), 1280 x 1080 px, single plane, uint16 TIFF. Channels: Hoechst 33342 (DNA, C01) and SYTO 14 (RNA, C03).",
   "modifications": "None to pixel values or image size (1280 x 1080): two of the five channels (DNA, RNA) are used, each re-saved as an uncompressed single-plane TIFF.",
@@ -25,7 +25,7 @@
   "caveats": [
    "Run1–Run3 は、バッチ 20220914_Run1、20221009_Run2、20221017_Run3 のプレート CP-CC9-R1-01、R2-01、R3-01 です。出典は各プレートを播種から 96 時間で固定したと述べており、日付が数週間離れたプレートは別々に培養されたと考えられます。ただし、別々に播種・導入・染色した独立した実験であるとは明記していません。デモではこの記録をもとに、3 回を独立した実験回として扱っています。",
    "日付はバッチ名の日付です。撮影日かどうかは出典に書かれていません。",
-   "各実験回・各条件で 1 ウェル 1 視野（3 × 3 の中央の視野 5）です。ウェルは公開されたプレート配置の対照 A02（non-targeting）と A23（PLK1）です。実験回 3 の対応のある検定は検出力が低いので、p 値だけでなく、実験回ごとの値と信頼区間を確かめてください。",
+   "各実験回・各条件で 1 ウェル 3 視野（3 × 3 の中央の行、視野 4〜6）です。ウェルは公開されたプレート配置の対照 A02（non-targeting）と A23（PLK1）です。視野は核の数や値で選んでいません。実験回 3 の対応のある検定は検出力が低いので、p 値だけでなく、実験回ごとの値と信頼区間を確かめてください。",
    "核数は視野に写った核の数で、生存率や増殖率そのものではありません。PLK1 のノックアウトでは大きく不規則な核や、断片化した核の塊も見え、塊は小さな物体に分かれて検出・計数されることがあります。両群に同じ検出を当て、物体の大きさによる除外はしていません。デモでは核の形を解釈しません。",
    "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
@@ -51,11 +51,23 @@
   "pixel_size_x_um": 0.65,
   "pixel_size_y_um": 0.65
  },
- "derivation_rule": "Pre-registered before any measurement (this manifest is committed before the scenario runs). Plates: the first replicate plate map CP-CC9-R1/R2/R3-01 of source_13, one per batch Run1, Run2, Run3 (the first three batches). Wells: A02 (non-targeting, JCP2022_800002) and A23 (PLK1, JCP2022_805264), the row-A controls of plate-map columns 2 and 23 (JUMP metadata well.csv.gz and crispr.csv.gz). Site: 5 (F005, the centre of the 3 x 3 sites), for every well. Channels: DNA and RNA. No field, nucleus or object is chosen or removed by its count, size or signal. Before this rule was fixed, site 2 of A02 and A23 on CP-CC9-R1-01 and CP-CC9-R3-01 was viewed to confirm that the images are available and show the reported change; site 5 was not viewed or measured before the rule was committed.",
+ "derivation_rule": "Pre-registered before any measurement (this manifest is committed before the scenario runs). Plates: the first replicate plate map CP-CC9-R1/R2/R3-01 of source_13, one per batch Run1, Run2, Run3 (the first three batches). Wells: A02 (non-targeting, JCP2022_800002) and A23 (PLK1, JCP2022_805264), the row-A controls of plate-map columns 2 and 23 (JUMP metadata well.csv.gz and crispr.csv.gz). Site: 5 (F005, the centre of the 3 x 3 sites), for every well (amended to sites 4-6, see derivation_amendment). Channels: DNA and RNA. No field, nucleus or object is chosen or removed by its count, size or signal. Before this rule was fixed, site 2 of A02 and A23 on CP-CC9-R1-01 and CP-CC9-R3-01 was viewed to confirm that the images are available and show the reported change; site 5 was not viewed or measured before the rule was committed.",
  "selection": {
   "rule": "fixed plates, wells and site; no measurement-based selection"
  },
  "sources": {
+  "CP-CC9-R1-01_A02_T0001F004L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A02_T0001F004L01A01Z01C01.tif",
+   "filename": "CP-CC9-R1-01_A02_T0001F004L01A01Z01C01.tif",
+   "sha256": "5f58cc132558dfa17d38ad9a86d03022a47827ebaa78af1831b52b352a9e2393",
+   "bytes": 2768896
+  },
+  "CP-CC9-R1-01_A02_T0001F004L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A02_T0001F004L01A02Z01C03.tif",
+   "filename": "CP-CC9-R1-01_A02_T0001F004L01A02Z01C03.tif",
+   "sha256": "9a881a1c4dc096f23ba7611dc84f97295173df145ffb3a13b150e1c5ebc073ef",
+   "bytes": 2768896
+  },
   "CP-CC9-R1-01_A02_T0001F005L01A01Z01C01": {
    "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A02_T0001F005L01A01Z01C01.tif",
    "filename": "CP-CC9-R1-01_A02_T0001F005L01A01Z01C01.tif",
@@ -66,6 +78,30 @@
    "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A02_T0001F005L01A02Z01C03.tif",
    "filename": "CP-CC9-R1-01_A02_T0001F005L01A02Z01C03.tif",
    "sha256": "88e615228620d697814da9d9e78d8ed050bd143a36476ece343170caffef34ba",
+   "bytes": 2768896
+  },
+  "CP-CC9-R1-01_A02_T0001F006L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A02_T0001F006L01A01Z01C01.tif",
+   "filename": "CP-CC9-R1-01_A02_T0001F006L01A01Z01C01.tif",
+   "sha256": "9868d2bbcc61f107ecdc6841d5205d763fd67bfe71576b80d33bb9927de39816",
+   "bytes": 2768896
+  },
+  "CP-CC9-R1-01_A02_T0001F006L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A02_T0001F006L01A02Z01C03.tif",
+   "filename": "CP-CC9-R1-01_A02_T0001F006L01A02Z01C03.tif",
+   "sha256": "9664eb1075f14605b49fcfcb30c3d1d9388066af5018e97ea7078089f497196e",
+   "bytes": 2768896
+  },
+  "CP-CC9-R1-01_A23_T0001F004L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A23_T0001F004L01A01Z01C01.tif",
+   "filename": "CP-CC9-R1-01_A23_T0001F004L01A01Z01C01.tif",
+   "sha256": "3afc4a6196ee27ff733fb598390799107e849b6e893fa01b1aa3a3c7afc331f3",
+   "bytes": 2768896
+  },
+  "CP-CC9-R1-01_A23_T0001F004L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A23_T0001F004L01A02Z01C03.tif",
+   "filename": "CP-CC9-R1-01_A23_T0001F004L01A02Z01C03.tif",
+   "sha256": "2b6dd6ed180e7d29e6849ca9518c89cf5bcc303f99a410fc7f84820b4b139144",
    "bytes": 2768896
   },
   "CP-CC9-R1-01_A23_T0001F005L01A01Z01C01": {
@@ -80,6 +116,30 @@
    "sha256": "67cf6af87a1c8b96c220e2c2f8340bd3f71a846624b1ab7605e9cfa9564bdb54",
    "bytes": 2768896
   },
+  "CP-CC9-R1-01_A23_T0001F006L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A23_T0001F006L01A01Z01C01.tif",
+   "filename": "CP-CC9-R1-01_A23_T0001F006L01A01Z01C01.tif",
+   "sha256": "b89d981c73a5fffb45b448168babcb6d86b4cb8829f15e50f7d22d50b938d827",
+   "bytes": 2768896
+  },
+  "CP-CC9-R1-01_A23_T0001F006L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20220914_Run1/images/CP-CC9-R1-01/CP-CC9-R1-01_A23_T0001F006L01A02Z01C03.tif",
+   "filename": "CP-CC9-R1-01_A23_T0001F006L01A02Z01C03.tif",
+   "sha256": "e6ffda6b81acdeee61296297cb6cb96566f93c9266f317675eb704f42f04617c",
+   "bytes": 2768896
+  },
+  "CP-CC9-R2-01_A02_T0001F004L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A02_T0001F004L01A01Z01C01.tif",
+   "filename": "CP-CC9-R2-01_A02_T0001F004L01A01Z01C01.tif",
+   "sha256": "c385a133116cba826afbb320b05096c49e131052b6a566dcd07507d9abae54d4",
+   "bytes": 2768896
+  },
+  "CP-CC9-R2-01_A02_T0001F004L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A02_T0001F004L01A02Z01C03.tif",
+   "filename": "CP-CC9-R2-01_A02_T0001F004L01A02Z01C03.tif",
+   "sha256": "6c4595da7f01fc7de0b8be1f5082e4d84b387dcbc858b8f73c7d9921370fa922",
+   "bytes": 2768896
+  },
   "CP-CC9-R2-01_A02_T0001F005L01A01Z01C01": {
    "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A02_T0001F005L01A01Z01C01.tif",
    "filename": "CP-CC9-R2-01_A02_T0001F005L01A01Z01C01.tif",
@@ -90,6 +150,30 @@
    "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A02_T0001F005L01A02Z01C03.tif",
    "filename": "CP-CC9-R2-01_A02_T0001F005L01A02Z01C03.tif",
    "sha256": "b1a08b5283320d33d28c0bce832b685c3f2ed8f9cb5a4ef4d61dd48ed169c2c8",
+   "bytes": 2768896
+  },
+  "CP-CC9-R2-01_A02_T0001F006L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A02_T0001F006L01A01Z01C01.tif",
+   "filename": "CP-CC9-R2-01_A02_T0001F006L01A01Z01C01.tif",
+   "sha256": "3d82d8958329ff27ba10c50fe91cf38365c0f401e7667d35f7ef4652a39c571f",
+   "bytes": 2768896
+  },
+  "CP-CC9-R2-01_A02_T0001F006L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A02_T0001F006L01A02Z01C03.tif",
+   "filename": "CP-CC9-R2-01_A02_T0001F006L01A02Z01C03.tif",
+   "sha256": "8173de5d4d9f35ed490df93d2a4b2a0d880a80f0475c50f4ebdaf59b134d3847",
+   "bytes": 2768896
+  },
+  "CP-CC9-R2-01_A23_T0001F004L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A23_T0001F004L01A01Z01C01.tif",
+   "filename": "CP-CC9-R2-01_A23_T0001F004L01A01Z01C01.tif",
+   "sha256": "29a80b3cfef9f47ba31e238c359693e62f9381d3ccfe7aef957cb22762106fb5",
+   "bytes": 2768896
+  },
+  "CP-CC9-R2-01_A23_T0001F004L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A23_T0001F004L01A02Z01C03.tif",
+   "filename": "CP-CC9-R2-01_A23_T0001F004L01A02Z01C03.tif",
+   "sha256": "ae0a4f0a5320b1f8fc3cf5cdd60dbd83070f45f9bcebd8bba1a9d353829b320f",
    "bytes": 2768896
   },
   "CP-CC9-R2-01_A23_T0001F005L01A01Z01C01": {
@@ -104,6 +188,30 @@
    "sha256": "089061b235e113ccd100e7584ffcb0025253adbe6899233c9663bff639a7d07a",
    "bytes": 2768896
   },
+  "CP-CC9-R2-01_A23_T0001F006L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A23_T0001F006L01A01Z01C01.tif",
+   "filename": "CP-CC9-R2-01_A23_T0001F006L01A01Z01C01.tif",
+   "sha256": "46d381b5aa4b3f6ca9a14cf3c1b0651a2b6ef2152fc5e3bcd9869a524097d630",
+   "bytes": 2768896
+  },
+  "CP-CC9-R2-01_A23_T0001F006L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221009_Run2/images/CP-CC9-R2-01/CP-CC9-R2-01_A23_T0001F006L01A02Z01C03.tif",
+   "filename": "CP-CC9-R2-01_A23_T0001F006L01A02Z01C03.tif",
+   "sha256": "4269ac5bbe7d8bcea6b38c470a276428068aea3f7d3245ada6c66f68bbccd7cc",
+   "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A02_T0001F004L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A02_T0001F004L01A01Z01C01.tif",
+   "filename": "CP-CC9-R3-01_A02_T0001F004L01A01Z01C01.tif",
+   "sha256": "2a82f419f1a184f15dabc65c82b74e922a435ec07dae8ed4dfe9c4830d85afb5",
+   "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A02_T0001F004L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A02_T0001F004L01A02Z01C03.tif",
+   "filename": "CP-CC9-R3-01_A02_T0001F004L01A02Z01C03.tif",
+   "sha256": "7349589250a55f8dad7902575cb4db1c6e35314b10efe3c80b1e018152d5fac6",
+   "bytes": 2768896
+  },
   "CP-CC9-R3-01_A02_T0001F005L01A01Z01C01": {
    "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A02_T0001F005L01A01Z01C01.tif",
    "filename": "CP-CC9-R3-01_A02_T0001F005L01A01Z01C01.tif",
@@ -114,6 +222,30 @@
    "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A02_T0001F005L01A02Z01C03.tif",
    "filename": "CP-CC9-R3-01_A02_T0001F005L01A02Z01C03.tif",
    "sha256": "4c46b2828f0210bc1e4b0e571369da0418d3f83bc6dc7f9710c5866d1a95e7a2",
+   "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A02_T0001F006L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A02_T0001F006L01A01Z01C01.tif",
+   "filename": "CP-CC9-R3-01_A02_T0001F006L01A01Z01C01.tif",
+   "sha256": "baa178a6ef3bd3738ef1d59daa1c8a0cb0505e5da50f90250ef02670a843b9dd",
+   "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A02_T0001F006L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A02_T0001F006L01A02Z01C03.tif",
+   "filename": "CP-CC9-R3-01_A02_T0001F006L01A02Z01C03.tif",
+   "sha256": "0160da4c2e425a61784f3c3116f28a6c4b97b947a3f03f003c8dc08e9f29fe8e",
+   "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A23_T0001F004L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A23_T0001F004L01A01Z01C01.tif",
+   "filename": "CP-CC9-R3-01_A23_T0001F004L01A01Z01C01.tif",
+   "sha256": "d71c972936734317868a44935fcf8c5de51ea4b896ef1be60116a2738ce7684c",
+   "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A23_T0001F004L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A23_T0001F004L01A02Z01C03.tif",
+   "filename": "CP-CC9-R3-01_A23_T0001F004L01A02Z01C03.tif",
+   "sha256": "6ad2bd054d099647c2a8170bd713db9d628140b87a70b35c2013ad8cb44f35cd",
    "bytes": 2768896
   },
   "CP-CC9-R3-01_A23_T0001F005L01A01Z01C01": {
@@ -127,9 +259,39 @@
    "filename": "CP-CC9-R3-01_A23_T0001F005L01A02Z01C03.tif",
    "sha256": "999af3a864e6de6c88e63aae55bc74b8286700335f9b3de2c1d3875f6df64039",
    "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A23_T0001F006L01A01Z01C01": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A23_T0001F006L01A01Z01C01.tif",
+   "filename": "CP-CC9-R3-01_A23_T0001F006L01A01Z01C01.tif",
+   "sha256": "bf0f69382c021399561a575b89eae7b0afc3e37e8140d9cf63b85162329e572f",
+   "bytes": 2768896
+  },
+  "CP-CC9-R3-01_A23_T0001F006L01A02Z01C03": {
+   "url": "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_13/images/20221017_Run3/images/CP-CC9-R3-01/CP-CC9-R3-01_A23_T0001F006L01A02Z01C03.tif",
+   "filename": "CP-CC9-R3-01_A23_T0001F006L01A02Z01C03.tif",
+   "sha256": "be51dc3c80eae6f3a79b32c7118bace597e5ef25b15f187599c1d90a665562c4",
+   "bytes": 2768896
   }
  },
  "fields": [
+  {
+   "id": "CP-CC9-R1-01_A02_F004",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R1-01_A02_T0001F004L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R1-01_A02_T0001F004L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "Non-targeting",
+    "experimental_unit": "Run1 · Non-targeting",
+    "sample": "Run1 · Non-targeting",
+    "acquisition_date": "2022-09-14",
+    "pair": "Run1"
+   }
+  },
   {
    "id": "CP-CC9-R1-01_A02_F005",
    "planes": {
@@ -144,6 +306,42 @@
     "condition": "Non-targeting",
     "experimental_unit": "Run1 · Non-targeting",
     "sample": "Run1 · Non-targeting",
+    "acquisition_date": "2022-09-14",
+    "pair": "Run1"
+   }
+  },
+  {
+   "id": "CP-CC9-R1-01_A02_F006",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R1-01_A02_T0001F006L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R1-01_A02_T0001F006L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "Non-targeting",
+    "experimental_unit": "Run1 · Non-targeting",
+    "sample": "Run1 · Non-targeting",
+    "acquisition_date": "2022-09-14",
+    "pair": "Run1"
+   }
+  },
+  {
+   "id": "CP-CC9-R1-01_A23_F004",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R1-01_A23_T0001F004L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R1-01_A23_T0001F004L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "PLK1 KO",
+    "experimental_unit": "Run1 · PLK1 KO",
+    "sample": "Run1 · PLK1 KO",
     "acquisition_date": "2022-09-14",
     "pair": "Run1"
    }
@@ -167,6 +365,42 @@
    }
   },
   {
+   "id": "CP-CC9-R1-01_A23_F006",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R1-01_A23_T0001F006L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R1-01_A23_T0001F006L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "PLK1 KO",
+    "experimental_unit": "Run1 · PLK1 KO",
+    "sample": "Run1 · PLK1 KO",
+    "acquisition_date": "2022-09-14",
+    "pair": "Run1"
+   }
+  },
+  {
+   "id": "CP-CC9-R2-01_A02_F004",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R2-01_A02_T0001F004L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R2-01_A02_T0001F004L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "Non-targeting",
+    "experimental_unit": "Run2 · Non-targeting",
+    "sample": "Run2 · Non-targeting",
+    "acquisition_date": "2022-10-09",
+    "pair": "Run2"
+   }
+  },
+  {
    "id": "CP-CC9-R2-01_A02_F005",
    "planes": {
     "dna": {
@@ -180,6 +414,42 @@
     "condition": "Non-targeting",
     "experimental_unit": "Run2 · Non-targeting",
     "sample": "Run2 · Non-targeting",
+    "acquisition_date": "2022-10-09",
+    "pair": "Run2"
+   }
+  },
+  {
+   "id": "CP-CC9-R2-01_A02_F006",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R2-01_A02_T0001F006L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R2-01_A02_T0001F006L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "Non-targeting",
+    "experimental_unit": "Run2 · Non-targeting",
+    "sample": "Run2 · Non-targeting",
+    "acquisition_date": "2022-10-09",
+    "pair": "Run2"
+   }
+  },
+  {
+   "id": "CP-CC9-R2-01_A23_F004",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R2-01_A23_T0001F004L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R2-01_A23_T0001F004L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "PLK1 KO",
+    "experimental_unit": "Run2 · PLK1 KO",
+    "sample": "Run2 · PLK1 KO",
     "acquisition_date": "2022-10-09",
     "pair": "Run2"
    }
@@ -203,6 +473,42 @@
    }
   },
   {
+   "id": "CP-CC9-R2-01_A23_F006",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R2-01_A23_T0001F006L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R2-01_A23_T0001F006L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "PLK1 KO",
+    "experimental_unit": "Run2 · PLK1 KO",
+    "sample": "Run2 · PLK1 KO",
+    "acquisition_date": "2022-10-09",
+    "pair": "Run2"
+   }
+  },
+  {
+   "id": "CP-CC9-R3-01_A02_F004",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R3-01_A02_T0001F004L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R3-01_A02_T0001F004L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "Non-targeting",
+    "experimental_unit": "Run3 · Non-targeting",
+    "sample": "Run3 · Non-targeting",
+    "acquisition_date": "2022-10-17",
+    "pair": "Run3"
+   }
+  },
+  {
    "id": "CP-CC9-R3-01_A02_F005",
    "planes": {
     "dna": {
@@ -216,6 +522,42 @@
     "condition": "Non-targeting",
     "experimental_unit": "Run3 · Non-targeting",
     "sample": "Run3 · Non-targeting",
+    "acquisition_date": "2022-10-17",
+    "pair": "Run3"
+   }
+  },
+  {
+   "id": "CP-CC9-R3-01_A02_F006",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R3-01_A02_T0001F006L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R3-01_A02_T0001F006L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "Non-targeting",
+    "experimental_unit": "Run3 · Non-targeting",
+    "sample": "Run3 · Non-targeting",
+    "acquisition_date": "2022-10-17",
+    "pair": "Run3"
+   }
+  },
+  {
+   "id": "CP-CC9-R3-01_A23_F004",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R3-01_A23_T0001F004L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R3-01_A23_T0001F004L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "PLK1 KO",
+    "experimental_unit": "Run3 · PLK1 KO",
+    "sample": "Run3 · PLK1 KO",
     "acquisition_date": "2022-10-17",
     "pair": "Run3"
    }
@@ -237,44 +579,152 @@
     "acquisition_date": "2022-10-17",
     "pair": "Run3"
    }
+  },
+  {
+   "id": "CP-CC9-R3-01_A23_F006",
+   "planes": {
+    "dna": {
+     "source": "CP-CC9-R3-01_A23_T0001F006L01A01Z01C01"
+    },
+    "rna": {
+     "source": "CP-CC9-R3-01_A23_T0001F006L01A02Z01C03"
+    }
+   },
+   "metadata": {
+    "condition": "PLK1 KO",
+    "experimental_unit": "Run3 · PLK1 KO",
+    "sample": "Run3 · PLK1 KO",
+    "acquisition_date": "2022-10-17",
+    "pair": "Run3"
+   }
   }
  ],
  "field_provenance": [
   {
+   "id": "CP-CC9-R1-01_A02_F004",
+   "plate": "CP-CC9-R1-01",
+   "well": "A02",
+   "batch": "20220914_Run1",
+   "site": 4
+  },
+  {
    "id": "CP-CC9-R1-01_A02_F005",
    "plate": "CP-CC9-R1-01",
    "well": "A02",
-   "batch": "20220914_Run1"
+   "batch": "20220914_Run1",
+   "site": 5
+  },
+  {
+   "id": "CP-CC9-R1-01_A02_F006",
+   "plate": "CP-CC9-R1-01",
+   "well": "A02",
+   "batch": "20220914_Run1",
+   "site": 6
+  },
+  {
+   "id": "CP-CC9-R1-01_A23_F004",
+   "plate": "CP-CC9-R1-01",
+   "well": "A23",
+   "batch": "20220914_Run1",
+   "site": 4
   },
   {
    "id": "CP-CC9-R1-01_A23_F005",
    "plate": "CP-CC9-R1-01",
    "well": "A23",
-   "batch": "20220914_Run1"
+   "batch": "20220914_Run1",
+   "site": 5
+  },
+  {
+   "id": "CP-CC9-R1-01_A23_F006",
+   "plate": "CP-CC9-R1-01",
+   "well": "A23",
+   "batch": "20220914_Run1",
+   "site": 6
+  },
+  {
+   "id": "CP-CC9-R2-01_A02_F004",
+   "plate": "CP-CC9-R2-01",
+   "well": "A02",
+   "batch": "20221009_Run2",
+   "site": 4
   },
   {
    "id": "CP-CC9-R2-01_A02_F005",
    "plate": "CP-CC9-R2-01",
    "well": "A02",
-   "batch": "20221009_Run2"
+   "batch": "20221009_Run2",
+   "site": 5
+  },
+  {
+   "id": "CP-CC9-R2-01_A02_F006",
+   "plate": "CP-CC9-R2-01",
+   "well": "A02",
+   "batch": "20221009_Run2",
+   "site": 6
+  },
+  {
+   "id": "CP-CC9-R2-01_A23_F004",
+   "plate": "CP-CC9-R2-01",
+   "well": "A23",
+   "batch": "20221009_Run2",
+   "site": 4
   },
   {
    "id": "CP-CC9-R2-01_A23_F005",
    "plate": "CP-CC9-R2-01",
    "well": "A23",
-   "batch": "20221009_Run2"
+   "batch": "20221009_Run2",
+   "site": 5
+  },
+  {
+   "id": "CP-CC9-R2-01_A23_F006",
+   "plate": "CP-CC9-R2-01",
+   "well": "A23",
+   "batch": "20221009_Run2",
+   "site": 6
+  },
+  {
+   "id": "CP-CC9-R3-01_A02_F004",
+   "plate": "CP-CC9-R3-01",
+   "well": "A02",
+   "batch": "20221017_Run3",
+   "site": 4
   },
   {
    "id": "CP-CC9-R3-01_A02_F005",
    "plate": "CP-CC9-R3-01",
    "well": "A02",
-   "batch": "20221017_Run3"
+   "batch": "20221017_Run3",
+   "site": 5
+  },
+  {
+   "id": "CP-CC9-R3-01_A02_F006",
+   "plate": "CP-CC9-R3-01",
+   "well": "A02",
+   "batch": "20221017_Run3",
+   "site": 6
+  },
+  {
+   "id": "CP-CC9-R3-01_A23_F004",
+   "plate": "CP-CC9-R3-01",
+   "well": "A23",
+   "batch": "20221017_Run3",
+   "site": 4
   },
   {
    "id": "CP-CC9-R3-01_A23_F005",
    "plate": "CP-CC9-R3-01",
    "well": "A23",
-   "batch": "20221017_Run3"
+   "batch": "20221017_Run3",
+   "site": 5
+  },
+  {
+   "id": "CP-CC9-R3-01_A23_F006",
+   "plate": "CP-CC9-R3-01",
+   "well": "A23",
+   "batch": "20221017_Run3",
+   "site": 6
   }
  ],
  "experiment": {
@@ -589,5 +1039,6 @@
   },
   "background": "automatic",
   "background_note": "Measured with the automatic background estimate so the raw and background-corrected intensity metrics the panel offers are both available; the planned nucleus-count comparison does not use intensities."
- }
+ },
+ "derivation_amendment": "Amendment recorded before publication: the approved requirement D-08 asks for at least three fields per group and run, so sites 4 and 6 (with site 5 the centre row of the 3 x 3 sites; F004-F006 in the published file names) were added for every well. The site-5 nuclei-per-field result (Run1-Run3: 471/244/376 non-targeting, 37/44/45 PLK1) had been computed before this amendment; the added sites are fixed by position only, not by any measured value, and no site is removed. The comparison plan is unchanged."
 }
