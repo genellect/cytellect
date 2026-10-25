@@ -1,5 +1,26 @@
 # Local resource benchmark
 
+## WP7: four-channel Windows benchmark (2026-10-25, in progress)
+
+The approved group-comparison specification is `a78a110b613684c3a352f99b625d20f94f488918`.
+The measurement base is main `11eb24419f2d8af5a3eec706e23985a038cc7f1d`.
+This WP owns this document and a dedicated resource-measurement script only;
+it does not change admission limits, contracts, recipes or shared analysis.
+
+Before measurements, the workload is fixed to deterministic synthetic capacity
+inputs with four explicitly synthetic channels, uint16, 2048 and 4096 square
+pixels, and sequential field batches. Synthetic inputs are only for resource
+observations, not biological or detection-accuracy validation. Actual registration
+rejections and engine admission failures must be reported without bypassing guards.
+The controller will distinguish registration, detection and measurement timings,
+sample child-process-tree RSS, impose a timeout and preserve failure records.
+All generated images, environments and runtime results remain outside the checkout.
+Pinned Fiji and Cellpose provisioning and execution are checked separately.
+An input or runtime that fails is not evidence for a larger supported limit.
+
+The earlier observations below are retained as historical evidence and are not
+new WP7 measurements.
+
 Status: the representative public image completed; the production-profile maximum-size case failed. An explicitly experimental 4 GiB Java-heap run also failed. This is a capacity observation, not cloud sizing certification or a detection-accuracy validation.
 
 The executable script is scripts/benchmark_resources.py. All source images, arrays, transient Fiji files and reports stay outside the repository. It accepts the registered 4DN source by exact SHA-256 and a deterministic capacity generator; it does not accept arbitrary image URLs or private datasets.
