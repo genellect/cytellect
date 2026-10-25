@@ -90,16 +90,29 @@ function reportedChange(value: unknown): ShowcaseDataset["reported"] {
   const independence = typeof record.independence === "string" && record.independence.trim() ? {independence: record.independence.trim()} : {};
   return {...Object.fromEntries(keys.map(key => [key, (record[key] as string).trim()])), ...independence} as NonNullable<ShowcaseDataset["reported"]>;
 }
-export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null}> {
+/** One demo scene (snapshot/scenes.json): a workspace with its own public images and examples. */
+export interface ShowcaseScene {id: string; label: string; workspaceId: string; dataset: ShowcaseDataset; examples: ProposalExample[]}
+const validExamplesOf = (value: unknown): ProposalExample[] => Array.isArray(value) ? value.filter((item): item is ProposalExample =>
+  !!item && typeof item.label === "string" && typeof item.instruction === "string" && !!item.instruction.trim()).slice(0, 8) : [];
+export function validScenes(value: unknown): ShowcaseScene[] {
+  const list = value && typeof value === "object" && Array.isArray((value as {scenes?: unknown}).scenes) ? (value as {scenes: unknown[]}).scenes : [];
+  return list.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    const dataset = validDataset(record);
+    const id = typeof record.id === "string" ? record.id : "", label = typeof record.label === "string" ? record.label.trim() : "";
+    const workspaceId = typeof record.workspaceId === "string" ? record.workspaceId : "";
+    return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples)}] : [];
+  });
+}
+export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]}> {
   const read = async (name: string) => {
     try {const response = await fetch(`${snapshotBase}${name}`, {credentials: "same-origin"}); if (!response.ok) {await response.text(); return null;} return await response.json() as unknown;}
     catch {return null;}
   };
-  const [options, examples, dataset] = await Promise.all([read("recorded-options.json"), read("proposal-examples.json"), read("dataset.json")]);
+  const [options, examples, dataset, scenes] = await Promise.all([read("recorded-options.json"), read("proposal-examples.json"), read("dataset.json"), read("scenes.json")]);
   const validOptions = options && typeof options === "object" && !Array.isArray(options) ? options as RecordedOptions : null;
-  const validExamples = Array.isArray(examples) ? examples.filter((value): value is ProposalExample =>
-    !!value && typeof value.label === "string" && typeof value.instruction === "string" && !!value.instruction.trim()).slice(0, 8) : [];
-  return {options: validOptions, examples: validExamples, dataset: validDataset(dataset)};
+  return {options: validOptions, examples: validExamplesOf(examples), dataset: validDataset(dataset), scenes: validScenes(scenes)};
 }
 
 /** Topics a visitor's request can name, and the words that signal them (Japanese and English). */

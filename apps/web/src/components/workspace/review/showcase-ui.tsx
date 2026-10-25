@@ -2,7 +2,7 @@
 /** Additions of the public demo (/demo). Production renders none of these: the context defaults to disabled. */
 import {createContext, useContext, useEffect, useRef, useState, useSyncExternalStore} from "react";
 import {ApiError} from "../../../lib/api";
-import {isShowcaseNotice, isShowcaseNoticeCode, showcaseTransport, type ProposalExample, type RecordedOptions, type ShowcaseDataset} from "../../../lib/showcase";
+import {isShowcaseNotice, isShowcaseNoticeCode, showcaseTransport, type ProposalExample, type RecordedOptions, type ShowcaseDataset, type ShowcaseScene} from "../../../lib/showcase";
 import type {ShowcaseState} from "../../../lib/showcase/transport";
 import styles from "./showcase.module.css";
 
@@ -12,9 +12,21 @@ export interface ShowcaseUi {
   options: RecordedOptions | null;
   examples: ProposalExample[];
   dataset: ShowcaseDataset | null;
+  /** Demo scenes (one workspace each) and the one shown; empty for a single-scene demo. */
+  scenes: ShowcaseScene[];
+  scene: ShowcaseScene | null;
   requestUpload: (kind: "image" | "csv") => void;
 }
-export const ShowcaseContext = createContext<ShowcaseUi>({enabled: false, options: null, examples: [], dataset: null, requestUpload: () => undefined});
+export const ShowcaseContext = createContext<ShowcaseUi>({enabled: false, options: null, examples: [], dataset: null, scenes: [], scene: null, requestUpload: () => undefined});
+/** Switches the demo to another scene (its own workspace); a fresh page keeps the scenes apart. */
+export function SceneSwitcher({scenes, scene}: {scenes: ShowcaseScene[]; scene: ShowcaseScene | null}) {
+  if (scenes.length < 2) return null;
+  // A full page load (not client navigation) so the workspace runtime starts from the new scene.
+  return <label className={styles.scene}>場面<select value={scene?.id ?? ""} onChange={event => {
+    const next = scenes.find(item => item.id === event.target.value);
+    if (next) window.location.href = new URL(`/demo?id=${encodeURIComponent(next.workspaceId)}`, window.location.origin).href;
+  }}>{scenes.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>;
+}
 export const useShowcaseUi = () => useContext(ShowcaseContext);
 export const DOWNLOAD_HREF = "/#download";
 

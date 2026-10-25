@@ -30,9 +30,10 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const LIVE = 240000;
 
-// Region sets the demo recorded (snapshot/dataset.json); older recordings have all three.
-const dataset = JSON.parse(await readFile(path.join(config.snapshot, "dataset.json"), "utf8").catch(() => "{}"));
-const REGIONS = Array.isArray(dataset.regions) && dataset.regions.length ? dataset.regions : ["nuclei", "nucleoli", "nucleoplasm"];
+// Demo scenes (one workspace each, build.py): their region sets, AI examples and the examples
+// choosing rank-based methods. A recording without scenes has one scene with every region.
+const SCENES = config.scenes?.length ? config.scenes
+  : [{id: "", workspace: null, regions: ["nuclei", "nucleoli", "nucleoplasm"], examples: config.examples ?? 3, rank: config.rank_examples ?? []}];
 
 // Identifiers of the seed: everything the snapshot (the opening state) already contains.
 const stable = new Set();
@@ -96,7 +97,7 @@ function settled(entries) {
 }
 
 const browser = await chromium.launch({executablePath: config.chromium, headless: true});
-async function scene(name, walk) {
+async function scene(name, walk, workspace) {
   const entries = [];
   const context = await browser.newContext({viewport: {width: 1440, height: 900}, acceptDownloads: true});
   const page = await context.newPage();
@@ -105,7 +106,7 @@ async function scene(name, walk) {
   page.on("console", message => {if (message.type() === "error") report.consoleErrors.push(`${name}: ${message.text().slice(0, 300)}`);});
   page.on("pageerror", error => report.consoleErrors.push(`${name}: ${String(error).slice(0, 300)}`));
   try {
-    await page.goto(`${config.origin}/demo`, {waitUntil: "domcontentloaded", timeout: LIVE});
+    await page.goto(`${config.origin}/demo${workspace ? `?id=${workspace}` : ""}`, {waitUntil: "domcontentloaded", timeout: LIVE});
     await page.locator("[data-showcase-engine=active]").waitFor({state: "attached", timeout: LIVE});
     await walk(page);
     await idle(page);
@@ -258,7 +259,32 @@ function measureScene(target) {
     await tab(page, "画像");
   };
 }
-const scenes = {
+async function example(page, index) {
+  await page.getByRole("group", {name: "指示の例"}).getByRole("button").nth(index).click();
+  await idle(page);
+  const adopt = page.getByRole("button", {name: "候補を採用", exact: true});
+  if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
+}
+
+async function statisticsAfter(page) {
+  await tab(page, "統計");
+  const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
+  for (const kind of await choices(operation)) {
+    await operation.selectOption(kind); await idle(page);
+    await calculate(page);
+    await figures(page, kind === "comparison");
+  }
+}
+
+async function closePanel(page) {
+  const close = page.getByRole("button", {name: "パネルを閉じる"});
+  if (await close.isVisible()) {await close.click(); await idle(page);}
+}
+
+// Every walk of one demo scene; names carry the scene id so each scene's entries stay apart.
+function walksOf(demo) {
+  const REGIONS = demo.regions, EXAMPLES = demo.examples, RANK = demo.rank ?? [];
+  const scenes = {
   // 「使い方」 in order: the opening result, its figure and the publication package.
   async tour(page) {
     await tab(page, "統計");
@@ -272,74 +298,48 @@ const scenes = {
   },
   "saved-figures": savedFigures,
   ...Object.fromEntries(REGIONS.map(region => [`measure-${region}`, measureScene(region)])),
-};
-// Each example from the seed, and all of them in their listed order; the detection preview
-// a draft brings is adopted, as a visitor does.
-async function example(page, index) {
-  await page.getByRole("group", {name: "指示の例"}).getByRole("button").nth(index).click();
-  await idle(page);
-  const adopt = page.getByRole("button", {name: "候補を採用", exact: true});
-  if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
-}
-for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`statistics-${region}-${metric}`] = statisticsScene(region, metric);
-// After an example the statistics view holds the analysis the draft set up; each analysis it
-// offers is calculated, as a visitor continuing from the AI would.
-async function statisticsAfter(page) {
-  await tab(page, "統計");
-  const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
-  for (const kind of await choices(operation)) {
-    await operation.selectOption(kind); await idle(page);
-    await calculate(page);
-    await figures(page, kind === "comparison");
-  }
-}
-const EXAMPLES = config.examples ?? 3;
-for (let index = 0; index < EXAMPLES; index++) scenes[`ai-${index + 1}`] = async page => {
-  await page.getByLabel("AIへの指示").click();
-  await example(page, index);
-  await statisticsAfter(page);
-};
-scenes["ai-in-order"] = async page => {
-  await page.getByLabel("AIへの指示").click();
-  for (let index = 0; index < EXAMPLES; index++) await example(page, index);
-  await statisticsAfter(page);
-};
-// An example previews the nuclei of the field shown, so each field is shown for one. Its settings
-// differ from the seed's in form only; measuring after an example is recorded under them.
-async function closePanel(page) {
-  const close = page.getByRole("button", {name: "パネルを閉じる"});
-  if (await close.isVisible()) {await close.click(); await idle(page);}
-}
-scenes["ai-fields"] = async page => {
-  const cards = page.locator("[class*=fieldCard]");
-  for (let index = 1; index < await cards.count(); index++) {
-    await cards.nth(index).click(); await idle(page);
+  };
+  for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`statistics-${region}-${metric}`] = statisticsScene(region, metric);
+  for (let index = 0; index < EXAMPLES; index++) scenes[`ai-${index + 1}`] = async page => {
     await page.getByLabel("AIへの指示").click();
-    await example(page, index % EXAMPLES);
+    await example(page, index);
+    await statisticsAfter(page);
+  };
+  if (EXAMPLES) scenes["ai-in-order"] = async page => {
+    await page.getByLabel("AIへの指示").click();
+    for (let index = 0; index < EXAMPLES; index++) await example(page, index);
+    await statisticsAfter(page);
+  };
+  if (EXAMPLES) scenes["ai-fields"] = async page => {
+    const cards = page.locator("[class*=fieldCard]");
+    for (let index = 1; index < await cards.count(); index++) {
+      await cards.nth(index).click(); await idle(page);
+      await page.getByLabel("AIへの指示").click();
+      await example(page, index % EXAMPLES);
+      await closePanel(page);
+    }
+  };
+  if (EXAMPLES) for (const target of REGIONS) scenes[`ai-measure-${target}`] = async page => {
+    await page.getByLabel("AIへの指示").click();
+    await example(page, 0);
     await closePanel(page);
-  }
-};
-for (const target of REGIONS) scenes[`ai-measure-${target}`] = async page => {
-  await page.getByLabel("AIへの指示").click();
-  await example(page, 0);
-  await closePanel(page);
-  await measureScene(target)(page);
-};
-// Rank-based methods an example chooses stay for the statistics that follow, so every comparison
-// and association the panel offers is recorded under them too (a distribution does not use them).
-const RANK = config.rank_examples ?? [];
-if (RANK.length) for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`rank-${region}-${metric}`] = async page => {
-  await page.getByLabel("AIへの指示").click();
-  await example(page, RANK[0]);
-  await closePanel(page);
-  await statisticsScene(region, metric, ["comparison", "association"])(page);
-};
+    await measureScene(target)(page);
+  };
+  if (RANK.length) for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`rank-${region}-${metric}`] = async page => {
+    await page.getByLabel("AIへの指示").click();
+    await example(page, RANK[0]);
+    await closePanel(page);
+    await statisticsScene(region, metric, ["comparison", "association"])(page);
+  };
+  return Object.entries(scenes).map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));
+}
 await mkdir(config.out, {recursive: true});
 // Scenes are independent (each starts from the seed), so several run at once.
-const names = Object.keys(scenes).filter(name => !config.only || config.only.includes(name));
-const queue = [...names];
+const walks = SCENES.flatMap(walksOf).filter(item => !config.only || config.only.includes(item.name));
+const names = walks.map(item => item.name);
+const queue = [...walks];
 await Promise.all(Array.from({length: config.concurrency ?? 3}, async () => {
-  while (queue.length) {const name = queue.shift(); await scene(name, scenes[name]);}
+  while (queue.length) {const item = queue.shift(); await scene(item.name, item.walk, item.workspace);}
 }));
 const entries = names.flatMap(name => recorded.get(name) ?? []);
 await browser.close();

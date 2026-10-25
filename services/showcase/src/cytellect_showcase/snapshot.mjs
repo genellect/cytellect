@@ -68,7 +68,7 @@ async function settle(label) {
 
 // Session of the workspace owner, created by the builder (never logged or saved).
 await context.addCookies([{name: config.cookie, value: config.token, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Strict"}]);
-await page.goto(`${config.origin}/workspace`, {waitUntil: "domcontentloaded", timeout: 180000});
+await page.goto(`${config.origin}/workspace${config.workspace ? `?id=${config.workspace}` : ""}`, {waitUntil: "domcontentloaded", timeout: 180000});
 const cards = page.locator("[class*=fieldCard]");
 try {await cards.first().waitFor({timeout: 180000});}
 catch (error) {
