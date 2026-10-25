@@ -52,7 +52,7 @@ COMPARTMENT_LABELS = {
     "nucleolar_eccentricity": ("Nucleolar eccentricity", "核小体の離心率"),
 }
 FIELD_SUMMARY_LABELS = {
-    "nucleus_count": ("Nuclei per field", "視野あたりの核数"),
+    "nucleus_count": ("Nucleus count", "核数"),
     "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
 }
 

@@ -98,3 +98,12 @@ describe("stored cohort metadata restoration", () => {
     expect(post).not.toHaveBeenCalled();
   });
 });
+
+describe("declared two-group comparisons", () => {
+  it("keep the treatment − control contrast and list the control first", () => {
+    const request = comparisonRequest({...choices, design: "paired", pairingBasis: "same run", contrasts: [["Drug", "DMSO"]], estimates: true});
+    expect(request.conditions).toEqual(["DMSO", "Drug"]);
+    expect(request.comparison_family.contrasts).toEqual([["Drug", "DMSO"]]);
+    expect(request.estimates).toBe("comparison-estimates/1.0.0");
+  });
+});

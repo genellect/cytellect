@@ -7514,6 +7514,23 @@
                   "ncl_log2_nucleoplasm_over_nucleoli",
                   "ncl_legacy_release"
                 ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
+                ]
               }
             ],
             "title": "Metric",
@@ -15071,6 +15088,23 @@
                   "ncl_nucleoplasm_over_nucleoli",
                   "ncl_log2_nucleoplasm_over_nucleoli",
                   "ncl_legacy_release"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
                 ]
               }
             ],

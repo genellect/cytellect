@@ -13,6 +13,7 @@ import {metricUsesChannel} from "@/lib/workspace/metric-catalog";
 import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
+import type {ShowcaseDataset} from "@/lib/showcase";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
@@ -207,7 +208,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   function restoreFigure(selected:Saved){setSaved(selected);setFigureKind(selected.plot.kind);setWidth(selected.plot.width_inches*25.4);setHeight(selected.plot.height_inches*25.4);setFont(selected.plot.font_size);setXLabel(selected.plot.x_label);setYLabel(selected.plot.y_label);setYMin(selected.plot.y_min==null?"":String(selected.plot.y_min));setYMax(selected.plot.y_max==null?"":String(selected.plot.y_max));setPointSize(selected.plot.point_size??18);setColors(selected.plot.style?.series_colors||{});setLegend(selected.plot.style?.show_legend??true);setOrder(selected.plot.group_order);setXAxis({min:selected.plot.axes?.x_min==null?"":String(selected.plot.axes.x_min),max:selected.plot.axes?.x_max==null?"":String(selected.plot.axes.x_max),step:selected.plot.axes?.x_tick_step==null?"":String(selected.plot.axes.x_tick_step),scale:selected.plot.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:selected.plot.y_tick_step==null?"":String(selected.plot.y_tick_step),scale:selected.plot.axes?.y_scale||"linear"});}
   // The public demo opens on the latest saved result (as a researcher's own session would
   // have left it) instead of an empty view; production keeps the explicit choice.
-  const demo=useShowcaseUi().enabled,openedSaved=useRef(false);
+  const showcaseUi=useShowcaseUi(),demo=showcaseUi.enabled,showcaseDataset=showcaseUi.dataset,openedSaved=useRef(false);
   const [savedNote,setSavedNote]=useState("");
   useEffect(()=>{if(demo&&saved&&!saved.historical&&Math.abs(saved.plot.width_inches*25.4-width)>.5)void render();},[saved?.job]);// eslint-disable-line react-hooks/exhaustive-deps
   const openLatestSaved=useEffectEvent((entry:Saved)=>{if(!saved)restoreFigure(entry);});
@@ -264,6 +265,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
         {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={saved.result.unit||""} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
+          reported={showcaseDataset?.reported??null}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}/>}
         {svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></section>}
@@ -290,14 +292,15 @@ function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];f
 }
 
 /** The comparison stated in words first (S-01–S-07); every number is the saved result's. */
-function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>}){
+function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"]}){
   const summary=summarize(estimates,comparison,metricLabel,unit);
   return <section className={styles.summary} aria-label="結果のまとめ">
+    {reported&&<p className={styles.reported}><strong>出典の報告</strong>{reported.comparison}：{reported.direction}。{reported.quantity}（{reported.source}）<br/><strong>このデモでの測定</strong>以下は、この公開画像を Cytellect で測った値です。{reported.scope}{reported.independence&&<><br/><strong>実験回の独立性</strong>{reported.independence}</>}</p>}
     <p className={styles.headline}>{summary.headline}</p>
     {summary.interval&&<p>{summary.interval}</p>}
     <p>{summary.test}</p>
     {summary.runs&&<p>{summary.runs}</p>}
-    {estimates.runs.length>0&&<details><summary>実験回ごとの値</summary><table><thead><tr><th>実験回</th><th>{estimates.control}</th><th>{estimates.treatment}</th><th>差（{estimates.treatment} − {estimates.control}）</th></tr></thead>
+    {estimates.runs.length>0&&<details><summary>実験回ごとの値</summary><table><thead><tr><th>実験回</th><th>{estimates.control}</th><th>{estimates.treatment}</th><th>差（{estimates.treatment} − {estimates.control}）{estimates.scale==="fraction"?" / ポイント":""}</th></tr></thead>
       <tbody>{estimates.runs.map(run=><tr key={run.pair}><th>{run.pair}</th><td>{formatValue(run.control)}</td><td>{formatValue(run.treatment)}</td><td>{formatValue(run.difference)}</td></tr>)}</tbody></table></details>}
     <details><summary>n の内訳と除外</summary><ul>{counts.groups.map(value=><li key={value}>{value}</li>)}</ul>
       <p>{counts.exclusions.length?"除外・欠測（実験回ごと）":"除外した視野・領域と、測定値の欠測はありません。"}</p>{counts.exclusions.length>0&&<ul>{counts.exclusions.map(value=><li key={value}>{value}</li>)}</ul>}</details>

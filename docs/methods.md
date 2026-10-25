@@ -619,6 +619,10 @@ metric's scale (`group_comparison_contracts.metric_scale`) decides what is shown
   values (`too_few_units` below two units).
 - Paired designs list each run's control, treatment, difference and (for the ratio
   scale with positive values) ratio, in the saved pair order.
+- For the fraction scale, the saved difference, its interval and each run's
+  difference are in percentage points (the fraction difference × 100); unit values
+  and group summaries stay fractions. The declared test's own estimate in the
+  comparison table keeps the fraction unit.
 
 These are pointwise intervals for one declared contrast. The p value remains the
 declared test's; estimates never select or replace a test.

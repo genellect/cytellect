@@ -480,10 +480,18 @@ def plot(operation: str, kind: str = "distribution") -> dict:
 
 
 COMPARTMENT_METRICS = ("log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count")
+FIELD_SUMMARY_METRICS = ("nucleus_count", "nucleus_density_per_mm2")
+
+
+def channel_neutral(metric: str) -> bool:
+    """metricUsesChannel() negated (metric-catalog.ts)."""
+    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *FIELD_SUMMARY_METRICS)
 
 
 def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
     """resultSelection/comparisonSelection without a GFP decision."""
+    if metric in FIELD_SUMMARY_METRICS:
+        return {"source": "field-summary", "version": "1.0.0", "region_set_id": region_set, "metric": metric}
     if metric in COMPARTMENT_METRICS:
         return {"source": "compartment-summary", "version": "1.0.0", "region_set_id": region_set, "metric": metric,
                 "channel_id": channel if metric == "log2_nucleoplasm_over_nucleolus" else None}
@@ -500,13 +508,15 @@ class Workspace:
     assignments_version: int = 0
     processing: dict | None = None
     settings: dict = field(default_factory=default_settings)
+    experiment: dict | None = None
 
     # -- analysis specification -------------------------------------------------
     def current_spec(self, target: str) -> dict:
         processing = ({**self.processing, "cells": self.processing.get("cells")} if self.processing else None)
         measurement = None if self.settings["background"] == "confirmed_roi" else (
             AUTOMATIC if self.settings["background"] == "automatic" else RAW)
-        return {**(self.spec["spec"] or {}), "channel_assignment_version": self.assignments_version,
+        return {**(self.spec["spec"] or {}), **({"experiment": self.experiment} if self.experiment else {}),
+                "channel_assignment_version": self.assignments_version,
                 "target": target, "settings": copy.deepcopy(self.settings),
                 "processing": copy.deepcopy(processing), "measurement": measurement}
 
@@ -546,6 +556,12 @@ class Workspace:
     def metadata(self) -> dict[str, dict]:
         empty = {"condition": None, "sample": None, "experimental_unit": None, "pair": None,
                  "acquisition_date": None, "repeat_length": None}
+        if self.experiment:
+            # The declared design decides the metadata (fieldMetadata() in experiment-design.ts).
+            from cytellect_analysis.experiment_design import ExperimentDesign, field_metadata
+
+            derived = field_metadata(ExperimentDesign.model_validate(self.experiment))
+            return {item["id"]: {**empty, **derived[item["id"]].model_dump(mode="json")} for item in self.fields}
         return {item["id"]: {**empty, **{key: item["metadata"].get(key) for key in empty}} for item in self.fields}
 
     def calculate(self, operation: str, target: str, metric: str, channel: str | None, unit: str,
@@ -559,10 +575,19 @@ class Workspace:
         fields = {fid: self.metadata()[fid] for fid, _ in sources}
         conditions = list(dict.fromkeys(value["condition"].strip() for value in fields.values() if value["condition"]))
         contrasts = [[a, b] for index, a in enumerate(conditions) for b in conditions[index + 1:]]
+        declared = bool(self.experiment and self.experiment.get("layout") == "pair")
+        if declared and operation == "comparison":
+            # comparisonDefaults(): one contrast [treatment, control], reported as treatment − control.
+            labels = {group["id"]: group["label"] for group in self.experiment["groups"]}
+            control = self.experiment["control_group_id"]
+            contrasts = [[next(label for gid, label in labels.items() if gid != control), labels[control]]]
         region_set = target
-        channel = None if metric.startswith("area_") else channel
+        channel = None if channel_neutral(metric) else channel
         x_channel = x_channel if x_channel is not None else channel
         display = plot(operation)
+        # comparisonKind(): a declared two-group experiment is first drawn by run.
+        kind = ("scatter" if operation == "association" else "superplot" if declared and operation == "comparison"
+                else "distribution")
         canonical = "ncl_log2_nucleoplasm_over_nucleoli" if metric == "log2_nucleoplasm_over_nucleolus" else metric
         region = "nucleus" if region_set == "nuclei" else "supplied" if region_set == "cell" else region_set
         method = {"kind": "descriptive" if operation == "distribution" else operation,
@@ -576,8 +601,7 @@ class Workspace:
                                 "unit_definition": unit, "pairing_basis": pairing if paired else "", "conditions": conditions,
                                 "comparisons": contrasts, "field_metadata": fields, "x_metric": x_metric,
                                 "x_channel_id": x_channel},
-                 "figure": {"metric": canonical, "channel_id": channel,
-                            "plot": {**display, "kind": "scatter" if operation == "association" else "distribution"}}}
+                 "figure": {"metric": canonical, "channel_id": channel, "plot": {**display, "kind": kind}}}
         self.persist(self.spec["spec"]["target"] if self.spec["spec"] else target, draft)
         selection = selection_for(region_set, metric, channel)
         request: dict[str, Any]
@@ -591,7 +615,9 @@ class Workspace:
                        "omnibus": "welch-anova" if len(conditions) >= 3 and not paired else None, "selection": selection,
                        "design": {"kind": "paired" if paired else "independent", "confirmed": True,
                                   "unit_definition": unit, "pairing_basis": pairing if paired else None},
-                       "conditions": list(dict.fromkeys(itertools.chain.from_iterable(contrasts))),
+                       # comparisonRequest(): a declared contrast [treatment, control] is drawn control first.
+                       "conditions": ([contrasts[0][1], contrasts[0][0]] if declared and len(contrasts) == 1
+                                      else list(dict.fromkeys(itertools.chain.from_iterable(contrasts)))),
                        "comparison_family": {"family_id": "workspace-planned", "kind": "planned", "control": None,
                                              "contrasts": contrasts},
                        "acquisition_review": {"confirmed": True,
@@ -599,7 +625,8 @@ class Workspace:
                                               "field_batches": {}, "spatial_sampling_confirmed": True},
                        "missingness_confirmed": True, "aggregation": "field-median_sample-mean_unit-mean-v1",
                        "missingness_policy": "available-observations_require-unexcluded-units-v1",
-                       "plot": {"histogram_bins": 10, **display, "kind": "distribution"}}
+                       "plot": {"histogram_bins": 10, **display, "kind": kind},
+                       **({"estimates": "comparison-estimates/1.0.0"} if declared and len(contrasts) == 1 else {})}
         else:
             request = {"mode": "region-association", "version": "1.0.0",
                        "x_selection": selection_for(region_set, x_metric, x_channel), "y_selection": selection,
@@ -737,6 +764,24 @@ def review_fragments(space: Workspace, rule: dict | None) -> list[dict]:
     return removed
 
 
+def experiment_design(manifest: dict, fields: list[dict]) -> dict | None:
+    """The researcher's declared design (ExperimentSetup in the workspace) for the uploaded fields."""
+    declared = manifest.get("experiment")
+    if not declared:
+        return None
+    groups = {group["label"]: group["id"] for group in declared["groups"]}
+    runs = {run["label"]: run["id"] for run in declared["runs"]}
+    design = {"version": "1.0.0", "layout": "pair" if len(declared["groups"]) == 2 else "single",
+              "groups": declared["groups"], "control_group_id": declared.get("control_group_id"),
+              "runs": [{key: run.get(key) for key in ("id", "label", "performed_on", "acquired_on")} for run in declared["runs"]],
+              "independence_confirmed": declared["independence_confirmed"],
+              "fields": {item["id"]: {"group_id": groups[item["metadata"]["condition"]], "run_id": runs[item["metadata"]["pair"]],
+                                      "sample": None, "acquired_on": None} for item in fields}}
+    from cytellect_analysis.experiment_design import ExperimentDesign
+
+    return ExperimentDesign.model_validate(design).model_dump(mode="json")
+
+
 def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     plan = manifest["scenario"]
     created = api.post("/v1/workspaces", {"title": manifest.get("workspace_title", "画像解析")})
@@ -747,6 +792,7 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
         {"channel_id": channel["channel_id"], "stain": channel.get("stain"), "role": channel["role"]}
         for channel in manifest["channels"]]})
     space.assignments_version = assignments["version"]
+    space.experiment = experiment_design(manifest, space.fields)
     timings: dict[str, float] = {}
 
     def timed(name, action):
@@ -762,7 +808,8 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     timed("nuclei", lambda: space.run("nuclei"))
     marker = plan.get("nucleolar_marker")
     source = plan.get("nucleolar_definition", "ncl")
-    if marker:
+    nucleoli = plan.get("nucleoli", True)
+    if marker and nucleoli:
         # selectNucleolarSource(source, marker): "ncl" defaults to Cellpose-SAM; "marker" is the
         # stable-marker definition (cytellect-nucleolar-v2), whose defaults the API supplies.
         space.settings = {**space.settings, "nucleolarDefinition": {**space.settings["nucleolarDefinition"],
@@ -771,17 +818,20 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
                           "nucleolarMaximumArea": None}
         space.processing = ({**empty_processing(), "nucleoli": {"channel": marker, "detector": ncl_cellpose_detector()}}
                             if source == "ncl" else None)
-    timed("nucleoli", lambda: space.run("nucleoli"))
-    removed = review_fragments(space, plan.get("fragment_review"))
-    if removed:
-        # The researcher removed fragments from the nuclei; their compartments follow the edit.
-        timed("nucleoli-after-review", lambda: space.run("nucleoli"))
-    timed("nucleoplasm", lambda: space.run("nucleoplasm"))
+    removed: list[dict] = []
+    if nucleoli:
+        timed("nucleoli", lambda: space.run("nucleoli"))
+        removed = review_fragments(space, plan.get("fragment_review"))
+        if removed:
+            # The researcher removed fragments from the nuclei; their compartments follow the edit.
+            timed("nucleoli-after-review", lambda: space.run("nucleoli"))
+        timed("nucleoplasm", lambda: space.run("nucleoplasm"))
     saved = {}
-    # The comparison and its layouts first; the last calculation (the per-field distribution) is
-    # what the statistics view restores on opening, as after a researcher's own session.
+    # The last calculation is what the statistics view restores on opening, as after a
+    # researcher's own session: the manifest's opening analysis (by default the distribution).
     renders = []
-    for name in ("comparison", "association", "distribution"):
+    opening = plan.get("opening", "distribution")
+    for name in [*(value for value in ("comparison", "association", "distribution") if value != opening), opening]:
         analysis = plan["statistics"].get(name)
         if not analysis:
             continue
@@ -1357,6 +1407,15 @@ def overlays(data_dir: Path, qa: Path, fields: list[dict], limit: int | None = N
 # CLI
 # ---------------------------------------------------------------------------
 
+def uses_cellpose(manifest: dict) -> bool:
+    """Whether the scenario or the grid runs Cellpose (NCL-positive nucleoli or cell ROI)."""
+    plan = manifest.get("scenario", {})
+    grid_plan = plan.get("grid", {})
+    return bool((plan.get("nucleoli", True) and plan.get("nucleolar_marker")
+                 and plan.get("nucleolar_definition", "ncl") == "ncl")
+                or "cellpose-sam" in grid_plan or "cellpose-sam-ncl-parent" in grid_plan)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("manifest", type=Path, help="dataset manifest JSON")
@@ -1369,12 +1428,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
     work, cache = outside_checkout(args.work), outside_checkout(args.cache)
-    for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
-        if not os.environ.get(name):
-            raise SystemExit(f"{name} must name the pinned Cellpose runtime")
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     if manifest.get("schema") != "cytellect-showcase-dataset/1":
         raise SystemExit("unknown dataset manifest schema")
+    if uses_cellpose(manifest):
+        for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
+            if not os.environ.get(name):
+                raise SystemExit(f"{name} must name the pinned Cellpose runtime")
     stages = set(args.stages.split(","))
     work.mkdir(parents=True, exist_ok=True)
     state_path = work / "state.json"
@@ -1459,7 +1519,9 @@ def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path
     (out / "snapshot").mkdir(parents=True, exist_ok=True)
     # Python-only nucleolar definitions run in the browser and need no recording; they are
     # listed without adjustable fields (docs/showcase.md: unlisted fields stay fixed).
-    options = {**manifest["scenario"].get("python_options", {"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}),
+    nucleolar_defaults = ({"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}
+                          if manifest["scenario"].get("nucleoli", True) else {})
+    options = {**manifest["scenario"].get("python_options", nucleolar_defaults),
                **state.get("grid", {}).get("options", {})}
     (out / "snapshot" / "recorded-options.json").write_text(json.dumps(options, sort_keys=True, indent=1) + "\n")
     recorded = args.work / "proposals.json"
@@ -1472,7 +1534,8 @@ def publish(args, manifest: dict, state: dict, seed_data: Path, recordings: Path
             "licence": dataset.get("license"), "licenceUrl": dataset.get("license_url"),
             "sourceUrl": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
-            "caveats": dataset.get("caveats", []),
+            "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"),
+            "regions": ["nuclei", "nucleoli", "nucleoplasm"] if manifest["scenario"].get("nucleoli", True) else ["nuclei"],
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}
                        for index, item in enumerate(state.get("prepared", []))]}
     (out / "snapshot" / "dataset.json").write_text(json.dumps(note, ensure_ascii=False, indent=1) + "\n")
@@ -1504,7 +1567,8 @@ def write_manifest(args, manifest: dict, state: dict) -> None:
                       if key not in ("cells", "checksums")},
         "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
             "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
-            "statistics_amendment", "grid_notes", "fragment_review")},
+            "statistics_amendment", "grid_notes", "fragment_review", "comparison_plan", "opening")},
+        "experiment": manifest.get("experiment"),
         "seed": state.get("seed"),
         "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
                        "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],

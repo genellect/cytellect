@@ -44,7 +44,9 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
   const [lower, higher] = words(estimates.metric);
   const paired = estimates.design === "paired";
   const percentagePoints = scale === "fraction";
-  const show = (value: number) => percentagePoints ? formatNumber(value * 100) : formatNumber(value);
+  // Saved differences of a fraction are already in percentage points; unit values are fractions.
+  const show = (value: number) => formatNumber(value);
+  const showValue = (value: number) => percentagePoints ? formatNumber(value * 100) : formatNumber(value);
   const unitText = percentagePoints ? "ポイント" : scale === "log2" ? "log₂ 単位" : unit;
   let headline: string, interval: string | null = null;
   if (difference.estimate != null && difference.ci_low != null && difference.ci_high != null) {
@@ -59,7 +61,7 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
   } else {
     const groups = Object.fromEntries(estimates.groups.map(group => [group.condition, group]));
     const means = groups[control]?.mean != null && groups[treatment]?.mean != null
-      ? `（実験単位の平均：${control} ${show(groups[control].mean!)}、${treatment} ${show(groups[treatment].mean!)} ${unitText}）` : "";
+      ? `（実験単位の平均：${control} ${showValue(groups[control].mean!)}、${treatment} ${showValue(groups[treatment].mean!)}${percentagePoints ? "%" : ` ${unitText}`}）` : "";
     headline = `${metricLabel}を${control}と${treatment}で比べました${means}。`;
     interval = reasons[difference.unavailable_reason ?? ""] ?? null;
     if (comparison.effect != null && comparison.effect_name)

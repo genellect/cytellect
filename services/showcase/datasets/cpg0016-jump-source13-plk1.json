@@ -15,18 +15,19 @@
   "scope": "U2OS-311 (Cas9) cells, 96 h after transfection with pooled CRISPR guides; Cell Painting. Yokogawa CV7000, confocal, NA 0.75, 0.65 um/px (JUMP microscope_config.csv), 1280 x 1080 px, single plane, uint16 TIFF. Channels: Hoechst 33342 (DNA, C01) and SYTO 14 (RNA, C03).",
   "modifications": "None to pixel values or image size (1280 x 1080): two of the five channels (DNA, RNA) are used, each re-saved as an uncompressed single-plane TIFF.",
   "reported_change": {
-   "source": "Chandrasekaran et al. 2025, Methods, 'Within-plate controls': \"CRISPR plates – PLK1; knocking it down kills cells.\"",
-   "comparison": "PLK1 knockout versus non-targeting guides on the same plate",
-   "direction": "fewer nuclei per field after PLK1 knockout",
-   "quantity": "The source states the direction qualitatively (cells are killed); it reports no effect size for nuclei per field.",
-   "scope": "Nuclei are counted from Hoechst; a nucleus count is the number of imaged nuclei, not viability. The demo reports per-field nucleus counts averaged per run (field → sample → run)."
+   "source": "Chandrasekaran ら 2025、Nature Methods、Methods「Within-plate controls」：“CRISPR plates – PLK1; knocking it down kills cells.”",
+   "comparison": "同じプレートの PLK1 ノックアウトと non-targeting（標的のないガイド）",
+   "direction": "PLK1 のノックアウトで細胞が死ぬ（視野の核が減る）",
+   "quantity": "出典は向きだけを述べ、視野あたりの核数の変化量は報告していません",
+   "scope": "核は Hoechst から数えます。核数は画像に写った核の数で、生存率そのものではありません。値は視野 → 試料 → 実験回の順にまとめています。",
+   "independence": "Run1–Run3 は日付の異なるバッチの別のプレートです。出典は各プレートを播種から 96 時間で固定したと述べていますが、別々に播種した独立した実験であるとは明記していません。デモではこの記録をもとに、独立した実験回として扱っています。"
   },
   "caveats": [
-   "Run1–Run3 are plates CP-CC9-R1-01, -R2-01 and -R3-01 from the batches 20220914_Run1, 20221009_Run2 and 20221017_Run3. The source states that each CRISPR plate was seeded and fixed 96 h later, so plates of batches dated weeks apart were cultured separately; it does not state explicitly that the replicate plates were seeded, transfected and stained as independent experiments. The demo treats the three runs as independent experiments on this basis.",
-   "The dates are those in the batch names; whether they are the imaging dates is not stated.",
-   "One field (site 5, the centre of the 3 x 3 sites) of one well per condition and run: A02 (non-targeting) and A23 (PLK1), mirrored edge-column control wells of the published plate map. With three runs the paired test has low power; read the per-run values and the confidence interval, not the p-value alone.",
-   "A nucleus count is the number of nuclei imaged in the field, not a viability or proliferation measure. PLK1 knockout also leaves large and irregular nuclei; the demo does not interpret their shape.",
-   "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images.",
+   "Run1–Run3 は、バッチ 20220914_Run1、20221009_Run2、20221017_Run3 のプレート CP-CC9-R1-01、R2-01、R3-01 です。出典は各プレートを播種から 96 時間で固定したと述べており、日付が数週間離れたプレートは別々に培養されたと考えられます。ただし、別々に播種・導入・染色した独立した実験であるとは明記していません。デモではこの記録をもとに、3 回を独立した実験回として扱っています。",
+   "日付はバッチ名の日付です。撮影日かどうかは出典に書かれていません。",
+   "各実験回・各条件で 1 ウェル 1 視野（3 × 3 の中央の視野 5）です。ウェルは公開されたプレート配置の対照 A02（non-targeting）と A23（PLK1）です。実験回 3 の対応のある検定は検出力が低いので、p 値だけでなく、実験回ごとの値と信頼区間を確かめてください。",
+   "核数は視野に写った核の数で、生存率や増殖率そのものではありません。PLK1 のノックアウトでは大きく不規則な核や、断片化した核の塊も見え、塊は小さな物体に分かれて検出・計数されることがあります。両群に同じ検出を当て、物体の大きさによる除外はしていません。デモでは核の形を解釈しません。",
+   "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
   ]
  },

@@ -86,13 +86,19 @@ def comparison_estimates(control: Sequence[float], treatment: Sequence[float], *
     rank = test in ("mann-whitney-u", "wilcoxon")
     few = "too_few_pairs" if paired else "too_few_units"
     positive = bool(c.size and t.size and np.all(c > 0) and np.all(t > 0))
+    # A fraction's difference is reported in percentage points (×100); its unit values stay fractions.
+    points = scale == "fraction"
+    to_points = (lambda value: value * 100) if points else None
+    unit = " in percentage points" if points else ""
     if rank:
         difference = ratio = _unavailable("rank_test")
     else:
         if paired:
-            difference = _interval(_mean_interval(t - c, few), "mean of per-run differences (treatment - control)")
+            difference = _interval(_mean_interval(t - c, few),
+                                   f"mean of per-run differences (treatment - control){unit}", to_points)
         else:
-            difference = _interval(_welch_interval(c, t), "difference of group means (treatment - control), Welch")
+            difference = _interval(_welch_interval(c, t),
+                                   f"difference of group means (treatment - control), Welch{unit}", to_points)
         if scale != "ratio":
             ratio = _unavailable("ratio_not_applicable")
         elif not positive:
@@ -107,7 +113,7 @@ def comparison_estimates(control: Sequence[float], treatment: Sequence[float], *
     if paired:
         for pair, before, after in zip(pairs or [], c, t, strict=True):
             runs.append({"pair": pair, "control": float(before), "treatment": float(after),
-                         "difference": float(after - before),
+                         "difference": float((after - before) * (100 if points else 1)),
                          "ratio": float(after / before) if scale == "ratio" and before > 0 and after > 0 else None})
     return ComparisonEstimates.model_validate({
         "control": control_label, "treatment": treatment_label, "design": design, "test": test, "metric": metric,

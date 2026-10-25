@@ -66,7 +66,11 @@ export type RecordedOptions = Record<string, Record<string, Array<number | null>
 export interface ProposalExample {label: string; instruction: string}
 /** Optional files from the demo build; absence leaves the controls as they are. */
 /** `snapshot/dataset.json`: source and limits of the demo's public images. */
-export interface ShowcaseDataset {title: string; attribution: string; licence: string; licenceUrl: string; sourceUrl: string; caveats: string[]}
+export interface ShowcaseDataset {title: string; attribution: string; licence: string; licenceUrl: string; sourceUrl: string; caveats: string[];
+  /** Region sets the demo recorded; null keeps every region (older recordings). */
+  regions: Array<"nuclei" | "nucleoli" | "nucleoplasm"> | null;
+  /** The change the source reports, shown apart from the demo's own measurement (X-03). */
+  reported: {source: string; comparison: string; direction: string; quantity: string; scope: string; independence?: string} | null}
 const httpsUrl = (value: unknown) => {try {return typeof value === "string" && new URL(value).protocol === "https:" ? value : "";} catch {return "";}};
 export function validDataset(value: unknown): ShowcaseDataset | null {
   if (!value || typeof value !== "object") return null;
@@ -74,7 +78,17 @@ export function validDataset(value: unknown): ShowcaseDataset | null {
   const text = (key: string) => typeof record[key] === "string" ? (record[key] as string).trim() : "";
   if (!text("title") || !text("attribution")) return null;
   return {title: text("title"), attribution: text("attribution"), licence: text("licence"), licenceUrl: httpsUrl(record.licenceUrl), sourceUrl: httpsUrl(record.sourceUrl),
-    caveats: Array.isArray(record.caveats) ? record.caveats.filter((item): item is string => typeof item === "string" && !!item.trim()).slice(0, 8) : []};
+    caveats: Array.isArray(record.caveats) ? record.caveats.filter((item): item is string => typeof item === "string" && !!item.trim()).slice(0, 8) : [],
+    regions: Array.isArray(record.regions) ? record.regions.filter((item): item is "nuclei" | "nucleoli" | "nucleoplasm" => item === "nuclei" || item === "nucleoli" || item === "nucleoplasm") : null,
+    reported: reportedChange(record.reportedChange)};
+}
+function reportedChange(value: unknown): ShowcaseDataset["reported"] {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const keys = ["source", "comparison", "direction", "quantity", "scope"] as const;
+  if (!keys.every(key => typeof record[key] === "string" && (record[key] as string).trim())) return null;
+  const independence = typeof record.independence === "string" && record.independence.trim() ? {independence: record.independence.trim()} : {};
+  return {...Object.fromEntries(keys.map(key => [key, (record[key] as string).trim()])), ...independence} as NonNullable<ShowcaseDataset["reported"]>;
 }
 export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null}> {
   const read = async (name: string) => {

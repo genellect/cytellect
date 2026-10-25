@@ -26,7 +26,8 @@ describe("result summary", () => {
   });
 
   it("uses percentage points for fractions and never a ratio", () => {
-    const summary = summarize(base({metric: "positive_fraction", scale: "fraction", difference: interval(0.15, 0.05, 0.25),
+    // Saved fraction differences are in percentage points (comparison-estimates/1.0.0).
+    const summary = summarize(base({metric: "positive_fraction", scale: "fraction", difference: interval(15, 5, 25),
       ratio: interval(null, null, null, "ratio_not_applicable")}), {method: "paired t-test", p_value: 0.0004}, "陽性の割合", "");
     expect(summary.headline).toBe("陽性の割合は、DMSOに比べDrugで 15 ポイント 高い値でした。");
     expect(summary.interval).toBe("実験回ごとの差の平均（Drug − DMSO）の 95% 信頼区間：5 〜 25 ポイント");
