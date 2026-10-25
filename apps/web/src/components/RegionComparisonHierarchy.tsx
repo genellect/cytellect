@@ -56,7 +56,7 @@ export default function RegionComparisonHierarchy({result,revisionLabel,disabled
   <h3>実験単位の値をたどる</h3>
   <p className={styles.context}><b>{comparisonLabel(result)}</b><br/>{revisionLabel} · 単位 {result.unit}{result.channel?.stain?` · 標識 ${result.channel.stain}`:""}</p>
   <p>視野内の中央値 → 試料内の視野平均 → 実験単位内の試料平均。各段階を開くと、この結果に保存された値と採否を確認できます。</p>
-  {result.spec.selection.channel_id===null&&<p>面積測定にはチャンネルを使用していません。元画像を開いた際の蛍光チャンネルは、領域を確認するための表示です。</p>}
+  {("channel_id" in result.spec.selection?result.spec.selection.channel_id:null)===null&&<p>{result.spec.selection.source==="field-summary"?"核数の":"面積"}測定にはチャンネルを使用していません。元画像を開いた際の蛍光チャンネルは、領域を確認するための表示です。</p>}
   {disabled&&<p className={styles.notice}>処理中、または未保存の領域・設定・実験情報があるため、画像への切り替えを停止しています。保存済みの集計は展開して確認できます。</p>}
   {!hierarchy.ok?<p className={styles.notice} role="status">集計の対応関係を確認できません。この結果の集計表・採否・出典ファイルをご確認ください。保存済みの図とダウンロードは引き続き利用できます。</p>:<>
    <div className={styles.units}>{hierarchy.design==="paired"?hierarchy.pairs.map(pair=><details className={styles.pair} key={pair.key} aria-label={`対応ペア ${pair.pair}`}>

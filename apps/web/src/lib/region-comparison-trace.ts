@@ -46,7 +46,7 @@ function sourceTarget(result:RegionComparisonTraceInput,field:Row,source:Row|und
  try{
   if(!source)return null;
   const selection=result.spec.selection;
-  const channelId=selection.channel_id;
+  const channelId="channel_id" in selection?selection.channel_id??null:null;
   requireValue(channelId===null||(typeof channelId==="string"&&channelId.trim().length>0));
   const region=record(source.region_set),info=record(source.image_info),metadata=record(source.metadata);
   const shape=info.shape;

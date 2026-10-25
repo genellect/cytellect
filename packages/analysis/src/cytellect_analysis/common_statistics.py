@@ -18,6 +18,8 @@ from .common_unit_inference import (
 from .comparison_estimates import comparison_estimates
 from .compartment_observations import LOG2, acquisition_proxy, compartment_comparison_source
 from .compartment_observations import SAFE_ERROR_CODES as COMPARTMENT_ERRORS
+from .descriptive_contracts import RegionSelection
+from .field_summary_source import prepare_field_summary_observations
 from .gfp_selection import SAFE_ERROR_CODES as GFP_GATE_ERRORS
 from .gfp_selection import gate_of, gate_source_observations, gate_warnings
 from .region_comparison import SAFE_ERROR_CODES as COMPARISON_ERRORS
@@ -38,14 +40,22 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | fr
     "common_statistics_matched_gfp_selection_required", "common_statistics_matched_intensity_policy_required",
     "common_statistics_matched_observations_required",
     "comparison_estimates_single_contrast_required", "comparison_estimates_unknown_metric",
+    "field_summary_positivity_not_connected", "field_summary_nuclear_source_required", "field_summary_status_mismatch", "field_summary_region_identity",
+    "field_summary_invalid_calibration",
 })
 
 
-def _prepared(report, config, request, summaries=None, nuclear=None):
+def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None):
     compartment = request.selection.source == "compartment-summary"
+    per_field = request.selection.source == "field-summary"
     if compartment:
         snapshot, observations, sources, unit, failed = compartment_comparison_source(
-            report, config, request.selection, summaries)
+            report, config, request.selection, summaries, shapes)
+    elif per_field:
+        area = RegionSelection(source="region", region_set_id=request.selection.region_set_id, channel_id=None,
+                               metric="area_px")
+        snapshot, *_ = _source(report, config, SimpleNamespace(selection=area))
+        observations, sources, unit, failed = prepare_field_summary_observations(report, snapshot, request.selection)
     else:
         snapshot, observations, sources, unit, failed = _source(report, config, request)
     gate_record = None
@@ -56,8 +66,8 @@ def _prepared(report, config, request, summaries=None, nuclear=None):
         snapshot, observations, report, request,
         control_fields=None if gate_record is None else gate_record["control_field_ids"])
     acquisition, warnings = _acquisition(sources, snapshot, selected, ledger,
-                                         acquisition_proxy(request) if compartment else request)
-    if not request.selection.metric.startswith("area_"):
+                                         acquisition_proxy(request) if compartment or per_field else request)
+    if not request.selection.metric.startswith("area_") and not per_field:
         selected_ids = {(row["field_id"], row["region_id"]) for row in selected}
         for fid, table in report["field_tables"].items():
             for row in table["rows"]:
@@ -67,7 +77,7 @@ def _prepared(report, config, request, summaries=None, nuclear=None):
     fields, samples, units = aggregate_unit_observations(pd.DataFrame(selected), "value")
     channel = (next(p["channel"] for p in sources[0]["channel_provenance"]
                     if p["channel"]["channel_id"] == request.selection.channel_id)
-               if request.selection.channel_id is not None else None)
+               if getattr(request.selection, "channel_id", None) is not None else None)
     if missing:
         warnings.append("missing_outcomes_excluded_not_assumed_missing_at_random")
     if failed:
@@ -104,13 +114,14 @@ def _counts(prepared, conditions, paired=False):
     return counts
 
 
-def analyze_region_comparison(report, config, request, summaries=None, nuclear=None):
+def analyze_region_comparison(report, config, request, summaries=None, nuclear=None, shapes=None):
     """``summaries`` (field -> compartment-summary.json) is required only for a
-    compartment-summary selection; region selections ignore it. ``nuclear`` is the
+    compartment-summary selection; region selections ignore it. ``shapes`` (field ->
+    nucleus -> nucleolar shape) is required only for nucleolar eccentricity. ``nuclear`` is the
     bound adopted nuclear source for a GFP nucleus filter on a nucleoplasm revision
     (a nuclear revision is its own source)."""
     request = RegionComparisonRequestV2.model_validate(request)
-    data = _prepared(report, config, request, summaries, nuclear)
+    data = _prepared(report, config, request, summaries, nuclear, shapes)
     units = pd.DataFrame(data["unit_summary"])
     paired = request.design.kind == "paired"
     comparisons = []

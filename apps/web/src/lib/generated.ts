@@ -2139,6 +2139,33 @@ export interface components {
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
         };
+        /**
+         * CompartmentSummarySelectionV11
+         * @description Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.
+         *
+         *     Like 1.0.0, values describe nuclei with at least one adopted nucleolus; a
+         *     candidate-free nucleus is missing (no_nucleolus), never zero.
+         */
+        CompartmentSummarySelectionV11: {
+            /**
+             * Source
+             * @constant
+             */
+            source: "compartment-summary";
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.1.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Channel Id */
+            channel_id?: string | null;
+            /** Metric */
+            metric: ("log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
+            /** Gfp Gate */
+            gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+        };
         /** ContourView */
         ContourView: {
             /** Id */
@@ -2564,6 +2591,36 @@ export interface components {
             repeat_length?: number | null;
             /** Pixel Size Um */
             pixel_size_um?: number | null;
+        };
+        /**
+         * FieldSummarySelection
+         * @description One observation per field: nucleus counts and positivity among adopted nuclei.
+         *
+         *     Positivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0
+         *     or exploratory gfp-gate/3.0.0) with keep="positive"; the gate channel is the
+         *     channel that is judged, whatever its stain.
+         */
+        FieldSummarySelection: {
+            /**
+             * Source
+             * @constant
+             */
+            source: "field-summary";
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction";
+            /** Positivity */
+            positivity?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
         };
         /** FieldView */
         FieldView: {
@@ -4239,7 +4296,7 @@ export interface components {
              */
             version: "2.0.0";
             /** Selection */
-            selection: components["schemas"]["RegionSelection"] | components["schemas"]["CompartmentSummarySelection"];
+            selection: components["schemas"]["RegionSelection"] | components["schemas"]["CompartmentSummarySelection"] | components["schemas"]["CompartmentSummarySelectionV11"] | components["schemas"]["FieldSummarySelection"];
             design: components["schemas"]["ComparisonDesign"];
             /** Conditions */
             conditions: string[];

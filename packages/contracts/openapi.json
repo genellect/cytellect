@@ -5937,6 +5937,86 @@
         "title": "CompartmentSummarySelection",
         "type": "object"
       },
+      "CompartmentSummarySelectionV11": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "compartment-summary",
+            "title": "Source"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Version"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "log2_nucleoplasm_over_nucleolus",
+                  "nucleolar_area_fraction",
+                  "nucleolar_count"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
+                ]
+              }
+            ],
+            "title": "Metric"
+          },
+          "gfp_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gfp Gate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "version",
+          "region_set_id",
+          "metric"
+        ],
+        "title": "CompartmentSummarySelectionV11",
+        "description": "Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.\n\nLike 1.0.0, values describe nuclei with at least one adopted nucleolus; a\ncandidate-free nucleus is missing (no_nucleolus), never zero."
+      },
       "ContourView": {
         "properties": {
           "id": {
@@ -7211,6 +7291,61 @@
           "acquisition_date"
         ],
         "title": "FieldMetadata"
+      },
+      "FieldSummarySelection": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "field-summary",
+            "title": "Source"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "nucleus_count",
+              "nucleus_density_per_mm2",
+              "positive_count",
+              "positive_fraction"
+            ],
+            "title": "Metric"
+          },
+          "positivity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positivity"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "region_set_id",
+          "metric"
+        ],
+        "title": "FieldSummarySelection",
+        "description": "One observation per field: nucleus counts and positivity among adopted nuclei.\n\nPositivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0\nor exploratory gfp-gate/3.0.0) with keep=\"positive\"; the gate channel is the\nchannel that is judged, whatever its stain."
       },
       "FieldView": {
         "properties": {
@@ -10961,16 +11096,15 @@
               },
               {
                 "$ref": "#/components/schemas/CompartmentSummarySelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelectionV11"
+              },
+              {
+                "$ref": "#/components/schemas/FieldSummarySelection"
               }
             ],
-            "title": "Selection",
-            "discriminator": {
-              "propertyName": "source",
-              "mapping": {
-                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
-                "region": "#/components/schemas/RegionSelection"
-              }
-            }
+            "title": "Selection"
           },
           "design": {
             "$ref": "#/components/schemas/ComparisonDesign"

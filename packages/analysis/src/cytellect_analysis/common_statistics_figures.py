@@ -47,11 +47,26 @@ COMPARTMENT_LABELS = {
     "log2_nucleoplasm_over_nucleolus": ("Nucleoplasm / nucleolus mean", "核質 / 核小体 平均輝度比"),
     "nucleolar_area_fraction": ("Nucleolar area fraction of nucleus", "核に占める核小体面積比"),
     "nucleolar_count": ("Nucleoli per nucleus", "核あたりの核小体数"),
+    "nucleolar_area_px": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
+    "nucleolar_area_um2": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
+    "nucleolar_eccentricity": ("Nucleolar eccentricity", "核小体の離心率"),
+}
+FIELD_SUMMARY_LABELS = {
+    "nucleus_count": ("Nuclei per field", "視野あたりの核数"),
+    "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
 }
 
 
-def compartment_methods_sentence(axis, metric):
-    return (f"{axis} is a per-nucleus compartment-summary value (selection 1.0.0): {COMPARTMENT_DEFINITIONS[metric]}. "
+def field_summary_methods_sentence(axis, metric):
+    from .field_summary_source import DEFINITIONS
+    return (f"{axis} is one value per field (field-summary selection 1.0.0): {DEFINITIONS[metric]}. "
+            "Fields, not nuclei, are the observations; explicitly excluded nuclei are not counted and excluded or "
+            "failed fields are not observations. A nucleus count is the number of imaged nuclei, not a viability or "
+            "proliferation measure, and it depends on how fields were chosen.")
+
+
+def compartment_methods_sentence(axis, metric, version="1.0.0"):
+    return (f"{axis} is a per-nucleus compartment-summary value (selection {version}): {COMPARTMENT_DEFINITIONS[metric]}. "
             "Nuclei, not regions, are the observations; the summary was bound to the reviewed nucleoplasm mask by "
             "exact nucleus identity and area. Missing values keep their recorded reason and were not replaced with zero.")
 
@@ -61,7 +76,7 @@ def _label(source, ja=False):
     metric = source["metric"]
     labels = {"area_px": ("Region area", "領域面積"), "area_um2": ("Region area", "領域面積"),
               "mean": ("Mean intensity", "平均輝度"), "median": ("Median intensity", "輝度中央値"),
-              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS}
+              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS}
     label = labels[metric.removesuffix("_corrected")][ja]
     if channel:
         label = f"{channel['label']}: {label}"
@@ -82,9 +97,13 @@ def common_statistics_methods(result):
              f"Source revision: {result['revision_id']}; fingerprint: {result['source_fingerprint']}.",
              f"Inference core: {result['inference_version']}; request protocol: {spec['version']}.",
              f"The inferential unit was {spec['design']['unit_definition']}.",
-             "Region measurements were reduced to a median within each field, an unweighted mean of fields "
-             "within each sample, and an unweighted mean of samples within each independent experimental unit. "
-             "Regions and fields were not treated as independent replicates.",
+             ("Each field contributed one field value, then fields were reduced to an unweighted mean within each "
+              "sample and samples to an unweighted mean within each independent experimental unit. "
+              "Fields were not treated as independent replicates."
+              if spec.get("selection", {}).get("source") == "field-summary" else
+              "Region measurements were reduced to a median within each field, an unweighted mean of fields "
+              "within each sample, and an unweighted mean of samples within each independent experimental unit. "
+              "Regions and fields were not treated as independent replicates."),
              "Conditions in the declared analysis: " + ", ".join(spec["conditions"]) + ".",
              "The researcher selected the method explicitly. No normality pretest or observed p-value selected a method.",
              "Reviewed original-coordinate regions and saved original-pixel measurements were used. "
@@ -96,7 +115,10 @@ def common_statistics_methods(result):
             ch = source["channel"]
             lines.append(f"{axis} channel ID: {ch['channel_id']}; declared stain: {ch.get('stain') or 'not recorded'}.")
         if source["metric"] in COMPARTMENT_DEFINITIONS:
-            lines.append(compartment_methods_sentence(axis, source["metric"]))
+            lines.append(compartment_methods_sentence(axis, source["metric"],
+                                                      spec.get("selection", {}).get("version", "1.0.0")))
+        elif source["metric"] in FIELD_SUMMARY_LABELS:
+            lines.append(field_summary_methods_sentence(axis, source["metric"]))
         elif source["metric"].endswith("_corrected"):
             automatic = any((item.get("measurement") or {}).get("mode") == "automatic_background" for item in source["source_fields"])
             basis = "saved automatic background candidate median" if automatic else "saved confirmed background ROI median"

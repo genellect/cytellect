@@ -9,6 +9,7 @@ import {commonWarnings} from "@/lib/common-statistics";
 import {createComparisonAdapter,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
+import {metricUsesChannel} from "@/lib/workspace/metric-catalog";
 import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
@@ -37,7 +38,7 @@ export interface ConnectedResultsProps {
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
 interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string}
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
-const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比"};
+const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
 const resultSources=(result:ResultPayload):SavedSource[]=>result.source_fields||result.x_source?.source_fields||result.y_source?.source_fields||[];
 const fail=(error:unknown)=>error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。";
 
@@ -119,7 +120,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
   const designDefaults=declared;
   const independenceMissing=!!experiment&&!experiment.independence_confirmed&&operation!=="distribution";
-  const needsDates=operation!=="distribution"&&(!metric.startsWith("area_")||(operation==="association"&&!xMetric.startsWith("area_")));
+  const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric)));
   const datesMissing=!!experiment&&needsDates&&sources.some(source=>source.field in derived&&!source.metadata.acquisition_date?.trim());
   useEffect(()=>{if(operation!=="comparison"||!designDefaults||contrasts.length)return;setPaired(true);setContrasts(designDefaults.contrasts);
     if(!unit.trim())setUnit("独立に行った実験回（別々に播種・処理・染色した実験日）");if(!pairing.trim())setPairing("同じ実験回の対照と処理");},[operation,designDefaults?.contrasts.join("\n")]);// eslint-disable-line react-hooks/exhaustive-deps

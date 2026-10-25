@@ -492,18 +492,18 @@ The group-comparison workflow ([goals](drafts/group-comparison/goals.md),
 [requirements](drafts/group-comparison/requirements.md)) adds the contracts below.
 They are additive: no existing request, result, measurement or figure schema is
 changed, and every saved workspace, statistic, figure and public-demo recording
-replays under its original version. Until each implementation is connected, the
-new observation sources and estimates are not accepted by the descriptive or
-common-statistics endpoints, and the interface does not offer them.
+replays under its original version. The new observation sources and estimates are
+accepted by the common-statistics comparison endpoint (two-screen comparisons); the
+descriptive endpoint (one-screen descriptions) does not accept them yet.
 
 ### Version and compatibility table
 
 | Contract | Version | Status | Compatibility |
 |---|---|---|---|
 | Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
-| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Implemented (`field_summary.py`); connection to the endpoints pending | New source; existing sources unchanged |
-| Compartment-summary selection | 1.1.0 | Eccentricity implemented (`nucleolar_shape.py`); connection pending | 1.0.0 requests and results unchanged |
-| Comparison estimates | `comparison-estimates/1.0.0` | Implemented (`comparison_estimates.py`); connection pending | Added beside, never replacing, the saved test results |
+| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
+| Compartment-summary selection | 1.1.0 | Comparisons (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
+| Comparison estimates | `comparison-estimates/1.0.0` | Opt-in `estimates` on common-statistics 2.0.0 comparisons with one contrast | Absent from historical requests and results |
 | Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
 
 ### Experiment design 1.0.0
@@ -561,6 +561,12 @@ selected nuclear region set (`field_summary.field_summary_values`):
 - Aggregation is unchanged: the single field value is the field summary, then the
   sample mean and the unit mean. The count is a count of imaged nuclei, not a
   viability or proliferation measure, and it depends on field selection.
+- Only nuclear region sets are counted: StarDist nuclei or researcher-supplied
+  (manual/imported) regions. Positive regions, nuclear compartments and Cellpose
+  cells are refused (`field_summary_nuclear_source_required`).
+- Acquisition review follows pixel area: equal spatial sampling must be confirmed
+  and all compared fields must share one calibration, because the count depends on
+  the imaged area and resolution.
 
 ### Compartment-summary selection 1.1.0
 
@@ -576,6 +582,14 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
   object (`λmax = 0`) is not measured; a one-pixel-wide line has `e = 1`. The nucleus value is the area-weighted mean of its measured objects;
   if none is measurable it is missing (`degenerate_objects`). Larger values mean
   more elongated nucleoli; rounder nucleoli have smaller values.
+- Eccentricity is computed when the comparison runs, from each field's adopted
+  nuclear mask (with its exclusions) and adopted nucleolar mask, the same inputs as
+  the saved summary. Every summarized nucleus must have the same nuclear and
+  nucleolar-union pixel areas and nucleolus count in these masks, otherwise the
+  comparison is refused (`compartment_summary_shape_mismatch`).
+- `nucleolar_area_um2` needs a confirmed calibration (`compartment_summary_calibration_required`);
+  area and eccentricity follow the pixel-area acquisition review (equal sampling,
+  one calibration), µm² the calibrated-area review.
 
 ### Comparison estimates 1.0.0
 
