@@ -81,6 +81,8 @@ async function noOverflow(page: Page) {
   await page.setViewportSize({width: 1440, height: 1000});
 }
 const notRecorded = (page: Page) => page.getByRole("status").filter({hasText: "公開デモに記録していません"});
+// A shown result table: the experiment details above the results start folded once an experiment exists.
+const shownTable = (region: Locator) => region.locator("table").filter({visible: true}).first();
 const stage = (page: Page) => page.getByRole("img").filter({has: page.locator("image")}).first();
 const regions = (page: Page) => page.locator("svg path[data-region]");
 async function regionBoxes(page: Page) {
@@ -264,11 +266,11 @@ test("demo: image, outline, measurement, statistics and figure features run with
   // Statistics: the opening result and its group comparison, then their figures.
   await header.getByRole("button", {name: "統計", exact: true}).click();
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(results.locator("table").first()).toBeVisible({timeout: live});
+  await expect(shownTable(results)).toBeVisible({timeout: live});
   await calculate(page);
   await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
   await calculate(page);
-  await expect(results.locator("table").first()).toBeVisible();
+  await expect(shownTable(results)).toBeVisible();
   await expect(notRecorded(page)).toHaveCount(0);
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
@@ -328,13 +330,9 @@ test("phones run the guided operations from the recorded tour", async ({page}) =
   // Statistics, its figure and the publication package, as 「使い方」 leads.
   await page.goto(sceneUrl(OPENING, "step=statistics"));
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(results.locator("table").first()).toBeVisible({timeout: live});
-  // The confirmation covers every field, so it can be given once all of them have loaded.
-  const reviewed = results.getByLabel("測定領域と採用する視野を確認した");
-  if (!await reviewed.isChecked()) await reviewed.check();
-  await results.getByRole("button", {name: "計算", exact: true}).click();
-  await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
-  expect(await alerts(page)).toEqual([]);
+  await expect(shownTable(results)).toBeVisible({timeout: live});
+  // The opening comparison asks for both confirmations, given once every field has loaded.
+  await calculate(page);
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   const figure = page.getByRole("region", {name: "図の作成・保存"});
   const update = figure.getByRole("button", {name: "図を更新", exact: true});
@@ -358,6 +356,15 @@ async function openSettings(page: Page) {
   if (!(await inspector.count())) await page.locator("header").getByRole("button", {name: "設定パネル"}).click();
   await expect(inspector).toBeVisible();
   return inspector;
+}
+/** A metric of a fixed region (such as nucleolar count) hides the region choice; area brings it back. */
+async function chooseMetric(page: Page, region: string, metric: string, channel: string | null) {
+  const side = page.getByRole("complementary", {name: "解析対象"});
+  const choice = side.getByRole("combobox", {name: "領域", exact: true});
+  if (!await choice.count()) await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
+  await choice.selectOption(region);
+  await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
+  if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
 }
 async function fillIfEmpty(control: Locator, value: string) {
   if (await control.count() && !await control.inputValue()) await control.fill(value);
@@ -405,7 +412,7 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`every field, reg
     }
   }
   await header.getByRole("button", {name: "統計", exact: true}).click();
-  await expect(page.getByRole("region", {name: "測定結果の統計解析"}).locator("table").first()).toBeVisible({timeout: live});
+  await expect(shownTable(page.getByRole("region", {name: "測定結果の統計解析"}))).toBeVisible({timeout: live});
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   const history = page.getByRole("region", {name: "図の作成・保存"}).getByRole("combobox", {name: "保存した図", exact: true});
   for (const value of await history.locator("option:not([disabled])").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))) {
@@ -437,7 +444,7 @@ test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows re
     await idle(page);
     await header.getByRole("button", {name: "統計", exact: true}).click();
     const results = page.getByRole("region", {name: "測定結果の統計解析"});
-    await expect(results.locator("table").first()).toBeVisible({timeout: live});
+    await expect(shownTable(results)).toBeVisible({timeout: live});
     await calculate(page);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
     await calculate(page);
@@ -463,7 +470,10 @@ test("operations the recording does not hold are explained at once, without the 
   await expect(recorded).toContainText("0.5");
   await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
-  // A hand correction of an outline is explained at once.
+  // A hand correction of an outline, made one field at a time, is explained at once.
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
+  await expect(regions(page).first()).toBeAttached({timeout: live});
   await selectRegion(page, (await largestRegion(page)).id);
   const started = Date.now();
   await page.getByRole("button", {name: "選択領域を削除", exact: true}).click();
@@ -481,9 +491,8 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await header.getByRole("button", {name: "統計", exact: true}).click();
-  const side = page.getByRole("complementary", {name: "解析対象"});
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(results.locator("table").first()).toBeVisible({timeout: live});
+  await expect(shownTable(results)).toBeVisible({timeout: live});
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
     ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],
@@ -492,12 +501,10 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
     ["nucleoli", "mean", "eu5", "comparison"],
   ];
   for (const [region, metric, channel, kind] of cases) {
-    await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
-    await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
-    if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
+    await chooseMetric(page, region, metric, channel);
     await operation.selectOption(kind);
     await calculate(page);
-    await expect(results.locator("table").first()).toBeVisible();
+    await expect(shownTable(results)).toBeVisible();
     await expect(notRecorded(page)).toHaveCount(0);
   }
   // Without confirmed independence the comparison is descriptive and an association is not offered (E-05).
@@ -515,14 +522,11 @@ test("an AI example on another field, then measuring and statistics of each regi
   const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  const side = page.getByRole("complementary", {name: "解析対象"});
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   const statistics = async (region: string, metric: string, channel: string | null, kind: string) => {
     await header.getByRole("button", {name: "統計", exact: true}).click();
-    await expect(results.locator("table").first()).toBeVisible({timeout: live});
-    await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
-    await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
-    if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
+    await expect(shownTable(results)).toBeVisible({timeout: live});
+    await chooseMetric(page, region, metric, channel);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption(kind);
     await calculate(page);
     await expect(notRecorded(page)).toHaveCount(0);
