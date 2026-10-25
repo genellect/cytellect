@@ -1037,8 +1037,10 @@ def rederive_in_browser(seed_zip: Path, seed_data: Path, work: Path) -> dict:
                            "--cache", str(work / "pyodide-cache")], cwd=harness.parent, capture_output=True, text=True,
                           env={**os.environ, "NODE_USE_ENV_PROXY": "1"}, timeout=3600)
     if done.returncode:
+        # Pyodide prints its minified sources around an error; keep the whole output to read the cause.
+        (work / "rederive.log").write_text(done.stdout + "\n--- stderr ---\n" + done.stderr)
         sys.stderr.write(done.stdout[-4000:] + done.stderr[-4000:])
-        raise SystemExit("rederive in the in-browser runtime failed")
+        raise SystemExit(f"rederive in the in-browser runtime failed (full output: {work / 'rederive.log'})")
     result = next(json.loads(line) for line in done.stdout.splitlines() if line.startswith('{"step":"rederive"'))["json"]
     return {key: result[key] for key in ("statistics", "figure_render")}
 
