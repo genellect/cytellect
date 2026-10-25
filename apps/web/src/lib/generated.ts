@@ -2019,6 +2019,7 @@ export interface components {
             method_settings: {
                 [key: string]: unknown;
             };
+            estimates?: components["schemas"]["ComparisonEstimates"] | null;
             /** Figure */
             figure: {
                 [key: string]: unknown;
@@ -2040,6 +2041,54 @@ export interface components {
             unit_definition: string;
             /** Pairing Basis */
             pairing_basis?: string | null;
+        };
+        /** ComparisonEstimates */
+        ComparisonEstimates: {
+            /**
+             * Protocol
+             * @default comparison-estimates/1.0.0
+             * @constant
+             */
+            protocol: "comparison-estimates/1.0.0";
+            /**
+             * Direction
+             * @default treatment_minus_control
+             * @constant
+             */
+            direction: "treatment_minus_control";
+            /** Control */
+            control: string;
+            /** Treatment */
+            treatment: string;
+            /**
+             * Design
+             * @enum {string}
+             */
+            design: "independent" | "paired";
+            /**
+             * Test
+             * @enum {string}
+             */
+            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon";
+            /** Metric */
+            metric: string;
+            /**
+             * Scale
+             * @enum {string}
+             */
+            scale: "ratio" | "difference" | "fraction" | "log2";
+            /** N Control */
+            n_control: number;
+            /** N Treatment */
+            n_treatment: number;
+            /** N Pairs */
+            n_pairs: number | null;
+            difference: components["schemas"]["EstimateInterval"];
+            ratio: components["schemas"]["EstimateInterval"];
+            /** Groups */
+            groups: components["schemas"]["GroupEstimate"][];
+            /** Runs */
+            runs: components["schemas"]["RunEstimate"][];
         };
         /** ComparisonFamily */
         ComparisonFamily: {
@@ -2351,6 +2400,24 @@ export interface components {
             association: ("pearson" | "spearman") | null;
             x?: components["schemas"]["DraftMetric"] | null;
             y?: components["schemas"]["DraftMetric"] | null;
+        };
+        /** EstimateInterval */
+        EstimateInterval: {
+            /** Estimate */
+            estimate: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /**
+             * Confidence Level
+             * @default 0.95
+             */
+            confidence_level: number;
+            /** Basis */
+            basis: string | null;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
         };
         /** Exclusion */
         Exclusion: {
@@ -2665,6 +2732,23 @@ export interface components {
              * @enum {string}
              */
             unit: "nucleus" | "cell_roi";
+        };
+        /** GroupEstimate */
+        GroupEstimate: {
+            /** Condition */
+            condition: string;
+            /** N */
+            n: number;
+            /** Mean */
+            mean: number | null;
+            /** Sd */
+            sd: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4186,6 +4270,8 @@ export interface components {
             test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon";
             /** Omnibus */
             omnibus?: ("welch-anova" | "kruskal-wallis") | null;
+            /** Estimates */
+            estimates?: "comparison-estimates/1.0.0" | null;
         };
         /** RegionComparisonView */
         RegionComparisonView: {
@@ -5162,6 +5248,22 @@ export interface components {
             reviewed: boolean;
             /** Created */
             created: number;
+        };
+        /**
+         * RunEstimate
+         * @description One independent run of a paired comparison, from the saved pair ledger.
+         */
+        RunEstimate: {
+            /** Pair */
+            pair: string;
+            /** Control */
+            control: number;
+            /** Treatment */
+            treatment: number;
+            /** Difference */
+            difference: number;
+            /** Ratio */
+            ratio: number | null;
         };
         /**
          * RuntimeSettingsDraft

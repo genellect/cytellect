@@ -50,6 +50,8 @@ export interface ComparisonChoices {
   kind: CommonPlotKind; width: number; height: number; yLabel: string;
   /** Optional GFP nucleus filter; absent or null compares every nucleus. */
   gfp?: GfpSelectionChoice | null;
+  /** Treatment − control estimates for one declared contrast [treatment, control] (comparison-estimates/1.0.0). */
+  estimates?: boolean;
 }
 export function comparisonRequest(choices: ComparisonChoices): CommonComparisonRequest {
   const conditions = [...new Set(choices.contrasts.flat())];
@@ -66,6 +68,7 @@ export function comparisonRequest(choices: ComparisonChoices): CommonComparisonR
     missingness_confirmed: true, aggregation: "field-median_sample-mean_unit-mean-v1", missingness_policy: "available-observations_require-unexcluded-units-v1",
     plot: {...defaultFigureEdits(), kind: choices.kind, preset: "custom", language: "en", histogram_bins: 10,
       width_inches: choices.width / 25.4, height_inches: choices.height / 25.4, y_label: choices.yLabel},
+    ...(choices.estimates && conditions.length === 2 && choices.contrasts.length === 1 ? {estimates: "comparison-estimates/1.0.0" as const} : {}),
   };
 }
 export function createComparisonAdapter(overrides: Partial<Transport> = {}) {

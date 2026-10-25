@@ -5,6 +5,7 @@ from pydantic import Field, StrictBool, TypeAdapter, field_validator, model_seri
 
 from .contracts import PlotSpec
 from .descriptive_contracts import CompartmentSummarySelection, RegionSelection, _omit_default
+from .group_comparison_contracts import ComparisonEstimates
 from .region_comparison_contracts import (
     AcquisitionReview,
     ComparisonDesign,
@@ -12,7 +13,6 @@ from .region_comparison_contracts import (
     RegionComparisonRequest,
     RegionComparisonResult,
 )
-from .group_comparison_contracts import ComparisonEstimates
 from .regions import RegionModel
 
 

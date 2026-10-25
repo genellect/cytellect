@@ -14,6 +14,8 @@ export interface ResultDesign {
   paired: boolean; rank: boolean; unit: string; pairing: string; confirmed: boolean;
   contrasts: string[][]; xMetric: string; xChannel: string | null;
   gfp?: GfpSelectionChoice | null;
+  /** Request treatment − control estimates (a declared two-group design). */
+  estimates?: boolean;
 }
 export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
   kind: "distribution" | "paired" | "box" | "violin" | "scatter" | "histogram";
@@ -74,7 +76,7 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
     const choices: ComparisonChoices = {metric:design.metric as RegionComparisonMetric | CompartmentComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
       contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
-      kind:design.paired?"paired":"distribution",width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp};
+      kind:design.paired?"paired":"distribution",width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,estimates:design.estimates};
     const request = comparisonRequest(choices);
     return {...request,plot:{...request.plot,...plot,kind:design.paired?"paired":"distribution"}};
   }
