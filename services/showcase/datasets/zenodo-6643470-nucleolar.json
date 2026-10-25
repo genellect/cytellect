@@ -843,27 +843,27 @@
       "channels": [
        {
         "token": "ch1",
+        "stain": "5-EU",
+        "role": "measure",
+        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
+       },
+       {
+        "token": "ch2",
         "stain": "Hoechst",
         "role": "nuclear",
         "reason": "記録された核染色（Hoechst）で、核検出に使う設定です。"
        },
        {
-        "token": "ch2",
+        "token": "ch3",
         "stain": "NPM1",
         "role": "measure",
         "reason": "核小体マーカー NPM1 で核小体を決め、輝度を測定します。"
-       },
-       {
-        "token": "ch3",
-        "stain": "5-EU",
-        "role": "measure",
-        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
        }
       ],
       "metrics": [
        {
         "metric": "mean_raw",
-        "channel": "ch3",
+        "channel": "ch1",
         "region": "nucleus"
        }
       ],
@@ -880,7 +880,7 @@
        {
         "kind": "field-distribution",
         "metric": "mean_raw",
-        "channel": "ch3",
+        "channel": "ch1",
         "region": "nucleus",
         "analysis_index": 0
        }
@@ -893,7 +893,7 @@
       "processing": {
        "version": "1.0.0",
        "nuclei": {
-        "channel": "ch1",
+        "channel": "ch2",
         "detection_max_side_px": null,
         "detector": {
          "engine": "fiji-stardist-2d",
@@ -920,27 +920,27 @@
       "channels": [
        {
         "token": "ch1",
+        "stain": "5-EU",
+        "role": "measure",
+        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
+       },
+       {
+        "token": "ch2",
         "stain": "Hoechst",
         "role": "nuclear",
         "reason": "記録された核染色（Hoechst）で、核検出に使う設定です。"
        },
        {
-        "token": "ch2",
+        "token": "ch3",
         "stain": "NPM1",
         "role": "measure",
         "reason": "核小体マーカー NPM1 で核小体を決め、輝度を測定します。"
-       },
-       {
-        "token": "ch3",
-        "stain": "5-EU",
-        "role": "measure",
-        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
        }
       ],
       "metrics": [
        {
         "metric": "mean_raw",
-        "channel": "ch2",
+        "channel": "ch3",
         "region": "nucleus"
        }
       ],
@@ -957,7 +957,7 @@
        {
         "kind": "field-distribution",
         "metric": "mean_raw",
-        "channel": "ch2",
+        "channel": "ch3",
         "region": "nucleus",
         "analysis_index": 0
        }
@@ -970,7 +970,7 @@
       "processing": {
        "version": "1.0.0",
        "nuclei": {
-        "channel": "ch1",
+        "channel": "ch2",
         "detection_max_side_px": null,
         "detector": {
          "engine": "fiji-stardist-2d",
@@ -997,27 +997,27 @@
       "channels": [
        {
         "token": "ch1",
+        "stain": "5-EU",
+        "role": "measure",
+        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
+       },
+       {
+        "token": "ch2",
         "stain": "Hoechst",
         "role": "nuclear",
         "reason": "記録された核染色（Hoechst）で、核検出に使う設定です。"
        },
        {
-        "token": "ch2",
+        "token": "ch3",
         "stain": "NPM1",
         "role": "measure",
         "reason": "核小体マーカー NPM1 で核小体を決め、輝度を測定します。"
-       },
-       {
-        "token": "ch3",
-        "stain": "5-EU",
-        "role": "measure",
-        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
        }
       ],
       "metrics": [
        {
         "metric": "mean_raw",
-        "channel": "ch3",
+        "channel": "ch1",
         "region": "nucleus"
        }
       ],
@@ -1034,7 +1034,7 @@
        {
         "kind": "unit-comparison",
         "metric": "mean_raw",
-        "channel": "ch3",
+        "channel": "ch1",
         "region": "nucleus",
         "analysis_index": 0
        }
@@ -1047,7 +1047,7 @@
       "processing": {
        "version": "1.0.0",
        "nuclei": {
-        "channel": "ch1",
+        "channel": "ch2",
         "detection_max_side_px": null,
         "detector": {
          "engine": "fiji-stardist-2d",

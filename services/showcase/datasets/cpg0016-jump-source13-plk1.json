@@ -767,69 +767,6 @@
       "background": null,
       "gfp_selection": null
      }
-    },
-    {
-     "label": "DNA 量（Hoechst 積算輝度）の分布",
-     "instruction": "核ごとのHoechstの積算輝度（DNA量の目安）を視野ごとに確認したい",
-     "draft": {
-      "recipe": "nuclear-intensity",
-      "channels": [
-       {
-        "token": "ch1",
-        "stain": "Hoechst",
-        "role": "nuclear",
-        "reason": "記録された核染色（Hoechst）で、核検出に使う設定です。"
-       }
-      ],
-      "metrics": [
-       {
-        "metric": "integral_raw",
-        "channel": "ch1",
-        "region": "nucleus"
-       }
-      ],
-      "statistics": {
-       "kind": "descriptive",
-       "test": null,
-       "omnibus": null,
-       "association": null,
-       "x": null,
-       "y": null
-      },
-      "additional_analyses": [],
-      "figures": [
-       {
-        "kind": "field-distribution",
-        "metric": "integral_raw",
-        "channel": "ch1",
-        "region": "nucleus",
-        "analysis_index": 0
-       }
-      ],
-      "missing_information": [],
-      "reference_ids": [],
-      "rationale": "Hoechst で検出した核ごとの積算輝度（DNA 量の目安）を、視野ごとの分布として示します。検定は行いません。PLK1 のノックアウトで分裂に失敗した細胞では、DNA 量の多い核が増えることがあります。",
-      "processing": {
-       "version": "1.0.0",
-       "nuclei": {
-        "channel": "ch1",
-        "detection_max_side_px": null,
-        "detector": {
-         "engine": "fiji-stardist-2d",
-         "model": "Versatile (fluorescent nuclei)",
-         "percentile_low": 1,
-         "percentile_high": 99.8,
-         "probability": 0.5,
-         "nms": 0.3
-        }
-       },
-       "nucleoli": null,
-       "signal": null,
-       "cells": null
-      },
-      "background": null,
-      "gfp_selection": null
-     }
     }
    ]
   },

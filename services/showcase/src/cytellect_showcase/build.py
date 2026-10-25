@@ -1352,7 +1352,12 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
         draft = drafts.get(context.goal)
         if draft is None:
             raise route.ProposalServiceError(409, "showcase_proposal_not_recorded")
-        validate_draft(context, draft, model=plan["model"], prompt_version=plan["prompt_version"])
+        try:
+            validate_draft(context, draft, model=plan["model"], prompt_version=plan["prompt_version"])
+        except Exception as error:
+            # A preset the production validator refuses is a manifest error: name it.
+            log("proposal refused", context.goal, getattr(error, "codes", error))
+            raise
         payload = {"model": plan["model"], "prompt_version": plan["prompt_version"], "draft": copy.deepcopy(draft)}
         entries[context_sha256(context)] = {**payload, "source": plan["source"], "goal": context.goal,
                                             "previous_goal": context.previous_goal}
