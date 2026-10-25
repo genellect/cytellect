@@ -1,12 +1,1248 @@
 {
   "schema": "cytellect-showcase-dataset/1",
   "id": "zenodo-6643470-nucleolar",
-  "publishable": false,
+  "publishable": true,
   "workspace_title": "ActD と未処理：核小体の転写と形",
-  "registration_status": "Metadata and hashes being verified; no measurement has been run for this scene.",
-  "owner_adoption": {"date": "2026-10-25", "status": "approved", "scope": "DS6a Untreated versus ActD1; mean nucleolar 5-EU and nucleolar eccentricity"},
+  "registration_status": "Measurement-independent dataset record. No detection, measurement, statistics, scenario generation or publication performed for this registration.",
+  "owner_adoption": {
+    "date": "2026-10-25",
+    "status": "approved",
+    "scope": "DS6a Untreated versus ActD1; mean nucleolar 5-EU and nucleolar eccentricity"
+  },
+  "dataset": {
+    "name": "DS6a_5EU_Pulse_RawData, U2OS Untreated and ActD1",
+    "source": "https://zenodo.org/records/6643470",
+    "doi": "10.5281/zenodo.6643470",
+    "license": "CC-BY-4.0",
+    "license_quoted": "Creative Commons Attribution 4.0 International",
+    "license_metadata_verbatim": {
+      "id": "cc-by-4.0"
+    },
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Schmidt, Broder; Rohatgi, Rajat; Brandman, Onn (2022), DS6a_5EU_Pulse_RawData, Zenodo 6643470, CC BY 4.0. Three of four original channels selected; pixel values and full image extent unchanged.",
+    "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 41(6), 111629 (2022). doi:10.1016/j.celrep.2022.111629",
+    "scope": "U2OS knock-in cells, Untreated versus ActD1 (paper Fig 5A: actinomycin D 1 µM for 1 h, followed by 1 mM 5-EU for 30 min). Full 2304 × 2304 fields; uint16 OME-TIFF; 40× NA 1.4 oil; 0.1625 µm/px. File tokens and author code support this mapping; no file-level treatment allocation sheet was found.",
+    "modifications": "None to raw source TIFFs. Planned channel extraction C3/C1/C2 only, with no crop, resize, intensity rescaling, stitching or duplicated field. C0 (FITC; molecular identity unresolved between paper and code) is not used.",
+    "reported_change": {
+      "source": "https://doi.org/10.1016/j.celrep.2022.111629",
+      "figure": "5A–B",
+      "comparison": "ActD 1 µM versus untreated U2OS, 1 h drug treatment followed by 30 min 5-EU pulse",
+      "direction": "ActD inhibits nascent RNA transcription and makes nucleoli rounder (lower eccentricity).",
+      "quantity": "Paper describes loss of nucleolar 5-EU incorporation and lower eccentricity; exact medians from Data S1 could not be retrieved. No graph-digitized effect size is supplied.",
+      "scope": "Paper values are per nucleolus. Cytellect plans mean raw 5-EU over each nucleus's adopted nucleolar union and area-weighted nucleolar eccentricity per nucleus, followed by field medians and source-Rep grouping. This is not an exact reproduction of the paper's pooled-object distribution.",
+      "independence": "Rep1–Rep3 are source labels. All selected filenames contain 20211201 and serial image numbers; separate culture, treatment, coverslip identity, randomization and independent experiments are not documented."
+    },
+    "caveats": [
+      "場面の目的は、ActD による核小体の転写停止と丸くなる変化を、元画像・検出結果・測定で確かめることです。論文の主張と、このデータに対する測定結果を分けて表示します。",
+      "Rep1–Rep3 は出典のラベルです。同日・連番の撮影で、別々に播種・処理した独立した実験か、同じ試料の撮影系列かは未確認です。視野18枚や核小体の数を独立実験の n としません。",
+      "平均5-EUは未正規化の画素平均です。著者のFig 5B描画コードの5-EU/NPM1とは異なります。NPM1の変化も比に影響するため、平均5-EUの減少量を論文の正規化値の再現とは呼びません。",
+      "核小体はNPM1で定義し、別チャンネルの5-EUを測ります。ActDによるNPM1分布の変化は領域の境界にも影響します。領域未確定・候補なし・失敗を0にせず、欠測理由と対象核数を示します。",
+      "論文は核小体ごとの分布、Cytellectは核ごとの面積重み付き離心率です。大きい核小体が強く寄与するため同じ母集団の中央値ではありません。",
+      "デモの数値は公開画像による例示で、研究室の画像での検出・定量の妥当性を証明しません。"
+    ]
+  },
+  "channels": [
+    {
+      "channel_id": "hoechst",
+      "stain": "Hoechst",
+      "role": "nuclear",
+      "select": {
+        "C": 3
+      },
+      "ome": "DAPI filter, 455 nm; nuclear dye from paper Methods (NucBlue)"
+    },
+    {
+      "channel_id": "npm1",
+      "stain": "NPM1",
+      "role": "measure",
+      "select": {
+        "C": 1
+      },
+      "ome": "TRITC, 580 nm; NPM1-mTagRFP from author quantification code"
+    },
+    {
+      "channel_id": "eu",
+      "stain": "5-EU",
+      "role": "measure",
+      "select": {
+        "C": 2
+      },
+      "ome": "Cy5, 670 nm; incorporated 5-EU labelled with Alexa Fluor 647 azide"
+    }
+  ],
+  "calibration": {
+    "pixel_size_x_um": 0.1625,
+    "pixel_size_y_um": 0.1625
+  },
   "derivation_rule": "Reuse the measurement-independent selection committed in 75f02c032b69aabc02db3ab27bee298290e96fd6: lexicographically first three full-frame files in every source Rep1/Rep2/Rep3 and Untreated/ActD1 stratum. No field is chosen by a measured value. Original TIFF pixels are unchanged; C3 Hoechst, C1 NPM1, C2 5-EU will be selected.",
-  "acceptance": ["18 unique source files, 3 in each Rep by condition stratum", "Source sizes and MD5 verified, local SHA-256 recorded without measurements", "Figure 5B metrics and aggregation differences recorded", "Data S1 numeric source inspected or explicitly unverified", "Rep labels and same-day consecutive acquisition recorded without asserting independence"],
-  "sources": {},
-  "fields": []
+  "selection": {
+    "rule": "lexicographic first three full-frame files per source Rep and condition",
+    "selection_commit": "75f02c032b69aabc02db3ab27bee298290e96fd6",
+    "scene_plan_commit": "6ebbe651d06a07d181077c8ac6b5a2fa9aa29667",
+    "source_inventory_count": 180,
+    "strata": [
+      "Rep1/Untreated",
+      "Rep1/ActD1",
+      "Rep2/Untreated",
+      "Rep2/ActD1",
+      "Rep3/Untreated",
+      "Rep3/ActD1"
+    ],
+    "fields_per_stratum": 3,
+    "exclusion_rule": "No measurement-based removal or replacement. Keep border nuclei; record saturation and all candidate/indeterminate/failed states. Download failure stops that file, never substitutes another field. No legacy fragment_review. Any later manual edit must preserve before/after and a prospectively recorded rule common to both conditions.",
+    "prior_exposure": "Two first Rep1 files were read for metadata in PR #99 after selection was fixed. Rep1 Untreated was subsequently used for WP7 resource runs; the selection is unchanged and this is not an independent detection-accuracy evaluation."
+  },
+  "sources": {
+    "40x_1.4_Rep1_Untreated_20211201_01_01": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_01.tif/content",
+      "filename": "40x_1.4_Rep1_Untreated_20211201_01_01.tif",
+      "sha256": "5b32bb25082174021ea25ecbc79fa0bd3daa2642e682ce0e828888def8f58f5d",
+      "md5": "dd4d0947c1ec496f2c44c081471dc5dc",
+      "bytes": 42566765,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep1_Untreated_20211201_01_02": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_02.tif/content",
+      "filename": "40x_1.4_Rep1_Untreated_20211201_01_02.tif",
+      "sha256": "a06a03a3666e0395087ae14a5a9f9327166c27a5d91cda3a570f0b1f921642f3",
+      "md5": "73e12dd25bedb6b886ccaed7560acc94",
+      "bytes": 42566775,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep1_Untreated_20211201_01_03": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_03.tif/content",
+      "filename": "40x_1.4_Rep1_Untreated_20211201_01_03.tif",
+      "sha256": "43028e70f0cba484e5ec7002e24fdc60892c0c460213311a68b5ab9feb3401fa",
+      "md5": "9c2e77aacc66c950b1be98dbeca98d01",
+      "bytes": 42566765,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep1_ActD1_20211201_01_51": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_51.tif/content",
+      "filename": "40x_1.4_Rep1_ActD1_20211201_01_51.tif",
+      "sha256": "7fdb940cf46b54a508d42d524415fe9c23af14c54b304ca7058c489be2961b1c",
+      "md5": "2e661797a8df3da5af7c7acf8698bb46",
+      "bytes": 42566715,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep1_ActD1_20211201_01_52": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_52.tif/content",
+      "filename": "40x_1.4_Rep1_ActD1_20211201_01_52.tif",
+      "sha256": "e7d5effc8491716ab552987ce573f3bd5d83cbf68c48b08b7cee3d5832da85e3",
+      "md5": "79edbd5ae32ac7ecc7a81c6583d1351e",
+      "bytes": 42566645,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep1_ActD1_20211201_01_53": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_53.tif/content",
+      "filename": "40x_1.4_Rep1_ActD1_20211201_01_53.tif",
+      "sha256": "cdf5bdb7b83032d242dc4820d5b315a5c6b77010e662f0f6828a2178ec149113",
+      "md5": "d209fe70ae9e0085a6f7ffe96ce5891f",
+      "bytes": 42566719,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep2_Untreated_20211201_01_61": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_61.tif/content",
+      "filename": "40x_1.4_Rep2_Untreated_20211201_01_61.tif",
+      "sha256": "9ec7c667f488b4c6d5359e7c4505cf75521d55b1520ac697092a307f773f4d01",
+      "md5": "2095eaac0c3d97912f9bdd0693956745",
+      "bytes": 42566775,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep2_Untreated_20211201_01_62": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_62.tif/content",
+      "filename": "40x_1.4_Rep2_Untreated_20211201_01_62.tif",
+      "sha256": "c0e6de238d8176966b1b234049b1a141d43020dca7132ef59c6d65edd3c91edd",
+      "md5": "a37c0d7f97bd6b991ba1cb16aee5f141",
+      "bytes": 42566779,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep2_Untreated_20211201_01_63": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_63.tif/content",
+      "filename": "40x_1.4_Rep2_Untreated_20211201_01_63.tif",
+      "sha256": "43ef9d31887b0db4d50c5ba0e477c8d0f9b3301937863a0af2236c932e6b8caa",
+      "md5": "1bda1d885cf186d8697b236bf28abab8",
+      "bytes": 42566714,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep2_ActD1_20211201_01_111": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_111.tif/content",
+      "filename": "40x_1.4_Rep2_ActD1_20211201_01_111.tif",
+      "sha256": "d5b4b92dd8d844f805985ce93dcdfff3767f60ca975064056d46441dfa709203",
+      "md5": "570de0519a29b7fcfdc57eea2a345c9b",
+      "bytes": 42566709,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep2_ActD1_20211201_01_112": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_112.tif/content",
+      "filename": "40x_1.4_Rep2_ActD1_20211201_01_112.tif",
+      "sha256": "cbe47940e11c35487776b577e466b94f0e2d37c55d51e823406942776da803f7",
+      "md5": "731dcb83fc37989e9432aa735030a56c",
+      "bytes": 42566715,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep2_ActD1_20211201_01_113": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_113.tif/content",
+      "filename": "40x_1.4_Rep2_ActD1_20211201_01_113.tif",
+      "sha256": "b6fcb3e4b8c557689d2bd4a6f43c6109a1a57695eb8fd217dca0969aa227782e",
+      "md5": "122758255dd88abb702254c959811afa",
+      "bytes": 42566699,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep3_Untreated_20211201_01_121": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_121.tif/content",
+      "filename": "40x_1.4_Rep3_Untreated_20211201_01_121.tif",
+      "sha256": "3adb28d54afa648ce14d94f093b3142dc300cff669b2247d4e62edffd56757d0",
+      "md5": "bddb3282bf78b91c15d9c2fbd5c83a8b",
+      "bytes": 42566775,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep3_Untreated_20211201_01_122": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_122.tif/content",
+      "filename": "40x_1.4_Rep3_Untreated_20211201_01_122.tif",
+      "sha256": "b62dbeb316cf240b87051935a6cd96a0f55c984acf4adb561a96fcd5d9a550b5",
+      "md5": "07e8fc8a8ce884d8d187cf3ce8f9ca08",
+      "bytes": 42566765,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep3_Untreated_20211201_01_123": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_123.tif/content",
+      "filename": "40x_1.4_Rep3_Untreated_20211201_01_123.tif",
+      "sha256": "2740e09a2105588055f68fec85a13b490abb06ae5962b5a53cc1c7cead98631d",
+      "md5": "938bb2be1598b4517027f0d39a030850",
+      "bytes": 42566721,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep3_ActD1_20211201_01_171": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_171.tif/content",
+      "filename": "40x_1.4_Rep3_ActD1_20211201_01_171.tif",
+      "sha256": "13aa7532ca84885f315d00b3f9edbc1a99c516d86cbec1cfd44125808fb905e4",
+      "md5": "408379344a9b42ac9e554b16b991a9ec",
+      "bytes": 42566707,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep3_ActD1_20211201_01_172": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_172.tif/content",
+      "filename": "40x_1.4_Rep3_ActD1_20211201_01_172.tif",
+      "sha256": "cee64d82f6793dc98a01ccd04cd3d939d8e5ecf1bcbb644d1a6d7ddcbda643db",
+      "md5": "a827763c824aec7a81de06cb29590af4",
+      "bytes": 42566705,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    },
+    "40x_1.4_Rep3_ActD1_20211201_01_173": {
+      "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_173.tif/content",
+      "filename": "40x_1.4_Rep3_ActD1_20211201_01_173.tif",
+      "sha256": "aa0c9767cb60c14ac76a28b2f53f504178a961b4dd40bcff2a0116291eea4a34",
+      "md5": "adf8b22b604bf55c4bc9f0b3663ce727",
+      "bytes": 42566709,
+      "hash_status": "size_and_source_md5_verified_local_sha256_recorded"
+    }
+  },
+  "fields": [
+    {
+      "id": "40x_1.4_Rep1_Untreated_20211201_01_01",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_01",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_01",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_01",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep1 · Untreated",
+        "sample": "Rep1 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep1"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep1_Untreated_20211201_01_02",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_02",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_02",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_02",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep1 · Untreated",
+        "sample": "Rep1 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep1"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep1_Untreated_20211201_01_03",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_03",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_03",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep1_Untreated_20211201_01_03",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep1 · Untreated",
+        "sample": "Rep1 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep1"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep1_ActD1_20211201_01_51",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep1 · ActD 1 µM",
+        "sample": "Rep1 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep1"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep1_ActD1_20211201_01_52",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_52",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_52",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_52",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep1 · ActD 1 µM",
+        "sample": "Rep1 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep1"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep1_ActD1_20211201_01_53",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_53",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_53",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep1_ActD1_20211201_01_53",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep1 · ActD 1 µM",
+        "sample": "Rep1 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep1"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep2_Untreated_20211201_01_61",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep2 · Untreated",
+        "sample": "Rep2 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep2"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep2_Untreated_20211201_01_62",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_62",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_62",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_62",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep2 · Untreated",
+        "sample": "Rep2 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep2"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep2_Untreated_20211201_01_63",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_63",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_63",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep2_Untreated_20211201_01_63",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep2 · Untreated",
+        "sample": "Rep2 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep2"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep2_ActD1_20211201_01_111",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep2 · ActD 1 µM",
+        "sample": "Rep2 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep2"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep2_ActD1_20211201_01_112",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_112",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_112",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_112",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep2 · ActD 1 µM",
+        "sample": "Rep2 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep2"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep2_ActD1_20211201_01_113",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_113",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_113",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep2_ActD1_20211201_01_113",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep2 · ActD 1 µM",
+        "sample": "Rep2 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep2"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep3_Untreated_20211201_01_121",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep3 · Untreated",
+        "sample": "Rep3 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep3"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep3_Untreated_20211201_01_122",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_122",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_122",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_122",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep3 · Untreated",
+        "sample": "Rep3 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep3"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep3_Untreated_20211201_01_123",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_123",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_123",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep3_Untreated_20211201_01_123",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "Untreated",
+        "experimental_unit": "Rep3 · Untreated",
+        "sample": "Rep3 · Untreated",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep3"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep3_ActD1_20211201_01_171",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep3 · ActD 1 µM",
+        "sample": "Rep3 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep3"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep3_ActD1_20211201_01_172",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_172",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_172",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_172",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep3 · ActD 1 µM",
+        "sample": "Rep3 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep3"
+      }
+    },
+    {
+      "id": "40x_1.4_Rep3_ActD1_20211201_01_173",
+      "planes": {
+        "hoechst": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_173",
+          "select": {
+            "C": 3
+          }
+        },
+        "npm1": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_173",
+          "select": {
+            "C": 1
+          }
+        },
+        "eu": {
+          "source": "40x_1.4_Rep3_ActD1_20211201_01_173",
+          "select": {
+            "C": 2
+          }
+        }
+      },
+      "metadata": {
+        "condition": "ActD 1 µM",
+        "experimental_unit": "Rep3 · ActD 1 µM",
+        "sample": "Rep3 · ActD 1 µM",
+        "acquisition_date": "2021-12-01",
+        "pair": "Rep3"
+      }
+    }
+  ],
+  "field_provenance": [
+    {
+      "id": "40x_1.4_Rep1_Untreated_20211201_01_01",
+      "source_replicate_label": "Rep1",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 1,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T17:55:48Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep1_Untreated_20211201_01_02",
+      "source_replicate_label": "Rep1",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 2,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T17:56:38Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep1_Untreated_20211201_01_03",
+      "source_replicate_label": "Rep1",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 3,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T17:57:01Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep1_ActD1_20211201_01_51",
+      "source_replicate_label": "Rep1",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 51,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T18:25:22Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep1_ActD1_20211201_01_52",
+      "source_replicate_label": "Rep1",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 52,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T18:25:45Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep1_ActD1_20211201_01_53",
+      "source_replicate_label": "Rep1",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 53,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T18:26:09Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep2_Untreated_20211201_01_61",
+      "source_replicate_label": "Rep2",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 61,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T18:31:31Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep2_Untreated_20211201_01_62",
+      "source_replicate_label": "Rep2",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 62,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T18:32:23Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep2_Untreated_20211201_01_63",
+      "source_replicate_label": "Rep2",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 63,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T18:32:56Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep2_ActD1_20211201_01_111",
+      "source_replicate_label": "Rep2",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 111,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:03:21Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep2_ActD1_20211201_01_112",
+      "source_replicate_label": "Rep2",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 112,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:03:51Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep2_ActD1_20211201_01_113",
+      "source_replicate_label": "Rep2",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 113,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:04:23Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep3_Untreated_20211201_01_121",
+      "source_replicate_label": "Rep3",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 121,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:11:51Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep3_Untreated_20211201_01_122",
+      "source_replicate_label": "Rep3",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 122,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:12:24Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep3_Untreated_20211201_01_123",
+      "source_replicate_label": "Rep3",
+      "condition_token": "Untreated",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 123,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:12:53Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep3_ActD1_20211201_01_171",
+      "source_replicate_label": "Rep3",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 171,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:47:17Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep3_ActD1_20211201_01_172",
+      "source_replicate_label": "Rep3",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 172,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:47:44Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    },
+    {
+      "id": "40x_1.4_Rep3_ActD1_20211201_01_173",
+      "source_replicate_label": "Rep3",
+      "condition_token": "ActD1",
+      "filename_date": "2021-12-01",
+      "serial_image_number": 173,
+      "independent_experiment": null,
+      "sample_identity": null,
+      "biological_pairing_confirmed": false,
+      "ome_acquisition_datetime": "2021-12-01T19:48:17Z",
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ]
+    }
+  ],
+  "experiment": {
+    "groups": [
+      {
+        "id": "control",
+        "label": "Untreated"
+      },
+      {
+        "id": "treatment",
+        "label": "ActD 1 µM"
+      }
+    ],
+    "control_group_id": "control",
+    "runs": [
+      {
+        "id": "rep1",
+        "label": "Rep1",
+        "acquired_on": "2021-12-01"
+      },
+      {
+        "id": "rep2",
+        "label": "Rep2",
+        "acquired_on": "2021-12-01"
+      },
+      {
+        "id": "rep3",
+        "label": "Rep3",
+        "acquired_on": "2021-12-01"
+      }
+    ],
+    "independence_confirmed": false,
+    "independence_basis": "Not confirmed: source Rep labels and same-day consecutive acquisition do not establish independent culture/treatment. Retained as source grouping, not scene-selection rationale."
+  },
+  "scenario": {
+    "unit_definition": "出典の反復ラベル（Rep1–Rep3。独立実験であることは未確認）",
+    "pairing_basis": "同じRepラベルのUntreatedとActD1の並置。生物学的対応と独立性は未確認。",
+    "nucleoli": true,
+    "nucleolar_marker": "npm1",
+    "nucleolar_definition": "marker",
+    "nucleolar_definition_note": "Use the common pipeline's fixed default NPM1 nucleolar-marker definition. No result-driven parameter search, area-dependent deletion, NCL relabelling or fallback to nuclear NPM1 intensity.",
+    "background": "raw",
+    "opening": "distribution",
+    "final_target": "nucleoli",
+    "statistics": {},
+    "statistics_planned": [
+      {
+        "id": "nucleolar-5eu",
+        "paper_figure": "5B",
+        "metric_description": "mean raw 5-EU over the adopted nucleolar union per eligible nucleus",
+        "channel": "eu",
+        "region": "nucleoli",
+        "unit": "raw intensity",
+        "aggregation": "per-nucleus union mean; field median; sample mean; source-Rep group mean. Grouping does not establish biological n.",
+        "expected_direction": "lower in ActD; paper reports transcriptional shutdown",
+        "paper_difference": "Paper plotting code uses the ratio of mean 5-EU to mean NPM1 per object; Cytellect will not divide by NPM1. No prespecified numerical equality or fold-change threshold.",
+        "integration": "The lead must select the common implementation matching this per-nucleus estimand; pooling individual nucleoli is not an equivalent substitute."
+      },
+      {
+        "id": "nucleolar-shape",
+        "paper_figure": "5B",
+        "source": "compartment-summary",
+        "version": "1.1.0",
+        "metric": "nucleolar_eccentricity",
+        "channel": null,
+        "region": "nucleoli",
+        "unit": "dimensionless, 0 rounder to 1 elongated",
+        "aggregation": "area-weighted mean of measurable nucleolar-object eccentricities per eligible nucleus; field median; sample mean; source-Rep group mean",
+        "expected_direction": "lower in ActD",
+        "paper_difference": "Paper pools individual nucleoli; the nucleus summary and field hierarchy are a different estimand. No numerical equality is expected."
+      }
+    ],
+    "comparison_plan": "Pre-registered direction is ActD minus Untreated for mean nucleolar 5-EU and nucleolar eccentricity. Show images, adopted masks, per-field values and source-Rep groups. Do not pool nucleoli as independent n or claim confirmed n=3 experiments. With independence unconfirmed, use descriptive examples under D-04; inferential tests/CI need a separately confirmed design. Report an unexpected direction or missing data without switching metric or excluding fields.",
+    "integration_status": "Record only: statistics is intentionally empty until the lead connects the two planned metrics and the descriptive workflow. No fallback analysis may silently replace them. This file does not itself generate or publish a demo.",
+    "design_note": "Source Rep labels and per-condition grouping labels are retained for traceability; sample/coverslip identities and pairing are unknown. The technical sample/unit labels in fields do not establish biological independence."
+  },
+  "paper_evidence": {
+    "full_text": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9749789/fullTextXML",
+    "author_code_commit": "620fb6e32fb7c59c0aaf6697a851e2c627147947",
+    "quantification_code": "https://github.com/RohatgiLab/2022_Schmidt_Oxaliplatin/blob/620fb6e32fb7c59c0aaf6697a851e2c627147947/5EU_Pulse_Step1_Quantification.ipynb",
+    "plotting_code": "https://github.com/RohatgiLab/2022_Schmidt_Oxaliplatin/blob/620fb6e32fb7c59c0aaf6697a851e2c627147947/5EU_Pulse_Step2_Plotting.nb",
+    "code_inspection": "Step1 maps channel indices 3/1/2 to nuclear dye/NPM1/5-EU and measures object mean intensities. Step2 defines NormEU from CSV column 8 divided by column 5; Step1 pandas index plus merged columns maps these to mean 5-EU / mean NPM1. The plotted CSV itself was not retrieved. Author code was read, not executed.",
+    "figure_5b_numeric_reference": {
+      "source": "Figure 5B caption and Data S1 (supplement SD2/MMC2)",
+      "minimum_nucleoli_per_condition": 713,
+      "centre": "median",
+      "box_percentiles": [
+        25,
+        75
+      ],
+      "whisker_percentiles": [
+        5,
+        95
+      ],
+      "untreated_median_eccentricity": null,
+      "actd1_median_eccentricity": null,
+      "untreated_median_normalized_5eu": null,
+      "actd1_median_normalized_5eu": null,
+      "graph_digitized": false,
+      "status": "Exact medians unverified; no values estimated from graph."
+    },
+    "data_s1": {
+      "filename": "NIHMS1848913-supplement-MMC2.xlsx",
+      "source": "https://pmc.ncbi.nlm.nih.gov/articles/instance/9749789/bin/NIHMS1848913-supplement-MMC2.xlsx",
+      "publisher_source": "https://ars.els-cdn.com/content/image/1-s2.0-S2211124722015005-mmc2.xlsx",
+      "status": "Not retrieved: PMC returned HTML instead of XLSX; Europe PMC supplementaryFiles returned an archive without the spreadsheet; publisher returned HTTP 403 on 2026-10-25. No median or effect size transcribed."
+    }
+  },
+  "acceptance": [
+    "18 unique source files, 3 in each Rep by condition stratum",
+    "Source sizes and MD5 verified, local SHA-256 recorded without measurements",
+    "Figure 5B metrics and aggregation differences recorded",
+    "Data S1 numeric source inspected or explicitly unverified",
+    "Rep labels and same-day consecutive acquisition recorded without asserting independence"
+  ],
+  "verification": {
+    "performed_on": "2026-10-25",
+    "scope": "source bytes, checksums and OME/TIFF headers only; no image-derived measurements",
+    "verified_files": 18,
+    "metadata_checked_files": 18,
+    "total_selected_bytes": 766201157,
+    "metadata_summary": {
+      "series_axes": "CYX",
+      "series_shape": [
+        4,
+        2304,
+        2304
+      ],
+      "dtype": "uint16",
+      "pixel_size_x_um": 0.1625,
+      "pixel_size_y_um": 0.1625,
+      "objective_nominal_magnification": 40,
+      "objective_na": 1.4,
+      "source_channel_names": [
+        "FITC",
+        "TRITC",
+        "Cy5",
+        "DAPI"
+      ],
+      "exposure_ms_by_source_channel": [
+        999.992,
+        999.992,
+        999.992,
+        5.007
+      ],
+      "acquisition_time_range_utc": [
+        "2021-12-01T17:55:48Z",
+        "2021-12-01T19:48:17Z"
+      ],
+      "measurement_performed": false
+    },
+    "receipt_note": "The acquisition script from PR #99 retains its historical pending_owner label; this record's owner_adoption is the current 2026-10-25 decision. All 18 selected source files were independently verified by --verify after download. One concurrent download stopped with FileExistsError rather than overwriting an already verified identical file; final verification succeeded."
+  },
+  "integration_handoff": {
+    "reviewed_lead_commit": "f8d5ab38a1a58304d9093270dbac056255d52ac7",
+    "same_path_added_by_lead": true,
+    "action": "Integrate verified source hashes, OME provenance and paper-evidence caveats into the lead-owned manifest; do not replace the lead's runnable scenario wholesale.",
+    "selection_difference": "Both records choose exactly the same 18 source files. This record fixes full-frame provenance. The later lead manifest chooses central 640 × 640 crops [832,832,640,640]; crop-based measurements and mask results were not reviewed here. Preserve raw source hashes and record the lead crop rule as a separate measurement-plan amendment, including whether any crop result was seen before choosing it."
+  }
 }
