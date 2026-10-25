@@ -38,7 +38,108 @@ I07/I09 documentation alignment. Resource observations only inform proposals.
 Input shape, actual detection shape (including the existing 1643-square resize),
 and original-coordinate measurements must be reported separately.
 
-Results: pending remeasurement; no new success is claimed at this plan commit.
+### Public-image results
+
+All four requested cases completed registration, nuclear detection and raw
+intensity measurement, with no field failures and unchanged stored input pixels.
+Windows 11, Python 3.12.13, 12 physical / 16 logical CPUs, 31.73 GiB RAM.
+Analysis commit: `8427663c5007d0a537c083de287d32c83e9327f3` (test-only descendant
+of fixed `31b3c22d`); workload scripts: `7463b735c9d6a5e8069122ec17459b3c4dd76d4d`.
+Selection preceded execution at `b79f5ce`. No scientific implementation was changed.
+
+| Input side / fields / channels | Registration sum (s) | Detection sum (s) | Measurement sum (s) | Wall (s) | Sampled peak summed RSS (GiB) | Measurement rows |
+|---|---:|---:|---:|---:|---:|---:|
+| 2048 / 1 / 4 | 0.562 | 44.200 | 1.160 | 54.502 | 1.669 | 116 |
+| 2048 / 3 / 4 | 1.564 | 133.431 | 2.725 | 146.659 | 1.898 | 348 |
+| 4096 / 1 / 4 | 2.600 | 42.160 | 5.673 | 63.002 | 1.942 | 424 |
+| 4096 / 3 / 4 | 15.366 | 140.602 | 40.462 | 214.885 | 2.187 | 1272 |
+
+Rows are channel measurements, not independent cells or samples.
+**Every case detected at 1643×1643, with 16 StarDist tiles.** This does not
+establish successful original-resolution 2048/4096 detection. The stored source
+pixels and measurement arrays stay at the input resolution; only the existing
+detector input transform performs resizing. No resize, threshold or model rule
+was altered. The unknown FITC stain remains unresolved; it never defines regions.
+
+Each row is one fresh child, not replicated timing trials. Samples: 556 / 1458 /
+714 / 2154; RSS access gaps: 1 / 0 / 0 / 0. The controller sums Python and descendant
+Fiji RSS at a nominal 50 ms interval plus overhead. Shared pages can be counted
+twice; short peaks can be missed. It excludes the browser, controller and other
+host processes. The actual path is FastAPI TestClient registration/enqueue and
+direct common worker execution, not an installed-application/browser acceptance.
+The source is repeated across fields; no general throughput, 100-field capacity,
+or biological detection-accuracy guarantee follows.
+
+Failed attempts remain separate:
+- A sandboxed startup did not advance or produce a receipt and was manually
+  terminated by exact benchmark command/output-path matching. It is not a resource
+  success or a measured capacity failure.
+- Initial registration used the wrong representation for an unresolved channel:
+  HTTP 422. Only the harness was corrected to existing ObservedChannelSpec
+  `identity_source=unresolved`, with no guessed stain identity.
+- One retry registered but returned `fiji_temporary_path_too_long` before launching
+  Fiji (zero engine calls, zero measurement rows). Shorter scratch names were used
+  for the successful runs; the production guard was not bypassed.
+- Disk free space became low during the last case. Completed earlier disposable
+  stores were removed only after checking their paths and successful receipts.
+  Receipts, result JSON and logs remain; source TIFFs/runtimes are untouched.
+  This interactive host activity also limits timing comparability.
+
+Receipt SHA-256 values in table order (local receipt JSON, not committed logs):
+
+```text
+27c9d13986f2bbb6c59e4acac914fbef4c3bc4b5a1d7f07230aef2cd8adf2bcf
+cc3a08f8c1af5ae7e4e245b93565eba69663ca5e0404c7ebb2c3d21f506ce4de
+3fa8f41a51f7c8ed5c9cf4a9c4289dda7e79f31fab3415871e45848b597bff9f
+b3e92ff374e351ac01c6d22ad33c5e047b8a4af05ff41310ba51ed369db8a9e5
+```
+
+Reproduction from WP7 with the fixed review checkout and existing locked runtime
+(the command used `.venv/Scripts/python.exe`; no install or download during timing):
+
+```powershell
+$env:PYTHONPATH=((Resolve-Path ../group-crosscheck/packages/analysis/src).Path,
+ (Resolve-Path ../group-crosscheck/services/api/src).Path,
+ (Resolve-Path ../group-crosscheck/services/worker/src).Path,
+ (Resolve-Path ../group-crosscheck/services/showcase/src).Path) -join ';'
+.venv/Scripts/python.exe scripts/benchmark_group_comparison.py --output ../benchmark-runs/pub2k1 --fiji ../runtime-fiji --source ../public-ds6a/40x_1.4_Rep1_Untreated_20211201_01_01.tif --manifest ../wp8-public-data/fixtures/public/group-comparison/ds6a-manifest.json --side 2048 --fields 1
+```
+
+The other calls changed only output name, side and field count:
+`public-2048-3 / 2048 / 3`, `pub4k1 / 4096 / 1`, `pub4k3 / 4096 / 3`.
+Use new output names when repeating. Execution required the local non-sandboxed
+runtime environment; all inputs were public and local, with no paid backend.
+Fiji and StarDist hashes/versions remain those recorded below.
+
+### Current limits and proposals
+
+Keep **100 fields and 2 GiB** unchanged. Four channels are already accepted by
+the generic region contract; the lead owns I07/I09 wording. These four runs do not
+support raising image/field/storage limits or declaring a safe batch maximum.
+The previous synthetic-data recommendation of a three-field batch is withdrawn.
+A follow-up proposal is to benchmark multiple preregistered real fields, repeated
+trials and the installed browser flow before revisiting limits. Full-resolution
+detection and combined nuclear/nucleolar/cell-boundary recipes need separate work.
+
+### Public Cellpose execution
+
+The fixed first BBBC039 field (source SHA-256
+`51787b533f38efc0d934a9cc0f760e704ef5fca97d561aa868f2099f2e6bb1ce`),
+top-left 256×256 crop, completed on CPU: 52.572 s wall, 50.259 s common
+detector time, 3.135 GiB sampled peak summed RSS. One RSS access gap.
+Output was uint32 labels of shape 256×256; input pixel hash was unchanged.
+Cellpose 4.2.1.1 / torch 2.8.0+cpu / cpsam_v2 model hash
+`0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667`.
+No GPU or remote service was used. This is successful real-image execution,
+not full-size capacity or detection-accuracy validation.
+
+```powershell
+.venv/Scripts/python.exe scripts/benchmark_cellpose_smoke.py --output ../benchmark-runs/pubcp --python ../runtime-cellpose/Scripts/python.exe --models ../cellpose-models
+```
+
+Receipt SHA-256:
+`e9b91b1eeaf3099f9d0bd1365aadfff8c7104d8c36290a69bfd6df61488db20b`.
+
 
 ## Historical WP7 synthetic benchmark (superseded; not validation)
 
