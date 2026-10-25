@@ -25,6 +25,7 @@
    "independence": "Rep1–Rep3 は同じ日に連番で撮影されており、独立した実験であることは出典で確認できません。このため、この場面では検定をせず、群ごとの分布と実験回ごとの値を示します。"
   },
   "caveats": [
+   "このデモで測った核小体の平均 5-EU（核ごと、背景補正なし）は、ActD − 未処理の差が反復ごとに +263、−83、−1317 で、論文の報告（ActD でほぼ消失）と向きがそろいません。論文の値は核小体ごとの 5-EU を NPM1 で割ったもので、デモの値とは定義と集約が異なります。画像では、未処理で核小体に点状に集まる 5-EU が、ActD では核全体に広がって見えます。",
    "Rep1–Rep3 は同じ日（2021-12-01）に連番で撮影されています。独立した実験であることは出典で確認できないため、この場面では推測統計を行いません。",
    "各反復・各条件で、ファイル名の順に最初の 3 視野を使います。各画像から 640 × 640 画素（104 µm 角）を、核染色（Hoechst）が最も多く写る位置で切り出しています（NPM1 と 5-EU は見ていません）。視野や核を信号で選んだり除いたりはしていません。",
    "核小体は NPM1 の分布から決めます。ActD では NPM1 の一部が核質へ移るため、核小体の輪郭は NPM1 の分布も反映します。",
@@ -788,7 +789,7 @@
     "design": "paired"
    }
   },
-  "comparison_plan": "Planned before measurement: per-field distributions of the nucleolar mean 5-EU (raw and background-corrected) and of the nucleolar eccentricity (compartment-summary 1.1.0), Untreated versus ActD 1 µM, by replicate. Expected directions from the source: lower nucleolar 5-EU and lower eccentricity with ActD. No inferential test is reported because the replicates' independence is not established. Amended before any value was read (2026-10-25): the common statistics gained a descriptive comparison (test none) for designs whose independence is unconfirmed; the scene opens on that comparison of the nucleolar mean 5-EU (per-run values and differences, no test, p-value or interval).",
+  "comparison_plan": "Planned before measurement: per-field distributions of the nucleolar mean 5-EU (raw and background-corrected) and of the nucleolar eccentricity (compartment-summary 1.1.0), Untreated versus ActD 1 µM, by replicate. Expected directions from the source: lower nucleolar 5-EU and lower eccentricity with ActD. No inferential test is reported because the replicates' independence is not established. Amended before any value was read (2026-10-25): the common statistics gained a descriptive comparison (test none) for designs whose independence is unconfirmed; the scene opens on that comparison of the nucleolar mean 5-EU (per-run values and differences, no test, p-value or interval). Result as planned (2026-10-25): ActD − untreated nucleolar mean 5-EU per run +263, −83, −1317 (Rep1–3), not the direction the paper reports; the paper's EU/NPM1 per nucleolus differs in definition and aggregation. An exploratory nucleoplasm/nucleolus 5-EU ratio examined after this result is not published; the scene keeps the planned metric.",
   "grid": {
    "nuclei": {
     "probability": [
