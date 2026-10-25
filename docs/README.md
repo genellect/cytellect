@@ -26,7 +26,7 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 - [解析基盤の費用と制約](hosting-costs.ja.md)
 - [要件](requirements.md)（英語）
 - [研究者の作業の流れと改善の進め方](research-workflow.md)（英語）
-- [群間比較の UX 改善：目標定義書（案）](drafts/group-comparison/goals.md)と[要件定義書（案）](drafts/group-comparison/requirements.md)：オーナー承認前の下書き
+- [群間比較の UX 改善：目標定義書（案）](drafts/group-comparison/goals.md)と[要件定義書（案）](drafts/group-comparison/requirements.md)：独立レビュー前の下書き
 
 ## 設計と実装
 
