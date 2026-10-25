@@ -41,8 +41,8 @@
 | WP0 | 契約と互換性：入力の階層、実験の形、指標の定義と登録口、集約、比較の向き、手法ごとに保存する推定値、図と出力の契約、版と互換性の対応表 | E-03、M-01、S-04、T-06、N-07 | 主担当 | 補助が、科学的な定義と検証のしやすさをレビュー | 要件の確定 |
 | WP1 | 最初の選択、群・実験回・試料・視野の入力 | E-01–E-08 | 主担当 | 補助がローカルのブラウザで確認 | WP0 |
 | WP2 | 2 画面の並置表示と表示の統一、並置した状態の修正 | V-01–V-04 | 主担当 | 補助がローカルのブラウザで確認 | WP0 |
-| WP3 | 新しい指標・集約・陽性判定（核数、陽性の割合、核小体の総面積と形）、計算仕様の該当節 | M-03–M-09、T-04 | 補助 | 主担当が先に参照値を作る（WP10） | WP0 |
-| WP4 | 推定値の算出と保存（S-04 の値、比、群の平均の信頼区間）、統計の版 | T-01–T-06 | 補助 | 主担当が参照計算と契約のレビュー | WP0 |
+| WP3 | 新しい指標・集約・陽性判定（核数、陽性の割合、核小体の総面積と形）、計算仕様の該当節 | M-03–M-09、T-04 | 主担当（オーナーの判断で移管） | 補助が仕様から独立に照合（参照値は WP10 で先に固定済み） | WP0 |
+| WP4 | 推定値の算出と保存（S-04 の値、比、群の平均の信頼区間）、統計の版 | T-01–T-06 | 主担当（オーナーの判断で移管） | 補助が仕様から独立に照合 | WP0 |
 | WP5 | 結果の文の表示、指標ごとの図、SVG・PDF・CSV・Methods | S-01–S-08、F-01–F-05 | 主担当 | 補助が保存値・図・CSV・Methods を照合 | WP4 |
 | WP6 | 除外と品質、修正と除外の前後の保存 | Q-01–Q-04 | 主担当 | 補助が境界の事例と、除外しない場合の比較を確認 | WP0 |
 | WP7 | 入力の上限：ローカル版でのメモリと時間の測定、上限の案。Fiji・Cellpose の実行の確認 | N-02 | 測定：補助、上限と契約の変更：主担当 | 相手側が結果をレビュー | なし |
@@ -71,7 +71,7 @@
 | `packages/contracts/**`、`packages/analysis/src/cytellect_analysis/*contracts*.py`、OpenAPI、既定レシピ | 主担当 |
 | `services/api/**`、`services/worker/**`（API の接続と実行処理） | 主担当 |
 | WP0 の契約：`experiment_design.py`、`group_comparison_contracts.py`、`tests/test_experiment_design.py` | 主担当 |
-| WP3・WP4 の実装：`field_summary.py`、`nucleolar_shape.py`、`comparison_estimates.py`（WP0 で雛形を作成）と、その試験（`tests/test_field_summary.py`、`tests/test_nucleolar_shape.py`、`tests/test_comparison_estimates.py`） | 補助 |
+| WP3・WP4 の実装：`field_summary.py`、`nucleolar_shape.py`、`comparison_estimates.py` と `tests/test_group_comparison_metrics.py` | 主担当（2026-10-25 にオーナーが補助から移管。補助は仕様からの照合とレビュー） |
 | WP10 の参照値：`tests/test_group_comparison_reference.py` | 主担当 |
 | `packages/analysis/src/cytellect_analysis/` の既存の統計・図・集計のモジュール（`common_statistics*.py`、`common_unit_inference.py`、`region_comparison*.py`、`compartment_*.py`、`figures.py` など）と、新しい部品をそれらへ接続する変更 | 主担当 |
 | `tests/conftest.py` など試験の共通設定 | 主担当 |

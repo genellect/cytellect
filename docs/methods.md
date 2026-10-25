@@ -501,9 +501,9 @@ common-statistics endpoints, and the interface does not offer them.
 | Contract | Version | Status | Compatibility |
 |---|---|---|---|
 | Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
-| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Contract defined; implementation pending (`field_summary.py`) | New source; existing sources unchanged |
-| Compartment-summary selection | 1.1.0 | Contract defined; implementation pending (`nucleolar_shape.py`, connection) | 1.0.0 requests and results unchanged |
-| Comparison estimates | `comparison-estimates/1.0.0` | Contract defined; implementation pending (`comparison_estimates.py`) | Added beside, never replacing, the saved test results |
+| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Implemented (`field_summary.py`); connection to the endpoints pending | New source; existing sources unchanged |
+| Compartment-summary selection | 1.1.0 | Eccentricity implemented (`nucleolar_shape.py`); connection pending | 1.0.0 requests and results unchanged |
+| Comparison estimates | `comparison-estimates/1.0.0` | Implemented (`comparison_estimates.py`); connection pending | Added beside, never replacing, the saved test results |
 | Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
 
 ### Experiment design 1.0.0
