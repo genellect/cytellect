@@ -9,7 +9,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "5123bf5ac07a102e2456a068.svg"
+   "file": "cc59a7f5c786efc05c18606f.svg"
   },
   "GET /v1/jobs/13c63e6b-8ad8-4ef0-bdc1-7dde91a85edc/result": {
    "status": 200,
@@ -29,7 +29,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "51e6130ece8526e6ff5ed8d4.svg"
+   "file": "6c0e0c75d7913c341269dd4c.svg"
   },
   "GET /v1/jobs/1636fa07-fe91-4d91-8650-d767b5ac5599/result": {
    "status": 200,
@@ -89,7 +89,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "fbb6cc1ed50a4e8d4c9c9570.svg"
+   "file": "177868137f892da01a3025de.svg"
   },
   "GET /v1/jobs/37e32202-be89-4fd4-9172-b30518c4dc0e/result": {
    "status": 200,
@@ -109,7 +109,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "bd1954f7b6ea1f05ff617842.svg"
+   "file": "c59c61d399bd677e1c74e3d4.svg"
   },
   "GET /v1/jobs/3962334f-17a7-4366-96bb-4b559f1178a0/result": {
    "status": 200,
@@ -129,7 +129,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "14e943b4274e8bea36a84c97.svg"
+   "file": "1a2c96d177f7b981ab40dfa0.svg"
   },
   "GET /v1/jobs/3bec0a50-fa14-4da5-bc12-60b8d2562e4a/result": {
    "status": 200,
@@ -149,7 +149,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "4b8278d138292ad26a698123.svg"
+   "file": "05303a76aed0e1c4a3321f91.svg"
   },
   "GET /v1/jobs/67906f92-8213-4d70-bf6f-4ef9c08ce079/result": {
    "status": 200,
@@ -229,7 +229,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "dd5c6c1a1c6ad945be4dbf56.svg"
+   "file": "ef9aad5bb806fcd9a7e3ffc1.svg"
   },
   "GET /v1/jobs/cf2704b9-d0e1-4b2e-bd31-31e4e052b946/result": {
    "status": 200,
@@ -249,7 +249,7 @@
      "image/svg+xml"
     ]
    ],
-   "file": "14e943b4274e8bea36a84c97.svg"
+   "file": "1a2c96d177f7b981ab40dfa0.svg"
   },
   "GET /v1/jobs/fe71817f-b6af-4d08-a627-4133f4af64df/result": {
    "status": 200,
@@ -2718,6 +2718,16 @@
     ]
    ],
    "file": "a0dffa3182fdd11b3692c5bd.json"
+  },
+  "GET /v1/workspaces": {
+   "status": 200,
+   "headers": [
+    [
+     "content-type",
+     "application/json"
+    ]
+   ],
+   "file": "b57034d365efb8451150712d.json"
   },
   "GET /v1/workspaces/a01bbc3c-8ce4-4283-bc69-face42fad2aa": {
    "status": 200,
