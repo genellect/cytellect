@@ -41,7 +41,9 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   if(!run)return <p className={styles.empty}>2 つの群に画像がある実験回がありません。「実験」で群と実験回に画像を割り当ててください。</p>;
   return <div className={styles.pair}>
     <div className={styles.toolbar}>
-      <label>実験回<select value={run.id} onChange={event=>{setRunId(event.target.value);setChosen({});}}>{runs.map(value=><option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
+      <label>実験回<select value={run.id} onChange={event=>{setRunId(event.target.value);setChosen({});
+        // The selected field (measurement, candidates, the side panel) follows the run shown (control first).
+        const first=groups.flatMap(group=>fieldsIn(design,group.id,event.target.value).map(([id])=>id))[0];if(first)onSelect(first,channel);}}>{runs.map(value=><option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
       <label className={styles.check}><input type="checkbox" checked={linked} onChange={event=>setLinked(event.target.checked)}/>拡大と位置を連動</label>
     </div>
     <div className={styles.panes}>

@@ -76,6 +76,10 @@ const STAINS: Record<string, KnownStain> = {
 const INDEX_TOKEN = /^(?:c|ch|channel|w)\d{1,2}$/i;
 /** An index glued to the end of a name, e.g. xy01c1 → xy01 + c1. */
 const GLUED_INDEX = /^(.*\d)(c|ch|w)(\d{1,2})$/i;
+/** Yokogawa CellVoyager names end in T(time)F(field)L(timeline)A(action)Z(plane)C(channel). The
+ * action number differs between the channels of one field, so the field key keeps T, F, L and Z
+ * and the channel number alone names the channel (it never establishes a stain). */
+const CELLVOYAGER = /^(T\d+F\d+L\d+)A\d+(Z\d+)(C\d+)$/i;
 /** A known stain, optionally followed by a dye or wavelength number (Hoechst33342, DAPI405). */
 const STAIN_TOKEN = new RegExp(`^(${Object.keys(STAINS).sort((a, b) => b.length - a.length).join("|")})(\\d{0,5})$`, "i");
 const WELL_TOKEN = /^[A-P]\d{1,2}$/;
@@ -123,6 +127,8 @@ function matchChannel(tokens: string[], folders: string[]): ChannelMatch | null 
   if (indices.length === 1) return { token: indices[0].toLowerCase(), keyTokens: rest, evidence: "filename", folderUsed: false };
   if (indices.length > 1) return null;
   const last = tokens.at(-1);
+  const voyager = last ? CELLVOYAGER.exec(last) : null;
+  if (voyager) return { token: voyager[3].toLowerCase(), keyTokens: [...tokens.slice(0, -1), `${voyager[1]}${voyager[2]}`], evidence: "filename", folderUsed: false };
   const glued = last ? GLUED_INDEX.exec(last) : null;
   if (glued) {
     return { token: `${glued[2]}${glued[3]}`.toLowerCase(), keyTokens: [...tokens.slice(0, -1), glued[1]], evidence: "filename", folderUsed: false };

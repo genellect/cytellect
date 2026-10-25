@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {initialPanelState, panelReducer} from "./panel-state";
+import {experimentSetupShown, initialPanelState, panelReducer} from "./panel-state";
 
 describe("AI and analysis panel navigation", () => {
   it("opens analysis settings from AI even when settings were previously open", () => {
@@ -15,5 +15,17 @@ describe("AI and analysis panel navigation", () => {
   it("keeps the return destination when a second instruction is sent", () => {
     const ai = panelReducer({view: "closed", returnView: "closed"}, "open-ai");
     expect(panelReducer(panelReducer(ai, "open-ai"), "close").view).toBe("closed");
+  });
+});
+
+describe("experiment form placement", () => {
+  it("stays in one place from a new workspace's first choice to the experiment view", () => {
+    // The first save moves a new workspace from the image view to the experiment view.
+    expect(experimentSetupShown("image", false, false)).toBe(true);
+    expect(experimentSetupShown("experiment", false, false)).toBe(true);
+    expect(experimentSetupShown("experiment", true, true)).toBe(true);
+    expect(experimentSetupShown("image", true, false)).toBe(false);
+    expect(experimentSetupShown("image", false, true)).toBe(false);
+    expect(experimentSetupShown("statistics", false, false)).toBe(false);
   });
 });

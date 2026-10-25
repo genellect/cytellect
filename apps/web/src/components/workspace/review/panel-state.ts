@@ -15,3 +15,10 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
   const view = state.view === "settings" ? "closed" : "settings";
   return {view, returnView: view};
 }
+
+/** The experiment form is shown in one place for a new workspace (image view without fields) and
+ * for the experiment view, so moving to the experiment view after the first save keeps what the
+ * researcher is typing (requirements E-01–E-03). */
+export function experimentSetupShown(mode: string, hasField: boolean, demo: boolean): boolean {
+  return mode === "experiment" || (mode === "image" && !hasField && !demo);
+}

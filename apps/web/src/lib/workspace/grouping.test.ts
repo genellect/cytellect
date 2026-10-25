@@ -73,6 +73,13 @@ describe("groupFiles", () => {
     const glued = groupFiles([file("xy01c1.tif"), file("xy01c2.tif"), file("xy02c1.tif"), file("xy02c2.tif")]);
     expect(glued.fields.map((field) => field.key)).toEqual(["xy01", "xy02"]);
     expect(glued.channels.map((channel) => [channel.token, channel.stain])).toEqual([["c1", null], ["c2", null]]);
+    // Yokogawa CellVoyager (e.g. JUMP Cell Painting): the action number A differs per channel.
+    const voyager = groupFiles(["A01Z01C01", "A02Z01C03", "A03Z01C04", "A04Z01C05"].flatMap((suffix) => [1, 2].map((site) => file(`CP-R1-01_A02_T0001F00${site}L01${suffix}.tif`))));
+    expect(voyager.fields.map((field) => [field.key, Object.keys(field.files).sort()])).toEqual([1, 2].map((site) => [`CP-R1-01-A02-T0001F00${site}L01Z01`, ["c01", "c03", "c04", "c05"]]));
+    expect(voyager.channels.map((channel) => [channel.token, channel.stain, channel.role])).toEqual(["c01", "c03", "c04", "c05"].map((token) => [token, null, null]));
+    expect(voyager.issues).toEqual([]);
+    // Two actions on one channel number are ambiguous and never resolved silently.
+    expect(groupFiles([file("P_A01_T0001F001L01A01Z01C01.tif"), file("P_A01_T0001F001L01A02Z01C01.tif")]).issues.map((issue) => issue.kind)).toEqual(["duplicate_channel"]);
   });
 
   it("keeps a name-less multi-channel OME-TIFF as pending and expands read channels", () => {
