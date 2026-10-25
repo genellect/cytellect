@@ -165,7 +165,15 @@ def _scalar_field(*, status="measured", regions=None, pixel_size=0.5):
 def test_synthetic_independent_quantile_anchor():
     # For df=2 the exact quantile follows F(x)=1/2+x/(2*sqrt(x*x+2)).
     assert _t_critical(2) == pytest.approx(math.sqrt(2 * 0.95**2 / (1 - 0.95**2)), rel=1e-12)
-    assert _numerical_oracle() == FROZEN["numeric"]
+    oracle = _numerical_oracle()
+    assert oracle.keys() == FROZEN["numeric"].keys()
+    for key, value in oracle.items():
+        # libm/betainc last-bit rounding differs across Windows and Linux.
+        # Keep the frozen reference unchanged; tolerate only numerical noise.
+        if isinstance(value, list):
+            assert value == pytest.approx(FROZEN["numeric"][key], rel=1e-12, abs=1e-12)
+        else:
+            assert value == FROZEN["numeric"][key]
 
 
 def test_synthetic_paired_estimates_and_saved_order():
