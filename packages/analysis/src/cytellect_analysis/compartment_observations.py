@@ -219,13 +219,13 @@ def acquisition_proxy(request):
                            selection=SimpleNamespace(metric=proxy, channel_id=getattr(request.selection, "channel_id", None)))
 
 
-def describe_compartment_summary(report, field_snapshot, request, summaries, nuclear=None):
+def describe_compartment_summary(report, field_snapshot, request, summaries, nuclear=None, shapes=None):
     """``nuclear`` is the adopted nuclear source required by a GFP nucleus filter."""
     from .descriptive import _finish, _request
 
     request = _request(request, "compartment-summary")
     observations, fields, unit, excluded = prepare_compartment_observations(
-        report, field_snapshot, request.selection, summaries)
+        report, field_snapshot, request.selection, summaries, shapes)
     record = None
     if request.selection.gfp_gate is not None:
         observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,

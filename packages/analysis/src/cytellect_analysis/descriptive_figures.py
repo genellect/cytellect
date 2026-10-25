@@ -53,7 +53,7 @@ def _caption(result, labels):
     area_only = getattr(_source_measurement_policy(result), "mode", None) == "area_only"
     numeric = result["source_kind"] == "measured-numerical-assay"
     observation = {"regions": ("regions", "領域"), "nuclei": ("nuclei", "核"),
-                   "observations": ("observations", "観測値")}[result["observation_kind"]][ja]
+                   "observations": ("observations", "観測値"), "fields": ("fields", "視野")}[result["observation_kind"]][ja]
     counts, selection = result["counts"], result["selection"]
     channel = _selected_channel(result)
     selected_identity = (f"channel_id={channel['channel_id']}; label={channel['label']}; "
@@ -81,6 +81,10 @@ def _caption(result, labels):
                  f"Input={selection['input_rows']}; explicitly excluded={selection['excluded']}; "
                  f"outside saved selection={selection['gate_unselected']}; missing metric={selection['missing_metric_selected']}.",
                  "Horizontal jitter affects display only (seed 0); values and selection are unchanged."]
+    if result["observation_kind"] == "fields":
+        lines[3] = ("1 視野 1 点。点は視野の値で、核ごとの分布ではない。視野内中央値の重複表示は行わない。"
+                    if ja else "One point per field; points are field values, not a distribution of individual nuclei. "
+                    "No redundant within-field median is shown.")
     if selected_identity:
         lines.insert(3, ("測定チャンネル: " if ja else "Measured channel: ") + selected_identity + ".")
     if result["spec"]["selection"]["source"] == "compartment-summary":
@@ -144,6 +148,13 @@ def descriptive_methods(result, *, methods_template=None):
              *recorded_gate_lines(result["selection"]),
              "Selection: " + json.dumps(result["selection"], ensure_ascii=False, sort_keys=True),
              "Warnings: " + "; ".join(result["warnings"]), ""]
+    if spec.selection.source == "field-summary":
+        from .common_statistics_figures import field_summary_methods_sentence
+        lines.append(field_summary_methods_sentence("The outcome", result["metric"]))
+        lines.append("One point per field; no redundant within-field median is shown.")
+    elif spec.selection.source == "compartment-summary" and spec.selection.version == "1.1.0":
+        from .common_statistics_figures import compartment_methods_sentence
+        lines.append(compartment_methods_sentence("The outcome", result["metric"], "1.1.0"))
     return "\n".join(lines)
 
 
@@ -160,7 +171,9 @@ def _ylabel(result, ja):
               "mean": ("Region mean intensity", "領域の平均輝度"),
               "median": ("Region median intensity", "領域の輝度中央値"),
               "integrated": ("Region integrated intensity", "領域の積算輝度"),
-              "value": ("Measured value", "測定値")}
+              "value": ("Measured value", "測定値"),
+              "nucleus_count": ("Nuclei per field", "視野あたりの核数"),
+              "nucleus_density_per_mm2": ("Nuclear density", "核の密度")}
     if metric in COMPARTMENT_LABELS:
         channel = _selected_channel(result)
         label = (f"{channel['label']}: " if channel else "") + COMPARTMENT_LABELS[metric][ja]
@@ -217,11 +230,12 @@ def render_descriptive(result, output: Path, *, methods_template=None):
                                  color=series_color(plot, fid, "#526b78"), alpha=.65, linewidths=0,
                                  label=("観測値" if ja else "Observation") if fid == first_observed else None),
                                 [row for row in rows if row["field_id"] == fid])
-                    bind_points(axes.scatter(index + .23, summary["median"], s=17, marker="s", facecolors="none",
-                                 edgecolors="#17292f", linewidths=.7,
-                                 label=(("測定群中央値" if ja else "Set median")
-                                        if result["source_kind"] == "measured-numerical-assay"
-                                        else "視野中央値" if ja else "Field median") if fid == first_observed else None), [{"field_id": fid}])
+                    if result["observation_kind"] != "fields":
+                        bind_points(axes.scatter(index + .23, summary["median"], s=17, marker="s", facecolors="none",
+                                     edgecolors="#17292f", linewidths=.7,
+                                     label=(("測定群中央値" if ja else "Set median")
+                                            if result["source_kind"] == "measured-numerical-assay"
+                                            else "視野中央値" if ja else "Field median") if fid == first_observed else None), [{"field_id": fid}])
             ticks = [f"{labels[fid]}\n{sum(row['field_id'] == fid for row in rows)} "
                      + ("観測" if ja else "obs.") for fid in order]
             axes.set_xticks(range(len(order)), ticks)

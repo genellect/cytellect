@@ -70,3 +70,14 @@ def prepare_field_summary_observations(report, field_snapshot, selection):
             "value": summary["value"], "excluded": bool(reason), "exclusion_reason": reason,
             "gate_selected": True, "missing_reason": None if summary["value"] is not None or reason else summary["missing_reason"]})
     return observations, fields, UNITS[selection.metric], excluded
+
+
+def describe_field_summary(report, field_snapshot, request):
+    """Describe the same saved field values consumed by group comparisons."""
+    from .descriptive import _finish, _request
+
+    request = _request(request, "field-summary")
+    observations, fields, unit, excluded = prepare_field_summary_observations(report, field_snapshot, request.selection)
+    result = _finish(observations, fields, request, "region-2d", "fields", unit, excluded)
+    result["metric_definition"] = f"{DEFINITIONS[request.selection.metric]}; one observation per field"
+    return result

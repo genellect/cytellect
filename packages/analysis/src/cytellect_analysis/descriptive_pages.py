@@ -130,8 +130,9 @@ def render_pages(result, output: Path, layout):
                         color = plot.get("style", {}).get("series_colors", {}).get(fid, "#526b78")
                         bind_points(axes.scatter(index + layout["jitter"][fid], values, s=plot.get("point_size", 9), color=color, alpha=.65, linewidths=0),
                                     [row for row in result["plot_data"] if row["field_id"] == fid])
-                        bind_points(axes.scatter(index + .23, summaries[fid]["median"], s=17, marker="s", facecolors="none",
-                                                edgecolors="#17292f", linewidths=.7), [{"field_id": fid}])
+                        if result["observation_kind"] != "fields":
+                            bind_points(axes.scatter(index + .23, summaries[fid]["median"], s=17, marker="s", facecolors="none",
+                                                    edgecolors="#17292f", linewidths=.7), [{"field_id": fid}])
                 ticks = [f"{layout['labels'][fid]}\n{len(layout['values'][fid])} " + ("観測" if ja else "obs.")
                          for fid in plan["field_ids"]]
                 axes.set_xticks(range(len(ticks)), ticks)
@@ -147,7 +148,7 @@ def render_pages(result, output: Path, layout):
                     figure.legend(handles=[Line2D([], [], marker="o", linestyle="none", markersize=3,
                                              color="#526b78", label=observation_label),
                                        Line2D([], [], marker="s", linestyle="none", markersize=4,
-                                              markerfacecolor="none", color="#17292f", label=median_label)],
+                                              markerfacecolor="none", color="#17292f", label=median_label)][:1 if result["observation_kind"] == "fields" else 2],
                               loc="outside upper center", frameon=False, ncols=2, handletextpad=.4, columnspacing=1)
                 for item in figure.findobj(match=Text):
                     properties = item.get_fontproperties().copy()

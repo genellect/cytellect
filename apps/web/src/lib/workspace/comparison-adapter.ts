@@ -18,7 +18,7 @@ export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log
 const NUCLEOLAR_V11: readonly string[] = ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"];
 /** Metrics the descriptive (distribution) contract accepts; per-field counts and the 1.1.0
  * nucleolar summaries are offered through the comparison only. */
-export const descriptiveSupported = (metric: string) => !isFieldSummaryMetric(metric) && !NUCLEOLAR_V11.includes(metric);
+export const descriptiveSupported = (metric: string) => !["positive_count", "positive_fraction"].includes(metric);
 const isCompartmentMetric = (metric: string): metric is CompartmentComparisonMetric => (COMPARTMENT_METRICS as readonly string[]).includes(metric);
 /** One value per field from the adopted nuclei (field-summary selection 1.0.0). Positivity is not connected yet. */
 export type FieldSummaryMetric = "nucleus_count" | "nucleus_density_per_mm2";

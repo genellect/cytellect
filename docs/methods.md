@@ -490,21 +490,42 @@ original-pixel measurements, and is distinct from general biological validation.
 
 The group-comparison workflow ([goals](drafts/group-comparison/goals.md),
 [requirements](drafts/group-comparison/requirements.md)) adds the contracts below.
-They are additive: no existing request, result, measurement or figure schema is
-changed, and every saved workspace, statistic, figure and public-demo recording
-replays under its original version. The new observation sources and estimates are
-accepted by the common-statistics comparison endpoint (two-screen comparisons); the
-descriptive endpoint (one-screen descriptions) does not accept them yet.
+They are additive: existing selections retain their request/result serialization
+and measurement/figure definitions. Saved workspaces, statistics, figures and
+public-demo recordings replay under their original versions. The new observation sources and estimates are
+accepted by the common-statistics comparison endpoint (two-screen comparisons).
+Field-summary 1.0.0 and compartment-summary 1.1.0 are also accepted by the
+descriptive endpoint (one-screen descriptions); comparison estimates remain comparison-only.
 
 ### Version and compatibility table
 
 | Contract | Version | Status | Compatibility |
 |---|---|---|---|
 | Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
-| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
-| Compartment-summary selection | 1.1.0 | Comparisons (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
+| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons and per-field descriptions: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
+| Compartment-summary selection | 1.1.0 | Comparisons and per-field descriptions (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
 | Comparison estimates | `comparison-estimates/1.0.0` | Opt-in `estimates` on common-statistics 2.0.0 comparisons with one contrast | Absent from historical requests and results |
 | Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
+
+### Descriptive observation-source extension
+
+Descriptive 1.0.0 retains its existing per-field medians, linearly interpolated
+quartiles, exclusion and missingness ledger, without inference or an independence
+claim. Only its independently versioned observation sources are extended; existing
+requests and result bytes retain their previous serialization and definitions.
+Field-summary 1.0.0 uses `prepare_field_summary_observations`: one value and one
+plotted point per measured field, including a measured zero-nucleus field.
+Uncalibrated density is missing; explicitly excluded and failed fields follow the
+same source rules as comparisons. The redundant within-field median marker is
+omitted for this new source. Compartment-summary 1.1.0 uses the shared compartment
+adapter and the adopted-mask shape loader: one value per nucleus, with nuclei
+without an adopted nucleolus missing, never zero. These selections require reviewed
+sources and do not enable automatic previews. The 1.1.0 API/worker uses the same
+`assert_complete_compartments` admission check as comparisons: unresolved nuclear
+compartments must be resolved or explicitly excluded before queuing; the shared
+observation adapter still preserves missingness reasons. Historical 1.0.0
+admission behavior is unchanged. The existing figure versions retain
+their historical output for previously supported selections.
 
 ### Experiment design 1.0.0
 
