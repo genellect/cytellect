@@ -1,0 +1,212 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:ns2="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="518.740157pt" height="283.464567pt" viewBox="0 0 518.740157 283.464567" version="1.1">
+ <metadata>
+  <rdf:RDF>
+   <ns2:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <ns2:Agent>
+      <dc:title>Cytellect common statistics 1.0.1</dc:title>
+     </ns2:Agent>
+    </dc:creator>
+   </ns2:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 283.464567  L 518.740157 283.464567  L 518.740157 0  L 0 0  z " style="fill: #ffffff" />
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 50.882146 248.076483  L 515.739917 248.076483  L 515.739917 3.00024  L 50.882146 3.00024  z " style="fill: #ffffff" />
+   </g>
+   <g id="patch_3">
+    <path d="M 103.178646 248.076483  L 231.014533 248.076483  L 231.014533 191.322663  L 103.178646 191.322663  z " clip-path="url(#pceca0e5369)" style="fill: #0072b2; opacity: 0.25; stroke: #0072b2; stroke-width: 0.6; stroke-linejoin: miter" />
+   </g>
+   <g id="patch_4">
+    <path d="M 335.607531 248.076483  L 463.443418 248.076483  L 463.443418 112.078818  L 335.607531 112.078818  z " clip-path="url(#pceca0e5369)" style="fill: #d55e00; opacity: 0.25; stroke: #d55e00; stroke-width: 0.6; stroke-linejoin: miter" />
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1">
+      <defs>
+       <path id="m0d3ddc61f8" d="M 0 0  L 0 3.5  " style="stroke: #000000; stroke-width: 0.8" />
+      </defs>
+      <g>
+       <use xlink:href="#m0d3ddc61f8" x="167.096589" y="248.076483" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_1">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'" transform="translate(149.53862 260.395389)">Untreated</text>
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'" transform="translate(159.718698 268.233858)">n=3</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2">
+      <g>
+       <use xlink:href="#m0d3ddc61f8" x="399.525475" y="248.076483" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_2">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'" transform="translate(381.502662 260.395389)">ActD 1 µM</text>
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'" transform="translate(392.147584 268.233858)">n=3</text>
+     </g>
+    </g>
+    <g id="text_3">
+     <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: middle" x="283.311032" y="279.008546" transform="rotate(-0 283.311032 279.008546)">Condition (n: independent units)</text>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_3">
+      <defs>
+       <path id="mdae089849a" d="M 0 0  L -3.5 0  " style="stroke: #000000; stroke-width: 0.8" />
+      </defs>
+      <g>
+       <use xlink:href="#mdae089849a" x="50.882146" y="248.076483" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_4">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.882146" y="250.735936" transform="rotate(-0 43.882146 250.735936)">0</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_4">
+      <g>
+       <use xlink:href="#mdae089849a" x="50.882146" y="212.49961" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_5">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.882146" y="215.159063" transform="rotate(-0 43.882146 215.159063)">2000</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_5">
+      <g>
+       <use xlink:href="#mdae089849a" x="50.882146" y="176.922737" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_6">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.882146" y="179.58219" transform="rotate(-0 43.882146 179.58219)">4000</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_6">
+      <g>
+       <use xlink:href="#mdae089849a" x="50.882146" y="141.345864" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_7">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.882146" y="144.005317" transform="rotate(-0 43.882146 144.005317)">6000</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_7">
+      <g>
+       <use xlink:href="#mdae089849a" x="50.882146" y="105.768991" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_8">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.882146" y="108.428444" transform="rotate(-0 43.882146 108.428444)">8000</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_8">
+      <g>
+       <use xlink:href="#mdae089849a" x="50.882146" y="70.192118" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_9">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.882146" y="72.851571" transform="rotate(-0 43.882146 72.851571)">10000</text>
+     </g>
+    </g>
+    <g id="ytick_7">
+     <g id="line2d_9">
+      <g>
+       <use xlink:href="#mdae089849a" x="50.882146" y="34.615245" style="stroke: #000000; stroke-width: 0.8" />
+      </g>
+     </g>
+     <g id="text_10">
+      <text style="font-size: 7px; font-family: 'DejaVu Sans'; text-anchor: end" x="43.882146" y="37.274698" transform="rotate(-0 43.882146 37.274698)">12000</text>
+     </g>
+    </g>
+    <g id="text_11">
+     <text style="font-size: 7px; font-family: 'DejaVu Sans'" transform="translate(8.319146 163.627658) rotate(-90)">NPM1: Mean intensity</text>
+     <text style="font-size: 7px; font-family: 'DejaVu Sans'" transform="translate(16.157615 134.857112) rotate(-90)">(a.u.)</text>
+    </g>
+   </g>
+   <g id="patch_5">
+    <path d="M 50.882146 248.076483  L 50.882146 3.00024  " style="fill: none; stroke: #000000; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square" />
+   </g>
+   <g id="patch_6">
+    <path d="M 50.882146 248.076483  L 515.739917 248.076483  " style="fill: none; stroke: #000000; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square" />
+   </g>
+   <g id="line2d_10">
+    <path d="M 167.096589 225.003504  L 399.525475 141.831739  " clip-path="url(#pceca0e5369)" style="fill: none; stroke: #888888; stroke-width: 0.5; stroke-linecap: square" />
+   </g>
+   <g id="line2d_11">
+    <path d="M 167.096589 182.348709  L 399.525475 14.670537  " clip-path="url(#pceca0e5369)" style="fill: none; stroke: #888888; stroke-width: 0.5; stroke-linecap: square" />
+   </g>
+   <g id="line2d_12">
+    <path d="M 167.096589 166.615777  L 399.525475 179.734179  " clip-path="url(#pceca0e5369)" style="fill: none; stroke: #888888; stroke-width: 0.5; stroke-linecap: square" />
+   </g>
+   <g id="cytellect-source-points-0">
+    <defs>
+     <path id="m8e46c8e1ae" d="M 0 2.12132  C 0.562581 2.12132 1.102195 1.897805 1.5 1.5  C 1.897805 1.102195 2.12132 0.562581 2.12132 0  C 2.12132 -0.562581 1.897805 -1.102195 1.5 -1.5  C 1.102195 -1.897805 0.562581 -2.12132 0 -2.12132  C -0.562581 -2.12132 -1.102195 -1.897805 -1.5 -1.5  C -1.897805 -1.102195 -2.12132 -0.562581 -2.12132 0  C -2.12132 0.562581 -1.897805 1.102195 -1.5 1.5  C -1.102195 1.897805 -0.562581 2.12132 0 2.12132  z " style="stroke: #222222; stroke-width: 0.6" />
+    </defs>
+    <g clip-path="url(#pceca0e5369)">
+     <use xlink:href="#m8e46c8e1ae" x="167.096589" y="225.003504" style="fill: #0072b2; stroke: #222222; stroke-width: 0.6" data-cytellect-source="{&quot;condition&quot;:&quot;Untreated&quot;,&quot;experimental_unit&quot;:&quot;Rep1 \u00b7 Untreated&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-1">
+    <defs>
+     <path id="m464b42fa26" d="M -2.12132 2.12132  L 2.12132 2.12132  L 2.12132 -2.12132  L -2.12132 -2.12132  z " style="stroke: #222222; stroke-width: 0.6" />
+    </defs>
+    <g clip-path="url(#pceca0e5369)">
+     <use xlink:href="#m464b42fa26" x="167.096589" y="182.348709" style="fill: #0072b2; stroke: #222222; stroke-width: 0.6" data-cytellect-source="{&quot;condition&quot;:&quot;Untreated&quot;,&quot;experimental_unit&quot;:&quot;Rep2 \u00b7 Untreated&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-2">
+    <defs>
+     <path id="ma1757e34d8" d="M 0 -2.12132  L -2.12132 2.12132  L 2.12132 2.12132  z " style="stroke: #222222; stroke-width: 0.6" />
+    </defs>
+    <g clip-path="url(#pceca0e5369)">
+     <use xlink:href="#ma1757e34d8" x="167.096589" y="166.615777" style="fill: #0072b2; stroke: #222222; stroke-width: 0.6" data-cytellect-source="{&quot;condition&quot;:&quot;Untreated&quot;,&quot;experimental_unit&quot;:&quot;Rep3 \u00b7 Untreated&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-3">
+    <defs>
+     <path id="maf9db5a418" d="M 0 2.12132  C 0.562581 2.12132 1.102195 1.897805 1.5 1.5  C 1.897805 1.102195 2.12132 0.562581 2.12132 0  C 2.12132 -0.562581 1.897805 -1.102195 1.5 -1.5  C 1.102195 -1.897805 0.562581 -2.12132 0 -2.12132  C -0.562581 -2.12132 -1.102195 -1.897805 -1.5 -1.5  C -1.897805 -1.102195 -2.12132 -0.562581 -2.12132 0  C -2.12132 0.562581 -1.897805 1.102195 -1.5 1.5  C -1.102195 1.897805 -0.562581 2.12132 0 2.12132  z " style="stroke: #222222; stroke-width: 0.6" />
+    </defs>
+    <g clip-path="url(#pceca0e5369)">
+     <use xlink:href="#maf9db5a418" x="399.525475" y="141.831739" style="fill: #d55e00; stroke: #222222; stroke-width: 0.6" data-cytellect-source="{&quot;condition&quot;:&quot;ActD 1 \u00b5M&quot;,&quot;experimental_unit&quot;:&quot;Rep1 \u00b7 ActD 1 \u00b5M&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-4">
+    <defs>
+     <path id="m74d7dbac4b" d="M -2.12132 2.12132  L 2.12132 2.12132  L 2.12132 -2.12132  L -2.12132 -2.12132  z " style="stroke: #222222; stroke-width: 0.6" />
+    </defs>
+    <g clip-path="url(#pceca0e5369)">
+     <use xlink:href="#m74d7dbac4b" x="399.525475" y="14.670537" style="fill: #d55e00; stroke: #222222; stroke-width: 0.6" data-cytellect-source="{&quot;condition&quot;:&quot;ActD 1 \u00b5M&quot;,&quot;experimental_unit&quot;:&quot;Rep2 \u00b7 ActD 1 \u00b5M&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-5">
+    <defs>
+     <path id="m496016cfdb" d="M 0 -2.12132  L -2.12132 2.12132  L 2.12132 2.12132  z " style="stroke: #222222; stroke-width: 0.6" />
+    </defs>
+    <g clip-path="url(#pceca0e5369)">
+     <use xlink:href="#m496016cfdb" x="399.525475" y="179.734179" style="fill: #d55e00; stroke: #222222; stroke-width: 0.6" data-cytellect-source="{&quot;condition&quot;:&quot;ActD 1 \u00b5M&quot;,&quot;experimental_unit&quot;:&quot;Rep3 \u00b7 ActD 1 \u00b5M&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pceca0e5369">
+   <rect x="50.882146" y="3.00024" width="464.857771" height="245.076243" />
+  </clipPath>
+ </defs>
+</svg>

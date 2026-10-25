@@ -1,9 +1,4 @@
 {
- "cellpose-sam-ncl-parent": {
-  "cellprob_threshold": [
-   0
-  ]
- },
  "cytellect-ncl-objects": {},
  "cytellect-nucleolar-v2": {
   "minimum_area_px": [
@@ -21,14 +16,6 @@
    0.7,
    1.0,
    2.0
-  ]
- },
- "fiji-nucleolar-compartments": {
-  "minimum_area_px": [
-   1
-  ],
-  "smoothing_sigma_px": [
-   0
   ]
  },
  "fiji-stardist-2d": {
