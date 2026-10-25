@@ -1205,7 +1205,7 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
                   "regions": regions or ["nuclei", "nucleoli", "nucleoplasm"]}
         script = Path(__file__).with_name("snapshot.mjs")
         result = subprocess.run(["node", str(script)], input=json.dumps(config), text=True, cwd=work,
-                                capture_output=True, timeout=1800)
+                                capture_output=True, timeout=1800, env=browser_env())
         sys.stdout.write(result.stdout[-4000:])
         if result.returncode:
             sys.stderr.write(result.stderr[-4000:])
@@ -1285,7 +1285,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
         config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         result = subprocess.run(["node", str(Path(__file__).with_name("journal.mjs"))], input=json.dumps(config),
-                                text=True, cwd=work, capture_output=True, timeout=21600)
+                                text=True, cwd=work, capture_output=True, timeout=21600, env=browser_env())
         sys.stdout.write(result.stdout[-4000:])
         if result.returncode:
             sys.stderr.write(result.stderr[-4000:])
@@ -1394,9 +1394,10 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
                           "workspace": workspace_id}
                 result = subprocess.run(["node", str(Path(__file__).with_name("proposals.mjs"))],
                                         input=json.dumps(config), text=True, cwd=work, capture_output=True,
-                                        timeout=1800)
+                                        timeout=1800, env=browser_env())
                 if result.returncode:
-                    sys.stderr.write(result.stderr[-3000:])
+                    # The cause is at the start (a browser crash appends a long stack trace).
+                    sys.stderr.write(result.stderr[:3000] + "\n…\n" + result.stderr[-1500:])
                     raise SystemExit("proposal walk failed")
                 report = json.loads(result.stdout.strip().splitlines()[-1])
                 reports.append({"sequence": sequence, **report})
@@ -1471,6 +1472,12 @@ def uses_cellpose(manifest: dict) -> bool:
     return bool((plan.get("nucleoli", True) and plan.get("nucleolar_marker")
                  and plan.get("nucleolar_definition", "ncl") == "ncl")
                 or "cellpose-sam" in grid_plan or "cellpose-sam-ncl-parent" in grid_plan)
+
+
+def browser_env() -> dict:
+    """The environment for a Node/Chromium step. The in-process API points TMPDIR into its data
+    directory; under a long work path Chromium's singleton socket path exceeds the UNIX limit."""
+    return {**os.environ, "TMPDIR": "/tmp", "TEMP": "/tmp", "TMP": "/tmp"}
 
 
 def reference_stage(manifest: dict, scenario_state: dict, prepared: list[dict], seed_data: Path, cache: Path, work: Path,
