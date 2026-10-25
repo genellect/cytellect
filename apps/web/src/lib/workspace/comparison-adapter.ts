@@ -68,15 +68,18 @@ export interface ComparisonChoices {
   gfp?: GfpSelectionChoice | null;
   /** Treatment − control estimates for one declared contrast [treatment, control] (comparison-estimates/1.0.0). */
   estimates?: boolean;
+  /** False: a descriptive comparison (test "none") while run independence is unconfirmed (E-05). */
+  inference?: boolean;
 }
 export function comparisonRequest(choices: ComparisonChoices): CommonComparisonRequest {
   // A declared contrast [treatment, control] is drawn control first; the contrast keeps its direction.
   const conditions = choices.estimates && choices.contrasts.length === 1 ? [choices.contrasts[0][1], choices.contrasts[0][0]] : [...new Set(choices.contrasts.flat())];
-  if (!choices.independence || !choices.acquisition || !choices.missingness || !choices.unitDefinition.trim()) throw new Error("独立性・撮影条件・採否を確認してください。");
+  const inference = choices.inference !== false;
+  if ((inference && !choices.independence) || !choices.acquisition || !choices.missingness || !choices.unitDefinition.trim()) throw new Error("独立性・撮影条件・採否を確認してください。");
   if (conditions.length < 2 || choices.contrasts.some(pair => pair.length !== 2 || pair[0] === pair[1])) throw new Error("比較する群の組を指定してください。");
   if ((choices.metric === "area_px" || choices.metric.includes("integrated") || choices.metric === "nucleolar_count" || choices.metric === "nucleolar_area_fraction" || NUCLEOLAR_V11.includes(choices.metric) || isFieldSummaryMetric(choices.metric)) && !choices.sampling) throw new Error("画素の大きさと空間サンプリングを確認してください。");
   if (choices.design === "paired" && !choices.pairingBasis.trim()) throw new Error("対応の根拠を指定してください。");
-  const settings = comparisonMethod(choices.method, choices.design, conditions.length)!;
+  const settings = inference ? comparisonMethod(choices.method, choices.design, conditions.length)! : {version: "2.0.0" as const, test: "none" as const, omnibus: null};
   return {mode: "region-experimental-unit", ...settings,
     selection: comparisonSelection(choices.regionSet, choices.metric, choices.channel, choices.gfp ?? null),
     design: {kind: choices.design, confirmed: true, unit_definition: choices.unitDefinition.trim(), pairing_basis: choices.design === "paired" ? choices.pairingBasis.trim() : null},

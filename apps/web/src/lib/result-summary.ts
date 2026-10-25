@@ -15,6 +15,7 @@ const reasons: Record<string, string> = {
   too_few_pairs: "対が 2 つ未満のため計算できません", too_few_units: "実験単位が 2 つ未満の群があるため計算できません",
   zero_variance: "値のばらつきが 0 のため計算できません", nonpositive_values: "0 以下の値を含むため比は示しません",
   ratio_not_applicable: "この指標では比を示しません",
+  inference_not_requested: "実験回の独立性が確認されていないため、差の信頼区間と検定は計算していません",
 };
 
 /** Three significant digits without trailing zeros or exponent notation for ordinary values. */
@@ -68,15 +69,18 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
       interval = `${interval ? `${interval}。` : ""}効果量（${comparison.effect_name.includes("superiority") ? "優越確率" : "順位双列相関"}）：${formatNumber(comparison.effect)}`;
   }
   const n = paired ? `実験回 n = ${estimates.n_pairs ?? 0}（対）` : `実験単位 n = ${estimates.n_control}（${control}）、${estimates.n_treatment}（${treatment}）`;
-  const test = `${n}、${methodNames[comparison.method ?? ""] ?? comparison.method ?? "検定"} ${formatP(comparison.p_value)}`;
+  const descriptive = estimates.test === "none";
+  const test = descriptive ? `${n}、検定なし（記述のみ）` : `${n}、${methodNames[comparison.method ?? ""] ?? comparison.method ?? "検定"} ${formatP(comparison.p_value)}`;
   let runs: string | null = null;
   if (paired && estimates.runs.length) {
     const down = estimates.runs.filter(run => run.difference < 0).length, up = estimates.runs.filter(run => run.difference > 0).length;
-    runs = `${estimates.runs.length} 回中、${treatment}が${lower}回 ${down}、${higher}回 ${up}` + (estimates.runs.length - down - up ? `、同じ回 ${estimates.runs.length - down - up}` : "");
+    runs = `${estimates.runs.length} 回中、${treatment}が${lower}回 ${down}、${higher}回 ${up}` + (estimates.runs.length - down - up ? `、同じ回 ${estimates.runs.length - down - up}` : "")
+      + `。実験回ごとの差（${treatment} − ${control}）：` + estimates.runs.map(run => `${run.pair} ${run.difference > 0 ? "+" : run.difference < 0 ? "−" : ""}${show(Math.abs(run.difference))}`).join("、") + (unitText ? ` ${unitText}` : "");
   }
   const cautions: string[] = [];
   const units = paired ? estimates.n_pairs ?? 0 : Math.min(estimates.n_control, estimates.n_treatment);
-  if (units < 5) cautions.push(`実験回が少ないため（n = ${units}）、p 値だけで結論せず、各回の値と信頼区間を合わせて確かめてください。p が 0.05 以上でも「変化がない」ことを示すものではありません。`);
+  if (descriptive) cautions.push("実験回が独立に行われたことが確認されていないため、この比較は記述です。差の大きさと向きは各回の値で確かめ、検定の結果としては扱わないでください。");
+  else if (units < 5) cautions.push(`実験回が少ないため（n = ${units}）、p 値だけで結論せず、各回の値と信頼区間を合わせて確かめてください。p が 0.05 以上でも「変化がない」ことを示すものではありません。`);
   cautions.push("n は独立した実験回の数です。核や視野の数は n ではありません。");
   return {headline, interval, test, runs, cautions};
 }

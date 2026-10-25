@@ -29,7 +29,9 @@ class RegionComparisonRequestV2(RegionComparisonRequest):
     version: Literal["2.0.0"]  # type: ignore[assignment]
     # Additive, separately versioned observation source; region selections are unchanged.
     selection: ComparisonSelection  # type: ignore[assignment]
-    test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon"]
+    # "none": a descriptive comparison (unit values, per-run differences) without any test,
+    # p-value or interval, for designs whose run independence is not confirmed (requirements E-05).
+    test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon", "none"]
     omnibus: Literal["welch-anova", "kruskal-wallis"] | None = None
     plot: CommonComparisonPlot = Field(default_factory=CommonComparisonPlot)  # type: ignore[assignment]
     # Opt-in treatment − control estimates (comparison-estimates/1.0.0) for one declared
@@ -47,6 +49,10 @@ class RegionComparisonRequestV2(RegionComparisonRequest):
     def method_matches_design(self):
         if self.estimates is not None and (len(self.conditions) != 2 or len(self.comparison_family.contrasts) != 1):
             raise ValueError("comparison_estimates_single_contrast_required")
+        if self.test == "none":
+            if self.omnibus is not None:
+                raise ValueError("common_statistics_omnibus_design_mismatch")
+            return self
         if (self.test in ("paired-t", "wilcoxon")) != (self.design.kind == "paired"):
             raise ValueError("common_statistics_test_design_mismatch")
         if self.omnibus is not None and (self.design.kind != "independent" or len(self.conditions) < 3):

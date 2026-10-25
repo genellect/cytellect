@@ -166,7 +166,8 @@ class ComparisonEstimates(RegionModel):
     control: str
     treatment: str
     design: Literal["independent", "paired"]
-    test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon"]
+    # "none": descriptive only; differences, ratios and intervals are not estimated.
+    test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon", "none"]
     metric: str
     scale: MetricScale
     n_control: Annotated[int, Field(ge=0)]

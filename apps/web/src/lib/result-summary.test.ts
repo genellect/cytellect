@@ -21,8 +21,20 @@ describe("result summary", () => {
     expect(summary.headline).toBe("核の面積は、DMSOに比べDrugで 20 µm² 小さい値でした。");
     expect(summary.interval).toBe("実験回ごとの差の平均（Drug − DMSO）の 95% 信頼区間：-35 〜 -5 µm²。対照に対する変化：−20%（95% 信頼区間 −30% 〜 −8%、実験回ごとの比の幾何平均）");
     expect(summary.test).toBe("実験回 n = 3（対）、対応のある t 検定 p = 0.012");
-    expect(summary.runs).toBe("3 回中、Drugが小さい回 3、大きい回 0");
+    expect(summary.runs).toBe("3 回中、Drugが小さい回 3、大きい回 0。実験回ごとの差（Drug − DMSO）：r1 −20、r2 −23、r3 −17 µm²");
     expect(summary.cautions[0]).toContain("n = 3");
+  });
+
+  it("describes a comparison without confirmed independence by its runs, never by a test", () => {
+    const none = interval(null, null, null, "inference_not_requested");
+    const summary = summarize(base({test: "none", difference: none, ratio: none,
+      groups: base().groups.map(group => ({...group, ci_low: null, ci_high: null, unavailable_reason: "inference_not_requested"}))}), {}, "核の面積", "µm²");
+    expect(summary.headline).toBe("核の面積をDMSOとDrugで比べました（実験単位の平均：DMSO 100、Drug 80 µm²）。");
+    expect(summary.interval).toBe("実験回の独立性が確認されていないため、差の信頼区間と検定は計算していません");
+    expect(summary.test).toBe("実験回 n = 3（対）、検定なし（記述のみ）");
+    expect(summary.runs).toContain("r1 −20、r2 −23、r3 −17 µm²");
+    expect(summary.cautions[0]).toContain("記述です");
+    expect(JSON.stringify(summary)).not.toContain("p ");
   });
 
   it("uses percentage points for fractions and never a ratio", () => {

@@ -2069,7 +2069,7 @@ export interface components {
              * Test
              * @enum {string}
              */
-            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon";
+            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon" | "none";
             /** Metric */
             metric: string;
             /**
@@ -4324,7 +4324,7 @@ export interface components {
              * Test
              * @enum {string}
              */
-            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon";
+            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon" | "none";
             /** Omnibus */
             omnibus?: ("welch-anova" | "kruskal-wallis") | null;
             /** Estimates */

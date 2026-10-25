@@ -17,6 +17,8 @@ export interface ResultDesign {
   gfp?: GfpSelectionChoice | null;
   /** Request treatment − control estimates (a declared two-group design). */
   estimates?: boolean;
+  /** False while the runs' independence is unconfirmed: compare descriptively, without a test. */
+  inference?: boolean;
 }
 export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
   kind: "distribution" | "paired" | "box" | "violin" | "scatter" | "histogram" | "superplot" | "unit-mean-bar";
@@ -81,7 +83,7 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
       contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
-      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,estimates:design.estimates};
+      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,estimates:design.estimates,inference:design.inference};
     const request = comparisonRequest(choices);
     return {...request,plot:{...request.plot,...plot,kind:comparisonKind(design)}};
   }

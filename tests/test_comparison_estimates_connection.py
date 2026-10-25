@@ -42,3 +42,26 @@ def test_estimates_need_one_declared_contrast():
     with pytest.raises(ValidationError, match="comparison_estimates_single_contrast_required"):
         request(test="welch-t", estimates=PROTOCOL, conditions=["A", "B", "C"], comparison_family=family,
                 omnibus="welch-anova")
+
+
+def test_descriptive_comparison_keeps_unit_values_and_run_differences_without_inference():
+    from cytellect_analysis.common_statistics_figures import common_statistics_methods
+
+    report, config = comparison_fixture((('A', [3, 8, 2]), ('B', [4, 10, 5])))
+    result = analyze_region_comparison(report, config, request(paired=True, test="none", estimates=PROTOCOL))
+    estimates = result["estimates"]
+    assert result["comparisons"] == [] and result["omnibus"] is None
+    assert estimates["test"] == "none"
+    assert {estimates[name]["unavailable_reason"] for name in ("difference", "ratio")} == {"inference_not_requested"}
+    assert all(group["ci_low"] is None and group["unavailable_reason"] == "inference_not_requested" for group in estimates["groups"])
+    assert [run["difference"] for run in estimates["runs"]] == [
+        pytest.approx(run["treatment"] - run["control"]) for run in estimates["runs"]] and len(estimates["runs"]) == 3
+    assert "descriptive_comparison_no_test_or_interval" in result["warnings"]
+    methods = common_statistics_methods(result)
+    assert "no hypothesis test, p-value or confidence interval was calculated" in methods and "p=" not in methods
+
+
+def test_descriptive_comparison_takes_no_omnibus():
+    family = {"family_id": "f", "kind": "planned", "contrasts": [["A", "B"], ["A", "C"]]}
+    with pytest.raises(ValidationError, match="common_statistics_omnibus_design_mismatch"):
+        request(test="none", conditions=["A", "B", "C"], comparison_family=family, omnibus="welch-anova")

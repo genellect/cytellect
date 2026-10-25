@@ -106,4 +106,10 @@ describe("declared two-group comparisons", () => {
     expect(request.comparison_family.contrasts).toEqual([["Drug", "DMSO"]]);
     expect(request.estimates).toBe("comparison-estimates/1.0.0");
   });
+  it("compare descriptively, with no test, while the runs' independence is unconfirmed", () => {
+    const request = comparisonRequest({...choices, design: "paired", pairingBasis: "same run", contrasts: [["Drug", "DMSO"]], estimates: true, independence: false, inference: false});
+    expect([request.test, request.omnibus]).toEqual(["none", null]);
+    expect(request.estimates).toBe("comparison-estimates/1.0.0");
+    expect(() => comparisonRequest({...choices, independence: false})).toThrow("独立性");
+  });
 });

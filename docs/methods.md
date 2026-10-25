@@ -614,6 +614,10 @@ metric's scale (`group_comparison_contracts.metric_scale`) decides what is shown
 - Rank tests (Mann–Whitney U, Wilcoxon): no difference or ratio interval
   (`rank_test`); the result keeps the existing rank effect sizes, and paired
   designs list the per-run values and differences descriptively.
+- Descriptive comparison (`test: "none"`, used while the researcher has not confirmed
+  that the runs are independent, requirements E-05): no difference, ratio or interval
+  (`inference_not_requested`); group summaries keep n, mean and SD without an interval;
+  paired designs list each run's values and difference. No test or p value exists.
 - Any non-positive unit value → ratio missing (`nonpositive_values`).
 - Group summaries: n, mean, sample SD and the 95% t interval of each group's unit
   values (`too_few_units` below two units).
@@ -626,3 +630,7 @@ metric's scale (`group_comparison_contracts.metric_scale`) decides what is shown
 
 These are pointwise intervals for one declared contrast. The p value remains the
 declared test's; estimates never select or replace a test.
+
+The saved estimates are exported with the common-statistics figure as
+`estimates.csv` (difference and ratio with basis or reason), `estimates-groups.csv`
+and `estimates-runs.csv`, and stated in its Methods.

@@ -31,6 +31,13 @@ must be repaired or explicitly excluded at the source, never silently dropped.
 | Linear association between two outcomes | Pearson | At least three matched independent units; beta null under independent normal samples |
 | Monotonic association between two outcomes | Spearman | At least three matched independent units; pairing permutation null |
 
+A two-group comparison can also be requested with `test: "none"` when the
+researcher has not confirmed that the experimental units are independent
+(requirements E-05). It aggregates exactly as above and saves unit values, run-wise
+values and differences, but computes no test, p-value, omnibus or interval; figures
+draw unit means without error bars and the Methods state that the comparison is
+descriptive.
+
 Constant inputs are handled by the selected method, not a universal prefilter.
 Pearson/Spearman reject either constant axis; Welch ANOVA requires positive finite
 variance in every group. Welch/paired t retain their original estimability guards

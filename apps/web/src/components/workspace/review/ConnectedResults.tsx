@@ -119,10 +119,12 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   useEffect(()=>{if(saturatedKey&&contrasts.some(pair=>!unsaturatedPair(pair)))setContrasts(previous=>previous.filter(unsaturatedPair));},[saturatedKey,contrasts]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
-  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,estimates:!!experiment&&experiment.layout==="pair"};
+  // Unconfirmed independence (E-05): no association test; a comparison stays descriptive (test "none").
+  const unconfirmed=!!experiment&&!experiment.independence_confirmed;
+  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed};
   // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
   const designDefaults=declared;
-  const independenceMissing=!!experiment&&!experiment.independence_confirmed&&operation!=="distribution";
+  const independenceMissing=unconfirmed&&operation==="association";
   const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric)));
   const datesMissing=!!experiment&&needsDates&&sources.some(source=>source.field in derived&&!source.metadata.acquisition_date?.trim());
   useEffect(()=>{if(operation!=="comparison"||!designDefaults||contrasts.length)return;setPaired(true);setContrasts(designDefaults.contrasts);
@@ -246,7 +248,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         </>}
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
         {datesMissing&&<p role="status">輝度を比べるには撮影日が必要です。「実験」で各実験回の撮影日を入力してください（日付を推定して補いません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力する</button>}</p>}
-        {independenceMissing&&<p role="status">群間比較と相関の検定には、実験回が独立に行われたことの確認が必要です。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
+        {unconfirmed&&operation==="comparison"&&<p role="status">実験回が独立に行われたことが確認されていないため、検定と信頼区間は計算せず、実験回ごとの値と差を示します。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
+        {independenceMissing&&<p role="status">相関の検定には、実験回が独立に行われたことの確認が必要です。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
         <button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>
       </>:<>
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
@@ -308,7 +311,7 @@ function RunMedians({design,summary,metricLabel,unit,reported}:{design:Experimen
     <p className={styles.headline}>{metricLabel}：視野ごとの中央値{unit?`（${unit}）`:""}を、実験回と群ごとに並べています。</p>
     <table><thead><tr><th scope="col">実験回</th>{table.groups.map(group=><th key={group.id} scope="col">{group.label}{group.id===design.control_group_id?"（対照）":""}</th>)}</tr></thead>
       <tbody>{table.runs.map(run=><tr key={run.id}><th scope="row">{run.label}</th>{run.cells.map((cell,index)=><td key={table.groups[index].id}>{cell.length?cell.map(value=>formatValue(value)).join("、"):"—"}</td>)}</tr>)}</tbody></table>
-    <p>{design.independence_confirmed?"群の差と信頼区間は「群間比較」で計算します。":"実験回が独立に行われたことが確認されていないため、差の推定と検定は行いません。"}</p>
+    <p>{design.independence_confirmed?"群の差と信頼区間は「群間比較」で計算します。":"実験回の独立性が確認されていないため、「群間比較」でも検定と信頼区間は計算せず、実験回ごとの値と差を示します。"}</p>
   </section>;
 }
 

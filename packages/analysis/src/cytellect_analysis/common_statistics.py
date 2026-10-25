@@ -136,7 +136,8 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
             va, vb = joined.value_a.to_numpy(), joined.value_b.to_numpy()
         else:
             va, vb = aa.value.to_numpy(), bb.value.to_numpy()
-        comparisons.append({"group_a": a, "group_b": b, **compare_common_units(va, vb, request.test)})
+        if request.test != "none":
+            comparisons.append({"group_a": a, "group_b": b, **compare_common_units(va, vb, request.test)})
         if request.estimates is not None:
             # The declared contrast [a, b] reports a − b: a is the treatment, b the control.
             estimates = comparison_estimates(
@@ -148,7 +149,9 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
     if omnibus:
         omnibus["conditions"] = list(request.conditions)
     counts = _counts(data, request.conditions, paired)
-    if any(row["experimental_units"] < 5 for row in counts):
+    if request.test == "none":
+        data["warnings"].append("descriptive_comparison_no_test_or_interval")
+    elif any(row["experimental_units"] < 5 for row in counts):
         data["warnings"].append("few_independent_units_model_assumptions_and_power_require_review")
     # No invented mean CI for rank tests or omnibus. Raw unit values define plots.
     means = [{"condition": c, "mean": float(units[units.condition == c].value.mean()),

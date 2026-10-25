@@ -56,8 +56,12 @@ def _interval(result: tuple[float, float, float] | str, basis: str, transform=No
             "unavailable_reason": None}
 
 
-def _group(label: str, values: np.ndarray) -> dict:
+def _group(label: str, values: np.ndarray, intervals: bool = True) -> dict:
     mean = float(values.mean()) if values.size else None
+    if not intervals:
+        return {"condition": label, "n": int(values.size), "mean": mean,
+                "sd": float(values.std(ddof=1)) if values.size >= 2 else None, "ci_low": None, "ci_high": None,
+                "unavailable_reason": "inference_not_requested"}
     result = _mean_interval(values, "too_few_units")
     if values.size >= 2 and result == "zero_variance":
         return {"condition": label, "n": int(values.size), "mean": mean, "sd": 0.0, "ci_low": mean, "ci_high": mean,
@@ -71,14 +75,15 @@ def _group(label: str, values: np.ndarray) -> dict:
 
 def comparison_estimates(control: Sequence[float], treatment: Sequence[float], *, control_label: str,
                          treatment_label: str, design: Literal["independent", "paired"],
-                         test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon"], metric: str,
+                         test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon", "none"], metric: str,
                          pairs: Sequence[str] | None = None) -> ComparisonEstimates:
     """For a paired design, control[i] and treatment[i] are the two units of pairs[i]."""
     c, t = np.asarray(control, dtype=np.float64), np.asarray(treatment, dtype=np.float64)
     if not (np.all(np.isfinite(c)) and np.all(np.isfinite(t))):
         raise ValueError("comparison_estimates_nonfinite")
     paired = design == "paired"
-    if paired != (test in ("paired-t", "wilcoxon")):
+    descriptive = test == "none"
+    if not descriptive and paired != (test in ("paired-t", "wilcoxon")):
         raise ValueError("comparison_estimates_test_design_mismatch")
     if paired and (pairs is None or len(pairs) != c.size or c.size != t.size):
         raise ValueError("comparison_estimates_pairs_mismatch")
@@ -90,7 +95,10 @@ def comparison_estimates(control: Sequence[float], treatment: Sequence[float], *
     points = scale == "fraction"
     to_points = (lambda value: value * 100) if points else None
     unit = " in percentage points" if points else ""
-    if rank:
+    if descriptive:
+        # Without a confirmed independent design nothing is estimated beyond the unit values.
+        difference = ratio = _unavailable("inference_not_requested")
+    elif rank:
         difference = ratio = _unavailable("rank_test")
     else:
         if paired:
@@ -119,4 +127,4 @@ def comparison_estimates(control: Sequence[float], treatment: Sequence[float], *
         "control": control_label, "treatment": treatment_label, "design": design, "test": test, "metric": metric,
         "scale": scale, "n_control": int(c.size), "n_treatment": int(t.size), "n_pairs": int(c.size) if paired else None,
         "difference": difference, "ratio": ratio,
-        "groups": [_group(control_label, c), _group(treatment_label, t)], "runs": runs})
+        "groups": [_group(control_label, c, not descriptive), _group(treatment_label, t, not descriptive)], "runs": runs})

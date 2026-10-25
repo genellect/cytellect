@@ -89,6 +89,27 @@ def _number(value):
     return "not estimated" if value is None else f"{value:.8g}"
 
 
+def estimate_lines(estimates):
+    """Methods sentences for saved treatment − control estimates (comparison-estimates/1.0.0)."""
+    if not estimates:
+        return []
+    unit = " (percentage points)" if estimates["scale"] == "fraction" else ""
+    lines = [f"Estimates ({estimates['protocol']}): {estimates['treatment']} minus {estimates['control']}; "
+             f"n={estimates['n_treatment']} and {estimates['n_control']} independent units"
+             + (f", {estimates['n_pairs']} complete pairs" if estimates["n_pairs"] is not None else "") + "."]
+    for name in ("difference", "ratio"):
+        row = estimates[name]
+        if row["estimate"] is None:
+            lines.append(f"{name.capitalize()}: not estimated ({row['unavailable_reason']}).")
+        else:
+            lines.append(f"{name.capitalize()}{unit if name == 'difference' else ''}={_number(row['estimate'])}; "
+                         f"95% CI [{_number(row['ci_low'])}, {_number(row['ci_high'])}]; basis: {row['basis']}.")
+    for run in estimates["runs"]:
+        lines.append(f"Run {run['pair']}: {estimates['control']}={_number(run['control'])}, "
+                     f"{estimates['treatment']}={_number(run['treatment'])}, difference{unit}={_number(run['difference'])}.")
+    return lines
+
+
 def common_statistics_methods(result):
     spec = result["spec"]
     association = result["analysis_kind"] == "region-association"
@@ -147,6 +168,13 @@ def common_statistics_methods(result):
             lines.append("Pairing basis: " + spec["design"]["pairing_basis"] +
                          ". Pairs use saved identity; incomplete pairs were rejected.")
         family = spec["comparison_family"]
+        lines.extend(estimate_lines(result.get("estimates")))
+    if not association and spec["test"] == "none":
+        lines.append("Descriptive comparison: no hypothesis test, p-value or confidence interval was calculated, "
+                     "because the independence of the experimental units was not confirmed by the researcher. "
+                     "Unit values and per-run differences are descriptive and must not be read as inference.")
+        tests = []
+    elif not association:
         lines.append(f"Holm family {family['family_id']}: " +
                      "; ".join(f"{a} versus {b}" for a, b in family["contrasts"]) +
                      ". Every declared contrast is tested regardless of the omnibus result. "
@@ -186,6 +214,14 @@ def _tables(result):
     else:
         tables["comparisons"] = result["comparisons"]
         tables["omnibus"] = [result["omnibus"]] if result["omnibus"] else []
+        estimates = result.get("estimates")
+        if estimates:
+            # The saved treatment − control estimates, with their basis or the reason they are absent.
+            tables["estimates"] = [{"quantity": name, "control": estimates["control"], "treatment": estimates["treatment"],
+                                    "scale": estimates["scale"], "test": estimates["test"], **estimates[name]}
+                                   for name in ("difference", "ratio")]
+            tables["estimates-groups"] = estimates["groups"]
+            tables["estimates-runs"] = estimates["runs"]
     return tables
 
 
@@ -206,14 +242,20 @@ def _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars):
     units, and each group's unit mean with its 95% t interval (a bar when ``bars``)."""
     rows, fields = canonical["unit_summary"], canonical["field_summary"]
     paired = canonical["spec"]["design"]["kind"] == "paired"
+    # A descriptive comparison (test "none") draws the unit mean without any interval.
+    descriptive = canonical["spec"]["test"] == "none"
     runs = sorted({r["pair"] for r in rows if r.get("pair")}) if paired else []
     rng = np.random.default_rng(0)
     for i, group in enumerate(order):
         color = series_color(plot, group, COLORS[i % len(COLORS)])
         points = [r for r in rows if r["condition"] == group]
         mean, low, high = _unit_interval([r["value"] for r in points])
+        if descriptive:
+            low = high = None
         graphical_summary.append({"condition": group, "mean": mean, "ci_low": low, "ci_high": high,
-                                  "n_units": len(points), "interval": "95% t interval of independent-unit values"})
+                                  "n_units": len(points),
+                                  "interval": ("not computed (descriptive comparison)" if descriptive
+                                               else "95% t interval of independent-unit values")})
         # The summary sits beside the points so it never hides a unit.
         summary_x = i if bars else i + .32
         if bars:
@@ -307,7 +349,9 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 note += "); the same marker marks the same run" + (" and lines join a run's units" if spec["design"]["kind"] == "paired" else "")
                 note += ". " if bars else "; small points are field values" + ("" if per_field else " (median of the field's observations)") + ". "
                 note += ("Bars show the mean of unit values" if bars else "Horizontal lines show the mean of unit values")
-                note += " with its 95% t interval (error bars). n is the number of independent units, not fields or nuclei."
+                note += (" (descriptive: no test or interval, run independence not confirmed). n is the number of experimental units, not fields or nuclei."
+                         if spec["test"] == "none" else
+                         " with its 95% t interval (error bars). n is the number of independent units, not fields or nuclei.")
             else:
                 for i, group in enumerate(order):
                     points = [r for r in rows if r["condition"] == group]
