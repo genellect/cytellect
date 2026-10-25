@@ -28,6 +28,7 @@
    "Rep1–Rep3 は同じ日（2021-12-01）に連番で撮影されています。独立した実験であることは出典で確認できないため、この場面では推測統計を行いません。",
    "各反復・各条件で、ファイル名の順に最初の 3 視野を使います。各画像から 640 × 640 画素（104 µm 角）を、核染色（Hoechst）が最も多く写る位置で切り出しています（NPM1 と 5-EU は見ていません）。視野や核を信号で選んだり除いたりはしていません。",
    "核小体は NPM1 の分布から決めます。ActD では NPM1 の一部が核質へ移るため、核小体の輪郭は NPM1 の分布も反映します。",
+   "核小体が決まらない核があると、その視野の核小体の統計を計算できません。画像の端で欠けた核や核の断片（視野の核の面積の中央値の 0.6 倍未満）でそうなったものだけを、画面の「選択領域を削除」と同じ操作で核から除いています（3 個。一覧は manifest.json の scenario.fragment_review）。",
    "論文の図の 5-EU は核小体の面積あたり・核小体ごとの値で、デモの核小体の平均 5-EU（核ごと）とは単位と正規化が異なります。比べるのは変化の向きです。",
    "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
@@ -76,7 +77,7 @@
   "step": 64,
   "basis": "The 640 x 640 window, on a 64-pixel grid, holding the most Hoechst pixels above the plane's Otsu threshold; ties go to the window nearest the centre. Only the nuclear channel is read, never NPM1 or 5-EU (cytellect_showcase.build.nuclear_window)."
  },
- "derivation_amendment": "Amended after the first scenario run, before any nucleolar or 5-EU value was read: the pre-registered centre crops held 0-2 nuclei in four of the 18 fields (Rep1 ActD file 52, Rep2 ActD file 112, Rep3 Untreated files 121 and 122); in Rep3 Untreated file 122 the crop held no nucleus and StarDist returned 51 objects in the cytoplasm, which left the field's nucleolar compartments unresolved and stopped the build. The crop position is now chosen per field from the nuclear stain alone (crop_rule). The 18 files, channels, groups, runs and every later rule are unchanged; no field or nucleus is removed.",
+ "derivation_amendment": "Amended after the first scenario run, before any nucleolar or 5-EU value was read: the pre-registered centre crops held 0-2 nuclei in four of the 18 fields (Rep1 ActD file 52, Rep2 ActD file 112, Rep3 Untreated files 121 and 122); in Rep3 Untreated file 122 the crop held no nucleus and StarDist returned 51 objects in the cytoplasm, which left the field's nucleolar compartments unresolved and stopped the build. The crop position is now chosen per field from the nuclear stain alone (crop_rule). The 18 files, channels, groups, runs and every later rule are unchanged; no field is removed. Second amendment, after the re-cropped scenario run and before any nucleolar or 5-EU value was read: three nuclei at the crop border had no established nucleolus (152, 2079 and 3222 px; 0.03, 0.49 and 0.58 of their field's median nuclear area), which leaves those fields' compartments unresolved. The build's existing fragment review (scenario.fragment_review, used by the earlier public demo of this dataset) is applied: an unresolved object smaller than 0.6 of its field's median nuclear area is deleted from the nuclei, as the workspace's region deletion does, and listed in manifest.json (scenario.fragment_review); any larger unresolved nucleus stops the build.",
  "selection": {
   "rule": "first three files per replicate and condition in file-name order; crop by crop_rule"
  },
@@ -770,6 +771,9 @@
   "nucleolar_marker": "npm1",
   "nucleolar_definition": "marker",
   "background": "automatic",
+  "fragment_review": {
+   "max_area_fraction": 0.6
+  },
   "opening": "distribution",
   "statistics": {
    "distribution": {
