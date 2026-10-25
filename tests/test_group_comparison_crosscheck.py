@@ -20,6 +20,7 @@ import statistics
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PIL import Image
 from scipy.special import betainc
 from skimage.measure import label
@@ -120,6 +121,211 @@ def _shape_oracle(mask):
             "border_count": sum(row[3] for row in objects),
             "area_weighted_eccentricity": sum(row[1] * row[2] for row in measured) / sum(row[1] for row in measured),
             "shape": list(mask.shape)}
+
+
+# Product adapters were added only AFTER reference commit e9c3a42.
+def _estimate(control=None, treatment=None, *, metric="area_px", test="paired-t", pairs=None):
+    from cytellect_analysis.comparison_estimates import comparison_estimates
+
+    control = FROZEN["numeric"]["paired_control"] if control is None else control
+    treatment = FROZEN["numeric"]["paired_treatment"] if treatment is None else treatment
+    paired = test in ("paired-t", "wilcoxon")
+    if paired and pairs is None:
+        pairs = [f"run-{i}" for i in range(len(control))]
+    return comparison_estimates(control, treatment, control_label="control", treatment_label="treatment",
+                                design="paired" if paired else "independent", test=test,
+                                metric=metric, pairs=pairs)
+
+
+def _assert_interval(actual, expected):
+    assert actual.unavailable_reason is None
+    assert [actual.estimate, actual.ci_low, actual.ci_high] == pytest.approx(expected, rel=1e-9, abs=1e-10)
+
+
+def _selection(metric):
+    from cytellect_analysis.group_comparison_contracts import FieldSummarySelection
+
+    kwargs = {"source": "field-summary", "region_set_id": "nuclei", "metric": metric}
+    if metric.startswith("positive_"):
+        kwargs["positivity"] = {"version": "1.1.0", "gate_protocol": "gfp-gate/3.0.0",
+                               "gfp_channel_id": "signal", "keep": "positive",
+                               "method": "manual", "threshold": 5}
+    return FieldSummarySelection.model_validate(kwargs)
+
+
+def _scalar_field(*, status="measured", regions=None, pixel_size=0.5):
+    # 合成: four scalar classifications, not artificial fluorescence or cell shapes.
+    if regions is None:
+        regions = [{"region_id": i + 1, "touches_border": False, "positive": value}
+                   for i, value in enumerate([True, False, None, True])]
+    return {"field_id": "scalar", "status": status, "shape": (2, 4), "pixel_size_um": pixel_size,
+            "regions": regions, "excluded_region_ids": []}
+
+
+def test_synthetic_independent_quantile_anchor():
+    # For df=2 the exact quantile follows F(x)=1/2+x/(2*sqrt(x*x+2)).
+    assert _t_critical(2) == pytest.approx(math.sqrt(2 * 0.95**2 / (1 - 0.95**2)), rel=1e-12)
+    assert _numerical_oracle() == FROZEN["numeric"]
+
+
+def test_synthetic_paired_estimates_and_saved_order():
+    result = _estimate(pairs=["run-z", "run-a", "run-m"])
+    _assert_interval(result.difference, FROZEN["numeric"]["paired_difference"])
+    _assert_interval(result.ratio, FROZEN["numeric"]["paired_ratio"])
+    assert [r.pair for r in result.runs] == ["run-z", "run-a", "run-m"]
+    assert [r.difference for r in result.runs] == FROZEN["numeric"]["paired_differences"]
+    assert result.n_pairs == result.n_control == result.n_treatment == 3
+    assert result.protocol == "comparison-estimates/1.0.0"
+    for group, key in zip(result.groups, ["control_summary", "treatment_summary"], strict=True):
+        assert [group.mean, group.ci_low, group.ci_high, group.sd] == pytest.approx(FROZEN["numeric"][key])
+
+
+def test_synthetic_welch_unbalanced_sizes_and_geometric_ratio():
+    result = _estimate(FROZEN["numeric"]["welch_control"], FROZEN["numeric"]["welch_treatment"], test="welch-t")
+    _assert_interval(result.difference, FROZEN["numeric"]["welch_difference"])
+    _assert_interval(result.ratio, FROZEN["numeric"]["welch_ratio"])
+    assert (result.n_control, result.n_treatment, result.n_pairs, result.runs) == (2, 3, None, [])
+
+
+@pytest.mark.parametrize("test", ["paired-t", "welch-t"])
+def test_synthetic_reversing_control_and_treatment(test):
+    forward = _estimate(test=test)
+    reverse = _estimate(FROZEN["numeric"]["paired_treatment"], FROZEN["numeric"]["paired_control"], test=test)
+    _assert_interval(reverse.difference, [-forward.difference.estimate, -forward.difference.ci_high,
+                                         -forward.difference.ci_low])
+    _assert_interval(reverse.ratio, [1 / forward.ratio.estimate, 1 / forward.ratio.ci_high, 1 / forward.ratio.ci_low])
+
+
+@pytest.mark.parametrize("metric", ["positive_fraction", "nucleolar_area_fraction"])
+@pytest.mark.xfail(strict=True, reason="31b3c22d: fraction difference/CI omit the specified x100; PR #101")
+def test_synthetic_fraction_interval_is_percentage_points(metric):
+    result = _estimate([0.25, 0.5, 0.25], [0.5, 0.25, 0.75], metric=metric)
+    _assert_interval(result.difference, FROZEN["numeric"]["fraction_difference"])
+
+
+@pytest.mark.parametrize("test", ["paired-t", "wilcoxon"])
+@pytest.mark.xfail(strict=True, reason="31b3c22d: per-run fraction differences omit x100; PR #101")
+def test_synthetic_fraction_run_differences_are_percentage_points(test):
+    result = _estimate([0.25, 0.5, 0.25], [0.5, 0.25, 0.75], metric="positive_fraction", test=test)
+    assert [r.difference for r in result.runs] == FROZEN["numeric"]["fraction_differences_pp"]
+
+
+@pytest.mark.parametrize("test", ["mann-whitney-u", "wilcoxon"])
+def test_synthetic_rank_tests_keep_descriptions_without_mean_intervals(test):
+    result = _estimate([2, 2, 3], [2, 3, 2], test=test)
+    assert result.difference.estimate is result.ratio.estimate is None
+    assert result.difference.unavailable_reason == result.ratio.unavailable_reason == "rank_test"
+    if test == "wilcoxon":
+        assert [r.difference for r in result.runs] == [0, 1, -1]
+
+
+@pytest.mark.parametrize("metric", ["mean_corrected", "nucleolar_eccentricity", "positive_fraction",
+                                    "log2_nucleoplasm_over_nucleolus"])
+def test_synthetic_nonratio_scales(metric):
+    result = _estimate([0.25, 0.5, 0.25], [0.5, 0.25, 0.75], metric=metric)
+    assert result.ratio.estimate is None
+    assert result.ratio.unavailable_reason == "ratio_not_applicable"
+    assert all(r.ratio is None for r in result.runs)
+
+
+@pytest.mark.parametrize("control,treatment", [([0, 2, 4], [1, 3, 8]), ([1, 2, 4], [0, 3, 8]),
+                                              ([-1, 2, 4], [1, 3, 8])])
+def test_synthetic_nonpositive_values_disable_ratio(control, treatment):
+    result = _estimate(control, treatment)
+    assert result.ratio.unavailable_reason == "nonpositive_values"
+    assert result.difference.estimate is not None
+
+
+def test_synthetic_small_n_and_zero_variance():
+    one = _estimate([1], [2])
+    assert one.difference.unavailable_reason == one.ratio.unavailable_reason == "too_few_pairs"
+    assert one.groups[0].mean == 1 and one.groups[0].unavailable_reason == "too_few_units"
+    assert _estimate([1], [2, 3], test="welch-t").difference.unavailable_reason == "too_few_units"
+    constant_difference = _estimate([1, 2, 3], [2, 3, 4])
+    assert constant_difference.difference.unavailable_reason == "zero_variance"
+    constant_ratio = _estimate([2, 4, 8], [4, 8, 16])
+    assert constant_ratio.ratio.unavailable_reason == "zero_variance"
+    constant_group = _estimate([2, 2, 2], [3, 4, 5]).groups[0]
+    assert [constant_group.mean, constant_group.sd, constant_group.ci_low, constant_group.ci_high] == [2, 0, 2, 2]
+
+
+def test_synthetic_incomplete_pairs_and_nonfinite_values_stop():
+    with pytest.raises(ValueError, match="pairs_mismatch"):
+        _estimate([1, 2], [2])
+    with pytest.raises(ValueError, match="pairs_mismatch"):
+        _estimate(pairs=["one-pair"])
+    with pytest.raises(ValueError, match="nonfinite"):
+        _estimate([1, math.nan], [2, 3])
+
+
+def test_public_bbbc039_all_contours_counts_borders_density_and_shapes():
+    from cytellect_analysis.field_summary import field_summary_values
+    from cytellect_analysis.nucleolar_shape import nucleolar_eccentricity
+
+    for name, mask in _public_masks():
+        expected = FROZEN["public"][name]
+        assert _shape_oracle(mask) == expected
+        result = nucleolar_eccentricity(mask, mask)
+        assert len(result) == expected["nucleus_count"]
+        for rid, _, eccentricity, _ in expected["objects"]:
+            assert result[rid]["nucleolar_eccentricity"] == pytest.approx(eccentricity, abs=1e-12)
+            assert result[rid]["objects"] == result[rid]["measured_objects"] == 1
+        # Pool real contours under one numeric parent solely to check weighting;
+        # no contours are altered and no biological parent relationship is claimed.
+        parent = (mask > 0).astype(np.uint32)
+        pooled = nucleolar_eccentricity(parent, mask)[1]
+        assert pooled["nucleolar_eccentricity"] == pytest.approx(expected["area_weighted_eccentricity"], abs=1e-12)
+        field = _scalar_field(regions=[{"region_id": rid, "touches_border": border, "positive": None}
+                                       for rid, _, _, border in expected["objects"]])
+        field.update(field_id=name, shape=mask.shape, pixel_size_um=None)
+        count = field_summary_values([field], _selection("nucleus_count"))[0]
+        assert count["value"] == count["nucleus_count"] == expected["nucleus_count"]
+        assert count["border_count"] == expected["border_count"]
+        assert count["evaluable_count"] is count["positive_count"] is None
+        assert field_summary_values([field], _selection("nucleus_density_per_mm2"))[0]["missing_reason"] == "calibration_unknown"
+        # 合成 calibration value, only a dimensional formula check, not BBBC039 metadata.
+        field["pixel_size_um"] = 0.5
+        density = field_summary_values([field], _selection("nucleus_density_per_mm2"))[0]
+        area = math.prod(expected["shape"]) / 4 / 1_000_000
+        assert density["field_area_mm2"] == pytest.approx(area)
+        assert density["value"] == pytest.approx(expected["nucleus_count"] / area)
+        # Exclude the lowest label by identity, not shape/size or measurement.
+        removed = field["regions"].pop(0)
+        field["excluded_region_ids"] = [removed["region_id"]]
+        count = field_summary_values([field], _selection("nucleus_count"))[0]
+        assert count["value"] == expected["nucleus_count"] - 1
+        assert count["excluded_region_count"] == 1
+
+
+def test_synthetic_classification_denominator_zero_and_missing_ledger():
+    from cytellect_analysis.field_summary import field_summary_values
+
+    result = field_summary_values([_scalar_field()], _selection("positive_fraction"))[0]
+    expected = FROZEN["numeric"]["scalar_field"]
+    assert result["value"] == expected["positive_fraction"]
+    for key in ("nucleus_count", "evaluable_count", "positive_count"):
+        assert result[key] == expected[key]
+    assert result["nucleus_count"] - result["evaluable_count"] == expected["non_evaluable_count"]
+    cases = [_scalar_field(status="no_regions", regions=[]), _scalar_field(status="failed"),
+             _scalar_field(status="excluded")]
+    rows = field_summary_values(cases, _selection("positive_fraction"))
+    assert [r["missing_reason"] for r in rows] == ["no_evaluable_nuclei", "field_failed", "field_excluded"]
+    assert [r["nucleus_count"] for r in rows] == [0, None, None]
+    assert [r["positive_count"] for r in rows] == [0, None, None]
+    assert field_summary_values([cases[0]], _selection("nucleus_count"))[0]["value"] == 0
+    assert field_summary_values([cases[0]], _selection("positive_count"))[0]["value"] == 0
+    missing = _scalar_field(regions=[{"region_id": 1, "touches_border": False, "positive": None}])
+    assert field_summary_values([missing], _selection("positive_fraction"))[0]["value"] is None
+
+
+def test_synthetic_degenerate_label_arrays_are_not_cell_images():
+    from cytellect_analysis.nucleolar_shape import nucleolar_eccentricity
+
+    one = np.array([[1]], dtype=np.uint32)
+    assert nucleolar_eccentricity(one, one)[1]["missing_reason"] == "degenerate_objects"
+    assert nucleolar_eccentricity(one, one * 0)[1]["missing_reason"] == "no_nucleolus"
+    line = np.array([[1, 1]], dtype=np.uint32)
+    assert nucleolar_eccentricity(line, line)[1]["nucleolar_eccentricity"] == 1
 
 
 if __name__ == "__main__":
