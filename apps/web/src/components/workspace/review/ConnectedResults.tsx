@@ -10,7 +10,7 @@ import {createComparisonAdapter,type Metadata,type ComparisonSource,type GfpSele
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricUsesChannel} from "@/lib/workspace/metric-catalog";
-import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,resultRequest,resultSeries,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
@@ -18,7 +18,7 @@ import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
 import type {components} from "@/lib/generated";
 import {comparisonDefaults,fieldMetadata,type ExperimentDesign} from "@/lib/workspace/experiment-design";
-import {summarize,type ComparisonEstimates,type SavedComparison} from "@/lib/result-summary";
+import {breakdown,summarize,type ComparisonEstimates,type CountRow,type FieldLedgerRow,type SavedComparison} from "@/lib/result-summary";
 
 export interface ConnectedResultItem {fieldId:string;label:string;result?:SavedResult;metadata?:Metadata;excluded?:boolean}
 export interface ConnectedResultsProps {
@@ -36,7 +36,7 @@ export interface ConnectedResultsProps {
   onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
-interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string}
+interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[]}
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
 const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
 const resultSources=(result:ResultPayload):SavedSource[]=>result.source_fields||result.x_source?.source_fields||result.y_source?.source_fields||[];
@@ -169,7 +169,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     try{
       // The public demo calculates with the default figure (recorded for every result); a width the
       // visitor chose beforehand is drawn right after (below).
-      const display=demo?{...plot(),width_inches:183/25.4}:plot();const base=resultRequest(design,fields,display);const chosenKind=operation==="association"?"scatter":operation==="distribution"||demo?"distribution":figureKind==="scatter"?"distribution":figureKind;
+      const display=demo?{...plot(),width_inches:183/25.4}:plot();const base=resultRequest(design,fields,display);const chosenKind=operation==="association"?"scatter":operation==="distribution"?"distribution":demo||figureKind==="scatter"||(figureKind==="distribution"&&design.estimates)?comparisonKind(design):figureKind;
       const spec={...base,plot:{...base.plot,kind:chosenKind}};
       await persist();
       if(sources.some(source=>(source.result.regionSet||target)!==regionSet))throw new Error("同じ領域の測定結果を選択してください。");
@@ -244,7 +244,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       </>:<>
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
         {part==="figure"&&<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(previous=>Math.min(previous,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option>{!demo&&<option value="custom">指定する</option>}</select></label>}
-        {saved?.operation==="comparison"&&<label>図のレイアウト<select value={figureKind} onChange={event=>setFigureKind(event.target.value as RenderPlot["kind"])}><option value="distribution">点と分布</option><option value="box">箱ひげ図</option><option value="violin">バイオリン図</option><option value="histogram">ヒストグラム</option>{paired&&<option value="paired">対応する点を結ぶ</option>}</select></label>}
+        {saved?.operation==="comparison"&&<label>図のレイアウト<select value={figureKind} onChange={event=>setFigureKind(event.target.value as RenderPlot["kind"])}><option value="distribution">点と分布</option><option value="box">箱ひげ図</option><option value="violin">バイオリン図</option><option value="histogram">ヒストグラム</option>{paired&&<option value="paired">対応する点を結ぶ</option>}<option value="superplot">実験回ごと（視野・実験回・平均と95%信頼区間）</option><option value="unit-mean-bar">実験回の平均の棒（95%信頼区間）</option></select></label>}
         {part==="x"&&<fieldset className={styles.plain} disabled={demo}><label>横軸ラベル<input value={xLabel} maxLength={120} onChange={event=>setXLabel(event.target.value)}/></label><AxisControls axis="x" value={xAxis} onChange={setXAxis} numeric={(saved?.operation||operation)==="association"}/></fieldset>}
         {part==="y"&&<fieldset className={styles.plain} disabled={demo}><label>縦軸ラベル<input value={yLabel} maxLength={120} onChange={event=>setYLabel(event.target.value)}/></label><AxisControls axis="y" value={{...yAxis,min:yMin,max:yMax}} onChange={value=>{setYAxis(value);setYMin(value.min);setYMax(value.max);}}/></fieldset>}
         {part==="figure"&&<><div className={styles.row}><label>幅 / mm<input type="number" disabled={demo} min={76.2} max={406.4} value={width} onChange={event=>setWidth(Number(event.target.value))}/></label><label>高さ / mm<input type="number" disabled={demo} min={25.4} max={170} value={height} onChange={event=>setHeight(Number(event.target.value))}/></label></div><label>文字 / pt<input type="number" disabled={demo} min={5} max={24} value={font} onChange={event=>setFont(Number(event.target.value))}/></label><label className={styles.check}><input type="checkbox" disabled={demo} checked={legend} onChange={event=>setLegend(event.target.checked)}/>凡例を表示</label></>}
@@ -263,7 +263,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}
       {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
-        {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={saved.result.unit||""} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}/>}
+        {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={saved.result.unit||""} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
+          counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}/>}
         {svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></section>}
         {!svgFiles.length&&<p>この設定では図を表示できません。測定表と出力条件を確認してください。</p>}
@@ -289,7 +290,7 @@ function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];f
 }
 
 /** The comparison stated in words first (S-01–S-07); every number is the saved result's. */
-function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[]}){
+function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>}){
   const summary=summarize(estimates,comparison,metricLabel,unit);
   return <section className={styles.summary} aria-label="結果のまとめ">
     <p className={styles.headline}>{summary.headline}</p>
@@ -298,6 +299,8 @@ function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings}:{est
     {summary.runs&&<p>{summary.runs}</p>}
     {estimates.runs.length>0&&<details><summary>実験回ごとの値</summary><table><thead><tr><th>実験回</th><th>{estimates.control}</th><th>{estimates.treatment}</th><th>差（{estimates.treatment} − {estimates.control}）</th></tr></thead>
       <tbody>{estimates.runs.map(run=><tr key={run.pair}><th>{run.pair}</th><td>{formatValue(run.control)}</td><td>{formatValue(run.treatment)}</td><td>{formatValue(run.difference)}</td></tr>)}</tbody></table></details>}
+    <details><summary>n の内訳と除外</summary><ul>{counts.groups.map(value=><li key={value}>{value}</li>)}</ul>
+      <p>{counts.exclusions.length?"除外・欠測（実験回ごと）":"除外した視野・領域と、測定値の欠測はありません。"}</p>{counts.exclusions.length>0&&<ul>{counts.exclusions.map(value=><li key={value}>{value}</li>)}</ul>}</details>
     <ul className={styles.cautions}>{[...summary.cautions,...warnings].map(value=><li key={value}>{value}</li>)}</ul>
   </section>;
 }

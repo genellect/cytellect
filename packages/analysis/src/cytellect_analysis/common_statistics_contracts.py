@@ -18,7 +18,9 @@ from .regions import RegionModel
 
 class CommonComparisonPlot(PlotSpec):
     # Opt-in protocol expands this enum without changing the historical PlotSpec schema.
-    kind: Literal["distribution", "paired", "histogram", "box", "violin"] = "distribution"  # type: ignore[assignment]
+    # "superplot" and "unit-mean-bar" draw the experiment hierarchy (requirements F-01, F-02).
+    kind: Literal["distribution", "paired", "histogram", "box", "violin", "superplot",
+                  "unit-mean-bar"] = "distribution"  # type: ignore[assignment]
     histogram_bins: Annotated[int, Field(strict=True, ge=3, le=50)] = 10
 
 

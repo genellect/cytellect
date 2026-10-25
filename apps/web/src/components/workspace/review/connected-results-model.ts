@@ -19,7 +19,7 @@ export interface ResultDesign {
   estimates?: boolean;
 }
 export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
-  kind: "distribution" | "paired" | "box" | "violin" | "scatter" | "histogram";
+  kind: "distribution" | "paired" | "box" | "violin" | "scatter" | "histogram" | "superplot" | "unit-mean-bar";
   preset: "custom"; language: "en"; y_min?: number; y_max?: number;point_size?:number;
   style?:{version:"1.0.0";series_colors:Record<string,string>;show_legend:boolean};
   y_tick_step?:number|null;
@@ -64,6 +64,11 @@ export function resultSeries(operation: ResultOperation, sourceFields: string[],
 export function seriesOrder(order: string[], series: string[]): string[] {
   return order.length ? [...new Set([...order.filter(key => series.includes(key)), ...series.filter(key => !order.includes(key))])] : [];
 }
+/** The first figure of a comparison: a declared two-group experiment is drawn by run (fields, run
+ * values, lines per run, mean and 95% CI; requirements F-01); other comparisons keep their default. */
+export function comparisonKind(design: Pick<ResultDesign, "paired" | "estimates">): "superplot" | "paired" | "distribution" {
+  return design.estimates ? "superplot" : design.paired ? "paired" : "distribution";
+}
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
   const selection = resultSelection(design);
   if (design.operation === "distribution") return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...plot,kind:"distribution"}};
@@ -76,9 +81,9 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
       contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
-      kind:design.paired?"paired":"distribution",width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,estimates:design.estimates};
+      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,estimates:design.estimates};
     const request = comparisonRequest(choices);
-    return {...request,plot:{...request.plot,...plot,kind:design.paired?"paired":"distribution"}};
+    return {...request,plot:{...request.plot,...plot,kind:comparisonKind(design)}};
   }
   const x = resultSelection({...design,metric:design.xMetric,channel:design.xChannel});
   if (selection.source !== "region" || x.source !== "region") throw new Error("相関には同じ領域の面積・輝度を選択してください。");

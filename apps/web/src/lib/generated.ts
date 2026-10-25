@@ -1859,7 +1859,7 @@ export interface components {
              * @default distribution
              * @enum {string}
              */
-            kind: "distribution" | "paired" | "histogram" | "box" | "violin";
+            kind: "distribution" | "paired" | "histogram" | "box" | "violin" | "superplot" | "unit-mean-bar";
             /**
              * Language
              * @default en

@@ -189,6 +189,58 @@ def _tables(result):
     return tables
 
 
+def _unit_interval(values):
+    """Mean and 95% t interval of independent-unit values (descriptive; None below two units)."""
+    from scipy import stats
+
+    values = np.asarray(values, dtype=float)
+    mean = float(values.mean())
+    if len(values) < 2:
+        return mean, None, None
+    half = float(stats.t.ppf(.975, len(values) - 1) * values.std(ddof=1) / np.sqrt(len(values)))
+    return mean, mean - half, mean + half
+
+
+def _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars):
+    """Fields (small), independent units (large, one marker per run), lines joining a run's
+    units, and each group's unit mean with its 95% t interval (a bar when ``bars``)."""
+    rows, fields = canonical["unit_summary"], canonical["field_summary"]
+    paired = canonical["spec"]["design"]["kind"] == "paired"
+    runs = sorted({r["pair"] for r in rows if r.get("pair")}) if paired else []
+    rng = np.random.default_rng(0)
+    for i, group in enumerate(order):
+        color = series_color(plot, group, COLORS[i % len(COLORS)])
+        points = [r for r in rows if r["condition"] == group]
+        mean, low, high = _unit_interval([r["value"] for r in points])
+        graphical_summary.append({"condition": group, "mean": mean, "ci_low": low, "ci_high": high,
+                                  "n_units": len(points), "interval": "95% t interval of independent-unit values"})
+        # The summary sits beside the points so it never hides a unit.
+        summary_x = i if bars else i + .32
+        if bars:
+            ax.bar(i, mean, width=.55, color=color, alpha=.25, edgecolor=color, linewidth=.6, zorder=1)
+        else:
+            ax.hlines(mean, summary_x - .07, summary_x + .07, color="#222222", linewidth=1.1, zorder=4)
+        if low is not None:
+            ax.errorbar(summary_x, mean, yerr=[[mean - low], [high - mean]], fmt="none", ecolor="#222222",
+                        elinewidth=.8, capsize=3, zorder=4)
+        for j, unit in enumerate(points):
+            marker = MARKERS[(runs.index(unit["pair"]) if unit.get("pair") in runs else j) % len(MARKERS)]
+            if not bars:
+                below = [f["value"] for f in fields if f["condition"] == group
+                         and f["experimental_unit"] == unit["experimental_unit"]]
+                ax.scatter(i + rng.uniform(-.18, .18, len(below)), below, s=7, color=color, alpha=.45,
+                           marker=marker, linewidths=0, zorder=2)
+            bind_points(ax.scatter([i], [unit["value"]], s=40, color=color, marker=marker, edgecolor="#222222",
+                                   linewidth=.6, zorder=5), [unit])
+            glyphs.append({**unit, "display_x": float(i), "display_y": unit["value"]})
+    for pair in canonical["pair_ledger"] if paired else []:
+        if pair["status"] != "selected":
+            continue
+        values = [next(r["value"] for r in rows if r["condition"] == c and r["experimental_unit"] == pair["units"][c])
+                  for c in order]
+        ax.plot(range(len(order)), values, color="#888888", linewidth=.5, zorder=3)
+
+
 def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION):
     if figure_version not in ("1.0.0", "1.0.1"):
         raise ValueError("common_statistics_figure_version_unsupported")
@@ -242,6 +294,20 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 ax.set_ylabel(plot["y_label"] or ("独立実験単位数" if ja else "Independent-unit count"))
                 ax.legend(frameon=False)
                 note = "Histogram counts independent units using shared equal-width bins; rugs show every unit."
+            elif plot["kind"] in ("superplot", "unit-mean-bar"):
+                bars = plot["kind"] == "unit-mean-bar"
+                _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars)
+                ax.set_xticks(range(len(order)), [textwrap.fill(c, 16) + f"\nn={sum(r['condition'] == c for r in rows)}" for c in order])
+                ax.set_xlim(-.5, len(order) - .5)
+                ax.set_xlabel(plot["x_label"] or ("条件（n：独立実験単位）" if ja else "Condition (n: independent units)"))
+                ax.set_ylabel(plot["y_label"] or _label(canonical, ja))
+                per_field = spec["selection"].get("source") == "field-summary"
+                note = ("Large points are independent experimental units (field values → sample mean → unit mean"
+                        if per_field else "Large points are independent experimental units (median per field → sample mean → unit mean")
+                note += "); the same marker marks the same run" + (" and lines join a run's units" if spec["design"]["kind"] == "paired" else "")
+                note += ". " if bars else "; small points are field values" + ("" if per_field else " (median of the field's observations)") + ". "
+                note += ("Bars show the mean of unit values" if bars else "Horizontal lines show the mean of unit values")
+                note += " with its 95% t interval (error bars). n is the number of independent units, not fields or nuclei."
             else:
                 for i, group in enumerate(order):
                     points = [r for r in rows if r["condition"] == group]

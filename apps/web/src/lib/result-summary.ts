@@ -78,3 +78,28 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
   cautions.push("n は独立した実験回の数です。核や視野の数は n ではありません。");
   return {headline, interval, test, runs, cautions};
 }
+
+export interface CountRow {condition: string; observations?: number; input_fields?: number; selected_fields?: number; samples?: number; experimental_units?: number}
+export interface FieldLedgerRow {condition: string; experimental_unit: string; explicitly_excluded?: boolean; excluded_observations?: number; missing_observations?: number}
+export interface Breakdown {groups: string[]; exclusions: string[]}
+
+/** What n is and what was left out, per group and per run (S-03, Q-02); counts are the saved ones.
+ * `noun` names one observation (核, 領域); null when the observations are fields themselves. */
+export function breakdown(counts: CountRow[], ledger: FieldLedgerRow[], noun: string | null): Breakdown {
+  const groups = counts.map(row => {
+    const fields = row.input_fields != null && row.selected_fields !== row.input_fields ? `${row.selected_fields}（入力 ${row.input_fields}）` : `${row.selected_fields ?? 0}`;
+    return `${row.condition}：実験回 ${row.experimental_units ?? 0}、試料 ${row.samples ?? 0}、視野 ${fields}` + (noun ? `、${noun} ${row.observations ?? 0}` : "");
+  });
+  const units = new Map<string, {condition: string; excluded: number; missing: number; fields: number}>();
+  for (const row of ledger) {
+    const key = `${row.condition}\u0000${row.experimental_unit}`;
+    const entry = units.get(key) ?? {condition: row.condition, excluded: 0, missing: 0, fields: 0};
+    entry.excluded += row.excluded_observations ?? 0; entry.missing += row.missing_observations ?? 0; entry.fields += row.explicitly_excluded ? 1 : 0;
+    units.set(key, entry);
+  }
+  const exclusions = [...units.entries()].filter(([, value]) => value.excluded || value.missing || value.fields).map(([key, value]) => {
+    const parts = [value.fields ? `除外した視野 ${value.fields}` : "", noun && value.excluded ? `除外した${noun} ${value.excluded}` : "", value.missing ? `測定値の欠測 ${value.missing}` : ""].filter(Boolean);
+    return `${key.split("\u0000")[1]}：${parts.join("、")}`;
+  });
+  return {groups, exclusions};
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatNumber, formatP, summarize, type ComparisonEstimates } from "./result-summary";
+import { breakdown, formatNumber, formatP, summarize, type ComparisonEstimates } from "./result-summary";
 
 // Saved-result shapes (comparison-estimates/1.0.0); the numbers are illustrative inputs to the text only.
 const interval = (estimate: number | null, low: number | null, high: number | null, reason: string | null = null) =>
@@ -57,5 +57,19 @@ describe("result summary", () => {
   it("formats numbers and p values", () => {
     expect([formatNumber(1234.5), formatNumber(0.012345), formatNumber(-0.5)]).toEqual(["1230", "0.0123", "-0.5"]);
     expect([formatP(0.0004), formatP(0.0456), formatP(null)]).toEqual(["p < 0.001", "p = 0.046", "p は計算できません"]);
+  });
+});
+
+describe("result breakdown", () => {
+  it("names runs, samples, fields and observations per group, and exclusions per run", () => {
+    const counts = [{condition: "DMSO", observations: 120, input_fields: 3, selected_fields: 3, samples: 3, experimental_units: 3},
+      {condition: "Drug", observations: 40, input_fields: 4, selected_fields: 3, samples: 3, experimental_units: 3}];
+    const ledger = [{condition: "Drug", experimental_unit: "R1 · Drug", explicitly_excluded: true, excluded_observations: 0, missing_observations: 0},
+      {condition: "Drug", experimental_unit: "R2 · Drug", excluded_observations: 2, missing_observations: 1},
+      {condition: "DMSO", experimental_unit: "R1 · DMSO", excluded_observations: 0, missing_observations: 0}];
+    const result = breakdown(counts, ledger, "核");
+    expect(result.groups).toEqual(["DMSO：実験回 3、試料 3、視野 3、核 120", "Drug：実験回 3、試料 3、視野 3（入力 4）、核 40"]);
+    expect(result.exclusions).toEqual(["R1 · Drug：除外した視野 1", "R2 · Drug：除外した核 2、測定値の欠測 1"]);
+    expect(breakdown(counts, [], null).groups[0]).toBe("DMSO：実験回 3、試料 3、視野 3");
   });
 });

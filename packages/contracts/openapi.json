@@ -5277,7 +5277,9 @@
               "paired",
               "histogram",
               "box",
-              "violin"
+              "violin",
+              "superplot",
+              "unit-mean-bar"
             ],
             "title": "Kind",
             "default": "distribution"
