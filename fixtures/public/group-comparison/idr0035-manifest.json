@@ -1,0 +1,236 @@
+{
+  "dataset": "IDR0035 / BBBC021",
+  "status": "candidate_pending_owner",
+  "license": "CC-BY-4.0",
+  "license_verbatim": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "license_evidence": "https://github.com/IDR/idr-metadata/blob/7b258ab741f2c7362ca51f76c5df4848ff2966db/idr0035-caie-drugresponse/idr0035-study.txt",
+  "attribution": "Caie et al. (2010), High-Content Phenotypic Profiling of Drug Response Signatures across Distinct Cancer Cells, doi:10.1158/1535-7163.MCT-09-1148; IDR0035, CC BY 4.0. Original distributed TIFFs unchanged.",
+  "metadata_commit": "7b258ab741f2c7362ca51f76c5df4848ff2966db",
+  "metadata_blobs": {
+    "study": "d849de39f4a1b70a05cf63736410a0a21c623447",
+    "library": "37a63cd1ecf2c71b48dfda6e46148823dc265242",
+    "screen": "1093549ef4e034fef6b227e96c76a5ec1289d72b"
+  },
+  "selection": "Before decoding/detection: lexicographically first plate Week1_22123, first row B, control well B02 and standard taxol 0.3 uM well B11; fields s1-s3 of each. Do not replace based on outcomes. Not independent experimental replicates.",
+  "comparison": {
+    "cell_line": "MCF-7",
+    "exposure_hours": 24,
+    "control": "DMSO, 0.1% per study protocol",
+    "treatment": "taxol 0.3 micromolar",
+    "plate": "Week1_22123",
+    "batch_label": "Week1",
+    "replicate_label": "1",
+    "independent_runs": "unconfirmed; one plate and one well per condition in this subset",
+    "metric_candidate": "Compare original images with common nuclear detection overlays; no claim of nuclear shrinkage or cell death. Published cell-integrated tubulin increase needs a separate cell-compartment contract.",
+    "paper": "https://doi.org/10.1111/jmi.12178",
+    "paper_figures": "S9-S11; total tubulin intensity per cell, median across cells in each well. Not nuclear mean tubulin or a calibrated biological effect size."
+  },
+  "acquisition": {
+    "objective": "20x PanFluor ELWD Ph1 DM, study metadata",
+    "numerical_aperture": null,
+    "micrometers_per_pixel": null,
+    "na_and_calibration_status": "unconfirmed; do not infer from TIFF print-resolution tags"
+  },
+  "checksum_provenance": "No publisher checksum located. SHA-256/size will pin the first HTTPS acquisition; not an upstream authenticity checksum.",
+  "files": [
+    {
+      "name": "Week1_150607_B02_s1_w107447158-AC76-4844-8431-E6A954BD1174.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s1_w107447158-AC76-4844-8431-E6A954BD1174.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 1,
+      "channel": "DAPI (DNA)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s1_w23FDB0AC4-EA74-4D33-A7D4-8FFC4C9ED7C8.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s1_w23FDB0AC4-EA74-4D33-A7D4-8FFC4C9ED7C8.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 1,
+      "channel": "beta-tubulin (Alexa 488)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s1_w429636E34-C663-4E49-84B5-3EA429CAB4CE.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s1_w429636E34-C663-4E49-84B5-3EA429CAB4CE.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 1,
+      "channel": "F-actin (phalloidin Alexa 568)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s2_w14AB22A28-7EF5-461A-8956-A7F6A013F412.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s2_w14AB22A28-7EF5-461A-8956-A7F6A013F412.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 2,
+      "channel": "DAPI (DNA)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s2_w261187024-FDFF-4974-A9AC-B09821E1F0B0.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s2_w261187024-FDFF-4974-A9AC-B09821E1F0B0.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 2,
+      "channel": "beta-tubulin (Alexa 488)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s2_w424B5B29B-1CEE-4A43-88C3-0A7389B25DE9.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s2_w424B5B29B-1CEE-4A43-88C3-0A7389B25DE9.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 2,
+      "channel": "F-actin (phalloidin Alexa 568)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s3_w1655B02F9-3E1A-44E4-ADA1-5FE25B8935EE.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s3_w1655B02F9-3E1A-44E4-ADA1-5FE25B8935EE.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 3,
+      "channel": "DAPI (DNA)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s3_w20FD24170-F66E-419B-84A3-E33497787290.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s3_w20FD24170-F66E-419B-84A3-E33497787290.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 3,
+      "channel": "beta-tubulin (Alexa 488)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B02_s3_w42FC6842F-711B-4C54-9153-06B657013145.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B02_s3_w42FC6842F-711B-4C54-9153-06B657013145.tif",
+      "well": "B02",
+      "condition": "DMSO",
+      "dose_um": null,
+      "field": 3,
+      "channel": "F-actin (phalloidin Alexa 568)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s1_w1AF4E7ECE-5E16-4738-AB19-DE26D79D3A20.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s1_w1AF4E7ECE-5E16-4738-AB19-DE26D79D3A20.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 1,
+      "channel": "DAPI (DNA)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s1_w22DD1576D-3CA3-445F-9639-CBB728301F5E.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s1_w22DD1576D-3CA3-445F-9639-CBB728301F5E.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 1,
+      "channel": "beta-tubulin (Alexa 488)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s1_w4DE21EDFB-2D22-47B4-9BFD-C7FD61C7335B.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s1_w4DE21EDFB-2D22-47B4-9BFD-C7FD61C7335B.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 1,
+      "channel": "F-actin (phalloidin Alexa 568)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s2_w10D63B690-EF01-47D0-A38A-F726A1EE6CC6.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s2_w10D63B690-EF01-47D0-A38A-F726A1EE6CC6.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 2,
+      "channel": "DAPI (DNA)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s2_w234171158-BF1F-4E0E-9D07-A5F9FC786E09.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s2_w234171158-BF1F-4E0E-9D07-A5F9FC786E09.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 2,
+      "channel": "beta-tubulin (Alexa 488)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s2_w411C2F79B-92CE-4F30-8CE6-B2B98767A759.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s2_w411C2F79B-92CE-4F30-8CE6-B2B98767A759.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 2,
+      "channel": "F-actin (phalloidin Alexa 568)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s3_w1434100C3-775A-4481-AF99-91487638BE08.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s3_w1434100C3-775A-4481-AF99-91487638BE08.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 3,
+      "channel": "DAPI (DNA)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s3_w20D1294C8-ECA9-458C-BD74-16AC75A52D0F.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s3_w20D1294C8-ECA9-458C-BD74-16AC75A52D0F.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 3,
+      "channel": "beta-tubulin (Alexa 488)",
+      "sha256": null,
+      "bytes": null
+    },
+    {
+      "name": "Week1_150607_B11_s3_w4F1517468-37FE-4A88-BF25-D12B657C826B.tif",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/IDR/idr0035-caie-drugresponse/images/Week1_22123/Week1_150607_B11_s3_w4F1517468-37FE-4A88-BF25-D12B657C826B.tif",
+      "well": "B11",
+      "condition": "taxol",
+      "dose_um": 0.3,
+      "field": 3,
+      "channel": "F-actin (phalloidin Alexa 568)",
+      "sha256": null,
+      "bytes": null
+    }
+  ]
+}
