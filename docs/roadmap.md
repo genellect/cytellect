@@ -32,7 +32,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 
 ### 群間比較の UX 改善
 
-対照と処理の群を、独立した実験回を n として、入力から図まで迷わず比べられるようにします。デモでは 2 群を並べ、出典の論文が報告する核の縮小・核数・核小体の変化を示します。目標・要件・開発体制は、オーナーの回答と Codex の独立レビュー（2026-10-25）を反映した案で、再レビューと未回答の判断を経るまで実装しません。核の縮小を示す公開データはまだ確保できていません（[目標定義書](drafts/group-comparison/goals.md)、[要件定義書](drafts/group-comparison/requirements.md)、[開発体制](drafts/group-comparison/development.md)）。
+対照と処理の群を、独立した実験回を n として、入力から図まで迷わず比べられるようにします。デモでは 2 群を並べ、出典の論文が報告する核の縮小・核数・核小体の変化を示します。目標・要件・開発体制は、Codex の独立レビューを反映し、2026-10-25 にオーナーが承認した。Claude Code（主担当）と Codex（補助）で実装中。核の縮小を示す公開データはまだ確保できていない（[目標定義書](drafts/group-comparison/goals.md)、[要件定義書](drafts/group-comparison/requirements.md)、[開発体制](drafts/group-comparison/development.md)）。
 
 ### 評価する項目
 
