@@ -51,6 +51,9 @@ function headerList(headers: RequestInit["headers"]): HeaderList {
   return list;
 }
 /** A recorded body matches when equal, with "*" in the recording standing for any value the client generates or counts. */
+/** How long after the first paint the recorded tour starts loading (it competes with the opening images). */
+const JOURNAL_DELAY_MS = 6000;
+
 export function journalBodyMatches(recorded: string | null, actual: string | null): boolean {
   if (recorded === null) return true;
   if (actual === null) return false;
@@ -395,7 +398,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     prepare() {
       // The build-time recorder runs every operation through the API, so it starts the API at once.
       if (dependencies.record) {void ensureEngine().catch(() => undefined); return;}
-      void loadJournal();
+      // The opening images go first; a change before this loads the recording on demand.
+      setTimeout(() => void loadJournal(), JOURNAL_DELAY_MS);
     },
     async fetch(path: string, init: RequestInit = {}): Promise<Response> {
       const signal = init.signal;

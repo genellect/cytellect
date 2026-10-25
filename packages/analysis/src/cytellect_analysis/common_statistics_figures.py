@@ -233,7 +233,8 @@ def _tables(result):
 def _unit_axis(spec, ja):
     """The x-axis title naming what n counts; a descriptive comparison does not call its units independent."""
     if spec.get("test") == "none":
-        return "条件（n：記録した実験回。独立性は未確認）" if ja else "Condition (n: recorded runs, independence not confirmed)"
+        # Short enough for every figure width; the legend states that independence is not confirmed.
+        return "条件（n：記録した実験回）" if ja else "Condition (n: recorded runs)"
     return "条件（n：独立実験単位）" if ja else "Condition (n: independent units)"
 
 
