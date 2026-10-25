@@ -31,14 +31,24 @@ def main():
             os.environ.pop(name, None)
         os.environ["CYTELLECT_CELLPOSE_PYTHON"] = str(args.python.resolve())
         os.environ["CYTELLECT_CELLPOSE_MODEL_DIR"] = str(args.models.resolve())
-        yy, xx = np.ogrid[:128, :128]
-        image = (100 + 2000 * ((xx - 64)**2 + (yy - 64)**2 < 25**2)).astype(np.uint16)
+        import tifffile
+        fixture = ROOT / "fixtures/public/bbbc039"
+        manifest = json.loads((fixture / "manifest.json").read_text(encoding="utf-8"))
+        entry = manifest["images"][0]
+        path = fixture / entry["image"]["path"]
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry["image"]["sha256"]:
+            raise ValueError("public_source_hash_mismatch")
+        # Fixed top-left 256 square; selected before detection, no outcome selection.
+        image = np.ascontiguousarray(tifffile.imread(path)[:256, :256])
         before = hashlib.sha256(image.tobytes()).hexdigest()
         start = time.perf_counter()
         labels, provenance = detect_cellpose(image, CellposeDetectorSpec(compute_device="cpu"), args.output / "engine")
         unchanged = before == hashlib.sha256(image.tobytes()).hexdigest()
         save(args.output / "result.json", {"status": "succeeded" if unchanged else "failed",
-             "seconds": time.perf_counter() - start, "input_shape": [128, 128], "output_shape": list(labels.shape),
+             "seconds": time.perf_counter() - start, "input_shape": list(image.shape), "output_shape": list(labels.shape),
+             "source": entry["id"], "source_sha256": entry["image"]["sha256"],
+             "crop_yx": [0, 256, 0, 256], "channel": "Hoechst (DNA)", "license": "CC0-1.0",
+             "selection": "first registered BBBC039 field, fixed top-left crop before inference",
              "output_dtype": str(labels.dtype), "original_pixels_unchanged": unchanged,
              "model_sha256": provenance.get("model_sha256"), "device": "cpu", "biological_validation": False})
         return

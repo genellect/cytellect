@@ -1,7 +1,7 @@
 """Bounded Windows resource probe using local HTTP handlers and the common worker.
 
 Capacity data only; no biological validation. No existing installation or data is
-opened. Results, synthetic images and the isolated local store stay outside Git.
+opened. Results, public-image derivatives and the isolated store stay outside Git.
 The worker is called directly after the real API enqueue; supervisor/browser
 overhead is explicitly outside this measurement. No limit or recipe is patched.
 """
@@ -27,19 +27,30 @@ def save(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=True, allow_nan=False) + "\n", encoding="utf-8")
 
 
-def generate(side, field):
+SOURCE_NAME = "40x_1.4_Rep1_Untreated_20211201_01_01.tif"
+SOURCE_SHA256 = "5b32bb25082174021ea25ecbc79fa0bd3daa2642e682ce0e828888def8f58f5d"
+CHANNELS = (("fitc", "FITC (identity unresolved)", None, False),
+            ("npm1", "NPM1-mTagRFP", "NPM1", True),
+            ("eu", "5-EU", "5-EU", True),
+            ("dna", "Hoechst", "Hoechst", True))
+
+
+def load_public(side, source, manifest_path):
+    """Fixed registered DS6a field: copy pixels only, never resample intensity."""
     import numpy as np
-    rng = np.random.default_rng(20261025 + field)
-    planes = [rng.integers(80, 121, (side, side), dtype=np.uint16) for _ in range(4)]
-    yy, xx = np.ogrid[-32:32, -32:32]
-    disk = (xx * xx + yy * yy) <= 28**2
-    foci = ((xx - 9)**2 + (yy - 6)**2 <= 6**2) | ((xx + 8)**2 + (yy + 5)**2 <= 5**2)
-    for y in range(128, side, 256):
-        for x in range(128, side, 256):
-            for i, amplitude in enumerate((2200, 900, 400, 700)):
-                planes[i][y-32:y+32, x-32:x+32] += disk.astype(np.uint16) * amplitude
-            planes[2][y-32:y+32, x-32:x+32] += foci.astype(np.uint16) * 2400
-    return planes
+    import tifffile
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    registered = next(row for row in manifest["files"] if row["name"] == SOURCE_NAME)
+    if manifest["source"] != "https://zenodo.org/records/6643470" or registered["sha256"] != SOURCE_SHA256:
+        raise ValueError("public_source_registration_mismatch")
+    if source.name != SOURCE_NAME or hashlib.sha256(source.read_bytes()).hexdigest() != SOURCE_SHA256:
+        raise ValueError("public_source_hash_mismatch")
+    data = tifffile.imread(source)
+    if data.shape != (4, 2304, 2304) or data.dtype != np.uint16:
+        raise ValueError("public_source_geometry_mismatch")
+    repeats = (side + 2303) // 2304
+    return [np.ascontiguousarray(np.tile(plane, (repeats, repeats))[:side, :side]) for plane in data]
 
 
 def child(args):
@@ -52,7 +63,10 @@ def child(args):
     from fastapi.testclient import TestClient
 
     result = {"status": "running", "side": args.side, "fields_requested": args.fields,
-              "channels": 4, "input_kind": "synthetic-capacity-only", "field_records": [],
+              "channels": 4, "input_kind": "registered-public-DS6a-pixel-copy", "field_records": [],
+              "source_file": SOURCE_NAME, "source_sha256": SOURCE_SHA256,
+              "derivation": "2048: top-left crop; 4096: 2x2 repeat of 2304 square then top-left crop; no interpolation",
+              "repeated_fields_are_independent": False,
               "stage_seconds": {}, "engine_calls": []}
     def phase(name):
         save(args.output / "phase.json", {"phase": name})
@@ -87,23 +101,23 @@ def child(args):
     with TestClient(app, base_url=origin, client=("127.0.0.1", 45000)) as client:
         response = client.post("/v1/local/session", headers=headers)
         response.raise_for_status()  # ephemeral local cookie is never recorded
-        response = client.post("/v1/workspaces", headers=headers, json={"title": "Synthetic resource workload"})
+        response = client.post("/v1/workspaces", headers=headers, json={"title": "Public DS6a resource workload"})
         response.raise_for_status()
         wid = response.json()["id"]
         ids = []
         for field in range(args.fields):
-            phase("generate")
-            planes = generate(args.side, field)
+            phase("load_public")
+            planes = load_public(args.side, args.source, args.manifest)
             before = [hashlib.sha256(p.tobytes()).hexdigest() for p in planes]
             files = {}
             for index, plane in enumerate(planes):
                 stream = io.BytesIO()
                 tifffile.imwrite(stream, plane, photometric="minisblack")
-                files[f"ch{index}"] = (f"synthetic-{index}.tif", stream.getvalue(), "image/tiff")
-            spec = {"channels": [{"channel_id": role, "label": f"Synthetic {role}",
-                      "stain": "DAPI" if role == "dna" else None, "identity_confirmed": True}
-                     for role in ("dna", "signal1", "signal2", "boundary")],
-                    "metadata": {"condition": "capacity", "sample": "synthetic"}}
+                files[f"ch{index}"] = (f"public-ds6a-{index}.tif", stream.getvalue(), "image/tiff")
+            spec = {"channels": [{"channel_id": role, "label": label,
+                      "stain": stain, "identity_confirmed": confirmed}
+                     for role, label, stain, confirmed in CHANNELS],
+                    "metadata": {"condition": "capacity-only", "sample": "DS6a repeated field"}}
             phase("registration")
             started = time.perf_counter()
             response = client.post(f"/v1/workspaces/{wid}/region-fields", headers=headers,
@@ -142,7 +156,7 @@ def child(args):
         for fid, record in zip(ids, result["field_records"], strict=True):
             folder = app.state.store.safe_path("workspaces", wid, "fields", fid)
             hashes = [hashlib.sha256(np.load(folder / f"channel-{role}.npy", allow_pickle=False).tobytes()).hexdigest()
-                      for role in ("dna", "signal1", "signal2", "boundary")]
+                      for role, _, _, _ in CHANNELS]
             intact = intact and hashes == record["source_pixel_sha256"]
         result["original_pixels_unchanged"] = intact
         result["status"] = "succeeded" if intact and not report["field_failures"] else "failed"
@@ -172,12 +186,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--fiji", type=Path, required=True)
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--side", type=int, choices=(2048, 4096), required=True)
     parser.add_argument("--fields", type=int, choices=(1, 3, 5, 10), required=True)
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--child", action="store_true")
     args = parser.parse_args()
     args.output, args.fiji = args.output.resolve(), args.fiji.resolve()
+    args.source, args.manifest = args.source.resolve(), args.manifest.resolve()
     if args.output == ROOT or args.output.is_relative_to(ROOT):
         parser.error("outputs must be outside checkout")
     if not 30 <= args.timeout <= 1800:
@@ -190,7 +207,10 @@ def main():
             "python": platform.python_version(), "processor": platform.processor(),
             "logical_cpus": psutil.cpu_count(), "physical_cpus": psutil.cpu_count(logical=False),
             "ram_bytes": psutil.virtual_memory().total, "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-            "scope": "local API in-process + direct scientific worker; no browser/supervisor; synthetic capacity only"}
+            "scope": "local API in-process + direct scientific worker; no browser/supervisor; public pixel-copy resource workload"}
+    import cytellect_analysis
+    source_root = Path(cytellect_analysis.__file__).resolve().parents[4]
+    host["analysis_commit"] = subprocess.check_output(["git", "-C", str(source_root), "rev-parse", "HEAD"], text=True).strip()
     save(args.output / "host.json", host)
     start = time.perf_counter()
     peak, samples, gaps = 0, 0, 0
@@ -199,6 +219,7 @@ def main():
     with (args.output / "child.log").open("w", encoding="utf-8") as log:
         process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--output", str(args.output),
                                     "--fiji", str(args.fiji), "--side", str(args.side), "--fields", str(args.fields),
+                                    "--source", str(args.source), "--manifest", str(args.manifest),
                                     "--child"], stdout=log, stderr=log, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
         root = psutil.Process(process.pid)
         while process.poll() is None:
@@ -224,7 +245,8 @@ def main():
                "stopped": stopped, "wall_seconds": time.perf_counter()-start, "peak_summed_rss_bytes": peak,
                "peak_by_phase_bytes": phases, "samples": samples, "rss_access_gaps": gaps, "result": result,
                "limitations": ["shared pages may be counted twice", "subsample spikes may be missed",
-                               "one host and synthetic workload; not a supported-capacity guarantee"]}
+                               "one host and repeated public field; not a supported-capacity guarantee",
+                               "tiling seams and repeated cells are not independent biological observations"]}
     save(args.output / "receipt.json", receipt)
     print(json.dumps({k: receipt[k] for k in ("side", "fields", "exit_code", "wall_seconds", "peak_summed_rss_bytes")}))
     if process.returncode or stopped or result["status"] != "succeeded":

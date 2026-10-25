@@ -1,6 +1,46 @@
 # Local resource benchmark
 
-## WP7: four-channel Windows benchmark (2026-10-25)
+## WP7 public-image remeasurement (2026-10-25, current policy)
+
+The owner's revised instruction supersedes synthetic-image capacity evidence.
+The earlier synthetic records below are retained only as history: **they are not
+accepted validation or a basis for limits or a recommended batch size**.
+No detection algorithm, thresholds or model weights are tuned in this work.
+
+Preregistered workload: the first already-registered DS6a Untreated Rep1 field,
+`40x_1.4_Rep1_Untreated_20211201_01_01.tif`, SHA-256
+`5b32bb25082174021ea25ecbc79fa0bd3daa2642e682ce0e828888def8f58f5d`.
+Registration and source/channel evidence are in PR #99's
+`fixtures/public/group-comparison/ds6a-manifest.json` and metadata samples.
+Schmidt, Rohatgi and Brandman, DS6a, https://zenodo.org/records/6643470,
+CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+
+- Source: four 2304-square uint16 planes. Order: unresolved FITC identity,
+  NPM1-mTagRFP, 5-EU, Hoechst. The unresolved FITC channel is labelled as such,
+  never treated as GFP/NCL/CellMask. Only Hoechst defines the nuclear regions.
+- 2048 square: top-left crop. 4096 square: repeat the source 2 by 2 and take the
+  top-left 4096 square. Pixel values are copied exactly, without interpolation,
+  brightness changes, padding or generated cell shapes. The source TIFF is untouched.
+- Each size is measured with 1 and 3 sequential copies of the same field. These
+  are repeated resource workloads, never independent fields/replicates for biology.
+  Seams may influence detection; no accuracy or biological claims follow.
+- Selection is fixed before inference, with no replacement after failures.
+  Record failures and existing admission limits without bypassing them.
+- Common analysis code is loaded from fixed review base `31b3c22d` (or its test-only
+  descendant); record the exact commit in each receipt. Benchmark scripts live
+  on this WP7 branch; recipe remains region-2d 1.1.0 / raw_intensity 1.1.0.
+- Cellpose: first registered CC0 BBBC039 field, fixed top-left 256-square Hoechst
+  crop, default locked local CPU engine. No tuning or selection by output.
+
+The 100-field ceiling and 2 GiB upload quota **remain unchanged**. Generic
+`RegionFieldInput.channels` already accepts four channels; the lead owns the
+I07/I09 documentation alignment. Resource observations only inform proposals.
+Input shape, actual detection shape (including the existing 1643-square resize),
+and original-coordinate measurements must be reported separately.
+
+Results: pending remeasurement; no new success is claimed at this plan commit.
+
+## Historical WP7 synthetic benchmark (superseded; not validation)
 
 The approved group-comparison specification is `a78a110b613684c3a352f99b625d20f94f488918`.
 The measurement base is main `11eb24419f2d8af5a3eec706e23985a038cc7f1d`.
