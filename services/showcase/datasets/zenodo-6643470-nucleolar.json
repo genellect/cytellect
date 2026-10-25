@@ -774,15 +774,21 @@
   "fragment_review": {
    "max_area_fraction": 0.6
   },
-  "opening": "distribution",
+  "opening": "comparison",
   "statistics": {
    "distribution": {
     "target": "nucleoli",
     "metric": "mean",
     "channel": "eu5"
+   },
+   "comparison": {
+    "target": "nucleoli",
+    "metric": "mean",
+    "channel": "eu5",
+    "design": "paired"
    }
   },
-  "comparison_plan": "Planned before measurement: per-field distributions of the nucleolar mean 5-EU (raw and background-corrected) and of the nucleolar eccentricity (compartment-summary 1.1.0), Untreated versus ActD 1 µM, by replicate. Expected directions from the source: lower nucleolar 5-EU and lower eccentricity with ActD. No inferential test is reported because the replicates' independence is not established.",
+  "comparison_plan": "Planned before measurement: per-field distributions of the nucleolar mean 5-EU (raw and background-corrected) and of the nucleolar eccentricity (compartment-summary 1.1.0), Untreated versus ActD 1 µM, by replicate. Expected directions from the source: lower nucleolar 5-EU and lower eccentricity with ActD. No inferential test is reported because the replicates' independence is not established. Amended before any value was read (2026-10-25): the common statistics gained a descriptive comparison (test none) for designs whose independence is unconfirmed; the scene opens on that comparison of the nucleolar mean 5-EU (per-run values and differences, no test, p-value or interval).",
   "grid": {
    "nuclei": {
     "probability": [
@@ -983,8 +989,8 @@
      }
     },
     {
-     "label": "核の面積と NPM1 輝度の関係",
-     "instruction": "核の面積とNPM1の平均輝度の関係を条件ごとに見たい",
+     "label": "核の 5-EU を未処理と ActD で比較",
+     "instruction": "核の5-EU（新しく合成されたRNA）を未処理とActDで比べたい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [
@@ -1009,38 +1015,25 @@
       ],
       "metrics": [
        {
-        "metric": "area",
-        "channel": null,
-        "region": "nucleus"
-       },
-       {
         "metric": "mean_raw",
-        "channel": "ch2",
+        "channel": "ch3",
         "region": "nucleus"
        }
       ],
       "statistics": {
-       "kind": "association",
-       "test": null,
+       "kind": "comparison",
+       "test": "paired-t",
        "omnibus": null,
-       "association": "spearman",
-       "x": {
-        "metric": "area",
-        "channel": null,
-        "region": "nucleus"
-       },
-       "y": {
-        "metric": "mean_raw",
-        "channel": "ch2",
-        "region": "nucleus"
-       }
+       "association": null,
+       "x": null,
+       "y": null
       },
       "additional_analyses": [],
       "figures": [
        {
-        "kind": "association-scatter",
+        "kind": "unit-comparison",
         "metric": "mean_raw",
-        "channel": "ch2",
+        "channel": "ch3",
         "region": "nucleus",
         "analysis_index": 0
        }
@@ -1049,7 +1042,7 @@
        "Rep1–Rep3 は同日撮影で、独立した実験かどうかは出典で確認できません。"
       ],
       "reference_ids": [],
-      "rationale": "反復単位で集計した核の面積と NPM1 平均輝度の順位相関を、条件ごとに示します。",
+      "rationale": "Hoechst で検出した核の中の 5-EU 平均輝度を、同じ反復（Rep）の未処理と ActD で比べます。反復の独立性は出典で確認できないため、検定と信頼区間は計算せず、反復ごとの値と差を示します。",
       "processing": {
        "version": "1.0.0",
        "nuclei": {

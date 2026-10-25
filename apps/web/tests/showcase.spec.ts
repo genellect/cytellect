@@ -474,7 +474,7 @@ test("operations the recording does not hold are explained at once, without the 
   await noErrors(page, watch);
 });
 
-test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associations, show results without errors", async ({page}) => {
+test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, descriptively while independence is unconfirmed", async ({page}) => {
   test.setTimeout(600_000);
   test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
   const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
@@ -489,7 +489,7 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associatio
     ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],
     ["nucleoplasm", "mean", "npm1", "distribution"], ["nuclei", "nucleolar_count", null, "comparison"],
     ["nuclei", "nucleolar_area_fraction", null, "distribution"], ["nuclei", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
-    ["nuclei", "mean", "npm1", "association"], ["nuclei", "area_px", null, "association"],
+    ["nucleoli", "mean", "eu5", "comparison"],
   ];
   for (const [region, metric, channel, kind] of cases) {
     await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
@@ -500,6 +500,9 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associatio
     await expect(results.locator("table").first()).toBeVisible();
     await expect(notRecorded(page)).toHaveCount(0);
   }
+  // Without confirmed independence the comparison is descriptive and an association is not offered (E-05).
+  await expect(results.getByRole("region", {name: "結果のまとめ"})).toContainText("検定なし（記述のみ）");
+  await expect(operation.locator("option[value=association]")).toHaveAttribute("disabled", "");
   // The last result's figure.
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
@@ -551,8 +554,8 @@ test("an AI example on another field, then measuring and statistics of each regi
   await expect(results.locator("details").filter({hasText: "実験情報"}).locator("input").first()).toHaveAttribute("readonly", "");
   await statistics("nucleoli", "area_px", null, "distribution");
   await measure("nuclei", "selected");
-  await statistics("nuclei", "area_px", null, "association");
-  await statistics("nucleoplasm", "mean_corrected", "npm1", "association");
+  await statistics("nuclei", "area_px", null, "comparison");
+  await statistics("nucleoplasm", "mean_corrected", "npm1", "distribution");
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
   // An example choosing rank-based methods: the statistics that follow keep them.
@@ -563,7 +566,7 @@ test("an AI example on another field, then measuring and statistics of each regi
   if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
   await page.getByRole("button", {name: "パネルを閉じる"}).click();
   await statistics("nucleoli", "nucleolar_area_fraction", null, "comparison");
-  await statistics("nucleoplasm", "mean", "npm1", "association");
+  await statistics("nucleoplasm", "mean", "npm1", "comparison");
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
   await noErrors(page, watch);

@@ -649,9 +649,12 @@ class Workspace:
                        "figure_policy": {"version": "2.0.0", "layout": "field-pages"},
                        "plot": {**display, "kind": "distribution"}}
         elif operation == "comparison":
+            # comparisonRequest(): while the runs' independence is unconfirmed the comparison is descriptive.
+            descriptive = bool(self.experiment and not self.experiment.get("independence_confirmed"))
             request = {"mode": "region-experimental-unit", "version": "2.0.0",
-                       "test": "paired-t" if paired else "welch-t",
-                       "omnibus": "welch-anova" if len(conditions) >= 3 and not paired else None, "selection": selection,
+                       "test": "none" if descriptive else "paired-t" if paired else "welch-t",
+                       "omnibus": ("welch-anova" if len(conditions) >= 3 and not paired and not descriptive else None),
+                       "selection": selection,
                        "design": {"kind": "paired" if paired else "independent", "confirmed": True,
                                   "unit_definition": unit, "pairing_basis": pairing if paired else None},
                        # comparisonRequest(): a declared contrast [treatment, control] is drawn control first.

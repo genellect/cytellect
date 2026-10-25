@@ -20,12 +20,12 @@
    "direction": "PLK1 のノックアウトで細胞が死ぬ（視野の核が減る）",
    "quantity": "出典は向きだけを述べ、視野あたりの核数の変化量は報告していません",
    "scope": "核は Hoechst から数えます。核数は画像に写った核の数で、生存率そのものではありません。値は視野 → 試料 → 実験回の順にまとめています。",
-   "independence": "Run1–Run3 は日付の異なるバッチの別のプレートです。出典は各プレートを播種から 96 時間で固定したと述べていますが、別々に播種した独立した実験であるとは明記していません。デモではこの記録をもとに、独立した実験回として扱っています。"
+   "independence": "Run1–Run3 は日付の異なるバッチの別のプレートです。出典は各プレートを播種から 96 時間で固定したと述べていますが、別々に播種・導入・染色した独立した実験であるとは明記していません。このため、この場面では検定と信頼区間を計算せず、実験回ごとの値と差を示します。"
   },
   "caveats": [
-   "Run1–Run3 は、バッチ 20220914_Run1、20221009_Run2、20221017_Run3 のプレート CP-CC9-R1-01、R2-01、R3-01 です。出典は各プレートを播種から 96 時間で固定したと述べており、日付が数週間離れたプレートは別々に培養されたと考えられます。ただし、別々に播種・導入・染色した独立した実験であるとは明記していません。デモではこの記録をもとに、3 回を独立した実験回として扱っています。",
+   "Run1–Run3 は、バッチ 20220914_Run1、20221009_Run2、20221017_Run3 のプレート CP-CC9-R1-01、R2-01、R3-01 です。出典は各プレートを播種から 96 時間で固定したと述べていますが、別々に播種・導入・染色した独立した実験であるとは明記していません。日付から独立性を推定しないため、デモでは独立性を未確認として扱い、検定をしません。",
    "日付はバッチ名の日付です。撮影日かどうかは出典に書かれていません。",
-   "各実験回・各条件で 1 ウェル 3 視野（3 × 3 の中央の行、視野 4〜6）です。ウェルは公開されたプレート配置の対照 A02（non-targeting）と A23（PLK1）です。視野は核の数や値で選んでいません。実験回 3 の対応のある検定は検出力が低いので、p 値だけでなく、実験回ごとの値と信頼区間を確かめてください。",
+   "各実験回・各条件で 1 ウェル 3 視野（3 × 3 の中央の行、視野 4〜6）です。ウェルは公開されたプレート配置の対照 A02（non-targeting）と A23（PLK1）です。視野は核の数や値で選んでいません。比較は実験回ごとの値と差による記述です。",
    "核数は視野に写った核の数で、生存率や増殖率そのものではありません。PLK1 のノックアウトでは大きく不規則な核や、断片化した核の塊も見え、塊は小さな物体に分かれて検出・計数されることがあります。両群に同じ検出を当て、物体の大きさによる除外はしていません。デモでは核の形を解釈しません。",
    "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
@@ -587,8 +587,8 @@
     "acquired_on": "2022-10-17"
    }
   ],
-  "independence_confirmed": true,
-  "independence_basis": "Separate 96 h cultures inferred from batch dates weeks apart (see dataset caveats)."
+  "independence_confirmed": false,
+  "independence_basis": "Not confirmed by the source: the batches are weeks apart and each plate was fixed 96 h after seeding, but separate seeding, transfection and staining are not stated (requirements E-05: no inference from dates)."
  },
  "scenario": {
   "unit_definition": "実験回（Run1–Run3。日付の異なるバッチの別のプレート）",
@@ -601,12 +601,6 @@
     "metric": "area_px",
     "channel": "dna"
    },
-   "association": {
-    "target": "nuclei",
-    "metric": "integrated",
-    "channel": "dna",
-    "x_metric": "area_px"
-   },
    "comparison": {
     "target": "nuclei",
     "metric": "nucleus_count",
@@ -614,7 +608,7 @@
     "design": "paired"
    }
   },
-  "comparison_plan": "Planned before measurement: nuclei per field (field-summary 1.0.0, StarDist nuclei on Hoechst with default settings, nuclei touching the border included), PLK1 KO − non-targeting, paired by run, paired t-test, comparison estimates (difference and geometric-mean ratio with 95% intervals). Expected direction from the source: fewer nuclei after PLK1 knockout. No threshold on the effect size is set; a result in the other direction will be reported as such.",
+  "comparison_plan": "Planned before measurement: nuclei per field (field-summary 1.0.0, StarDist nuclei on Hoechst with default settings, nuclei touching the border included), PLK1 KO − non-targeting, paired by run, paired t-test, comparison estimates (difference and geometric-mean ratio with 95% intervals). Expected direction from the source: fewer nuclei after PLK1 knockout. No threshold on the effect size is set; a result in the other direction will be reported as such. Amended before publication at the owner's decision (2026-10-25): the runs' independence is unconfirmed (requirements E-05), so the comparison is descriptive (common statistics test none): per-run values and differences, no test, p-value or interval; the planned association is not computed.",
   "comparison_layouts": [
    "superplot",
    "unit-mean-bar",
@@ -639,7 +633,7 @@
    }
   },
   "grid_notes": "Nuclei: full 3 x 3 grid of StarDist probability (0.4/0.5/0.6) and NMS (0.2/0.3/0.4) at the automatic detection scale on all fields. Nucleoli are not detected: at 0.65 um/px the dataset is not suited to nucleolar segmentation, so the nucleolar and nucleoplasm views are not offered. Cellpose-SAM cell ROI is not recorded.",
-  "design_note": "Each run (plate) contains both conditions, so conditions are paired by run: experimental unit = one condition within one run, pair = run. The comparison is a paired t-test over three run pairs.",
+  "design_note": "Each run (plate) contains both conditions, so conditions are paired by run: experimental unit = one condition within one run, pair = run. Independence of the runs is unconfirmed, so the comparison is descriptive (no test).",
   "proposals": {
    "model": "showcase-preset",
    "prompt_version": "1",
@@ -747,9 +741,11 @@
         "analysis_index": 0
        }
       ],
-      "missing_information": [],
+      "missing_information": [
+       "実験回が独立に行われたこと（別々に播種・導入・染色したこと）は出典で確認できません。"
+      ],
       "reference_ids": [],
-      "rationale": "各実験回（Run）に両条件があるため、実験回を対応とした対応ありt検定で、核の面積を比べます。分裂に失敗した細胞では核が大きくなることがあります。",
+      "rationale": "各実験回（Run）に両条件があるため、実験回を対応として核の面積を比べます。実験回の独立性が確認されていないため、検定と信頼区間は計算せず、実験回ごとの値と差を示します。分裂に失敗した細胞では核が大きくなることがあります。",
       "processing": {
        "version": "1.0.0",
        "nuclei": {
@@ -773,8 +769,8 @@
      }
     },
     {
-     "label": "核の面積と DNA 量（Hoechst 積算輝度）の関係",
-     "instruction": "核の面積とHoechstの積算輝度の関係を条件ごとに見たい",
+     "label": "DNA 量（Hoechst 積算輝度）の分布",
+     "instruction": "核ごとのHoechstの積算輝度（DNA量の目安）を視野ごとに確認したい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [
@@ -787,36 +783,23 @@
       ],
       "metrics": [
        {
-        "metric": "area",
-        "channel": null,
-        "region": "nucleus"
-       },
-       {
         "metric": "integral_raw",
         "channel": "ch1",
         "region": "nucleus"
        }
       ],
       "statistics": {
-       "kind": "association",
+       "kind": "descriptive",
        "test": null,
        "omnibus": null,
-       "association": "spearman",
-       "x": {
-        "metric": "area",
-        "channel": null,
-        "region": "nucleus"
-       },
-       "y": {
-        "metric": "integral_raw",
-        "channel": "ch1",
-        "region": "nucleus"
-       }
+       "association": null,
+       "x": null,
+       "y": null
       },
       "additional_analyses": [],
       "figures": [
        {
-        "kind": "association-scatter",
+        "kind": "field-distribution",
         "metric": "integral_raw",
         "channel": "ch1",
         "region": "nucleus",
@@ -825,7 +808,7 @@
       ],
       "missing_information": [],
       "reference_ids": [],
-      "rationale": "実験回単位で集計した核の面積と、Hoechst の積算輝度（DNA 量の目安）の順位相関を、条件ごとに示します。",
+      "rationale": "Hoechst で検出した核ごとの積算輝度（DNA 量の目安）を、視野ごとの分布として示します。検定は行いません。PLK1 のノックアウトで分裂に失敗した細胞では、DNA 量の多い核が増えることがあります。",
       "processing": {
        "version": "1.0.0",
        "nuclei": {
@@ -910,5 +893,6 @@
    "CP-CC9-R3-01_A23_T0001F005L01A01Z01C01.tif",
    "CP-CC9-R3-01_A23_T0001F006L01A01Z01C01.tif"
   ]
- }
+ },
+ "independence_amendment": "Amended before the demo was published, at the owner's decision (2026-10-25): the runs were first declared independent on the basis of batch dates; requirements E-05 forbids inferring independence from dates, so the design is unconfirmed and the comparison is descriptive (test none)."
 }
