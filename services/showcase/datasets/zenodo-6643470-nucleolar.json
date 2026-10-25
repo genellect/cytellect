@@ -13,9 +13,9 @@
   "license_quoted": "Creative Commons Attribution 4.0 International (Zenodo record metadata: license id cc-by-4.0)",
   "license_url": "https://creativecommons.org/licenses/by/4.0/",
   "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
-  "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; centre 640 x 640 crops, channels Hoechst, NPM1 and 5-EU.",
+  "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU.",
   "scope": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins, 1 h untreated or 1 µM actinomycin D, then a 30 min 5-EU pulse labelled with Alexa Fluor 647 azide; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
-  "modifications": "Centre 640 x 640 crop of each 2304 x 2304 plane; channels Hoechst (OME c3), NPM1-mTagRFP (OME c1) and 5-EU (OME c2, Cy5); pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
+  "modifications": "640 x 640 crop of each 2304 x 2304 plane, placed where the Hoechst stain covers the most area (the same window for all channels); channels Hoechst (OME c3), NPM1-mTagRFP (OME c1) and 5-EU (OME c2, Cy5); pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
   "reported_change": {
    "source": "Schmidt ら 2022、Cell Reports、Figure 5A–B と本文：ActD は “both completely inhibited transcription and demixed nucleoli”。Fig 5B は核小体の 5-EU 平均と核小体の離心率（各条件 713 個以上の核小体）",
    "comparison": "未処理と ActD 1 µM（1 時間）の後、5-EU を 30 分取り込ませた U2OS",
@@ -66,9 +66,19 @@
   "pixel_size_x_um": 0.1625,
   "pixel_size_y_um": 0.1625
  },
- "derivation_rule": "Pre-registered before any measurement of this scene: the 18 files fixed by fixtures/public/group-comparison/ds6a-manifest.json (Codex, PR #99): for Untreated and ActD1, the first three files of each replicate Rep1–Rep3 in file-name order. Each plane is cropped to its centre 640 x 640 pixels (fixed position; for the published seed size). Channels: Hoechst (c3), NPM1 (c1), 5-EU (c2). No field, nucleus or object is selected or removed by its count, size or signal; nuclei without an established nucleolus remain missing for nucleolar measures, never zero.",
+ "derivation_rule": "Pre-registered before any measurement of this scene: the 18 files fixed by fixtures/public/group-comparison/ds6a-manifest.json (Codex, PR #99): for Untreated and ActD1, the first three files of each replicate Rep1–Rep3 in file-name order. Each plane is cropped to 640 x 640 pixels (for the published seed size) by crop_rule (see derivation_amendment). Channels: Hoechst (c3), NPM1 (c1), 5-EU (c2). No field, nucleus or object is selected or removed by its count, size or signal; nuclei without an established nucleolus remain missing for nucleolar measures, never zero.",
+ "crop_rule": {
+  "kind": "nuclear-window",
+  "size": [
+   640,
+   640
+  ],
+  "step": 64,
+  "basis": "The 640 x 640 window, on a 64-pixel grid, holding the most Hoechst pixels above the plane's Otsu threshold; ties go to the window nearest the centre. Only the nuclear channel is read, never NPM1 or 5-EU (cytellect_showcase.build.nuclear_window)."
+ },
+ "derivation_amendment": "Amended after the first scenario run, before any nucleolar or 5-EU value was read: the pre-registered centre crops held 0-2 nuclei in four of the 18 fields (Rep1 ActD file 52, Rep2 ActD file 112, Rep3 Untreated files 121 and 122); in Rep3 Untreated file 122 the crop held no nucleus and StarDist returned 51 objects in the cytoplasm, which left the field's nucleolar compartments unresolved and stopped the build. The crop position is now chosen per field from the nuclear stain alone (crop_rule). The 18 files, channels, groups, runs and every later rule are unchanged; no field or nucleus is removed.",
  "selection": {
-  "rule": "first three files per replicate and condition in file-name order; centre crop"
+  "rule": "first three files per replicate and condition in file-name order; crop by crop_rule"
  },
  "sources": {
   "40x_1.4_Rep1_Untreated_20211201_01_01": {
@@ -209,13 +219,7 @@
     "sample": "Rep1 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep1"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep1_Untreated_20211201_01_02",
@@ -245,13 +249,7 @@
     "sample": "Rep1 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep1"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep1_Untreated_20211201_01_03",
@@ -281,13 +279,7 @@
     "sample": "Rep1 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep1"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep1_ActD1_20211201_01_51",
@@ -317,13 +309,7 @@
     "sample": "Rep1 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep1"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep1_ActD1_20211201_01_52",
@@ -353,13 +339,7 @@
     "sample": "Rep1 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep1"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep1_ActD1_20211201_01_53",
@@ -389,13 +369,7 @@
     "sample": "Rep1 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep1"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep2_Untreated_20211201_01_61",
@@ -425,13 +399,7 @@
     "sample": "Rep2 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep2"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep2_Untreated_20211201_01_62",
@@ -461,13 +429,7 @@
     "sample": "Rep2 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep2"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep2_Untreated_20211201_01_63",
@@ -497,13 +459,7 @@
     "sample": "Rep2 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep2"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep2_ActD1_20211201_01_111",
@@ -533,13 +489,7 @@
     "sample": "Rep2 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep2"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep2_ActD1_20211201_01_112",
@@ -569,13 +519,7 @@
     "sample": "Rep2 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep2"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep2_ActD1_20211201_01_113",
@@ -605,13 +549,7 @@
     "sample": "Rep2 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep2"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep3_Untreated_20211201_01_121",
@@ -641,13 +579,7 @@
     "sample": "Rep3 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep3"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep3_Untreated_20211201_01_122",
@@ -677,13 +609,7 @@
     "sample": "Rep3 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep3"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep3_Untreated_20211201_01_123",
@@ -713,13 +639,7 @@
     "sample": "Rep3 · Untreated",
     "acquisition_date": "2021-12-01",
     "pair": "Rep3"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep3_ActD1_20211201_01_171",
@@ -749,13 +669,7 @@
     "sample": "Rep3 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep3"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep3_ActD1_20211201_01_172",
@@ -785,13 +699,7 @@
     "sample": "Rep3 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep3"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   },
   {
    "id": "40x_1.4_Rep3_ActD1_20211201_01_173",
@@ -821,13 +729,7 @@
     "sample": "Rep3 · ActD 1 µM",
     "acquisition_date": "2021-12-01",
     "pair": "Rep3"
-   },
-   "crop": [
-    832,
-    832,
-    640,
-    640
-   ]
+   }
   }
  ],
  "experiment": {

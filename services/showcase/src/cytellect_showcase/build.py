@@ -246,6 +246,32 @@ def select_fields(manifest: dict, cache: Path, work: Path, fiji: str) -> dict:
     return {**manifest, "sources": sources, "fields": fields, "selection": {**rule, "results": results}}
 
 
+def nuclear_window(image, size: list[int], step: int) -> list[int]:
+    """The crop window holding the most nuclear stain (pixels above the plane's Otsu threshold).
+
+    Uses only the nuclear channel, never a measured one, so the crop cannot follow the outcome.
+    Windows are on a ``step`` grid; ties go to the window nearest the image centre.
+    """
+    import numpy as np
+    from skimage.filters import threshold_otsu
+
+    h, w = size
+    if h > image.shape[0] or w > image.shape[1]:
+        raise SystemExit("crop larger than source")
+    mask = (image > threshold_otsu(image)).astype(np.int64)
+    integral = np.pad(mask.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+    best: tuple[int, float, int, int] | None = None
+    centre = ((image.shape[0] - h) / 2, (image.shape[1] - w) / 2)
+    for y in range(0, image.shape[0] - h + 1, step):
+        for x in range(0, image.shape[1] - w + 1, step):
+            area = int(integral[y + h, x + w] - integral[y, x + w] - integral[y + h, x] + integral[y, x])
+            key = (area, -float(np.hypot(y - centre[0], x - centre[1])), y, x)
+            if best is None or key[:2] > best[:2]:
+                best = key
+    assert best is not None
+    return [best[2], best[3], h, w]
+
+
 def prepare(manifest: dict, cache: Path, destination: Path) -> list[dict]:
     import numpy as np
     import tifffile
@@ -253,17 +279,30 @@ def prepare(manifest: dict, cache: Path, destination: Path) -> list[dict]:
     destination.mkdir(parents=True, exist_ok=True)
     loaded: dict[str, Any] = {}
     prepared = []
+    crop_rule = manifest.get("crop_rule")
     for item in tile_fields(manifest):
         files, derivation = {}, {}
+
+        def plane_of(channel_id: str):
+            plane = item["planes"][channel_id]
+            source = manifest["sources"][plane["source"]]
+            if plane["source"] not in loaded:
+                loaded[plane["source"]] = read_source(download(source, cache), source)
+            array, axes = loaded[plane["source"]]
+            return select_plane(array, axes, plane.get("select", {}))
+
+        window = None
+        if crop_rule:
+            if crop_rule["kind"] != "nuclear-window":
+                raise SystemExit(f"unknown crop rule {crop_rule['kind']}")
+            nuclear = next(channel["channel_id"] for channel in manifest["channels"] if channel["role"] == "nuclear")
+            window = nuclear_window(plane_of(nuclear), crop_rule["size"], crop_rule["step"])
         for channel in manifest["channels"]:
             plane = item["planes"][channel["channel_id"]]
             source_id = plane["source"]
             source = manifest["sources"][source_id]
-            if source_id not in loaded:
-                loaded[source_id] = read_source(download(source, cache), source)
-            array, axes = loaded[source_id]
-            image = select_plane(array, axes, plane.get("select", {}))
-            y, x, h, w = item.get("crop") or [0, 0, image.shape[0], image.shape[1]]
+            image = plane_of(channel["channel_id"])
+            y, x, h, w = window or item.get("crop") or [0, 0, image.shape[0], image.shape[1]]
             if y < 0 or x < 0 or y + h > image.shape[0] or x + w > image.shape[1]:
                 raise SystemExit(f"crop outside source for {item['id']}")
             crop = np.ascontiguousarray(image[y:y + h, x:x + w])
@@ -1478,7 +1517,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--cache", type=Path, required=True, help="download cache outside the checkout")
     parser.add_argument("--fiji", required=True, help="pinned Fiji installation (scripts/fiji_setup.py)")
     parser.add_argument("--out", type=Path, default=PUBLIC)
-    parser.add_argument("--stages", default="prepare,scenario,grid,proposals,publish,snapshot,journal,qa")
+    parser.add_argument("--stages", default="prepare,scenario,reference,grid,proposals,publish,snapshot,journal,qa")
     parser.add_argument("--web-port", type=int, default=3217)
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)

@@ -60,7 +60,9 @@
 | パス | 内容 |
 |---|---|
 | `seed.zip` | データディレクトリ（`cytellect.sqlite`、`workspaces/` ほか。`tmp/` と再生成できる重複を除く）、`recordings/`、`proposals.json`、`showcase.json`（`workspace_id`、所有者 `owner`、`regenerate`。ビルド時のセッションは削除済みで、実行時はこの `owner` のセッションを作成する） |
-| `snapshot/dataset.json` | データセットの題名、出典、ライセンス、帰属表示、加工内容、注意事項（UI が表示する） |
+| `snapshot/dataset.json` | データセットの題名、出典、ライセンス、帰属表示、加工内容、注意事項（UI が表示する）。複数場面のデモでは最初の場面の内容 |
+| `snapshot/scenes.json` | 場面の一覧 `{"version": 1, "scenes": [...]}`。各場面は `id`、`label`（場面の切り替えに出す名前）、`workspaceId`、`dataset.json` と同じ出典の項目、`regions`、`examples`（AI の指示の例）、`assistantScope`（記録にない指示への返答の文）、任意の `reference`（下の照合ファイル名） |
+| `snapshot/reference-<場面>.json` | 別の手法が同じ画像について公開した対象と、デモで採用した核の照合（表示だけに使い、測定と統計には使わない）。視野ごとの照合の数と印 `[x, y, 半径, 状態]`、群ごと・実験回ごとの視野あたりの平均と、処理 ÷ 対照の比 |
 | `snapshot/index.json` | `{"version": 1, "entries": {"GET <パスとクエリ>": {"status": 200, "headers": [[...]], "file": "<ファイル名>"}}}` |
 | `snapshot/journal.json` | 案内の操作を、公開した初期状態からブラウザ内の API で順に実行した記録。`{"version": 1, "entries": [{"method", "path", "body", "status", "headers", "file"}]}`。変更の要求の `body` では、来訪ごとに変わる値（`request_id`・`version`・`spec_version` と、記録中に API が作った識別子＝初期状態のスナップショットにない UUID）を `"*"` にする。保存する解析設定（`PUT analysis-spec`）は記録しない |
 | `runtime/` | 自前のホイールと純 Python の依存。Pyodide 本体と同梱パッケージは、版を固定した CDN から読み込む |
@@ -134,11 +136,19 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 場面はどれも初期状態から始まり、互いに独立しているので、3 場面ずつ並行して記録する。記録には、再生が答えに使う取得（変更と変更の間で、パスごとの最後の取得）だけを残す。変更の本文では、訪問ごとに変わる値（要求 ID、文書の版、集合の作成時に前提とする採用中の解析版 `expected_active_revision_id`）と、記録中に API が生成した ID を `*` にする（集合の内容は、元の解析版・実験情報・採用状態で決まる）。作り直しの最後に、初期状態と今回の記録のどちらも参照しないファイル（前回の記録の残り）を公開ディレクトリから消す。図の描画結果（`GET /v1/jobs/<id>/figure-render`）は、画面が使う `source_job_id` と `figure` だけを残す（残りは統計の結果と同じ内容）。
 
-データセットは `services/showcase/datasets/<id>.json`（`cytellect-showcase-dataset/1`）で指定します。現在の公開デモは `cpg0016-jump-source13-plk1.json`（JUMP Cell Painting、CC0。U2OS の PLK1 ノックアウトと non-targeting の対照、実験回 3）です。視野・ウェル・チャンネル・比較の計画は、測定の前にこのファイルでコミットして固定します。群間比較デモに使う項目は次のとおりです。
+データセットは `services/showcase/datasets/<id>.json`（`cytellect-showcase-dataset/1`）で指定します。ビルドに複数のファイルを渡すと、1 ファイルが 1 場面（同じ所有者の別のワークスペース）になり、最初のファイルの場面でデモが開きます（最後に作るので最新のワークスペースになる）。画面は `?id=<ワークスペース>` で場面を開き、ヘッダーの「場面」で切り替えます（ページを読み込み直すので、場面どうしの状態は混ざらない）。現在の公開デモは次の 2 場面です。
+
+- `cpg0016-jump-source13-plk1.json`（核数）：JUMP Cell Painting、CC0。U2OS の PLK1 ノックアウトと non-targeting の対照、実験回 3、DNA のチャンネルだけ。JUMP が公開した CellProfiler の核（`reference`）と照合する。
+- `zenodo-6643470-nucleolar.json`（核小体）：Zenodo 6643470（DS6a）、U2OS の未処理と ActD 1 µM、Hoechst・NPM1・5-EU。核小体の大きさ・形と 5-EU を比べる。
+
+視野・ウェル・チャンネル・比較の計画は、測定の前にこのファイルでコミットして固定します。群間比較デモに使う項目は次のとおりです。
 
 - `experiment`：研究者が「実験」で入力する実験の形（群・対照・実験回・独立性の確認と根拠）。初期状態の解析設定に保存し、視野の群・独立実験単位・対応ペア・撮影日はこの形から決まる。宣言した 2 群の比較は、処理 − 対照の推定値（comparison-estimates/1.0.0）と、実験回ごとの図（superplot）で計算する。
 - `scenario.nucleoli`：`false` のデータでは核小体・核質を検出せず、画面もその領域と指標を出さない（`snapshot/dataset.json` の `regions`）。
 - `scenario.opening`：最後に計算する解析。公開デモは、開いたときにこの結果（既定は分布）を表示する。群間比較を指定すると、2 画面の下に結果の文と図が出る。
+- `crop_rule`：視野の切り出し位置の規則。`nuclear-window` は、核染色だけを読み、Otsu の閾値を超える画素が最も多い窓（`size`、`step` 画素の格子、同点は中央に近い窓）を選ぶ。測定するチャンネルは読まないので、切り出しが結果に合わせて動くことはない。全チャンネルで同じ窓を使い、画素値は変えない。
+- `scene_label`・`assistant_scope`：場面の名前と、記録にない AI の指示への返答で、その画像で比べられることを示す文。
+- `reference`：別の手法が同じ画像について公開した対象（現在は JUMP の CellProfiler。`Image.csv` は SHA-256 で固定し、`Nuclei.csv` はデモの画像の行だけを範囲取得してキャッシュする）。`reference` 段階が、採用した核と中心の位置で照合する（`cytellect_analysis.reference_objects`。一致・CellProfiler が分割・CellProfiler のみ・採用した核のみ。画像の端にかかる核は両方とも数えない）。画面は「CellProfiler と比べる」で印と群ごとの表を示す。
 - `dataset.reported_change`：出典が報告している変化（比べる条件・向き・量・範囲・実験回の独立性）。画面は、デモでの測定と分けて結果の文の上に示す（`snapshot/dataset.json` の `reportedChange`）。
 - Cellpose を使わないデータセット（NCL 陽性の核小体や細胞 ROI がない）では、Cellpose の実行環境は不要。
 

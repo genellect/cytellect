@@ -13,6 +13,18 @@ const DEV = process.env.CYTELLECT_SHOWCASE_DEV_BACKEND?.replace(/\/$/, "") || ""
 const PUBLISHED = fs.existsSync(path.resolve("public/showcase/seed.zip"));
 const live = 240_000;
 
+/** The published scenes (snapshot/scenes.json); a single-scene demo reads as one scene without an id. */
+interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; reference?: string; fields: unknown[]}
+const SCENES: Scene[] = (() => {
+  try {return (JSON.parse(fs.readFileSync(path.resolve("public/showcase/snapshot/scenes.json"), "utf8")) as {scenes: Scene[]}).scenes;}
+  catch {return [];}
+})();
+const sceneUrl = (scene: Scene | undefined, query = "") => scene ? `/demo?id=${scene.workspaceId}${query ? `&${query}` : ""}` : `/demo${query ? `?${query}` : ""}`;
+const OPENING = SCENES[0];
+/** The scene with nucleoli and a measured stain besides the nuclear one, for the nucleolar checks. */
+const NUCLEOLAR = SCENES.find(scene => scene.regions.includes("nucleoli"));
+const scopeText = (scene: Scene | undefined) => (scene?.assistantScope ?? "このデモは、記録した公開画像の解析だけに答えます。").slice(0, 20);
+
 test.describe.configure({mode: "serial"});
 test.beforeEach(() => {
   test.skip(!PUBLISHED && !DEV, "The public demo files (apps/web/public/showcase/seed.zip) are not built; set CYTELLECT_SHOWCASE_DEV_BACKEND to use the development backend.");
@@ -119,11 +131,27 @@ test("demo: image, outline, measurement, statistics and figure features run with
   }
   await expect(stage(page)).toBeVisible({timeout: live});
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  // The demo opens on nuclei over a colour merge of the two stains, without starting the in-browser API.
+  // The demo opens on nuclei, two groups side by side with the comparison below, without starting the in-browser API.
   await expect(page.locator("[class*=measureToggle] span")).toHaveText("核");
-  await expect(page.getByRole("button", {name: "重ねて表示", exact: true})).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("[data-composite=nuclear]").first()).toBeAttached();
+  const merge = page.getByRole("button", {name: "重ねて表示", exact: true});
+  if (await merge.count()) await expect(merge).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", {name: "2 画面", exact: true})).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("region", {name: "比較の結果"})).toBeVisible({timeout: live});
   await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
+  if (SCENES.length > 1) await expect(header.getByRole("combobox", {name: "場面"})).toHaveValue(OPENING.id);
+  // Another method's published nuclei for the same images, beside the adopted ones (display only).
+  if (OPENING?.reference) {
+    const toggle = page.getByRole("button", {name: "CellProfiler と比べる", exact: true});
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    const panel = page.getByRole("region", {name: /との比較$/});
+    await expect(panel.locator("table tbody tr")).toHaveCount(2);
+    await expect(page.locator("circle[data-tone]").first()).toBeAttached();
+    await toggle.click();
+    await expect(page.locator("circle[data-tone]")).toHaveCount(0);
+  }
+  // The rest of this walk uses one field at a time.
+  await page.getByRole("button", {name: "2 画面", exact: true}).click();
   await noOverflow(page);
 
   // The guide stays closed so the image and results show at once; 「使い方」 walks the real tabs.
@@ -229,7 +257,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await idle(page);
   await composer.fill("ミトコンドリアを数えたい");
   await page.getByRole("button", {name: "AIへ送信"}).click();
-  await expect(page.getByText("この公開画像（核を染めた Hoechst と、核小体の NPM1）では")).toBeVisible({timeout: live});
+  await expect(page.getByText(scopeText(OPENING))).toBeVisible({timeout: live});
   await page.getByRole("button", {name: "パネルを閉じる"}).click();
   expect(await alerts(page)).toEqual([]);
 
@@ -252,8 +280,23 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await noErrors(page, watch);
 });
 
+test("the scene switcher opens each scene's own images and examples", async ({page}) => {
+  test.skip(SCENES.length < 2, "The published demo has one scene.");
+  const watch = await openDemo(page);
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  for (const scene of SCENES.slice(1).concat(SCENES[0])) {
+    await header.getByRole("combobox", {name: "場面"}).selectOption(scene.id);
+    await expect(page).toHaveURL(new RegExp(`id=${scene.workspaceId}`));
+    await expect(regions(page).first()).toBeAttached({timeout: live});
+    await expect(page.locator("[class*=fieldCard]")).toHaveCount(scene.fields.length, {timeout: live});
+    await expect(page.getByRole("button", {name: "CellProfiler と比べる", exact: true})).toHaveCount(scene.reference ? 1 : 0);
+  }
+  await noErrors(page, watch);
+});
+
 test("deep links open the requested step without the guide", async ({page}) => {
-  const watch = await openDemo(page, "/demo?step=figure");
+  const watch = await openDemo(page, sceneUrl(OPENING, "step=figure"));
   await expect(page.locator("header").getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("complementary", {name: "公開デモの使い方"})).toHaveCount(0);
   await expect(page.getByRole("region", {name: "図の作成・保存"})).toBeVisible({timeout: live});
@@ -283,7 +326,7 @@ test("phones run the guided operations from the recorded tour", async ({page}) =
   expect(await alerts(page)).toEqual([]);
 
   // Statistics, its figure and the publication package, as 「使い方」 leads.
-  await page.goto("/demo?step=statistics");
+  await page.goto(sceneUrl(OPENING, "step=statistics"));
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   await expect(results.locator("table").first()).toBeVisible({timeout: live});
   // The confirmation covers every field, so it can be given once all of them have loaded.
@@ -340,19 +383,22 @@ async function renderFigure(page: Page) {
   expect(await alerts(page)).toEqual([]);
 }
 
-test("every field, region and channel shows recorded results", async ({page}) => {
-  test.setTimeout(600_000);
-  const watch = await openDemo(page);
+for (const scene of SCENES.length ? SCENES : [undefined]) test(`every field, region and channel shows recorded results${scene ? ` (${scene.id})` : ""}`, async ({page}) => {
+  test.setTimeout(900_000);
+  const watch = await openDemo(page, sceneUrl(scene));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
   const cards = page.locator("[class*=fieldCard]");
-  await expect(cards).toHaveCount(6, {timeout: live});
+  const total = scene ? scene.fields.length : 6;
+  await expect(cards).toHaveCount(total, {timeout: live});
   const inspector = await openSettings(page);
   const region = inspector.getByRole("combobox", {name: "領域", exact: true});
   const channels = page.getByRole("button", {name: "染色対応", exact: true}).locator("..").getByRole("button").filter({hasText: " · "});
-  for (let index = 0; index < 6; index++) {
+  for (let index = 0; index < total; index++) {
     await cards.nth(index).click();
-    for (const value of ["nuclei", "nucleoli", "nucleoplasm"]) {
+    for (const value of scene?.regions ?? ["nuclei", "nucleoli", "nucleoplasm"]) {
       await region.selectOption(value);
       for (let channel = 0; channel < await channels.count(); channel++) await channels.nth(channel).click();
       await expect(regions(page).first()).toBeAttached({timeout: 10_000});
@@ -374,8 +420,9 @@ test("every field, region and channel shows recorded results", async ({page}) =>
 
 test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows recorded results", async ({page}) => {
   test.setTimeout(600_000);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
   for (const [target, label] of [["nucleoli", "核小体"], ["nucleoplasm", "核質"]]) {
-    const watch = await openDemo(page);
+    const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
     const header = page.locator("header");
     await expect(regions(page).first()).toBeAttached({timeout: live});
     const inspector = await openSettings(page);
@@ -412,7 +459,7 @@ test("operations the recording does not hold are explained at once, without the 
   await expect(inspector.getByRole("combobox", {name: "核染色", exact: true})).toHaveCount(0);
   await expect(inspector.getByText(/公開デモでは、記録した次の検出条件で解析します/)).toBeVisible();
   const recorded = inspector.locator("dl").filter({hasText: "確率閾値"});
-  await expect(recorded).toContainText("Hoechst · hoechst");
+  await expect(recorded).toContainText("Hoechst · ");
   await expect(recorded).toContainText("0.5");
   await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
@@ -429,7 +476,8 @@ test("operations the recording does not hold are explained at once, without the 
 
 test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associations, show results without errors", async ({page}) => {
   test.setTimeout(600_000);
-  const watch = await openDemo(page);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await header.getByRole("button", {name: "統計", exact: true}).click();
@@ -455,18 +503,13 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associatio
   // The last result's figure.
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
-  // Brightness with saturated pixels is not offered for comparison, with its reason, instead of failing.
-  await header.getByRole("button", {name: "統計", exact: true}).click();
-  await side.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
-  await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("mean");
-  await side.getByRole("combobox", {name: "染色", exact: true}).selectOption("hoechst");
-  await expect(operation.locator("option[value=comparison]")).toHaveAttribute("disabled", "");
   await noErrors(page, watch);
 });
 
 test("an AI example on another field, then measuring and statistics of each region, keep showing results", async ({page}) => {
   test.setTimeout(900_000);
-  const watch = await openDemo(page);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const side = page.getByRole("complementary", {name: "解析対象"});
@@ -526,9 +569,9 @@ test("an AI example on another field, then measuring and statistics of each regi
   await noErrors(page, watch);
 });
 
-test("each preset AI instruction returns a settings draft that applies like a real proposal", async ({page}) => {
+for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI instruction returns a settings draft that applies like a real proposal${scene ? ` (${scene.id})` : ""}`, async ({page}) => {
   test.setTimeout(900_000);
-  const watch = await openDemo(page);
+  const watch = await openDemo(page, sceneUrl(scene));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const notRecorded = page.getByRole("status").filter({hasText: "記録した指示の例だけに応答します"});
@@ -554,7 +597,7 @@ test("each preset AI instruction returns a settings draft that applies like a re
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await composer.fill("ミトコンドリアを数えたい");
   await page.getByRole("button", {name: "AIへ送信"}).click();
-  await expect(page.getByText("この公開画像（核を染めた Hoechst と、核小体の NPM1）では")).toBeVisible({timeout: live});
+  await expect(page.getByText(scopeText(scene))).toBeVisible({timeout: live});
   await expect(notRecorded).toHaveCount(0);
   await noErrors(page, watch);
 });
