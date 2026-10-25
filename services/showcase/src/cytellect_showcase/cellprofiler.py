@@ -28,7 +28,7 @@ def _get(url: str, start: int | None = None, end: int | None = None) -> bytes:
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=300) as response:
                 data = response.read()
-            if start is None or len(data) == end - start + 1 or end is None:
+            if start is None or end is None or len(data) == end - start + 1:
                 return data
         except OSError:
             pass
@@ -103,7 +103,7 @@ def reference(manifest: dict, cache: Path) -> dict:
             if name in plan["files"]:
                 wanted[int(float(row["Image_ImageNumber"]))] = (name, row)
         rows = object_rows(plate["object_table_url"], set(wanted), cache)
-        by_image = {}
+        by_image: dict[int, list[dict]] = {}
         for row in rows:
             by_image.setdefault(int(row["ImageNumber"]), []).append(row)
         for number, (name, row) in wanted.items():

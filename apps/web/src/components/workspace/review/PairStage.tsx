@@ -36,7 +36,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   const receipts=panes.map(pane=>pane.field?.previewDisplay?.[channel]);
   const shared=sharedRange(receipts);
   const displayKey=JSON.stringify([shared,receipts.map(planeRange)]);
-  const urls=useSharedPreviews(panes.map(pane=>pane.field?.previews[channel]),receipts.map(planeRange),shared.status==="shared"?shared:null,displayKey);
+  const {urls,failed}=useSharedPreviews(panes.map(pane=>pane.field?.previews[channel]),receipts.map(planeRange),shared.status==="shared"?shared:null,displayKey);
 
   if(!run)return <p className={styles.empty}>2 つの群に画像がある実験回がありません。「実験」で群と実験回に画像を割り当ててください。</p>;
   return <div className={styles.pair}>
@@ -70,28 +70,28 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
         </section>;
       })}
     </div>
-    <p className={styles.note} role="note">{shared.status==="shared"
-      ?`2 つの画像を同じ表示範囲（保存値 ${format(shared.black)}–${format(shared.white)}）で表示しています。同じ明るさは同じ保存値です。露光・ゲインなど撮影条件の違いは、この表示では補正されません。拡大は画素単位でそろえています。`
+    <p className={styles.note} role="note">{shared.status==="shared"&&!failed
+      ?`2 つの画像を、同じ表示範囲（保存値 ${format(shared.black)}–${format(shared.white)}）の共通の明るさの変換で表示しています。範囲外の値と、表示の階調による差は、この表示からは比べられません。露光・ゲインなど撮影条件の違いは補正していません。拡大は画素単位でそろえています。`
       :"この画像では表示範囲をそろえられないため、それぞれの画像の範囲で表示しています。明るさを比べず、測定値で比べてください。"}</p>
   </div>;
 }
 
 const format=(value:number)=>Number.isInteger(value)?String(value):value.toPrecision(4);
 
-/** Object URLs of previews redrawn on the shared scale; the originals while unavailable. */
-function useSharedPreviews(sources:Array<string|undefined>,ranges:Array<{black:number;white:number}|null>,shared:{black:number;white:number}|null,key:string){
+/** Object URLs of previews redrawn on the shared scale; the originals (and failed) when redrawing fails. */
+function useSharedPreviews(sources:Array<string|undefined>,ranges:Array<{black:number;white:number}|null>,shared:{black:number;white:number}|null,key:string):{urls:Array<string|undefined>;failed:boolean}{
   const sourceKey=sources.join("\n")+key;
-  const [state,setState]=useState<{key:string;urls:Array<string|undefined>}>({key:"",urls:[]});
+  const [state,setState]=useState<{key:string;urls:Array<string|undefined>;failed:boolean}>({key:"",urls:[],failed:false});
   const tables=useMemo(()=>shared?ranges.map(range=>range?remapTable(range,shared):null):[],[key]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{
     if(!shared){return;}
     let live=true;const created:string[]=[];
     void Promise.all(sources.map(async(src,index)=>{const table=tables[index];if(!src||!table)return src;const url=await remappedPreview(src,table);created.push(url);return url;}))
-      .then(urls=>{if(live)setState({key:sourceKey,urls});else created.forEach(url=>URL.revokeObjectURL(url));})
-      .catch(()=>{if(live)setState({key:sourceKey,urls:sources});});
+      .then(urls=>{if(live)setState({key:sourceKey,urls,failed:false});else created.forEach(url=>URL.revokeObjectURL(url));})
+      .catch(()=>{if(live)setState({key:sourceKey,urls:sources,failed:true});});
     return()=>{live=false;created.forEach(url=>URL.revokeObjectURL(url));};
   },[sourceKey]);// eslint-disable-line react-hooks/exhaustive-deps
-  if(!shared)return sources;
+  if(!shared)return {urls:sources,failed:false};
   // A changed request hides the previous pair until the new one is ready (as for previews).
-  return state.key===sourceKey?state.urls:sources.map(()=>undefined);
+  return state.key===sourceKey?{urls:state.urls,failed:state.failed}:{urls:sources.map(()=>undefined),failed:false};
 }

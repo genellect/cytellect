@@ -614,11 +614,12 @@ class Workspace:
         fields = {fid: self.metadata()[fid] for fid, _ in sources}
         conditions = list(dict.fromkeys(value["condition"].strip() for value in fields.values() if value["condition"]))
         contrasts = [[a, b] for index, a in enumerate(conditions) for b in conditions[index + 1:]]
-        declared = bool(self.experiment and self.experiment.get("layout") == "pair")
-        if declared and operation == "comparison":
+        experiment = self.experiment
+        declared = bool(experiment and experiment.get("layout") == "pair")
+        if experiment and declared and operation == "comparison":
             # comparisonDefaults(): one contrast [treatment, control], reported as treatment − control.
-            labels = {group["id"]: group["label"] for group in self.experiment["groups"]}
-            control = self.experiment["control_group_id"]
+            labels = {group["id"]: group["label"] for group in experiment["groups"]}
+            control = experiment["control_group_id"]
             contrasts = [[next(label for gid, label in labels.items() if gid != control), labels[control]]]
         region_set = target
         channel = None if channel_neutral(metric) else channel
@@ -1675,7 +1676,7 @@ def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Pat
     # listed without adjustable fields (docs/showcase.md: unlisted fields stay fixed).
     options: dict = {}
     for _, manifest in manifests:
-        nucleolar_defaults = ({"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}
+        nucleolar_defaults: dict = ({"cytellect-nucleolar-v2": {}, "cytellect-ncl-objects": {}}
                               if manifest["scenario"].get("nucleoli", True) else {})
         for source in (manifest["scenario"].get("python_options", nucleolar_defaults),
                        scenes[manifest["id"]].get("grid", {}).get("options", {})):
