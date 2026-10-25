@@ -1,0 +1,311 @@
+{
+  "dataset": "DS6a_5EU_Pulse_RawData",
+  "adoption": "pending_owner",
+  "independence": "unconfirmed",
+  "manifest_sha256": "80e2296dfcae8bd4813d0aa66acb8810d87aa9cb7c1b5e77d4fee7e64b5b42af",
+  "scope": "metadata_samples",
+  "files": [
+    {
+      "name": "40x_1.4_Rep1_Untreated_20211201_01_01.tif",
+      "sha256": "5b32bb25082174021ea25ecbc79fa0bd3daa2642e682ce0e828888def8f58f5d",
+      "md5_verified": true,
+      "metadata": {
+        "series_shape": [
+          4,
+          2304,
+          2304
+        ],
+        "series_axes": "CYX",
+        "dtype": "uint16",
+        "pages": 4,
+        "pixels": {
+          "ID": "Pixels:0",
+          "DimensionOrder": "XYTZC",
+          "Type": "uint16",
+          "SignificantBits": "16",
+          "Interleaved": "false",
+          "SizeX": "2304",
+          "SizeY": "2304",
+          "SizeC": "4",
+          "SizeZ": "1",
+          "SizeT": "1",
+          "PhysicalSizeX": "0.16250000000000006",
+          "PhysicalSizeXUnit": "\u00b5m",
+          "PhysicalSizeY": "0.16250000000000006",
+          "PhysicalSizeYUnit": "\u00b5m"
+        },
+        "channels": [
+          {
+            "ID": "Channel:0",
+            "Name": "FITC",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "518",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "16712447"
+          },
+          {
+            "ID": "Channel:1",
+            "Name": "TRITC",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "580",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "-16776961"
+          },
+          {
+            "ID": "Channel:2",
+            "Name": "Cy5",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "670",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "-16711681"
+          },
+          {
+            "ID": "Channel:3",
+            "Name": "DAPI",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "455",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "65535"
+          }
+        ],
+        "tiff_data": [
+          {
+            "IFD": "0",
+            "FirstZ": "0",
+            "FirstT": "0",
+            "FirstC": "0",
+            "PlaneCount": "4"
+          }
+        ],
+        "planes": [
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "0",
+            "DeltaT": "0.60730300000000004",
+            "DeltaTUnit": "s",
+            "PositionZ": "5145.6500000000015",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "2107.9603848129073",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-1976.0623461974631",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "999.99199999999996",
+            "ExposureTimeUnit": "ms"
+          },
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "1",
+            "DeltaT": "1.871157",
+            "DeltaTUnit": "s",
+            "PositionZ": "5145.6500000000015",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "2107.9603848129073",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-1976.0623461974631",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "999.99199999999996",
+            "ExposureTimeUnit": "ms"
+          },
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "2",
+            "DeltaT": "3.1357890000000004",
+            "DeltaTUnit": "s",
+            "PositionZ": "5145.6500000000015",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "2107.9603848129073",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-1976.0623461974631",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "999.99199999999996",
+            "ExposureTimeUnit": "ms"
+          },
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "3",
+            "DeltaT": "4.7867709999999999",
+            "DeltaTUnit": "s",
+            "PositionZ": "5145.6500000000015",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "2107.9603848129073",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-1976.0623461974631",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "5.0069999999999997",
+            "ExposureTimeUnit": "ms"
+          }
+        ],
+        "objective": {
+          "Manufacturer": "Olympus",
+          "Model": "IX3 Nosepiece",
+          "LensNA": "1.3999999999999999",
+          "NominalMagnification": "40",
+          "CalibratedMagnification": "39.999999999999993",
+          "WorkingDistance": "130",
+          "WorkingDistanceUnit": "\u00b5m",
+          "ID": "Objective:0"
+        },
+        "acquisition_date": "2021-12-01T17:55:48Z"
+      }
+    },
+    {
+      "name": "40x_1.4_Rep1_ActD1_20211201_01_51.tif",
+      "sha256": "7fdb940cf46b54a508d42d524415fe9c23af14c54b304ca7058c489be2961b1c",
+      "md5_verified": true,
+      "metadata": {
+        "series_shape": [
+          4,
+          2304,
+          2304
+        ],
+        "series_axes": "CYX",
+        "dtype": "uint16",
+        "pages": 4,
+        "pixels": {
+          "ID": "Pixels:0",
+          "DimensionOrder": "XYTZC",
+          "Type": "uint16",
+          "SignificantBits": "16",
+          "Interleaved": "false",
+          "SizeX": "2304",
+          "SizeY": "2304",
+          "SizeC": "4",
+          "SizeZ": "1",
+          "SizeT": "1",
+          "PhysicalSizeX": "0.16250000000000006",
+          "PhysicalSizeXUnit": "\u00b5m",
+          "PhysicalSizeY": "0.16250000000000006",
+          "PhysicalSizeYUnit": "\u00b5m"
+        },
+        "channels": [
+          {
+            "ID": "Channel:0",
+            "Name": "FITC",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "518",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "16712447"
+          },
+          {
+            "ID": "Channel:1",
+            "Name": "TRITC",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "580",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "-16776961"
+          },
+          {
+            "ID": "Channel:2",
+            "Name": "Cy5",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "670",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "-16711681"
+          },
+          {
+            "ID": "Channel:3",
+            "Name": "DAPI",
+            "SamplesPerPixel": "1",
+            "ContrastMethod": "Fluorescence",
+            "EmissionWavelength": "455",
+            "EmissionWavelengthUnit": "nm",
+            "Color": "65535"
+          }
+        ],
+        "tiff_data": [
+          {
+            "IFD": "0",
+            "FirstZ": "0",
+            "FirstT": "0",
+            "FirstC": "0",
+            "PlaneCount": "4"
+          }
+        ],
+        "planes": [
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "0",
+            "DeltaT": "0.60730300000000004",
+            "DeltaTUnit": "s",
+            "PositionZ": "5148.0500000000002",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "30120.29597996841",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-2934.9771309328903",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "999.99199999999996",
+            "ExposureTimeUnit": "ms"
+          },
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "1",
+            "DeltaT": "1.8712519999999999",
+            "DeltaTUnit": "s",
+            "PositionZ": "5148.0500000000002",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "30120.29597996841",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-2934.9771309328903",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "999.99199999999996",
+            "ExposureTimeUnit": "ms"
+          },
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "2",
+            "DeltaT": "3.1356600000000001",
+            "DeltaTUnit": "s",
+            "PositionZ": "5148.0500000000002",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "30120.29597996841",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-2934.9771309328903",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "999.99199999999996",
+            "ExposureTimeUnit": "ms"
+          },
+          {
+            "TheZ": "0",
+            "TheT": "0",
+            "TheC": "3",
+            "DeltaT": "4.7869660000000005",
+            "DeltaTUnit": "s",
+            "PositionZ": "5148.0500000000002",
+            "PositionZUnit": "\u00b5m",
+            "PositionX": "30120.29597996841",
+            "PositionXUnit": "\u00b5m",
+            "PositionY": "-2934.9771309328903",
+            "PositionYUnit": "\u00b5m",
+            "ExposureTime": "5.0069999999999997",
+            "ExposureTimeUnit": "ms"
+          }
+        ],
+        "objective": {
+          "Manufacturer": "Olympus",
+          "Model": "IX3 Nosepiece",
+          "LensNA": "1.3999999999999999",
+          "NominalMagnification": "40",
+          "CalibratedMagnification": "39.999999999999993",
+          "WorkingDistance": "130",
+          "WorkingDistanceUnit": "\u00b5m",
+          "ID": "Objective:0"
+        },
+        "acquisition_date": "2021-12-01T18:25:22Z"
+      }
+    }
+  ]
+}
