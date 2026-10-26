@@ -565,6 +565,70 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   await noErrors(page, watch);
 });
 
+test("a per-nucleus nucleolar result is read and checked on the nucleoli, and unresolved nuclei stay counted as missing", async ({page}) => {
+  test.setTimeout(300_000);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  await header.getByRole("button", {name: "統計", exact: true}).click();
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  const summary = results.getByRole("region", {name: "結果のまとめ"});
+  const recorded = results.getByRole("group", {name: "記録した比較"});
+  await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
+  // Both recorded comparisons count the same unresolved nuclei, and never also say nothing is missing (Q-05, S-03).
+  for (const name of [/eu5/, /離心率/]) {
+    await recorded.getByRole("button", {name}).click();
+    await summary.getByText("n の内訳と除外").click();
+    await expect(summary).toContainText(/核小体を確定できない核 \d+（欠測）/);
+    await expect(summary).not.toContainText("欠測はありません");
+  }
+  // The eccentricity comes from the per-nucleus summary but is a shape of the nucleoli, and reads so everywhere.
+  await expect(results.locator("[class*=current]")).toContainText("核小体（核ごとの値） · 核小体の離心率");
+  await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("領域：核小体（核ごとの値）");
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
+  await header.getByRole("button", {name: "画像", exact: true}).click();
+  await expect(page.locator("[class*=fieldCard] small").first()).toHaveText(/^核小体 \d+/, {timeout: live});
+  // The figure offers no interval a descriptive comparison does not have (S-07).
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
+  await expect(page.locator("label").filter({hasText: "図のレイアウト"}).locator("option[value=superplot]")).toHaveText("実験回ごと（視野・実験回・平均）");
+  await expect(page.getByText("検定なしの記述のため、信頼区間は描きません。")).toBeVisible();
+  // A run's point lists its nuclei with the field to open first; the identifiers are folded.
+  const points = page.locator("[data-cytellect-source]");
+  const unit = (await points.evaluateAll(elements => elements.map(element => {
+    try {const value = JSON.parse(element.getAttribute("data-cytellect-source") ?? "") as {field_id?: string; experimental_unit?: string}; return !value.field_id && !!value.experimental_unit;} catch {return false;}
+  }))).indexOf(true);
+  expect(unit).toBeGreaterThanOrEqual(0);
+  await points.nth(unit).dispatchEvent("click");
+  const source = page.getByRole("region", {name: "選択した点の試料・視野"});
+  await expect(source.locator("thead th").first()).toHaveText("視野");
+  await expect(source.getByText("記録の詳細（解析版・内部 ID）")).toBeVisible();
+  await expect(source.locator("table").first().locator("thead")).not.toContainText("解析版");
+  // Opening a nucleus shows that saved analysis's nucleoli with the nucleus outlined.
+  await source.locator("tbody button").first().click();
+  await expect(header.getByRole("button", {name: "画像", exact: true})).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("svg polygon[data-context=selected]")).toHaveCount(1, {timeout: live});
+  await expect(page.getByText(/核小体 \d+ · 図の保存時の版/)).toBeVisible();
+  await expect(notRecorded(page)).toHaveCount(0);
+  await page.getByRole("button", {name: "元の結果へ戻る"}).click();
+  await expect(header.getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");
+  expect(await alerts(page)).toEqual([]);
+  await noErrors(page, watch);
+});
+
+test("phones keep the guide and the download in the demo menu", async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  const watch = await openDemo(page);
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  const menu = page.locator("header").getByLabel("デモ：使い方・ダウンロード・画像の出典");
+  await menu.click();
+  await expect(page.locator("header").getByRole("link", {name: "ダウンロード"})).toBeVisible();
+  await page.locator("header").getByRole("button", {name: "使い方", exact: true}).click();
+  await expect(page.getByRole("complementary", {name: "公開デモの使い方"})).toBeVisible();
+  await noErrors(page, watch);
+});
+
 test("an AI example on another field, then measuring and statistics of each region, keep showing results", async ({page}) => {
   test.setTimeout(900_000);
   test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");

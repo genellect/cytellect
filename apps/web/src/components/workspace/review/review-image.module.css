@@ -8,6 +8,7 @@
 .selected{fill:#ffda4220;stroke:#ffe16c;stroke-width:1.8}
 .outline:focus-visible,.selected:focus-visible{stroke:#fff;stroke-width:2.5}
 .context{fill:none;stroke:#8fc7ff;stroke-width:1.2}
+.contextSelected{fill:#ffda4214;stroke:#ffe16c;stroke-width:2;stroke-dasharray:5 3}
 .frame[data-composite=marker] .outline{stroke:#ff9fd4;stroke-width:1.3}
 .frame[data-composite=nuclear] .outline{stroke:#ffe9a8;stroke-width:1.3}
 .number{fill:#fff;stroke:#111;paint-order:stroke;pointer-events:none;font-family:Arial,sans-serif;font-weight:600}

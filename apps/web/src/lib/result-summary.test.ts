@@ -86,4 +86,17 @@ describe("result breakdown", () => {
     expect(result.exclusions).toEqual(["R1 · Drug：除外した視野 1", "R2 · Drug：除外した核 2、測定値の欠測 1"]);
     expect(breakdown(counts, [], null).groups[0]).toBe("DMSO：実験回 3、試料 3、視野 3");
   });
+
+  it("counts nuclei whose nucleolus is unresolved as missing for every metric, without counting them twice (Q-05)", () => {
+    const unresolved = {rows: [{condition: "Untreated", experimental_unit: "R2 · Untreated", missing: 2}, {condition: "ActD", experimental_unit: "R1 · ActD", missing: 0}], perNucleus: false};
+    // Per nucleoli region the unresolved nuclei have no rows; the field ledger holds only other missing values.
+    expect(breakdown([], [{condition: "Untreated", experimental_unit: "R2 · Untreated", missing_observations: 1}], "核小体", unresolved).exclusions)
+      .toEqual(["R2 · Untreated：核小体を確定できない核 2（欠測）、ほかの測定値の欠測 1"]);
+    // Per nucleus the unresolved nuclei are themselves the missing values, so the same result reads the same.
+    const perNucleus = {...unresolved, perNucleus: true};
+    const ledger = [{condition: "Untreated", experimental_unit: "R2 · Untreated", missing_observations: 1}, {condition: "Untreated", experimental_unit: "R2 · Untreated", missing_observations: 1}];
+    expect(breakdown([], ledger, "核", perNucleus).exclusions).toEqual(["R2 · Untreated：核小体を確定できない核 2（欠測）"]);
+    expect(breakdown([], [], "核小体", unresolved).exclusions).toEqual(["R2 · Untreated：核小体を確定できない核 2（欠測）"]);
+    expect(breakdown([], [], "核小体", {rows: [], perNucleus: false}).exclusions).toEqual([]);
+  });
 });

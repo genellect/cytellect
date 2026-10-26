@@ -6,9 +6,9 @@ import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,typ
 import {useSearchParams} from "next/navigation";
 import {useWorkspaceRuntime,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
-import {metricChoice,metricTarget,metricUsesChannel} from "@/lib/workspace/metric-catalog";
+import {metricChoice,metricStructure,metricTarget,metricUsesChannel} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
-import type {ChannelAssignment,MeasurementRow,GfpGateResult,SavedResult,RevisionRecord} from "@/lib/workspace/api-adapter";
+import type {ChannelAssignment,MeasurementRow,GfpGateResult,Recipe,SavedResult,RevisionRecord} from "@/lib/workspace/api-adapter";
 import {API_CONFIGURED,ApiError,errorCodeMessage,errorMessage,request} from "@/lib/api";
 import {activateShowcase,closestExample,isShowcaseNotice,loadShowcaseExtras,type ProposalExample,type RecordedOptions,type ShowcaseDataset,type ShowcaseScene} from "@/lib/showcase";
 import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
@@ -19,9 +19,9 @@ import {ConnectedGfp,type WorkspaceGfpFilter} from "./ConnectedGfp";
 import {ConnectedResults} from "./ConnectedResults";
 import {ExperimentSetup,type AddTarget} from "./ExperimentSetup";
 import {MeasurementTable} from "./MeasurementTable";
-import {PairStage,pairDisplayText,pairRuns,type PairDisplay} from "./PairStage";
+import {PairStage,pairDisplayText,pairRuns,type Historical,type PairDisplay} from "./PairStage";
 import {assignFields,fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
-import {densestPoint,imageStageLayout} from "./image-stage-layout";
+import {centre,densestPoint,imageStageLayout} from "./image-stage-layout";
 import {emptyMetadata} from "./connected-results-model";
 import {experimentSetupShown,initialPanelState,panelReducer} from "./panel-state";
 import styles from "./connected-workspace.module.css";
@@ -89,12 +89,12 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const [composite,setComposite]=useState(demo);
   const ai=panelState.view==="ai",panel=panelState.view==="settings";
   const [instruction,setInstruction]=useState(""),[assignments,setAssignments]=useState(false),[editing,setEditing]=useState(false),[search,setSearch]=useState(""),[returnMode,setReturnMode]=useState<Mode|null>(null);
-  const sourceReturn=useRef<{mode:Mode;field:string;channel:string;target:ReviewTarget;metric:string;region:number|undefined;historical:{target:ReviewTarget;result:SavedResult}|null}|null>(null);
+  const sourceReturn=useRef<{mode:Mode;field:string;channel:string;target:ReviewTarget;metric:string;region:number|undefined;historical:Historical|null}|null>(null);
   const [localError,setLocalError]=useState(""),[viewport,setViewport]=useState<Record<string,ReviewImageViewport|null>>({});
   const [previewRequest,setPreviewRequest]=useState<{field:string;target:ReviewTarget;sequence:number}|null>(null);
   const [gfpSaved,setGfpSaved]=useState<{signature:string;result:GfpGateResult;filter:WorkspaceGfpFilter}|null>(null);
   const [backgroundDraw,setBackgroundDraw]=useState<{field:string;channels:string[];id:string}|null>(null);
-  const [historical,setHistorical]=useState<{target:ReviewTarget;result:SavedResult}|null>(null);
+  const [historical,setHistorical]=useState<Historical|null>(null);
   const sourceRequest=useRef(0);
   const fileInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null);
   const field=fields.find(value=>value.id===selected)||fields[0];
@@ -150,37 +150,51 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     });
     return()=>{cancelled=true;};
   },[busy,classificationCurrent,filterKey,nuclearSignature]);
-  const sourceTarget=metricTarget(metric,target);
+  const sourceTarget=metricTarget(metric,target),checkedTarget=metricStructure(metric,target);
   const sources=useMemo(()=>fields.map(value=>({fieldId:value.id,label:value.label,result:value.results[sourceTarget],metadata:{...emptyMetadata,...Object.fromEntries(Object.keys(emptyMetadata).map(key=>[key,value.metadata?.[key]??null]))},excluded:!!value.exclusionReason})),[fields,sourceTarget]);
   async function act(action:()=>Promise<unknown>){setLocalError("");try{await action();}catch(error){setLocalError(error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。");}}
   function openField(id:string,ch?:string){if(editing)return;setPreviewRequest(null);++sourceRequest.current;setHistorical(null);setSelected(id);
     // Side by side, a field chosen in the list brings its own run into the two panes.
     const fieldRun=experiment?.fields?.[id]?.run_id;if(fieldRun)setPairRun(fieldRun);
     if(ch)setChannel(ch);setRegion(undefined);setCompare(false);if(target==="cell"&&r.settings.cellDefinition?.source!=="cellpose"&&!fields.find(value=>value.id===id)?.results.cell&&!busy)void act(()=>r.run("cell",id));}
-  async function openSource(id:string,n?:number,revision?:string,sourceStructure?:ReviewTarget,sourceChannel?:string|null){
+  async function openSource(id:string,n?:number,revision?:string,sourceStructure?:ReviewTarget,sourceChannel?:string|null,shownStructure?:ReviewTarget){
     if(editing)return;
     setPreviewRequest(null);
     const generation=++sourceRequest.current;
     await act(async()=>{
-      const resolvedTarget=sourceStructure||sourceTarget;
+      // The values come from one region set; they are checked on the structure they describe.
+      const resolvedTarget=sourceStructure||sourceTarget,shown=shownStructure||(sourceStructure?resolvedTarget:metricStructure(metric,target));
       const sourceField=fields.find(value=>value.id===id);
       if(!sourceField)throw new Error("図の元画像を確認できません。");
       if(sourceChannel&&!sourceField.channels.some(value=>value.id===sourceChannel))throw new Error("図の測定チャンネルと元画像が一致しません。");
-      let saved:SavedResult|undefined;
+      let saved:SavedResult|undefined,recipe:Recipe|undefined;
       if(revision){
         let record=await request<RevisionRecord & {config:RevisionRecord["config"] & {cohort_sources?:Record<string,{revision_id:string}>}}>(`/v1/revisions/${encodeURIComponent(revision)}`);
         const pinned=record.config.cohort_sources?.[id]?.revision_id;
         if(pinned){revision=pinned;record=await request<RevisionRecord>(`/v1/revisions/${encodeURIComponent(pinned)}`);}
         if(!record.config.field_ids.includes(id))throw new Error("図の出典と視野が一致しません。");
-        saved=await r.adapter.readResult(revision,id,record.config.recipe);
+        saved=await r.adapter.readResult(revision,id,record.config.recipe);recipe=record.config.recipe;
         if(saved.field!==id||saved.regionSet!==resolvedTarget)throw new Error("図の測定対象と保存された領域が一致しません。");
       }
       const sourceResult=saved||sourceField.results[resolvedTarget];
       if(n!==undefined&&!sourceResult?.masks.regions.some(value=>value.id===n))throw new Error("図の対象領域を保存されたマスクで確認できません。");
+      // A per-nucleus value (a nucleus's nucleoli) is checked on that analysis's own nucleoli,
+      // with the nucleus it belongs to outlined (Q-05, V-04).
+      let checked=saved,context:Historical["context"],nucleus:number|undefined;
+      if(shown!==resolvedTarget){
+        nucleus=n;
+        if(saved&&recipe){
+          const structureRevision=shown==="nucleoli"?recipe.nucleolar_revision_id:shown==="nuclei"?recipe.nuclear_revision_id:undefined,nuclearRevision=recipe.nuclear_revision_id;
+          if(!structureRevision)throw new Error("図の値を確かめる構造を、保存された解析版で確認できません。");
+          checked=await r.adapter.readResult(structureRevision,id);
+          if(checked.field!==id||checked.regionSet!==shown)throw new Error("図の測定対象と保存された領域が一致しません。");
+          if(nuclearRevision)context=(await request<SavedResult["masks"]>(`/v1/revisions/${encodeURIComponent(nuclearRevision)}/region-masks?field_id=${encodeURIComponent(id)}`)).regions;
+        }
+      }
       if(generation!==sourceRequest.current)return;
       sourceReturn.current={mode,field:selected,channel:channelId,target,metric,region,historical};
-      setHistorical(saved?{target:resolvedTarget,result:saved}:null);
-      setReturnMode(mode);setSelected(id);setTarget(resolvedTarget);setRegion(n);setCompare(false);setMode("image");
+      setHistorical(checked?{target:shown,result:checked,context,nucleus}:null);
+      setReturnMode(mode);setSelected(id);setTarget(shown);setRegion(shown===resolvedTarget?n:undefined);setCompare(false);setMode("image");
       setChannel(sourceChannel||sourceField.nuclearChannelId||sourceField.channels[0]?.id||"");
     });
   }
@@ -275,8 +289,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
 
   const dropFiles=demo?{onDragOver:(event:DragEvent)=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();},onDrop:(event:DragEvent)=>{if(!event.dataTransfer.types.includes("Files"))return;event.preventDefault();showcase.requestUpload("image");}}:{};
   return <main className={styles.workspace} data-mode={mode} data-panel={ai||(mode==="image"&&!!field&&panel)} data-ai={ai} {...dropFiles}>
-    <header className={styles.header}><a className={styles.brand} href={demo?"/":"/workspace"}>cytellect</a>{demo&&<DemoBadge dataset={showcase.dataset}/>}{demo&&<SceneSwitcher scenes={showcase.scenes} scene={showcase.scene}/>}<nav aria-label="作業の切替">{([["experiment","実験"],["image","画像"],["statistics","統計"],["figure","グラフ"]] as const).filter(([value])=>value!=="experiment"||!demo||!!experiment).map(([value,label])=><button key={value} disabled={editing} aria-current={mode===value?"page":undefined} data-lp-event={demo?`demo_${value}`:undefined} onClick={()=>changeMode(value)}>{label}</button>)}</nav><span className={styles.status} role="status">{r.operation}</span>{demo&&<LiveStatus/>}{r.busy&&!r.loading&&<button className={styles.icon} aria-label="実行を中止" onClick={()=>r.stop()}><Icon name="stop"/></button>}{mode==="image"&&<><select className={styles.range} aria-label="測定する視野" value={range} onChange={e=>setRange(e.target.value)}><option value="selected">選択視野</option><option value="all">全視野</option></select><button className={styles.primary} disabled={busy||!field||field.kind==="reference"} onClick={()=>void measure()}>測定</button></>}<button className={styles.settingsButton} aria-label="設定パネル" title="検出と測定の設定" aria-pressed={panel} onClick={showSettings}><Icon name="settings"/><span>設定</span></button>{demo&&<><button className={showcaseStyles.guideButton} aria-pressed={guide} onClick={()=>setGuide(!guide)}>使い方</button><a className={showcaseStyles.download} href={DOWNLOAD_HREF} data-lp-event="demo_download">ダウンロード</a></>}</header>
-    <aside className={styles.sidebar} aria-label={mode==="image"||mode==="experiment"?"視野一覧":"解析対象"}><div className={styles.sideHeading}>{/* The demo keeps its registered example; a new workspace could not be filled without uploads. */}{!demo&&<button className={styles.icon} disabled={busy} title="新しいワークスペース" aria-label="新しいワークスペース" onClick={newWorkspace}><Icon name="plus"/></button>}{mode==="image"||mode==="experiment"?`視野 ${fields.length}`:targets[target]}</div>{mode==="image"||mode==="experiment"?<><input className={styles.search} aria-label="視野を検索" placeholder="検索" value={search} onChange={e=>setSearch(e.target.value)}/><div className={styles.fieldList}>{fields.filter(value=>value.label.toLowerCase().includes(search.toLowerCase())).map((value,index)=>{const ch=value.nuclearChannelId||value.channels[0]?.id;const current=r.currentResult(value.id,target);return <button className={styles.fieldCard} disabled={editing} aria-pressed={value.id===field?.id} data-shown={pairActive&&!!pairDisplay?.fields?.includes(value.id)} key={value.id} onClick={()=>openField(value.id)} title={value.label}>{value.previews[ch]&&<img src={value.previews[ch]} alt={value.label}/>}<span>{index+1} {value.label}</span><small>{value.kind==="reference"?"補助画像":value.exclusionReason?"対象外":current?`${targets[target]} ${new Set(current.masks.regions.map(region=>region.id)).size}`:"未測定"}</small></button>;})}</div>{demo&&showcase.dataset&&<SideCredit dataset={showcase.dataset}/>}<div className={styles.addMenu}><button disabled={intakeDisabled} onClick={()=>chooseFiles()}><Icon name="plus"/>画像</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダ</button></div></>:<div className={styles.resultOptions}><MetricSelect value={metric} onChange={setMetric} describe calibrated={calibrated} offered={id=>regionOffered(metricTarget(id,target))}/>{metricChoice(metric)?.target?<p className={styles.fixedTarget}>領域：{targets[sourceTarget]}</p>:<label>領域<select value={target} onChange={e=>{changeTarget(e.target.value as ReviewTarget);}}>{Object.entries(targets).filter(([id])=>regionOffered(id as ReviewTarget)).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label>}{metricUsesChannel(metric)&&<label>染色<select value={actualChannel} onChange={e=>setChannel(e.target.value)}>{(field?.channels||data?.channels)?.map(ch=><option value={ch.id} key={ch.id}>{ch.stain?`${ch.stain} · ${ch.id}`:ch.id}</option>)}</select></label>}</div>}</aside>
+    <header className={styles.header}><a className={styles.brand} href={demo?"/":"/workspace"}>cytellect</a>{demo&&<DemoBadge dataset={showcase.dataset} onGuide={()=>setGuide(true)}/>}{demo&&<SceneSwitcher scenes={showcase.scenes} scene={showcase.scene}/>}<nav aria-label="作業の切替">{([["experiment","実験"],["image","画像"],["statistics","統計"],["figure","グラフ"]] as const).filter(([value])=>value!=="experiment"||!demo||!!experiment).map(([value,label])=><button key={value} disabled={editing} aria-current={mode===value?"page":undefined} data-lp-event={demo?`demo_${value}`:undefined} onClick={()=>changeMode(value)}>{label}</button>)}</nav><span className={styles.status} role="status">{r.operation}</span>{demo&&<LiveStatus/>}{r.busy&&!r.loading&&<button className={styles.icon} aria-label="実行を中止" onClick={()=>r.stop()}><Icon name="stop"/></button>}{mode==="image"&&<><select className={styles.range} aria-label="測定する視野" value={range} onChange={e=>setRange(e.target.value)}><option value="selected">選択視野</option><option value="all">全視野</option></select><button className={styles.primary} disabled={busy||!field||field.kind==="reference"} onClick={()=>void measure()}>測定</button></>}<button className={styles.settingsButton} aria-label="設定パネル" title="検出と測定の設定" aria-pressed={panel} onClick={showSettings}><Icon name="settings"/><span>設定</span></button>{demo&&<><button className={showcaseStyles.guideButton} aria-pressed={guide} onClick={()=>setGuide(!guide)}>使い方</button><a className={showcaseStyles.download} href={DOWNLOAD_HREF} data-lp-event="demo_download">ダウンロード</a></>}</header>
+    <aside className={styles.sidebar} aria-label={mode==="image"||mode==="experiment"?"視野一覧":"解析対象"}><div className={styles.sideHeading}>{/* The demo keeps its registered example; a new workspace could not be filled without uploads. */}{!demo&&<button className={styles.icon} disabled={busy} title="新しいワークスペース" aria-label="新しいワークスペース" onClick={newWorkspace}><Icon name="plus"/></button>}{mode==="image"||mode==="experiment"?`視野 ${fields.length}`:targets[checkedTarget]}</div>{mode==="image"||mode==="experiment"?<><input className={styles.search} aria-label="視野を検索" placeholder="検索" value={search} onChange={e=>setSearch(e.target.value)}/><div className={styles.fieldList}>{fields.filter(value=>value.label.toLowerCase().includes(search.toLowerCase())).map((value,index)=>{const ch=value.nuclearChannelId||value.channels[0]?.id;const current=r.currentResult(value.id,target);return <button className={styles.fieldCard} disabled={editing} aria-pressed={value.id===field?.id} data-shown={pairActive&&!!pairDisplay?.fields?.includes(value.id)} key={value.id} onClick={()=>openField(value.id)} title={value.label}>{value.previews[ch]&&<img src={value.previews[ch]} alt={value.label}/>}<span>{index+1} {value.label}</span><small>{value.kind==="reference"?"補助画像":value.exclusionReason?"対象外":current?`${targets[target]} ${new Set(current.masks.regions.map(region=>region.id)).size}`:"未測定"}</small></button>;})}</div>{demo&&showcase.dataset&&<SideCredit dataset={showcase.dataset}/>}<div className={styles.addMenu}><button disabled={intakeDisabled} onClick={()=>chooseFiles()}><Icon name="plus"/>画像</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダ</button></div></>:<div className={styles.resultOptions}><MetricSelect value={metric} onChange={setMetric} describe calibrated={calibrated} offered={id=>regionOffered(metricTarget(id,target))}/>{metricChoice(metric)?.target?<p className={styles.fixedTarget}>領域：{targets[checkedTarget]}{checkedTarget!==sourceTarget?"（核ごとの値）":""}</p>:<label>領域<select value={target} onChange={e=>{changeTarget(e.target.value as ReviewTarget);}}>{Object.entries(targets).filter(([id])=>regionOffered(id as ReviewTarget)).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label>}{metricUsesChannel(metric)&&<label>染色<select value={actualChannel} onChange={e=>setChannel(e.target.value)}>{(field?.channels||data?.channels)?.map(ch=><option value={ch.id} key={ch.id}>{ch.stain?`${ch.stain} · ${ch.id}`:ch.id}</option>)}</select></label>}</div>}</aside>
 
     <div className={styles.body}>
       {(r.error||localError)&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
@@ -293,7 +307,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
           {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementTable rows={rows} selected={region} onSelect={setRegion}/></div>}
         </>}
       </section>
-      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}><ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} onOpening={(openedMetric,openedChannel)=>{if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} experiment={experiment} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,structure,ch)=>void openSource(id,n,revision,structure,ch)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
+      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}><ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} onOpening={(openedMetric,openedChannel)=>{if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} experiment={experiment} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
     </div>
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>
@@ -374,14 +388,15 @@ function AssignmentEditor({field,runtime:r,onDone,onError}:{field:ReviewField;ru
   return <div className={styles.assignments}>{draft.map((ch,index)=><label key={ch.channel_id}>{field.previews[ch.channel_id]&&<img src={field.previews[ch.channel_id]} alt={ch.channel_id}/>}<strong>{ch.channel_id}</strong><input aria-label={`${ch.channel_id}の染色名`} placeholder="染色名" value={ch.stain||""} onChange={e=>setDraft(previous=>previous.map((item,i)=>i===index?{...item,stain:e.target.value||null}:item))}/><select aria-label={`${ch.channel_id}の役割`} value={ch.role} onChange={e=>setDraft(previous=>previous.map((item,i)=>({...item,role:i===index?e.target.value as ChannelAssignment["role"]:e.target.value==="nuclear"&&item.role==="nuclear"?"measure":item.role})))}><option value="nuclear">核検出</option><option value="measure">測定</option><option value="unused">使用しない</option></select></label>)}<button disabled={r.busy} className={styles.primary} onClick={()=>{void r.saveAssignments(draft,field.id).then(onDone).catch(e=>onError(e instanceof Error?e.message:"保存できませんでした。"));}}>保存</button></div>;
 }
 
-function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,classification,historical,backgrounds,backgroundDraw,viewport,onViewport,composite=false,demo=false}:{composite?:boolean;demo?:boolean;planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;classification?:GfpGateResult["nuclei"];historical:{target:ReviewTarget;result:SavedResult}|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
+function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,classification,historical,backgrounds,backgroundDraw,viewport,onViewport,composite=false,demo=false}:{composite?:boolean;demo?:boolean;planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;classification?:GfpGateResult["nuclei"];historical:Historical|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
   const ref=useRef<HTMLDivElement>(null),[size,setSize]=useState({width:800,height:600});
   useEffect(()=>{const node=ref.current;if(!node)return;const observer=new ResizeObserver(entries=>{const {width,height}=entries[0].contentRect;setSize({width,height});});observer.observe(node);return()=>observer.disconnect();},[]);
   const single=planes.length===1;const layout=imageStageLayout(planes.map(plane=>plane.field),size);
   const showTable=single&&size.width-(layout.tiles[0]?.width||0)>230;
   return <div ref={ref} className={styles.stage} data-single={single} style={{"--columns":layout.columns} as CSSProperties}>
     {planes.map((plane,index)=>{
-      const old=historical?.target===target&&historical.result.field===plane.field.id?historical.result:undefined;
+      const savedView=historical?.target===target&&historical.result.field===plane.field.id?historical:undefined,old=savedView?.result;
+      const nucleus=savedView?.context?.find(outline=>outline.id===savedView.nucleus);
       const candidate=old?undefined:r.candidateResult(plane.field.id,target),value=old||candidate||r.currentResult(plane.field.id,target),tile=layout.tiles[index];
       const editable=single&&!!value&&!old&&!candidate&&target!=="nucleoplasm";
       return <div className={styles.tile} key={plane.key} style={{width:tile.width,height:tile.height}}>
@@ -400,8 +415,8 @@ function ImageStage({planes,target,fieldId,region,rows,onRegion,onSelect,onOpen,
           style={{width:tile.width,height:tile.imageHeight,flex:"none"}}
           outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"}
           layers={single&&composite?plane.field.channels.filter(ch=>plane.field.previews[ch.id]).map(ch=>({src:plane.field.previews[ch.id],color:ch.id===plane.field.nuclearChannelId||ch.role==="nuclear"?"#3f86ff":"#ff4fb3"})):undefined}
-          context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined}
-          initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
+          context={savedView?.context??(demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined)} contextSelected={savedView?.nucleus}
+          initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?nucleus?centre(nucleus.points):densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
       </div>;
     })}
     {showTable&&<div className={styles.sideMeasurements}><h3>{targets[target]}の測定値</h3>{rows.length?<MeasurementTable rows={rows} selected={region} onSelect={onRegion}/>:<p>測定結果はここに表示されます。</p>}{editing&&<p>描画を保存または取消して続けてください。</p>}</div>}

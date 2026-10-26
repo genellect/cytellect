@@ -88,24 +88,34 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
 export interface CountRow {condition: string; observations?: number; input_fields?: number; selected_fields?: number; samples?: number; experimental_units?: number}
 export interface FieldLedgerRow {condition: string; experimental_unit: string; explicitly_excluded?: boolean; excluded_observations?: number; missing_observations?: number}
 export interface Breakdown {groups: string[]; exclusions: string[]}
+/** The saved ledger of nuclei whose nucleolus could not be established (Q-05). `perNucleus` when the values are
+ * per nucleus (a compartment summary), so those nuclei are also among the field ledger's missing values. */
+export interface UnresolvedNuclei {rows: Array<{condition: string | null; experimental_unit: string | null; missing: number}>; perNucleus: boolean}
 
-/** What n is and what was left out, per group and per run (S-03, Q-02); counts are the saved ones.
+/** What n is and what was left out, per group and per run (S-03, Q-02, Q-05); counts are the saved ones.
  * `noun` names one observation (核, 領域); null when the observations are fields themselves. */
-export function breakdown(counts: CountRow[], ledger: FieldLedgerRow[], noun: string | null): Breakdown {
+export function breakdown(counts: CountRow[], ledger: FieldLedgerRow[], noun: string | null, unresolved: UnresolvedNuclei | null = null): Breakdown {
   const groups = counts.map(row => {
     const fields = row.input_fields != null && row.selected_fields !== row.input_fields ? `${row.selected_fields}（入力 ${row.input_fields}）` : `${row.selected_fields ?? 0}`;
     return `${row.condition}：実験回 ${row.experimental_units ?? 0}、試料 ${row.samples ?? 0}、視野 ${fields}` + (noun ? `、${noun} ${row.observations ?? 0}` : "");
   });
-  const units = new Map<string, {condition: string; excluded: number; missing: number; fields: number}>();
+  const units = new Map<string, {condition: string; excluded: number; missing: number; fields: number; unresolved: number}>();
+  const unit = (condition: string, experimental: string) => {
+    const key = `${condition}\u0000${experimental}`;
+    const entry = units.get(key) ?? {condition, excluded: 0, missing: 0, fields: 0, unresolved: 0};
+    units.set(key, entry); return entry;
+  };
   for (const row of ledger) {
-    const key = `${row.condition}\u0000${row.experimental_unit}`;
-    const entry = units.get(key) ?? {condition: row.condition, excluded: 0, missing: 0, fields: 0};
+    const entry = unit(row.condition, row.experimental_unit);
     entry.excluded += row.excluded_observations ?? 0; entry.missing += row.missing_observations ?? 0; entry.fields += row.explicitly_excluded ? 1 : 0;
-    units.set(key, entry);
   }
-  const exclusions = [...units.entries()].filter(([, value]) => value.excluded || value.missing || value.fields).map(([key, value]) => {
-    const parts = [value.fields ? `除外した視野 ${value.fields}` : "", noun && value.excluded ? `除外した${noun} ${value.excluded}` : "", value.missing ? `測定値の欠測 ${value.missing}` : ""].filter(Boolean);
-    return `${key.split("\u0000")[1]}：${parts.join("、")}`;
-  });
+  for (const row of unresolved?.rows ?? []) if (row.missing) unit(row.condition ?? "", row.experimental_unit ?? "").unresolved += row.missing;
+  const exclusions = [...units.entries()].map(([key, value]) => {
+    // A per-nucleus value is missing for every unresolved nucleus; only the rest are other missing values.
+    const other = unresolved?.perNucleus ? Math.max(0, value.missing - value.unresolved) : value.missing;
+    const parts = [value.fields ? `除外した視野 ${value.fields}` : "", noun && value.excluded ? `除外した${noun} ${value.excluded}` : "",
+      value.unresolved ? `核小体を確定できない核 ${value.unresolved}（欠測）` : "", other ? `${value.unresolved ? "ほかの" : ""}測定値の欠測 ${other}` : ""].filter(Boolean);
+    return parts.length ? `${key.split("\u0000")[1]}：${parts.join("、")}` : "";
+  }).filter(Boolean);
   return {groups, exclusions};
 }

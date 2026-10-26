@@ -18,7 +18,7 @@ interface Props {
   /** The selected field shows in its group's pane, with the selected region (the workspace's one selection). */
   selectedField?:string;region?:number;onSelect:(fieldId:string,channel:string,region?:number)=>void;
   /** A figure's source: the saved version of that field, shown instead of the adopted one (read-only). */
-  historical?:{target:ReviewTarget;result:SavedResult}|null;
+  historical?:Historical|null;
   onEditing:(value:boolean)=>void;demo?:boolean;
   /** The run shown (the toolbar chooses it), whether zoom is linked and whether each pane lists its measurements. */
   runId:string;linked:boolean;tables:boolean;onDisplay?:(value:PairDisplay|null)=>void;
@@ -31,6 +31,10 @@ export const pairRuns=(design:ExperimentDesign)=>(design.runs??[]).filter(run=>d
  * whole field with outlines at the scale shared by both panes and, beside or below it, that field's
  * measurements. Fields of different groups are different cells: no position correspondence is assumed,
  * and zoom is linked only on request. */
+/** A saved version shown in place of the current one (「図の保存時の版」). A per-nucleus value is checked on
+ * that version's structures, with its nucleus (`nucleus`) outlined among the nuclei of the same analysis (`context`). */
+export interface Historical {target:ReviewTarget;result:SavedResult;context?:SavedResult["masks"]["regions"];nucleus?:number}
+
 export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,demo=false,runId,linked,tables,onDisplay}:Props){
   const runs=pairRuns(design);
   const run=runs.find(value=>value.id===runId)??runs[0];
@@ -71,7 +75,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
     {panes.map((pane,index)=>{
       const field=pane.field;
       // A detection preview (for example an AI proposal) is shown as in one field, read-only until adopted.
-      const saved=field&&historical?.target===target&&historical.result.field===field.id?historical.result:undefined;
+      const savedView=field&&historical?.target===target&&historical.result.field===field.id?historical:undefined,saved=savedView?.result;
       const candidate=field&&!saved?r.candidateResult(field.id,target):undefined,value=field?saved||candidate||r.currentResult(field.id,target):undefined;
       const editable=!demo&&!!field&&!!value&&!saved&&!candidate&&target!=="nucleoplasm";
       const shown=field&&field.id===selectedField?region:undefined;
@@ -103,7 +107,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"}
           // The whole field at the scale both panes share (V-01), so neither view is chosen by its content.
           style={{width:field.width*layout.scale,height:field.height*layout.scale,flex:"none"}}
-          context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(field.id,"nuclei")?.masks.regions:undefined}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
+          context={savedView?.context??(demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(field.id,"nuclei")?.masks.regions:undefined)}
+          contextSelected={savedView?.nucleus}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
           {rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
         </div>

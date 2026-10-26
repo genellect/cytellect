@@ -45,9 +45,12 @@ export function pairPaneLayout(images:Array<{width:number;height:number}|undefin
   return side>below?{placement:"side",scale:side}:{placement:"below",scale:below};
 }
 
+/** The mean of an outline's vertices (display only). */
+export function centre(points:Point[]):Point{return [points.reduce((sum,point)=>sum+point[0],0)/points.length,points.reduce((sum,point)=>sum+point[1],0)/points.length];}
+
 /** Display only: the centre of the nucleus with the most neighbours within `radius` source pixels. */
 export function densestPoint(regions:Array<{id:number;points:Point[]}>,radius:number):Point|undefined{
-  const centres=regions.filter(region=>region.points.length).map(region=>[region.points.reduce((sum,point)=>sum+point[0],0)/region.points.length,region.points.reduce((sum,point)=>sum+point[1],0)/region.points.length] as Point);
+  const centres=regions.filter(region=>region.points.length).map(region=>centre(region.points));
   let best:Point|undefined,most=-1;
   for(const centre of centres){const count=centres.filter(other=>Math.hypot(other[0]-centre[0],other[1]-centre[1])<=radius).length;if(count>most){most=count;best=centre;}}
   return best;

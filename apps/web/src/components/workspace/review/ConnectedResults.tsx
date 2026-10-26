@@ -9,7 +9,7 @@ import {commonWarnings} from "@/lib/common-statistics";
 import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CompartmentLedgerEntry,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
-import {metricUsesChannel} from "@/lib/workspace/metric-catalog";
+import {metricStructure,metricUsesChannel} from "@/lib/workspace/metric-catalog";
 import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
@@ -26,7 +26,8 @@ export interface ConnectedResultsProps {
   adapter:ApiAdapter;workspace:string;selection:WorkspaceSelection|null;items:ConnectedResultItem[];
   target:ReviewTarget;metric:string;channel:string|null;mode:"statistics"|"figure";
   /** The saved two-group result in words and its figure, for the image view (requirements X-01). */
-  onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
+  /** `target` is the region set the values come from; `structure` is what they are checked on in the image. */
+  onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null,structure?:ReviewTarget)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
   gfp?:GfpSelectionChoice|null;
   initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals">;
   onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]})=>Promise<unknown>;
@@ -48,6 +49,9 @@ const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nucle
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
 const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
 const regionNames:Record<string,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
+/** The region a metric is checked on: a per-nucleus value of the nucleoli comes from the nucleoplasm set
+ * but reads 「核小体（核ごとの値）」, as the image shows it (V-04, X-01). */
+function regionLabel(metric:string,region:string|undefined){if(!region||!(region in regionNames))return undefined;const structure=metricStructure(metric,region as ReviewTarget);return structure===region?regionNames[region]:`${regionNames[structure]}（核ごとの値）`;}
 /** The region a saved result measured: its selection's region set, else its sources'. */
 function savedRegion(result:ResultPayload):ReviewTarget|undefined{const id=result.spec?.selection?.region_set_id||resultSources(result)[0]?.region_set?.region_set_id||"";return id in regionNames?id as ReviewTarget:undefined;}
 /** A per-region metric names its region and channel (「核小体の平均輝度（eu5）」); summaries name their own. */
@@ -178,7 +182,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
-  function openPoint(source:FigureSource){if(!saved)return;if(source.field_id){if(!resultSources(saved.result).some(field=>field.field_id===source.field_id))return;onSource(source.field_id,source.region_id??source.nucleus_id,saved.revision,saved.target,savedChannel);}else if(source.experimental_unit){setPointSource({job:saved.figureJob,source});}}
+  function openPoint(source:FigureSource){if(!saved)return;if(source.field_id){if(!resultSources(saved.result).some(field=>field.field_id===source.field_id))return;onSource(source.field_id,source.region_id??source.nucleus_id,saved.revision,saved.target,savedChannel,savedStructure);}else if(source.experimental_unit){setPointSource({job:saved.figureJob,source});}}
   const series=saved?.historical?(saved.operation==="distribution"?(saved.sources||[]).map(source=>source.field):saved.result.spec?.conditions||[]):resultSeries(operation,sources.map(source=>source.field),conditions,contrasts);
   const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax},(saved?.historical?saved.operation:operation)==="association"),point_size:pointSize,group_order:seriesOrder(order,series),style:{version:"1.0.0",series_colors:colors,show_legend:legend}});
   async function repairUnsupported(){if(!onSaveDraft)return;const additional=initialSpec?.additional_analyses??[],indexes=new Map<number,number>();let next=1;indexes.set(0,0);additional.forEach((value,index)=>{if(!invalidMethod(value))indexes.set(index+1,next++);});
@@ -250,8 +254,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   function showRecorded(entry:Saved){
     restoreFigure(entry);
     // The side panel follows, so the shown result is the chosen metric's and not a "previous" one.
-    if(entry.target)onAnalysisTargetChange?.(entry.target);
     const metric=entry.result.spec?.selection?.metric??entry.result.estimates?.metric??entry.result.metric;
+    if(entry.target)onAnalysisTargetChange?.(metricStructure(metric??"",entry.target));
     if(metric)onMetricChange?.(metric,entry.result.spec?.selection?.channel_id??null);
   }
   const [savedNote,setSavedNote]=useState("");
@@ -262,9 +266,10 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   // The shown result differs from the side panel's choice in region, metric or channel.
   const previous=(()=>{if(!saved)return null;const selection=saved.result.spec?.selection,savedMetric=selection?.metric??saved.result.metric??"",savedChannelId=selection?.channel_id??null;
     if(savedMetric===metric&&(!saved.target||saved.target===target)&&(savedChannelId==null||savedChannelId===channel))return null;
-    const describe=(region:string|undefined,value:string,channelId:string|null)=>[regionNames[region||""],metricLabels[value]||value||"別の指標",channelId].filter(Boolean).join(" · ");
+    const describe=(region:string|undefined,value:string,channelId:string|null)=>[regionLabel(value,region),metricLabels[value]||value||"別の指標",channelId].filter(Boolean).join(" · ");
     return {shown:describe(saved.target,savedMetric,savedChannelId),chosen:describe(target,metric,savedChannelId==null?null:channel)};})();
   const savedChannel=saved?.result.channel?.channel_id??saved?.result.y_source?.channel?.channel_id??saved?.result.spec?.selection?.channel_id??null;
+  const savedStructure=saved?.target?metricStructure(saved.result.spec?.selection?.metric??saved.result.estimates?.metric??saved.result.metric??"",saved.target):undefined;
   const tableRows=saved?.operation==="comparison"?saved.result.comparisons:saved?.operation==="association"?saved.result.associations:saved?.result.field_summary;
   const fieldLabels=Object.fromEntries([...(saved?.sources||[]).map((source,index)=>[source.field,source.label!==source.field?source.label:`視野 ${index+1}`]),...items.map(item=>[item.fieldId,item.label])]);
 
@@ -273,7 +278,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     <div className={styles.settings} onBlur={event=>{if(event.currentTarget.contains(event.relatedTarget))return;if(!busy&&!saved?.historical)void persist().catch(cause=>setError(fail(cause)));}}>
       <header><h2>{mode==="figure"?"グラフ":"統計解析"}</h2><span>{sources.length} 視野{excludedCount?` · 除外 ${excludedCount}`:""}</span></header>
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
-      <p className={styles.current}>{shownTarget==="nuclei"?"核":shownTarget==="nucleoli"?"核小体":shownTarget==="nucleoplasm"?"核質":shownTarget==="cell"?"細胞ROI":"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
+      <p className={styles.current}>{regionLabel(shownMetric,shownTarget)??"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
       {mode==="statistics"?<>
         {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
         {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
@@ -299,11 +304,13 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       </>:<>
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
         {part==="figure"&&<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(previous=>Math.min(previous,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option>{!demo&&<option value="custom">指定する</option>}</select></label>}
-        {saved?.operation==="comparison"&&<label>図のレイアウト<select value={figureKind} onChange={event=>setFigureKind(event.target.value as RenderPlot["kind"])}><option value="distribution">点と分布</option><option value="box">箱ひげ図</option><option value="violin">バイオリン図</option><option value="histogram">ヒストグラム</option>{paired&&<option value="paired">対応する点を結ぶ</option>}<option value="superplot">実験回ごと（視野・実験回・平均と95%信頼区間）</option><option value="unit-mean-bar">実験回の平均の棒（95%信頼区間）</option></select></label>}
+        {saved?.operation==="comparison"&&<label>図のレイアウト<select value={figureKind} onChange={event=>setFigureKind(event.target.value as RenderPlot["kind"])}><option value="distribution">点と分布</option><option value="box">箱ひげ図</option><option value="violin">バイオリン図</option><option value="histogram">ヒストグラム</option>{paired&&<option value="paired">対応する点を結ぶ</option>}<option value="superplot">実験回ごと（視野・実験回・平均）</option><option value="unit-mean-bar">実験回の平均の棒</option></select></label>}
+        {/* The interval follows the saved result: a descriptive comparison has none to draw (S-07). */}
+        {saved?.operation==="comparison"&&(figureKind==="superplot"||figureKind==="unit-mean-bar")&&<p className={styles.figureHint}>{saved.result.estimates?.test==="none"?"検定なしの記述のため、信頼区間は描きません。":"群の平均に 95% 信頼区間を付けます。"}</p>}
         {part==="x"&&<fieldset className={styles.plain} disabled={demo}><label>横軸ラベル<input value={xLabel} maxLength={120} onChange={event=>setXLabel(event.target.value)}/></label><AxisControls axis="x" value={xAxis} onChange={setXAxis} numeric={(saved?.operation||operation)==="association"}/></fieldset>}
         {part==="y"&&<fieldset className={styles.plain} disabled={demo}><label>縦軸ラベル<input value={yLabel} maxLength={120} onChange={event=>setYLabel(event.target.value)}/></label><AxisControls axis="y" value={{...yAxis,min:yMin,max:yMax}} onChange={value=>{setYAxis(value);setYMin(value.min);setYMax(value.max);}}/></fieldset>}
         {part==="figure"&&<><div className={styles.row}><label>幅 / mm<input type="number" disabled={demo} min={76.2} max={406.4} value={width} onChange={event=>setWidth(Number(event.target.value))}/></label><label>高さ / mm<input type="number" disabled={demo} min={25.4} max={170} value={height} onChange={event=>setHeight(Number(event.target.value))}/></label></div><label>文字 / pt<input type="number" disabled={demo} min={5} max={24} value={font} onChange={event=>setFont(Number(event.target.value))}/></label><label className={styles.check}><input type="checkbox" disabled={demo} checked={legend} onChange={event=>setLegend(event.target.checked)}/>凡例を表示</label></>}
-        {part==="series"&&<><fieldset className={styles.plain} disabled={demo}><label>系列<select value={selectedSeries||series[0]||""} onChange={event=>setSelectedSeries(event.target.value)}>{(order.length?seriesOrder(order,series):series).map(key=><option key={key} value={key}>{sources.find(source=>source.field===key)?.label||key}</option>)}</select></label><label>色<input type="color" value={colors[selectedSeries||series[0]]||"#0072b2"} onChange={event=>setColors(previous=>({...previous,[selectedSeries||series[0]]:event.target.value}))}/></label><label>点の大きさ<input type="number" min={1} max={400} value={pointSize} onChange={event=>setPointSize(Number(event.target.value))}/></label><div className={styles.row}>{[-1,1].map(direction=><button key={direction} onClick={()=>{const current=order.length?seriesOrder(order,series):[...series];const index=current.indexOf(selectedSeries||series[0]);if(index+direction<0||index+direction>=current.length)return;[current[index],current[index+direction]]=[current[index+direction],current[index]];setOrder(current);}}>{direction<0?"前へ":"後へ"}</button>)}</div></fieldset>{operation==="distribution"&&<button onClick={()=>onSource(selectedSeries||series[0],undefined,saved?.revision,saved?.target,savedChannel)}>元の視野を表示</button>}</>}
+        {part==="series"&&<><fieldset className={styles.plain} disabled={demo}><label>系列<select value={selectedSeries||series[0]||""} onChange={event=>setSelectedSeries(event.target.value)}>{(order.length?seriesOrder(order,series):series).map(key=><option key={key} value={key}>{sources.find(source=>source.field===key)?.label||key}</option>)}</select></label><label>色<input type="color" value={colors[selectedSeries||series[0]]||"#0072b2"} onChange={event=>setColors(previous=>({...previous,[selectedSeries||series[0]]:event.target.value}))}/></label><label>点の大きさ<input type="number" min={1} max={400} value={pointSize} onChange={event=>setPointSize(Number(event.target.value))}/></label><div className={styles.row}>{[-1,1].map(direction=><button key={direction} onClick={()=>{const current=order.length?seriesOrder(order,series):[...series];const index=current.indexOf(selectedSeries||series[0]);if(index+direction<0||index+direction>=current.length)return;[current[index],current[index+direction]]=[current[index+direction],current[index]];setOrder(current);}}>{direction<0?"前へ":"後へ"}</button>)}</div></fieldset>{operation==="distribution"&&<button onClick={()=>onSource(selectedSeries||series[0],undefined,saved?.revision,saved?.target,savedChannel,savedStructure)}>元の視野を表示</button>}</>}
         <button className={styles.primary} disabled={!canRender} onClick={()=>void render()}>{busy||"図を更新"}</button>
         {!saved&&<p>統計画面で計算すると、結果を使って図を編集できます。</p>}
       </>}
@@ -324,7 +331,8 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
             {recorded.length>1&&<div className={styles.recorded} role="group" aria-label="記録した比較">{recorded.map(entry=>{const channelId=entry.result.spec?.selection?.channel_id;return <button key={entry.job} aria-pressed={saved.job===entry.job} onClick={()=>showRecorded(entry)}>{metricLabels[entry.result.estimates!.metric]||entry.result.estimates!.metric}{channelId?` · ${channelId}`:""}</button>;})}</div>}
             {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={resultMetricLabel(saved.result,saved.result.estimates.metric)} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
           reported={showcaseDataset?.reported??null}
-          counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}
+          counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域",
+            saved.result.compartment_missing?{rows:saved.result.compartment_missing.rows,perNucleus:saved.result.spec?.selection?.source==="compartment-summary"}:null)}
           missing={saved.result.compartment_missing??null}/>}
             {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null} missing={saved.result.compartment_missing??null}/>}
             {/* Without a summary card the denominators still stand beside the result (Q-05). */}
@@ -332,27 +340,37 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
           </div>
           <div>{svgFiles.map(file=><VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}</div>
         </div>:svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
-        {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></section>}
+        {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></section>}
         {!svgFiles.length&&<p>この設定では図を表示できません。測定表と出力条件を確認してください。</p>}
         {mode==="statistics"&&tableRows&&(saved.result.estimates
-          ?<details><summary>検定の詳細</summary><SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></details>
-          :<SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/>)}
+          ?<details><summary>検定の詳細</summary><SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></details>
+          :<SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>)}
         {mode==="statistics"&&saved.result.omnibus&&<p>全体検定 {String(saved.result.omnibus.method)} · p = {formatValue(saved.result.omnibus.p_value)}</p>}
-        {mode==="statistics"&&Array.isArray(saved.result.counts)&&<SavedTable rows={saved.result.counts} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/>}
+        {mode==="statistics"&&Array.isArray(saved.result.counts)&&<SavedTable rows={saved.result.counts} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}
         {!!saved.result.warnings?.length&&<details><summary>解析上の注意</summary><ul>{saved.result.warnings.map(value=><li key={value}>{comparisonWarnings[value]||commonWarnings[value]||value}</li>)}</ul></details>}
-        {!!saved.result.plot_data?.length&&<details><summary>図の元データ</summary><SavedTable rows={saved.result.plot_data} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></details>}
-        <details><summary>元の視野{saved.historical?"（保存時の解析版）":""}</summary>{(saved.sources||[]).map(source=><button key={source.field} onClick={()=>onSource(source.field,undefined,saved.revision,saved.target,savedChannel)}>{items.find(item=>item.fieldId===source.field)?.label||source.label}</button>)}</details>
+        {!!saved.result.plot_data?.length&&<details><summary>図の元データ</summary><SavedTable rows={saved.result.plot_data} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></details>}
+        <details><summary>元の視野{saved.historical?"（保存時の解析版）":""}</summary>{(saved.sources||[]).map(source=><button key={source.field} onClick={()=>onSource(source.field,undefined,saved.revision,saved.target,savedChannel,savedStructure)}>{items.find(item=>item.fieldId===source.field)?.label||source.label}</button>)}</details>
       </>:<p className={styles.empty}>計算した結果とグラフをここに表示します。</p>}
     </div>
   </section>;
 }
 
 function VectorFigure({path}:{path:string}){const url=usePrivateImage(path);return url?<img className={styles.figure} src={url} alt="保存された解析結果のグラフ"/>:<p role="status">図を読み込み中…</p>;}
+/** The columns a researcher reads first (N-06): the field to open, its run and group, the region and the value. */
+const leadingKeys=["field_id","pair","condition","experimental_unit","region_id","nucleus_id","value"];
+/** Saved versions and internal identifiers: kept with every row, read on request. */
+const recordKey=(key:string)=>key==="observation_id"||key==="region_set_id"||key.endsWith("_revision_id");
 function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];fieldLabels:Record<string,string>;onSource:(fieldId:string,regionId?:number)=>void}) {
-  const keys=[...new Set(rows.flatMap(row=>Object.keys(row)))];
-  const names:Record<string,string>={field_id:"視野",region_id:"領域番号",nucleus_id:"親核番号",value:"測定値",condition:"群",input_rows:"入力領域数",excluded:"除外領域数",gate_unselected:"GFP選別の対象外数",missing_metric_selected:"採用対象の測定値欠測数",selected_rows:"採用領域数",mean:"平均値",median:"中央値",q1:"第1四分位",q3:"第3四分位",minimum:"最小値",maximum:"最大値",p_value:"p 値",p_adjusted:"補正 p 値",p_holm:"Holm補正 p 値",estimate:"推定値",coefficient:"相関係数",ci_low:"95% CI 下限",ci_high:"95% CI 上限",n:"対象数",missing_reason:"欠測理由",reason:"理由",group_a:"群 A",group_b:"群 B",observations:"採用領域数",input_fields:"入力視野数",selected_fields:"採用視野数",excluded_failed_fields:"除外した失敗視野数",samples:"試料数",input_units:"入力独立実験単位数",experimental_units:"採用独立実験単位数",explicitly_excluded_units:"除外独立実験単位数",complete_pairs:"完全ペア数",effect:"効果量",effect_name:"効果量の種類",method:"方法",scope:"対象",status:"状態"};
+  const all=[...new Set(rows.flatMap(row=>Object.keys(row)))];
+  const keys=[...leadingKeys.filter(key=>all.includes(key)),...all.filter(key=>!leadingKeys.includes(key)&&!recordKey(key))],records=all.filter(recordKey);
+  const names:Record<string,string>={pair:"実験回",experimental_unit:"実験単位",sample:"試料",acquisition_date:"撮影日",exclusion_reason:"除外理由",gate_selected:"GFP選別で採用",selection_status:"採用",channel_id:"染色",observation_id:"観測",region_set_id:"領域の種類",mask_revision_id:"輪郭の版",analysis_revision_id:"解析版",field_id:"視野",region_id:"領域番号",nucleus_id:"親核番号",value:"測定値",condition:"群",input_rows:"入力領域数",excluded:"除外領域数",gate_unselected:"GFP選別の対象外数",missing_metric_selected:"採用対象の測定値欠測数",selected_rows:"採用領域数",mean:"平均値",median:"中央値",q1:"第1四分位",q3:"第3四分位",minimum:"最小値",maximum:"最大値",p_value:"p 値",p_adjusted:"補正 p 値",p_holm:"Holm補正 p 値",estimate:"推定値",coefficient:"相関係数",ci_low:"95% CI 下限",ci_high:"95% CI 上限",n:"対象数",missing_reason:"欠測理由",reason:"理由",group_a:"群 A",group_b:"群 B",observations:"採用領域数",input_fields:"入力視野数",selected_fields:"採用視野数",excluded_failed_fields:"除外した失敗視野数",samples:"試料数",input_units:"入力独立実験単位数",experimental_units:"採用独立実験単位数",explicitly_excluded_units:"除外独立実験単位数",complete_pairs:"完全ペア数",effect:"効果量",effect_name:"効果量の種類",method:"方法",scope:"対象",status:"状態"};
   const statuses:Record<string,string>={selected:"採用",no_regions:"領域なし",no_selected_values:"採用できる測定値なし",excluded:"除外",missing:"欠測"};
-  return <div className={styles.tableScroll} tabIndex={0}><table><thead><tr>{keys.map(key=><th key={key} scope="col" style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{names[key]||key}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={index}>{keys.map(key=><td key={key}>{key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:key==="status"&&typeof row[key]==="string"?statuses[row[key]]||row[key]:row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key])}</td>)}</tr>)}</tbody></table></div>;
+  const cell=(row:Record<string,unknown>,key:string,index:number)=>key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:key==="status"&&typeof row[key]==="string"?statuses[row[key]]||row[key]:row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key]);
+  const head=(key:string)=><th key={key} scope="col" className={key==="field_id"?styles.stickyColumn:undefined} style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{names[key]||key}</th>;
+  const body=(columns:string[])=><tbody>{rows.map((row,index)=><tr key={index}>{columns.map(key=><td key={key} className={key==="field_id"?styles.stickyColumn:undefined}>{cell(row,key,index)}</td>)}</tr>)}</tbody>;
+  const fieldColumn=all.includes("field_id")?["field_id"]:[];
+  return <><div className={styles.tableScroll} tabIndex={0}><table><thead><tr>{keys.map(head)}</tr></thead>{body(keys)}</table></div>
+    {records.length>0&&<details className={styles.recordDetails}><summary>記録の詳細（解析版・内部 ID）</summary><div className={styles.tableScroll} tabIndex={0}><table><thead><tr>{[...fieldColumn,...records].map(head)}</tr></thead>{body([...fieldColumn,...records])}</table></div></details>}</>;
 }
 
 /** A distribution of a two-group design read by run: each saved field median in its run and group.

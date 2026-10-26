@@ -8,6 +8,9 @@ export interface MetricChoice {
   definition: string;
   /** The region set the values come from, when the metric fixes it. */
   target?: ReviewTarget;
+  /** The structure checked on the image, when it is not the region set the values come from:
+   * a per-nucleus value of the nucleoli is read from the nucleoplasm set but checked on the nucleoli. */
+  structure?: ReviewTarget;
   /** Whether a measured stain must be chosen. */
   channel: boolean;
   /** Needs a confirmed pixel size (µm², per mm²); without it the metric cannot be chosen (M-02). */
@@ -36,15 +39,15 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
     {id: "integrated_corrected", label: "積算輝度（背景補正）", channel: true, definition: "背景を差し引いた積算輝度。領域の大きさにも左右されます。"},
   ]},
   {question: "核小体が変わったか", metrics: [
-    {id: "nucleolar_area_px", label: "核小体の総面積（px²）", target: "nucleoplasm", channel: false,
+    {id: "nucleolar_area_px", label: "核小体の総面積（px²）", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "採用した核小体がある核ごとの、核小体の総面積（px²）。候補がない核は 0 ではなく欠測です。核小体を決めた染色と方法は解析の記録に残ります。"},
-    {id: "nucleolar_area_um2", label: "核小体の総面積（µm²）", target: "nucleoplasm", channel: false, calibrated: true,
+    {id: "nucleolar_area_um2", label: "核小体の総面積（µm²）", target: "nucleoplasm", structure: "nucleoli", channel: false, calibrated: true,
       definition: "核小体の総面積（px²）× 確認した画素の大きさ。画素の大きさが登録された視野だけで使えます。"},
-    {id: "nucleolar_eccentricity", label: "核小体の離心率", target: "nucleoplasm", channel: false,
+    {id: "nucleolar_eccentricity", label: "核小体の離心率", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "核ごとの、核小体の離心率（0 = 円、1 に近いほど細長い）を面積で重みづけた平均。1 画素の核小体は測りません。比較では差で示します。"},
-    {id: "nucleolar_count", label: "核小体数", target: "nucleoplasm", channel: false,
+    {id: "nucleolar_count", label: "核小体数", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "採用した核小体がある核ごとの、核小体の数。候補がない核は 0 ではなく欠測として扱います。"},
-    {id: "nucleolar_area_fraction", label: "核小体面積割合", target: "nucleoplasm", channel: false,
+    {id: "nucleolar_area_fraction", label: "核小体面積割合", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "採用した核小体がある核ごとの、核小体の総面積 ÷ 核の面積。比較では差をパーセントポイントで示します。"},
   ]},
   {question: "核小体から核質へ移ったか", metrics: [
@@ -60,4 +63,6 @@ export function metricChoice(id: string): MetricChoice | undefined {return choic
 export function metricLabel(id: string): string {return choices.get(id)?.label ?? extraLabels[id] ?? id;}
 /** The region set a metric's values come from: fixed by the metric, otherwise the chosen one. */
 export function metricTarget(id: string, chosen: ReviewTarget): ReviewTarget {return choices.get(id)?.target ?? chosen;}
+/** The structure a metric's values are checked on in the image (V-04, X-01). */
+export function metricStructure(id: string, chosen: ReviewTarget): ReviewTarget {return choices.get(id)?.structure ?? metricTarget(id, chosen);}
 export function metricUsesChannel(id: string): boolean {return !id.startsWith("area_") && (choices.get(id)?.channel ?? true);}
