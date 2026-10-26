@@ -49,7 +49,7 @@ const features: Feature[] = [
     lead: "どの値を、どの群で、どの検定で比べるか。メニューを一つずつ選ぶ必要はありません。",
     link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモを体験する <Forward /></Link>,
     visual: <figure className={lp.prompt}>
-      <p className={lp.before}><span>これまで</span>処理の選択、組み合わせ、条件の調整を、すべて自分で。</p>
+      <p className={lp.before}><span>これまで</span>処理の選択、組み合わせ、条件の調整を、研究者が自分で行ってきた。</p>
       <p className={lp.ask}><span>Cytellect</span>GFPが核に移った細胞の割合を、薬の濃度ごとに比べたい</p>
       <span className={lp.arrow} aria-hidden="true">↓</span>
       <dl className={lp.answer} aria-label="AIが組み立てた設定">{proposal.map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl>

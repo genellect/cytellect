@@ -57,17 +57,6 @@
 .links{display:flex;flex-wrap:wrap;gap:0 40px}
 .mission{padding-top:var(--section-space)}
 .section{padding-top:var(--section-space);padding-bottom:16px}
-.story{padding-top:56px}
-.story .prose{max-width:38em}
-.story .prose p{font-size:clamp(18px,1.4vw,20px);line-height:1.95}
-.more{display:grid;grid-template-rows:0fr;transition:grid-template-rows .6s cubic-bezier(.22,.7,.12,1)}
-.more[data-open="true"]{grid-template-rows:1fr}
-.more>div{min-height:0;overflow:hidden}
-.more>div>div{padding-top:1.3em}
-.toggleIcon{position:relative;width:12px;height:12px}
-.toggleIcon::before,.toggleIcon::after{position:absolute;left:0;top:50%;width:12px;height:1px;content:"";background:currentColor;transition:transform .2s}
-.toggleIcon::after{transform:rotate(90deg)}
-[aria-expanded="true"]>.toggleIcon::after{transform:rotate(0)}
 .page .band{width:min(100% - 2 * var(--gutter),1360px);height:clamp(300px,38vw,600px);margin:var(--section-space) auto 0;overflow:hidden;border-radius:6px}
 .band img{width:100%;height:100%;object-fit:cover;object-position:65% 62%}
 .specimen{padding:clamp(12px,2vw,28px);border-radius:8px;background:#050807;color:#eef0ec}
@@ -106,9 +95,8 @@
 .prompt figcaption{margin-top:18px;font-size:13px;line-height:1.7}
 .formats{display:flex;gap:8px;margin:28px 0 0;padding:0;list-style:none}
 .formats li{padding:6px 14px;border:1px solid currentColor;border-radius:4px;font-size:15px;font-weight:600;letter-spacing:.05em}
-.before{margin:0 0 16px;padding:14px 18px;border:1px dashed var(--rule);border-radius:10px;font-size:15px;line-height:1.7;text-decoration:line-through;text-decoration-thickness:1px}
-.before span,.ask span{display:block;margin-bottom:4px;font-size:12px;font-weight:600;letter-spacing:.06em;text-decoration:none}
-.before span{display:inline-block;margin:0 12px 0 0}
+.before{margin:0 0 12px;padding:0 22px;color:var(--muted);font-size:15px;line-height:1.7}
+.before span,.ask span{display:block;margin-bottom:4px;font-size:12px;font-weight:600;letter-spacing:.06em}
 .loopSection .wide{position:relative}
 .loopLead{margin:16px 0 0;font-size:clamp(18px,1.5vw,22px);line-height:1.7}
 .loop{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(12px,1.6vw,24px);margin:48px 0 0;padding:0;list-style:none}
@@ -240,7 +228,6 @@
   .motionToggle{bottom:22px}
   .display{font-size:clamp(23px,6.2vw,28px);line-height:1.6;letter-spacing:0}.display+.prose{margin-top:20px}
   .manifesto{font-size:clamp(23px,6.6vw,28px);line-height:1.55;letter-spacing:0}.missionLead{margin-top:24px;font-size:17px}
-  .story{padding-top:40px}.story .prose p{font-size:17px;line-height:1.9}
   .page .band{width:100%;height:280px;margin-top:var(--section-space);border-radius:0}.band img{object-position:72% 62%}
     .panel{grid-template-columns:1fr;padding-top:32px;gap:28px}.tab{font-size:15px;margin-right:16px}.panel .numbers{grid-template-columns:1fr}
   .loop{grid-template-columns:1fr;gap:12px}
