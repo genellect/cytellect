@@ -14,7 +14,7 @@ const PUBLISHED = fs.existsSync(path.resolve("public/showcase/seed.zip"));
 const live = 240_000;
 
 /** The published scenes (snapshot/scenes.json); a single-scene demo reads as one scene without an id. */
-interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; reference?: string; fields: unknown[]}
+interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; fields: unknown[]}
 const SCENES: Scene[] = (() => {
   try {return (JSON.parse(fs.readFileSync(path.resolve("public/showcase/snapshot/scenes.json"), "utf8")) as {scenes: Scene[]}).scenes;}
   catch {return [];}
@@ -145,17 +145,6 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(page.getByRole("region", {name: "比較の結果"})).toHaveCount(0);
   await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
   if (SCENES.length > 1) await expect(header.getByRole("combobox", {name: "場面"})).toHaveValue(OPENING.id);
-  // Another method's published nuclei for the same images, beside the adopted ones (display only).
-  if (OPENING?.reference) {
-    const toggle = page.getByRole("button", {name: "CellProfiler と比べる", exact: true});
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
-    const panel = page.getByRole("region", {name: /との比較$/});
-    await expect(panel.locator("table tbody tr")).toHaveCount(2);
-    await expect(page.locator("circle[data-tone]").first()).toBeAttached();
-    await toggle.click();
-    await expect(page.locator("circle[data-tone]")).toHaveCount(0);
-  }
   // The rest of this walk uses one field at a time.
   await page.getByRole("button", {name: "2 画面", exact: true}).click();
   await noOverflow(page);
@@ -296,7 +285,6 @@ test("the scene switcher opens each scene's own images and examples", async ({pa
     await expect(page).toHaveURL(new RegExp(`id=${scene.workspaceId}`));
     await expect(regions(page).first()).toBeAttached({timeout: live});
     await expect(page.locator("[class*=fieldCard]")).toHaveCount(scene.fields.length, {timeout: live});
-    await expect(page.getByRole("button", {name: "CellProfiler と比べる", exact: true})).toHaveCount(scene.reference ? 1 : 0);
   }
   await noErrors(page, watch);
 });

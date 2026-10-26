@@ -30,12 +30,25 @@ function fixture(withResult=true,initialSpecification:import("./use-workspace-ru
 }
 describe("functional workspace runtime",()=>{
   it("shows the first field before loading the others, and loads a single field once",async()=>{
+    const calls=(mock:ReturnType<typeof fixture>["loadPreview"])=>mock.mock.calls as unknown as Array<[string|undefined,string[]|undefined,{limit?:number;reuse?:ReviewData|null}|undefined]>;
+    const stages=(mock:ReturnType<typeof fixture>["loadPreview"])=>calls(mock).map(([id,fields,options])=>[id,fields,options?.limit]);
     const single=fixture();await single.runtime.load("w");
-    expect(single.loadPreview.mock.calls).toEqual([["w",undefined,{limit:1}]]);
+    expect(stages(single.loadPreview)).toEqual([["w",undefined,1]]);
     const several=fixture(),restore=several.adapter.restore.getMockImplementation()!;
     several.adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);return {...value,fields:[...value.fields,{...value.fields[0],id:"f2"}]};});
     await several.runtime.load("w");
-    expect(several.loadPreview.mock.calls).toEqual([["w",undefined,{limit:1}],["w",undefined,undefined]]);
+    expect(stages(several.loadPreview)).toEqual([["w",undefined,1],["w",undefined,undefined]]);
+    // The remaining fields reuse the previews already shown instead of fetching them again.
+    expect(calls(several.loadPreview)[1][2]).toMatchObject({reuse:{workspaceId:"w"}});
+  });
+  it("opens a two-group design on both fields of its first run, loaded together before the others",async()=>{
+    const design={version:"1.0.0",layout:"pair",control_group_id:"c",independence_confirmed:false,groups:[{id:"t",label:"KO"},{id:"c",label:"NT"}],
+      runs:[{id:"r1",label:"Run1"}],fields:{f1:{group_id:"t",run_id:"r1"},f2:{group_id:"c",run_id:"r1"},f3:{group_id:"c",run_id:"r1"}}};
+    const pair=fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:design as never}});
+    const restore=pair.adapter.restore.getMockImplementation()!;
+    pair.adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);return {...value,fields:["f1","f2","f3"].map(id=>({...value.fields[0],id}))};});
+    await pair.runtime.load("w");
+    expect((pair.loadPreview.mock.calls as unknown as Array<[string,string[]|undefined]>).map(([id,fields])=>[id,fields])).toEqual([["w",["f2","f1"]],["w",undefined]]);
   });
   it("repairs historical result settings in one versioned write with current manual settings",async()=>{
     const settings=defaultRuntimeSettings();

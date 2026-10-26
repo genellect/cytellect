@@ -35,10 +35,12 @@ const config: NextConfig = {
         { key: "Content-Security-Policy", value: `default-src 'self'; script-src ${scriptSources}; style-src 'self' 'unsafe-inline'; connect-src ${connectSources}; img-src 'self' blob: data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'${showcase ? "; worker-src 'self' blob:" : ""}` },
       ] }, ...(showcase ? [
         // Public demo files only. Runtime files are content-addressed by runtime-config.json (SHA-256);
-        // the seed and recordings are revalidated so a new demo build is picked up at once.
+        // the seed and recordings are revalidated so a new demo build is picked up at once. Recorded
+        // responses are named by their content's SHA-256 (snapshot.mjs), so a name never changes content.
         { source: "/showcase/runtime/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
         { source: "/showcase/:file(seed\\.zip|manifest\\.json)", headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }] },
         { source: "/showcase/snapshot/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }] },
+        { source: "/showcase/snapshot/:file([0-9a-f]{24}\\.[a-z]+)", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
       ] : []), {
         source: "/lp-metrics.html", headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },

@@ -92,8 +92,6 @@ function reportedChange(value: unknown): ShowcaseDataset["reported"] {
 }
 /** One demo scene (snapshot/scenes.json): a workspace with its own public images and examples. */
 export interface ShowcaseScene {id: string; label: string; workspaceId: string; dataset: ShowcaseDataset; examples: ProposalExample[];
-  /** Snapshot file with another method's published objects matched to the adopted nuclei (display only). */
-  reference?: string;
   /** What visitors can ask of this scene's images, for a request the recordings do not cover. */
   assistantScope?: string;
   /** The channel the opening comparison measures; the images open on it (scenario.final_target sets the region). */
@@ -108,10 +106,9 @@ export function validScenes(value: unknown): ShowcaseScene[] {
     const dataset = validDataset(record);
     const id = typeof record.id === "string" ? record.id : "", label = typeof record.label === "string" ? record.label.trim() : "";
     const workspaceId = typeof record.workspaceId === "string" ? record.workspaceId : "";
-    const reference = typeof record.reference === "string" && /^reference-[\w.-]+\.json$/.test(record.reference) ? record.reference : undefined;
     const assistantScope = typeof record.assistantScope === "string" && record.assistantScope.trim() ? record.assistantScope.trim().slice(0, 400) : undefined;
     const channel = typeof record.channel === "string" && /^[\w.-]{1,64}$/.test(record.channel) ? record.channel : undefined;
-    return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples), ...(reference ? {reference} : {}), ...(assistantScope ? {assistantScope} : {}), ...(channel ? {channel} : {})}] : [];
+    return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples), ...(assistantScope ? {assistantScope} : {}), ...(channel ? {channel} : {})}] : [];
   });
 }
 export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]}> {
@@ -124,69 +121,6 @@ export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | 
   return {options: validOptions, examples: validExamplesOf(examples), dataset: validDataset(dataset), scenes: validScenes(scenes)};
 }
 
-export type ReferenceTone = "both" | "split" | "reference_only" | "labels_only";
-/** One field's comparison with the published reference objects (counts of each match status). */
-export interface ReferenceField {
-  both: number; split: number; referenceOnly: number; labelsOnly: number; labels: number;
-  /** Adopted nuclei not touching the image border (the reference count's rule). */
-  labelsInterior: number | null;
-  /** The reference method's own per-image count (nuclei touching the border excluded). */
-  countNuclei: number | null;
-  medianAreaPx: {both: number | null; split: number | null; referenceOnly: number | null};
-  markers: Array<{x: number; y: number; r: number; tone: ReferenceTone}>;
-}
-/** One group's means per field, computed by the demo build (services/showcase cellprofiler.py). */
-export interface ReferenceGroup {id: string; label: string; fields: number; cytellect: number; cellprofiler: number;
-  referenceOnly: number; split: number; labelsOnly: number; matchedFraction: number | null;
-  referenceOnlyMedianAreaPx: number | null; matchedMedianAreaPx: number | null;
-  /** Matched nuclei per field; the median area of objects only the demo adopted; the share of
-   * reference-only centres where the nuclear stain is at background level. */
-  both: number | null; labelsOnlyMedianAreaPx: number | null; referenceOnlyWithoutSignal: number | null}
-export interface ReferenceRatio {cytellect: number; cellprofiler: number}
-export interface ShowcaseReference {label: string; note: string; fields: Record<string, ReferenceField>;
-  groups: ReferenceGroup[]; ratio: ReferenceRatio | null; runs: Array<{id: string; label: string; ratio: ReferenceRatio | null}>}
-const TONES = new Set<string>(["both", "split", "reference_only", "labels_only"]);
-const count = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
-export function validReference(value: unknown): ShowcaseReference | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  if (record.version !== 1 || typeof record.label !== "string" || !record.fields || typeof record.fields !== "object") return null;
-  const fields: Record<string, ReferenceField> = {};
-  for (const [id, raw] of Object.entries(record.fields as Record<string, unknown>)) {
-    if (!raw || typeof raw !== "object") continue;
-    const item = raw as Record<string, unknown>, areas = (item.median_area_px && typeof item.median_area_px === "object" ? item.median_area_px : {}) as Record<string, unknown>;
-    const both = count(item.both), split = count(item.split), referenceOnly = count(item.reference_only), labelsOnly = count(item.labels_only), labels = count(item.labels);
-    if (both === null || split === null || referenceOnly === null || labelsOnly === null || labels === null) continue;
-    const markers = Array.isArray(item.markers) ? item.markers.flatMap(marker => Array.isArray(marker) && marker.length === 4 && marker.slice(0, 3).every(v => typeof v === "number" && Number.isFinite(v)) && TONES.has(marker[3])
-      ? [{x: marker[0] as number, y: marker[1] as number, r: Math.max(2, marker[2] as number), tone: marker[3] as ReferenceTone}] : []) : [];
-    fields[id] = {both, split, referenceOnly, labelsOnly, labels, labelsInterior: count(item.labels_away_from_border), countNuclei: count(item.count_nuclei),
-      medianAreaPx: {both: count(areas.both), split: count(areas.split), referenceOnly: count(areas.reference_only)}, markers};
-  }
-  const ratioOf = (value: unknown): ReferenceRatio | null => {
-    const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const cytellect = count(item.cytellect), cellprofiler = count(item.cellprofiler);
-    return cytellect === null || cellprofiler === null ? null : {cytellect, cellprofiler};
-  };
-  const groups = Array.isArray(record.groups) ? record.groups.flatMap((raw): ReferenceGroup[] => {
-    const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-    const values = [item.fields, item.cytellect_per_field, item.cellprofiler_per_field, item.reference_only_per_field, item.split_per_field, item.labels_only_per_field].map(count);
-    if (typeof item.id !== "string" || typeof item.label !== "string" || values.some(value => value === null)) return [];
-    const [fieldCount, cytellect, cellprofiler, referenceOnly, split, labelsOnly] = values as number[];
-    return [{id: item.id, label: item.label, fields: fieldCount, cytellect, cellprofiler, referenceOnly, split, labelsOnly,
-      matchedFraction: count(item.matched_fraction), referenceOnlyMedianAreaPx: count(item.reference_only_median_area_px), matchedMedianAreaPx: count(item.matched_median_area_px),
-      both: count(item.both_per_field), labelsOnlyMedianAreaPx: count(item.labels_only_median_area_px), referenceOnlyWithoutSignal: count(item.reference_only_without_signal_fraction)}];
-  }) : [];
-  const runs = Array.isArray(record.runs) ? record.runs.flatMap(raw => {
-    const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-    return typeof item.id === "string" && typeof item.label === "string" ? [{id: item.id, label: item.label, ratio: ratioOf(item.ratio)}] : [];
-  }) : [];
-  return Object.keys(fields).length ? {label: record.label.trim(), note: typeof record.note === "string" ? record.note : "", fields, groups, ratio: ratioOf(record.ratio), runs} : null;
-}
-export async function loadShowcaseReference(file: string): Promise<ShowcaseReference | null> {
-  if (!/^reference-[\w.-]+\.json$/.test(file)) return null;
-  try {const response = await fetch(`${snapshotBase}${file}`, {credentials: "same-origin"}); if (!response.ok) {await response.text(); return null;} return validReference(await response.json());}
-  catch {return null;}
-}
 
 /** Topics a visitor's request can name, and the words that signal them (Japanese and English). */
 const TOPICS: Record<string, RegExp> = {

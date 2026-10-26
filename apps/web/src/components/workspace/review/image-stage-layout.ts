@@ -24,6 +24,27 @@ export function imageStageLayout(images: Array<{width:number;height:number}>, av
   return {columns:best.columns,scroll,tiles:best.tiles.map(tile=>({...tile,height:tile.imageHeight+caption}))};
 }
 
+/** Smallest readable measurement table beside an image (CSS px) and the rows kept below one. */
+export const PAIR_TABLE={sideWidth:260,rows:8,row:33,head:38};
+
+export type PairPlacement="side"|"below"|"none";
+/** Two groups side by side (requirements V-01, N-08). Both images use one scale, so the same channel is
+ * drawn at the same magnification, and each shows its whole field at its own aspect ratio (nothing is
+ * cropped on opening). With measurements shown, each field's table keeps at least PAIR_TABLE beside or
+ * below its image, whichever leaves the images larger; the table takes the rest of the pane. On a narrow
+ * screen (`stacked`) the panes scroll, so the images take the pane width and the table follows below. */
+export function pairPaneLayout(images:Array<{width:number;height:number}|undefined>,pane:{width:number;height:number},tables:boolean,stacked=false):{placement:PairPlacement;scale:number}{
+  const sized=images.filter((value):value is {width:number;height:number}=>!!value&&value.width>0&&value.height>0);
+  if(!sized.length)return {placement:tables?"below":"none",scale:0};
+  const widest=Math.max(...sized.map(value=>value.width)),tallest=Math.max(...sized.map(value=>value.height));
+  const scale=(width:number,height:number)=>Math.max(0,Math.min(width/widest,height/tallest));
+  if(stacked)return {placement:tables?"below":"none",scale:Math.max(0,pane.width/widest)};
+  if(!tables)return {placement:"none",scale:scale(pane.width,pane.height)};
+  const below=scale(pane.width,pane.height-(PAIR_TABLE.head+PAIR_TABLE.rows*PAIR_TABLE.row));
+  const side=scale(pane.width-PAIR_TABLE.sideWidth,pane.height);
+  return side>below?{placement:"side",scale:side}:{placement:"below",scale:below};
+}
+
 /** Display only: the centre of the nucleus with the most neighbours within `radius` source pixels. */
 export function densestPoint(regions:Array<{id:number;points:Point[]}>,radius:number):Point|undefined{
   const centres=regions.filter(region=>region.points.length).map(region=>[region.points.reduce((sum,point)=>sum+point[0],0)/region.points.length,region.points.reduce((sum,point)=>sum+point[1],0)/region.points.length] as Point);

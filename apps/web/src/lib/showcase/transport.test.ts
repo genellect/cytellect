@@ -57,16 +57,19 @@ describe("showcase transport", () => {
     expect(subject.state().engine).toBe("idle");
   });
 
-  it("requests the opening records and the first field's files together, once each", async () => {
+  it("requests the files a workspace opens on once its settings are read, together and once each", async () => {
     const entries = {
-      "/v1/session": {authenticated: true}, "/v1/workspaces/w/region-fields": [{id: "f1"}, {id: "f2"}],
+      "/v1/session": {authenticated: true}, "/v1/workspaces/w/analysis-spec": {version: 0, spec: null},
+      "/v1/workspaces/w/region-fields": [{id: "f1"}, {id: "f2"}],
       "/v1/region-fields/f1/preview?channel_id=c&gain=1": {preview: 1}, "/v1/region-fields/f2/preview?channel_id=c&gain=1": {preview: 2},
       "/v1/revisions/r1/region-masks?field_id=f1": {masks: 1}, "/v1/revisions/r1/region-measurements": {rows: 1},
     };
     const fetchStatic = staticFiles(entries);
     const subject = createShowcaseTransport({fetchStatic, createEngine: () => fakeEngine(), capable: () => true, snapshotBase: "/showcase/snapshot/"});
-    await subject.fetch("/v1/session");
     const files = (paths: string[]) => paths.map(path => `/showcase/snapshot/r${Object.keys(entries).indexOf(path)}.json`);
+    await subject.fetch("/v1/session");
+    expect(fetchStatic.mock.calls.map(([url]) => url)).not.toContain(files(["/v1/region-fields/f1/preview?channel_id=c&gain=1"])[0]);
+    await subject.fetch("/v1/workspaces/w/analysis-spec");
     await vi.waitFor(() => expect(fetchStatic.mock.calls.map(([url]) => url)).toEqual(expect.arrayContaining(files([
       "/v1/workspaces/w/region-fields", "/v1/region-fields/f1/preview?channel_id=c&gain=1", "/v1/revisions/r1/region-masks?field_id=f1", "/v1/revisions/r1/region-measurements"]))));
     expect(fetchStatic.mock.calls.map(([url]) => url)).not.toContain(files(["/v1/region-fields/f2/preview?channel_id=c&gain=1"])[0]);
@@ -74,6 +77,34 @@ describe("showcase transport", () => {
     expect(await (await subject.fetch("/v1/region-fields/f1/preview?channel_id=c&gain=1")).json()).toEqual({preview: 1});
     expect(await (await subject.fetch("/v1/region-fields/f1/preview?channel_id=c&gain=1")).json()).toEqual({preview: 1});
     expect(fetchStatic.mock.calls.length).toBe(calls);
+  });
+
+  it("opens a two-group workspace on both fields of its first run, downloaded together", async () => {
+    const experiment = {version: "1.0.0", layout: "pair", control_group_id: "c", independence_confirmed: false,
+      groups: [{id: "t", label: "KO"}, {id: "c", label: "NT"}], runs: [{id: "r", label: "Run1"}],
+      fields: {f1: {group_id: "c", run_id: "r"}, f3: {group_id: "t", run_id: "r"}, f2: {group_id: "c", run_id: "r"}}};
+    const entries = {
+      "/v1/workspaces/w/analysis-spec": {version: 1, spec: {experiment}}, "/v1/workspaces/w/region-fields": [{id: "f1"}, {id: "f2"}, {id: "f3"}],
+      "/v1/region-fields/f1/preview?channel_id=c&gain=1": {preview: 1}, "/v1/region-fields/f2/preview?channel_id=c&gain=1": {preview: 2},
+      "/v1/region-fields/f3/preview?channel_id=c&gain=1": {preview: 3},
+    };
+    const files = staticFiles(entries), name = (path: string) => `/showcase/snapshot/r${Object.keys(entries).indexOf(path)}.json`;
+    // Image files arrive only when released, so the test sees which downloads run at the same time.
+    const waiting = new Map<string, () => void>();
+    const fetchStatic = vi.fn(async (url: string) => {
+      if (/preview/.test(Object.keys(entries)[Number(/r(\d+)\.json$/.exec(url)?.[1] ?? -1)] ?? "")) await new Promise<void>(resolve => waiting.set(url, resolve));
+      return files(url);
+    });
+    const subject = createShowcaseTransport({fetchStatic, createEngine: () => fakeEngine(), capable: () => true, snapshotBase: "/showcase/snapshot/"});
+    await subject.fetch("/v1/workspaces/w/analysis-spec");
+    await vi.waitFor(() => expect([...waiting.keys()].sort()).toEqual([name("/v1/region-fields/f1/preview?channel_id=c&gain=1"), name("/v1/region-fields/f3/preview?channel_id=c&gain=1")].sort()));
+    const first = subject.fetch("/v1/region-fields/f1/preview?channel_id=c&gain=1"), second = subject.fetch("/v1/region-fields/f3/preview?channel_id=c&gain=1");
+    // The second answer does not wait for the first image: releasing it alone answers it.
+    waiting.get(name("/v1/region-fields/f3/preview?channel_id=c&gain=1"))!();
+    expect(await (await second).json()).toEqual({preview: 3});
+    waiting.get(name("/v1/region-fields/f1/preview?channel_id=c&gain=1"))!();
+    expect(await (await first).json()).toEqual({preview: 1});
+    expect(waiting.has(name("/v1/region-fields/f2/preview?channel_id=c&gain=1"))).toBe(false);
   });
 
   it("answers anything unrecorded at once with a notice, never with the in-browser API", async () => {

@@ -1,11 +1,12 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import type {useWorkspaceRuntime} from "@/lib/workspace/use-workspace-runtime";
 import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {decodedPreview,percentileRange,planeRange,redrawnPreview,remapTable,sharedRange} from "@/lib/shared-display";
-import {ReviewImageCanvas,type ReferenceMarker,type ReviewImageViewport} from "./ReviewImageCanvas";
+import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
 import {MeasurementTable} from "./MeasurementTable";
+import {pairPaneLayout} from "./image-stage-layout";
 import styles from "./pair-stage.module.css";
 
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
@@ -17,17 +18,16 @@ interface Props {
   onEditing:(value:boolean)=>void;demo?:boolean;
   /** The run shown (the toolbar chooses it), whether zoom is linked and whether each pane lists its measurements. */
   runId:string;linked:boolean;tables:boolean;onDisplay?:(value:PairDisplay|null)=>void;
-  /** Display-only reference objects per field, with a short caption for the pane header. */
-  overlay?:Record<string,{markers:ReferenceMarker[];caption:string}>;
 }
 
 /** Runs in which at least one group has a field, in the design's order. */
 export const pairRuns=(design:ExperimentDesign)=>(design.runs??[]).filter(run=>design.groups.some(group=>fieldsIn(design,group.id,run.id).length));
 
-/** Two groups of one independent run side by side (requirements V-01–V-04): each pane shows its image
- * with outlines and, below it, that field's measurements. Fields of different groups are different
- * cells: no position correspondence is assumed, and zoom is linked only on request. */
-export function PairStage({design,fields,runtime:r,target,channel,selectedField,onSelect,onEditing,demo=false,runId,linked,tables,onDisplay,overlay}:Props){
+/** Two groups of one independent run side by side (requirements V-01–V-04, N-08): each pane shows its
+ * whole field with outlines at the scale shared by both panes and, beside or below it, that field's
+ * measurements. Fields of different groups are different cells: no position correspondence is assumed,
+ * and zoom is linked only on request. */
+export function PairStage({design,fields,runtime:r,target,channel,selectedField,onSelect,onEditing,demo=false,runId,linked,tables,onDisplay}:Props){
   const runs=pairRuns(design);
   const run=runs.find(value=>value.id===runId)??runs[0];
   const [chosen,setChosen]=useState<Record<string,string>>({});
@@ -49,11 +49,15 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   const shownFields=panes.flatMap(pane=>pane.field?[pane.field.id]:[]);
   const display:PairDisplay|null=!run?null:shared.status==="shared"&&!failed&&!own?{shared:true,black:(range??shared).black,white:(range??shared).white,fields:shownFields}:{shared:false,fields:shownFields};
   const displayValue=JSON.stringify(display);
+  // Both panes have the same size; the first one's body is measured for the shared layout.
+  const body=useRef<HTMLDivElement>(null),[size,setSize]=useState({width:0,height:0}),stacked=useNarrow();
+  useEffect(()=>{const node=body.current;if(!node)return;const observer=new ResizeObserver(entries=>{const {width,height}=entries[0].contentRect;setSize({width,height});});observer.observe(node);return()=>observer.disconnect();},[run?.id]);
+  const layout=pairPaneLayout(panes.map(pane=>pane.field),size,tables,stacked);
   useEffect(()=>{onDisplay?.(display);},[displayValue]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>()=>onDisplay?.(null),[]);// eslint-disable-line react-hooks/exhaustive-deps
 
   if(!run)return <p className={styles.empty}>2 つの群に画像がある実験回がありません。「実験」で群と実験回に画像を割り当ててください。</p>;
-  return <div className={styles.pair} data-tables={tables}>
+  return <div className={styles.pair} data-placement={layout.placement}>
     {panes.map((pane,index)=>{
       const field=pane.field;
       // A detection preview (for example an AI proposal) is shown as in one field, read-only until adopted.
@@ -71,9 +75,10 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
             // The chosen field is also the selected one, so measuring and candidates act on what is shown.
             onSelect(id,channel);}}>
             {pane.ids.map((id,position)=>{const known=fields.find(item=>item.id===id);return <option key={id} value={id} disabled={!known}>{known?.label??`視野 ${position+1}（読み込み中）`}</option>;})}</select>}
-          <small>{pane.ids.length} 視野 · {count===null?"未測定":`${targets[target]} ${count}`}{candidate?" · 検出候補":""}{field&&overlay?.[field.id]?` · ${overlay[field.id].caption}`:""}</small>
+          <small>{pane.ids.length} 視野 · {count===null?"未測定":`${targets[target]} ${count}`}{candidate?" · 検出候補":""}</small>
         </header>
-        <div className={styles.paneImage}>{!field?<p className={styles.empty}>この実験回の画像がありません。</p>:urls[index]?<ReviewImageCanvas
+        <div className={styles.paneBody} ref={index===0?body:undefined}>
+        <div className={styles.paneImage}>{!field?<p className={styles.empty}>この実験回の画像がありません。</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
           src={urls[index]!} width={field.width} height={field.height} contours={value?.masks.regions||[]}
           selected={regions[field.id]} label={`${pane.group.label} ${field.label}`}
           onSelect={select} editingKey={`${field.id}:${target}:${value?.revision||"none"}`}
@@ -83,18 +88,27 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           onUndo={editable?()=>r.undo(field.id,target):undefined} onRedo={editable?()=>r.redo(field.id,target):undefined}
           canUndo={!r.busy&&r.canUndo(field.id,target)} canRedo={!r.busy&&r.canRedo(field.id,target)} onEditingChange={onEditing}
           viewport={view??null} onViewportChange={next=>setViewport(previous=>linked?{...previous,shared:next}:{...previous,[field.id]:next})}
-          outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"} markers={overlay?.[field.id]?.markers} className={styles.canvas}
-          // Both panes start filled (no letterbox) on the same relative place, the image centre, so neither
-          // view is chosen by its content; 画像全体を表示 shows the whole field.
-          initialFill context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(field.id,"nuclei")?.masks.regions:undefined}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
+          outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"}
+          // The whole field at the scale both panes share (V-01), so neither view is chosen by its content.
+          style={{width:field.width*layout.scale,height:field.height*layout.scale,flex:"none"}}
+          context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(field.id,"nuclei")?.masks.regions:undefined}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
           {rows.length?<MeasurementTable rows={rows} selected={regions[field.id]} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
+        </div>
       </section>;
     })}
   </div>;
 }
 
 const targets:Record<ReviewTarget,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
+
+/** Phones stack the panes and scroll (the stylesheet's narrow layout). */
+function useNarrow(){
+  const query="(max-width:620px)";
+  const [narrow,setNarrow]=useState(()=>typeof window!=="undefined"&&window.matchMedia(query).matches);
+  useEffect(()=>{const media=window.matchMedia(query),update=()=>setNarrow(media.matches);update();media.addEventListener("change",update);return()=>media.removeEventListener("change",update);},[]);
+  return narrow;
+}
 
 /** Pair toolbar text for the brightness transform (V-03): the shared range, or why each image uses its own. */
 export function pairDisplayText(value:PairDisplay):{label:string;detail:string}{

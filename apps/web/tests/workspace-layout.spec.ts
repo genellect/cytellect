@@ -4,9 +4,10 @@ import {expect, test, type Page} from "@playwright/test";
 
 /**
  * Layout of the analysis screen on the public demo (/demo), at the sizes researchers use: a laptop at
- * 150 % display scaling (1272 × 554 CSS px), a desktop, a small tablet and a phone. It guards what a
- * UX review found (2026-10-26): side by side, the images take the screen with their outlines and each
- * field's measurements below; nothing wraps into vertical text, is cut off, or is covered by a panel;
+ * 150 % display scaling (1272 × 554 CSS px), a desktop, a small tablet and a phone. It guards what the
+ * UX reviews decided (2026-10-26): side by side, each pane shows its whole field with outlines at the
+ * scale both panes share, and that field's measurements beside or below it with several rows readable
+ * (the owner's review: the measurements are what is analysed); nothing wraps into vertical text, is cut off, or is covered by a panel;
  * the image view carries no result card or long note; and in 統計 the result sentence comes first with
  * its figure in view. Run against the public production build with the published demo files.
  */
@@ -72,7 +73,7 @@ async function popupShown(page: Page, summary: string, panel: string) {
 /** Waits until every pane shows its image, then counts samples, until the remaining fields have loaded
  * (and a moment after), in which a pane has no image: the pair must not blank once shown. */
 async function blankAfterShown(page: Page) {
-  await expect.poll(async () => Math.min(...(await paneImages(page)).map(pane => pane.covered)), {timeout: live}).toBeGreaterThan(0.95);
+  await expect.poll(async () => (await paneImages(page)).every(pane => pane.shown), {timeout: live}).toBe(true);
   return page.evaluate(async () => {
     let blank = 0, settled = 0;
     const until = Date.now() + 30_000;
@@ -84,18 +85,25 @@ async function blankAfterShown(page: Page) {
     return blank;
   });
 }
-/** Per pane: the image box (between its header and table) and how much of it the drawn image covers. */
+/** Per pane: whether its image is drawn, whether the whole field lies inside the pane's image area
+ * (nothing cropped), and the drawn size. */
 function paneImages(page: Page) {
   return page.evaluate(() => [...document.querySelectorAll("[class*=paneImage]")].map(box => {
     const frame = box.getBoundingClientRect(), image = box.querySelector("svg image")?.getBoundingClientRect();
-    if (!image) return {height: frame.height, covered: 0};
-    const w = Math.max(0, Math.min(frame.right, image.right) - Math.max(frame.left, image.left));
-    const h = Math.max(0, Math.min(frame.bottom, image.bottom) - Math.max(frame.top, image.top));
-    return {height: frame.height, covered: (w * h) / (frame.width * frame.height)};
+    if (!image || !image.width) return {shown: false, whole: false, width: 0, height: 0};
+    const whole = image.left >= frame.left - 1 && image.top >= frame.top - 1 && image.right <= frame.right + 1 && image.bottom <= frame.bottom + 1;
+    return {shown: true, whole, width: image.width, height: image.height};
+  }));
+}
+/** Per pane table: the rows fully visible below its header without scrolling. */
+function visibleRows(page: Page) {
+  return page.evaluate(() => [...document.querySelectorAll("[role=region][aria-label$='の測定値']")].map(region => {
+    const box = region.getBoundingClientRect(), head = region.querySelector("thead")?.getBoundingClientRect().bottom ?? box.top;
+    return [...region.querySelectorAll("tbody tr")].filter(row => {const value = row.getBoundingClientRect(); return value.top >= head - 1 && value.bottom <= box.bottom + 1;}).length;
   }));
 }
 
-for (const size of SIZES) test(`side by side on a ${size.name} (${size.width} × ${size.height}): images, outlines and measurements fill the screen`, async ({page}) => {
+for (const size of SIZES) test(`side by side on a ${size.name} (${size.width} × ${size.height}): whole fields at one scale, with readable measurements`, async ({page}) => {
   test.setTimeout(300_000);
   await page.setViewportSize({width: size.width, height: size.height});
   await page.goto("/demo");
@@ -103,7 +111,7 @@ for (const size of SIZES) test(`side by side on a ${size.name} (${size.width} ×
   await expect(tables).toHaveCount(2, {timeout: live});
   for (const table of await tables.all()) await expect(table.locator("tbody tr").first()).toBeVisible({timeout: live});
   await expect(page.locator("svg path[data-region]").first()).toBeAttached({timeout: live});
-  await expect.poll(async () => Math.min(...(await paneImages(page)).map(pane => pane.covered)), {timeout: live}).toBeGreaterThan(0.95);
+  await expect.poll(async () => (await paneImages(page)).every(pane => pane.shown), {timeout: live}).toBe(true);
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await wrappedLabels(page)).toEqual([]);
@@ -116,13 +124,16 @@ for (const size of SIZES) test(`side by side on a ${size.name} (${size.width} ×
   expect(await popupShown(page, "[class*=rangeInfo] summary", "[class*=rangeInfo] p")).toBe(true);
   expect(await popupShown(page, "[class*=fieldMenu] summary", "[class*=menuPanel]")).toBe(true);
 
-  // The images take the screen: no letterbox, and a large share of the height (a fixed height on a phone).
-  const headerBottom = (await page.locator("header[class*=header]").boundingBox())!.height;
-  for (const pane of await paneImages(page)) {
-    expect(pane.covered).toBeGreaterThan(0.95);
-    if (size.width > 620) expect(pane.height).toBeGreaterThan((size.height - headerBottom) * 0.4);
-    else expect(pane.height).toBeGreaterThanOrEqual(280);
+  // Each pane shows its whole field (nothing cropped on opening), both at one scale (V-01), large enough
+  // to see the outlines; each field's table shows several rows at once (N-08).
+  const panes = await paneImages(page);
+  for (const pane of panes) {
+    expect(pane.whole).toBe(true);
+    // Whole-field overview size; 拡大 or hiding the tables (測定値) enlarges it.
+    expect(Math.min(pane.width, pane.height)).toBeGreaterThanOrEqual(size.width > 620 ? 240 : 300);
   }
+  expect(Math.abs(panes[0].width - panes[1].width)).toBeLessThanOrEqual(1);
+  for (const rows of await visibleRows(page)) expect(rows).toBeGreaterThanOrEqual(size.width > 620 ? 7 : 5);
   // No result card or long note in the image view; the display range is one line, opened on demand.
   await expect(page.getByRole("region", {name: "比較の結果"})).toHaveCount(0);
   await expect(page.locator("[class*=imageWork] [role=note]")).toHaveCount(0);
@@ -152,7 +163,8 @@ test("the nucleolar scene opens side by side with the same layout", async ({page
   await expect(page.getByRole("button", {name: "重ねて表示", exact: true})).toHaveCount(0);
   await expect(page.locator("[class*=channelBar] button[data-channel][aria-pressed=true]")).toHaveCount(1);
   if (scene!.channel) await expect(page.locator(`[class*=channelBar] button[data-channel="${scene!.channel}"]`)).toHaveAttribute("aria-pressed", "true");
-  for (const pane of await paneImages(page)) expect(pane.covered).toBeGreaterThan(0.95);
+  for (const pane of await paneImages(page)) expect(pane.whole).toBe(true);
+  for (const rows of await visibleRows(page)) expect(rows).toBeGreaterThanOrEqual(7);
 });
 
 for (const size of [SIZES[0], SIZES[1]]) test(`statistics on a ${size.name}: the sentence first, the source folded, the figure in view`, async ({page}) => {
