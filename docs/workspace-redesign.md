@@ -55,6 +55,15 @@ two fields they open on load together, before the remaining fields
 ([group comparison](drafts/group-comparison/requirements.md), V-01, V-04,
 N-03, N-08). Hiding the tables enlarges the images; zoom shows detail.
 
+What the image shows is the structure the metric measures, not the region set
+its values are read from (Codex final review, 2026-10-26, V-04). A per-nucleus
+value of the nucleoli (eccentricity, total area, count, area fraction) is read
+from the nucleoplasm set but labelled 「核小体（核ごとの値）」 and checked on the
+nucleoli; opening such a value from a figure shows that saved analysis's
+nucleoli with its nucleus outlined. Saved tables lead with the field to open,
+its run and group, the region and the value; versions and internal ids are
+folded under 「記録の詳細」 (N-06).
+
 Analysis conditions, history and retention live in a menu. There is no
 "complete step 1 before step 2" page structure. Errors never reset the
 workspace; successful fields keep their results.
