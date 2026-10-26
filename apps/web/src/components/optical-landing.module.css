@@ -57,12 +57,22 @@
 .links{display:flex;flex-wrap:wrap;gap:0 40px}
 .mission{padding-top:var(--section-space)}
 .section{padding-top:var(--section-space);padding-bottom:16px}
-.story{padding-bottom:clamp(80px,8vw,120px)}
+/* The story page (/story): dark panels in the landing page's colors open and close the unchanged text. */
+.storyHero{position:relative;isolation:isolate;overflow:hidden;display:grid;align-content:space-between;gap:clamp(96px,14vw,200px);min-height:min(78vh,760px);padding:28px var(--gutter) clamp(48px,6vw,88px);background:radial-gradient(60% 90% at 88% 105%,#2f6f5899,#2f6f5800 70%),radial-gradient(40% 60% at 12% -10%,#e7b8a42e,#e7b8a400 70%),#15241f;color:#f2f3ef}
+.storyTitle{margin:0;width:min(100%,1360px);margin-inline:auto;font-size:clamp(44px,6.4vw,104px);font-weight:450;line-height:1.12;letter-spacing:-.045em}
+.storyHero .wordmark{width:min(100%,1360px);margin-inline:auto}
+.story{padding:var(--section-space) 0 clamp(24px,3vw,48px)}
 .story .prose{max-width:38em}
 .story .prose p{font-size:clamp(18px,1.4vw,20px);line-height:1.95}
-.storyHeader{padding:28px var(--gutter) 0}
-.story .display+.prose{margin-top:40px}
-.storyBack{margin:56px 0 0;font-size:15px}
+.story .storyBody{display:grid;grid-template-columns:minmax(0,38em) minmax(0,1fr);column-gap:clamp(48px,7vw,120px);max-width:none}
+.storyBody>*{grid-column:1}
+.story .prose .storyQuote{grid-column:2;grid-row:2 / span 2;align-self:center;max-width:16em;margin:0;padding-left:clamp(20px,2vw,32px);border-left:2px solid #2f6f58;font-size:clamp(22px,2vw,30px);line-height:1.6;letter-spacing:-.01em;color:#203e35}
+.story .prose .storyTurn{margin:clamp(64px,7vw,104px) 0 clamp(40px,4vw,56px);font-size:clamp(26px,2.6vw,40px);font-weight:450;line-height:1.5;letter-spacing:-.02em}
+.storyEnd{position:relative;isolation:isolate;overflow:hidden;width:min(100% - 2 * var(--gutter),1360px);margin:var(--section-space) auto clamp(24px,3vw,48px);padding:clamp(40px,5vw,80px) clamp(28px,5vw,80px);border-radius:16px;background:radial-gradient(60% 120% at 95% 0%,#3f8f6f66,#3f8f6f00 70%),radial-gradient(45% 90% at 20% 130%,#e7b8a440,#e7b8a400 70%),#15241f;color:#f5f5f2}
+.storyEndText{max-width:26em;margin:0;font-size:clamp(22px,2.2vw,34px);line-height:1.6;letter-spacing:-.01em;word-break:auto-phrase}
+.storyActions{display:flex;align-items:center;flex-wrap:wrap;gap:16px 32px;margin-top:clamp(32px,3.4vw,52px);font-size:15px}
+.storyEnd .primary{min-height:62px;padding:16px 28px;background:#f5f5f2;border-color:#f5f5f2;color:#11171e!important;font-size:16px}
+.storyEnd .primary:hover{background:#fff}
 .page .band{width:min(100% - 2 * var(--gutter),1360px);height:clamp(300px,38vw,600px);margin:var(--section-space) auto 0;overflow:hidden;border-radius:6px}
 .band img{width:100%;height:100%;object-fit:cover;object-position:65% 62%}
 .specimen{padding:clamp(12px,2vw,28px);border-radius:8px;background:#050807;color:#eef0ec}
@@ -206,6 +216,7 @@
 .copyright{margin:28px 0 0;font-size:13px}
 @media(min-width:1600px){.hero h1{font-size:min(6.15vw,11svh,116px)}}
 @media(max-width:1100px){
+  .story .storyBody{display:block}.story .prose .storyQuote{display:none}
   .navigation{display:none}
   .header>div{display:block;position:relative}
   .header>div>button{--fg:#fff;--rule:#ffffff40;display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--rule);border-radius:4px;background:transparent;color:var(--fg)}

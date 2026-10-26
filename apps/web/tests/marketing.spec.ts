@@ -110,6 +110,7 @@ test("the story for general readers lives on its own page, linked quietly from t
  await expect(page.getByRole("heading", { level: 1, name: "Cytellectが生まれた理由" })).toBeVisible();
  await expect(page.getByText("私たちの体は、約30兆個もの細胞から成り立っている。", { exact: false })).toBeVisible();
  await expect(page.getByText("次世代の研究者のためのアプリケーションである。", { exact: false })).toHaveCount(1);
+ await expect(page.getByRole("link", { name: "デモを体験する" })).toHaveAttribute("href", "/demo");
  await page.setViewportSize({ width: 390, height: 844 });
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
  await page.getByRole("link", { name: "トップページへ" }).click();

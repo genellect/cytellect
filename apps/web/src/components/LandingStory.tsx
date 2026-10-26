@@ -16,23 +16,35 @@ const answer = [
 
 const closing = "Cytellectは、これまで煩雑な手作業や研究者個人の知識・技能に依存してきた解析工程を自動化することで生命科学研究のあり方そのものを変える、次世代の研究者のためのアプリケーションである。";
 
-/** The owner's account of why Cytellect exists, for readers outside the life sciences. Linked quietly from the landing page's footer. */
+/** The sentence the second paragraph turns on, set large beside the text. */
+const reproducibility = "同じ条件で解析すれば同じ結果が得られるという、科学的な結論の信頼性を支える「再現性」に関わる重大な課題である。";
+
+/** The owner's account of why Cytellect exists, for readers outside the life sciences. Linked quietly from the landing page's footer.
+ *  Dark panels open and close the story in the landing page's colors; the text in between is unchanged. */
 export function LandingStory() {
   const paragraph = (text: string) => <p key={text.slice(0, 12)}>{text}</p>;
   return <div className={lp.page}>
-    <header className={lp.storyHeader}><Link href="/" className={lp.wordmark}>cytellect</Link></header>
-    <main id="main" className={[lp.section, lp.story].join(" ")}>
-      <div className={lp.column}>
-        <h1 className={lp.display}>Cytellectが生まれた理由</h1>
-        <div className={lp.prose}>
-          {paragraph(lead)}
-          {body.map(paragraph)}
-          {paragraph("こうした課題を解決するために開発したのが、「Cytellect」である。")}
-          {answer.map(paragraph)}
-          {paragraph(closing)}
+    <header className={lp.storyHero}>
+      <Link href="/" className={lp.wordmark}>cytellect</Link>
+      <h1 className={lp.storyTitle} aria-label="Cytellectが生まれた理由">Cytellectが<br />生まれた理由</h1>
+    </header>
+    <main id="main" className={lp.story}>
+      <div className={lp.column}><div className={[lp.prose, lp.storyBody].join(" ")}>
+        {paragraph(lead)}
+        {paragraph(body[0])}
+        {paragraph(body[1])}
+        <p className={lp.storyQuote} aria-hidden="true">{reproducibility}</p>
+        {paragraph(body[2])}
+        <p className={lp.storyTurn}>こうした課題を解決するために開発したのが、「Cytellect」である。</p>
+        {answer.map(paragraph)}
+      </div></div>
+      <section className={lp.storyEnd} aria-label="結び">
+        <p className={lp.storyEndText}>{closing}</p>
+        <div className={lp.storyActions}>
+          <Link href="/demo" className={lp.primary}>デモを体験する <span aria-hidden="true">→</span></Link>
+          <Link href="/">トップページへ</Link>
         </div>
-        <p className={lp.storyBack}><Link href="/">トップページへ <span aria-hidden="true">→</span></Link></p>
-      </div>
+      </section>
     </main>
   </div>;
 }
