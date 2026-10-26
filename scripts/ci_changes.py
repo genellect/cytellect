@@ -6,6 +6,9 @@ build, landing-page browser tests), fiji (real Fiji, API/browser workflow,
 containers), windows (Windows setup/launcher and Python 3.14 suite). The web job
 already runs the landing-page tests, so lp is dropped whenever web is selected.
 
+Registering a documentation image (an allowlist entry under docs/) is part of the
+documentation change and selects nothing.
+
 Pushes to main, merge-queue runs, manual runs, an unreadable diff and any path not listed below
 select every area, so each main commit keeps the full evidence the Windows
 release workflow requires. Hygiene checks (public tree, documentation links,
@@ -13,6 +16,7 @@ secret scan) always run.
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -67,6 +71,26 @@ def areas_for(path: str) -> frozenset[str]:
     return ALL  # workflows, lockfiles, manifests and anything unlisted
 
 
+REGISTRY = "fixtures/public/allowlist.json"
+
+
+def documentation_registry_change(old: dict, new: dict) -> bool:
+    """True when every added, removed or changed allowlist entry is a documentation file."""
+    changed = {key for key in old.keys() | new.keys() if old.get(key) != new.get(key)}
+    return bool(changed) and all(key.startswith("docs/") for key in changed)
+
+
+def _registry(revision: str) -> dict | None:
+    shown = subprocess.run(["git", "show", f"{revision}:{REGISTRY}"], capture_output=True, text=True, check=False)
+    if shown.returncode:
+        return None
+    try:
+        loaded = json.loads(shown.stdout)
+    except json.JSONDecodeError:
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
 def normalize(selected: frozenset[str]) -> frozenset[str]:
     """The web job includes the landing-page tests, so lp runs only without web."""
     return selected - {"lp"} if "web" in selected else selected
@@ -89,7 +113,13 @@ def main() -> None:
     else:
         diff = subprocess.run(["git", "diff", "--name-only", f"{base}...{head}"],
                               capture_output=True, text=True, check=False)
-        selected = ALL if diff.returncode else select([p for p in diff.stdout.splitlines() if p])
+        paths = [p for p in diff.stdout.splitlines() if p]
+        if not diff.returncode and REGISTRY in paths:
+            merge_base = subprocess.run(["git", "merge-base", base, head], capture_output=True, text=True, check=False)
+            old, new = _registry(merge_base.stdout.strip() or base), _registry(head)
+            if old is not None and new is not None and documentation_registry_change(old, new):
+                paths.remove(REGISTRY)
+        selected = ALL if diff.returncode else select(paths)
     lines = [f"{area}={'true' if area in selected else 'false'}" for area in AREAS]
     print("\n".join(lines))
     output = os.environ.get("GITHUB_OUTPUT")
