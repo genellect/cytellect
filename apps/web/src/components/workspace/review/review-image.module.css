@@ -26,8 +26,3 @@
 
 .outline[data-classification=positive]{stroke:#68ed9e;fill:#68ed9e18}.outline[data-classification=negative]{stroke:#b4bdc9;stroke-dasharray:3 3}.outline[data-classification=unknown]{stroke:#f4bb58;stroke-dasharray:2 4}
 
-.marker{fill:none;stroke-width:1.6}
-.marker[data-tone=both]{stroke:#68ed9e;stroke-opacity:.55}
-.marker[data-tone=split]{stroke:#f4bb58;stroke-width:2}
-.marker[data-tone=reference_only]{stroke:#ff6fae;stroke-width:2.2}
-.marker[data-tone=labels_only]{stroke:#7cc4ff;stroke-width:2;stroke-dasharray:3 3}

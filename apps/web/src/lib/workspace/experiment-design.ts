@@ -146,3 +146,12 @@ export function issueText(design:ExperimentDesign, issue:ReadinessIssue, fieldLa
     case "experiment_design_independence_unconfirmed": return "実験回が独立に行われたこと（別々に播種・処理・染色したこと）を確認すると、群間比較の検定と信頼区間に進めます。確認がなくても、実験回ごとの値と差は示します。";
   }
 }
+
+/** The fields a two-group design shows first: the first run's first field of each group, control first
+ * (the order PairStage opens on). Empty for other designs. */
+export function openingPair(design:ExperimentDesign|null):string[]{
+  if(!design||design.layout!=="pair")return [];
+  const groups=[...design.groups].sort((a,b)=>Number(b.id===design.control_group_id)-Number(a.id===design.control_group_id));
+  const run=(design.runs??[]).find(value=>groups.some(group=>fieldsIn(design,group.id,value.id).length));
+  return run?groups.flatMap(group=>fieldsIn(design,group.id,run.id).slice(0,1).map(([id])=>id)):[];
+}

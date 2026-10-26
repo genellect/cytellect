@@ -8,10 +8,10 @@ import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, ty
 import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
 import {cellposeDetector,nclCellposeDetector,isCellposeDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
 import {applicableProcessing, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
-import {loadReviewPreview, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
+import {loadReviewPreview, newestWorkspaceId, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
-import {fieldsIn,type ExperimentDesign} from "./experiment-design";
+import {openingPair,type ExperimentDesign} from "./experiment-design";
 
 export interface RuntimeSettings {
   nuclearMaxSide: number | null; nuclearProbability: number; nuclearNms: number;
@@ -34,14 +34,6 @@ type Adapter = ReturnType<typeof createApiAdapter>;
 export interface RuntimeCandidate {result:SavedResult;recipe:Recipe;settingsFingerprint:string;runId?:string;runState?:WorkspaceRun["state"];backgroundPending?:boolean}
 type RuntimeTargets = Partial<Record<ReviewTarget, TargetResult>>;
 export interface RuntimeSpecification {version:number; spec:({channel_assignment_version:number;target:ReviewTarget;settings:RuntimeSettings;processing:ProposalProcessing|null;measurement:typeof rawMeasurement|null;selection?:unknown;statistics?:unknown;figure?:unknown;metrics?:unknown[];additional_analyses?:unknown[];figure_proposals?:unknown[];experiment?:ExperimentDesign|null;backgrounds?:Record<string,Record<string,{polygon:Point[];confirmed:true}>>;confirmed_channel_ids?:string[]})|null}
-/** The fields a two-group design shows first: the first run's first field of each group, control first
- * (the order PairStage opens on). Empty for other designs. */
-export function openingPair(design:ExperimentDesign|null):string[]{
-  if(!design||design.layout!=="pair")return [];
-  const groups=[...design.groups].sort((a,b)=>Number(b.id===design.control_group_id)-Number(a.id===design.control_group_id));
-  const run=(design.runs??[]).find(value=>groups.some(group=>fieldsIn(design,group.id,value.id).length));
-  return run?groups.flatMap(group=>fieldsIn(design,group.id,run.id).slice(0,1).map(([id])=>id)):[];
-}
 
 type Dependencies = {adapter?:Adapter; loadPreview?:typeof loadReviewPreview; releasePreview?:typeof releaseReviewPreview;
   readSpecification?:(workspace:string)=>Promise<RuntimeSpecification>; writeSpecification?:(workspace:string,value:RuntimeSpecification)=>Promise<RuntimeSpecification>};
@@ -143,7 +135,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const candidateStore=new Map<string,Partial<Record<ReviewTarget,RuntimeCandidate>>>();
   const histories=new Map<string,{undo:TargetResult[];redo:TargetResult[]}>(),listeners=new Set<()=>void>();
   function publish(patch:Partial<RuntimeSnapshot>){if(closed)return;state={...state,...patch};for(const listener of listeners)listener();}
-  function replaceData(data:ReviewData){const previous=state.data;publish({data});if(previous && previous!==data)releasePreview(previous);}
+  function replaceData(data:ReviewData){const previous=state.data;publish({data});if(previous && previous!==data)releasePreview(previous,data);}
   const workspace=()=>{if(!state.data?.workspaceId)throw new Error("画像を追加してください。");return state.data.workspaceId;};
   const history=(field:string,target:ReviewTarget)=>{const key=`${field}:${target}`;if(!histories.has(key))histories.set(key,{undo:[],redo:[]});return histories.get(key)!;};
   const definitions=(fieldId?:string):ChannelDefinition[]=>(fieldId?state.data?.fields.find(field=>field.id===fieldId)?.channels??[]:state.data?.channels??[]).map(value=>({token:value.id,stain:value.stain,role:value.role === "unused" ? null:value.role,evidence:"user"}));
@@ -153,8 +145,9 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const painted=()=>new Promise<void>(resolve=>typeof requestAnimationFrame==="function"?requestAnimationFrame(()=>setTimeout(resolve,0)):resolve());
   async function refresh(id?:string,restoreSettings=false,limit?:number,fieldIds?:readonly string[]){
     const ticket=++epoch;let next:ReviewData;
-    try{next=await loadPreview(id || state.data?.workspaceId || undefined,fieldIds,limit===undefined?undefined:{limit});}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
-    if(closed || ticket!==epoch){releasePreview(next);return;}
+    // Previews already shown are kept: a field's image does not change, only its results do.
+    try{next=await loadPreview(id || state.data?.workspaceId || undefined,fieldIds,{...(limit===undefined?{}:{limit}),reuse:state.data});}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
+    if(closed || ticket!==epoch){releasePreview(next,state.data);return;}
     try{
       const saved=await adapter.restore(next.workspaceId),assignments=await adapter.getChannelAssignments(next.workspaceId);
       const recordedSpecification=await readSpecification(next.workspaceId);
@@ -343,17 +336,20 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   }
   async function showImported(saved:ImportedField,key:string){uploaded.set(key,saved.id);names.set(saved.id,key.split("/").at(-1)||key);registered.set(saved.id,saved);const partial=await loadPreview(workspace(),[saved.id]);const freshField=partial.fields.find(value=>value.id===saved.id);if(freshField&&state.data){freshField.label=names.get(saved.id)||freshField.label;const retained=state.data.fields.filter(value=>value.id!==saved.id);const previous=state.data.fields.find(value=>value.id===saved.id);if(previous)releasePreview({...partial,fields:[previous]});const channels=[...state.data.channels];for(const channel of freshField.channels)if(!channels.some(value=>value.id===channel.id))channels.push(channel);publish({data:{...state.data,fields:[...retained,freshField],channels},operation:`${uploaded.size} 視野を登録済み`});}
   }
+  /** The two fields a saved two-group design opens on, read before any image; undefined otherwise. */
+  async function openingFields(id?:string):Promise<string[]|undefined>{
+    try{const workspaceId=id??await newestWorkspaceId();if(!workspaceId)return undefined;const pair=openingPair((await readSpecification(workspaceId)).spec?.experiment??null);return pair.length>1?pair:undefined;}
+    catch{return undefined;}
+  }
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
   return {
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
     async load(id?:string){closed=false;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中"});
-      // The first field shows as soon as it has loaded; the others follow in the background.
-      try{await refresh(id,true,1);}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
+      // What is shown first loads first: a two-group design opens side by side on the first run's field
+      // of each group (V-01), both together; any other design on its first field. The others follow.
+      try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
       try{
-        // A two-group design opens side by side: the first run's field of each group comes next (V-01).
-        const opening=openingPair(specification.spec?.experiment??null);
-        if(registered.size>2&&opening.length>1&&!opening.every(id=>state.data?.fields.some(field=>field.id===id))){await painted();await refresh(workspace(),false,undefined,opening);}
-        if(registered.size>1){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
+        if(registered.size>(state.data?.fields.length??0)){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},

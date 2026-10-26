@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {openingPair} from "./use-workspace-runtime";
+import {openingPair} from "./experiment-design";
 
 describe("opening pair", () => {
   it("names the first run's first field of each group, control first", () => {

@@ -45,6 +45,16 @@ Layout (desktop first; tablet collapses panels; mobile prioritizes viewing):
 | Right | Operations for the current selection only: channel display, region editing, figure settings, comparison conditions |
 | Bottom drawer | Measurement table, opened on demand |
 
+The image view is where researchers check what is measured, so one rule holds
+for one field and for two groups side by side (owner review, 2026-10-26):
+each image shows its whole field at its own aspect ratio on opening (never
+cropped to fill), and that field's measurement table sits beside it, or below
+it when that leaves the image larger, with a readable minimum (8 rows below,
+260 px beside). Two screens draw both fields at one shared scale (V-01), and the
+two fields they open on load together, before the remaining fields
+([group comparison](drafts/group-comparison/requirements.md), V-01, V-04,
+N-03, N-08). Hiding the tables enlarges the images; zoom shows detail.
+
 Analysis conditions, history and retention live in a menu. There is no
 "complete step 1 before step 2" page structure. Errors never reset the
 workspace; successful fields keep their results.

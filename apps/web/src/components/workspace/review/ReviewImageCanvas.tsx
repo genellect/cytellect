@@ -8,8 +8,6 @@ import {regionAnnotations} from "../../../lib/workspace/image-viewport";
 import styles from "./review-image.module.css";
 import {isShowcaseNoticeError} from "./showcase-ui";
 
-export type ReferenceMarkerTone = "both" | "split" | "reference_only" | "labels_only";
-export interface ReferenceMarker {x: number; y: number; r: number; tone: ReferenceMarkerTone}
 
 export interface ReviewImageCanvasProps {
   src: string;
@@ -45,12 +43,8 @@ export interface ReviewImageCanvasProps {
   outlineTone?: "nuclear" | "marker";
   /** Display-only outlines of an enclosing structure (e.g. nuclei around nucleoli); not selectable. */
   context?: Array<{id: number; points: Point[]}>;
-  /** Display-only circles from an external reference (e.g. a published CellProfiler table); never selectable or measured. */
-  markers?: ReferenceMarker[];
   /** Initial magnification relative to the whole-image fit (display only). */
   initialZoom?: number;
-  /** Start filled: the image covers the viewport (cropped) instead of fitting inside it (display only). */
-  initialFill?: boolean;
   /** Image point (source pixels) the initial magnification centres on; the image centre when absent. */
   initialFocus?: Point;
 }
@@ -115,7 +109,7 @@ function Icon({kind}: {kind: keyof typeof iconPaths}) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;
 }
 
-export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, markers, initialZoom, initialFill = false, initialFocus}: ReviewImageCanvasProps) {
+export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, initialZoom, initialFocus}: ReviewImageCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<Size>({width: 0, height: 0});
   const [manual, setManual] = useState<{source: string; camera: Camera} | null>(null);
@@ -140,8 +134,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const whole = reviewImageFit(imageSize, available);
   // 画像全体を表示 switches to the whole-image fit, which keeps following viewport size changes.
   const [wholeView, setWholeView] = useState(false);
-  const cover = initialFill && Math.min(width, height, available.width, available.height) > 0 ? Math.max(available.width / width, available.height / height) / whole.scale : 0;
-  const factor = initialZoom ?? cover;
+  const factor = initialZoom;
   const zoomed = factor && factor > 1 && !wholeView ? whole.scale * factor : 0;
   const fit = zoomed ? boundedCamera(initialFocus
     ? {scale: zoomed, x: available.width / 2 - initialFocus[0] * zoomed, y: available.height / 2 - initialFocus[1] * zoomed}
@@ -305,7 +298,6 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
             onClick={event => {event.stopPropagation(); chooseRegion(Number(region.id));}}
             onKeyDown={event => {if ((!draft && event.key === "Enter") || (event.key === " " && (!draft || draft.operation === "merge"))) {event.preventDefault(); event.stopPropagation(); chooseRegion(Number(region.id));}}}/>) }
           {visible && selectedAnchor && <text x={selectedAnchor.x} y={selectedAnchor.y} className={styles.number} fontSize={13 / camera.scale} strokeWidth={3 / camera.scale} textAnchor="middle" dominantBaseline="central">{selected}</text>}
-          {markers?.map((marker, index) => <circle key={`marker-${index}`} cx={marker.x} cy={marker.y} r={marker.r} className={styles.marker} data-tone={marker.tone} vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
           {backgroundPolygon && !backgroundEdit && <polygon points={backgroundPolygon.map(point=>point.join(",")).join(" ")} fill="rgba(255,204,64,0.12)" stroke="#ffcc40" strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
           {draft && !stale && draft.operation !== "merge" && <polygon points={draft.polygon.map(point => point.join(",")).join(" ")} className={styles.draft} vectorEffect="non-scaling-stroke"/>}
         </g>

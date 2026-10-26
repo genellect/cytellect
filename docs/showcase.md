@@ -61,8 +61,7 @@
 |---|---|
 | `seed.zip` | データディレクトリ（`cytellect.sqlite`、`workspaces/` ほか。`tmp/` と再生成できる重複を除く）、`recordings/`、`proposals.json`、`showcase.json`（`workspace_id`、所有者 `owner`、`regenerate`。ビルド時のセッションは削除済みで、実行時はこの `owner` のセッションを作成する） |
 | `snapshot/dataset.json` | データセットの題名、出典、ライセンス、帰属表示、加工内容、注意事項（UI が表示する）。複数場面のデモでは最初の場面の内容 |
-| `snapshot/scenes.json` | 場面の一覧 `{"version": 1, "scenes": [...]}`。各場面は `id`、`label`（場面の切り替えに出す名前）、`workspaceId`、`dataset.json` と同じ出典の項目、`regions`、`examples`（AI の指示の例）、`assistantScope`（記録にない指示への返答の文）、任意の `reference`（下の照合ファイル名） |
-| `snapshot/reference-<場面>.json` | 別の手法が同じ画像について公開した対象と、デモで採用した核の照合（表示だけに使い、測定と統計には使わない）。視野ごとの照合の数と印 `[x, y, 半径, 状態]`、群ごと・実験回ごとの視野あたりの平均と、処理 ÷ 対照の比 |
+| `snapshot/scenes.json` | 場面の一覧 `{"version": 1, "scenes": [...]}`。各場面は `id`、`label`（場面の切り替えに出す名前）、`workspaceId`、`dataset.json` と同じ出典の項目、`regions`、`examples`（AI の指示の例）、`assistantScope`（記録にない指示への返答の文） |
 | `snapshot/index.json` | `{"version": 1, "entries": {"GET <パスとクエリ>": {"status": 200, "headers": [[...]], "file": "<ファイル名>"}}}` |
 | `snapshot/journal.json` | 案内の操作を、公開した初期状態からブラウザ内の API で順に実行した記録。`{"version": 1, "entries": [{"method", "path", "body", "status", "headers", "file"}]}`。変更の要求の `body` では、来訪ごとに変わる値（`request_id`・`version`・`spec_version` と、記録中に API が作った識別子＝初期状態のスナップショットにない UUID）を `"*"` にする。保存する解析設定（`PUT analysis-spec`）は記録しない |
 | `runtime/` | 自前のホイールと純 Python の依存。Pyodide 本体と同梱パッケージは、版を固定した CDN から読み込む |
@@ -138,7 +137,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 データセットは `services/showcase/datasets/<id>.json`（`cytellect-showcase-dataset/1`）で指定します。ビルドに複数のファイルを渡すと、1 ファイルが 1 場面（同じ所有者の別のワークスペース）になり、最初のファイルの場面でデモが開きます（最後に作るので最新のワークスペースになる）。画面は `?id=<ワークスペース>` で場面を開き、ヘッダーの「場面」で切り替えます（ページを読み込み直すので、場面どうしの状態は混ざらない）。現在の公開デモは次の 2 場面です。
 
-- `cpg0016-jump-source13-plk1.json`（核数）：JUMP Cell Painting、CC0。U2OS の PLK1 ノックアウトと non-targeting の対照、実験回 3、DNA のチャンネルだけ。JUMP が公開した CellProfiler の核（`reference`）と照合する。
+- `cpg0016-jump-source13-plk1.json`（核数）：JUMP Cell Painting、CC0。U2OS の PLK1 ノックアウトと non-targeting の対照、実験回 3、DNA のチャンネルだけ。JUMP が公開した CellProfiler の核との照合の表示は、2026-10-26 に外した（`presentation_amendment`）。
 - `zenodo-6643470-nucleolar.json`（核小体）：Zenodo 6643470（DS6a）、U2OS の未処理と ActD 1 µM、Hoechst・NPM1・5-EU。核小体の大きさ・形と 5-EU を比べる。
 
 視野・ウェル・チャンネル・比較の計画は、測定の前にこのファイルでコミットして固定します。群間比較デモに使う項目は次のとおりです。
@@ -152,7 +151,6 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - `scenario.final_target`：画像の画面が開く領域（既定は核）。最初の比較が測る領域にそろえ、比べている輪郭と測定値で開く（DS6a は核小体。核の輪郭は位置の手がかりとして薄く重ねる）。`snapshot/scenes.json` の `target`。統計を初めて開くと、設定欄の領域・指標・チャンネルを表示中の結果にそろえる。
 - `crop_rule`：視野の切り出し位置の規則。`nuclear-window` は、核染色だけを読み、Otsu の閾値を超える画素が最も多い窓（`size`、`step` 画素の格子、同点は中央に近い窓）を選ぶ。測定するチャンネルは読まないので、切り出しが結果に合わせて動くことはない。全チャンネルで同じ窓を使い、画素値は変えない。
 - `scene_label`・`assistant_scope`：場面の名前と、記録にない AI の指示への返答で、その画像で比べられることを示す文。
-- `reference`：別の手法が同じ画像について公開した対象（現在は JUMP の CellProfiler。`Image.csv` は SHA-256 で固定し、`Nuclei.csv` はデモの画像の行だけを範囲取得してキャッシュする）。`reference` 段階が、採用した核と中心の位置で照合する（`cytellect_analysis.reference_objects`。一致・CellProfiler が分割・CellProfiler のみ・採用した核のみ。画像の端にかかる核は両方とも数えない）。画面は「CellProfiler と比べる」で印と群ごとの表を示す。
 - `dataset.reported_change`：出典が報告している変化（比べる条件・向き・量・範囲・実験回の独立性）。画面は、デモでの測定と分けて、結果のまとめの下に向きを 1 行で示し、量・範囲・独立性は折りたたむ（`snapshot/dataset.json` の `reportedChange`）。
 - Cellpose を使わないデータセット（NCL 陽性の核小体や細胞 ROI がない）では、Cellpose の実行環境は不要。
 
@@ -188,7 +186,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - 公開ビルド（API 未設定）の `/demo` だけが `activateShowcase()` で切り替えを有効にし、`lib/api.ts` の `request`・`fetchPrivateResponse`（`download`・`fetchBlob` を含む）がこの経路を使う。API を設定したビルドとローカル版の通信は変わらない。`/workspace` は公開ビルドでは `/demo` へ転送する。
 - 最初の表示：`index.json` が届いた時点で、ワークスペースの記録（セッション、視野一覧、解析版、採用状態、染色設定、解析設定など）と、先頭の視野のプレビュー・輪郭・測定値をまとめて並行して取得する。ワークスペースは先頭の視野を表示してから、残りの視野を読み込む（公開デモに限らず、本番の画面も同じ）。案内は自動では開かず、「使い方」から開く。
 - 記録の再生：`GET <パスとクエリ>` が `snapshot/index.json` にあれば、その本文を返す。`snapshot` 段階は、全視野 × 領域（核・核小体・核質）× チャンネルの表示と、統計・グラフ・保存した図を開いて記録する。
-- 読み込みの順：2 群の設計では、最初の実験回の各群の 1 視野目を先に読み、残りの視野は 2 画面の表示の後に読む（本番と同じ。N-03）。`snapshot/journal.json` は最初の表示の 6 秒後に読み、変更の要求が先に来ればそのときに読む。
+- 読み込みの順：2 群の設計では、解析設定から最初の実験回の各群の 1 視野目を知り、その 2 視野を同時に先に読む。残りの視野は 2 画面の表示の後に読み、読み込み済みの表示用画像は取り直さない（本番と同じ。N-03）。記録の再生は、要求の順に答えを決めるが、記録ファイルの取得は並行させる（2 枚の画像が 1 枚ずつ届かない）。ワークスペースの解析設定が読まれた時点で、そのワークスペースが最初に見せる視野（2 画面なら 2 視野、それ以外は 1 視野目）の画像・輪郭・測定値を先読みする。`snapshot/journal.json` は最初の表示の 6 秒後に読み、変更の要求が先に来ればそのときに読む。
 - 操作の記録の再生：`snapshot/journal.json` が変更の要求に答える。まず前回答えた位置より後で、一致する記録を探す。見つからなければ先頭から探す（場面はどれも初期状態から始まるため）。測定の実行は、記録の直前にその場面で保存した解析設定（なければ初期状態の設定）と、要求の設定が一致するときだけ答える。統計の要求（解析版の `review`・`descriptive`・`common-statistics`）は、要求の本文が何を計算するかを表すので、パスが一致する記録がないときは、解析版 ID だけが異なる記録（同じ内容の別の解析版）で答え、その場面の答えに含まれる解析版 ID を訪問者のものに置き換えて返す。以後の要求も同じ対応で記録を探す（同じ内容の訪問者の解析版が複数あるときは、要求が名指した解析版で答える）。図の描画と論文用パッケージ、測定の受け入れは、その結果自身の記録でだけ答える。採用状態の保存（`POST selection`）は、各視野がすでに採用済みの解析版のあいだで表示を切り替えるだけの場合、端末が API と同じ規則で先に答えて保持し（次に記録の変更で答えるまで、それより前の記録の取得より優先する）、決められないときだけ記録を探す（採用状態は表示の記録で、測定値や統計ではない）。それ以外は案内を返す。答えた後の GET には、同じ場面で次の変更までに記録した最後の応答（落ち着いた状態）を返す（場面の最後の変更の後に、次の場面の最初の取得を使わない）。ただし、その変更の前後で記録上の応答が変わっていない GET には、この端末に前回返した応答を返す（変更の前の状態は、その場面の直前の取得か、文書そのものを返した書き込み）（訪問者の前の操作が別の場面の記録で答えられていても、表示がその場面の初期状態に戻らない）。書き込んだパスの GET は、その変更の後に記録した応答（次の変更までになければ、同じ場面で次に記録した応答）を返す。保存する解析設定は端末側で保持し、版を 1 つ進めて返す。ワークスペースの処理一覧（`GET /v1/workspaces/<id>/jobs`）には、この端末に以前の一覧で示した処理も残して返す（API は処理を消さず、画面は同じ解析版の集合など、以前に受け付けた処理を再利用する。別の場面の記録の一覧には、訪問者の前の場面の処理が含まれないため）。
 - 記録の範囲に揃えた画面：公開デモでは、記録できない自由入力（統計の方法・対応・比較する群・独立実験単位、図の寸法・文字・凡例・ラベル・軸・色・点の大きさ、元画像を含める）と、検出条件・核染色・背景補正を記録した値に固定し、そのことを画面に示す。データにない細胞 ROI と GFP は表示しない。計算は既定の図（2 段幅・点と分布）で行い、先に別の幅を選んでいれば記録した図で描き直す。論文用パッケージを記録していない結果の「保存」は、表示している図（SVG）を保存する。
 - 記録にない操作：どの端末でも、その場で `showcase_action_not_recorded`（409）を返す。ブラウザ内の API は起動しない。
@@ -196,6 +194,6 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（記録用の API が起動に失敗した）、`showcase_unavailable`（記録が公開されていない）、`showcase_action_not_recorded`（操作の記録にない）。`role="alert"` ではなく情報表示にし、再読み込みではなく「閉じる」で消せる。
 - 任意のファイル（なければ本番と同じ表示）：`snapshot/recorded-options.json` のキーは検出器の `engine`（例 `fiji-stardist-2d`、`cytellect-nucleolar-v2`、`cellpose-sam`）、その中のキーは検出器の項目名で、核の `detection_max_side_px`（`null` は自動）も `fiji-stardist-2d` に含める。記載のある項目は記録した値の選択肢になり、記載のない項目は変更できない。記載のない検出器は選択肢として選べない。`snapshot/proposal-examples.json` は AI の指示の例、`snapshot/dataset.json`（`title`、`attribution`、`licence`、`licenceUrl`、`sourceUrl`、`caveats`）はデモ表示と案内の最後の手順に出典として表示する。
 - 初回表示：読み込み中は画像追加の画面ではなく読み込み中の案内を出す。統計とグラフは、計算前でも保存済みの最新の結果（シナリオの最後の計算）を開く（本番は「保存した図」から選ぶまで空のまま）。
-- HTTP ヘッダー：公開ビルドの CSP は `'wasm-unsafe-eval'`、`indexURL` のオリジン（script-src・connect-src）、`worker-src 'self' blob:` を加える。`/showcase/runtime/*` は長期・immutable、`seed.zip`・`manifest.json`・`snapshot/*` は毎回再検証、それ以外は従来どおり `no-store`。
+- HTTP ヘッダー：公開ビルドの CSP は `'wasm-unsafe-eval'`、`indexURL` のオリジン（script-src・connect-src）、`worker-src 'self' blob:` を加える。`/showcase/runtime/*` と、内容の SHA-256 で名付けた記録ファイル（`snapshot/<24 桁の 16 進>.<拡張子>`）は長期・immutable、`seed.zip`・`manifest.json` とそれ以外の `snapshot/*`（`index.json`・`journal.json`・`scenes.json` など）は毎回再検証、それ以外は従来どおり `no-store`。
 - 開発用：`scripts/dev_showcase_backend.py` は同じ boot/handle の契約を CPython の API で提供する（検出はしきい値による代用で、結果は公開しない）。`NEXT_PUBLIC_SHOWCASE_DEV_BACKEND`（ループバックのみ）を付けたビルドでだけ使う。
 - `.gitignore` は `*.zip` を除外しているため、`seed.zip` を登録する変更では除外の例外を加える。
