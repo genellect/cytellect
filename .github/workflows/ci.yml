@@ -504,7 +504,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
-    timeout-minutes: 35
+    # The suite takes 21-34 minutes on windows-latest for the same code, so keep a margin above it.
+    timeout-minutes: 45
     env:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
