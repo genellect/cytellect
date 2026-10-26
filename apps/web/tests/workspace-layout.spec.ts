@@ -152,7 +152,10 @@ for (const size of [SIZES[0], SIZES[1]]) test(`statistics on a ${size.name}: the
   await expect(figure).toBeVisible({timeout: live});
   expect((await figure.boundingBox())!.y).toBeLessThan(size.height * 0.6);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  // The run table stays inside its card.
-  const card = (await summary.boundingBox())!, runs = await summary.locator("table").first().boundingBox();
-  if (runs) expect(runs.x + runs.width).toBeLessThanOrEqual(card.x + card.width + 1);
+  // The run table stays inside its card, also with wider glyphs than this machine's fonts (CI's are wider).
+  for (const spacing of ["0", "0.15em"]) {
+    await page.addStyleTag({content: `[aria-label="結果のまとめ"] table{letter-spacing:${spacing}}`});
+    const card = (await summary.boundingBox())!, runs = await summary.locator("table").first().boundingBox();
+    if (runs) expect(runs.x + runs.width, `letter-spacing ${spacing}`).toBeLessThanOrEqual(card.x + card.width + 1);
+  }
 });
