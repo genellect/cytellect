@@ -61,8 +61,10 @@ value of the nucleoli (eccentricity, total area, count, area fraction) is read
 from the nucleoplasm set but labelled 「核小体（核ごとの値）」 and checked on the
 nucleoli; opening such a value from a figure shows that saved analysis's
 nucleoli with its nucleus outlined. Saved tables lead with the field to open,
-its run and group, the region and the value; versions and internal ids are
-folded under 「記録の詳細」 (N-06).
+its run and group, the region and the value; an observation's sample, date,
+selection state, versions and internal ids are folded under 「記録の詳細」
+(N-06). Folded tables are drawn only once opened, since a saved table can hold
+every observation.
 
 Analysis conditions, history and retention live in a menu. There is no
 "complete step 1 before step 2" page structure. Errors never reset the

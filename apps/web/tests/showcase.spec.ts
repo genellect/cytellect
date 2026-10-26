@@ -602,9 +602,14 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   expect(unit).toBeGreaterThanOrEqual(0);
   await points.nth(unit).dispatchEvent("click");
   const source = page.getByRole("region", {name: "選択した点の試料・視野"});
-  await expect(source.locator("thead th").first()).toHaveText("視野");
-  await expect(source.getByText("記録の詳細（解析版・内部 ID）")).toBeVisible();
-  await expect(source.locator("table").first().locator("thead")).not.toContainText("解析版");
+  const columns = await source.locator("table").first().locator("thead th").allTextContents();
+  expect(columns).toEqual(["視野", "実験回", "群", "領域番号", "親核番号", "測定値"]);
+  // Folded tables are drawn only once opened, so thousands of saved rows never weigh on the page (N-03).
+  await expect(page.locator("details:not([open]) table")).toHaveCount(0);
+  await source.getByText("記録の詳細").click();
+  await expect(source.locator("details table thead")).toContainText("試料");
+  await expect(source.locator("details table thead")).toContainText("解析版");
+  await expect(source.locator("details table tbody")).not.toContainText(/\b(true|false|selected)\b/);
   // Opening a nucleus shows that saved analysis's nucleoli with the nucleus outlined.
   await source.locator("tbody button").first().click();
   await expect(header.getByRole("button", {name: "画像", exact: true})).toHaveAttribute("aria-current", "page");
@@ -624,6 +629,12 @@ test("phones keep the guide and the download in the demo menu", async ({page}) =
   const menu = page.locator("header").getByLabel("デモ：使い方・ダウンロード・画像の出典");
   await menu.click();
   await expect(page.locator("header").getByRole("link", {name: "ダウンロード"})).toBeVisible();
+  // The whole menu stays on the screen and scrolls inside (N-08).
+  const box = (await page.locator("header [class*=popover]").boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator("header").getByRole("button", {name: "使い方", exact: true}).click();
   await expect(page.getByRole("complementary", {name: "公開デモの使い方"})).toBeVisible();
   await noErrors(page, watch);

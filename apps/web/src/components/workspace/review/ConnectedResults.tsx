@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState} from "react";
+import {useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState,type ReactNode} from "react";
 import {ApiError,download,errorCodeMessage,errorMessage,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
@@ -343,12 +343,12 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></section>}
         {!svgFiles.length&&<p>この設定では図を表示できません。測定表と出力条件を確認してください。</p>}
         {mode==="statistics"&&tableRows&&(saved.result.estimates
-          ?<details><summary>検定の詳細</summary><SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></details>
+          ?<Folded summary="検定の詳細">{()=><SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>
           :<SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>)}
         {mode==="statistics"&&saved.result.omnibus&&<p>全体検定 {String(saved.result.omnibus.method)} · p = {formatValue(saved.result.omnibus.p_value)}</p>}
         {mode==="statistics"&&Array.isArray(saved.result.counts)&&<SavedTable rows={saved.result.counts} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}
         {!!saved.result.warnings?.length&&<details><summary>解析上の注意</summary><ul>{saved.result.warnings.map(value=><li key={value}>{comparisonWarnings[value]||commonWarnings[value]||value}</li>)}</ul></details>}
-        {!!saved.result.plot_data?.length&&<details><summary>図の元データ</summary><SavedTable rows={saved.result.plot_data} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></details>}
+        {!!saved.result.plot_data?.length&&<Folded summary="図の元データ">{()=><SavedTable rows={saved.result.plot_data!} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>}
         <details><summary>元の視野{saved.historical?"（保存時の解析版）":""}</summary>{(saved.sources||[]).map(source=><button key={source.field} onClick={()=>onSource(source.field,undefined,saved.revision,saved.target,savedChannel,savedStructure)}>{items.find(item=>item.fieldId===source.field)?.label||source.label}</button>)}</details>
       </>:<p className={styles.empty}>計算した結果とグラフをここに表示します。</p>}
     </div>
@@ -358,19 +358,31 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
 function VectorFigure({path}:{path:string}){const url=usePrivateImage(path);return url?<img className={styles.figure} src={url} alt="保存された解析結果のグラフ"/>:<p role="status">図を読み込み中…</p>;}
 /** The columns a researcher reads first (N-06): the field to open, its run and group, the region and the value. */
 const leadingKeys=["field_id","pair","condition","experimental_unit","region_id","nucleus_id","value"];
+/** What one saved observation (a region's value) is read by; the run and group already name its unit. */
+const observationKeys=["field_id","pair","condition","region_id","nucleus_id","value"];
 /** Saved versions and internal identifiers: kept with every row, read on request. */
 const recordKey=(key:string)=>key==="observation_id"||key==="region_set_id"||key.endsWith("_revision_id");
 function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];fieldLabels:Record<string,string>;onSource:(fieldId:string,regionId?:number)=>void}) {
   const all=[...new Set(rows.flatMap(row=>Object.keys(row)))];
-  const keys=[...leadingKeys.filter(key=>all.includes(key)),...all.filter(key=>!leadingKeys.includes(key)&&!recordKey(key))],records=all.filter(recordKey);
+  // Observation rows show where each value is and the value; their bookkeeping is folded with the identifiers.
+  const observations=all.includes("observation_id"),folded=(key:string)=>recordKey(key)||observations&&!observationKeys.includes(key);
+  const keys=[...leadingKeys.filter(key=>all.includes(key)&&!folded(key)),...all.filter(key=>!leadingKeys.includes(key)&&!folded(key))],records=all.filter(folded);
   const names:Record<string,string>={pair:"実験回",experimental_unit:"実験単位",sample:"試料",acquisition_date:"撮影日",exclusion_reason:"除外理由",gate_selected:"GFP選別で採用",selection_status:"採用",channel_id:"染色",observation_id:"観測",region_set_id:"領域の種類",mask_revision_id:"輪郭の版",analysis_revision_id:"解析版",field_id:"視野",region_id:"領域番号",nucleus_id:"親核番号",value:"測定値",condition:"群",input_rows:"入力領域数",excluded:"除外領域数",gate_unselected:"GFP選別の対象外数",missing_metric_selected:"採用対象の測定値欠測数",selected_rows:"採用領域数",mean:"平均値",median:"中央値",q1:"第1四分位",q3:"第3四分位",minimum:"最小値",maximum:"最大値",p_value:"p 値",p_adjusted:"補正 p 値",p_holm:"Holm補正 p 値",estimate:"推定値",coefficient:"相関係数",ci_low:"95% CI 下限",ci_high:"95% CI 上限",n:"対象数",missing_reason:"欠測理由",reason:"理由",group_a:"群 A",group_b:"群 B",observations:"採用領域数",input_fields:"入力視野数",selected_fields:"採用視野数",excluded_failed_fields:"除外した失敗視野数",samples:"試料数",input_units:"入力独立実験単位数",experimental_units:"採用独立実験単位数",explicitly_excluded_units:"除外独立実験単位数",complete_pairs:"完全ペア数",effect:"効果量",effect_name:"効果量の種類",method:"方法",scope:"対象",status:"状態"};
   const statuses:Record<string,string>={selected:"採用",no_regions:"領域なし",no_selected_values:"採用できる測定値なし",excluded:"除外",missing:"欠測"};
-  const cell=(row:Record<string,unknown>,key:string,index:number)=>key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:key==="status"&&typeof row[key]==="string"?statuses[row[key]]||row[key]:row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key]);
-  const head=(key:string)=><th key={key} scope="col" className={key==="field_id"?styles.stickyColumn:undefined} style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{names[key]||key}</th>;
+  const cell=(row:Record<string,unknown>,key:string,index:number)=>key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:(key==="status"||key==="selection_status")&&typeof row[key]==="string"?statuses[row[key]]||row[key]:typeof row[key]==="boolean"?(row[key]?"はい":"いいえ"):row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key]);
+  // On an observation row `excluded` is that region's flag, not a count.
+  const head=(key:string)=><th key={key} scope="col" className={key==="field_id"?styles.stickyColumn:undefined} style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{observations&&key==="excluded"?"除外":names[key]||key}</th>;
   const body=(columns:string[])=><tbody>{rows.map((row,index)=><tr key={index}>{columns.map(key=><td key={key} className={key==="field_id"?styles.stickyColumn:undefined}>{cell(row,key,index)}</td>)}</tr>)}</tbody>;
   const fieldColumn=all.includes("field_id")?["field_id"]:[];
   return <><div className={styles.tableScroll} tabIndex={0}><table><thead><tr>{keys.map(head)}</tr></thead>{body(keys)}</table></div>
-    {records.length>0&&<details className={styles.recordDetails}><summary>記録の詳細（解析版・内部 ID）</summary><div className={styles.tableScroll} tabIndex={0}><table><thead><tr>{[...fieldColumn,...records].map(head)}</tr></thead>{body([...fieldColumn,...records])}</table></div></details>}</>;
+    {records.length>0&&<Folded summary="記録の詳細" className={styles.recordDetails}>{()=><div className={styles.tableScroll} tabIndex={0}><table><thead><tr>{[...fieldColumn,...records].map(head)}</tr></thead>{body([...fieldColumn,...records])}</table></div>}</Folded>}</>;
+}
+
+/** A folded section draws its content once opened: a saved table can hold every observation, and thousands of
+ * hidden rows would slow the page for everyone who never opens it (N-03). */
+function Folded({summary,className,children}:{summary:string;className?:string;children:()=>ReactNode}){
+  const [open,setOpen]=useState(false);
+  return <details className={className} onToggle={event=>setOpen(event.currentTarget.open)}><summary>{summary}</summary>{open&&children()}</details>;
 }
 
 /** A distribution of a two-group design read by run: each saved field median in its run and group.
