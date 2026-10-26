@@ -1,11 +1,47 @@
-## Change
-Describe the problem and resulting behavior.
+## 概要
 
-## Scientific impact
-State effects on input pixels, masks, metrics, selection, statistics or figures.
+<!-- この PR で何を、なぜ変えるのかを 1〜3 文で書いてください。関連する Issue があれば「Closes #番号」と書きます。 -->
 
-## Validation
-Record commands and end-to-end evidence. Separate source/CI/deployment/hosted/private validation.
+## 変更内容
 
-## Remaining limits
-List unverified conditions. No research data, credentials or private filenames.
+<!-- 主な変更点を箇条書きで書いてください。 -->
+
+-
+
+## 変更の種類
+
+- [ ] 新機能（feat）
+- [ ] 不具合の修正（fix）
+- [ ] 文書（docs）
+- [ ] テスト（test）
+- [ ] 保守・設定（chore）
+
+## 影響範囲
+
+### 科学的な影響
+
+<!-- 入力画素、マスク、測定値、対象の選別、統計、図への影響を書いてください。影響がなければ「なし」と書きます。 -->
+
+### 本番・配布への影響
+
+<!-- 公開サイト、Windows 版、Docker 版、AI サービスへの影響を書いてください。影響がなければ「なし」と書きます。 -->
+
+## 検証
+
+<!-- 実行したコマンドと結果を書いてください。手元、CI、本番、非公開データでの確認は分けて書きます。 -->
+
+## 残る課題
+
+<!-- 確認できていない条件や、この PR で扱わない点を書いてください。 -->
+
+## スクリーンショット
+
+<!-- 画面の変更がある場合に、変更前と変更後を貼ってください。 -->
+
+## チェックリスト
+
+- [ ] 1 つの目的に絞り、無関係な変更を含めていない
+- [ ] 関連する仕様・テスト・文書を同じ PR で更新した
+- [ ] [開発の原則](https://github.com/genellect/cytellect/blob/main/docs/development-principles.md)の関係する節に沿っている
+- [ ] 非公開の研究データ、認証情報、ファイルパスを含めていない
+- [ ] 未実施・失敗した検証を、合格として書いていない

@@ -4,7 +4,7 @@
 
 ## 日本語
 
-Cytellect の開発に参加するメンバーのためのルールです。開発の進め方、Git の運用、研究データの扱いを定めます。セットアップと検証コマンドは [CONTRIBUTING.md](../CONTRIBUTING.md)、技術上の基準は [Development standards](development-standards.md) を参照してください。AI エージェント向けの指示は [AGENTS.md](../AGENTS.md) にあり、この文書と同じ内容を前提にしています。
+Cytellect の開発に参加するメンバーのためのルールです。開発の進め方、Git の運用、研究データの扱いを定めます。人も AI エージェントも守る原則は[開発の原則](development-principles.md)、開発環境の構築と起動は [CONTRIBUTING](../CONTRIBUTING.md) にまとめています。AI エージェント向けの指示は [AGENTS.md](../AGENTS.md) にあり、この文書と同じ内容を前提にしています。
 
 ### 1. 役割
 
@@ -19,8 +19,8 @@ Cytellect の開発に参加するメンバーのためのルールです。開�
 1. **タスクを決める。** 目的と完了条件を Issue またはタスクの依頼に書きます。
 2. **ブランチを作る。** 最新の `origin/main` から作成します。名前は `<種類>/<内容>` とし、種類は `feat`、`fix`、`docs`、`test`、`chore` のいずれかです（例: `fix/nucleolus-boundary`）。エージェントのツールが付ける接頭辞（`claude/`、`codex/`）も使用できます。
 3. **変更する。** 1 つの PR では 1 つの目的だけを扱います。仕様・テスト・文書は、コードと同じ PR で更新します。
-4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)に沿って、変更内容、科学的な影響、検証、残る制約を書きます。作業途中の共有には Draft PR を使います。
-5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしません。PR の CI は、変更したファイルに関係する検査だけを実行します。Fiji・Cellpose の画像・Windows の導入の統合試験は、`main` への取り込み後に実行し、Windows 版の配布は、配布するコミットでこれらすべてが成功していることを確認してから行います（[CONTRIBUTING](../CONTRIBUTING.md#ci-scope)）。`main` で失敗した場合は、次の配布より前に修正するか取り消します。
+4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)のすべての項目を書きます。作業途中の共有には Draft PR を使います。
+5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしません。PR の CI は、変更したファイルに関係する検査だけを実行します。Fiji・Cellpose の画像・Windows の導入の統合試験は、`main` への取り込み後に実行し、Windows 版の配布は、配布するコミットでこれらすべてが成功していることを確認してから行います（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消します。
 6. **マージする。** オーナーが squash merge で `main` に取り込みます。PR のタイトルがそのままコミットの件名になるため、変更の内容が分かるタイトルにします。`main` はルールセットで更新を制限しており、PR をマージできるのはバイパス権限を持つオーナーだけです。オーナーはマージ画面でルールのバイパスを選ぶか、`gh pr merge <番号> --squash --admin` を実行します。このバイパスでも必須 CI は省略されません。
 
 ### 3. Git の運用
@@ -82,7 +82,7 @@ Cytellect の開発に参加するメンバーのためのルールです。開�
 
 ## English
 
-These rules apply to everyone contributing to Cytellect. They define how we work, how we use Git and how we handle research data. See [CONTRIBUTING.md](../CONTRIBUTING.md) for setup and validation commands and [Development standards](development-standards.md) for technical standards. Instructions for AI agents are in [AGENTS.md](../AGENTS.md) and are consistent with this document.
+These rules apply to everyone contributing to Cytellect. They define how we work, how we use Git and how we handle research data. The principles that people and AI agents follow are in [Development principles](development-principles.md) (Japanese), and setting up a development environment is covered in [CONTRIBUTING](../CONTRIBUTING.md) (Japanese). Instructions for AI agents are in [AGENTS.md](../AGENTS.md) and are consistent with this document.
 
 ### 1. Roles
 
@@ -97,8 +97,8 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 1. **Define the task.** State the purpose and completion criteria in an issue or task request.
 2. **Create a branch** from the latest `origin/main`, named `<type>/<summary>`, where type is `feat`, `fix`, `docs`, `test` or `chore` (for example `fix/nucleolus-boundary`). Prefixes added by agent tools (`claude/`, `codex/`) are also acceptable.
 3. **Make the change.** Keep each PR to one purpose. Update specifications, tests and documentation in the same PR as the code.
-4. **Open a PR** following the [PR template](../.github/pull_request_template.md): change, scientific impact, validation and remaining limits. Use a draft PR to share work in progress.
-5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run after merge on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CONTRIBUTING](../CONTRIBUTING.md#ci-scope)). A failure on `main` is fixed or reverted before the next release.
+4. **Open a PR** and fill in every section of the [PR template](../.github/pull_request_template.md) (Japanese). Use a draft PR to share work in progress.
+5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run after merge on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
 6. **Merge.** The owner squash-merges into `main`. The PR title becomes the commit subject, so make it describe the change. A ruleset restricts updates to `main`, so only the owner, who holds bypass permission, can merge PRs. The owner selects the rule bypass on the merge screen or runs `gh pr merge <number> --squash --admin`. The bypass does not skip required CI.
 
 ### 3. Git

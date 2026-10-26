@@ -76,6 +76,13 @@ export function journalPathMatches(recorded: string, actual: string): boolean {
 }
 const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
+const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
+const JOBS = /^\/v1\/workspaces\/[^/?]+\/jobs$/;
+/** Statistics of an analysis version (a cohort): the request names what it calculates, so the same
+ * request on another cohort of identical content is the same calculation. Figures and packages are
+ * not: their request does not say which result they draw or package. */
+const ANALYSIS = /^\/v1\/revisions\/[0-9a-f-]{36}\/(?:review|descriptive|common-statistics)$/;
+const analysisPattern = (path: string) => ANALYSIS.test(path) ? path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/, "*") : undefined;
 /** The parts of the saved settings a measurement depends on. */
 export function conditions(spec: unknown): unknown {
   const value = spec as Record<string, unknown> | null;
@@ -110,7 +117,9 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
   let settings: {version: number; spec: unknown} | null = null;
   // What this device was last given for each read, as a recorded file (snapshot or tour).
-  const seen = new Map<string, JournalEntry | "snapshot">();
+  const seen = new Map<string, JournalEntry | "snapshot" | {device: unknown; at: number}>();
+  // Every job a workspace's job list has shown this device, by list path and job id.
+  const jobs = new Map<string, Map<string, unknown>>();
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<() => void>();
   const publish = (next: Partial<ShowcaseState>) => {state = {...state, ...next}; listeners.forEach(listener => listener());};
@@ -177,6 +186,28 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       }).catch(() => null);
     return journal;
   }
+  // Identifiers another scene's recording generated for what this visitor already has (its cohort,
+  // its job): recorded -> visitor, and back. Answers from that scene read with the visitor's ones.
+  const aliases = new Map<string, string>(), reverse = new Map<string, string>();
+  const UUIDS = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+  const recordedIds = (text: string) => reverse.size ? text.replace(UUIDS, id => reverse.get(id) ?? id) : text;
+  /**
+   * The recorded form of a requested path. Several of this visitor's cohorts of identical content
+   * can stand for one recorded cohort; the one this request names is the one answers name.
+   */
+  function recordedPath(path: string) {
+    const translated = recordedIds(path);
+    if (translated !== path) for (const id of path.match(UUIDS) ?? []) {const original = reverse.get(id); if (original) aliases.set(original, id);}
+    return translated;
+  }
+  function learn(recorded: string, visitor: string) {
+    const left = recorded.split("/"), right = visitor.split("/");
+    left.forEach((segment, index) => {
+      if (segment !== right[index] && /^[0-9a-f-]{36}$/.test(segment) && /^[0-9a-f-]{36}$/.test(right[index] ?? "")) {
+        aliases.set(segment, right[index]); reverse.set(right[index], segment);
+      }
+    });
+  }
   async function answer(entry: JournalEntry): Promise<Response | null> {
     let body: ArrayBuffer | null = null;
     if (entry.file !== null && !nullBody(entry.status)) {
@@ -184,6 +215,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${entry.file}`).catch(() => null);
       if (!response?.ok) {await response?.text().catch(() => ""); return null;}
       body = await response.arrayBuffer();
+      if (aliases.size && entry.file.endsWith(".json")) {
+        const text = new TextDecoder().decode(body).replace(UUIDS, id => aliases.get(id) ?? id);
+        body = new TextEncoder().encode(text).buffer as ArrayBuffer;
+      }
     }
     return new Response(body, {status: entry.status, headers: entry.headers});
   }
@@ -209,21 +244,37 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       return new Response(JSON.stringify(settings), {status: 200, headers: {"content-type": "application/json"}});
     }
     // Until a change has been answered, reads come from the opening snapshot without the tour.
-    if (reading(method) && !journaled) return null;
+    if (reading(method) && !journaled) {const held = seen.get(path); return held && typeof held === "object" && "device" in held ? heldRead(path) : null;}
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
     if (!reading(method)) {
+      // Switching which adopted revision a field shows is answered by the device first: a recorded
+      // adoption matches any revision the recording generated, and would bring that scene's state.
+      if (method === "POST" && SELECTION.test(path)) {const adopted = await adoptOnDevice(path, body); if (adopted) return adopted;}
       // The next matching change, else the first one: scenes of the tour each start from the seed.
       // A run is measured under the saved settings, which its request does not carry: a recorded
       // run answers only when the settings it was recorded under are the visitor's.
       const current = RUNS.test(path) ? JSON.stringify(conditions(settings?.spec ?? await seedSettings())) : null;
-      const matches = (entry: JournalEntry, position: number) => entry.method === method && !SETTINGS.test(entry.path)
-        && journalPathMatches(entry.path, path) && journalBodyMatches(entry.body, body)
+      const matches = (entry: JournalEntry, position: number, recorded = entry.path, requested = path) => entry.method === method && !SETTINGS.test(entry.path)
+        && journalPathMatches(recorded, requested) && journalBodyMatches(entry.body, body)
         && (current === null || journalBodyMatches(JSON.stringify(conditions(recordedSettings(entries, position) ?? seed)), current));
       const seed = current === null ? null : await seedSettings();
       let index = entries.findIndex((entry, position) => position > cursor && matches(entry, position));
-      if (index < 0) index = entries.findIndex(matches);
+      if (index < 0) index = entries.findIndex((entry, position) => matches(entry, position));
+      // A request naming what another scene's answer gave this visitor is that scene's request.
+      const translated = recordedPath(path);
+      if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => position > cursor && matches(entry, position, entry.path, translated));
+      if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => matches(entry, position, entry.path, translated));
+      // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
+      // same request recorded in another scene is found by its pattern, only when no path matches.
+      const patterned = (entry: JournalEntry, position: number) => {
+        const pattern = analysisPattern(entry.path);
+        return !!pattern && matches(entry, position, pattern);
+      };
+      if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
+      if (index < 0) index = entries.findIndex(patterned);
       if (index < 0) return null;
+      if (!journalPathMatches(entries[index].path, path) && !journalPathMatches(entries[index].path, translated)) learn(entries[index].path, path);
       cursor = index; journaled = true;
       // The device now holds what this change wrote, not what it read before.
       seen.delete(path);
@@ -232,31 +283,86 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       return answer(entries[index]);
     }
     if (!journaled) return null;
-    const next = entries.findIndex((entry, position) => position > cursor && !reading(entry.method));
-    const end = next < 0 ? entries.length : next;
-    const read = (index: number) => entries[index].method === "GET" && entries[index].path === path;
+    // The answered change's reads end at the scene's next change, or where the next scene begins.
+    let end = cursor + 1;
+    while (end < entries.length && reading(entries[end].method) && entries[end].scene === entries[cursor].scene) end++;
+    const translated = recordedPath(path);
+    const read = (index: number) => entries[index].method === "GET" && (entries[index].path === path || entries[index].path === translated);
     const previous = seen.get(path);
+    // What this device wrote after the last recorded change is newer than anything recorded for it.
+    if (previous && typeof previous === "object" && "device" in previous && previous.at === cursor) return heldRead(path);
     // The last recorded read of this path after the answered change and before the next one (a job
     // has finished, a document is settled), so repeated reads agree.
     let after = -1;
     for (let index = end - 1; index > cursor && after < 0; index--) if (read(index)) after = index;
     if (after >= 0) {
       // Scenes start from the seed, so a visitor's earlier changes may come from another scene. A
-      // document the answered change left as it was keeps what this device already has.
+      // document the answered change left as it was keeps what this device already has. The scene's
+      // document before the change is its last read, or a write answered with the document itself.
       const scene = entries[cursor].scene;
+      const wrote = (index: number) => !reading(entries[index].method) && entries[index].path === entries[after].path && entries[index].file === entries[after].file;
       let before: {file: string | null; status: number} | null = null;
-      for (let index = cursor - 1; index >= 0 && !before && entries[index].scene === scene; index--) if (read(index)) before = entries[index];
+      for (let index = cursor - 1; index >= 0 && !before && entries[index].scene === scene; index--) if (read(index) || wrote(index)) before = entries[index];
       before ??= (await snapshot())?.entries[snapshotKey(path)] ?? null;
       const unchanged = before !== null && before.file === entries[after].file && before.status === entries[after].status;
       if (!(unchanged && previous)) return remember(path, entries[after]);
     }
-    if (previous) return previous === "snapshot" ? recorded(path) : answer(previous);
+    if (previous) return heldRead(path);
     // Else the scene's next read of it (what the change wrote), else the latest recorded read before,
     // else one recorded later (a resource another scene created).
     for (let index = end; index < entries.length && entries[index].scene === entries[cursor].scene; index++) if (read(index)) return remember(path, entries[index]);
     for (let index = end - 1; index >= 0; index--) if (read(index)) return remember(path, entries[index]);
     for (let index = end; index < entries.length; index++) if (read(index)) return remember(path, entries[index]);
     return null;
+  }
+  /**
+   * The API keeps every job of a workspace, and a client may reuse a job it was given earlier (the
+   * same cohort for another measure of the same revisions). A list recorded in another scene lacks
+   * the jobs of this visitor's earlier scenes, so the jobs it showed this device stay listed.
+   */
+  async function withKnownJobs(path: string, response: Response | null): Promise<Response | null> {
+    if (!response?.ok || !JOBS.test(path)) return response;
+    let listed: unknown;
+    try {listed = await response.json();} catch {return null;}
+    if (!Array.isArray(listed)) return null;
+    const known = jobs.get(path) ?? new Map<string, unknown>();
+    jobs.set(path, known);
+    const ids = new Set<string>();
+    for (const job of listed as Array<{id?: unknown}>) if (typeof job?.id === "string") {ids.add(job.id); known.set(job.id, job);}
+    const merged = [...listed, ...[...known].filter(([id]) => !ids.has(id)).map(([, job]) => job)];
+    return new Response(JSON.stringify(merged), {status: response.status, headers: {"content-type": "application/json"}});
+  }
+  /** What this device already has for a read: the opening snapshot, a recorded read, or its own adoption. */
+  function heldRead(path: string): Promise<Response | null> {
+    const value = seen.get(path);
+    if (value === "snapshot") return recorded(path);
+    if (value && "device" in value) return Promise.resolve(new Response(JSON.stringify(value.device), {status: 200, headers: {"content-type": "application/json"}}));
+    return value ? answer(value) : Promise.resolve(null);
+  }
+  /**
+   * Adoption is bookkeeping of which adopted revision each field shows; it measures nothing. When no
+   * recorded adoption matches (the visitor's measurements and analyses came in another order), the
+   * device applies the API's rule for the one case the replay can: each field switches to a revision
+   * it has already adopted for some target, with the same fields, identities and exclusions.
+   */
+  async function adoptOnDevice(path: string, body: string | null): Promise<Response | null> {
+    const held = await heldRead(path) ?? (journaled ? null : await recorded(path));
+    if (!held || !held.ok) return null;
+    type Entry = {id?: string; field_id?: string; revision_id?: string | null; exclusion_reason?: string | null; target_revisions?: Record<string, string>};
+    let current: {version: number; entries: Entry[]}, written: {version?: unknown; entries?: Entry[]};
+    try {current = await held.json(); written = JSON.parse(body ?? "null");} catch {return null;}
+    if (!written || written.version !== current.version || !Array.isArray(written.entries) || written.entries.length !== current.entries.length) return null;
+    const entries: Entry[] = [];
+    for (const [index, before] of current.entries.entries()) {
+      const after = written.entries[index];
+      if (after.id !== before.id || after.field_id !== before.field_id || (after.exclusion_reason ?? null) !== (before.exclusion_reason ?? null)) return null;
+      const adopted = Object.values(before.target_revisions ?? {});
+      if (after.revision_id !== before.revision_id && !adopted.includes(after.revision_id ?? "")) return null;
+      entries.push({...before, revision_id: after.revision_id});
+    }
+    const next = {version: current.version + 1, entries};
+    seen.set(path, {device: next, at: cursor});
+    return new Response(JSON.stringify(next), {status: 200, headers: {"content-type": "application/json"}});
   }
   function remember(path: string, entry: JournalEntry) {
     seen.set(path, entry);
@@ -300,7 +406,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const text = async () => isRead || init.body === undefined || init.body === null ? null : new TextDecoder().decode((await bodyBytes(init.body)) ?? undefined);
       if (!dependencies.record) {
         // Decisions are taken in request order, so a read issued after a change sees that change.
-        const decided = gate.then(async () => await fromJournal(method, path, await text()) ?? (isRead ? await fromSnapshot(path) : null));
+        const decided = gate.then(async () => {
+          const found = await fromJournal(method, path, await text()) ?? (isRead ? await fromSnapshot(path) : null);
+          return isRead ? withKnownJobs(path, found) : found;
+        });
         gate = decided.catch(() => null);
         const answered = await decided;
         if (signal?.aborted) throw abortError();

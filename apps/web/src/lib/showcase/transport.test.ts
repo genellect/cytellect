@@ -356,3 +356,156 @@ describe("runtime file verification", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
+
+describe("recorded tour across scenes", () => {
+  const entry = (method: string, path: string, body: string | null, file: string | null, scene: string, pattern?: string) =>
+    ({method, path, body, status: 200, headers: [["content-type", "application/json"]] as Array<[string, string]>, file, scene, ...(pattern ? {pattern} : {})});
+  function subject(files: Record<string, unknown>) {
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    return createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"});
+  }
+  it("finds a request recorded in another scene and answers it with this visitor's identifiers", async () => {
+    const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002", JOB = "cccccccc-0000-4000-8000-000000000003";
+    const transport = subject({
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({metric: "x"}), "cohort-a.json", "area"),
+        entry("POST", `/v1/revisions/${A}/descriptive`, JSON.stringify({metric: "area"}), "area.json", "area", "/v1/revisions/*/descriptive"),
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({metric: "x"}), "cohort-b.json", "mean"),
+        entry("POST", `/v1/revisions/${B}/descriptive`, JSON.stringify({metric: "mean"}), "mean.json", "mean", `/v1/revisions/*/descriptive`),
+        entry("GET", `/v1/jobs/${JOB}/result`, null, "result.json", "mean"),
+        entry("POST", `/v1/revisions/${B}/export`, null, "export.json", "mean", "/v1/revisions/*/export"),
+        entry("POST", `/v1/jobs/${B}/figure-render`, JSON.stringify({width: 89}), "render.json", "mean", "/v1/jobs/*/figure-render"),
+      ]},
+      "cohort-a.json": {revision_id: A}, "cohort-b.json": {revision_id: B}, "area.json": {job_id: "area"},
+      "mean.json": {job_id: JOB}, "result.json": {revision_id: B, value: 1}, "export.json": {revision_id: B, job_id: "export"}, "render.json": {job: "other"},
+    });
+    expect(await (await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({metric: "x"})})).json()).toEqual({revision_id: A});
+    // The exact path answers first; the other scene's request is found by its pattern.
+    expect(await (await transport.fetch(`/v1/revisions/${A}/descriptive`, {method: "POST", body: JSON.stringify({metric: "area"})})).json()).toEqual({job_id: "area"});
+    expect(await (await transport.fetch(`/v1/revisions/${A}/descriptive`, {method: "POST", body: JSON.stringify({metric: "mean"})})).json()).toEqual({job_id: JOB});
+    // That scene's answers name this visitor's cohort, and its later requests are found through it.
+    expect(await (await transport.fetch(`/v1/jobs/${JOB}/result`)).json()).toEqual({revision_id: A, value: 1});
+    expect(await (await transport.fetch(`/v1/revisions/${A}/export`, {method: "POST"})).json()).toEqual({revision_id: A, job_id: "export"});
+    // A figure or package names no content of its own: another job's recording never answers it.
+    expect((await transport.fetch(`/v1/jobs/${JOB}/figure-render`, {method: "POST", body: JSON.stringify({width: 89})})).status).toBe(409);
+  });
+  it("keeps listing a job another scene gave this visitor, so a reused cohort is still found", async () => {
+    const transport = subject({
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/jobs")]: {status: 200, headers: [], file: "seed.json"}}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "nucleoplasm"}), "cohort-a.json", "count"),
+        entry("GET", "/v1/workspaces/w/jobs", null, "jobs-a.json", "count"),
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "nucleoli"}), "cohort-b.json", "mean"),
+        entry("GET", "/v1/workspaces/w/jobs", null, "jobs-b.json", "mean"),
+      ]},
+      "seed.json": [{id: "seed", state: "succeeded"}],
+      "cohort-a.json": {job_id: "a"}, "jobs-a.json": [{id: "seed", state: "succeeded"}, {id: "a", state: "succeeded"}],
+      "cohort-b.json": {job_id: "b"}, "jobs-b.json": [{id: "seed", state: "succeeded"}, {id: "b", state: "succeeded"}],
+    });
+    const ids = async () => ((await (await transport.fetch("/v1/workspaces/w/jobs")).json()) as Array<{id: string}>).map(job => job.id);
+    expect(await ids()).toEqual(["seed"]);
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "nucleoplasm"})});
+    expect(await ids()).toEqual(["seed", "a"]);
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "nucleoli"})});
+    // Scene "mean" recorded no job "a"; the API would still list it, and the client may reuse it.
+    expect(await ids()).toEqual(["seed", "b", "a"]);
+  });
+  it("reads after a scene's last change never come from the next scene's opening", async () => {
+    const transport = subject({
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "seed.json"}}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/jobs/j/figure-render", JSON.stringify({width: 89}), "render.json", "a"),
+        entry("GET", "/v1/workspaces/w/selection", null, "other.json", "b"),
+        entry("POST", "/v1/workspaces/w/proposal-drafts", JSON.stringify({goal: "x"}), "draft.json", "b"),
+      ]},
+      "seed.json": {version: 1}, "other.json": {version: 14}, "render.json": {job: "r"}, "draft.json": {draft: true},
+    });
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+    await transport.fetch("/v1/jobs/j/figure-render", {method: "POST", body: JSON.stringify({width: 89})});
+    // Scene "b" read another adoption before its own first change; this device keeps its own.
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+  });
+  it("answers with the visitor's cohort the request names, when two of them stand for one recorded cohort", async () => {
+    const R = "aaaaaaaa-0000-4000-8000-000000000001", V1 = "bbbbbbbb-0000-4000-8000-000000000002", V2 = "cccccccc-0000-4000-8000-000000000003";
+    const transport = subject({
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "x"}), "c1.json", "m1"),
+        entry("POST", "/v1/workspaces/w/region-cohorts", JSON.stringify({sources: "y"}), "c2.json", "m2"),
+        entry("POST", `/v1/revisions/${R}/descriptive`, JSON.stringify({metric: "a"}), "job.json", "s", "/v1/revisions/*/descriptive"),
+        entry("GET", "/v1/jobs/j/result", null, "result.json", "s"),
+      ]},
+      "c1.json": {revision_id: V1}, "c2.json": {revision_id: V2}, "job.json": {job_id: "j"}, "result.json": {revision_id: R},
+    });
+    const describe = async (cohort: string) => {
+      await transport.fetch(`/v1/revisions/${cohort}/descriptive`, {method: "POST", body: JSON.stringify({metric: "a"})});
+      return (await (await transport.fetch("/v1/jobs/j/result")).json() as {revision_id: string}).revision_id;
+    };
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "x"})});
+    expect(await describe(V1)).toBe(V1);
+    await transport.fetch("/v1/workspaces/w/region-cohorts", {method: "POST", body: JSON.stringify({sources: "y"})});
+    expect(await describe(V2)).toBe(V2);
+    expect(await describe(V1)).toBe(V1);
+  });
+  it("keeps the device's document when the answered change left the scene's one as the scene wrote it", async () => {
+    const transport = subject({
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "seed.json"}}},
+      "journal.json": {version: 1, entries: [
+        entry("GET", "/v1/workspaces/w/selection", null, "s1.json", "a"),
+        entry("POST", "/v1/workspaces/w/selection", JSON.stringify({version: "*"}), "s2.json", "a"),
+        entry("POST", "/v1/jobs/j/figure-render", JSON.stringify({width: 89}), "render.json", "a"),
+        entry("GET", "/v1/workspaces/w/selection", null, "s2.json", "a"),
+      ]},
+      "seed.json": {version: 1}, "s1.json": {version: 1}, "s2.json": {version: 2}, "render.json": {job: "r"},
+    });
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+    await transport.fetch("/v1/jobs/j/figure-render", {method: "POST", body: JSON.stringify({width: 89})});
+    // The figure changed no adoption; the scene's own adoption before it is not this device's.
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual({version: 1});
+  });
+  it("switches a field to a revision it already adopted on the device, and nothing else", async () => {
+    const selection = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};
+    const transport = subject({
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "selection.json"}}},
+      "selection.json": selection, "journal.json": {version: 1, entries: []},
+    });
+    const write = (revision: string, version = 4) => transport.fetch("/v1/workspaces/w/selection", {method: "POST", body: JSON.stringify({version, entries: [{...selection.entries[0], revision_id: revision}]})});
+    const adopted = await write("nol");
+    expect(adopted.status).toBe(200);
+    const value = await adopted.json();
+    expect(value).toEqual({version: 5, entries: [{...selection.entries[0], revision_id: "nol"}]});
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual(value);
+    // A revision the field never adopted, or a stale version, is not decided here.
+    expect((await write("other", 5)).status).toBe(409);
+    expect((await write("nuc", 4)).status).toBe(409);
+  });
+});
+
+describe("adoption after a recorded change", () => {
+  it("keeps the device's adoption over the reads recorded for the change before it", async () => {
+    const before = {version: 4, entries: [{id: "e1", field_id: "f1", revision_id: "nuc", exclusion_reason: null, target_revisions: {nuclei: "nuc", nucleoli: "nol"}}]};
+    const measured = {version: 5, entries: [{...before.entries[0], revision_id: "nol"}]};
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/selection")]: {status: 200, headers: [], file: "before.json"}}},
+      "before.json": before, "measured.json": measured, "accept.json": {ok: true},
+      "journal.json": {version: 1, entries: [
+        {method: "POST", path: "/v1/workspaces/w/runs/r/accept", body: null, status: 200, headers: [], file: "accept.json", scene: "measure"},
+        {method: "GET", path: "/v1/workspaces/w/selection", body: null, status: 200, headers: [], file: "measured.json", scene: "measure"},
+      ]},
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    const transport = createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"});
+    await transport.fetch("/v1/workspaces/w/runs/r/accept", {method: "POST"});
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual(measured);
+    const adopted = await (await transport.fetch("/v1/workspaces/w/selection", {method: "POST", body: JSON.stringify({version: 5, entries: [{...measured.entries[0], revision_id: "nuc"}]})})).json();
+    expect(adopted.version).toBe(6);
+    expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual(adopted);
+  });
+});

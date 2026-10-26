@@ -260,6 +260,11 @@
     "source": "https://registry.opendata.aws/4dnucleome/",
     "license": "4DN public-data use policy; source-attributed derived results"
   },
+  "docs/images/readme-hero.webp": {
+    "sha256": "7956456a7bc22b7cc64aa01335e45997f0000e66185e7e4d2bf2cb8cebdd16e9",
+    "source": "https://cytellect.vercel.app/",
+    "license": "Apache-2.0 (Cytellect UI); Pexels License (background photograph, https://www.pexels.com/photo/person-doing-an-experiment-3992927/)"
+  },
   "fixtures/public/bbbc013/A01-dapi.tif": {
     "sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e",
     "source": "https://bbbc.broadinstitute.org/BBBC013",
@@ -341,7 +346,7 @@
     "license": "CC0-1.0"
   },
   "apps/web/public/showcase/seed.zip": {
-    "sha256": "fde7273358c5f112b305abbf5d56e124e986a787aae05f7c6da3dc82775ea246",
+    "sha256": "b459dd354736c5bea9c49d17e9467ababc7a2f1108b018b24564bc474556ec24",
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -370,14 +375,8 @@
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
   },
-  "apps/web/public/showcase/snapshot/1ab66f973809c62bf16a21df.zip": {
-    "sha256": "1ab66f973809c62bf16a21df5af7fa35b4ac00a8a64bbcbdbcdd05787f1e7fb2",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0",
-    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
-  "apps/web/public/showcase/snapshot/4b0abee857af0cf0220b9c99.zip": {
-    "sha256": "4b0abee857af0cf0220b9c99b69a0f9134f3fafe5038a1be39804e10457237c6",
+  "apps/web/public/showcase/snapshot/4e0a88e6f47dc5917d6742ef.zip": {
+    "sha256": "4e0a88e6f47dc5917d6742ef99cc26dd7a2f01b72eab95ef50b3194f194f6e58",
     "source": "https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"

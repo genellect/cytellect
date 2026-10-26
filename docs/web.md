@@ -31,6 +31,12 @@ Statistics display cells/fields/independent units separately. The paired option 
 initially selected because synthetic controls and treatments share pair IDs. Confirm
 the experimental units explicitly. Matplotlib figures and source CSVs are downloaded
 through authenticated API requests. Export ZIPs exclude originals unless opted in.
+The panel offers only analyses the API accepts: an association needs two different region
+measurements (per-nucleus nucleolar summaries cannot be an axis), and brightness of a group whose
+adopted regions hold saturated or storage-limit pixels in that channel is not analysed (the API
+refuses it as `region_comparison_saturated_signal`): pairs with such a group are not offered for a
+comparison, and an association, which analyses every group, is withheld, each with its reason.
+With a GFP nucleus filter the analysed nuclei are known only to the API, which then decides.
 Numeric CSV import handles already measured assays; no instrument-specific processing.
 
 ## Data boundary
@@ -76,9 +82,12 @@ Docker, development) keep their workspace at `/` and `/workspace` and have no `/
   offers the recorded instructions (`snapshot/proposal-examples.json`) as examples. The header
   shows a デモ badge with the image source and limits (`snapshot/dataset.json`) and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that
   points to the Windows/Docker versions.
-- `?step=image|statistics|figure` opens that tab. A dismissible four-step guide (画像と輪郭 →
-  測定値 → 統計 → グラフと書き出し) appears on the first visit; its dismissal is the only
-  `localStorage` value, kept on this public page only. Missing optional demo files leave the
+- `?step=image|statistics|figure` opens that tab. A four-step guide (画像と輪郭 → 測定値 → 統計 →
+  グラフと書き出し) opens from 「使い方」; it never opens by itself, so the image and results show at once.
+- Controls whose results cannot be recorded are fixed to the recorded values with a short note and
+  shown as locked (statistics method and design, experiment information, figure labels, axes,
+  colours and sizes). The detection conditions, nuclear stain and background correction are shown
+  as the recorded settings of the adopted result (text, not controls); cell ROIs and GFP, absent from the dataset, are not offered. Missing optional demo files leave the
   matching controls as in production.
 - Development without the demo build: `scripts/dev_showcase_backend.py` serves the same
   boot/handle contract from a local CPython API with a threshold stand-in for detection, for

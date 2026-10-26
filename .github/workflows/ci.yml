@@ -17,6 +17,7 @@ jobs:
     outputs:
       python: ${{ steps.classify.outputs.python }}
       web: ${{ steps.classify.outputs.web }}
+      lp: ${{ steps.classify.outputs.lp }}
       fiji: ${{ steps.classify.outputs.fiji }}
       windows: ${{ steps.classify.outputs.windows }}
     steps:
@@ -126,7 +127,17 @@ jobs:
         run: pnpm --filter @cytellect/proposal-worker check && pnpm --filter @cytellect/proposal-worker test && pnpm --filter @cytellect/proposal-worker test:deployment
       - run: node --test apps/web/scripts/finalize-local-export.test.mjs
       - run: pnpm build
+      - name: Locate the pinned browser version
+        id: playwright
+        run: echo "version=$(node -p "require('./apps/web/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the test browser
+        id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install browser for public-site regression
+        if: steps.browsers.outputs.cache-hit != 'true'
         run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
       - name: Verify public LP and published-image viewer without an analysis API
         env:
@@ -154,6 +165,60 @@ jobs:
             /tmp/cytellect-compliance/THIRD_PARTY_WEB_NOTICES.txt
           if-no-files-found: error
           retention-days: 7
+  lp:
+    # Landing-page-only pull requests: the Next.js checks and build, and the landing-page browser tests.
+    # Contracts, the proposal Worker, the demo and dependency evidence are left to the web job, which
+    # runs instead of this one whenever anything else in the web area changes (and on every push to main).
+    needs: changes
+    if: needs.changes.outputs.lp == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - run: npm install --global pnpm@11.19.0
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Restore the pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+      - name: Locate the pinned browser version
+        id: playwright
+        run: echo "version=$(node -p "require('./apps/web/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the test browser
+        id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install browser for the landing-page tests
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
+      - name: Verify the public landing page without an analysis API
+        env:
+          CYTELLECT_EXPECT_UNCONFIGURED: "1"
+          CYTELLECT_WEB_URL: http://127.0.0.1:3000
+        run: |
+          pnpm --filter @cytellect/web start > /tmp/cytellect-public-web.log 2>&1 &
+          public_web_pid=$!
+          trap 'kill "$public_web_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3000 >/dev/null
+          pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts tests/lp-viewport-review.spec.ts tests/lp-analytics.spec.ts --grep-invert "published Windows asset downloads"
   fiji-browser:
     needs: changes
     # Integration jobs run after merge (every push to main), in the merge queue and on manual runs,
