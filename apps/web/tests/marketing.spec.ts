@@ -99,22 +99,10 @@ test("a researcher can stop the hero film and keep it stopped after navigation",
  await page.emulateMedia({reducedMotion:"reduce"});await expect(film.locator("video")).toHaveCount(0);await expect(film.locator("img")).toBeVisible();
  expect(errors).toEqual([]);
 });
-test("the story for general readers opens in place and keeps its text", async ({page}) => {
- await page.emulateMedia({reducedMotion:"reduce"});
+test("the landing page carries no long story, on the page or behind a link", async ({page}) => {
  await page.goto("/");
- const story = page.getByRole("region", { name: "Cytellectが生まれた理由" });
- await expect(story).toContainText("私たちの体は、約30兆個もの細胞から成り立っている。");
- const toggle = story.getByRole("button", { name: "Cytellectが生まれた理由を読む" });
- await expect(toggle).toHaveAttribute("aria-expanded", "false");
- await expect(story.getByText("次世代の研究者のためのアプリケーションである。")).not.toBeInViewport();
- await toggle.click();
- await expect(story.getByRole("button", { name: "閉じる" })).toHaveAttribute("aria-expanded", "true");
- // The complete text must become visible after the expansion, without a timer-owned inline height.
- await expect.poll(() => page.locator("#story-more").evaluate(element => element.clientHeight >= element.scrollHeight)).toBe(true);
- const closing = story.getByText("次世代の研究者のためのアプリケーションである。");
- await closing.scrollIntoViewIfNeeded();
- await expect(closing).toBeInViewport();
- expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+ await expect(page.getByRole("region", { name: "Cytellectが生まれた理由" })).toHaveCount(0);
+ await expect(page.getByText("Cytellectが生まれた理由")).toHaveCount(0);
 });
 
 test("the wordmark returns to the hero from anywhere on the page", async ({page}) => {

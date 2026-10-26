@@ -5,7 +5,6 @@ import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL } from "@/lib/release";
 import { ProductMenu } from "./ProductMenu";
 import { HeroFilm } from "./HeroFilm";
 import { LandingFeatures } from "./LandingFeatures";
-import { LandingStory } from "./LandingStory";
 import { LandingHomeLink } from "./LandingHomeLink";
 import { LandingImpact } from "./LandingImpact";
 import { LandingInvite } from "./LandingInvite";
@@ -47,7 +46,6 @@ export default function PublicLanding() {
           <p className={lp.missionLead}>蛍光顕微鏡の画像をアップロードするだけで、画像解析・統計・論文用のグラフまで。</p>
         </div>
       </section>
-      <LandingStory />
 
       <figure className={lp.band}><img src="/marketing/lp-pipetting.webp" alt="白い実験台でマルチチャンネルピペットを使う手元" width={2400} height={1600} loading="lazy" /></figure>
 

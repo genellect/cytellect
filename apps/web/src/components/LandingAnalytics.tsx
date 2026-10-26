@@ -5,7 +5,7 @@ import { API_CONFIGURED, LOCAL_MODE } from "@/lib/api";
 
 const origin = "https://cytellect.vercel.app";
 // The demo's step tabs and download link send only these fixed names; never what was analysed.
-const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch", "workspace", "story", "demo_image", "demo_statistics", "demo_figure", "demo_download"]);
+const events = new Set(["download", "download_section", "example", "planning", "guide", "quickstart", "methods", "setup", "figures", "launch", "workspace", "demo_image", "demo_statistics", "demo_figure", "demo_download"]);
 /** Public pages without research content. The private analysis workspace is never measured; /demo shows public images only. */
 export type MeasuredPage = "/" | "/demo" | "/plan";
 
@@ -45,7 +45,7 @@ export function LandingAnalytics({ page }: { page: MeasuredPage }) {
       if (!target || !id || !events.has(id)) return;
       if (!ready) { if (queued.length < 20) queued.push(id); return; }
       const serial = ++sequence;
-      // An in-page control (the story toggle) never navigates.
+      // An in-page control (the demo's step tabs) never navigates.
       if (!(target instanceof HTMLAnchorElement)) {
         frame.contentWindow?.postMessage({ type: "cytellect-lp-event", id, sequence: serial }, origin);
         return;
