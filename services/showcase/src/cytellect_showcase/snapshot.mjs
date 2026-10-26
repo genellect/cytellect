@@ -83,6 +83,8 @@ await mkdir(config.out, {recursive: true});
 // fields, so the fields are counted (and walked) after leaving it.
 const pair = page.getByRole("button", {name: "2 画面", exact: true});
 if (await pair.count() && await pair.getAttribute("aria-pressed") === "true") await step("one field at a time", () => pair.click());
+// The fields the pair opens on load first; the others follow, so the list is counted once they are all in.
+for (let waited = 0; waited < 360 && await cards.count() < config.fields; waited++) await page.waitForTimeout(500);
 const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
 // Every field, region and channel a visitor can look at, so browsing never meets an unrecorded
