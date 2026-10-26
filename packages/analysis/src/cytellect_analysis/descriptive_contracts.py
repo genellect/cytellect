@@ -97,6 +97,34 @@ def _omit_default(schema: dict[str, Any]) -> None:
     schema.pop("default", None)
 
 
+class CompartmentMissingRow(StrictModel):
+    """One condition × experimental unit of the confirmed unresolved-nucleoli ledger (Q-05):
+    nuclei = resolved + missing; excluded is part of resolved; the denominator is all nuclei."""
+    condition: str | None
+    experimental_unit: str | None
+    run: str | None
+    fields: Annotated[StrictInt, Field(ge=0)]
+    nuclei: Annotated[StrictInt, Field(ge=0)]
+    resolved: Annotated[StrictInt, Field(ge=0)]
+    missing: Annotated[StrictInt, Field(ge=0)]
+    excluded: Annotated[StrictInt, Field(ge=0)]
+    reasons: dict[str, Annotated[StrictInt, Field(ge=0)]]
+
+
+class CompartmentMissingWarning(StrictModel):
+    run: str | None
+    difference_points: float
+    fractions: dict[str, float]
+
+
+class CompartmentMissingSummary(StrictModel):
+    """Unresolved-nucleoli policy 1.0.0: values describe the nuclei whose nucleolus was established."""
+    policy: Literal["unresolved-as-missing/1.0.0"]
+    warning_points: StrictInt
+    rows: list[CompartmentMissingRow]
+    warnings: list[CompartmentMissingWarning]
+
+
 class _OptionalGate(StrictModel):
     """Omit an absent gate so ungated requests and results keep their historical bytes."""
 
@@ -287,12 +315,16 @@ class DescriptiveResult(StrictModel):
     warnings: list[str]
     independence_status: Literal["not_assessed_in_descriptive_analysis"] = "not_assessed_in_descriptive_analysis"
     source_review: Literal["automatic_unreviewed"] | None = None
+    # Present only for a revision reviewed under the unresolved-nucleoli policy (absent from older results).
+    compartment_missing: CompartmentMissingSummary | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_serializer(mode="wrap")
     def omit_absent_review_marker(self, handler):
         result = handler(self)
         if self.source_review is None:
             result.pop("source_review", None)
+        if self.compartment_missing is None:
+            result.pop("compartment_missing", None)
         return result
 
 

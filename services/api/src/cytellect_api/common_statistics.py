@@ -48,13 +48,15 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
         report = read_json(result_root(rev) / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "review_required")
+        config = {**rev["config"], "review_record": rev["review_record"] or {}}
         if rev["config"].get("recipe", {}).get("source") == "fiji_nuclear_compartment":
-            from cytellect_analysis.compartment_review import assert_complete_compartments
+            from cytellect_analysis.compartment_review import assert_reviewed_compartments, confirmed_policy
             try:
-                assert_complete_compartments(rev["config"], report, read_json(result_root(rev) / "provenance.json"))
+                assert_reviewed_compartments(config, report, read_json(result_root(rev) / "provenance.json"))
+                if confirmed_policy(config) is not None and body.mode != "region-experimental-unit":
+                    raise ValueError("compartment_missing_association_unsupported")
             except ValueError as exc:
                 raise HTTPException(409, str(exc)) from None
-        config = {**rev["config"], "review_record": rev["review_record"] or {}}
         accepted = {
             "revision_id": rid,
             "confirmed_at": time.time(),

@@ -785,6 +785,60 @@
         }
       }
     },
+    "/v1/revisions/{rid}/compartment-ledger": {
+      "get": {
+        "summary": "Compartment Ledger View",
+        "description": "Per field: all nuclei, those with an established nucleolus, the missing ones by reason and the\nexplicitly excluded ones, for the confirmation before statistics (Q-05). A state that cannot be\nkept as missing is refused with its reason.",
+        "operationId": "compartment_ledger_view_v1_revisions__rid__compartment_ledger_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Field Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/review": {
       "post": {
         "summary": "Review",
@@ -5614,6 +5668,16 @@
               }
             ]
           },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompartmentMissingSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "figure": {
             "additionalProperties": true,
             "type": "object",
@@ -5870,6 +5934,191 @@
           "contrasts"
         ],
         "title": "ComparisonFamily"
+      },
+      "CompartmentMissingConfirmation": {
+        "properties": {
+          "policy": {
+            "type": "string",
+            "const": "unresolved-as-missing/1.0.0",
+            "title": "Policy"
+          },
+          "confirmed": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Confirmed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "policy",
+          "confirmed"
+        ],
+        "title": "CompartmentMissingConfirmation",
+        "description": "The researcher's confirmation of the unresolved-nucleoli list (policy 1.0.0, requirements Q-05):\nper field, the number of nuclei kept as missing by reason, exactly as the revision records them."
+      },
+      "CompartmentMissingRow": {
+        "additionalProperties": false,
+        "description": "One condition \u00d7 experimental unit of the confirmed unresolved-nucleoli ledger (Q-05):\nnuclei = resolved + missing; excluded is part of resolved; the denominator is all nuclei.",
+        "properties": {
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
+          },
+          "experimental_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experimental Unit"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "fields": {
+            "minimum": 0,
+            "title": "Fields",
+            "type": "integer"
+          },
+          "nuclei": {
+            "minimum": 0,
+            "title": "Nuclei",
+            "type": "integer"
+          },
+          "resolved": {
+            "minimum": 0,
+            "title": "Resolved",
+            "type": "integer"
+          },
+          "missing": {
+            "minimum": 0,
+            "title": "Missing",
+            "type": "integer"
+          },
+          "excluded": {
+            "minimum": 0,
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "reasons": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "title": "Reasons",
+            "type": "object"
+          }
+        },
+        "required": [
+          "condition",
+          "experimental_unit",
+          "run",
+          "fields",
+          "nuclei",
+          "resolved",
+          "missing",
+          "excluded",
+          "reasons"
+        ],
+        "title": "CompartmentMissingRow",
+        "type": "object"
+      },
+      "CompartmentMissingSummary": {
+        "additionalProperties": false,
+        "description": "Unresolved-nucleoli policy 1.0.0: values describe the nuclei whose nucleolus was established.",
+        "properties": {
+          "policy": {
+            "const": "unresolved-as-missing/1.0.0",
+            "title": "Policy",
+            "type": "string"
+          },
+          "warning_points": {
+            "title": "Warning Points",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CompartmentMissingRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/CompartmentMissingWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "policy",
+          "warning_points",
+          "rows",
+          "warnings"
+        ],
+        "title": "CompartmentMissingSummary",
+        "type": "object"
+      },
+      "CompartmentMissingWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "difference_points": {
+            "title": "Difference Points",
+            "type": "number"
+          },
+          "fractions": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Fractions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "run",
+          "difference_points",
+          "fractions"
+        ],
+        "title": "CompartmentMissingWarning",
+        "type": "object"
       },
       "CompartmentSummarySelection": {
         "additionalProperties": false,
@@ -10862,6 +11111,18 @@
                 "type": "null"
               }
             ]
+          },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "unresolved-as-missing/1.0.0"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compartment Missing"
           }
         },
         "additionalProperties": false,
@@ -14163,6 +14424,16 @@
             "type": "array",
             "maxItems": 100,
             "title": "Accept Invalidated Fields"
+          },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompartmentMissingConfirmation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -16459,6 +16730,16 @@
             ],
             "default": null,
             "title": "Source Review"
+          },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompartmentMissingSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

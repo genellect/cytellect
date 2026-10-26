@@ -393,6 +393,10 @@ def _recompute_statistics(report, config, result, dependencies=None):
         else:
             calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
     calculated["revision_id"] = report["revision_id"]
+    if result.get("analysis_kind") == "descriptive" and result.get("source_review") != "automatic_unreviewed":
+        from .compartment_review import with_compartment_missing
+
+        with_compartment_missing(calculated, config)
     if result.get("source_review") == "automatic_unreviewed":
         if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0") or result["spec"].get("mode") != "descriptive":
             raise ValueError("region_export_statistics_unrecognized_fields")

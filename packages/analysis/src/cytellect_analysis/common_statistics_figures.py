@@ -17,6 +17,7 @@ from matplotlib.ticker import MaxNLocator
 
 from .common_statistics_contracts import CommonStatisticsResult
 from .compartment_observations import DEFINITIONS as COMPARTMENT_DEFINITIONS
+from .compartment_review import compartment_missing_lines, compartment_missing_tables
 from .exports_csv import write_csv
 from .figure_sources import attach_svg_sources, bind_points
 from .figures import (
@@ -157,6 +158,7 @@ def common_statistics_methods(result):
         lines.extend(recorded_gate_lines(source.get("selection")))
         lines.append(f"{axis} missing outcomes: {len(source['missingness'])}; explicitly excluded failed fields: "
                      f"{len(source['excluded_failed_fields'])}. Full field, observation and unit ledgers are exported.")
+        lines.extend(compartment_missing_lines(source))
         lines.append(f"{axis} acquisition basis: {source['acquisition']['review']['basis']}; "
                      "comparability is researcher-confirmed, not established by the software.")
     if association:
@@ -227,6 +229,7 @@ def _tables(result):
                                    for name in ("difference", "ratio")]
             tables["estimates-groups"] = estimates["groups"]
             tables["estimates-runs"] = estimates["runs"]
+    tables.update(compartment_missing_tables(result))
     return tables
 
 

@@ -680,6 +680,25 @@ def create_app(settings: Settings | None = None):
             touch(c, wid)
         return public_revision(rev)
 
+    @api.get("/v1/revisions/{rid}/compartment-ledger")
+    def compartment_ledger_view(rid: str, who: Owner, field_id: str | None = None):
+        """Per field: all nuclei, those with an established nucleolus, the missing ones by reason and the
+        explicitly excluded ones, for the confirmation before statistics (Q-05). A state that cannot be
+        kept as missing is refused with its reason."""
+        from cytellect_analysis.compartment_review import MISSING_POLICY, compartment_ledger
+        rev = revision(rid, who)
+        if rev["state"] != "succeeded" or rev["config"].get("recipe", {}).get("source") != "fiji_nuclear_compartment":
+            raise HTTPException(409, "compartment_missing_policy_not_applicable")
+        if field_id is not None and field_id not in rev["config"].get("field_ids", []):
+            raise HTTPException(404, "field_not_found")
+        root = result_root(rev)
+        try:
+            ledger = compartment_ledger(rev["config"], read_json(root / "measurements.json"), read_json(root / "provenance.json"),
+                                        None if field_id is None else [field_id])
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
+        return {"policy": MISSING_POLICY, "fields": ledger}
+
     @api.post("/v1/revisions/{rid}/review")
     def review(rid: str, who: Owner, body: ReviewInput = ReviewInput()):
         rev = revision(rid, who)
@@ -689,12 +708,30 @@ def create_app(settings: Settings | None = None):
             raise HTTPException(409, "resolve_or_explicitly_exclude_failed_fields")
         if not is_region(rev) and unresolved_nucleolar_failures(report, rev["config"]):
             raise HTTPException(409, "resolve_or_explicitly_exclude_failed_nucleoli")
+        missing_record = {}
         if rev["config"].get("recipe", {}).get("source") == "fiji_nuclear_compartment":
-            from cytellect_analysis.compartment_review import assert_complete_compartments
+            from cytellect_analysis.compartment_review import assert_complete_compartments, compartment_ledger
+            provenance = read_json(result_root(rev) / "provenance.json")
+            chosen = rev["config"].get("compartment_missing")
             try:
-                assert_complete_compartments(rev["config"], report, read_json(result_root(rev) / "provenance.json"))
+                if body.compartment_missing is None:
+                    if chosen is not None:
+                        raise ValueError("compartment_missing_confirmation_required")
+                    assert_complete_compartments(rev["config"], report, provenance)
+                else:
+                    # The researcher confirmed each field's missing nuclei by reason (Q-05); the list
+                    # must be exactly the revision's own, so nothing is accepted blindly.
+                    if chosen not in (None, body.compartment_missing.policy):
+                        raise ValueError("compartment_missing_policy_unknown")
+                    assert_complete_compartments(rev["config"], report, provenance, policy=body.compartment_missing.policy)
+                    ledger = compartment_ledger(rev["config"], report, provenance)
+                    if body.compartment_missing.confirmed != {fid: entry["missing"] for fid, entry in ledger.items() if entry["missing"]}:
+                        raise ValueError("compartment_missing_confirmation_mismatch")
+                    missing_record = {"compartment_missing": {"policy": body.compartment_missing.policy, "fields": ledger}}
             except ValueError as exc:
                 raise HTTPException(409, str(exc)) from None
+        elif body.compartment_missing is not None:
+            raise HTTPException(409, "compartment_missing_policy_not_applicable")
         invalidated = set(report.get("invalidated_nucleoli", []))
         if invalidated != set(body.accept_invalidated_fields):
             raise HTTPException(409, "explicit_review_of_invalidated_nucleoli_required")
@@ -709,6 +746,7 @@ def create_app(settings: Settings | None = None):
                     review_record={
                         "confirmed_at": time.time(),
                         "accepted_invalidated_fields": body.accept_invalidated_fields,
+                        **missing_record,
                     },
                 )
             )
@@ -1025,6 +1063,7 @@ def create_app(settings: Settings | None = None):
             "estimates.csv": "text/csv",
             "estimates-groups.csv": "text/csv",
             "estimates-runs.csv": "text/csv",
+            "compartment-missing.csv": "text/csv",
             "counts.csv": "text/csv",
             "graphical-summary.csv": "text/csv",
             "unit-summary.csv": "text/csv",

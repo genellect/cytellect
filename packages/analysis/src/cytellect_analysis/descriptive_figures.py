@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib.text import Text
 
 from .common_statistics_figures import COMPARTMENT_LABELS
+from .compartment_review import compartment_missing_lines
 from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
 from .exports_csv import write_csv
@@ -116,6 +117,13 @@ def _caption(result, labels):
 
 def descriptive_methods(result, *, methods_template=None):
     """Record the selected protocol rather than borrowing inferential Methods text."""
+    text = _descriptive_methods(result, methods_template=methods_template)
+    missing = compartment_missing_lines(result)
+    # Unresolved nucleoli kept as missing (Q-05) are stated with every descriptive Methods text.
+    return text + ("\n" + "\n".join(missing) + "\n" if missing else "")
+
+
+def _descriptive_methods(result, *, methods_template=None):
     if methods_metadata(methods_template):
         return readable_descriptive_methods(result)
     spec = parse_descriptive_request(result["spec"])

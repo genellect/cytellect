@@ -18,7 +18,8 @@ from .common_unit_inference import (
 from .comparison_estimates import comparison_estimates
 from .compartment_observations import LOG2, acquisition_proxy, compartment_comparison_source
 from .compartment_observations import SAFE_ERROR_CODES as COMPARTMENT_ERRORS
-from .descriptive_contracts import RegionSelection
+from .compartment_review import compartment_missing_summary, confirmed_policy
+from .descriptive_contracts import CompartmentMissingSummary, RegionSelection
 from .field_summary_source import prepare_field_summary_observations
 from .gfp_selection import SAFE_ERROR_CODES as GFP_GATE_ERRORS
 from .gfp_selection import gate_of, gate_source_observations, gate_warnings
@@ -42,6 +43,8 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | fr
     "comparison_estimates_single_contrast_required", "comparison_estimates_unknown_metric",
     "field_summary_positivity_not_connected", "field_summary_nuclear_source_required", "field_summary_status_mismatch", "field_summary_region_identity",
     "field_summary_invalid_calibration",
+    "compartment_missing_association_unsupported", "compartment_missing_policy_unknown",
+    "compartment_missing_ledger_changed", "compartment_state_not_missing", "compartment_ledger_invalid",
 })
 
 
@@ -149,6 +152,10 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
     if omnibus:
         omnibus["conditions"] = list(request.conditions)
     counts = _counts(data, request.conditions, paired)
+    # Unresolved nucleoli kept as missing (Q-05): the confirmed ledger and its warning travel with the result.
+    missing = compartment_missing_summary(config, request.conditions)
+    if missing is not None and missing["warnings"]:
+        data["warnings"].append("compartment_missing_rate_differs")
     if request.test == "none":
         data["warnings"].append("descriptive_comparison_no_test_or_interval")
     elif any(row["experimental_units"] < 5 for row in counts):
@@ -159,6 +166,7 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
     return RegionComparisonResultV2(
         inference_version=VERSION, revision_id=report["revision_id"], source_fingerprint=source_fingerprint(report, config),
         spec=request, comparisons=comparisons, means=means, counts=counts, omnibus=omnibus, estimates=estimates,
+        compartment_missing=None if missing is None else CompartmentMissingSummary.model_validate(missing),
         method_settings={"test": request.test, "omnibus": request.omnibus, "correction": "Holm",
                          "family_id": request.comparison_family.family_id,
                          "family_size": len(comparisons), "contrast_policy": "all declared contrasts regardless of omnibus p",
@@ -168,6 +176,9 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
 
 def analyze_region_association(report, config, request, *, nuclear=None):
     request = RegionAssociationRequest.model_validate(request)
+    if confirmed_policy(config) is not None:
+        # Its result has no place for the missing-nucleoli ledger; the policy is for comparisons and descriptions.
+        raise ValueError("compartment_missing_association_unsupported")
     # Reuse the exact source/design/acquisition review without fabricating tests.
     # All condition pairs are acquisition checks only; they do not produce p-values.
     contrasts = ([[a, b] for i, a in enumerate(request.conditions) for b in request.conditions[i + 1:]]

@@ -188,8 +188,16 @@ class StatisticsRequest(StrictModel):
             raise ValueError("duplicate_region_sensitivity_revisions")
         return self
 
+class CompartmentMissingConfirmation(StrictModel):
+    """The researcher's confirmation of the unresolved-nucleoli list (policy 1.0.0, requirements Q-05):
+    per field, the number of nuclei kept as missing by reason, exactly as the revision records them."""
+    policy: Literal["unresolved-as-missing/1.0.0"]
+    confirmed: dict[str, dict[str, Annotated[int, Field(strict=True, ge=1)]]] = Field(max_length=100)
+
+
 class ReviewInput(StrictModel):
     accept_invalidated_fields: list[str] = Field(default_factory=list, max_length=100)
+    compartment_missing: CompartmentMissingConfirmation | None = None
 
 class ResegmentInput(StrictModel):
     recipe: Recipe | None = None

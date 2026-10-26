@@ -275,6 +275,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/compartment-ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compartment Ledger View
+         * @description Per field: all nuclei, those with an established nucleolus, the missing ones by reason and the
+         *     explicitly excluded ones, for the confirmation before statistics (Q-05). A state that cannot be
+         *     kept as missing is refused with its reason.
+         */
+        get: operations["compartment_ledger_view_v1_revisions__rid__compartment_ledger_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/review": {
         parameters: {
             query?: never;
@@ -2020,6 +2042,7 @@ export interface components {
                 [key: string]: unknown;
             };
             estimates?: components["schemas"]["ComparisonEstimates"] | null;
+            compartment_missing?: components["schemas"]["CompartmentMissingSummary"] | null;
             /** Figure */
             figure: {
                 [key: string]: unknown;
@@ -2103,6 +2126,79 @@ export interface components {
             control?: string | null;
             /** Contrasts */
             contrasts: string[][];
+        };
+        /**
+         * CompartmentMissingConfirmation
+         * @description The researcher's confirmation of the unresolved-nucleoli list (policy 1.0.0, requirements Q-05):
+         *     per field, the number of nuclei kept as missing by reason, exactly as the revision records them.
+         */
+        CompartmentMissingConfirmation: {
+            /**
+             * Policy
+             * @constant
+             */
+            policy: "unresolved-as-missing/1.0.0";
+            /** Confirmed */
+            confirmed: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+        };
+        /**
+         * CompartmentMissingRow
+         * @description One condition × experimental unit of the confirmed unresolved-nucleoli ledger (Q-05):
+         *     nuclei = resolved + missing; excluded is part of resolved; the denominator is all nuclei.
+         */
+        CompartmentMissingRow: {
+            /** Condition */
+            condition: string | null;
+            /** Experimental Unit */
+            experimental_unit: string | null;
+            /** Run */
+            run: string | null;
+            /** Fields */
+            fields: number;
+            /** Nuclei */
+            nuclei: number;
+            /** Resolved */
+            resolved: number;
+            /** Missing */
+            missing: number;
+            /** Excluded */
+            excluded: number;
+            /** Reasons */
+            reasons: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * CompartmentMissingSummary
+         * @description Unresolved-nucleoli policy 1.0.0: values describe the nuclei whose nucleolus was established.
+         */
+        CompartmentMissingSummary: {
+            /**
+             * Policy
+             * @constant
+             */
+            policy: "unresolved-as-missing/1.0.0";
+            /** Warning Points */
+            warning_points: number;
+            /** Rows */
+            rows: components["schemas"]["CompartmentMissingRow"][];
+            /** Warnings */
+            warnings: components["schemas"]["CompartmentMissingWarning"][];
+        };
+        /** CompartmentMissingWarning */
+        CompartmentMissingWarning: {
+            /** Run */
+            run: string | null;
+            /** Difference Points */
+            difference_points: number;
+            /** Fractions */
+            fractions: {
+                [key: string]: number;
+            };
         };
         /**
          * CompartmentSummarySelection
@@ -4186,6 +4282,8 @@ export interface components {
             /** Expected Active Revision Id */
             expected_active_revision_id: string | null;
             workspace_selection?: components["schemas"]["WorkspaceSelection"] | null;
+            /** Compartment Missing */
+            compartment_missing?: "unresolved-as-missing/1.0.0" | null;
         };
         /** RegionComparisonPlot */
         RegionComparisonPlot: {
@@ -5278,6 +5376,7 @@ export interface components {
         ReviewInput: {
             /** Accept Invalidated Fields */
             accept_invalidated_fields?: string[];
+            compartment_missing?: components["schemas"]["CompartmentMissingConfirmation"] | null;
         };
         /** RevisionInput */
         RevisionInput: {
@@ -6060,6 +6159,7 @@ export interface components {
              * @default null
              */
             source_review: "automatic_unreviewed" | null;
+            compartment_missing?: components["schemas"]["CompartmentMissingSummary"] | null;
         };
     };
     responses: never;
@@ -6655,6 +6755,39 @@ export interface operations {
                 "application/json": components["schemas"]["RevisionInput"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compartment_ledger_view_v1_revisions__rid__compartment_ledger_get: {
+        parameters: {
+            query?: {
+                field_id?: string | null;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

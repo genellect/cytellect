@@ -42,6 +42,16 @@ def run_descriptive(store, job, output):
     snapshot = rev["config"]["field_snapshot"]
     if set(snapshot) != set(rev["config"]["field_ids"]):
         raise ValueError("descriptive_field_snapshot_mismatch")
+    from cytellect_analysis.compartment_review import (
+        assert_reviewed_compartments,
+        confirmed_policy,
+        with_compartment_missing,
+    )
+
+    config = {**rev["config"], "review_record": rev["review_record"] or {}}
+    # Unresolved nucleoli kept as missing (Q-05): the confirmed ledger must still hold for any selection.
+    if not preview and confirmed_policy(config) is not None:
+        assert_reviewed_compartments(config, report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
     if request.selection.source == "compartment-summary":
         from cytellect_analysis.compartment_observations import describe_compartment_summary
 
@@ -49,10 +59,8 @@ def run_descriptive(store, job, output):
 
         if not generic or preview:
             raise ValueError("descriptive_source_mismatch")
-        from cytellect_analysis.compartment_review import assert_complete_compartments
-
         if request.selection.version == "1.1.0":
-            assert_complete_compartments(rev["config"], report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
+            assert_reviewed_compartments(config, report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
         summaries = load_compartment_summaries(store, rev, report)
         shapes = (load_nucleolar_shapes(store, rev, report, summaries)
                   if request.selection.metric == "nucleolar_eccentricity" else None)
@@ -73,6 +81,8 @@ def run_descriptive(store, job, output):
     result["revision_id"] = rev["id"]
     if preview:
         result["source_review"] = "automatic_unreviewed"
+    else:
+        with_compartment_missing(result, config)
     result["figure"] = render_descriptive_output(result, output, methods_template=CURRENT_METHODS_TEMPLATE)
     write_json(output / "result.json", result)
     if result["figure"].get("status", "ready") == "ready":

@@ -47,14 +47,20 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
         expected_source = ("region", "compartment-summary", "field-summary") if is_region(rev) else ("legacy-cell",)
         if body.selection.source not in expected_source:
             raise HTTPException(422, "descriptive_source_mismatch")
+        from cytellect_analysis.compartment_review import assert_reviewed_compartments, confirmed_policy
+
+        config = {**rev["config"], "review_record": rev["review_record"] or {}}
+        try:
+            policy = confirmed_policy(config)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
         if body.selection.source == "compartment-summary":
             require_compartment_revision(rev)
-            if body.selection.version == "1.1.0":
-                from cytellect_analysis.compartment_review import assert_complete_compartments
-                try:
-                    assert_complete_compartments(rev["config"], report, read_json(result_root(rev) / "provenance.json"))
-                except ValueError as exc:
-                    raise HTTPException(409, str(exc)) from None
+        if (body.selection.source == "compartment-summary" and body.selection.version == "1.1.0") or policy is not None:
+            try:
+                assert_reviewed_compartments(config, report, read_json(result_root(rev) / "provenance.json"))
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from None
         if is_region(rev):
             require_gfp_gate_source(rev, body.selection)
         with store.transaction() as conn:

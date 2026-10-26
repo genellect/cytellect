@@ -3,7 +3,7 @@ import hashlib
 import json
 import time
 from copy import deepcopy
-from typing import Annotated
+from typing import Annotated, Literal
 
 from cytellect_analysis.compartment_review import assert_complete_compartments, comparable_region_recipe
 from cytellect_analysis.images import sha256
@@ -36,6 +36,9 @@ class RegionCohortRequest(RegionModel):
     metadata: Annotated[dict[Id, RegionFieldMetadata], Field(min_length=1, max_length=100)]
     expected_active_revision_id: Id | None
     workspace_selection: WorkspaceSelection | None = None
+    # Unresolved-nucleoli policy (Q-05): nuclei without an established nucleolus stay as missing;
+    # the review then confirms the per-field list. Absent: every parent must be resolved, as before.
+    compartment_missing: Literal["unresolved-as-missing/1.0.0"] | None = None
 
     @model_validator(mode="after")
     def complete_metadata(self):
@@ -115,9 +118,10 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                 # A nucleus whose nucleolus was not found (or not resolved) leaves the compartment
                 # incomplete; the researcher has to see which condition blocks the statistics.
                 try:
-                    assert_complete_compartments(config, report, provenance, [fid])
-                except ValueError:
-                    raise HTTPException(409, "cohort_compartments_unresolved") from None
+                    assert_complete_compartments(config, report, provenance, [fid], policy=body.compartment_missing)
+                except ValueError as exc:
+                    # Under the policy a state that cannot be kept as missing keeps its own reason.
+                    raise HTTPException(409, str(exc) if body.compartment_missing else "cohort_compartments_unresolved") from None
             if fid not in report["field_tables"] or fid not in report["field_masks"]:
                 raise HTTPException(409, "cohort_source_field_not_measured")
             original = config["field_snapshot"][fid]
@@ -141,6 +145,8 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                   "cohort_version": "1.0.0" if policy == {"version": "1.1.0", "mode": "raw_intensity"} else "1.1.0"}
         if adoption:
             config["workspace_selection"] = adoption
+        if body.compartment_missing is not None:
+            config["compartment_missing"] = body.compartment_missing
         fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         config["cohort_request_sha256"] = fingerprint
         with store.transaction() as conn:
