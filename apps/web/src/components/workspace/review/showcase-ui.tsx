@@ -22,7 +22,7 @@ export const ShowcaseContext = createContext<ShowcaseUi>({enabled: false, option
 export function SceneSwitcher({scenes, scene}: {scenes: ShowcaseScene[]; scene: ShowcaseScene | null}) {
   if (scenes.length < 2) return null;
   // A full page load (not client navigation) so the workspace runtime starts from the new scene.
-  return <label className={styles.scene}>場面<select value={scene?.id ?? ""} onChange={event => {
+  return <label className={styles.scene}><span className={styles.sceneLabel}>場面</span><select aria-label="場面" title={scene?.label} value={scene?.id ?? ""} onChange={event => {
     const next = scenes.find(item => item.id === event.target.value);
     if (next) window.location.href = new URL(`/demo?id=${encodeURIComponent(next.workspaceId)}`, window.location.origin).href;
   }}>{scenes.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>;
@@ -90,7 +90,8 @@ export function DatasetCredit({dataset}: {dataset: ShowcaseDataset}) {
 }
 /** Short, always visible image credit beside the field list; the badge holds the full attribution. */
 export function SideCredit({dataset}: {dataset: ShowcaseDataset}) {
-  return <p className={styles.sideCredit} title={dataset.attribution}>公開画像{dataset.licence && <> · {dataset.licenceUrl ? <a href={dataset.licenceUrl} target="_blank" rel="noreferrer">{dataset.licence}</a> : dataset.licence}</>}{dataset.sourceUrl && <> · <a href={dataset.sourceUrl} target="_blank" rel="noreferrer">画像の出典</a></>}</p>;
+  // Each part keeps its words together; the parts wrap as units in a narrow sidebar.
+  return <p className={styles.sideCredit} title={dataset.attribution}><span>公開画像</span>{dataset.licence && <span>{dataset.licenceUrl ? <a href={dataset.licenceUrl} target="_blank" rel="noreferrer">{dataset.licence}</a> : dataset.licence}</span>}{dataset.sourceUrl && <a href={dataset.sourceUrl} target="_blank" rel="noreferrer">画像の出典</a>}</p>;
 }
 export function DemoBadge({dataset}: {dataset: ShowcaseDataset | null}) {
   if (!dataset) return <span className={styles.badge}>デモ</span>;

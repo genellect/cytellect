@@ -19,14 +19,13 @@ import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
 import type {components} from "@/lib/generated";
 import {comparisonDefaults,fieldMetadata,type ExperimentDesign} from "@/lib/workspace/experiment-design";
-import {breakdown,summarize,type ComparisonEstimates,type CountRow,type FieldLedgerRow,type SavedComparison} from "@/lib/result-summary";
+import {breakdown,formatNumber,summarize,type ComparisonEstimates,type CountRow,type FieldLedgerRow,type SavedComparison} from "@/lib/result-summary";
 
 export interface ConnectedResultItem {fieldId:string;label:string;result?:SavedResult;metadata?:Metadata;excluded?:boolean}
 export interface ConnectedResultsProps {
   adapter:ApiAdapter;workspace:string;selection:WorkspaceSelection|null;items:ConnectedResultItem[];
   target:ReviewTarget;metric:string;channel:string|null;mode:"statistics"|"figure";
   /** The saved two-group result in words and its figure, for the image view (requirements X-01). */
-  onHeadline?:(value:{headline:string;figure:string|null}|null)=>void;
   onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
   gfp?:GfpSelectionChoice|null;
   initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals">;
@@ -53,7 +52,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment,onHeadline}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   const comparison=useMemo(()=>createComparisonAdapter(),[]);
   const [csv,setCsv]=useState(false);
@@ -153,10 +152,6 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const excludedCount=items.filter(item=>item.excluded).length;
   const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&!unsupportedAxes&&!independenceMissing&&!datesMissing;
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
-  const headlineFigure=saved&&svgFiles[0]?`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(svgFiles[0])}`:null;
-  const headlineEstimates=saved?.operation==="comparison"?saved.result.estimates??null:null;
-  const headline=headlineEstimates?summarize(headlineEstimates,(saved?.result.comparisons?.[0]??{}) as SavedComparison,metricLabels[headlineEstimates.metric]||headlineEstimates.metric,saved?.result.unit||"").headline:null;
-  useEffect(()=>{onHeadline?.(headline?{headline,figure:headlineFigure}:null);},[headline,headlineFigure]);// eslint-disable-line react-hooks/exhaustive-deps
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
   function openPoint(source:FigureSource){if(!saved)return;if(source.field_id){if(!resultSources(saved.result).some(field=>field.field_id===source.field_id))return;onSource(source.field_id,source.region_id??source.nucleus_id,saved.revision,saved.target,savedChannel);}else if(source.experimental_unit){setPointSource({job:saved.figureJob,source});}}
@@ -269,7 +264,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {!saved&&<p>統計画面で計算すると、結果を使って図を編集できます。</p>}
       </>}
       {savedNote&&<p role="status" className={styles.demoNote}>{savedNote}</p>}
-      {demo&&<p className={styles.demoNote}>公開デモでは、記録した解析の範囲で操作できます。方法・ラベル・軸・色などの変更は、お手元の画像で Windows 版から行えます。</p>}
+      {demo&&<p className={styles.demoNote} title="方法・ラベル・軸・色などの変更は、お手元の画像で Windows 版から行えます。">デモでは、記録した解析の範囲で操作できます。</p>}
       {missing>0&&<><p role="status">{missing} 視野の測定が未完了です。</p>{onPrepareMissing&&<button disabled={!!busy||disabled} onClick={()=>{setBusy("必要な測定値を計算中…");void onPrepareMissing().catch(cause=>setError(fail(cause))).finally(()=>setBusy(""));}}>必要な測定値を計算</button>}</>}
       {stale&&<p role="status">測定結果または解析条件が変わりました。再計算してください。</p>}
       {error&&<ErrorText text={error}/>}
@@ -277,14 +272,18 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     </div>
     <div className={styles.output} ref={outputRef}>
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}
-      {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open={!saved&&!experiment}><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
+      {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open={!saved&&!experiment}><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
         {mode==="statistics"&&(saved.result.spec?.selection?.metric??saved.result.metric)!==metric&&<p role="status" className={styles.previous}>表示中は前の結果（{metricLabels[saved.result.spec?.selection?.metric??saved.result.metric??""]||"別の指標"}）です。「計算」で、選んだ指標（{metricLabels[metric]||metric}）の結果になります。</p>}
-        {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
+        {mode==="statistics"?<div className={styles.resultGrid} data-columns={(!!saved.result.estimates||saved.operation==="distribution"&&!!experiment)&&svgFiles.length>0?2:1}>
+          <div>
+            {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
           reported={showcaseDataset?.reported??null}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}/>}
-        {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={metricLabels[saved.result.metric||""]||saved.result.metric||""} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null}/>}
-        {svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
+            {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={metricLabels[saved.result.metric||""]||saved.result.metric||""} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null}/>}
+          </div>
+          <div>{svgFiles.map(file=><VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}</div>
+        </div>:svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel)}/></section>}
         {!svgFiles.length&&<p>この設定では図を表示できません。測定表と出力条件を確認してください。</p>}
         {mode==="statistics"&&tableRows&&(saved.result.estimates
@@ -305,7 +304,7 @@ function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];f
   const keys=[...new Set(rows.flatMap(row=>Object.keys(row)))];
   const names:Record<string,string>={field_id:"視野",region_id:"領域番号",nucleus_id:"親核番号",value:"測定値",condition:"群",input_rows:"入力領域数",excluded:"除外領域数",gate_unselected:"GFP選別の対象外数",missing_metric_selected:"採用対象の測定値欠測数",selected_rows:"採用領域数",mean:"平均値",median:"中央値",q1:"第1四分位",q3:"第3四分位",minimum:"最小値",maximum:"最大値",p_value:"p 値",p_adjusted:"補正 p 値",p_holm:"Holm補正 p 値",estimate:"推定値",coefficient:"相関係数",ci_low:"95% CI 下限",ci_high:"95% CI 上限",n:"対象数",missing_reason:"欠測理由",reason:"理由",group_a:"群 A",group_b:"群 B",observations:"採用領域数",input_fields:"入力視野数",selected_fields:"採用視野数",excluded_failed_fields:"除外した失敗視野数",samples:"試料数",input_units:"入力独立実験単位数",experimental_units:"採用独立実験単位数",explicitly_excluded_units:"除外独立実験単位数",complete_pairs:"完全ペア数",effect:"効果量",effect_name:"効果量の種類",method:"方法",scope:"対象",status:"状態"};
   const statuses:Record<string,string>={selected:"採用",no_regions:"領域なし",no_selected_values:"採用できる測定値なし",excluded:"除外",missing:"欠測"};
-  return <div className={styles.tableScroll}><table><thead><tr>{keys.map(key=><th key={key} scope="col" style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{names[key]||key}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={index}>{keys.map(key=><td key={key}>{key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:key==="status"&&typeof row[key]==="string"?statuses[row[key]]||row[key]:row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key])}</td>)}</tr>)}</tbody></table></div>;
+  return <div className={styles.tableScroll} tabIndex={0}><table><thead><tr>{keys.map(key=><th key={key} scope="col" style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{names[key]||key}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={index}>{keys.map(key=><td key={key}>{key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:key==="status"&&typeof row[key]==="string"?statuses[row[key]]||row[key]:row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key])}</td>)}</tr>)}</tbody></table></div>;
 }
 
 /** A distribution of a two-group design read by run: each saved field median in its run and group.
@@ -314,28 +313,39 @@ function RunMedians({design,summary,metricLabel,unit,reported}:{design:Experimen
   const table=runTable(design,summary);
   if(!table)return null;
   return <section className={styles.summary} aria-label="実験回と群ごとの値">
-    {reported&&<p className={styles.reported}><strong>出典の報告</strong>{reported.comparison}：{reported.direction}。{reported.quantity}（{reported.source}）<br/><strong>このデモでの測定</strong>以下は、この公開画像を Cytellect で測った値です。{reported.scope}{reported.independence&&<><br/><strong>実験回の独立性</strong>{reported.independence}</>}</p>}
     <p className={styles.headline}>{metricLabel}：視野ごとの中央値{unit?`（${unit}）`:""}を、実験回と群ごとに並べています。</p>
     <table><thead><tr><th scope="col">実験回</th>{table.groups.map(group=><th key={group.id} scope="col">{group.label}{group.id===design.control_group_id?"（対照）":""}</th>)}</tr></thead>
       <tbody>{table.runs.map(run=><tr key={run.id}><th scope="row">{run.label}</th>{run.cells.map((cell,index)=><td key={table.groups[index].id}>{cell.length?cell.map(value=>formatValue(value)).join("、"):"—"}</td>)}</tr>)}</tbody></table>
     <p>{design.independence_confirmed?"群の差と信頼区間は「群間比較」で計算します。":"実験回の独立性が確認されていないため、「群間比較」でも検定と信頼区間は計算せず、実験回ごとの値と差を示します。"}</p>
+    {reported&&<ReportedSource reported={reported}/>}
   </section>;
+}
+
+/** A run table value as the sentence writes it; differences carry their sign. */
+const runValue=(value:number|null|undefined,signed=false)=>value==null?"—":`${value<0?"−":signed&&value>0?"+":""}${formatNumber(Math.abs(value))}`;
+
+/** What the image source reports and how this demo measures, read after the result and folded (N-06). */
+function ReportedSource({reported}:{reported:NonNullable<ShowcaseDataset["reported"]>}){
+  return <details className={styles.reported}><summary>出典の報告と、このデモでの測定</summary>
+    <p><strong>出典の報告</strong>{reported.comparison}：{reported.direction}。{reported.quantity}（{reported.source}）</p>
+    <p><strong>このデモでの測定</strong>以下は、この公開画像を Cytellect で測った値です。{reported.scope}</p>
+    {reported.independence&&<p><strong>実験回の独立性</strong>{reported.independence}</p>}</details>;
 }
 
 /** The comparison stated in words first (S-01–S-07); every number is the saved result's. */
 function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"]}){
   const summary=summarize(estimates,comparison,metricLabel,unit);
   return <section className={styles.summary} aria-label="結果のまとめ">
-    {reported&&<p className={styles.reported}><strong>出典の報告</strong>{reported.comparison}：{reported.direction}。{reported.quantity}（{reported.source}）<br/><strong>このデモでの測定</strong>以下は、この公開画像を Cytellect で測った値です。{reported.scope}{reported.independence&&<><br/><strong>実験回の独立性</strong>{reported.independence}</>}</p>}
     <p className={styles.headline}>{summary.headline}</p>
     {summary.interval&&<p>{summary.interval}</p>}
     <p>{summary.test}</p>
     {summary.runs&&<p>{summary.runs}</p>}
     {/* With few runs the run values carry the result, so they are shown open (S-07). */}
     {estimates.runs.length>0&&<details open={estimates.runs.length<5}><summary>実験回ごとの値</summary><table><thead><tr><th>実験回</th><th>{estimates.control}</th><th>{estimates.treatment}</th><th>差（{estimates.treatment} − {estimates.control}）{estimates.scale==="fraction"?" / ポイント":""}</th></tr></thead>
-      <tbody>{estimates.runs.map(run=><tr key={run.pair}><th>{run.pair}</th><td>{formatValue(run.control)}</td><td>{formatValue(run.treatment)}</td><td>{formatValue(run.difference)}</td></tr>)}</tbody></table></details>}
+      <tbody>{estimates.runs.map(run=><tr key={run.pair}><th>{run.pair}</th><td>{runValue(run.control)}</td><td>{runValue(run.treatment)}</td><td>{runValue(run.difference,true)}</td></tr>)}</tbody></table></details>}
     <details><summary>n の内訳と除外</summary><ul>{counts.groups.map(value=><li key={value}>{value}</li>)}</ul>
       <p>{counts.exclusions.length?"除外・欠測（実験回ごと）":"除外した視野・領域と、測定値の欠測はありません。"}</p>{counts.exclusions.length>0&&<ul>{counts.exclusions.map(value=><li key={value}>{value}</li>)}</ul>}</details>
     <ul className={styles.cautions}>{[...summary.cautions,...warnings].map(value=><li key={value}>{value}</li>)}</ul>
+    {reported&&<ReportedSource reported={reported}/>}
   </section>;
 }

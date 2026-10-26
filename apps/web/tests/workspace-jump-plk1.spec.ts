@@ -191,7 +191,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await pairButton.click();
   await expect(pairButton).toHaveAttribute("aria-pressed", "false");
   await expect(control).toHaveCount(0);
-  await expect(page.getByRole("img", {name: /Hoechst/}).first()).toBeVisible();
+  await expect(page.getByRole("group", {name: /Hoechst/}).first()).toBeVisible();
   expect(await sidebar.getByRole("button").filter({hasText: /核\s+\d/}).allTextContents()).toEqual(sidebarBefore);
   await page.screenshot({path: path.join(output, "single-measured.png")});
   await pairButton.click();

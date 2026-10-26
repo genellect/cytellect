@@ -26,6 +26,8 @@ const normalizedRuntimeSettings=(settings:RuntimeSettings):RuntimeSettings=>({..
   nucleolarDefinition:{...defaultRuntimeSettings().nucleolarDefinition,...settings.nucleolarDefinition},cellDefinition:settings.cellDefinition??{source:"manual",channel:""}});
 export interface RuntimeSnapshot {
   data: ReviewData | null; busy: boolean; operation: string; error: string; assignments: ChannelAssignments;
+  /** True while fields and saved results load (nothing to stop; analyses wait). */
+  loading: boolean;
   activeTarget: ReviewTarget; settings: RuntimeSettings; proposal: ValidatedProposal | null; processing: ProposalProcessing | null; importIssues: Grouping["issues"];
 }
 type Adapter = ReturnType<typeof createApiAdapter>;
@@ -128,7 +130,7 @@ export function runtimeProposalProcessing(channel:ChannelDefinition,settings:Run
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
-  let state:RuntimeSnapshot={data:null,busy:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[]};
+  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[]};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify(value)}));
   let specification:RuntimeSpecification={version:0,spec:null},specificationDirty=false;
@@ -344,14 +346,14 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
   return {
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
-    async load(id?:string){closed=false;publish({busy:true,error:"",operation:"画像と保存結果を読み込み中"});
+    async load(id?:string){closed=false;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中"});
       // The first field shows as soon as it has loaded; the others follow in the background.
-      try{await refresh(id,true,1);}catch(error){publish({busy:false,operation:"",error:message(error)});throw error;}
+      try{await refresh(id,true,1);}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
       try{
         // A two-group design opens side by side: the first run's field of each group comes next (V-01).
         const opening=openingPair(specification.spec?.experiment??null);
         if(registered.size>2&&opening.length>1&&!opening.every(id=>state.data?.fields.some(field=>field.id===id))){await painted();await refresh(workspace(),false,undefined,opening);}
-        if(registered.size>1){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}},
+        if(registered.size>1){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},

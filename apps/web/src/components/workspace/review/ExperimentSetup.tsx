@@ -75,7 +75,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
     <p className={styles.lead}>{draft.layout==="pair"
       ?"同じ実験回（実験日）に行った対照と処理を対にして比べます。n は実験回の数で、細胞や視野の数ではありません。"
       :"1 つの群の値の分布を、実験回ごとに示します。"}</p>
-    <div className={styles.grid} style={{gridTemplateColumns:`minmax(140px,180px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
+    <div className={styles.grid} style={{gridTemplateColumns:`minmax(200px,270px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
       <div role="row" className={styles.row}>
         <div role="columnheader" className={styles.corner}>実験回</div>
         {draft.groups.map(group=><div role="columnheader" key={group.id} className={styles.groupHead}>

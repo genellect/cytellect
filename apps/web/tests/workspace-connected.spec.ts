@@ -118,7 +118,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   expect(runCount).toBe(1);
   await expect(page.getByRole("button", {name: "DAPI · c1", exact: true})).toBeVisible();
   await expect(page.getByRole("button", {name: "GFP · c2", exact: true})).toBeVisible();
-  const image = page.getByRole("img", {name: /DAPI/}).first();
+  const image = page.getByRole("group", {name: /DAPI/}).first();
   await expect(image).toBeVisible();
   const dimensions = await image.evaluate(element => {
     const imageRect = element.querySelector("image")!.getBoundingClientRect();

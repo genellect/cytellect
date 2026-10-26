@@ -39,7 +39,7 @@ test("a new target cannot display the previous target mask while running or afte
     return json({detail:"unused_fixture_route"},404);
   });
   await page.goto("/workspace?id=mask-identity");
-  const image = page.getByRole("img", {name:/視野 1.*c1/});
+  const image = page.getByRole("group", {name:/視野 1.*c1/});
   await expect(image.locator('[data-region="7"]')).toHaveCount(1);
   const overflow = () => image.evaluate(element => {
     const viewport = element.parentElement!;

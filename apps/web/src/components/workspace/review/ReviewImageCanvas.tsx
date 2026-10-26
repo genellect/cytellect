@@ -49,6 +49,8 @@ export interface ReviewImageCanvasProps {
   markers?: ReferenceMarker[];
   /** Initial magnification relative to the whole-image fit (display only). */
   initialZoom?: number;
+  /** Start filled: the image covers the viewport (cropped) instead of fitting inside it (display only). */
+  initialFill?: boolean;
   /** Image point (source pixels) the initial magnification centres on; the image centre when absent. */
   initialFocus?: Point;
 }
@@ -113,7 +115,7 @@ function Icon({kind}: {kind: keyof typeof iconPaths}) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;
 }
 
-export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, markers, initialZoom, initialFocus}: ReviewImageCanvasProps) {
+export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, markers, initialZoom, initialFill = false, initialFocus}: ReviewImageCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<Size>({width: 0, height: 0});
   const [manual, setManual] = useState<{source: string; camera: Camera} | null>(null);
@@ -138,7 +140,9 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const whole = reviewImageFit(imageSize, available);
   // 画像全体を表示 switches to the whole-image fit, which keeps following viewport size changes.
   const [wholeView, setWholeView] = useState(false);
-  const zoomed = initialZoom && initialZoom > 1 && !wholeView ? whole.scale * initialZoom : 0;
+  const cover = initialFill && Math.min(width, height, available.width, available.height) > 0 ? Math.max(available.width / width, available.height / height) / whole.scale : 0;
+  const factor = initialZoom ?? cover;
+  const zoomed = factor && factor > 1 && !wholeView ? whole.scale * factor : 0;
   const fit = zoomed ? boundedCamera(initialFocus
     ? {scale: zoomed, x: available.width / 2 - initialFocus[0] * zoomed, y: available.height / 2 - initialFocus[1] * zoomed}
     : reviewImageZoom(whole, zoomed, {x: available.width / 2, y: available.height / 2}), imageSize, available) : whole;
@@ -284,7 +288,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       onPointerUp={endDrag} onPointerCancel={endDrag}
       onPointerLeave={event => {if (drag.current && !drag.current.moved) endDrag(event);}}
       onDoubleClick={event => {if (!draft && !suppressClick.current && onOpen) {event.preventDefault(); onOpen();}}}>
-      <svg className={styles.image} role="img" aria-label={label} width="100%" height="100%">
+      <svg className={styles.image} role="group" aria-roledescription="画像" aria-label={label} width="100%" height="100%">
         <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.scale})`}>
           {layers?.length ? <>
             <defs>{layers.map((layer, index) => <filter key={layer.src} id={`tint-${index}-${layer.color.slice(1)}`} colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values={tint(layer.color)}/></filter>)}</defs>
