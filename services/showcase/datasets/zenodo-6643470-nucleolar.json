@@ -29,7 +29,7 @@
    "Rep1–Rep3 は同じ日（2021-12-01）に連番で撮影されています。独立した実験であることは出典で確認できないため、この場面では推測統計を行いません。",
    "各反復・各条件で、ファイル名の順に最初の 3 視野を使います。各画像から 640 × 640 画素（104 µm 角）を、核染色（Hoechst）が最も多く写る位置で切り出しています（NPM1 と 5-EU は見ていません）。視野は数・大きさ・信号で選んでいません。",
    "核小体は NPM1 の分布から決めます。ActD では NPM1 の一部が核質へ移るため、核小体の輪郭は NPM1 の分布も反映します。",
-   "核小体が決まらない核があると、その視野の核小体の統計を計算できません。そうした物体のうち、面積が視野の核の面積の中央値の 0.6 倍未満のものだけを、画面の「選択領域を削除」と同じ操作で核から除いています（規則は面積だけで判定します。今回の 3 個は、いずれも切り出しの端にかかる物体でした。一覧は manifest.json の scenario.fragment_review）。",
+   "核小体を確定できない核は、核から消さずに欠測として残しています（要件 Q-05）。統計を計算する前に群・実験回・理由ごとの一覧で確かめ、結果の近くに、群・実験回ごとの核の総数と欠測の数を示します。同じ実験回の中で群の欠測の割合が 10 ポイント以上違うときは警告します。値は核小体を確定できた核についてのもので、欠測による偏りを補正した推定ではありません。",
    "論文の図の 5-EU は核小体の面積あたり・核小体ごとの値で、デモの核小体の平均 5-EU（核ごと）とは単位と正規化が異なります。比べるのは変化の向きです。",
    "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
@@ -78,7 +78,7 @@
   "step": 64,
   "basis": "The 640 x 640 window, on a 64-pixel grid, holding the most Hoechst pixels above the plane's Otsu threshold; ties go to the window nearest the centre. Only the nuclear channel is read, never NPM1 or 5-EU (cytellect_showcase.build.nuclear_window)."
  },
- "derivation_amendment": "Amended after the first scenario run, before any nucleolar or 5-EU value was read: the pre-registered centre crops held 0-2 nuclei in four of the 18 fields (Rep1 ActD file 52, Rep2 ActD file 112, Rep3 Untreated files 121 and 122); in Rep3 Untreated file 122 the crop held no nucleus and StarDist returned 51 objects in the cytoplasm, which left the field's nucleolar compartments unresolved and stopped the build. The crop position is now chosen per field from the nuclear stain alone (crop_rule). The 18 files, channels, groups, runs and every later rule are unchanged; no field is removed. Second amendment, after the re-cropped scenario run and before any nucleolar or 5-EU value was read: three objects had no established nucleolus (all three lay at the crop border on the overlay; the rule itself reads area only) (152, 2079 and 3222 px; 0.03, 0.49 and 0.58 of their field's median nuclear area), which leaves those fields' compartments unresolved. The build's existing fragment review (scenario.fragment_review, used by the earlier public demo of this dataset) is applied: an unresolved object smaller than 0.6 of its field's median nuclear area is deleted from the nuclei, as the workspace's region deletion does, and listed in manifest.json (scenario.fragment_review); any larger unresolved nucleus stops the build.",
+ "derivation_amendment": "Amended after the first scenario run, before any nucleolar or 5-EU value was read: the pre-registered centre crops held 0-2 nuclei in four of the 18 fields (Rep1 ActD file 52, Rep2 ActD file 112, Rep3 Untreated files 121 and 122); in Rep3 Untreated file 122 the crop held no nucleus and StarDist returned 51 objects in the cytoplasm, which left the field's nucleolar compartments unresolved and stopped the build. The crop position is now chosen per field from the nuclear stain alone (crop_rule). The 18 files, channels, groups, runs and every later rule are unchanged; no field is removed. Second amendment, after the re-cropped scenario run and before any nucleolar or 5-EU value was read: three objects had no established nucleolus (all three lay at the crop border on the overlay; the rule itself reads area only) (152, 2079 and 3222 px; 0.03, 0.49 and 0.58 of their field's median nuclear area), which leaves those fields' compartments unresolved. The build's existing fragment review (scenario.fragment_review, used by the earlier public demo of this dataset) is applied: an unresolved object smaller than 0.6 of its field's median nuclear area is deleted from the nuclei, as the workspace's region deletion does, and listed in manifest.json (scenario.fragment_review); any larger unresolved nucleus stops the build. Third amendment, 2026-10-26 by the owner (requirements Q-05, genellect/cytellect#109), after this scene's 5-EU and eccentricity results had been read: the fragment review is withdrawn from this scene. The product's policy for nuclei without an established nucleolus (unresolved-as-missing/1.0.0, decided for all data and not from this scene's values) replaces it: such nuclei stay in the nuclei and, in each nucleolar statistic, in the ledger as missing, confirmed by group, run and reason before the calculation, with all nuclei as the denominator and a warning when the groups' missing fractions differ by 10 percentage points or more within a run. The 18 files, crops, channels, metrics and comparison plan are unchanged. Results recorded under the fragment review keep that definition and replay unchanged.",
  "selection": {
   "rule": "first three files per replicate and condition in file-name order; crop by crop_rule"
  },
@@ -772,9 +772,6 @@
   "nucleolar_marker": "npm1",
   "nucleolar_definition": "marker",
   "background": "automatic",
-  "fragment_review": {
-   "max_area_fraction": 0.6
-  },
   "opening": "comparison",
   "final_target": "nucleoli",
   "statistics": {

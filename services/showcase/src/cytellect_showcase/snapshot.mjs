@@ -111,6 +111,24 @@ if (await history.count()) {
   report.figures = values.length;
 } else report.alerts.push("no saved figure history");
 await step("back to image", () => tabs.getByRole("button", {name: "画像"}).click());
+// The statistics view reads each source's list of nuclei without an established nucleolus (Q-05)
+// for any region a visitor chooses there: one read per shown revision and field, kept when the
+// revision has compartments (a nuclear one answers 409 and is never read).
+report.ledgers = 0;
+for (const key of Object.keys(entries)) {
+  const shown = /^GET \/v1\/revisions\/([^/?]+)\/region-masks\?field_id=([^&]+)$/.exec(key);
+  if (!shown) continue;
+  const read = `/v1/revisions/${shown[1]}/compartment-ledger?field_id=${shown[2]}`;
+  if (entries[`GET ${read}`]) continue;
+  const response = await context.request.get(config.api + read, {headers: {Origin: config.origin}});
+  if (response.status() === 409) continue;
+  const body = await response.body(), headers = response.headers();
+  if (response.status() !== 200) {report.alerts.push(`ledger ${read}: ${response.status()}`); continue;}
+  const file = `${createHash("sha256").update(body).digest("hex").slice(0, 24)}.json`;
+  entries[`GET ${read}`] = {status: 200, headers: KEEP_HEADERS.filter(name => headers[name] !== undefined).map(name => [name, headers[name]]), file};
+  bodies.set(file, body);
+  report.ledgers++;
+}
 // Chromium does not keep bodies of responses the page consumed as blobs (previews, figure
 // files); fetch those same GETs again with the same session (GETs never change the state).
 report.refetched = 0;

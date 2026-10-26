@@ -692,16 +692,28 @@ class Workspace:
                    for entry in current["entries"]]
         if entries != current["entries"]:
             current = api.post(f"/v1/workspaces/{wid}/selection", {"version": current["version"], "entries": entries})
+        # ConnectedResults (Q-05): nuclei whose nucleolus could not be established are listed by group,
+        # run and reason; the researcher confirms the list and they stay as missing.
+        from cytellect_analysis.compartment_review import MISSING_POLICY
+
+        unresolved: dict[str, dict] = {}
+        if region_set in ("nucleoli", "nucleoplasm"):
+            for fid, rid in sources:
+                ledger = api.get(f"/v1/revisions/{rid}/compartment-ledger?field_id={fid}")["fields"]
+                unresolved.update({key: entry["missing"] for key, entry in ledger.items() if entry["missing"]})
+        policy = {"compartment_missing": MISSING_POLICY} if unresolved else {}
         if len(sources) == 1:
             revision = sources[0][1]
         else:
             active = api.get(f"/v1/workspaces/{wid}")["active_revision"]
             cohort = api.post(f"/v1/workspaces/{wid}/region-cohorts", {
                 "expected_active_revision_id": active, "workspace_selection": current,
-                "sources": [{"field_id": fid, "revision_id": rid} for fid, rid in sources], "metadata": fields})
+                "sources": [{"field_id": fid, "revision_id": rid} for fid, rid in sources], "metadata": fields,
+                **policy})
             wait_job(api, wid, cohort["job_id"])
             revision = cohort["revision_id"]
-        api.post(f"/v1/revisions/{revision}/review", {"accept_invalidated_fields": []})
+        api.post(f"/v1/revisions/{revision}/review", {"accept_invalidated_fields": [], **(
+            {"compartment_missing": {"policy": MISSING_POLICY, "confirmed": unresolved}} if unresolved else {})})
         path = "descriptive" if operation == "distribution" else "common-statistics"
         accepted = api.post(f"/v1/revisions/{revision}/{path}", request)
         wait_job(api, wid, accepted["job_id"])
@@ -772,6 +784,8 @@ def review_fragments(space: Workspace, rule: dict | None) -> list[dict]:
     workspace's 選択領域を削除 does, through ``region-edits``) only when it is a fragment: smaller
     than ``max_area_fraction`` of its field's median nuclear area. Any other unresolved nucleus stops
     the build, so nothing is removed silently. The removed objects are listed in the manifest.
+    Kept for the recordings made with it (zenodo-6643470.json); a scene without the rule keeps such
+    nuclei as missing instead (requirements Q-05, ``Workspace.calculate``).
     """
     if not rule:
         return []

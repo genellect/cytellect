@@ -381,6 +381,10 @@ async function calculate(page: Page) {
   if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
   const reviewed = results.getByLabel("測定領域と採用する視野を確認した");
   if (!await reviewed.isChecked()) await reviewed.check();
+  // Nuclei without an established nucleolus are listed by group, run and reason once read (Q-05).
+  const keep = results.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
+  await expect(results.getByRole("button", {name: "計算", exact: true}).and(page.locator(":enabled")).or(keep).first()).toBeVisible({timeout: live});
+  if (await keep.count() && !await keep.isChecked()) await keep.check();
   await results.getByRole("button", {name: "計算", exact: true}).click();
   await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
   await expect(results.getByText("測定結果または解析条件が変わりました。再計算してください。")).toHaveCount(0);

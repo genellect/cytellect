@@ -147,6 +147,12 @@ async function calculate(page, refusal = null) {
     const box = results.getByLabel(label);
     if (await box.count() && !await box.isChecked()) await box.check();
   }
+  // Nuclei without an established nucleolus are listed once their ledger is read (Q-05); the
+  // visitor confirms the list, and they stay as missing.
+  const keep = "この一覧を確認し、欠測として残して計算する";
+  await page.waitForFunction(text => document.body.innerText.includes(text) || [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), keep, {timeout: LIVE});
+  const listed = results.getByLabel(keep, {exact: true});
+  if (await listed.count() && !await listed.isChecked()) await listed.check();
   const button = results.getByRole("button", {name: "計算", exact: true});
   await button.click();
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), null, {timeout: LIVE});
