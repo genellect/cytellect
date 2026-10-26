@@ -6,7 +6,7 @@
 
 [日本語](README.md) · [Product site](https://cytellect.vercel.app/) · [Live demo](https://cytellect.vercel.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md) · [Documentation](docs/README.md)
 
-Cytellect is a web application for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python. Cytellect is currently a prototype under development.
+Cytellect is an analysis platform for life-science researchers that takes microscopy images through analysis, statistics and figure output in one place. Image analysis uses the pretrained deep-learning models StarDist and Cellpose-SAM; numerical processing is implemented in Python.
 
 ## For contributors
 
@@ -16,7 +16,7 @@ When you join, read these three documents in order, and check the relevant secti
 2. [CONTRIBUTING](CONTRIBUTING.md) (Japanese): setting up and running a development environment, checks before a pull request
 3. [Development principles](docs/development-principles.md) (Japanese): principles for calculations, statistics, data, the interface and releases
 
-Other documents are listed in the [documentation index](docs/README.md).
+Other documents are collected in the [documentation index](docs/README.md).
 
 ## Architecture
 
