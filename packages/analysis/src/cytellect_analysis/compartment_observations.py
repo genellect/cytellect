@@ -68,6 +68,16 @@ def require_compartment_source(recipe, region_set_id=None):
         raise ValueError("compartment_summary_source_required")
 
 
+# The saved ratio is the producer's math.log2. Runtimes whose libm rounds differently (Pyodide in the
+# browser against CPython on the server) agree only to the last bit or two, so the check allows a few
+# ulps; a ratio that does not follow from the saved means still fails.
+LOG2_TOLERANCE = 1e-12
+
+
+def same_log2(saved, ratio):
+    return math.isclose(saved, math.log2(ratio), rel_tol=LOG2_TOLERANCE, abs_tol=LOG2_TOLERANCE)
+
+
 def _integer(value, minimum=0):
     return type(value) is int and value >= minimum
 
@@ -104,7 +114,7 @@ def _validated_rows(document, channel_ids):
                 if (any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
                         for v in (plasm_mean, nucleolar_mean, log2))
                         or plasm_mean <= 0 or nucleolar_mean <= 0
-                        or log2 != math.log2(plasm_mean / nucleolar_mean)):
+                        or not same_log2(log2, plasm_mean / nucleolar_mean)):
                     raise ValueError("compartment_summary_inconsistent")
             elif log2 is not None:
                 raise ValueError("compartment_summary_inconsistent")

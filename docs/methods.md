@@ -292,7 +292,9 @@ quartiles). Only the observation source is new and separately versioned.
   of the reviewed nucleoplasm table with the same area, and no other region may
   exist. Each row must satisfy union + nucleoplasm = nucleus area for candidate
   parents, zero nucleoplasm for candidate-free parents, the recorded area
-  fraction, and log2 = log2(nucleoplasm mean / nucleolar mean) exactly. Nucleus
+  fraction, and log2 = log2(nucleoplasm mean / nucleolar mean) within a relative and
+  absolute 1e-12 (a few units in the last place: the browser runtime's libm can round
+  log2 one bit away from the server's; the saved value is used as saved). Nucleus
   geometry must agree across channels. Failures are explicit error codes.
 - Observations are nuclei; a nucleus keeps the nucleoplasm region ID (its parent
   nucleus ID). Region exclusions of the nucleoplasm revision and whole-field

@@ -1072,14 +1072,16 @@ def rederive_in_browser(seed_zip: Path, seed_data: Path, work: Path) -> dict:
          "save": "redo", "label": "rederive"},
         {"copy_out": "{redo.root}", "items": "{redo.dirs}", "to": str(seed_data)},
     ]))
-    done = subprocess.run(["node", str(harness), "--seed", str(seed_zip), "--requests", str(steps),
-                           "--cache", str(work / "pyodide-cache")], cwd=harness.parent, capture_output=True, text=True,
-                          env={**os.environ, "NODE_USE_ENV_PROXY": "1"}, timeout=3600)
+    # Pyodide prints its minified sources around an error. Its stderr goes to a file: through a pipe, Node
+    # exits before the end is written and the Python traceback (the cause) is lost.
+    errors = work / "rederive.log"
+    with errors.open("w") as stream:
+        done = subprocess.run(["node", str(harness), "--seed", str(seed_zip), "--requests", str(steps),
+                               "--cache", str(work / "pyodide-cache")], cwd=harness.parent, stdout=subprocess.PIPE,
+                              stderr=stream, text=True, env={**os.environ, "NODE_USE_ENV_PROXY": "1"}, timeout=3600)
     if done.returncode:
-        # Pyodide prints its minified sources around an error; keep the whole output to read the cause.
-        (work / "rederive.log").write_text(done.stdout + "\n--- stderr ---\n" + done.stderr)
-        sys.stderr.write(done.stdout[-4000:] + done.stderr[-4000:])
-        raise SystemExit(f"rederive in the in-browser runtime failed (full output: {work / 'rederive.log'})")
+        sys.stderr.write(done.stdout[-4000:] + errors.read_text()[-4000:])
+        raise SystemExit(f"rederive in the in-browser runtime failed (full output: {errors})")
     result = next(json.loads(line) for line in done.stdout.splitlines() if line.startswith('{"step":"rederive"'))["json"]
     return {key: result[key] for key in ("statistics", "figure_render")}
 

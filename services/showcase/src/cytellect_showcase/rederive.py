@@ -42,9 +42,32 @@ def difference(before: Any, after: Any, where: str = "") -> str | None:
     return None if type(before) is type(after) and before == after else f"{where}: {str(before)[:120]!r} != {str(after)[:120]!r}"
 
 
+def recorded_selection(store, job: dict) -> dict | None:
+    """The workspace selection a statistics job was saved under (its revision records it), or None."""
+    from cytellect_api.db import revisions
+
+    revision = store.one(revisions, id=job.get("revision_id")) if job["kind"] == "statistics" else None
+    return (revision["config"] or {}).get("workspace_selection") if revision else None
+
+
+def set_selection(store, workspace_id: str, selection: dict) -> None:
+    from cytellect_api.db import workspace_selections
+    from sqlalchemy import update
+
+    with store.transaction() as conn:
+        conn.execute(update(workspace_selections).where(workspace_selections.c.workspace_id == workspace_id)
+                     .values(version=selection["version"], entries=selection["entries"]))
+
+
 def rederive_in_place() -> dict:
-    """Run every succeeded statistics and figure-render job of the booted seed again, in place."""
+    """Run every succeeded statistics and figure-render job of the booted seed again, in place.
+
+    A workspace that saved statistics of several regions (for example a comparison of nucleolar shape
+    beside one of nucleolar 5-EU) changed its selection between them, and the worker refuses a statistics
+    job whose selection is not the current one. Each job therefore runs under the selection it was saved
+    with, the same inputs as when it was computed, and every workspace's last selection is restored."""
     from cytellect_api.db import jobs
+    from cytellect_api.workspace_selection import selection_at
     from cytellect_worker.figure_render import run_figure_render
     from cytellect_worker.main import run_statistics
 
@@ -52,6 +75,7 @@ def rederive_in_place() -> dict:
 
     current = runtime._require()
     store, data_dir = current.store, current.settings.data_dir
+    final: dict[str, dict] = {}
     handlers = {"statistics": run_statistics, "figure-render": run_figure_render}
     redone: list[str] = []
     counts = {kind: 0 for kind in handlers}
@@ -62,6 +86,11 @@ def rederive_in_place() -> dict:
         scratch = data_dir / "tmp" / f"rederive-{job['id']}"
         shutil.rmtree(scratch, ignore_errors=True)
         scratch.parent.mkdir(parents=True, exist_ok=True)
+        if (selection := recorded_selection(store, job)) is not None:
+            if job["workspace_id"] not in final:
+                with store.transaction() as conn:
+                    final[job["workspace_id"]] = selection_at(conn, job["workspace_id"])
+            set_selection(store, job["workspace_id"], selection)
         handlers[job["kind"]](store, job, scratch)
         before = json.loads((target / "result.json").read_text())
         after = json.loads((scratch / "result.json").read_text())
@@ -74,4 +103,6 @@ def rederive_in_place() -> dict:
         shutil.move(scratch, target)
         redone.append(job["result_dir"])
         counts[job["kind"]] += 1
+    for workspace_id, selection in final.items():
+        set_selection(store, workspace_id, selection)
     return {"root": str(data_dir), "dirs": redone, "statistics": counts["statistics"], "figure_render": counts["figure-render"]}

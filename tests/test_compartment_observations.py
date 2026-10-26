@@ -240,6 +240,18 @@ def test_summary_must_match_saved_source(mutate, error):
         analyze_region_comparison(report, config, request(), summaries=summaries)
 
 
+def test_a_ratio_rounded_by_another_runtime_is_accepted_unchanged():
+    """The browser runtime's libm can round log2 one ulp away from the server's (seen in the public demo);
+    the saved value is kept as saved, so the result is the same as with the exact value."""
+    report, config, summaries = compartment_fixture()
+    expected = analyze_region_comparison(report, config, request(), summaries=copy.deepcopy(summaries))
+    row = summaries["a1f1"]["channels"]["ncl"]["rows"][0]
+    row["log2_nucleoplasm_over_nucleolus"] = math.nextafter(row["log2_nucleoplasm_over_nucleolus"], math.inf)
+    result = analyze_region_comparison(report, config, request(), summaries=summaries)
+    assert result["counts"] == expected["counts"]
+    assert math.isclose(result["comparisons"][0]["estimate"], expected["comparisons"][0]["estimate"], rel_tol=1e-12)
+
+
 def test_summary_is_bound_to_the_reviewed_nucleoplasm_mask():
     report, config, summaries = compartment_fixture()
     other = compartment_fixture({"A": {"a1": [[-1, -1, -1], [-2, 0, ("x", 1)]]}})[2]["a1f1"]
