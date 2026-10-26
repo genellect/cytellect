@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import Link from "next/link";
 import lp from "./optical-landing.module.css";
 
 const lead = "私たちの体は、約30兆個もの細胞から成り立っている。これらの細胞に生じる変異は、ときにがんや神経変性疾患といった病気の引き金となり、私たちの健康を脅かす。こうした病気の原因を突き止め、がんや認知症などの克服につなげるため、研究者たちは顕微鏡を通して、細胞の内部で何が起きているのかを解き明かそうとしてきた。";
@@ -18,25 +16,23 @@ const answer = [
 
 const closing = "Cytellectは、これまで煩雑な手作業や研究者個人の知識・技能に依存してきた解析工程を自動化することで生命科学研究のあり方そのものを変える、次世代の研究者のためのアプリケーションである。";
 
-/** The owner's account of why Cytellect exists, for readers outside the life sciences. */
+/** The owner's account of why Cytellect exists, for readers outside the life sciences. Linked quietly from the landing page's footer. */
 export function LandingStory() {
-  const [open, setOpen] = useState(false);
   const paragraph = (text: string) => <p key={text.slice(0, 12)}>{text}</p>;
-  return <section className={[lp.section, lp.story].join(" ")} aria-label="Cytellectが生まれた理由">
-    <div className={lp.column}><div className={lp.prose}>
-      <div id="story-more" className={lp.more} data-open={open} inert={!open}>
-        <div><div>
+  return <div className={lp.page}>
+    <header className={lp.storyHeader}><Link href="/" className={lp.wordmark}>cytellect</Link></header>
+    <main id="main" className={[lp.section, lp.story].join(" ")}>
+      <div className={lp.column}>
+        <h1 className={lp.display}>Cytellectが生まれた理由</h1>
+        <div className={lp.prose}>
           {paragraph(lead)}
           {body.map(paragraph)}
           {paragraph("こうした課題を解決するために開発したのが、「Cytellect」である。")}
           {answer.map(paragraph)}
           {paragraph(closing)}
-        </div></div>
+        </div>
+        <p className={lp.storyBack}><Link href="/">トップページへ <span aria-hidden="true">→</span></Link></p>
       </div>
-      <button type="button" className={lp.button} aria-expanded={open} aria-controls="story-more"
-        data-lp-event={open ? undefined : "story"} onClick={() => setOpen(value => !value)}>
-        <span>{open ? "閉じる" : "Cytellectが生まれた理由を読む"}</span><span aria-hidden="true" className={lp.toggleIcon} />
-      </button>
-    </div></div>
-  </section>;
+    </main>
+  </div>;
 }

@@ -5,7 +5,6 @@ import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL } from "@/lib/release";
 import { ProductMenu } from "./ProductMenu";
 import { HeroFilm } from "./HeroFilm";
 import { LandingFeatures } from "./LandingFeatures";
-import { LandingStory } from "./LandingStory";
 import { LandingHomeLink } from "./LandingHomeLink";
 import { LandingImpact } from "./LandingImpact";
 import { LandingInvite } from "./LandingInvite";
@@ -47,7 +46,6 @@ export default function PublicLanding() {
           <p className={lp.missionLead}>蛍光顕微鏡の画像をアップロードするだけで、画像解析・統計・論文用のグラフまで。</p>
         </div>
       </section>
-      <LandingStory />
 
       <figure className={lp.band}><img src="/marketing/lp-pipetting.webp" alt="白い実験台でマルチチャンネルピペットを使う手元" width={2400} height={1600} loading="lazy" /></figure>
 
@@ -105,7 +103,7 @@ export default function PublicLanding() {
     </main>
     <LandingDemoBar />
     <footer className={lp.footer}><div className={lp.sectionShell}>
-      <div className={lp.footerPrimary}><div><a href="#top" className={lp.footerBrand}>cytellect</a><span>顕微鏡画像の解析から統計、論文用グラフの作成まで</span></div><nav aria-label="製品情報"><a href="https://github.com/genellect/cytellect" target="_blank" rel="noopener noreferrer">GitHub <Arrow /></a><a href="#top">ページの先頭へ <span aria-hidden="true">↑</span></a></nav></div>
+      <div className={lp.footerPrimary}><div><a href="#top" className={lp.footerBrand}>cytellect</a><span>顕微鏡画像の解析から統計、論文用グラフの作成まで</span></div><nav aria-label="製品情報"><Link href="/story">Cytellectが生まれた理由</Link><a href="https://github.com/genellect/cytellect" target="_blank" rel="noopener noreferrer">GitHub <Arrow /></a><a href="#top">ページの先頭へ <span aria-hidden="true">↑</span></a></nav></div>
       <details className={lp.credits}><summary>画像・映像の出典</summary><p>{CREDITS.map(({ label, sources, note }, index) => <span key={label}>{index > 0 && " · "}{label}：{sources.map(([name, href], i) => <span key={href}>{i > 0 && "、"}<a href={href} target="_blank" rel="noopener noreferrer">{name}</a></span>)}{note}</span>)}</p></details>
       <p className={lp.copyright}>&copy; 2026 Genellect Inc. All rights reserved.</p>
     </div></footer>
