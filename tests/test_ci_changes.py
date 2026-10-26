@@ -2,7 +2,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from ci_changes import ALL, areas_for, documentation_registry_change, normalize, select  # noqa: E402
+from ci_changes import (  # noqa: E402
+    ALL,
+    areas_for,
+    documentation_registry_change,
+    normalize,
+    select,
+    select_changes,
+)
 
 
 def test_documentation_selects_no_heavy_area():
@@ -57,3 +64,11 @@ def test_registering_a_documentation_image_is_a_documentation_change():
     assert not documentation_registry_change(old, {**old, "apps/web/public/marketing/b.webp": {"sha256": "9"}})
     assert not documentation_registry_change(old, {**old, "docs/images/c.webp": {}, "fixtures/public/x.tif": {}})
     assert not documentation_registry_change(old, dict(old))
+
+
+def test_a_documentation_registry_change_alone_selects_nothing():
+    registry = "fixtures/public/allowlist.json"
+    assert select_changes([registry], documentation_registry=True) == frozenset()
+    assert select_changes([registry, "README.md", "docs/images/a.webp"], documentation_registry=True) == frozenset()
+    assert select_changes([registry, "services/proposal-worker/src/a.ts"], documentation_registry=True) == {"web"}
+    assert select_changes([registry], documentation_registry=False) == {"python", "lp"}

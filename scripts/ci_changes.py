@@ -105,6 +105,14 @@ def select(paths: list[str]) -> frozenset[str]:
     return normalize(frozenset(selected))
 
 
+def select_changes(paths: list[str], documentation_registry: bool) -> frozenset[str]:
+    """Select areas for a readable diff; a documentation-only registry change counts as documentation."""
+    if documentation_registry and REGISTRY in paths:
+        rest = [path for path in paths if path != REGISTRY]
+        return select(rest) if rest else frozenset()
+    return select(paths)
+
+
 def main() -> None:
     event = os.environ.get("EVENT", "")
     base, head = os.environ.get("BASE", ""), os.environ.get("HEAD", "")
@@ -114,12 +122,12 @@ def main() -> None:
         diff = subprocess.run(["git", "diff", "--name-only", f"{base}...{head}"],
                               capture_output=True, text=True, check=False)
         paths = [p for p in diff.stdout.splitlines() if p]
+        documentation_registry = False
         if not diff.returncode and REGISTRY in paths:
             merge_base = subprocess.run(["git", "merge-base", base, head], capture_output=True, text=True, check=False)
             old, new = _registry(merge_base.stdout.strip() or base), _registry(head)
-            if old is not None and new is not None and documentation_registry_change(old, new):
-                paths.remove(REGISTRY)
-        selected = ALL if diff.returncode else select(paths)
+            documentation_registry = old is not None and new is not None and documentation_registry_change(old, new)
+        selected = ALL if diff.returncode else select_changes(paths, documentation_registry)
     lines = [f"{area}={'true' if area in selected else 'false'}" for area in AREAS]
     print("\n".join(lines))
     output = os.environ.get("GITHUB_OUTPUT")
