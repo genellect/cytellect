@@ -30,6 +30,11 @@ export type GfpGateFilter = components["schemas"]["GfpGateFilter"];
 export interface GfpChoice {channel: string; controls: string[]; keep?: GfpGateFilter["keep"]; percentile?: number}
 export type GfpSelectionChoice = GfpChoice | GfpGateFilter | {version:"1.1.0";gate_protocol:"gfp-gate/3.0.0";gfp_channel_id:string;method:"manual"|"batch_otsu";threshold:number|null;values:"raw"|"corrected";keep:"positive"|"negative";unit?:"nucleus"|"cell_roi"};
 /** GFP nucleus filter 1.0.0 (gfp-gate/2.0.0). The percentile is recorded as chosen, never searched. */
+/** Unresolved-nucleoli policy 1.0.0 (requirements Q-05): nuclei without an established nucleolus stay as missing. */
+export const MISSING_POLICY = "unresolved-as-missing/1.0.0" as const;
+export interface CompartmentLedgerEntry {nuclei: number; resolved: number; missing: Record<string, number>; excluded: number}
+interface CompartmentLedger {policy: typeof MISSING_POLICY; fields: Record<string, CompartmentLedgerEntry>}
+
 export function gfpGateFilter(choice: GfpSelectionChoice): GfpGateFilter | components["schemas"]["ExploratoryGfpGateFilter"] {
   if("version" in choice){
     if(!choice.gfp_channel_id)throw new Error("GFP のチャンネルを選んでください。");
@@ -132,16 +137,21 @@ export function createComparisonAdapter(overrides: Partial<Transport> = {}) {
       if (result.revision_id !== job.revision_id || result.region_comparison_version !== "2.0.0") throw new Error("保存された比較の出典が一致しません。");
       return {job: job.id, result};
     },
-    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>, selection: WorkspaceSelection | null = null) {
+    /** Per field: all nuclei, those with an established nucleolus, the missing ones by reason (Q-05). */
+    async compartmentLedger(revision: string, field: string) {
+      check(); return (await client.request<CompartmentLedger>(`/v1/revisions/${revision}/compartment-ledger?field_id=${encodeURIComponent(field)}`)).fields;
+    },
+    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>, selection: WorkspaceSelection | null = null, missingPolicy: typeof MISSING_POLICY | null = null) {
       if (sources.length < 2 || new Set(sources.map(source => source.field)).size !== sources.length) throw new Error("異なる視野を2件以上選択してください。");
       check(); const current = await client.request<{active_revision: string | null}>(`/v1/workspaces/${workspace}`);
-      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, ...(selection ? {workspace_selection: selection} : {}), sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata}, {sources: sources.map(source => [source.field, source.revision]), metadata, selection});
+      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, ...(selection ? {workspace_selection: selection} : {}), sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata, ...(missingPolicy ? {compartment_missing: missingPolicy} : {})}, {sources: sources.map(source => [source.field, source.revision]), metadata, selection, missingPolicy});
       if (!result.revision_id) throw new Error("集合の解析版がありません。");
       return result.revision_id;
     },
-    async review(revision: string, confirmed: boolean) {
+    /** ``missing``: the confirmed per-field missing nuclei by reason, when unresolved nucleoli stay as missing. */
+    async review(revision: string, confirmed: boolean, missing: Record<string, Record<string, number>> | null = null) {
       if (!confirmed) throw new Error("画像・領域と採否の確認が必要です。");
-      check(); await client.post(`/v1/revisions/${revision}/review`, {accept_invalidated_fields: []});
+      check(); await client.post(`/v1/revisions/${revision}/review`, {accept_invalidated_fields: [], ...(missing ? {compartment_missing: {policy: MISSING_POLICY, confirmed: missing}} : {})});
     },
     async compare(workspace: string, revision: string, spec: CommonComparisonRequest) {
       const job = await accepted(workspace, `/v1/revisions/${revision}/common-statistics`, spec);

@@ -34,3 +34,5 @@
 .row>label{min-width:140px}
 .recorded{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.recorded button{font-size:14px;padding:4px 12px;border-radius:14px}.recorded button[aria-pressed=true]{background:#eaf1fb;border-color:#2468cc;color:#1757b6}
 .reportedLine{margin:10px 0 0;font-size:14px;color:#3b4656}.reportedLine strong{margin-right:8px;color:#1d2b45}
+.unresolved{margin:10px 0;padding:10px 12px;border:1px solid #f0d9a8;border-radius:6px;background:#fffaf0;font-size:14px}.unresolved p{margin:6px 0;color:#4a4130}.unresolved table{font-size:13px;margin:6px 0}
+.missing{margin:8px 0 10px;padding:8px 10px;border-left:3px solid #d9a441;background:#fffaf0;font-size:14px}.missing p{margin:4px 0}.missing table{font-size:13px;margin:4px 0}.missingWarning{color:#7a4b00;font-weight:600}

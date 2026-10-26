@@ -6,7 +6,7 @@ import {formatValue,type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
 import {comparisonWarnings} from "@/lib/region-comparison-view";
 import {commonWarnings} from "@/lib/common-statistics";
-import {createComparisonAdapter,descriptiveSupported,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
+import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CompartmentLedgerEntry,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricUsesChannel} from "@/lib/workspace/metric-catalog";
@@ -40,7 +40,8 @@ export interface ConnectedResultsProps {
   onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
-interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[]}
+interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null}
+type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
 const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":""};
@@ -104,6 +105,22 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:derived[item.fieldId]??metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
   const fields=Object.fromEntries(sources.map(source=>[source.field,source.metadata]));
   const regionSet=sources[0]?.result.regionSet||target;
+  // Nuclei whose nucleolus could not be established (Q-05): listed by group, run and reason before the
+  // calculation; once confirmed they stay as missing instead of stopping the statistics.
+  const compartment=regionSet==="nucleoli"||regionSet==="nucleoplasm";
+  const ledgerKey=compartment?JSON.stringify(sources.map(source=>[source.field,source.revision])):"";
+  const [ledger,setLedger]=useState<{key:string;fields:Record<string,CompartmentLedgerEntry>;error:string}|null>(null);
+  const [missingConfirmed,setMissingConfirmed]=useState({key:"",value:false});
+  useEffect(()=>{if(!ledgerKey)return;let live=true;
+    void Promise.all(sources.map(source=>comparison.compartmentLedger(source.revision,source.field)))
+      .then(values=>{if(live)setLedger({key:ledgerKey,fields:Object.assign({},...values),error:""});})
+      .catch(cause=>{if(live)setLedger({key:ledgerKey,fields:{},error:fail(cause)});});
+    return()=>{live=false;};},[ledgerKey]);// eslint-disable-line react-hooks/exhaustive-deps
+  const currentLedger=ledger?.key===ledgerKey?ledger:null;
+  const unresolvedFields=Object.fromEntries(Object.entries(currentLedger?.fields??{}).filter(([,entry])=>Object.keys(entry.missing).length>0).map(([fid,entry])=>[fid,entry.missing]));
+  const unresolved=Object.keys(unresolvedFields).length>0;
+  const unresolvedConfirmed=missingConfirmed.key===ledgerKey&&missingConfirmed.value;
+  const ledgerReady=!compartment||(!!currentLedger&&!currentLedger.error&&(!unresolved||unresolvedConfirmed));
   // 計算 adopts the sources' revisions through the adapter; the selection it wrote is current until a newer one arrives.
   const [written,setWritten]=useState<WorkspaceSelection|null>(null);
   const currentSelection=written&&written.version>(selection?.version??-1)?written:selection;
@@ -157,7 +174,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&!unsupportedAxes&&!independenceMissing&&!datesMissing;
+  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing;
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
@@ -193,10 +210,11 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       let adopted=beforePrepare?await beforePrepare():selection;
       if(!beforePrepare){for(const source of sources)await adapter.selectRevision(workspace,source.revision,source.field);adopted=adapter.selection();}
       setWritten(adopted);
-      const revision=sources.length===1?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted);
+      const keepMissing=compartment&&unresolved;
+      const revision=sources.length===1?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted,keepMissing?MISSING_POLICY:null);
       // For inferential requests the cohort persists the entered experimental metadata.
       if(operation!=="distribution"&&sources.length<2)throw new Error("統計解析には複数視野の測定結果と実験情報が必要です。");
-      await comparison.review(revision,reviewed);
+      await comparison.review(revision,reviewed,keepMissing?unresolvedFields:null);
       const accepted=await post<{job_id:string}>(`/v1/revisions/${revision}/${operation==="distribution"?"descriptive":"common-statistics"}`,spec);
       await waitJob(accepted.job_id);
       const result=await request<ResultPayload>(`/v1/jobs/${accepted.job_id}/${operation==="distribution"?"result":"common-statistics"}`);
@@ -270,6 +288,9 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
           {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo||!unsaturatedPair(pair)} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{declared&&JSON.stringify(pair)===JSON.stringify(declared.contrasts[0])?`${pair[0]} − ${pair[1]}（処理 − 対照）`:pair.join(" / ")}{unsaturatedPair(pair)?"":"（飽和した画素があるため選べません）"}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
           <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した</label>
         </>}
+        {compartment&&currentLedger?.error&&<p role="alert">{currentLedger.error}</p>}
+        {compartment&&unresolved&&<UnresolvedList fields={unresolvedFields} ledger={currentLedger!.fields} metadata={fields} labels={Object.fromEntries(sources.map(source=>[source.field,source.label]))}
+          confirmed={unresolvedConfirmed} disabled={disabled||!!busy} onConfirm={value=>setMissingConfirmed({key:ledgerKey,value})}/>}
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
         {datesMissing&&<p role="status">輝度を比べるには撮影日が必要です。「実験」で各実験回の撮影日を入力してください（日付を推定して補いません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力する</button>}</p>}
         {unconfirmed&&operation==="comparison"&&<p role="status">実験回が独立に行われたことが確認されていないため、検定と信頼区間は計算せず、実験回ごとの値と差を示します。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
@@ -303,8 +324,11 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
             {recorded.length>1&&<div className={styles.recorded} role="group" aria-label="記録した比較">{recorded.map(entry=>{const channelId=entry.result.spec?.selection?.channel_id;return <button key={entry.job} aria-pressed={saved.job===entry.job} onClick={()=>showRecorded(entry)}>{metricLabels[entry.result.estimates!.metric]||entry.result.estimates!.metric}{channelId?` · ${channelId}`:""}</button>;})}</div>}
             {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={resultMetricLabel(saved.result,saved.result.estimates.metric)} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
           reported={showcaseDataset?.reported??null}
-          counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}/>}
-            {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null}/>}
+          counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}
+          missing={saved.result.compartment_missing??null}/>}
+            {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null} missing={saved.result.compartment_missing??null}/>}
+            {/* Without a summary card the denominators still stand beside the result (Q-05). */}
+            {mode==="statistics"&&saved.result.compartment_missing&&!saved.result.estimates&&!(saved.operation==="distribution"&&experiment)&&<MissingNucleoli summary={saved.result.compartment_missing}/>}
           </div>
           <div>{svgFiles.map(file=><VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}</div>
         </div>:svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
@@ -333,11 +357,12 @@ function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];f
 
 /** A distribution of a two-group design read by run: each saved field median in its run and group.
  * No value is combined and nothing is tested, so it stays available before independence is confirmed. */
-function RunMedians({design,summary,metricLabel,unit,reported}:{design:ExperimentDesign;summary:Array<Record<string,unknown>>;metricLabel:string;unit:string;reported:ShowcaseDataset["reported"]}){
+function RunMedians({design,summary,metricLabel,unit,reported,missing}:{design:ExperimentDesign;summary:Array<Record<string,unknown>>;metricLabel:string;unit:string;reported:ShowcaseDataset["reported"];missing:MissingSummary|null}){
   const table=runTable(design,summary);
-  if(!table)return null;
+  if(!table)return missing?<MissingNucleoli summary={missing}/>:null;
   return <section className={styles.summary} aria-label="実験回と群ごとの値">
     <p className={styles.headline}>{metricLabel}：視野ごとの中央値{unit?`（${unit}）`:""}を、実験回と群ごとに並べています。</p>
+    {missing&&<MissingNucleoli summary={missing}/>}
     <table><thead><tr><th scope="col">実験回</th>{table.groups.map(group=><th key={group.id} scope="col">{group.label}{group.id===design.control_group_id?"（対照）":""}</th>)}</tr></thead>
       <tbody>{table.runs.map(run=><tr key={run.id}><th scope="row">{run.label}</th>{run.cells.map((cell,index)=><td key={table.groups[index].id}>{cell.length?cell.map(value=>formatValue(value)).join("、"):"—"}</td>)}</tr>)}</tbody></table>
     <p>{design.independence_confirmed?"群の差と信頼区間は「群間比較」で計算します。":"実験回の独立性が確認されていないため、「群間比較」でも検定と信頼区間は計算せず、実験回ごとの値と差を示します。"}</p>
@@ -358,10 +383,11 @@ function ReportedSource({reported}:{reported:NonNullable<ShowcaseDataset["report
 }
 
 /** The comparison stated in words first (S-01–S-07); every number is the saved result's. */
-function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"]}){
+function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null}){
   const summary=summarize(estimates,comparison,metricLabel,unit);
   return <section className={styles.summary} aria-label="結果のまとめ">
     <p className={styles.headline}>{summary.headline}</p>
+    {missing&&<MissingNucleoli summary={missing}/>}
     {summary.interval&&<p>{summary.interval}</p>}
     <p>{summary.test}</p>
     {summary.runs&&<p>{summary.runs}</p>}
@@ -373,4 +399,41 @@ function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,count
     <ul className={styles.cautions}>{[...summary.cautions,...warnings].map(value=><li key={value}>{value}</li>)}</ul>
     {reported&&<ReportedSource reported={reported}/>}
   </section>;
+}
+
+const missingReasons:Record<string,string>={no_candidate:"核小体が見つからない",indeterminate:"判定できない",empty_after_subtraction:"核質が残らない"};
+const reasonText=(reasons:Record<string,number>)=>Object.entries(reasons).map(([reason,count])=>`${missingReasons[reason]||reason} ${count}`).join("、");
+const percent=(part:number,whole:number)=>whole?`${(part/whole*100).toLocaleString(undefined,{maximumFractionDigits:1})}%`:"—";
+
+/** Before the calculation (Q-05): the nuclei whose nucleolus could not be established, by group, unit and
+ * reason. Confirming the list keeps them as missing; the result then describes the resolved nuclei. */
+function UnresolvedList({fields,ledger,metadata,labels,confirmed,disabled,onConfirm}:{fields:Record<string,Record<string,number>>;ledger:Record<string,CompartmentLedgerEntry>;metadata:Record<string,Metadata>;labels:Record<string,string>;confirmed:boolean;disabled:boolean;onConfirm:(value:boolean)=>void}){
+  const rows=new Map<string,{condition:string;unit:string;nuclei:number;missing:number;reasons:Record<string,number>;fields:string[]}>();
+  for(const [fid,entry] of Object.entries(ledger)){
+    const condition=metadata[fid]?.condition||"—",unit=metadata[fid]?.experimental_unit||"—",key=JSON.stringify([condition,unit]);
+    const row=rows.get(key)??{condition,unit,nuclei:0,missing:0,reasons:{},fields:[]};
+    row.nuclei+=entry.nuclei;
+    for(const [reason,count] of Object.entries(fields[fid]??{})){row.missing+=count;row.reasons[reason]=(row.reasons[reason]??0)+count;}
+    if(fields[fid])row.fields.push(labels[fid]||fid);
+    rows.set(key,row);
+  }
+  const sorted=[...rows.values()].sort((a,b)=>a.condition.localeCompare(b.condition)||a.unit.localeCompare(b.unit));
+  return <section className={styles.unresolved} aria-label="核小体を確定できない核">
+    <strong>核小体を確定できない核があります</strong>
+    <p>核は消さずに欠測として残し、核小体を確定できた核について計算します。欠測の割合は、すべての核に対する割合です。</p>
+    <div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th scope="col">群</th><th scope="col">実験単位</th><th scope="col">欠測 / 全核</th><th scope="col">理由</th></tr></thead>
+      <tbody>{sorted.map(row=><tr key={row.condition+row.unit}><th scope="row">{row.condition}</th><td>{row.unit}</td><td>{row.missing} / {row.nuclei}（{percent(row.missing,row.nuclei)}）</td><td title={row.fields.join("、")}>{row.missing?reasonText(row.reasons):"—"}</td></tr>)}</tbody></table></div>
+    <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>onConfirm(event.target.checked)}/>この一覧を確認し、欠測として残して計算する</label>
+  </section>;
+}
+
+/** Beside the result sentence (Q-05): what the values describe, the denominators by group and unit,
+ * and the within-run warning. A missing warning does not mean that no selection bias remains. */
+function MissingNucleoli({summary}:{summary:MissingSummary}){
+  return <div className={styles.missing} role="group" aria-label="核小体を確定できない核の内訳">
+    <p><strong>核小体を確定できた核についての値です。</strong>確定できない核は消さずに欠測として残しています。</p>
+    <div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th scope="col">群</th><th scope="col">実験単位</th><th scope="col">欠測 / 全核</th><th scope="col">除外</th></tr></thead>
+      <tbody>{summary.rows.map(row=><tr key={`${row.condition}:${row.experimental_unit}`}><th scope="row">{row.condition}</th><td>{row.experimental_unit}</td><td title={reasonText(row.reasons)}>{row.missing} / {row.nuclei}（{percent(row.missing,row.nuclei)}）</td><td>{row.excluded}</td></tr>)}</tbody></table></div>
+    {summary.warnings.map(warning=><p key={String(warning.run)} role="status" className={styles.missingWarning}>{warning.run?`実験回 ${warning.run} で、`:""}群の間の欠測の割合が {formatNumber(warning.difference_points)} ポイント違います（基準 {summary.warning_points} ポイント）。処理に関わる選別の偏りが残っている可能性があります。</p>)}
+  </div>;
 }

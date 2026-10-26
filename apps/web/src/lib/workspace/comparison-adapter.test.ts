@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 import {ApiError} from "../api";
-import {comparisonRequest, createComparisonAdapter, type ComparisonChoices, type ComparisonSource} from "./comparison-adapter";
+import {comparisonRequest, createComparisonAdapter, MISSING_POLICY, type ComparisonChoices, type ComparisonSource} from "./comparison-adapter";
 import type {Transport} from "./api-adapter";
 const choices: ComparisonChoices = {metric: "area_px", channel: null, regionSet: "nuclei", design: "independent", method: "rank", unitDefinition: "independent culture", pairingBasis: "", contrasts: [["A", "B"]], independence: true, acquisition: true, sampling: true, missingness: true, kind: "box", width: 178, height: 76, yLabel: ""};
 const sources: ComparisonSource[] = ["f1", "f2"].map((field, i) => ({field, revision: `r${i}`, label: field, metadata: {}, result: {field, revision: `r${i}`, rows: [], masks: {regions: [], metadata: {mask_revision_id: `m${i}`}}, exclusions: []}}));
@@ -64,6 +64,18 @@ describe("workspace inference boundaries", () => {
     expect(post).toHaveBeenCalledWith("/v1/workspaces/w/region-cohorts", {expected_active_revision_id: "latest", sources: [{field_id: "f1", revision_id: "r0"}, {field_id: "f2", revision_id: "r1"}], metadata: {f1: {condition: "A"}, f2: {condition: "B"}}});
     await expect(adapter.review("cohort", false)).rejects.toThrow(); expect(post).toHaveBeenCalledTimes(1);
     await adapter.review("cohort", true); expect(post).toHaveBeenLastCalledWith("/v1/revisions/cohort/review", {accept_invalidated_fields: []});
+  });
+  it("keeps unresolved nucleoli as missing only with the policy and the confirmed per-field list (Q-05)", async () => {
+    const ledger = {f1: {nuclei: 3, resolved: 2, missing: {no_candidate: 1}, excluded: 0}};
+    const {adapter, request, post} = fake(async path => path.includes("/compartment-ledger") ? {policy: MISSING_POLICY, fields: ledger}
+      : path.endsWith("/jobs") ? [{id: "j", state: "succeeded"}] : {active_revision: "latest"});
+    expect(await adapter.compartmentLedger("r0", "f 1")).toEqual(ledger);
+    expect(request).toHaveBeenCalledWith("/v1/revisions/r0/compartment-ledger?field_id=f%201");
+    await adapter.cohort("w", sources, {f1: {condition: "A"}, f2: {condition: "B"}}, null, MISSING_POLICY);
+    expect(post).toHaveBeenLastCalledWith("/v1/workspaces/w/region-cohorts", expect.objectContaining({compartment_missing: MISSING_POLICY}));
+    await adapter.review("cohort", true, {f1: {no_candidate: 1}});
+    expect(post).toHaveBeenLastCalledWith("/v1/revisions/cohort/review", {accept_invalidated_fields: [],
+      compartment_missing: {policy: "unresolved-as-missing/1.0.0", confirmed: {f1: {no_candidate: 1}}}});
   });
   it("resumes the accepted cohort despite an active-revision change after a polling failure", async () => {
     let polls = 0; let active = 0;
