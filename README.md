@@ -52,15 +52,21 @@ AI による解析設定
 
 | ディレクトリ | 内容 |
 |---|---|
-| [`apps/web`](apps/web) | Web ワークスペースと公開サイト（Next.js） |
-| [`packages/analysis`](packages/analysis) | 検出・測定・統計・作図の共通実装 |
-| [`packages/contracts`](packages/contracts) | API の型定義（OpenAPI） |
-| [`services`](services) | 解析 API、計算ワーカー、LLM の中継 |
-| [`engines`](engines) | Fiji と Cellpose-SAM の実行環境 |
-| [`infra`](infra) | Docker の構成 |
-| [`scripts`](scripts) | セットアップと検証 |
-| [`tests`](tests) | 試験 |
-| [`docs`](docs) | 仕様と運用の文書 |
+| [`apps/web`](apps/web) | Web ワークスペース、LP、公開デモ（Next.js） |
+| [`packages/analysis`](packages/analysis) | 検出・測定・統計・作図の共通実装。API・ワーカー・公開デモが同じコードを使う |
+| [`packages/contracts`](packages/contracts) | API の OpenAPI 定義と既定レシピ。TypeScript 型の生成元 |
+| [`services/api`](services/api) | 解析 API（FastAPI） |
+| [`services/worker`](services/worker) | 計算ワーカー。ジョブごとに子プロセスで検出・測定・統計を実行 |
+| [`services/proposal-worker`](services/proposal-worker) | LLM の中継と費用の管理（Cloudflare Workers · D1） |
+| [`services/showcase`](services/showcase) | 公開デモの記録と再生（Pyodide） |
+| [`engines/fiji`](engines/fiji) | StarDist による核の検出（Fiji プラグイン） |
+| [`engines/cellpose`](engines/cellpose) | Cellpose-SAM の推論 runner と GPU サーバー。依存とモデルを固定 |
+| [`engines/python`](engines/python) | Windows 版の Python ランタイムの固定 |
+| [`infra`](infra) | Docker（Web・API・ワーカー）、Caddy による TLS、Modal の GPU サーバー |
+| [`scripts`](scripts) | 開発の入口 `dev.py`、セットアップ、配布物と公開デモの構築、検証 |
+| [`tests`](tests) | 数値計算・API・ブラウザ・Windows 導入の試験 |
+| [`fixtures/public`](fixtures/public) | 試験と公開デモに使う公開画像。出典・ライセンス・ハッシュを登録 |
+| [`docs`](docs) | 仕様、計算方法、運用の文書 |
 
 ## 画像認識
 
