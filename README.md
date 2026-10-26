@@ -6,17 +6,17 @@
 
 [プロダクト LP](https://cytellect.vercel.app/) · [公開デモ](https://cytellect.vercel.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.19) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析) · [ドキュメント](docs/README.md)
 
-Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究のための解析基盤です。画像処理には学習済みの深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用しています。
+Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のための解析基盤である。画像処理には学習済みの深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用している。
 
 ## 開発に参加する方へ
 
-開発に参加するときは次の 3 つを順に読み、作業のたびに関係する節を確認してください。AI エージェントも同じ文書に従います。
+開発に参加するときは次の 3 つを順に読み、作業のたびに関係する節を確認すること。AI エージェントも同じ文書に従う。
 
 1. [チーム開発ルール](docs/team-development.md)：開発の進め方、Git とレビュー、研究データの扱い
 2. [CONTRIBUTING](CONTRIBUTING.md)：開発環境の構築と起動、PR を出す前の検査
 3. [開発の原則](docs/development-principles.md)：計算・統計・データ・画面・リリースで守る原則
 
-そのほかの文書は[ドキュメント](docs/README.md)から探せます。
+そのほかの文書は[ドキュメント](docs/README.md)にまとめている。
 
 ## アーキテクチャ
 
