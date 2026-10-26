@@ -289,6 +289,44 @@ test("the scene switcher opens each scene's own images and examples", async ({pa
   await noErrors(page, watch);
 });
 
+/** The fields each pane can show for the run on screen (the panes' field choices). */
+async function paneFields(page: Page) {
+  const panes = page.getByRole("combobox", {name: / の視野$/});
+  await expect(panes).toHaveCount(2, {timeout: live});
+  return Promise.all((await panes.all()).map(select => select.locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))));
+}
+test("the selected field drives the pair: a figure's source opens on its run and pane, the list on its pane", async ({page}) => {
+  const watch = await openDemo(page, sceneUrl(OPENING));
+  const panes = page.getByRole("combobox", {name: / の視野$/});
+  const [control] = await paneFields(page);
+  // A field chosen in the list shows in its group's pane, also after another field was chosen in that pane.
+  await panes.first().selectOption(control[1]);
+  await expect(panes.first()).toHaveValue(control[1]);
+  const label = (await panes.first().locator(`option[value="${control[0]}"]`).textContent())!.trim();
+  await page.locator("[class*=fieldCard]").filter({hasText: label}).first().click();
+  await expect(panes.first()).toHaveValue(control[0]);
+  // A point of the saved figure from another run lists its fields; opening one shows it on its run, in its pane.
+  const runs = page.getByRole("combobox", {name: "実験回", exact: true});
+  const first = (await runs.locator("option:checked").textContent())!.trim();
+  await page.locator("header").getByRole("button", {name: "グラフ", exact: true}).click();
+  await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
+  const units = await page.locator("[data-cytellect-source]").evaluateAll(elements => elements.map(element => {
+    try {return (JSON.parse(element.getAttribute("data-cytellect-source") ?? "") as {experimental_unit?: string}).experimental_unit ?? "";} catch {return "";}
+  }));
+  const other = units.findIndex(unit => unit && !unit.startsWith(`${first} `));
+  expect(other).toBeGreaterThanOrEqual(0);
+  const run = units[other].split(" ")[0];
+  await page.locator("[data-cytellect-source]").nth(other).dispatchEvent("click");
+  const listed = page.getByRole("region", {name: "選択した点の試料・視野"}).locator("tbody button").first();
+  const opened = (await listed.textContent())!.trim();
+  await listed.click();
+  await expect(page.locator("header").getByRole("button", {name: "画像", exact: true})).toHaveAttribute("aria-current", "page");
+  await expect(runs.locator("option:checked")).toHaveText(run, {timeout: live});
+  await expect(page.getByRole("combobox", {name: / の視野$/}).locator("option:checked", {hasText: opened})).toHaveCount(1);
+  await expect(page.getByRole("button", {name: "元の結果へ戻る"})).toBeVisible();
+  expect(await alerts(page)).toEqual([]);
+  await noErrors(page, watch);
+});
 test("deep links open the requested step without the guide", async ({page}) => {
   const watch = await openDemo(page, sceneUrl(OPENING, "step=figure"));
   await expect(page.locator("header").getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");

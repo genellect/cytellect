@@ -111,6 +111,36 @@ if (await history.count()) {
   report.figures = values.length;
 } else report.alerts.push("no saved figure history");
 await step("back to image", () => tabs.getByRole("button", {name: "画像"}).click());
+/** Records one more GET with the same session (GETs never change the state); false when it is not 200. */
+async function recordRead(path) {
+  if (entries[`GET ${path}`]) return true;
+  const response = await context.request.get(config.api + path, {headers: {Origin: config.origin}});
+  if (response.status() !== 200) return false;
+  const body = await response.body(), headers = response.headers();
+  const type = (headers["content-type"] || "").split(";")[0].trim();
+  const file = `${createHash("sha256").update(body).digest("hex").slice(0, 24)}${EXTENSIONS[type] || ".bin"}`;
+  entries[`GET ${path}`] = {status: 200, headers: KEEP_HEADERS.filter(name => headers[name] !== undefined).map(name => [name, headers[name]]), file};
+  bodies.set(file, body);
+  return true;
+}
+// A saved result's figure points open their source fields (the result's revision, each field's pinned
+// revision, its measurements and masks), so returning from a result to its images is recorded too.
+report.sources = 0;
+for (const [key, entry] of Object.entries({...entries})) {
+  if (!/^GET \/v1\/jobs\/[^/]+\/(result|common-statistics)$/.test(key) || !bodies.get(entry.file)) continue;
+  let revision;
+  try {revision = JSON.parse(bodies.get(entry.file).toString("utf8")).revision_id;} catch {continue;}
+  if (typeof revision !== "string" || !await recordRead(`/v1/revisions/${revision}`)) continue;
+  const record = JSON.parse(bodies.get(entries[`GET /v1/revisions/${revision}`].file).toString("utf8"));
+  const pinned = record.config?.cohort_sources ?? {};
+  for (const field of record.config?.field_ids ?? []) {
+    const source = pinned[field]?.revision_id ?? revision;
+    if (!await recordRead(`/v1/revisions/${source}`)) {report.alerts.push(`source revision ${source}`); continue;}
+    if (!await recordRead(`/v1/revisions/${source}/region-measurements`)
+        || !await recordRead(`/v1/revisions/${source}/region-masks?field_id=${encodeURIComponent(field)}`)) report.alerts.push(`source ${source} ${field}`);
+    report.sources++;
+  }
+}
 // Chromium does not keep bodies of responses the page consumed as blobs (previews, figure
 // files); fetch those same GETs again with the same session (GETs never change the state).
 report.refetched = 0;

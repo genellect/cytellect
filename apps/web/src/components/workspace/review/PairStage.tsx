@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
+import type {SavedResult} from "@/lib/workspace/api-adapter";
 import type {useWorkspaceRuntime} from "@/lib/workspace/use-workspace-runtime";
 import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {decodedPreview,percentileRange,planeRange,redrawnPreview,remapTable,sharedRange} from "@/lib/shared-display";
@@ -14,7 +15,10 @@ type Runtime=ReturnType<typeof useWorkspaceRuntime>;
 export type PairDisplay={shared:boolean;black?:number;white?:number;fields?:string[]};
 interface Props {
   design:ExperimentDesign;fields:ReviewField[];runtime:Runtime;target:ReviewTarget;channel:string;
-  selectedField?:string;onSelect:(fieldId:string,channel:string,region?:number)=>void;
+  /** The selected field shows in its group's pane, with the selected region (the workspace's one selection). */
+  selectedField?:string;region?:number;onSelect:(fieldId:string,channel:string,region?:number)=>void;
+  /** A figure's source: the saved version of that field, shown instead of the adopted one (read-only). */
+  historical?:{target:ReviewTarget;result:SavedResult}|null;
   onEditing:(value:boolean)=>void;demo?:boolean;
   /** The run shown (the toolbar chooses it), whether zoom is linked and whether each pane lists its measurements. */
   runId:string;linked:boolean;tables:boolean;onDisplay?:(value:PairDisplay|null)=>void;
@@ -27,17 +31,23 @@ export const pairRuns=(design:ExperimentDesign)=>(design.runs??[]).filter(run=>d
  * whole field with outlines at the scale shared by both panes and, beside or below it, that field's
  * measurements. Fields of different groups are different cells: no position correspondence is assumed,
  * and zoom is linked only on request. */
-export function PairStage({design,fields,runtime:r,target,channel,selectedField,onSelect,onEditing,demo=false,runId,linked,tables,onDisplay}:Props){
+export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,demo=false,runId,linked,tables,onDisplay}:Props){
   const runs=pairRuns(design);
   const run=runs.find(value=>value.id===runId)??runs[0];
   const [chosen,setChosen]=useState<Record<string,string>>({});
   const [viewport,setViewport]=useState<Record<string,ReviewImageViewport|null>>({});
-  const [regions,setRegions]=useState<Record<string,number|undefined>>({});
+  // A field selected anywhere (the list, a pane, a figure's source) is also remembered for its group, so its
+  // pane keeps showing it after the selection moves to the other pane.
+  useEffect(()=>{
+    const group=selectedField?design.fields?.[selectedField]?.group_id:undefined;
+    if(group&&selectedField)setChosen(previous=>previous[group]===selectedField?previous:{...previous,[group]:selectedField});
+  },[selectedField,design]);
   // Control first, so the reading order matches the comparison (treatment − control).
   const groups=[...design.groups].sort((a,b)=>(a.id===design.control_group_id?-1:0)-(b.id===design.control_group_id?-1:0));
   const panes=groups.map(group=>{
     const ids=run?fieldsIn(design,group.id,run.id).map(([id])=>id):[];
-    const fieldId=ids.includes(chosen[group.id])?chosen[group.id]:ids.includes(selectedField??"")?selectedField!:ids[0];
+    // The selected field wins in its group's pane; each other pane keeps the field last chosen in it.
+    const fieldId=ids.includes(selectedField??"")?selectedField!:ids.includes(chosen[group.id])?chosen[group.id]:ids[0];
     return {group,ids,field:fields.find(value=>value.id===fieldId)};
   });
   const receipts=panes.map(pane=>pane.field?.previewDisplay?.[channel]);
@@ -61,12 +71,14 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
     {panes.map((pane,index)=>{
       const field=pane.field;
       // A detection preview (for example an AI proposal) is shown as in one field, read-only until adopted.
-      const candidate=field?r.candidateResult(field.id,target):undefined,value=field?candidate||r.currentResult(field.id,target):undefined;
-      const editable=!demo&&!!field&&!!value&&!candidate&&target!=="nucleoplasm";
+      const saved=field&&historical?.target===target&&historical.result.field===field.id?historical.result:undefined;
+      const candidate=field&&!saved?r.candidateResult(field.id,target):undefined,value=field?saved||candidate||r.currentResult(field.id,target):undefined;
+      const editable=!demo&&!!field&&!!value&&!saved&&!candidate&&target!=="nucleoplasm";
+      const shown=field&&field.id===selectedField?region:undefined;
       const view=linked?viewport.shared:field?viewport[field.id]:undefined;
       const rows=value?.rows.filter(row=>row.channel_id===channel)??[];
       const count=value?new Set(value.masks.regions.map(region=>region.id)).size:null;
-      const select=(n:number)=>{if(!field)return;setRegions(previous=>({...previous,[field.id]:n}));onSelect(field.id,channel,n);};
+      const select=(n:number)=>{if(field)onSelect(field.id,channel,n);};
       const label=`${pane.group.label}${pane.group.id===design.control_group_id?"（対照）":""}`;
       return <section key={pane.group.id} className={styles.pane} aria-label={label}>
         <header className={styles.paneHead}>
@@ -75,12 +87,12 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
             // The chosen field is also the selected one, so measuring and candidates act on what is shown.
             onSelect(id,channel);}}>
             {pane.ids.map((id,position)=>{const known=fields.find(item=>item.id===id);return <option key={id} value={id} disabled={!known}>{known?.label??`視野 ${position+1}（読み込み中）`}</option>;})}</select>}
-          <small>{pane.ids.length} 視野 · {count===null?"未測定":`${targets[target]} ${count}`}{candidate?" · 検出候補":""}</small>
+          <small>{pane.ids.length} 視野 · {count===null?"未測定":`${targets[target]} ${count}`}{saved?" · 図の保存時の版":candidate?" · 検出候補":""}</small>
         </header>
         <div className={styles.paneBody} ref={index===0?body:undefined}>
         <div className={styles.paneImage}>{!field?<p className={styles.empty}>この実験回の画像がありません。</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
           src={urls[index]!} width={field.width} height={field.height} contours={value?.masks.regions||[]}
-          selected={regions[field.id]} label={`${pane.group.label} ${field.label}`}
+          selected={shown} label={`${pane.group.label} ${field.label}`}
           onSelect={select} editingKey={`${field.id}:${target}:${value?.revision||"none"}`}
           editDisabled={r.busy||!editable}
           onEdit={editable?(operation,polygon,n,merged)=>r.editMask(field.id,target,value!.revision,operation,polygon,n,merged):undefined}
@@ -93,7 +105,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           style={{width:field.width*layout.scale,height:field.height*layout.scale,flex:"none"}}
           context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(field.id,"nuclei")?.masks.regions:undefined}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
-          {rows.length?<MeasurementTable rows={rows} selected={regions[field.id]} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
+          {rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
         </div>
       </section>;
     })}
