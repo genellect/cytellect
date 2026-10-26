@@ -507,6 +507,7 @@ descriptive endpoint (one-screen descriptions); comparison estimates remain comp
 | Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons and per-field descriptions: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
 | Compartment-summary selection | 1.1.0 | Comparisons and per-field descriptions (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
 | Comparison estimates | `comparison-estimates/1.0.0` | Opt-in `estimates` on common-statistics 2.0.0 comparisons with one contrast | Absent from historical requests and results |
+| Unresolved-nucleoli policy | `unresolved-as-missing/1.0.0` | Opt-in `compartment_missing` on cohorts and reviews of nucleolar/nucleoplasm revisions; comparisons and descriptions | Absent from historical requests, review records and results; without it every parent must be a candidate |
 | Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
 
 ### Descriptive observation-source extension
@@ -657,3 +658,55 @@ declared test's; estimates never select or replace a test.
 The saved estimates are exported with the common-statistics figure as
 `estimates.csv` (difference and ratio with basis or reason), `estimates-groups.csv`
 and `estimates-runs.csv`, and stated in its Methods.
+
+### Unresolved-nucleoli policy 1.0.0 (2026-10-26)
+
+Requirements Q-05; design and options in
+[genellect/cytellect#109](https://github.com/genellect/cytellect/pull/109).
+Without the policy, statistics on a nucleolar or nucleoplasm revision still require
+every parent nucleus to be a `candidate` (and, for nucleoplasm, a non-empty
+nucleoplasm). With it, a nucleus whose nucleolus was not established stays in the
+ledger as missing instead of being removed (`compartment_review.py`).
+
+- Kept as missing: parents recorded as `no_candidate` or `indeterminate`, and
+  candidate parents whose nucleoplasm is empty after subtraction
+  (`empty_after_subtraction`, nucleoplasm revisions only). Their nuclear masks,
+  measurements and IDs are unchanged.
+- Still stopped: `processing_failed`, `unclassified`, `review_required` (saved
+  candidates of a truncated parent await the researcher's review; whether to count
+  them individually needs its own rule), `not_measured_recipe`, `legacy_candidate`,
+  `none_after_edit` (`compartment_state_not_missing`), and a state table that does not
+  list every missing parent (`compartment_ledger_invalid`). An unexcluded
+  experimental unit without any value still stops the comparison
+  ([region comparisons](region-comparisons.md#input-ledger-and-missingness)).
+- Ledger per field: all parent nuclei; resolved (with an established compartment);
+  missing by reason; explicitly excluded (nucleoplasm region exclusions, which are
+  parent nuclei; part of resolved). nuclei = resolved + missing.
+- Confirmation: a cohort request names the policy (`compartment_missing`) and the
+  review sends, per field, the missing count by reason. The API rebuilds the ledger
+  from the revision's provenance and accepts the review only when the confirmation
+  equals it exactly (`compartment_missing_confirmation_mismatch`); the review record
+  keeps the policy and the ledger. `GET /v1/revisions/{rid}/compartment-ledger`
+  returns the ledger before the review. Statistics stop when the ledger no longer
+  equals the reviewed one (`compartment_missing_ledger_changed`).
+- Results (common-statistics 2.0.0 comparisons and descriptive results) carry
+  `compartment_missing`: per condition and experimental unit, fields, nuclei,
+  resolved, missing (with reasons) and excluded. The missing fraction is
+  missing / all nuclei; exclusions never shrink the denominator.
+- Warning (`compartment_missing_rate_differs`): within one run (the field's `pair`;
+  fields without a run form one run), the groups' missing fractions (missing / all
+  nuclei, summed over the run's units of each group) differ by at least 10
+  percentage points, decided with exact fractions. Groups without nuclei have no
+  fraction. Runs whose differences cancel out are each warned. The threshold was
+  fixed before it was applied to any data; no warning is not evidence that no
+  selection related to the treatment remains.
+- Values describe the nuclei whose nucleolus was established, not all nuclei, and
+  are not a bias-corrected estimate of the treatment effect.
+- Associations refuse a revision reviewed under the policy
+  (`compartment_missing_association_unsupported`): their result has no place for the
+  ledger.
+- The comparison figure exports `compartment-missing.csv`; comparison and
+  descriptive Methods state the policy, every group and unit's missing / all nuclei
+  and the warning. Descriptive exports keep the ledger in `figure-data.json`.
+  Export replay and the in-browser runtime recompute the same ledger from the saved
+  review record.
