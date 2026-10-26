@@ -66,7 +66,11 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   await side.getByRole("combobox",{name:"領域",exact:true}).selectOption("nucleoli");
   await side.getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
   const panel=page.getByRole("region",{name:"測定結果の統計解析"});
-  await panel.getByRole("combobox",{name:"解析",exact:true}).selectOption("comparison");
+  // The settings saved by choosing the region and metric come back and set the analysis they hold;
+  // the comparison is chosen once that round trip has settled.
+  await page.waitForLoadState("networkidle");
+  const analysis=panel.getByRole("combobox",{name:"解析",exact:true});
+  await expect(async()=>{await analysis.selectOption("comparison");await expect(panel.getByLabel("独立実験単位",{exact:true})).toBeVisible({timeout:2000});}).toPass({timeout:30000});
   await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
   for(let i=0;i<2;i++)for(const [key,value] of [["condition",i?"B":"A"],["sample",`sample-${i}`],["experimental_unit",`unit-${i}`]])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(value);
   await panel.getByLabel("A / B",{exact:true}).check();
@@ -86,10 +90,14 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   await expect.poll(()=>fixture.review()).not.toBeNull();
   expect(fixture.cohort()).toMatchObject({compartment_missing:"unresolved-as-missing/1.0.0"});
   expect(fixture.review()).toEqual({accept_invalidated_fields:[],compartment_missing:{policy:"unresolved-as-missing/1.0.0",confirmed:{f1:{no_candidate:1}}}});
-  // Beside the result: what the values describe, the denominators and the within-run warning.
+  // Right under the result sentence: what the values describe, all missing over all nuclei and the
+  // within-run warning; the same card lists every group and unit.
+  const summary=page.getByRole("region",{name:"結果のまとめ"}).or(page.getByRole("region",{name:"測定結果の統計解析"})).first();
+  await expect(summary.getByText("核小体を確定できた核についての値です。")).toBeVisible();
+  await expect(summary).toContainText("確定できない核 1 / 5（20%）");
+  await expect(summary.getByRole("status").filter({hasText:"群の間の欠測の割合が"})).toContainText("群の間の欠測の割合が 33.3 ポイント違います（基準 10 ポイント）");
   const shown=page.getByRole("group",{name:"核小体を確定できない核の内訳"});
-  await expect(shown).toContainText("核小体を確定できた核についての値です。");
   await expect(shown.getByRole("row").filter({hasText:"unit-0"})).toContainText("1 / 3（33.3%）");
-  await expect(shown.getByRole("status")).toContainText("群の間の欠測の割合が 33.3 ポイント違います（基準 10 ポイント）");
+  await expect(shown.getByRole("row").filter({hasText:"unit-1"})).toContainText("0 / 2（0%）");
   expect(fixture.unexpected).toEqual([]);
 });

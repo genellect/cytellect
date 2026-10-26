@@ -328,7 +328,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
           missing={saved.result.compartment_missing??null}/>}
             {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null} missing={saved.result.compartment_missing??null}/>}
             {/* Without a summary card the denominators still stand beside the result (Q-05). */}
-            {mode==="statistics"&&saved.result.compartment_missing&&!saved.result.estimates&&!(saved.operation==="distribution"&&experiment)&&<MissingNucleoli summary={saved.result.compartment_missing}/>}
+            {mode==="statistics"&&saved.result.compartment_missing&&!saved.result.estimates&&!(saved.operation==="distribution"&&experiment)&&<><MissingLead summary={saved.result.compartment_missing}/><MissingNucleoli summary={saved.result.compartment_missing}/></>}
           </div>
           <div>{svgFiles.map(file=><VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}</div>
         </div>:svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
@@ -359,12 +359,13 @@ function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];f
  * No value is combined and nothing is tested, so it stays available before independence is confirmed. */
 function RunMedians({design,summary,metricLabel,unit,reported,missing}:{design:ExperimentDesign;summary:Array<Record<string,unknown>>;metricLabel:string;unit:string;reported:ShowcaseDataset["reported"];missing:MissingSummary|null}){
   const table=runTable(design,summary);
-  if(!table)return missing?<MissingNucleoli summary={missing}/>:null;
+  if(!table)return missing?<><MissingLead summary={missing}/><MissingNucleoli summary={missing}/></>:null;
   return <section className={styles.summary} aria-label="実験回と群ごとの値">
     <p className={styles.headline}>{metricLabel}：視野ごとの中央値{unit?`（${unit}）`:""}を、実験回と群ごとに並べています。</p>
-    {missing&&<MissingNucleoli summary={missing}/>}
+    {missing&&<MissingLead summary={missing}/>}
     <table><thead><tr><th scope="col">実験回</th>{table.groups.map(group=><th key={group.id} scope="col">{group.label}{group.id===design.control_group_id?"（対照）":""}</th>)}</tr></thead>
       <tbody>{table.runs.map(run=><tr key={run.id}><th scope="row">{run.label}</th>{run.cells.map((cell,index)=><td key={table.groups[index].id}>{cell.length?cell.map(value=>formatValue(value)).join("、"):"—"}</td>)}</tr>)}</tbody></table>
+    {missing&&<MissingNucleoli summary={missing}/>}
     <p>{design.independence_confirmed?"群の差と信頼区間は「群間比較」で計算します。":"実験回の独立性が確認されていないため、「群間比較」でも検定と信頼区間は計算せず、実験回ごとの値と差を示します。"}</p>
     {reported&&<ReportedSource reported={reported}/>}
   </section>;
@@ -387,13 +388,14 @@ function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,count
   const summary=summarize(estimates,comparison,metricLabel,unit);
   return <section className={styles.summary} aria-label="結果のまとめ">
     <p className={styles.headline}>{summary.headline}</p>
-    {missing&&<MissingNucleoli summary={missing}/>}
+    {missing&&<MissingLead summary={missing}/>}
     {summary.interval&&<p>{summary.interval}</p>}
     <p>{summary.test}</p>
     {summary.runs&&<p>{summary.runs}</p>}
     {/* With few runs the run values carry the result, so they are shown open (S-07). */}
     {estimates.runs.length>0&&<details open={estimates.runs.length<5}><summary>実験回ごとの値</summary><table><thead><tr><th>実験回</th><th>{estimates.control}</th><th>{estimates.treatment}</th><th>差（{estimates.treatment} − {estimates.control}）{estimates.scale==="fraction"?" / ポイント":""}</th></tr></thead>
       <tbody>{estimates.runs.map(run=><tr key={run.pair}><th>{run.pair}</th><td>{runValue(run.control)}</td><td>{runValue(run.treatment)}</td><td>{runValue(run.difference,true)}</td></tr>)}</tbody></table></details>}
+    {missing&&<MissingNucleoli summary={missing}/>}
     <details><summary>n の内訳と除外</summary><ul>{counts.groups.map(value=><li key={value}>{value}</li>)}</ul>
       <p>{counts.exclusions.length?"除外・欠測（実験回ごと）":"除外した視野・領域と、測定値の欠測はありません。"}</p>{counts.exclusions.length>0&&<ul>{counts.exclusions.map(value=><li key={value}>{value}</li>)}</ul>}</details>
     <ul className={styles.cautions}>{[...summary.cautions,...warnings].map(value=><li key={value}>{value}</li>)}</ul>
@@ -427,13 +429,21 @@ function UnresolvedList({fields,ledger,metadata,labels,confirmed,disabled,onConf
   </section>;
 }
 
-/** Beside the result sentence (Q-05): what the values describe, the denominators by group and unit,
+/** Right under the result sentence (Q-05): what the values describe, the missing nuclei over all nuclei
  * and the within-run warning. A missing warning does not mean that no selection bias remains. */
+function MissingLead({summary}:{summary:MissingSummary}){
+  const missing=summary.rows.reduce((sum,row)=>sum+row.missing,0),nuclei=summary.rows.reduce((sum,row)=>sum+row.nuclei,0);
+  return <div className={styles.missingLead}>
+    <p><strong>核小体を確定できた核についての値です。</strong>確定できない核 {missing} / {nuclei}（{percent(missing,nuclei)}）は、消さずに欠測として残しています。群・実験単位ごとの内訳は下の表です。</p>
+    {summary.warnings.map(warning=><p key={String(warning.run)} role="status" className={styles.missingWarning}>{warning.run?`実験回 ${warning.run} で、`:""}群の間の欠測の割合が {formatNumber(warning.difference_points)} ポイント違います（基準 {summary.warning_points} ポイント）。処理に関わる選別の偏りが残っている可能性があります。</p>)}
+  </div>;
+}
+
+/** Every group and unit's missing nuclei over all nuclei, always shown with the result (Q-05). */
 function MissingNucleoli({summary}:{summary:MissingSummary}){
   return <div className={styles.missing} role="group" aria-label="核小体を確定できない核の内訳">
-    <p><strong>核小体を確定できた核についての値です。</strong>確定できない核は消さずに欠測として残しています。</p>
+    <p>核小体を確定できない核の内訳（欠測の割合は、すべての核に対する割合）</p>
     <div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th scope="col">群</th><th scope="col">実験単位</th><th scope="col">欠測 / 全核</th><th scope="col">除外</th></tr></thead>
       <tbody>{summary.rows.map(row=><tr key={`${row.condition}:${row.experimental_unit}`}><th scope="row">{row.condition}</th><td>{row.experimental_unit}</td><td title={reasonText(row.reasons)}>{row.missing} / {row.nuclei}（{percent(row.missing,row.nuclei)}）</td><td>{row.excluded}</td></tr>)}</tbody></table></div>
-    {summary.warnings.map(warning=><p key={String(warning.run)} role="status" className={styles.missingWarning}>{warning.run?`実験回 ${warning.run} で、`:""}群の間の欠測の割合が {formatNumber(warning.difference_points)} ポイント違います（基準 {summary.warning_points} ポイント）。処理に関わる選別の偏りが残っている可能性があります。</p>)}
   </div>;
 }
