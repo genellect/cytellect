@@ -29,6 +29,7 @@ PY_STACK = frozenset({"python", "web", "fiji", "windows"})  # API/analysis feed 
 # First matching pattern wins. Order from specific to general.
 RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("docs/*", frozenset()),
+    (".github/*.md", frozenset()),  # pull-request and issue templates; workflows and other settings stay unlisted
     ("LICENSE", frozenset()),
     ("NOTICE", frozenset()),
     ("apps/web/scripts/*", frozenset({"web", "fiji", "windows"})),

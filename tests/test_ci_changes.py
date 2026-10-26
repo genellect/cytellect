@@ -13,7 +13,8 @@ from ci_changes import (  # noqa: E402
 
 
 def test_documentation_selects_no_heavy_area():
-    for path in ["docs/methods.md", "docs/sub/a.png", "README.md", "README.en.md", "AGENTS.md", "LICENSE", "NOTICE"]:
+    for path in ["docs/methods.md", "docs/sub/a.png", "README.md", "README.en.md", "AGENTS.md", "LICENSE", "NOTICE",
+                 ".github/pull_request_template.md"]:
         assert areas_for(path) == frozenset(), path
 
 
