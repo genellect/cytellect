@@ -2,11 +2,19 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from ci_changes import ALL, areas_for, normalize, select  # noqa: E402
+from ci_changes import (  # noqa: E402
+    ALL,
+    areas_for,
+    documentation_registry_change,
+    normalize,
+    select,
+    select_changes,
+)
 
 
 def test_documentation_selects_no_heavy_area():
-    for path in ["docs/methods.md", "docs/sub/a.png", "README.md", "README.en.md", "AGENTS.md", "LICENSE", "NOTICE"]:
+    for path in ["docs/methods.md", "docs/sub/a.png", "README.md", "README.en.md", "AGENTS.md", "LICENSE", "NOTICE",
+                 ".github/pull_request_template.md"]:
         assert areas_for(path) == frozenset(), path
 
 
@@ -48,3 +56,20 @@ def test_the_full_web_job_replaces_the_landing_page_job():
     assert "lp" not in ALL and normalize(ALL) == ALL
     assert select(["apps/web/src/components/PublicLanding.tsx", "apps/web/src/app/page.tsx"]) == {"web", "fiji"}
     assert select(["apps/web/src/components/PublicLanding.tsx", "services/proposal-worker/src/a.ts"]) == {"web"}
+
+
+def test_registering_a_documentation_image_is_a_documentation_change():
+    old = {"docs/images/a.webp": {"sha256": "1"}, "apps/web/public/marketing/b.webp": {"sha256": "2"}}
+    assert documentation_registry_change(old, {**old, "docs/images/c.webp": {"sha256": "3"}})
+    assert documentation_registry_change(old, {**old, "docs/images/a.webp": {"sha256": "9"}})
+    assert not documentation_registry_change(old, {**old, "apps/web/public/marketing/b.webp": {"sha256": "9"}})
+    assert not documentation_registry_change(old, {**old, "docs/images/c.webp": {}, "fixtures/public/x.tif": {}})
+    assert not documentation_registry_change(old, dict(old))
+
+
+def test_a_documentation_registry_change_alone_selects_nothing():
+    registry = "fixtures/public/allowlist.json"
+    assert select_changes([registry], documentation_registry=True) == frozenset()
+    assert select_changes([registry, "README.md", "docs/images/a.webp"], documentation_registry=True) == frozenset()
+    assert select_changes([registry, "services/proposal-worker/src/a.ts"], documentation_registry=True) == {"web"}
+    assert select_changes([registry], documentation_registry=False) == {"python", "lp"}

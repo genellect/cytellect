@@ -16,7 +16,7 @@ PR では、変更したファイルが影響しうるジョブだけを実行�
 
 **LP だけの変更**：LP の部品（`PublicLanding`、`Landing*`、`HeroFilm`、`optical-landing.module.css`）、`lp-metrics`、LP のブラウザ試験（`marketing`、`lp-*`）は `lp` だけを選ぶ。LP の素材（`apps/web/public/marketing/**`）と `fixtures/public/allowlist.json` は Windows 版の配布物にも含まれるため、`python` と `lp` を選ぶ。`lp` は API 契約の再生成、解析提案の Worker、デモのブラウザ試験、依存の記録を省き、pnpm のストアと試験用のブラウザをキャッシュから復元する。`web` も同じ LP の試験を実行するため、`web` が選ばれたとき（`main` への push を含む）は `lp` を実行しない。ヒーロー映像の制作用スクリプト（`scripts/lp_film/**`）は、どの領域も選ばない。
 
-**文書だけの変更**：`docs/**`、ルートの Markdown、`LICENSE`、`NOTICE` は、どの領域も選ばない。
+**文書だけの変更**：`docs/**`、ルートの Markdown、`.github/` 配下の Markdown（PR・Issue のテンプレート）、`LICENSE`、`NOTICE` は、どの領域も選ばない。`fixtures/public/allowlist.json` の変更が `docs/` の画像の登録だけの場合も、文書の変更として扱い、どの領域も選ばない。
 
 **すべての領域を選ぶ変更**：workflow、lockfile、パッケージの定義、`fixtures/` のその他のファイル、規則にないパス。トップレベルのディレクトリを追加するときは、`scripts/ci_changes.py` の規則とその試験も更新する。
 
