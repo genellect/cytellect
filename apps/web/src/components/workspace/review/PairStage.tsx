@@ -42,10 +42,12 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   });
   const receipts=panes.map(pane=>pane.field?.previewDisplay?.[channel]);
   const shared=sharedRange(receipts);
-  const displayKey=JSON.stringify([shared,receipts.map(planeRange)]);
-  const {urls,failed,range}=useSharedPreviews(panes.map(pane=>pane.field?.previews[channel]),receipts.map(planeRange),shared.status==="shared",displayKey);
+  // What is shown: the same fields, channel and display ranges are the same images, even when the
+  // runtime re-creates their preview URLs (for example when the remaining fields have loaded).
+  const displayKey=JSON.stringify([panes.map(pane=>pane.field?.id??null),channel,shared,receipts.map(planeRange)]);
+  const {urls,failed,range,own}=useSharedPreviews(panes.map(pane=>pane.field?.previews[channel]),receipts.map(planeRange),shared.status==="shared",displayKey);
   const shownFields=panes.flatMap(pane=>pane.field?[pane.field.id]:[]);
-  const display:PairDisplay|null=!run?null:shared.status==="shared"&&!failed?{shared:true,black:(range??shared).black,white:(range??shared).white,fields:shownFields}:{shared:false,fields:shownFields};
+  const display:PairDisplay|null=!run?null:shared.status==="shared"&&!failed&&!own?{shared:true,black:(range??shared).black,white:(range??shared).white,fields:shownFields}:{shared:false,fields:shownFields};
   const displayValue=JSON.stringify(display);
   useEffect(()=>{onDisplay?.(display);},[displayValue]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>()=>onDisplay?.(null),[]);// eslint-disable-line react-hooks/exhaustive-deps
@@ -105,12 +107,14 @@ const format=(value:number)=>Number.isInteger(value)?String(value):value.toPreci
 
 /** Object URLs of previews redrawn on one shared scale (shared display range 1.1.0: percentiles of both
  * previews' stored values), with that range; the originals (and failed) when redrawing fails. */
-function useSharedPreviews(sources:Array<string|undefined>,ranges:Array<{black:number;white:number}|null>,verified:boolean,key:string):{urls:Array<string|undefined>;failed:boolean;range:{black:number;white:number}|null}{
+function useSharedPreviews(sources:Array<string|undefined>,ranges:Array<{black:number;white:number}|null>,verified:boolean,key:string):{urls:Array<string|undefined>;failed:boolean;range:{black:number;white:number}|null;own?:boolean}{
   const sourceKey=sources.join("\n")+key;
-  const [state,setState]=useState<{key:string;urls:Array<string|undefined>;failed:boolean;range:{black:number;white:number}|null}>({key:"",urls:[],failed:false,range:null});
+  const [state,setState]=useState<{key:string;identity:string;urls:Array<string|undefined>;owned:string[];failed:boolean;range:{black:number;white:number}|null}>({key:"",identity:"",urls:[],owned:[],failed:false,range:null});
+  // A redrawn pair is released only once the next one is on screen (or on unmount).
+  useEffect(()=>{const owned=state.owned;return()=>owned.forEach(url=>URL.revokeObjectURL(url));},[state]);
   useEffect(()=>{
     if(!verified){return;}
-    let live=true;const created:string[]=[];
+    let live=true,committed=false;const created:string[]=[];
     void (async()=>{
       const shown=sources.map((src,index)=>src&&ranges[index]?{src,range:ranges[index]!}:null);
       const decoded=await Promise.all(shown.map(item=>item?decodedPreview(item.src):Promise.resolve(null)));
@@ -118,11 +122,14 @@ function useSharedPreviews(sources:Array<string|undefined>,ranges:Array<{black:n
       const range=percentileRange(present.map(item=>item.histogram),present.map(item=>item.range));
       const urls=await Promise.all(decoded.map(async(value,index)=>{if(!value||!shown[index])return sources[index];const url=await redrawnPreview(value,remapTable(shown[index]!.range,range));created.push(url);return url;}));
       return {urls,range};
-    })().then(({urls,range})=>{if(live)setState({key:sourceKey,urls,failed:false,range});else created.forEach(url=>URL.revokeObjectURL(url));})
-      .catch(()=>{if(live)setState({key:sourceKey,urls:sources,failed:true,range:null});});
-    return()=>{live=false;created.forEach(url=>URL.revokeObjectURL(url));};
+    })().then(({urls,range})=>{if(live){committed=true;setState({key:sourceKey,identity:key,urls,owned:created,failed:false,range});}else created.forEach(url=>URL.revokeObjectURL(url));})
+      .catch(()=>{if(live)setState({key:sourceKey,identity:key,urls:sources,owned:[],failed:true,range:null});});
+    return()=>{live=false;if(!committed)created.forEach(url=>URL.revokeObjectURL(url));};
   },[sourceKey]);// eslint-disable-line react-hooks/exhaustive-deps
   if(!verified)return {urls:sources,failed:false,range:null};
-  // A changed request hides the previous pair until the new one is ready (as for previews).
-  return state.key===sourceKey?{urls:state.urls,failed:state.failed,range:state.range}:{urls:sources.map(()=>undefined),failed:false,range:null};
+  if(state.key===sourceKey)return {urls:state.urls,failed:state.failed,range:state.range};
+  // The same images under re-created URLs stay on screen while they are redrawn. Otherwise each image is
+  // shown in its own range until the shared one is ready, and the view says so (own), so nothing blanks
+  // and no image is shown under the wrong label.
+  return state.identity===key?{urls:state.urls,failed:state.failed,range:state.range}:{urls:sources,failed:false,range:null,own:true};
 }

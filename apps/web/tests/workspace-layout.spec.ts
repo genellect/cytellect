@@ -69,6 +69,21 @@ async function popupShown(page: Page, summary: string, panel: string) {
   await toggle.click();
   return shown;
 }
+/** Waits until every pane shows its image, then counts samples, until the remaining fields have loaded
+ * (and a moment after), in which a pane has no image: the pair must not blank once shown. */
+async function blankAfterShown(page: Page) {
+  await expect.poll(async () => Math.min(...(await paneImages(page)).map(pane => pane.covered)), {timeout: live}).toBeGreaterThan(0.95);
+  return page.evaluate(async () => {
+    let blank = 0, settled = 0;
+    const until = Date.now() + 30_000;
+    while (Date.now() < until && settled < 16) {
+      if ([...document.querySelectorAll("[class*=paneImage]")].some(box => !box.querySelector("svg image"))) blank++;
+      settled = /読み込み/.test(document.querySelector("header [role=status]")?.textContent ?? "") ? 0 : settled + 1;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return blank;
+  });
+}
 /** Per pane: the image box (between its header and table) and how much of it the drawn image covers. */
 function paneImages(page: Page) {
   return page.evaluate(() => [...document.querySelectorAll("[class*=paneImage]")].map(box => {
@@ -88,7 +103,7 @@ for (const size of SIZES) test(`side by side on a ${size.name} (${size.width} ×
   await expect(tables).toHaveCount(2, {timeout: live});
   for (const table of await tables.all()) await expect(table.locator("tbody tr").first()).toBeVisible({timeout: live});
   await expect(page.locator("svg path[data-region]").first()).toBeAttached({timeout: live});
-  await page.waitForTimeout(500);
+  await expect.poll(async () => Math.min(...(await paneImages(page)).map(pane => pane.covered)), {timeout: live}).toBeGreaterThan(0.95);
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await wrappedLabels(page)).toEqual([]);
@@ -127,7 +142,8 @@ test("the nucleolar scene opens side by side with the same layout", async ({page
   await page.goto(`/demo?id=${scene!.workspaceId}`);
   await expect(page.getByRole("region", {name: /の測定値$/})).toHaveCount(2, {timeout: live});
   await expect(page.locator("svg path[data-region]").first()).toBeAttached({timeout: live});
-  await page.waitForTimeout(500);
+  // Both images stay on screen while the remaining fields load (they are redrawn, never blanked).
+  expect(await blankAfterShown(page)).toBe(0);
   expect(await wrappedLabels(page)).toEqual([]);
   expect(await coveredControls(page)).toEqual([]);
   // It opens on the region its opening comparison measures (scenes.json target), one channel per pane:

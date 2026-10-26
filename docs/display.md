@@ -36,7 +36,11 @@ When the percentiles are degenerate the union is used. The view states the share
 range in one line, with the rule on demand. It refuses to guess: if either preview
 lacks a verified receipt or is a composite, both keep their own ranges and the
 view says that brightness must not be compared. Values a preview had already
-clipped stay at its own limit.
+clipped stay at its own limit. While the shared redraw is being prepared, each
+image is shown in its own range and the view says so (no blank pane); the same
+images, when the runtime only re-creates their preview URLs, stay on screen until
+they are redrawn. Another field, channel or range is never shown under the
+previous label.
 
 Each pane opens with its image filling the pane (the smallest zoom that leaves no
 empty margin), centred. In the public demo, the nucleolar and nucleoplasm views draw the
