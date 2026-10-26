@@ -99,22 +99,10 @@ test("a researcher can stop the hero film and keep it stopped after navigation",
  await page.emulateMedia({reducedMotion:"reduce"});await expect(film.locator("video")).toHaveCount(0);await expect(film.locator("img")).toBeVisible();
  expect(errors).toEqual([]);
 });
-test("the story for general readers lives on its own page, linked quietly from the footer", async ({page}) => {
- await page.emulateMedia({reducedMotion:"reduce"});
+test("the landing page carries no long story, on the page or behind a link", async ({page}) => {
  await page.goto("/");
  await expect(page.getByRole("region", { name: "Cytellectが生まれた理由" })).toHaveCount(0);
- const link = page.getByRole("contentinfo").getByRole("link", { name: "Cytellectが生まれた理由" });
- await expect(link).toHaveAttribute("href", "/story");
- await link.click();
- await expect(page).toHaveURL(/\/story$/);
- await expect(page.getByRole("heading", { level: 1, name: "Cytellectが生まれた理由" })).toBeVisible();
- await expect(page.getByText("私たちの体は、約30兆個もの細胞から成り立っている。", { exact: false })).toBeVisible();
- await expect(page.getByText("次世代の研究者のためのアプリケーションである。", { exact: false })).toHaveCount(1);
- await expect(page.getByRole("link", { name: "デモを体験する" })).toHaveAttribute("href", "/demo");
- await page.setViewportSize({ width: 390, height: 844 });
- expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
- await page.getByRole("link", { name: "トップページへ" }).click();
- await expect(page).toHaveURL(/\/$/);
+ await expect(page.getByText("Cytellectが生まれた理由")).toHaveCount(0);
 });
 
 test("the wordmark returns to the hero from anywhere on the page", async ({page}) => {
