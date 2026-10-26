@@ -503,12 +503,15 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   const recorded = results.getByRole("group", {name: "記録した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   const sentence = results.getByRole("region", {name: "結果のまとめ"}).locator("p").first();
+  // The opening comparison names its region and channel, and the side panel already agrees with it.
+  await expect(sentence).toContainText("核小体の平均輝度（eu5）");
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await recorded.getByRole("button", {name: /離心率/}).click();
   await expect(sentence).toContainText("離心率");
   await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("nucleolar_eccentricity");
   await recorded.getByRole("button", {name: /eu5/}).click();
   await expect(sentence).toContainText("平均輝度");
-  await expect(results.getByRole("status").filter({hasText: "前の結果"})).toHaveCount(0);
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
     ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],

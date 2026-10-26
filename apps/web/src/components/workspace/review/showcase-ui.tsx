@@ -101,18 +101,22 @@ export function DemoBadge({dataset}: {dataset: ShowcaseDataset | null}) {
   </details>;
 }
 
-const steps: Array<{mode: DemoStep; title: string; text: string; table?: boolean}> = [
-  {mode: "image", title: "画像と輪郭", text: "核は検出済みです。輪郭を選ぶと値が分かり、ずれていればその場で直せます。「領域」で核小体・核質にも切り替えられます。"},
-  {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を表で確認できます。", table: true},
+/** The steps; the first names only the regions this scene has, and where outlines are edited. */
+function guideSteps(dataset: ShowcaseDataset | null): Array<{mode: DemoStep; title: string; text: string; table?: boolean}> {
+  const nucleolar = !!dataset?.regions?.includes("nucleoli");
+  return [
+  {mode: "image", title: "画像と輪郭", text: `2 つの群を並べ、検出した輪郭を重ねています。輪郭を選ぶと、その値が表で分かります。輪郭の修正は「2 画面」を外した 1 視野の表示で行えます。${nucleolar ? "「領域」で核・核小体・核質を切り替えられます。" : ""}`},
+  {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を、各画像の下の表で確認できます。", table: true},
   {mode: "statistics", title: "統計", text: "視野や群をまとめて計算します。"},
   {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIPで保存できます。"},
-];
+  ];
+}
 
 /** First-visit guide; each step opens the matching part of the real workspace. */
 export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onClose: () => void; onStep: (mode: DemoStep, table: boolean) => void; dataset: ShowcaseDataset | null}) {
   const [index, setIndex] = useState(0);
   if (!open) return null;
-  const step = steps[index];
+  const steps = guideSteps(dataset), step = steps[index];
   const go = (next: number) => {setIndex(next); onStep(steps[next].mode, !!steps[next].table);};
   const finish = () => {setIndex(0); onClose();};
   return <aside className={styles.guide} aria-label="公開デモの使い方">

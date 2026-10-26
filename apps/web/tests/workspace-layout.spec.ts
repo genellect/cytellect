@@ -11,7 +11,7 @@ import {expect, test, type Page} from "@playwright/test";
  * its figure in view. Run against the public production build with the published demo files.
  */
 const PUBLISHED = fs.existsSync(path.resolve("public/showcase/seed.zip"));
-interface Scene {id: string; workspaceId: string; regions: string[]}
+interface Scene {id: string; workspaceId: string; regions: string[]; target?: string; channel?: string}
 const SCENES: Scene[] = (() => {
   try {return (JSON.parse(fs.readFileSync(path.resolve("public/showcase/snapshot/scenes.json"), "utf8")) as {scenes: Scene[]}).scenes;}
   catch {return [];}
@@ -56,6 +56,19 @@ function coveredControls(page: Page) {
       return !!hit && hit !== element && !element.contains(hit) && !hit.contains(element);
     }).map(element => element.getAttribute("aria-label") || element.textContent?.trim()));
 }
+/** Opens a toolbar popup and reports whether all of it is on top (not clipped by the scrolling toolbar). */
+async function popupShown(page: Page, summary: string, panel: string) {
+  const toggle = page.locator(summary);
+  await toggle.scrollIntoViewIfNeeded();
+  await toggle.click();
+  const shown = await page.locator(panel).evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && [[box.left + 4, box.top + 4], [box.left + box.width / 2, box.top + box.height / 2], [box.right - 4, box.bottom - 4]]
+      .every(([x, y]) => {const hit = document.elementFromPoint(x, y); return !!hit && (hit === element || element.contains(hit));});
+  });
+  await toggle.click();
+  return shown;
+}
 /** Per pane: the image box (between its header and table) and how much of it the drawn image covers. */
 function paneImages(page: Page) {
   return page.evaluate(() => [...document.querySelectorAll("[class*=paneImage]")].map(box => {
@@ -81,6 +94,12 @@ for (const size of SIZES) test(`side by side on a ${size.name} (${size.width} ×
   expect(await wrappedLabels(page)).toEqual([]);
   expect(await coveredControls(page)).toEqual([]);
   if (size.width > 620) expect((await page.locator("header[class*=header]").boundingBox())!.height).toBeLessThanOrEqual(60);
+  // The product name is not cut by the badge next to it.
+  expect(await page.locator("header [class*=brand]").evaluate(element => element.scrollWidth <= element.clientWidth + 1
+    && element.getBoundingClientRect().right <= (element.nextElementSibling?.getBoundingClientRect().left ?? Infinity) + 1)).toBe(true);
+  // The display range's note and the image menu open in full, above the images.
+  expect(await popupShown(page, "[class*=rangeInfo] summary", "[class*=rangeInfo] p")).toBe(true);
+  expect(await popupShown(page, "[class*=fieldMenu] summary", "[class*=menuPanel]")).toBe(true);
 
   // The images take the screen: no letterbox, and a large share of the height (a fixed height on a phone).
   const headerBottom = (await page.locator("header[class*=header]").boundingBox())!.height;
@@ -111,9 +130,12 @@ test("the nucleolar scene opens side by side with the same layout", async ({page
   await page.waitForTimeout(500);
   expect(await wrappedLabels(page)).toEqual([]);
   expect(await coveredControls(page)).toEqual([]);
-  // One channel per pane: no overlay toggle side by side, and the shown channel reads as chosen.
+  // It opens on the region its opening comparison measures (scenes.json target), one channel per pane:
+  // no overlay toggle side by side, and the shown channel reads as chosen.
+  await expect(page.locator("[class*=channelBar]").getByRole("combobox", {name: "領域", exact: true})).toHaveValue(scene!.target ?? "nuclei");
   await expect(page.getByRole("button", {name: "重ねて表示", exact: true})).toHaveCount(0);
   await expect(page.locator("[class*=channelBar] button[data-channel][aria-pressed=true]")).toHaveCount(1);
+  if (scene!.channel) await expect(page.locator(`[class*=channelBar] button[data-channel="${scene!.channel}"]`)).toHaveAttribute("aria-pressed", "true");
   for (const pane of await paneImages(page)) expect(pane.covered).toBeGreaterThan(0.95);
 });
 

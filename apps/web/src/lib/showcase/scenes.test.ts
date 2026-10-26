@@ -25,6 +25,14 @@ describe("demo scenes", () => {
     expect(kept.reference).toBe("reference-jump.json");
     expect(dropped.reference).toBeUndefined();
   });
+  it("keeps the opening channel only as a channel id", () => {
+    const [kept, dropped] = validScenes({version: 1, scenes: [
+      {id: "nucleoli", label: "核小体", workspaceId: "w1", ...dataset, channel: "eu5"},
+      {id: "other", label: "他", workspaceId: "w2", ...dataset, channel: "<b>eu5</b>"},
+    ]});
+    expect(kept.channel).toBe("eu5");
+    expect(dropped.channel).toBeUndefined();
+  });
 });
 
 describe("reference objects", () => {

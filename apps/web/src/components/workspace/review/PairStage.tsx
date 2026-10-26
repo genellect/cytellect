@@ -1,17 +1,16 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";
+import {useEffect,useState} from "react";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import type {useWorkspaceRuntime} from "@/lib/workspace/use-workspace-runtime";
 import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
-import {planeRange,remapTable,remappedPreview,sharedRange} from "@/lib/shared-display";
+import {decodedPreview,percentileRange,planeRange,redrawnPreview,remapTable,sharedRange} from "@/lib/shared-display";
 import {ReviewImageCanvas,type ReferenceMarker,type ReviewImageViewport} from "./ReviewImageCanvas";
 import {MeasurementTable} from "./MeasurementTable";
-import {densestPoint} from "./image-stage-layout";
 import styles from "./pair-stage.module.css";
 
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
 /** How the two panes are drawn: one shared brightness range, or each image's own when that fails. */
-export type PairDisplay={shared:boolean;black?:number;white?:number};
+export type PairDisplay={shared:boolean;black?:number;white?:number;fields?:string[]};
 interface Props {
   design:ExperimentDesign;fields:ReviewField[];runtime:Runtime;target:ReviewTarget;channel:string;
   selectedField?:string;onSelect:(fieldId:string,channel:string,region?:number)=>void;
@@ -44,8 +43,9 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   const receipts=panes.map(pane=>pane.field?.previewDisplay?.[channel]);
   const shared=sharedRange(receipts);
   const displayKey=JSON.stringify([shared,receipts.map(planeRange)]);
-  const {urls,failed}=useSharedPreviews(panes.map(pane=>pane.field?.previews[channel]),receipts.map(planeRange),shared.status==="shared"?shared:null,displayKey);
-  const display:PairDisplay|null=!run?null:shared.status==="shared"&&!failed?{shared:true,black:shared.black,white:shared.white}:{shared:false};
+  const {urls,failed,range}=useSharedPreviews(panes.map(pane=>pane.field?.previews[channel]),receipts.map(planeRange),shared.status==="shared",displayKey);
+  const shownFields=panes.flatMap(pane=>pane.field?[pane.field.id]:[]);
+  const display:PairDisplay|null=!run?null:shared.status==="shared"&&!failed?{shared:true,black:(range??shared).black,white:(range??shared).white,fields:shownFields}:{shared:false,fields:shownFields};
   const displayValue=JSON.stringify(display);
   useEffect(()=>{onDisplay?.(display);},[displayValue]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>()=>onDisplay?.(null),[]);// eslint-disable-line react-hooks/exhaustive-deps
@@ -82,8 +82,9 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           canUndo={!r.busy&&r.canUndo(field.id,target)} canRedo={!r.busy&&r.canRedo(field.id,target)} onEditingChange={onEditing}
           viewport={view??null} onViewportChange={next=>setViewport(previous=>linked?{...previous,shared:next}:{...previous,[field.id]:next})}
           outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"} markers={overlay?.[field.id]?.markers} className={styles.canvas}
-          // Both panes start filled (no letterbox), on the field's densest nuclei; 画像全体を表示 shows the whole field.
-          initialFill initialFocus={densestPoint(r.currentResult(field.id,"nuclei")?.masks.regions||[],field.width/4)}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
+          // Both panes start filled (no letterbox) on the same relative place, the image centre, so neither
+          // view is chosen by its content; 画像全体を表示 shows the whole field.
+          initialFill context={demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(field.id,"nuclei")?.masks.regions:undefined}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
           {rows.length?<MeasurementTable rows={rows} selected={regions[field.id]} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
       </section>;
@@ -96,26 +97,32 @@ const targets:Record<ReviewTarget,string>={nuclei:"核",nucleoli:"核小体",nuc
 /** Pair toolbar text for the brightness transform (V-03): the shared range, or why each image uses its own. */
 export function pairDisplayText(value:PairDisplay):{label:string;detail:string}{
   return value.shared
-    ?{label:`表示範囲 ${format(value.black!)}–${format(value.white!)}（共通）`,detail:"2 つの画像を、同じ表示範囲（保存値）の共通の明るさの変換で描いています。範囲外の値と、表示の階調による差は、この表示からは比べられません。露光・ゲインなど撮影条件の違いは補正していません。拡大は画素単位でそろえています。"}
+    ?{label:"共通の表示範囲",detail:`2 つの画像を、同じ表示範囲（保存値 ${format(value.black!)}–${format(value.white!)}。2 つの画像の画素の 0.5〜99.5 パーセンタイル）の共通の明るさの変換で描いています。範囲の外の値は黒または白で示すので、その差と、表示の階調による差は、この表示からは比べられません。露光・ゲインなど撮影条件の違いは補正していません。拡大は画素単位でそろえています。`}
     :{label:"表示範囲は画面ごと",detail:"この画像では表示範囲をそろえられないため、それぞれの画像の範囲で描いています。明るさを比べず、測定値で比べてください。"};
 }
 
 const format=(value:number)=>Number.isInteger(value)?String(value):value.toPrecision(4);
 
-/** Object URLs of previews redrawn on the shared scale; the originals (and failed) when redrawing fails. */
-function useSharedPreviews(sources:Array<string|undefined>,ranges:Array<{black:number;white:number}|null>,shared:{black:number;white:number}|null,key:string):{urls:Array<string|undefined>;failed:boolean}{
+/** Object URLs of previews redrawn on one shared scale (shared display range 1.1.0: percentiles of both
+ * previews' stored values), with that range; the originals (and failed) when redrawing fails. */
+function useSharedPreviews(sources:Array<string|undefined>,ranges:Array<{black:number;white:number}|null>,verified:boolean,key:string):{urls:Array<string|undefined>;failed:boolean;range:{black:number;white:number}|null}{
   const sourceKey=sources.join("\n")+key;
-  const [state,setState]=useState<{key:string;urls:Array<string|undefined>;failed:boolean}>({key:"",urls:[],failed:false});
-  const tables=useMemo(()=>shared?ranges.map(range=>range?remapTable(range,shared):null):[],[key]);// eslint-disable-line react-hooks/exhaustive-deps
+  const [state,setState]=useState<{key:string;urls:Array<string|undefined>;failed:boolean;range:{black:number;white:number}|null}>({key:"",urls:[],failed:false,range:null});
   useEffect(()=>{
-    if(!shared){return;}
+    if(!verified){return;}
     let live=true;const created:string[]=[];
-    void Promise.all(sources.map(async(src,index)=>{const table=tables[index];if(!src||!table)return src;const url=await remappedPreview(src,table);created.push(url);return url;}))
-      .then(urls=>{if(live)setState({key:sourceKey,urls,failed:false});else created.forEach(url=>URL.revokeObjectURL(url));})
-      .catch(()=>{if(live)setState({key:sourceKey,urls:sources,failed:true});});
+    void (async()=>{
+      const shown=sources.map((src,index)=>src&&ranges[index]?{src,range:ranges[index]!}:null);
+      const decoded=await Promise.all(shown.map(item=>item?decodedPreview(item.src):Promise.resolve(null)));
+      const present=shown.flatMap((item,index)=>item&&decoded[index]?[{range:item.range,histogram:decoded[index]!.histogram}]:[]);
+      const range=percentileRange(present.map(item=>item.histogram),present.map(item=>item.range));
+      const urls=await Promise.all(decoded.map(async(value,index)=>{if(!value||!shown[index])return sources[index];const url=await redrawnPreview(value,remapTable(shown[index]!.range,range));created.push(url);return url;}));
+      return {urls,range};
+    })().then(({urls,range})=>{if(live)setState({key:sourceKey,urls,failed:false,range});else created.forEach(url=>URL.revokeObjectURL(url));})
+      .catch(()=>{if(live)setState({key:sourceKey,urls:sources,failed:true,range:null});});
     return()=>{live=false;created.forEach(url=>URL.revokeObjectURL(url));};
   },[sourceKey]);// eslint-disable-line react-hooks/exhaustive-deps
-  if(!shared)return {urls:sources,failed:false};
+  if(!verified)return {urls:sources,failed:false,range:null};
   // A changed request hides the previous pair until the new one is ready (as for previews).
-  return state.key===sourceKey?{urls:state.urls,failed:state.failed}:{urls:sources.map(()=>undefined),failed:false};
+  return state.key===sourceKey?{urls:state.urls,failed:state.failed,range:state.range}:{urls:sources.map(()=>undefined),failed:false,range:null};
 }

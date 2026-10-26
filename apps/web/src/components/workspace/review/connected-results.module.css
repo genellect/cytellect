@@ -25,11 +25,12 @@
 /* The sentence and its figure side by side when there is room; the figure never needs a scroll to be seen. */
 .output{container:results/inline-size}
 .resultGrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;margin-bottom:12px}
-@container results (min-width:760px){.resultGrid[data-columns="2"]{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@container results (min-width:760px){.resultGrid[data-columns="2"]{grid-template-columns:minmax(300px,.8fr) minmax(0,1.2fr)}}
 .resultGrid .figure{max-height:70vh;object-fit:contain;margin:0}
 .resultGrid .summary{margin:0}
 .summary td{font-variant-numeric:tabular-nums}
 /* Doubled class: the workspace keeps table cells on one line; these headers may wrap inside the card. */
-.summary.summary table{width:100%}.summary.summary th{white-space:normal}
+.summary.summary table{width:100%}.summary.summary th{white-space:normal;word-break:keep-all}
 .row>label{min-width:140px}
 .recorded{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.recorded button{font-size:14px;padding:4px 12px;border-radius:14px}.recorded button[aria-pressed=true]{background:#eaf1fb;border-color:#2468cc;color:#1757b6}
+.reportedLine{margin:10px 0 0;font-size:14px;color:#3b4656}.reportedLine strong{margin-right:8px;color:#1d2b45}

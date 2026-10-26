@@ -903,8 +903,9 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             for kind in [*(value for value in layouts if value != drawn), drawn]:
                 renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
     directions = direction_checks(plan.get("direction_checks", []), saved)
-    # Leave the saved settings on the nucleus view (the runtime's saveSettings("nuclei")),
-    # where outlines can be edited; nucleoplasm masks are derived and not editable.
+    # Leave the saved settings on the region the opening comparison measures (scenario.final_target, the
+    # nucleus view by default), so the images open on the outlines that are compared. Nuclei and nucleoli
+    # can be edited there; nucleoplasm masks are derived and not editable.
     space.persist(plan.get("final_target", "nuclei"))
     drain(api)
     from cytellect_api.db import workspaces
@@ -1724,6 +1725,13 @@ def main(argv: list[str] | None = None) -> None:
     log("done", round(time.perf_counter() - started, 1), "s")
 
 
+def opening_channel(manifest: dict) -> dict:
+    """The channel the opening analysis measures, so the images open on it (none for a channel-free metric)."""
+    plan = manifest["scenario"]
+    channel = (plan.get("statistics", {}).get(plan.get("opening", "distribution")) or {}).get("channel")
+    return {"channel": channel} if channel and plan.get("final_target") else {}
+
+
 def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
     """What the demo shows about one scene's public images (snapshot/scenes.json, dataset.json)."""
     dataset = manifest.get("dataset", {})
@@ -1734,7 +1742,8 @@ def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
             "sourceUrl": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
             "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"),
-            "regions": scene_regions(manifest), "examples": examples, "assistantScope": manifest.get("assistant_scope"),
+            "regions": scene_regions(manifest), "target": manifest["scenario"].get("final_target", "nuclei"),
+            **opening_channel(manifest), "examples": examples, "assistantScope": manifest.get("assistant_scope"),
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}
                        for index, item in enumerate(scene.get("prepared", []))]}
 
@@ -1809,7 +1818,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
             "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
                 "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
                 "statistics_amendment", "grid_notes", "fragment_review", "comparison_plan", "opening",
-                "companions", "direction_checks", "presentation_amendment")},
+                "final_target", "companions", "direction_checks", "presentation_amendment")},
             "experiment": manifest.get("experiment"),
             "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
                            "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],

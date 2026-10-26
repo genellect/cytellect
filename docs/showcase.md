@@ -149,10 +149,11 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - `scenario.direction_checks`：場面の文が述べる、記録した各比較の向き（実験回ごとの差がすべて出典の向きか）。構築は保存した結果と照合し、文と結果が食い違えば止める（目標 C7）。
 - `scenario.comparison_layouts`：群間比較で、保存した図に加える図の種類。比較を描いた種類（宣言した 2 群では実験回ごとの superplot）は最後に描き直すので、統計の画面はその図で開く。
 - `scenario.opening`：最後に計算する解析。公開デモは、開いたときにこの結果（既定は分布）を表示する。群間比較を指定すると、「統計」を開いたときに結果の文と図が出る。画像の画面は、2 画面の画像・輪郭・各群の測定値だけを出す。
+- `scenario.final_target`：画像の画面が開く領域（既定は核）。最初の比較が測る領域にそろえ、比べている輪郭と測定値で開く（DS6a は核小体。核の輪郭は位置の手がかりとして薄く重ねる）。`snapshot/scenes.json` の `target`。統計を初めて開くと、設定欄の領域・指標・チャンネルを表示中の結果にそろえる。
 - `crop_rule`：視野の切り出し位置の規則。`nuclear-window` は、核染色だけを読み、Otsu の閾値を超える画素が最も多い窓（`size`、`step` 画素の格子、同点は中央に近い窓）を選ぶ。測定するチャンネルは読まないので、切り出しが結果に合わせて動くことはない。全チャンネルで同じ窓を使い、画素値は変えない。
 - `scene_label`・`assistant_scope`：場面の名前と、記録にない AI の指示への返答で、その画像で比べられることを示す文。
 - `reference`：別の手法が同じ画像について公開した対象（現在は JUMP の CellProfiler。`Image.csv` は SHA-256 で固定し、`Nuclei.csv` はデモの画像の行だけを範囲取得してキャッシュする）。`reference` 段階が、採用した核と中心の位置で照合する（`cytellect_analysis.reference_objects`。一致・CellProfiler が分割・CellProfiler のみ・採用した核のみ。画像の端にかかる核は両方とも数えない）。画面は「CellProfiler と比べる」で印と群ごとの表を示す。
-- `dataset.reported_change`：出典が報告している変化（比べる条件・向き・量・範囲・実験回の独立性）。画面は、デモでの測定と分けて結果の文の上に示す（`snapshot/dataset.json` の `reportedChange`）。
+- `dataset.reported_change`：出典が報告している変化（比べる条件・向き・量・範囲・実験回の独立性）。画面は、デモでの測定と分けて、結果のまとめの下に向きを 1 行で示し、量・範囲・独立性は折りたたむ（`snapshot/dataset.json` の `reportedChange`）。
 - Cellpose を使わないデータセット（NCL 陽性の核小体や細胞 ROI がない）では、Cellpose の実行環境は不要。
 
 初期状態（`scenario` 段階）は次のとおり作る。

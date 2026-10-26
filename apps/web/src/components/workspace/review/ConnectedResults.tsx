@@ -32,18 +32,25 @@ export interface ConnectedResultsProps {
   onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]})=>Promise<unknown>;
   onMetricChange?:(metric:string,channel:string|null)=>void;
   onAnalysisTargetChange?:(target:ReviewTarget)=>void;
+  /** The demo opened on a recorded result: its metric and channel, for a view nobody has changed yet. */
+  onOpening?:(metric:string,channel:string|null)=>void;
   onPrepareMissing?:()=>Promise<unknown>;
   /** The declared experiment design; its derived metadata replaces per-field typing (E-08). */
   experiment?:ExperimentDesign|null;
   onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
-interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[]}
+interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[]}
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
 const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":""};
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
 const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
+const regionNames:Record<string,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
+/** The region a saved result measured: its selection's region set, else its sources'. */
+function savedRegion(result:ResultPayload):ReviewTarget|undefined{const id=result.spec?.selection?.region_set_id||resultSources(result)[0]?.region_set?.region_set_id||"";return id in regionNames?id as ReviewTarget:undefined;}
+/** A per-region metric names its region and channel (「核小体の平均輝度（eu5）」); summaries name their own. */
+function resultMetricLabel(result:ResultPayload,metric:string){const selection=result.spec?.selection,label=metricLabels[metric]||metric;if(selection?.source!=="region")return label;const region=regionNames[selection.region_set_id||""];return `${region?`${region}の`:""}${label}${selection.channel_id?`（${selection.channel_id}）`:""}`;}
 const resultSources=(result:ResultPayload):SavedSource[]=>result.source_fields||result.x_source?.source_fields||result.y_source?.source_fields||[];
 const fail=(error:unknown)=>error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。";
 
@@ -52,7 +59,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   const comparison=useMemo(()=>createComparisonAdapter(),[]);
   const [csv,setCsv]=useState(false);
@@ -91,7 +98,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const lock=useRef(false),renderCache=useRef(new Map<string,{job:string;figure:ResultPayload["figure"]}>()),renderIds=useRef(new Map<string,string>());
   useEffect(()=>{if(!workspace)return;let live=true;void request<Job[]>(`/v1/workspaces/${workspace}/jobs`).then(async jobs=>{
     const completed=jobs.filter(job=>job.state==="succeeded"&&(job.kind==="statistics"||job.kind==="figure-render")).sort((a,b)=>b.created-a.created).slice(0,30);
-    const records=await Promise.all(completed.map(async job=>{try{const result=await request<ResultPayload>(`/v1/jobs/${job.id}/result`);if(result.source_kind!=="region-2d"||!result.figure)return null;const entry:Saved={job:result.source_job_id||job.id,revision:result.revision_id,result,identity:"history",requestIdentity:"history",plot:{...checkedPlot(183,100,7,"","","",""),...result.spec?.plot} as RenderPlot,figureJob:job.id,figure:result.figure,operation:result.analysis_kind==="region-comparison"?"comparison":result.analysis_kind==="region-association"?"association":"distribution",sources:resultSources(result).map(field=>({field:field.field_id,label:field.field_id})),historical:true,target:(["nuclei","nucleoli","nucleoplasm","cell"].includes(resultSources(result)[0]?.region_set?.region_set_id||"")?resultSources(result)[0]?.region_set?.region_set_id:undefined) as ReviewTarget|undefined};return entry;}catch{return null;}}));
+    const records=await Promise.all(completed.map(async job=>{try{const result=await request<ResultPayload>(`/v1/jobs/${job.id}/result`);if(result.source_kind!=="region-2d"||!result.figure)return null;const entry:Saved={job:result.source_job_id||job.id,revision:result.revision_id,result,identity:"history",requestIdentity:"history",plot:{...checkedPlot(183,100,7,"","","",""),...result.spec?.plot} as RenderPlot,figureJob:job.id,figure:result.figure,operation:result.analysis_kind==="region-comparison"?"comparison":result.analysis_kind==="region-association"?"association":"distribution",sources:resultSources(result).map(field=>({field:field.field_id,label:field.field_id})),historical:true,target:savedRegion(result)};return entry;}catch{return null;}}));
     if(live)setHistory(previous=>[...previous,...records.filter((value):value is Saved=>!!value&&!previous.some(old=>old.figureJob===value.figureJob))]);
   }).catch(()=>undefined);return()=>{live=false;};},[workspace]);
   const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:derived[item.fieldId]??metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
@@ -226,13 +233,19 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     restoreFigure(entry);
     // The side panel follows, so the shown result is the chosen metric's and not a "previous" one.
     if(entry.target)onAnalysisTargetChange?.(entry.target);
-    onMetricChange?.(entry.result.estimates!.metric,entry.result.spec?.selection?.channel_id??null);
+    const metric=entry.result.spec?.selection?.metric??entry.result.estimates?.metric??entry.result.metric;
+    if(metric)onMetricChange?.(metric,entry.result.spec?.selection?.channel_id??null);
   }
   const [savedNote,setSavedNote]=useState("");
   useEffect(()=>{if(demo&&saved&&!saved.historical&&Math.abs(saved.plot.width_inches*25.4-width)>.5)void render();},[saved?.job]);// eslint-disable-line react-hooks/exhaustive-deps
-  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(!saved)restoreFigure(entry);});
+  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);});
   useEffect(()=>{if(!demo||openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[demo,history]);
   const shownTarget=saved?.historical?saved.target:target;const shownMetric=saved?.historical?(saved.result.metric||saved.result.y_source?.metric||saved.result.spec?.selection?.metric||""):metric;const shownChannel=saved?.historical?(saved.result.channel?.channel_id||saved.result.y_source?.channel?.channel_id||saved.result.spec?.selection?.channel_id||null):channel;
+  // The shown result differs from the side panel's choice in region, metric or channel.
+  const previous=(()=>{if(!saved)return null;const selection=saved.result.spec?.selection,savedMetric=selection?.metric??saved.result.metric??"",savedChannelId=selection?.channel_id??null;
+    if(savedMetric===metric&&(!saved.target||saved.target===target)&&(savedChannelId==null||savedChannelId===channel))return null;
+    const describe=(region:string|undefined,value:string,channelId:string|null)=>[regionNames[region||""],metricLabels[value]||value||"別の指標",channelId].filter(Boolean).join(" · ");
+    return {shown:describe(saved.target,savedMetric,savedChannelId),chosen:describe(target,metric,savedChannelId==null?null:channel)};})();
   const savedChannel=saved?.result.channel?.channel_id??saved?.result.y_source?.channel?.channel_id??saved?.result.spec?.selection?.channel_id??null;
   const tableRows=saved?.operation==="comparison"?saved.result.comparisons:saved?.operation==="association"?saved.result.associations:saved?.result.field_summary;
   const fieldLabels=Object.fromEntries([...(saved?.sources||[]).map((source,index)=>[source.field,source.label!==source.field?source.label:`視野 ${index+1}`]),...items.map(item=>[item.fieldId,item.label])]);
@@ -284,14 +297,14 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}
       {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open={!saved&&!experiment}><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
-        {mode==="statistics"&&(saved.result.spec?.selection?.metric??saved.result.metric)!==metric&&<p role="status" className={styles.previous}>表示中は前の結果（{metricLabels[saved.result.spec?.selection?.metric??saved.result.metric??""]||"別の指標"}）です。「計算」で、選んだ指標（{metricLabels[metric]||metric}）の結果になります。</p>}
+        {mode==="statistics"&&previous&&<p role="status" className={styles.previous}>表示中は{saved.historical?"記録した結果":"前の結果"}（{previous.shown}）です。「計算」で、選んだ条件（{previous.chosen}）の結果になります。</p>}
         {mode==="statistics"?<div className={styles.resultGrid} data-columns={(!!saved.result.estimates||saved.operation==="distribution"&&!!experiment)&&svgFiles.length>0?2:1}>
           <div>
             {recorded.length>1&&<div className={styles.recorded} role="group" aria-label="記録した比較">{recorded.map(entry=>{const channelId=entry.result.spec?.selection?.channel_id;return <button key={entry.job} aria-pressed={saved.job===entry.job} onClick={()=>showRecorded(entry)}>{metricLabels[entry.result.estimates!.metric]||entry.result.estimates!.metric}{channelId?` · ${channelId}`:""}</button>;})}</div>}
-            {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
+            {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={resultMetricLabel(saved.result,saved.result.estimates.metric)} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
           reported={showcaseDataset?.reported??null}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}/>}
-            {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={metricLabels[saved.result.metric||""]||saved.result.metric||""} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null}/>}
+            {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null}/>}
           </div>
           <div>{svgFiles.map(file=><VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}</div>
         </div>:svgFiles.map(file=>mode==="figure"?<EditableFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/>:<VectorFigure key={`${saved.figureJob}:${file}`} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
@@ -337,10 +350,11 @@ const runValue=(value:number|null|undefined,signed=false)=>value==null?"—":`${
 
 /** What the image source reports and how this demo measures, read after the result and folded (N-06). */
 function ReportedSource({reported}:{reported:NonNullable<ShowcaseDataset["reported"]>}){
-  return <details className={styles.reported}><summary>出典の報告と、このデモでの測定</summary>
+  return <><p className={styles.reportedLine}><strong>出典の報告</strong>{reported.comparison}：{reported.direction}</p>
+    <details className={styles.reported}><summary>出典の報告と、このデモでの測定</summary>
     <p><strong>出典の報告</strong>{reported.comparison}：{reported.direction}。{reported.quantity}（{reported.source}）</p>
     <p><strong>このデモでの測定</strong>以下は、この公開画像を Cytellect で測った値です。{reported.scope}</p>
-    {reported.independence&&<p><strong>実験回の独立性</strong>{reported.independence}</p>}</details>;
+    {reported.independence&&<p><strong>実験回の独立性</strong>{reported.independence}</p>}</details></>;
 }
 
 /** The comparison stated in words first (S-01–S-07); every number is the saved result's. */

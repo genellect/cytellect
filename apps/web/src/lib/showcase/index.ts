@@ -95,7 +95,9 @@ export interface ShowcaseScene {id: string; label: string; workspaceId: string; 
   /** Snapshot file with another method's published objects matched to the adopted nuclei (display only). */
   reference?: string;
   /** What visitors can ask of this scene's images, for a request the recordings do not cover. */
-  assistantScope?: string}
+  assistantScope?: string;
+  /** The channel the opening comparison measures; the images open on it (scenario.final_target sets the region). */
+  channel?: string}
 const validExamplesOf = (value: unknown): ProposalExample[] => Array.isArray(value) ? value.filter((item): item is ProposalExample =>
   !!item && typeof item.label === "string" && typeof item.instruction === "string" && !!item.instruction.trim()).slice(0, 8) : [];
 export function validScenes(value: unknown): ShowcaseScene[] {
@@ -108,7 +110,8 @@ export function validScenes(value: unknown): ShowcaseScene[] {
     const workspaceId = typeof record.workspaceId === "string" ? record.workspaceId : "";
     const reference = typeof record.reference === "string" && /^reference-[\w.-]+\.json$/.test(record.reference) ? record.reference : undefined;
     const assistantScope = typeof record.assistantScope === "string" && record.assistantScope.trim() ? record.assistantScope.trim().slice(0, 400) : undefined;
-    return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples), ...(reference ? {reference} : {}), ...(assistantScope ? {assistantScope} : {})}] : [];
+    const channel = typeof record.channel === "string" && /^[\w.-]{1,64}$/.test(record.channel) ? record.channel : undefined;
+    return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples), ...(reference ? {reference} : {}), ...(assistantScope ? {assistantScope} : {}), ...(channel ? {channel} : {})}] : [];
   });
 }
 export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]}> {
