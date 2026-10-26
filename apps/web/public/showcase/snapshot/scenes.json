@@ -5,7 +5,7 @@
    "version": 1,
    "id": "cpg0016-jump-source13-plk1",
    "label": "核数：PLK1 ノックアウトと対照（JUMP）",
-   "workspaceId": "bdb1e2fa-86cb-46c5-9be0-6cb43039bb9a",
+   "workspaceId": "01157700-10d9-4934-b618-fd112d0b474f",
    "title": "JUMP Cell Painting, cpg0016 source_13 CRISPR plates (Cell Painting Gallery)",
    "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only.",
    "licence": "CC0-1.0",
@@ -34,6 +34,7 @@
    "regions": [
     "nuclei"
    ],
+   "target": "nuclei",
    "examples": [
     {
      "label": "核の数と面積の分布",
@@ -215,7 +216,7 @@
    "version": 1,
    "id": "zenodo-6643470-nucleolar",
    "label": "核小体：ActD による転写の停止（U2OS）",
-   "workspaceId": "a01bbc3c-8ce4-4283-bc69-face42fad2aa",
+   "workspaceId": "fffed71c-9c21-4933-89f7-2944d1cbdf28",
    "title": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
    "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU.",
    "licence": "CC-BY-4.0",
@@ -226,7 +227,7 @@
    "description": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins, 1 h untreated or 1 µM actinomycin D, then a 30 min 5-EU pulse labelled with Alexa Fluor 647 azide; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
    "modifications": "640 x 640 crop of each 2304 x 2304 plane, placed where the Hoechst stain covers the most area (the same window for all channels); channels Hoechst (OME c3), NPM1-mTagRFP (OME c1) and 5-EU (OME c2, Cy5); pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
    "caveats": [
-    "このデモで測った核小体の平均 5-EU（核ごと、背景補正なし）は、ActD − 未処理の差が反復ごとに +263、−83、−1317 で、論文の報告（ActD でほぼ消失）と向きがそろいません。論文の値は核小体ごとの 5-EU を NPM1 で割ったもので、デモの値とは定義と集約が異なります。画像では、未処理で核小体に点状に集まる 5-EU が、ActD では核全体に広がって見えます。",
+    "出典が報告した 2 つの変化を、測定の前に決めた定義のまま比べています。核小体の離心率（形）は 3 回とも出典と同じく低下し、核小体の平均 5-EU は向きがそろいません。統計の「記録した比較」で切り替えて確かめられます。小さい物体ほど離心率は低く出やすいので、離心率は核小体の面積（「指標」で選べます）と合わせて読んでください。このデモで測った核小体の平均 5-EU（核ごと、背景補正なし）は、ActD − 未処理の差が反復ごとに +263、−83、−1317 で、論文の報告（ActD でほぼ消失）と向きがそろいません。論文の値は核小体ごとの 5-EU を NPM1 で割ったもので、デモの値とは定義と集約が異なります。画像では、未処理で核小体に点状に集まる 5-EU が、ActD では核全体に広がって見えます。",
     "Rep1–Rep3 は同じ日（2021-12-01）に連番で撮影されています。独立した実験であることは出典で確認できないため、この場面では推測統計を行いません。",
     "各反復・各条件で、ファイル名の順に最初の 3 視野を使います。各画像から 640 × 640 画素（104 µm 角）を、核染色（Hoechst）が最も多く写る位置で切り出しています（NPM1 と 5-EU は見ていません）。視野は数・大きさ・信号で選んでいません。",
     "核小体は NPM1 の分布から決めます。ActD では NPM1 の一部が核質へ移るため、核小体の輪郭は NPM1 の分布も反映します。",
@@ -248,6 +249,8 @@
     "nucleoli",
     "nucleoplasm"
    ],
+   "target": "nucleoli",
+   "channel": "eu5",
    "examples": [
     {
      "label": "核の 5-EU の分布",
