@@ -218,6 +218,16 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   // The public demo opens on the latest saved result (as a researcher's own session would
   // have left it) instead of an empty view; production keeps the explicit choice.
   const showcaseUi=useShowcaseUi(),demo=showcaseUi.enabled,showcaseDataset=showcaseUi.dataset,openedSaved=useRef(false);
+  // The demo records the opening comparison and, beside it, the source's other recorded changes (goals C7):
+  // the newest figure of each saved comparison, the opening one first.
+  const recorded:Saved[]=[];
+  if(demo&&mode==="statistics")for(const entry of history)if(entry.operation==="comparison"&&entry.result.estimates&&!recorded.some(value=>value.job===entry.job))recorded.push(entry);
+  function showRecorded(entry:Saved){
+    restoreFigure(entry);
+    // The side panel follows, so the shown result is the chosen metric's and not a "previous" one.
+    if(entry.target)onAnalysisTargetChange?.(entry.target);
+    onMetricChange?.(entry.result.estimates!.metric,entry.result.spec?.selection?.channel_id??null);
+  }
   const [savedNote,setSavedNote]=useState("");
   useEffect(()=>{if(demo&&saved&&!saved.historical&&Math.abs(saved.plot.width_inches*25.4-width)>.5)void render();},[saved?.job]);// eslint-disable-line react-hooks/exhaustive-deps
   const openLatestSaved=useEffectEvent((entry:Saved)=>{if(!saved)restoreFigure(entry);});
@@ -277,6 +287,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {mode==="statistics"&&(saved.result.spec?.selection?.metric??saved.result.metric)!==metric&&<p role="status" className={styles.previous}>表示中は前の結果（{metricLabels[saved.result.spec?.selection?.metric??saved.result.metric??""]||"別の指標"}）です。「計算」で、選んだ指標（{metricLabels[metric]||metric}）の結果になります。</p>}
         {mode==="statistics"?<div className={styles.resultGrid} data-columns={(!!saved.result.estimates||saved.operation==="distribution"&&!!experiment)&&svgFiles.length>0?2:1}>
           <div>
+            {recorded.length>1&&<div className={styles.recorded} role="group" aria-label="記録した比較">{recorded.map(entry=>{const channelId=entry.result.spec?.selection?.channel_id;return <button key={entry.job} aria-pressed={saved.job===entry.job} onClick={()=>showRecorded(entry)}>{metricLabels[entry.result.estimates!.metric]||entry.result.estimates!.metric}{channelId?` · ${channelId}`:""}</button>;})}</div>}
             {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={metricLabels[saved.result.estimates.metric]||saved.result.estimates.metric} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
           reported={showcaseDataset?.reported??null}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域")}/>}

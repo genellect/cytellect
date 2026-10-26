@@ -608,6 +608,14 @@
     "design": "paired"
    }
   },
+  "direction_checks": [
+   {
+    "metric": "nucleus_count",
+    "channel": null,
+    "expected": "decrease",
+    "agrees": true
+   }
+  ],
   "comparison_plan": "Planned before measurement: nuclei per field (field-summary 1.0.0, StarDist nuclei on Hoechst with default settings, nuclei touching the border included), PLK1 KO − non-targeting, paired by run, paired t-test, comparison estimates (difference and geometric-mean ratio with 95% intervals). Expected direction from the source: fewer nuclei after PLK1 knockout. No threshold on the effect size is set; a result in the other direction will be reported as such. Amended before publication at the owner's decision (2026-10-25): the runs' independence is unconfirmed (requirements E-05), so the comparison is descriptive (common statistics test none): per-run values and differences, no test, p-value or interval; the planned association is not computed.",
   "comparison_layouts": [
    "superplot",

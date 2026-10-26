@@ -518,13 +518,16 @@ def plot(operation: str, kind: str = "distribution") -> dict:
             "style": {"version": "1.0.0", "series_colors": {}, "show_legend": True}}
 
 
-COMPARTMENT_METRICS = ("log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count")
+COMPARTMENT_METRICS = ("log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count",
+                       "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity")
+# Nucleolar total area and shape need compartment-summary selection 1.1.0 (comparison-adapter.ts NUCLEOLAR_V11).
+NUCLEOLAR_V11 = ("nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity")
 FIELD_SUMMARY_METRICS = ("nucleus_count", "nucleus_density_per_mm2")
 
 
 def channel_neutral(metric: str) -> bool:
     """metricUsesChannel() negated (metric-catalog.ts)."""
-    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *FIELD_SUMMARY_METRICS)
+    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *NUCLEOLAR_V11, *FIELD_SUMMARY_METRICS)
 
 
 def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
@@ -532,7 +535,8 @@ def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
     if metric in FIELD_SUMMARY_METRICS:
         return {"source": "field-summary", "version": "1.0.0", "region_set_id": region_set, "metric": metric}
     if metric in COMPARTMENT_METRICS:
-        return {"source": "compartment-summary", "version": "1.0.0", "region_set_id": region_set, "metric": metric,
+        return {"source": "compartment-summary", "version": "1.1.0" if metric in NUCLEOLAR_V11 else "1.0.0",
+                "region_set_id": region_set, "metric": metric,
                 "channel_id": channel if metric == "log2_nucleoplasm_over_nucleolus" else None}
     neutral = metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction")
     return {"source": "region", "region_set_id": region_set, "metric": metric, "channel_id": None if neutral else channel}
@@ -875,6 +879,15 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     renders = []
     opening = plan.get("opening", "distribution")
     for name in [*(value for value in ("comparison", "association", "distribution") if value != opening), opening]:
+        if name == opening:
+            # The source's other recorded changes (planned before measurement) are compared before the
+            # opening analysis, so the statistics view still opens on the opening one.
+            for companion in plan.get("companions", []):
+                key = f"companion-{companion['metric']}"
+                saved[key] = timed(f"statistics-{key}", lambda companion=companion: space.calculate(
+                    "comparison", companion["target"], companion["metric"], companion.get("channel"),
+                    plan["unit_definition"], "area_px", None, companion.get("design") == "paired",
+                    plan.get("pairing_basis", "")))
         analysis = plan["statistics"].get(name)
         if not analysis:
             continue
@@ -883,8 +896,13 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             analysis.get("x_metric", "area_px"), analysis.get("x_channel"), analysis.get("design") == "paired",
             plan.get("pairing_basis", "")))
         if name == "comparison":
-            for kind in plan.get("comparison_layouts", ["box", "violin", "histogram"]):
+            # The layout the comparison was drawn with is rendered last, so the statistics view opens on the
+            # run-level figure (F-01) and the other layouts stay in the saved figures.
+            drawn = saved["comparison"]["plot"]["kind"]
+            layouts = plan.get("comparison_layouts", ["box", "violin", "histogram"])
+            for kind in [*(value for value in layouts if value != drawn), drawn]:
                 renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
+    directions = direction_checks(plan.get("direction_checks", []), saved)
     # Leave the saved settings on the nucleus view (the runtime's saveSettings("nuclei")),
     # where outlines can be edited; nucleoplasm masks are derived and not editable.
     space.persist(plan.get("final_target", "nuclei"))
@@ -894,7 +912,27 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     owner = api.app.state.store.one(workspaces, id=space.wid)["owner"]
     return {"workspace_id": space.wid, "owner": owner, "fields": space.fields, "timings": timings, "fragment_review": removed,
             "statistics": {name: {"job": value["job"], "revision": value["revision"]} for name, value in saved.items()},
+            "direction_checks": directions,
             "renders": renders, "spec_version": space.spec["version"], "space": space}
+
+
+def direction_checks(checks: list[dict], saved: dict) -> list[dict]:
+    """The scene's text states, for each recorded comparison, whether the per-run differences go the
+    source's way (goals C7). The build stops when a recorded result no longer says what the text says."""
+    recorded = []
+    for check in checks:
+        found = [value["result"]["estimates"] for value in saved.values()
+                 if value["operation"] == "comparison" and (value["result"].get("estimates") or {}).get("metric") == check["metric"]
+                 and (value["result"].get("spec") or {}).get("selection", {}).get("channel_id") == check.get("channel")]
+        if len(found) != 1:
+            raise ApiError(f"direction check {check['metric']}: {len(found)} recorded comparisons")
+        differences = [run["difference"] for run in found[0]["runs"]]
+        agrees = bool(differences) and all(value < 0 if check["expected"] == "decrease" else value > 0 for value in differences)
+        if agrees != check["agrees"]:
+            raise ApiError(f"direction check {check['metric']}: per-run differences {differences} "
+                           f"{'go' if agrees else 'do not go'} the source's way; update the scene's text before publishing")
+        recorded.append({**check, "differences": differences})
+    return recorded
 
 
 # ---------------------------------------------------------------------------
@@ -1770,7 +1808,8 @@ def write_manifest(args, manifests: list, state: dict) -> None:
                           if key not in ("cells", "checksums")},
             "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
                 "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
-                "statistics_amendment", "grid_notes", "fragment_review", "comparison_plan", "opening")},
+                "statistics_amendment", "grid_notes", "fragment_review", "comparison_plan", "opening",
+                "companions", "direction_checks", "presentation_amendment")},
             "experiment": manifest.get("experiment"),
             "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
                            "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],

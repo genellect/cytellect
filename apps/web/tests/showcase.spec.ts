@@ -499,6 +499,16 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   await header.getByRole("button", {name: "統計", exact: true}).click();
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   await expect(shownTable(results)).toBeVisible({timeout: live});
+  // Both changes the source reports, recorded before measurement, are one click apart (goals C7).
+  const recorded = results.getByRole("group", {name: "記録した比較"});
+  await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
+  const sentence = results.getByRole("region", {name: "結果のまとめ"}).locator("p").first();
+  await recorded.getByRole("button", {name: /離心率/}).click();
+  await expect(sentence).toContainText("離心率");
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("nucleolar_eccentricity");
+  await recorded.getByRole("button", {name: /eu5/}).click();
+  await expect(sentence).toContainText("平均輝度");
+  await expect(results.getByRole("status").filter({hasText: "前の結果"})).toHaveCount(0);
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
     ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],

@@ -84,7 +84,10 @@ if (count !== config.fields) report.alerts.push(`field count ${count} != ${confi
 // Every field, region and channel a visitor can look at, so browsing never meets an unrecorded
 // view (regions through the settings panel; never 細胞ROI: it starts a run).
 const region = page.locator("select").filter({has: page.locator("option[value=nucleoplasm]")}).first();
-const channels = page.locator("[class*=channelBar] > button[aria-pressed]:not([aria-label])");
+const channels = page.locator("[class*=channelBar] > button[data-channel], [class*=channelBar] > button[data-composite]");
+// One field at a time, so every field's own views are requested (side by side shows one field per group).
+const pair = page.getByRole("button", {name: "2 画面", exact: true});
+if (await pair.count() && await pair.getAttribute("aria-pressed") === "true") await step("one field at a time", () => pair.click());
 for (let index = 0; index < count; index++) {
   await step(`field ${index + 1}`, () => cards.nth(index).click());
   if (!(await region.isVisible())) await step("settings panel", () => page.getByRole("button", {name: "設定パネル"}).click());
@@ -95,6 +98,7 @@ for (let index = 0; index < count; index++) {
   }
 }
 await step("first field", () => cards.first().click());
+if (await pair.count() && await pair.getAttribute("aria-pressed") === "false") await step("side by side", () => pair.click());
 await step("region nuclei", () => region.selectOption("nuclei"));
 const tabs = page.getByRole("navigation", {name: "作業の切替"});
 await step("statistics", () => tabs.getByRole("button", {name: "統計"}).click());

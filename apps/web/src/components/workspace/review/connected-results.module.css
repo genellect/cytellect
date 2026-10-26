@@ -32,3 +32,4 @@
 /* Doubled class: the workspace keeps table cells on one line; these headers may wrap inside the card. */
 .summary.summary table{width:100%}.summary.summary th{white-space:normal}
 .row>label{min-width:140px}
+.recorded{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.recorded button{font-size:14px;padding:4px 12px;border-radius:14px}.recorded button[aria-pressed=true]{background:#eaf1fb;border-color:#2468cc;color:#1757b6}
