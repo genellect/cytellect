@@ -132,7 +132,7 @@ describe("saved comparison aggregation provenance",()=>{
   expect(field.target).not.toHaveProperty("regionId");expect(field.target).not.toHaveProperty("observationId");
  });
  it("keeps area targets channel-neutral",()=>{
-  const result=fixture();result.metric="area_px";result.spec.selection.metric="area_px";result.spec.selection.channel_id=null;result.channel=null;
+  const result=fixture();result.metric="area_px";result.spec.selection.metric="area_px";(result.spec.selection as {channel_id:string|null}).channel_id=null;result.channel=null;
   for(const row of result.observation_ledger)row.channel_id=null;
   expect(valid(result).units[0].samples[0].fields[0].target).toMatchObject({channelId:null,channelLabel:null,channelStain:null});
  });

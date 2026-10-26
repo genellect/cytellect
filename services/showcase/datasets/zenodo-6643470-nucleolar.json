@@ -1,0 +1,1093 @@
+{
+ "schema": "cytellect-showcase-dataset/1",
+ "id": "zenodo-6643470-nucleolar",
+ "publishable": true,
+ "scene_label": "核小体：ActD による転写の停止（U2OS）",
+ "assistant_scope": "この公開画像（核の Hoechst、核小体の NPM1、新しく作られた RNA の 5-EU）では、核小体の大きさ・形と、核小体や核の 5-EU の量を、未処理と ActD 処理の間で比べられます。",
+ "workspace_title": "核小体と転写（ActD 処理）",
+ "dataset": {
+  "name": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
+  "source": "https://zenodo.org/records/6643470",
+  "doi": "10.5281/zenodo.6643470",
+  "license": "CC-BY-4.0",
+  "license_quoted": "Creative Commons Attribution 4.0 International (Zenodo record metadata: license id cc-by-4.0)",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
+  "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU.",
+  "scope": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins, 1 h untreated or 1 µM actinomycin D, then a 30 min 5-EU pulse labelled with Alexa Fluor 647 azide; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
+  "modifications": "640 x 640 crop of each 2304 x 2304 plane, placed where the Hoechst stain covers the most area (the same window for all channels); channels Hoechst (OME c3), NPM1-mTagRFP (OME c1) and 5-EU (OME c2, Cy5); pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
+  "reported_change": {
+   "source": "Schmidt ら 2022、Cell Reports、Figure 5A–B と本文：ActD は “both completely inhibited transcription and demixed nucleoli”。Fig 5B は核小体の 5-EU 平均と核小体の離心率（各条件 713 個以上の核小体）",
+   "comparison": "未処理と ActD 1 µM（1 時間）の後、5-EU を 30 分取り込ませた U2OS",
+   "direction": "ActD で核小体の 5-EU（新しく合成された RNA）がほぼ消え、核小体が丸くなる（離心率が下がる）",
+   "quantity": "論文は箱ひげ図で示し、本文で「完全に止まる」と述べています。図の数値は核小体ごとの値で、Cytellect の核ごと・視野ごとの値とは単位が異なります",
+   "scope": "核小体は NPM1 で決め、5-EU は別のチャンネルで測ります。論文の図の 5-EU は核小体の面積あたり（著者のコードでは NPM1 で割った値）で、デモの平均 5-EU とは定義が異なります。",
+   "independence": "Rep1–Rep3 は同じ日に連番で撮影されており、独立した実験であることは出典で確認できません。このため、この場面では検定をせず、群ごとの分布と実験回ごとの値を示します。"
+  },
+  "caveats": [
+   "出典が報告した 2 つの変化を、測定の前に決めた定義のまま比べています。核小体の離心率（形）は 3 回とも出典と同じく低下し、核小体の平均 5-EU は向きがそろいません。統計の「記録した比較」で切り替えて確かめられます。小さい物体ほど離心率は低く出やすいので、離心率は核小体の面積（「指標」で選べます）と合わせて読んでください。このデモで測った核小体の平均 5-EU（核ごと、背景補正なし）は、ActD − 未処理の差が反復ごとに +263、−83、−1317 で、論文の報告（ActD でほぼ消失）と向きがそろいません。論文の値は核小体ごとの 5-EU を NPM1 で割ったもので、デモの値とは定義と集約が異なります。画像では、未処理で核小体に点状に集まる 5-EU が、ActD では核全体に広がって見えます。",
+   "Rep1–Rep3 は同じ日（2021-12-01）に連番で撮影されています。独立した実験であることは出典で確認できないため、この場面では推測統計を行いません。",
+   "各反復・各条件で、ファイル名の順に最初の 3 視野を使います。各画像から 640 × 640 画素（104 µm 角）を、核染色（Hoechst）が最も多く写る位置で切り出しています（NPM1 と 5-EU は見ていません）。視野は数・大きさ・信号で選んでいません。",
+   "核小体は NPM1 の分布から決めます。ActD では NPM1 の一部が核質へ移るため、核小体の輪郭は NPM1 の分布も反映します。",
+   "核小体を確定できない核は、核から消さずに欠測として残しています（要件 Q-05）。統計を計算する前に群・実験回・理由ごとの一覧で確かめ、結果の近くに、群・実験回ごとの核の総数と欠測の数を示します。同じ実験回の中で群の欠測の割合が 10 ポイント以上違うときは警告します。値は核小体を確定できた核についてのもので、欠測による偏りを補正した推定ではありません。",
+   "論文の図の 5-EU は核小体の面積あたり・核小体ごとの値で、デモの核小体の平均 5-EU（核ごと）とは単位と正規化が異なります。比べるのは変化の向きです。",
+   "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
+   "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
+  ]
+ },
+ "channels": [
+  {
+   "channel_id": "hoechst",
+   "stain": "Hoechst",
+   "role": "nuclear",
+   "select": {
+    "C": 3
+   },
+   "ome": "Channel:3 Name=DAPI"
+  },
+  {
+   "channel_id": "npm1",
+   "stain": "NPM1",
+   "role": "measure",
+   "select": {
+    "C": 1
+   },
+   "ome": "Channel:1 Name=TRITC"
+  },
+  {
+   "channel_id": "eu5",
+   "stain": "5-EU",
+   "role": "measure",
+   "select": {
+    "C": 2
+   },
+   "ome": "Channel:2 Name=Cy5"
+  }
+ ],
+ "calibration": {
+  "pixel_size_x_um": 0.1625,
+  "pixel_size_y_um": 0.1625
+ },
+ "derivation_rule": "Pre-registered before any measurement of this scene: the 18 files fixed by fixtures/public/group-comparison/ds6a-manifest.json (Codex, PR #99): for Untreated and ActD1, the first three files of each replicate Rep1–Rep3 in file-name order. Each plane is cropped to 640 x 640 pixels (for the published seed size) by crop_rule (see derivation_amendment). Channels: Hoechst (c3), NPM1 (c1), 5-EU (c2). No field is selected or removed by its count, size or signal. Objects are removed only by the fragment review (scenario.fragment_review, see derivation_amendment): an object whose nucleolus is not established and whose area is below 0.6 of its field's median nuclear area. The rule reads area only; it does not test contact with the crop border.",
+ "crop_rule": {
+  "kind": "nuclear-window",
+  "size": [
+   640,
+   640
+  ],
+  "step": 64,
+  "basis": "The 640 x 640 window, on a 64-pixel grid, holding the most Hoechst pixels above the plane's Otsu threshold; ties go to the window nearest the centre. Only the nuclear channel is read, never NPM1 or 5-EU (cytellect_showcase.build.nuclear_window)."
+ },
+ "derivation_amendment": "Amended after the first scenario run, before any nucleolar or 5-EU value was read: the pre-registered centre crops held 0-2 nuclei in four of the 18 fields (Rep1 ActD file 52, Rep2 ActD file 112, Rep3 Untreated files 121 and 122); in Rep3 Untreated file 122 the crop held no nucleus and StarDist returned 51 objects in the cytoplasm, which left the field's nucleolar compartments unresolved and stopped the build. The crop position is now chosen per field from the nuclear stain alone (crop_rule). The 18 files, channels, groups, runs and every later rule are unchanged; no field is removed. Second amendment, after the re-cropped scenario run and before any nucleolar or 5-EU value was read: three objects had no established nucleolus (all three lay at the crop border on the overlay; the rule itself reads area only) (152, 2079 and 3222 px; 0.03, 0.49 and 0.58 of their field's median nuclear area), which leaves those fields' compartments unresolved. The build's existing fragment review (scenario.fragment_review, used by the earlier public demo of this dataset) is applied: an unresolved object smaller than 0.6 of its field's median nuclear area is deleted from the nuclei, as the workspace's region deletion does, and listed in manifest.json (scenario.fragment_review); any larger unresolved nucleus stops the build. Third amendment, 2026-10-26 by the owner (requirements Q-05, genellect/cytellect#109), after this scene's 5-EU and eccentricity results had been read: the fragment review is withdrawn from this scene. The product's policy for nuclei without an established nucleolus (unresolved-as-missing/1.0.0, decided for all data and not from this scene's values) replaces it: such nuclei stay in the nuclei and, in each nucleolar statistic, in the ledger as missing, confirmed by group, run and reason before the calculation, with all nuclei as the denominator and a warning when the groups' missing fractions differ by 10 percentage points or more within a run. The 18 files, crops, channels, metrics and comparison plan are unchanged. Results recorded under the fragment review keep that definition and replay unchanged.",
+ "selection": {
+  "rule": "first three files per replicate and condition in file-name order; crop by crop_rule"
+ },
+ "sources": {
+  "40x_1.4_Rep1_Untreated_20211201_01_01": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_01.tif/content",
+   "filename": "40x_1.4_Rep1_Untreated_20211201_01_01.tif",
+   "md5": "dd4d0947c1ec496f2c44c081471dc5dc",
+   "bytes": 42566765
+  },
+  "40x_1.4_Rep1_Untreated_20211201_01_02": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_02.tif/content",
+   "filename": "40x_1.4_Rep1_Untreated_20211201_01_02.tif",
+   "md5": "73e12dd25bedb6b886ccaed7560acc94",
+   "bytes": 42566775
+  },
+  "40x_1.4_Rep1_Untreated_20211201_01_03": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_03.tif/content",
+   "filename": "40x_1.4_Rep1_Untreated_20211201_01_03.tif",
+   "md5": "9c2e77aacc66c950b1be98dbeca98d01",
+   "bytes": 42566765
+  },
+  "40x_1.4_Rep1_ActD1_20211201_01_51": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_51.tif/content",
+   "filename": "40x_1.4_Rep1_ActD1_20211201_01_51.tif",
+   "md5": "2e661797a8df3da5af7c7acf8698bb46",
+   "bytes": 42566715
+  },
+  "40x_1.4_Rep1_ActD1_20211201_01_52": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_52.tif/content",
+   "filename": "40x_1.4_Rep1_ActD1_20211201_01_52.tif",
+   "md5": "79edbd5ae32ac7ecc7a81c6583d1351e",
+   "bytes": 42566645
+  },
+  "40x_1.4_Rep1_ActD1_20211201_01_53": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_53.tif/content",
+   "filename": "40x_1.4_Rep1_ActD1_20211201_01_53.tif",
+   "md5": "d209fe70ae9e0085a6f7ffe96ce5891f",
+   "bytes": 42566719
+  },
+  "40x_1.4_Rep2_Untreated_20211201_01_61": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_61.tif/content",
+   "filename": "40x_1.4_Rep2_Untreated_20211201_01_61.tif",
+   "md5": "2095eaac0c3d97912f9bdd0693956745",
+   "bytes": 42566775
+  },
+  "40x_1.4_Rep2_Untreated_20211201_01_62": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_62.tif/content",
+   "filename": "40x_1.4_Rep2_Untreated_20211201_01_62.tif",
+   "md5": "a37c0d7f97bd6b991ba1cb16aee5f141",
+   "bytes": 42566779
+  },
+  "40x_1.4_Rep2_Untreated_20211201_01_63": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_63.tif/content",
+   "filename": "40x_1.4_Rep2_Untreated_20211201_01_63.tif",
+   "md5": "1bda1d885cf186d8697b236bf28abab8",
+   "bytes": 42566714
+  },
+  "40x_1.4_Rep2_ActD1_20211201_01_111": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_111.tif/content",
+   "filename": "40x_1.4_Rep2_ActD1_20211201_01_111.tif",
+   "md5": "570de0519a29b7fcfdc57eea2a345c9b",
+   "bytes": 42566709
+  },
+  "40x_1.4_Rep2_ActD1_20211201_01_112": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_112.tif/content",
+   "filename": "40x_1.4_Rep2_ActD1_20211201_01_112.tif",
+   "md5": "731dcb83fc37989e9432aa735030a56c",
+   "bytes": 42566715
+  },
+  "40x_1.4_Rep2_ActD1_20211201_01_113": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_113.tif/content",
+   "filename": "40x_1.4_Rep2_ActD1_20211201_01_113.tif",
+   "md5": "122758255dd88abb702254c959811afa",
+   "bytes": 42566699
+  },
+  "40x_1.4_Rep3_Untreated_20211201_01_121": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_121.tif/content",
+   "filename": "40x_1.4_Rep3_Untreated_20211201_01_121.tif",
+   "md5": "bddb3282bf78b91c15d9c2fbd5c83a8b",
+   "bytes": 42566775
+  },
+  "40x_1.4_Rep3_Untreated_20211201_01_122": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_122.tif/content",
+   "filename": "40x_1.4_Rep3_Untreated_20211201_01_122.tif",
+   "md5": "07e8fc8a8ce884d8d187cf3ce8f9ca08",
+   "bytes": 42566765
+  },
+  "40x_1.4_Rep3_Untreated_20211201_01_123": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_123.tif/content",
+   "filename": "40x_1.4_Rep3_Untreated_20211201_01_123.tif",
+   "md5": "938bb2be1598b4517027f0d39a030850",
+   "bytes": 42566721
+  },
+  "40x_1.4_Rep3_ActD1_20211201_01_171": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_171.tif/content",
+   "filename": "40x_1.4_Rep3_ActD1_20211201_01_171.tif",
+   "md5": "408379344a9b42ac9e554b16b991a9ec",
+   "bytes": 42566707
+  },
+  "40x_1.4_Rep3_ActD1_20211201_01_172": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_172.tif/content",
+   "filename": "40x_1.4_Rep3_ActD1_20211201_01_172.tif",
+   "md5": "a827763c824aec7a81de06cb29590af4",
+   "bytes": 42566705
+  },
+  "40x_1.4_Rep3_ActD1_20211201_01_173": {
+   "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_173.tif/content",
+   "filename": "40x_1.4_Rep3_ActD1_20211201_01_173.tif",
+   "md5": "adf8b22b604bf55c4bc9f0b3663ce727",
+   "bytes": 42566709
+  }
+ },
+ "fields": [
+  {
+   "id": "40x_1.4_Rep1_Untreated_20211201_01_01",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_01",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_01",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_01",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 · Untreated",
+    "sample": "Rep1 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep1_Untreated_20211201_01_02",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_02",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_02",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_02",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 · Untreated",
+    "sample": "Rep1 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep1_Untreated_20211201_01_03",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_03",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_03",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep1_Untreated_20211201_01_03",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep1 · Untreated",
+    "sample": "Rep1 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep1_ActD1_20211201_01_51",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_51",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep1 · ActD 1 µM",
+    "sample": "Rep1 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep1_ActD1_20211201_01_52",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_52",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_52",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_52",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep1 · ActD 1 µM",
+    "sample": "Rep1 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep1_ActD1_20211201_01_53",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_53",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_53",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep1_ActD1_20211201_01_53",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep1 · ActD 1 µM",
+    "sample": "Rep1 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep1"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_Untreated_20211201_01_61",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_61",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep2 · Untreated",
+    "sample": "Rep2 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_Untreated_20211201_01_62",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_62",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_62",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_62",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep2 · Untreated",
+    "sample": "Rep2 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_Untreated_20211201_01_63",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_63",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_63",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep2_Untreated_20211201_01_63",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep2 · Untreated",
+    "sample": "Rep2 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_ActD1_20211201_01_111",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_111",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep2 · ActD 1 µM",
+    "sample": "Rep2 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_ActD1_20211201_01_112",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_112",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_112",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_112",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep2 · ActD 1 µM",
+    "sample": "Rep2 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep2_ActD1_20211201_01_113",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_113",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_113",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep2_ActD1_20211201_01_113",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep2 · ActD 1 µM",
+    "sample": "Rep2 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep2"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_Untreated_20211201_01_121",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_121",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep3 · Untreated",
+    "sample": "Rep3 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_Untreated_20211201_01_122",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_122",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_122",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_122",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep3 · Untreated",
+    "sample": "Rep3 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_Untreated_20211201_01_123",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_123",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_123",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep3_Untreated_20211201_01_123",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "Untreated",
+    "experimental_unit": "Rep3 · Untreated",
+    "sample": "Rep3 · Untreated",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_ActD1_20211201_01_171",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_171",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep3 · ActD 1 µM",
+    "sample": "Rep3 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_ActD1_20211201_01_172",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_172",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_172",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_172",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep3 · ActD 1 µM",
+    "sample": "Rep3 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   }
+  },
+  {
+   "id": "40x_1.4_Rep3_ActD1_20211201_01_173",
+   "planes": {
+    "hoechst": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_173",
+     "select": {
+      "C": 3
+     }
+    },
+    "npm1": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_173",
+     "select": {
+      "C": 1
+     }
+    },
+    "eu5": {
+     "source": "40x_1.4_Rep3_ActD1_20211201_01_173",
+     "select": {
+      "C": 2
+     }
+    }
+   },
+   "metadata": {
+    "condition": "ActD 1 µM",
+    "experimental_unit": "Rep3 · ActD 1 µM",
+    "sample": "Rep3 · ActD 1 µM",
+    "acquisition_date": "2021-12-01",
+    "pair": "Rep3"
+   }
+  }
+ ],
+ "experiment": {
+  "groups": [
+   {
+    "id": "control",
+    "label": "Untreated"
+   },
+   {
+    "id": "treatment",
+    "label": "ActD 1 µM"
+   }
+  ],
+  "control_group_id": "control",
+  "runs": [
+   {
+    "id": "rep1",
+    "label": "Rep1",
+    "acquired_on": "2021-12-01"
+   },
+   {
+    "id": "rep2",
+    "label": "Rep2",
+    "acquired_on": "2021-12-01"
+   },
+   {
+    "id": "rep3",
+    "label": "Rep3",
+    "acquired_on": "2021-12-01"
+   }
+  ],
+  "independence_confirmed": false,
+  "independence_basis": "Not confirmed by the source: Rep1–Rep3 were imaged on the same date in one numbered sequence."
+ },
+ "scenario": {
+  "unit_definition": "反復（Rep1–Rep3。独立性は出典で確認できない）",
+  "pairing_basis": "同じ反復（Rep）の未処理と ActD",
+  "nucleolar_marker": "npm1",
+  "nucleolar_definition": "marker",
+  "background": "automatic",
+  "opening": "comparison",
+  "final_target": "nucleoli",
+  "statistics": {
+   "distribution": {
+    "target": "nucleoli",
+    "metric": "mean",
+    "channel": "eu5"
+   },
+   "comparison": {
+    "target": "nucleoli",
+    "metric": "mean",
+    "channel": "eu5",
+    "design": "paired"
+   }
+  },
+  "companions": [
+   {
+    "target": "nucleoplasm",
+    "metric": "nucleolar_eccentricity",
+    "channel": null,
+    "design": "paired"
+   }
+  ],
+  "direction_checks": [
+   {
+    "metric": "mean",
+    "channel": "eu5",
+    "expected": "decrease",
+    "agrees": false
+   },
+   {
+    "metric": "nucleolar_eccentricity",
+    "channel": null,
+    "expected": "decrease",
+    "agrees": true
+   }
+  ],
+  "presentation_amendment": "Presentation amended 2026-10-26 by the owner (goals C7), after the planned result was read and without changing any metric, rule or field: the scene shows both changes the source reports and the plan recorded before measurement. The opening comparison stays the nucleolar mean 5-EU (its directions do not match the source); the nucleolar eccentricity, planned as the second readout, is saved as a companion comparison beside it. The build checks each recorded direction against the scene's text (direction_checks) and stops when they disagree. The source's EU/NPM1 per nucleolus is not added after the fact.",
+  "comparison_plan": "Planned before measurement: per-field distributions of the nucleolar mean 5-EU (raw and background-corrected) and of the nucleolar eccentricity (compartment-summary 1.1.0), Untreated versus ActD 1 µM, by replicate. Expected directions from the source: lower nucleolar 5-EU and lower eccentricity with ActD. No inferential test is reported because the replicates' independence is not established. Amended before any value was read (2026-10-25): the common statistics gained a descriptive comparison (test none) for designs whose independence is unconfirmed; the scene opens on that comparison of the nucleolar mean 5-EU (per-run values and differences, no test, p-value or interval). Result as planned (2026-10-25): ActD − untreated nucleolar mean 5-EU per run +263, −83, −1317 (Rep1–3), not the direction the paper reports; the paper's EU/NPM1 per nucleolus differs in definition and aggregation. An exploratory nucleoplasm/nucleolus 5-EU ratio examined after this result is not published; the scene keeps the planned metric.",
+  "grid": {
+   "nuclei": {
+    "probability": [
+     0.4,
+     0.5,
+     0.6
+    ],
+    "nms": [
+     0.2,
+     0.3,
+     0.4
+    ],
+    "detection_max_side_px": [
+     null
+    ]
+   }
+  },
+  "grid_notes": "Nuclei: StarDist probability and NMS grid on all fields. Nucleoli: the stable nucleolar-marker definition (cytellect-nucleolar-v2) on NPM1 runs in the browser for any nuclear result. Cellpose-SAM is not recorded.",
+  "python_options": {
+   "cytellect-nucleolar-v2": {
+    "smoothing_sigma_px": [
+     0.5,
+     0.7,
+     1.0,
+     2.0
+    ],
+    "minimum_area_px": [
+     2,
+     4,
+     8
+    ],
+    "relative_threshold": [
+     0.6,
+     0.7,
+     0.8
+    ]
+   },
+   "cytellect-ncl-objects": {}
+  },
+  "proposals": {
+   "model": "showcase-preset",
+   "prompt_version": "1",
+   "source": "showcase-authored",
+   "note": "Demo-authored analysis drafts for preset instructions; no language model was called. Each draft is returned through the production proposal route and validated by validate_draft.",
+   "presets": [
+    {
+     "label": "核の 5-EU の分布",
+     "instruction": "核の5-EU（新しく合成されたRNA）の分布を視野ごとに確認したい",
+     "draft": {
+      "recipe": "nuclear-intensity",
+      "channels": [
+       {
+        "token": "ch1",
+        "stain": "5-EU",
+        "role": "measure",
+        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
+       },
+       {
+        "token": "ch2",
+        "stain": "Hoechst",
+        "role": "nuclear",
+        "reason": "記録された核染色（Hoechst）で、核検出に使う設定です。"
+       },
+       {
+        "token": "ch3",
+        "stain": "NPM1",
+        "role": "measure",
+        "reason": "核小体マーカー NPM1 で核小体を決め、輝度を測定します。"
+       }
+      ],
+      "metrics": [
+       {
+        "metric": "mean_raw",
+        "channel": "ch1",
+        "region": "nucleus"
+       }
+      ],
+      "statistics": {
+       "kind": "descriptive",
+       "test": null,
+       "omnibus": null,
+       "association": null,
+       "x": null,
+       "y": null
+      },
+      "additional_analyses": [],
+      "figures": [
+       {
+        "kind": "field-distribution",
+        "metric": "mean_raw",
+        "channel": "ch1",
+        "region": "nucleus",
+        "analysis_index": 0
+       }
+      ],
+      "missing_information": [
+       "Rep1–Rep3 は同日撮影で、独立した実験かどうかは出典で確認できません。"
+      ],
+      "reference_ids": [],
+      "rationale": "Hoechst で検出した核の中の 5-EU 平均輝度を、視野ごとの分布として示します。検定は行いません。",
+      "processing": {
+       "version": "1.0.0",
+       "nuclei": {
+        "channel": "ch2",
+        "detection_max_side_px": null,
+        "detector": {
+         "engine": "fiji-stardist-2d",
+         "model": "Versatile (fluorescent nuclei)",
+         "percentile_low": 1,
+         "percentile_high": 99.8,
+         "probability": 0.5,
+         "nms": 0.3
+        }
+       },
+       "nucleoli": null,
+       "signal": null,
+       "cells": null
+      },
+      "background": null,
+      "gfp_selection": null
+     }
+    },
+    {
+     "label": "NPM1 の核内輝度の分布",
+     "instruction": "NPM1の核内平均輝度を視野ごとに確認したい",
+     "draft": {
+      "recipe": "nuclear-intensity",
+      "channels": [
+       {
+        "token": "ch1",
+        "stain": "5-EU",
+        "role": "measure",
+        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
+       },
+       {
+        "token": "ch2",
+        "stain": "Hoechst",
+        "role": "nuclear",
+        "reason": "記録された核染色（Hoechst）で、核検出に使う設定です。"
+       },
+       {
+        "token": "ch3",
+        "stain": "NPM1",
+        "role": "measure",
+        "reason": "核小体マーカー NPM1 で核小体を決め、輝度を測定します。"
+       }
+      ],
+      "metrics": [
+       {
+        "metric": "mean_raw",
+        "channel": "ch3",
+        "region": "nucleus"
+       }
+      ],
+      "statistics": {
+       "kind": "descriptive",
+       "test": null,
+       "omnibus": null,
+       "association": null,
+       "x": null,
+       "y": null
+      },
+      "additional_analyses": [],
+      "figures": [
+       {
+        "kind": "field-distribution",
+        "metric": "mean_raw",
+        "channel": "ch3",
+        "region": "nucleus",
+        "analysis_index": 0
+       }
+      ],
+      "missing_information": [
+       "Rep1–Rep3 は同日撮影で、独立した実験かどうかは出典で確認できません。"
+      ],
+      "reference_ids": [],
+      "rationale": "Hoechst で検出した核の中の NPM1 平均輝度を、視野ごとの分布として示します。検定は行いません。",
+      "processing": {
+       "version": "1.0.0",
+       "nuclei": {
+        "channel": "ch2",
+        "detection_max_side_px": null,
+        "detector": {
+         "engine": "fiji-stardist-2d",
+         "model": "Versatile (fluorescent nuclei)",
+         "percentile_low": 1,
+         "percentile_high": 99.8,
+         "probability": 0.5,
+         "nms": 0.3
+        }
+       },
+       "nucleoli": null,
+       "signal": null,
+       "cells": null
+      },
+      "background": null,
+      "gfp_selection": null
+     }
+    },
+    {
+     "label": "核の 5-EU を未処理と ActD で比較",
+     "instruction": "核の5-EU（新しく合成されたRNA）を未処理とActDで比べたい",
+     "draft": {
+      "recipe": "nuclear-intensity",
+      "channels": [
+       {
+        "token": "ch1",
+        "stain": "5-EU",
+        "role": "measure",
+        "reason": "新しく合成された RNA（5-EU）の輝度を測定します。"
+       },
+       {
+        "token": "ch2",
+        "stain": "Hoechst",
+        "role": "nuclear",
+        "reason": "記録された核染色（Hoechst）で、核検出に使う設定です。"
+       },
+       {
+        "token": "ch3",
+        "stain": "NPM1",
+        "role": "measure",
+        "reason": "核小体マーカー NPM1 で核小体を決め、輝度を測定します。"
+       }
+      ],
+      "metrics": [
+       {
+        "metric": "mean_raw",
+        "channel": "ch1",
+        "region": "nucleus"
+       }
+      ],
+      "statistics": {
+       "kind": "comparison",
+       "test": "paired-t",
+       "omnibus": null,
+       "association": null,
+       "x": null,
+       "y": null
+      },
+      "additional_analyses": [],
+      "figures": [
+       {
+        "kind": "unit-comparison",
+        "metric": "mean_raw",
+        "channel": "ch1",
+        "region": "nucleus",
+        "analysis_index": 0
+       }
+      ],
+      "missing_information": [
+       "Rep1–Rep3 は同日撮影で、独立した実験かどうかは出典で確認できません。"
+      ],
+      "reference_ids": [],
+      "rationale": "Hoechst で検出した核の中の 5-EU 平均輝度を、同じ反復（Rep）の未処理と ActD で比べます。反復の独立性は出典で確認できないため、検定と信頼区間は計算せず、反復ごとの値と差を示します。",
+      "processing": {
+       "version": "1.0.0",
+       "nuclei": {
+        "channel": "ch2",
+        "detection_max_side_px": null,
+        "detector": {
+         "engine": "fiji-stardist-2d",
+         "model": "Versatile (fluorescent nuclei)",
+         "percentile_low": 1,
+         "percentile_high": 99.8,
+         "probability": 0.5,
+         "nms": 0.3
+        }
+       },
+       "nucleoli": null,
+       "signal": null,
+       "cells": null
+      },
+      "background": null,
+      "gfp_selection": null
+     }
+    }
+   ]
+  }
+ }
+}

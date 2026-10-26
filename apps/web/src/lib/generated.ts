@@ -275,6 +275,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/compartment-ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compartment Ledger View
+         * @description Per field: all nuclei, those with an established nucleolus, the missing ones by reason and the
+         *     explicitly excluded ones, for the confirmation before statistics (Q-05). A state that cannot be
+         *     kept as missing is refused with its reason.
+         */
+        get: operations["compartment_ledger_view_v1_revisions__rid__compartment_ledger_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/review": {
         parameters: {
             query?: never;
@@ -1230,6 +1252,7 @@ export interface components {
             /** Figure Proposals */
             figure_proposals?: components["schemas"]["SavedDraftFigure"][];
             figure?: components["schemas"]["FigureDraft"] | null;
+            experiment?: components["schemas"]["ExperimentDesign"] | null;
         };
         /** AnalysisSpecView */
         AnalysisSpecView: {
@@ -1858,7 +1881,7 @@ export interface components {
              * @default distribution
              * @enum {string}
              */
-            kind: "distribution" | "paired" | "histogram" | "box" | "violin";
+            kind: "distribution" | "paired" | "histogram" | "box" | "violin" | "superplot" | "unit-mean-bar";
             /**
              * Language
              * @default en
@@ -2018,6 +2041,8 @@ export interface components {
             method_settings: {
                 [key: string]: unknown;
             };
+            estimates?: components["schemas"]["ComparisonEstimates"] | null;
+            compartment_missing?: components["schemas"]["CompartmentMissingSummary"] | null;
             /** Figure */
             figure: {
                 [key: string]: unknown;
@@ -2040,6 +2065,54 @@ export interface components {
             /** Pairing Basis */
             pairing_basis?: string | null;
         };
+        /** ComparisonEstimates */
+        ComparisonEstimates: {
+            /**
+             * Protocol
+             * @default comparison-estimates/1.0.0
+             * @constant
+             */
+            protocol: "comparison-estimates/1.0.0";
+            /**
+             * Direction
+             * @default treatment_minus_control
+             * @constant
+             */
+            direction: "treatment_minus_control";
+            /** Control */
+            control: string;
+            /** Treatment */
+            treatment: string;
+            /**
+             * Design
+             * @enum {string}
+             */
+            design: "independent" | "paired";
+            /**
+             * Test
+             * @enum {string}
+             */
+            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon" | "none";
+            /** Metric */
+            metric: string;
+            /**
+             * Scale
+             * @enum {string}
+             */
+            scale: "ratio" | "difference" | "fraction" | "log2";
+            /** N Control */
+            n_control: number;
+            /** N Treatment */
+            n_treatment: number;
+            /** N Pairs */
+            n_pairs: number | null;
+            difference: components["schemas"]["EstimateInterval"];
+            ratio: components["schemas"]["EstimateInterval"];
+            /** Groups */
+            groups: components["schemas"]["GroupEstimate"][];
+            /** Runs */
+            runs: components["schemas"]["RunEstimate"][];
+        };
         /** ComparisonFamily */
         ComparisonFamily: {
             /** Family Id */
@@ -2055,6 +2128,79 @@ export interface components {
             contrasts: string[][];
         };
         /**
+         * CompartmentMissingConfirmation
+         * @description The researcher's confirmation of the unresolved-nucleoli list (policy 1.0.0, requirements Q-05):
+         *     per field, the number of nuclei kept as missing by reason, exactly as the revision records them.
+         */
+        CompartmentMissingConfirmation: {
+            /**
+             * Policy
+             * @constant
+             */
+            policy: "unresolved-as-missing/1.0.0";
+            /** Confirmed */
+            confirmed: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+        };
+        /**
+         * CompartmentMissingRow
+         * @description One condition × experimental unit of the confirmed unresolved-nucleoli ledger (Q-05):
+         *     nuclei = resolved + missing; excluded is part of resolved; the denominator is all nuclei.
+         */
+        CompartmentMissingRow: {
+            /** Condition */
+            condition: string | null;
+            /** Experimental Unit */
+            experimental_unit: string | null;
+            /** Run */
+            run: string | null;
+            /** Fields */
+            fields: number;
+            /** Nuclei */
+            nuclei: number;
+            /** Resolved */
+            resolved: number;
+            /** Missing */
+            missing: number;
+            /** Excluded */
+            excluded: number;
+            /** Reasons */
+            reasons: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * CompartmentMissingSummary
+         * @description Unresolved-nucleoli policy 1.0.0: values describe the nuclei whose nucleolus was established.
+         */
+        CompartmentMissingSummary: {
+            /**
+             * Policy
+             * @constant
+             */
+            policy: "unresolved-as-missing/1.0.0";
+            /** Warning Points */
+            warning_points: number;
+            /** Rows */
+            rows: components["schemas"]["CompartmentMissingRow"][];
+            /** Warnings */
+            warnings: components["schemas"]["CompartmentMissingWarning"][];
+        };
+        /** CompartmentMissingWarning */
+        CompartmentMissingWarning: {
+            /** Run */
+            run: string | null;
+            /** Difference Points */
+            difference_points: number;
+            /** Fractions */
+            fractions: {
+                [key: string]: number;
+            };
+        };
+        /**
          * CompartmentSummarySelection
          * @description Per-nucleus values from a nucleoplasm revision's compartment-summary.json.
          *
@@ -2064,8 +2210,8 @@ export interface components {
          */
         CompartmentSummarySelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "compartment-summary";
             /**
@@ -2086,6 +2232,33 @@ export interface components {
              * @enum {string}
              */
             metric: "log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count";
+            /** Gfp Gate */
+            gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+        };
+        /**
+         * CompartmentSummarySelectionV11
+         * @description Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.
+         *
+         *     Like 1.0.0, values describe nuclei with at least one adopted nucleolus; a
+         *     candidate-free nucleus is missing (no_nucleolus), never zero.
+         */
+        CompartmentSummarySelectionV11: {
+            /**
+             * Source
+             * @constant
+             */
+            source: "compartment-summary";
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.1.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /** Channel Id */
+            channel_id?: string | null;
+            /** Metric */
+            metric: ("log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
         };
@@ -2192,7 +2365,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"] | components["schemas"]["CompartmentSummarySelectionV11"] | components["schemas"]["FieldSummarySelection"];
             /**
              * Group By
              * @default field
@@ -2351,6 +2524,24 @@ export interface components {
             x?: components["schemas"]["DraftMetric"] | null;
             y?: components["schemas"]["DraftMetric"] | null;
         };
+        /** EstimateInterval */
+        EstimateInterval: {
+            /** Estimate */
+            estimate: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /**
+             * Confidence Level
+             * @default 0.95
+             */
+            confidence_level: number;
+            /** Basis */
+            basis: string | null;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+        };
         /** Exclusion */
         Exclusion: {
             /** Field Id */
@@ -2359,6 +2550,56 @@ export interface components {
             nucleus_id?: number | null;
             /** Reason */
             reason: string;
+        };
+        /** ExperimentDesign */
+        ExperimentDesign: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /**
+             * Layout
+             * @enum {string}
+             */
+            layout: "single" | "pair";
+            /** Groups */
+            groups: components["schemas"]["ExperimentGroup"][];
+            /** Control Group Id */
+            control_group_id?: string | null;
+            /** Runs */
+            runs?: components["schemas"]["ExperimentRun"][];
+            /**
+             * Independence Confirmed
+             * @default false
+             */
+            independence_confirmed: boolean;
+            /** Fields */
+            fields?: {
+                [key: string]: components["schemas"]["FieldAssignment"];
+            };
+        };
+        /** ExperimentGroup */
+        ExperimentGroup: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * ExperimentRun
+         * @description One independently performed experiment (seeded, treated and stained separately).
+         */
+        ExperimentRun: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Performed On */
+            performed_on?: string | null;
+            /** Acquired On */
+            acquired_on?: string | null;
         };
         /**
          * ExploratoryGfpGateFilter
@@ -2405,6 +2646,17 @@ export interface components {
              */
             keep: "positive" | "negative";
         };
+        /** FieldAssignment */
+        FieldAssignment: {
+            /** Group Id */
+            group_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Sample */
+            sample?: string | null;
+            /** Acquired On */
+            acquired_on?: string | null;
+        };
         /** FieldLinkWrite */
         FieldLinkWrite: {
             /** Version */
@@ -2435,6 +2687,36 @@ export interface components {
             repeat_length?: number | null;
             /** Pixel Size Um */
             pixel_size_um?: number | null;
+        };
+        /**
+         * FieldSummarySelection
+         * @description One observation per field: nucleus counts and positivity among adopted nuclei.
+         *
+         *     Positivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0
+         *     or exploratory gfp-gate/3.0.0) with keep="positive"; the gate channel is the
+         *     channel that is judged, whatever its stain.
+         */
+        FieldSummarySelection: {
+            /**
+             * Source
+             * @constant
+             */
+            source: "field-summary";
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Region Set Id */
+            region_set_id: string;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction";
+            /** Positivity */
+            positivity?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
         };
         /** FieldView */
         FieldView: {
@@ -2491,7 +2773,7 @@ export interface components {
              * Metric
              * @default area_px
              */
-            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release");
+            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release") | ("nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
             /** Channel Id */
             channel_id?: string | null;
             /** Plot */
@@ -2604,6 +2886,23 @@ export interface components {
              */
             unit: "nucleus" | "cell_roi";
         };
+        /** GroupEstimate */
+        GroupEstimate: {
+            /** Condition */
+            condition: string;
+            /** N */
+            n: number;
+            /** Mean */
+            mean: number | null;
+            /** Sd */
+            sd: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2714,8 +3013,8 @@ export interface components {
         /** LegacySelection */
         LegacySelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "legacy-cell";
             /**
@@ -3318,8 +3617,8 @@ export interface components {
         /** NumericalSelection */
         NumericalSelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "numerical";
             /**
@@ -3361,7 +3660,7 @@ export interface components {
              */
             mode: "descriptive";
             /** Selection */
-            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"];
+            selection: components["schemas"]["LegacySelection"] | components["schemas"]["RegionSelection"] | components["schemas"]["NumericalSelection"] | components["schemas"]["CompartmentSummarySelection"] | components["schemas"]["CompartmentSummarySelectionV11"] | components["schemas"]["FieldSummarySelection"];
             /**
              * Group By
              * @default field
@@ -3983,6 +4282,8 @@ export interface components {
             /** Expected Active Revision Id */
             expected_active_revision_id: string | null;
             workspace_selection?: components["schemas"]["WorkspaceSelection"] | null;
+            /** Compartment Missing */
+            compartment_missing?: "unresolved-as-missing/1.0.0" | null;
         };
         /** RegionComparisonPlot */
         RegionComparisonPlot: {
@@ -4093,7 +4394,7 @@ export interface components {
              */
             version: "2.0.0";
             /** Selection */
-            selection: components["schemas"]["RegionSelection"] | components["schemas"]["CompartmentSummarySelection"];
+            selection: components["schemas"]["RegionSelection"] | components["schemas"]["CompartmentSummarySelection"] | components["schemas"]["CompartmentSummarySelectionV11"] | components["schemas"]["FieldSummarySelection"];
             design: components["schemas"]["ComparisonDesign"];
             /** Conditions */
             conditions: string[];
@@ -4121,9 +4422,11 @@ export interface components {
              * Test
              * @enum {string}
              */
-            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon";
+            test: "welch-t" | "paired-t" | "mann-whitney-u" | "wilcoxon" | "none";
             /** Omnibus */
             omnibus?: ("welch-anova" | "kruskal-wallis") | null;
+            /** Estimates */
+            estimates?: "comparison-estimates/1.0.0" | null;
         };
         /** RegionComparisonView */
         RegionComparisonView: {
@@ -4984,8 +5287,8 @@ export interface components {
         /** RegionSelection */
         RegionSelection: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Source
+             * @constant
              */
             source: "region";
             /** Region Set Id */
@@ -5073,6 +5376,7 @@ export interface components {
         ReviewInput: {
             /** Accept Invalidated Fields */
             accept_invalidated_fields?: string[];
+            compartment_missing?: components["schemas"]["CompartmentMissingConfirmation"] | null;
         };
         /** RevisionInput */
         RevisionInput: {
@@ -5100,6 +5404,22 @@ export interface components {
             reviewed: boolean;
             /** Created */
             created: number;
+        };
+        /**
+         * RunEstimate
+         * @description One independent run of a paired comparison, from the saved pair ledger.
+         */
+        RunEstimate: {
+            /** Pair */
+            pair: string;
+            /** Control */
+            control: number;
+            /** Treatment */
+            treatment: number;
+            /** Difference */
+            difference: number;
+            /** Ratio */
+            ratio: number | null;
         };
         /**
          * RuntimeSettingsDraft
@@ -5319,7 +5639,7 @@ export interface components {
              * Metric
              * @default area_px
              */
-            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release");
+            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release") | ("nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
             /** Channel Id */
             channel_id?: string | null;
             /** X Metric */
@@ -5791,7 +6111,7 @@ export interface components {
              * Observation Kind
              * @enum {string}
              */
-            observation_kind: "nuclei" | "regions" | "observations";
+            observation_kind: "nuclei" | "regions" | "observations" | "fields";
             /** Metric */
             metric: string;
             /** Unit */
@@ -5839,6 +6159,7 @@ export interface components {
              * @default null
              */
             source_review: "automatic_unreviewed" | null;
+            compartment_missing?: components["schemas"]["CompartmentMissingSummary"] | null;
         };
     };
     responses: never;
@@ -6434,6 +6755,39 @@ export interface operations {
                 "application/json": components["schemas"]["RevisionInput"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compartment_ledger_view_v1_revisions__rid__compartment_ledger_get: {
+        parameters: {
+            query?: {
+                field_id?: string | null;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

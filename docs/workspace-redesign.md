@@ -26,6 +26,11 @@ review.
 Three routine operations:
 
 1. **Add images** (files or a folder). A workspace is created automatically.
+   Since 2026-10-25 a new workspace first asks for the form of the experiment
+   (1 screen: describe one group; 2 screens: compare two groups) and then takes
+   images per group and independent run ([group comparison](drafts/group-comparison/requirements.md),
+   E-01–E-08, owner decision amending U01). Images added without a design remain
+   possible and are listed as unassigned fields.
 2. **Review the proposal and press 解析を実行.** The analysis goal is optional
    free text; without it, a proposal is built from images and channel names.
 3. **Review results**, correct where needed and export.
@@ -39,6 +44,27 @@ Layout (desktop first; tablet collapses panels; mobile prioritizes viewing):
 | Center | The selected image or figure, large |
 | Right | Operations for the current selection only: channel display, region editing, figure settings, comparison conditions |
 | Bottom drawer | Measurement table, opened on demand |
+
+The image view is where researchers check what is measured, so one rule holds
+for one field and for two groups side by side (owner review, 2026-10-26):
+each image shows its whole field at its own aspect ratio on opening (never
+cropped to fill), and that field's measurement table sits beside it, or below
+it when that leaves the image larger, with a readable minimum (8 rows below,
+260 px beside). Two screens draw both fields at one shared scale (V-01), and the
+two fields they open on load together, before the remaining fields
+([group comparison](drafts/group-comparison/requirements.md), V-01, V-04,
+N-03, N-08). Hiding the tables enlarges the images; zoom shows detail.
+
+What the image shows is the structure the metric measures, not the region set
+its values are read from (Codex final review, 2026-10-26, V-04). A per-nucleus
+value of the nucleoli (eccentricity, total area, count, area fraction) is read
+from the nucleoplasm set but labelled 「核小体（核ごとの値）」 and checked on the
+nucleoli; opening such a value from a figure shows that saved analysis's
+nucleoli with its nucleus outlined. Saved tables lead with the field to open,
+its run and group, the region and the value; an observation's sample, date,
+selection state, versions and internal ids are folded under 「記録の詳細」
+(N-06). Folded tables are drawn only once opened, since a saved table can hold
+every observation.
 
 Analysis conditions, history and retention live in a menu. There is no
 "complete step 1 before step 2" page structure. Errors never reset the

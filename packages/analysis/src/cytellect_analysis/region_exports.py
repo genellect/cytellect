@@ -333,6 +333,21 @@ def _statistics_methods_template(result):
     return saved_methods_template(result)
 
 
+def _descriptive_shapes(result, dependencies, config):
+    if result["spec"]["selection"]["metric"] != "nucleolar_eccentricity":
+        return None
+    from .nucleolar_shape import nucleolar_eccentricity
+    from .region_export_dependencies import checked_parent
+
+    shapes = {}
+    for fid, entry in dependencies.items():
+        shape = config["field_snapshot"][fid]["image_info"]["shape"]
+        _, nuclei = checked_parent(entry, "nuclear", shape)
+        _, nucleoli = checked_parent(entry, "nucleolar", shape)
+        shapes[fid] = nucleolar_eccentricity(nuclei, nucleoli)
+    return shapes
+
+
 def _recompute_statistics(report, config, result, dependencies=None):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
@@ -370,10 +385,18 @@ def _recompute_statistics(report, config, result, dependencies=None):
         if uses_compartment_summary(result.get("spec")):
             from .compartment_observations import describe_compartment_summary
             calculated = describe_compartment_summary(report, config["field_snapshot"],
-                parse_descriptive_request(result["spec"]), summaries, nuclear=nuclear)
+                parse_descriptive_request(result["spec"]), summaries, nuclear=nuclear,
+                shapes=_descriptive_shapes(result, dependencies or {}, config))
+        elif result["spec"]["selection"]["source"] == "field-summary":
+            from .field_summary_source import describe_field_summary
+            calculated = describe_field_summary(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
         else:
             calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
     calculated["revision_id"] = report["revision_id"]
+    if result.get("analysis_kind") == "descriptive" and result.get("source_review") != "automatic_unreviewed":
+        from .compartment_review import with_compartment_missing
+
+        with_compartment_missing(calculated, config)
     if result.get("source_review") == "automatic_unreviewed":
         if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0") or result["spec"].get("mode") != "descriptive":
             raise ValueError("region_export_statistics_unrecognized_fields")

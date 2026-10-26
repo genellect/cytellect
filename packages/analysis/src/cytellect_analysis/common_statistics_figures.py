@@ -17,6 +17,7 @@ from matplotlib.ticker import MaxNLocator
 
 from .common_statistics_contracts import CommonStatisticsResult
 from .compartment_observations import DEFINITIONS as COMPARTMENT_DEFINITIONS
+from .compartment_review import compartment_missing_lines, compartment_missing_tables
 from .exports_csv import write_csv
 from .figure_sources import attach_svg_sources, bind_points
 from .figures import (
@@ -47,11 +48,26 @@ COMPARTMENT_LABELS = {
     "log2_nucleoplasm_over_nucleolus": ("Nucleoplasm / nucleolus mean", "核質 / 核小体 平均輝度比"),
     "nucleolar_area_fraction": ("Nucleolar area fraction of nucleus", "核に占める核小体面積比"),
     "nucleolar_count": ("Nucleoli per nucleus", "核あたりの核小体数"),
+    "nucleolar_area_px": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
+    "nucleolar_area_um2": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
+    "nucleolar_eccentricity": ("Nucleolar eccentricity", "核小体の離心率"),
+}
+FIELD_SUMMARY_LABELS = {
+    "nucleus_count": ("Nucleus count", "核数"),
+    "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
 }
 
 
-def compartment_methods_sentence(axis, metric):
-    return (f"{axis} is a per-nucleus compartment-summary value (selection 1.0.0): {COMPARTMENT_DEFINITIONS[metric]}. "
+def field_summary_methods_sentence(axis, metric):
+    from .field_summary_source import DEFINITIONS
+    return (f"{axis} is one value per field (field-summary selection 1.0.0): {DEFINITIONS[metric]}. "
+            "Fields, not nuclei, are the observations; explicitly excluded nuclei are not counted and excluded or "
+            "failed fields are not observations. A nucleus count is the number of imaged nuclei, not a viability or "
+            "proliferation measure, and it depends on how fields were chosen.")
+
+
+def compartment_methods_sentence(axis, metric, version="1.0.0"):
+    return (f"{axis} is a per-nucleus compartment-summary value (selection {version}): {COMPARTMENT_DEFINITIONS[metric]}. "
             "Nuclei, not regions, are the observations; the summary was bound to the reviewed nucleoplasm mask by "
             "exact nucleus identity and area. Missing values keep their recorded reason and were not replaced with zero.")
 
@@ -61,7 +77,7 @@ def _label(source, ja=False):
     metric = source["metric"]
     labels = {"area_px": ("Region area", "領域面積"), "area_um2": ("Region area", "領域面積"),
               "mean": ("Mean intensity", "平均輝度"), "median": ("Median intensity", "輝度中央値"),
-              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS}
+              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS}
     label = labels[metric.removesuffix("_corrected")][ja]
     if channel:
         label = f"{channel['label']}: {label}"
@@ -74,17 +90,47 @@ def _number(value):
     return "not estimated" if value is None else f"{value:.8g}"
 
 
+def estimate_lines(estimates):
+    """Methods sentences for saved treatment − control estimates (comparison-estimates/1.0.0)."""
+    if not estimates:
+        return []
+    unit = " (percentage points)" if estimates["scale"] == "fraction" else ""
+    lines = [f"Estimates ({estimates['protocol']}): {estimates['treatment']} minus {estimates['control']}; "
+             f"n={estimates['n_treatment']} and {estimates['n_control']} "
+             + ("recorded experimental units (independence not confirmed)" if estimates["test"] == "none" else "independent units")
+             + (f", {estimates['n_pairs']} complete pairs" if estimates["n_pairs"] is not None else "") + "."]
+    for name in ("difference", "ratio"):
+        row = estimates[name]
+        if row["estimate"] is None:
+            lines.append(f"{name.capitalize()}: not estimated ({row['unavailable_reason']}).")
+        else:
+            lines.append(f"{name.capitalize()}{unit if name == 'difference' else ''}={_number(row['estimate'])}; "
+                         f"95% CI [{_number(row['ci_low'])}, {_number(row['ci_high'])}]; basis: {row['basis']}.")
+    for run in estimates["runs"]:
+        lines.append(f"Run {run['pair']}: {estimates['control']}={_number(run['control'])}, "
+                     f"{estimates['treatment']}={_number(run['treatment'])}, difference{unit}={_number(run['difference'])}.")
+    return lines
+
+
 def common_statistics_methods(result):
     spec = result["spec"]
     association = result["analysis_kind"] == "region-association"
+    # A descriptive comparison (test "none") never calls its units independent.
+    descriptive = not association and spec.get("test") == "none"
+    unit_noun = "recorded experimental unit" if descriptive else "independent experimental unit"
     lines = ["# Cytellect common-statistics Methods", "", "Review this saved-settings draft before publication.",
              "Methods template: cytellect-common-statistics-methods 1.0.0.",
              f"Source revision: {result['revision_id']}; fingerprint: {result['source_fingerprint']}.",
              f"Inference core: {result['inference_version']}; request protocol: {spec['version']}.",
-             f"The inferential unit was {spec['design']['unit_definition']}.",
-             "Region measurements were reduced to a median within each field, an unweighted mean of fields "
-             "within each sample, and an unweighted mean of samples within each independent experimental unit. "
-             "Regions and fields were not treated as independent replicates.",
+             (f"The experimental unit was {spec['design']['unit_definition']}; the researcher had not confirmed that "
+              "these units were independent." if descriptive else f"The inferential unit was {spec['design']['unit_definition']}."),
+             ("Each field contributed one field value, then fields were reduced to an unweighted mean within each "
+              f"sample and samples to an unweighted mean within each {unit_noun}. "
+              "Fields were not treated as independent replicates."
+              if spec.get("selection", {}).get("source") == "field-summary" else
+              "Region measurements were reduced to a median within each field, an unweighted mean of fields "
+              f"within each sample, and an unweighted mean of samples within each {unit_noun}. "
+              "Regions and fields were not treated as independent replicates."),
              "Conditions in the declared analysis: " + ", ".join(spec["conditions"]) + ".",
              "The researcher selected the method explicitly. No normality pretest or observed p-value selected a method.",
              "Reviewed original-coordinate regions and saved original-pixel measurements were used. "
@@ -96,7 +142,10 @@ def common_statistics_methods(result):
             ch = source["channel"]
             lines.append(f"{axis} channel ID: {ch['channel_id']}; declared stain: {ch.get('stain') or 'not recorded'}.")
         if source["metric"] in COMPARTMENT_DEFINITIONS:
-            lines.append(compartment_methods_sentence(axis, source["metric"]))
+            lines.append(compartment_methods_sentence(axis, source["metric"],
+                                                      spec.get("selection", {}).get("version", "1.0.0")))
+        elif source["metric"] in FIELD_SUMMARY_LABELS:
+            lines.append(field_summary_methods_sentence(axis, source["metric"]))
         elif source["metric"].endswith("_corrected"):
             automatic = any((item.get("measurement") or {}).get("mode") == "automatic_background" for item in source["source_fields"])
             basis = "saved automatic background candidate median" if automatic else "saved confirmed background ROI median"
@@ -109,6 +158,7 @@ def common_statistics_methods(result):
         lines.extend(recorded_gate_lines(source.get("selection")))
         lines.append(f"{axis} missing outcomes: {len(source['missingness'])}; explicitly excluded failed fields: "
                      f"{len(source['excluded_failed_fields'])}. Full field, observation and unit ledgers are exported.")
+        lines.extend(compartment_missing_lines(source))
         lines.append(f"{axis} acquisition basis: {source['acquisition']['review']['basis']}; "
                      "comparability is researcher-confirmed, not established by the software.")
     if association:
@@ -125,6 +175,13 @@ def common_statistics_methods(result):
             lines.append("Pairing basis: " + spec["design"]["pairing_basis"] +
                          ". Pairs use saved identity; incomplete pairs were rejected.")
         family = spec["comparison_family"]
+        lines.extend(estimate_lines(result.get("estimates")))
+    if not association and spec["test"] == "none":
+        lines.append("Descriptive comparison: no hypothesis test, p-value or confidence interval was calculated, "
+                     "because the independence of the experimental units was not confirmed by the researcher. "
+                     "Unit values and per-run differences are descriptive and must not be read as inference.")
+        tests = []
+    elif not association:
         lines.append(f"Holm family {family['family_id']}: " +
                      "; ".join(f"{a} versus {b}" for a, b in family["contrasts"]) +
                      ". Every declared contrast is tested regardless of the omnibus result. "
@@ -164,7 +221,82 @@ def _tables(result):
     else:
         tables["comparisons"] = result["comparisons"]
         tables["omnibus"] = [result["omnibus"]] if result["omnibus"] else []
+        estimates = result.get("estimates")
+        if estimates:
+            # The saved treatment − control estimates, with their basis or the reason they are absent.
+            tables["estimates"] = [{"quantity": name, "control": estimates["control"], "treatment": estimates["treatment"],
+                                    "scale": estimates["scale"], "test": estimates["test"], **estimates[name]}
+                                   for name in ("difference", "ratio")]
+            tables["estimates-groups"] = estimates["groups"]
+            tables["estimates-runs"] = estimates["runs"]
+    tables.update(compartment_missing_tables(result))
     return tables
+
+
+def _unit_axis(spec, ja):
+    """The x-axis title naming what n counts; a descriptive comparison does not call its units independent."""
+    if spec.get("test") == "none":
+        # Short enough for every figure width; the legend states that independence is not confirmed.
+        return "条件（n：記録した実験回）" if ja else "Condition (n: recorded runs)"
+    return "条件（n：独立実験単位）" if ja else "Condition (n: independent units)"
+
+
+def _unit_interval(values):
+    """Mean and 95% t interval of independent-unit values (descriptive; None below two units)."""
+    from scipy import stats
+
+    values = np.asarray(values, dtype=float)
+    mean = float(values.mean())
+    if len(values) < 2:
+        return mean, None, None
+    half = float(stats.t.ppf(.975, len(values) - 1) * values.std(ddof=1) / np.sqrt(len(values)))
+    return mean, mean - half, mean + half
+
+
+def _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars):
+    """Fields (small), independent units (large, one marker per run), lines joining a run's
+    units, and each group's unit mean with its 95% t interval (a bar when ``bars``)."""
+    rows, fields = canonical["unit_summary"], canonical["field_summary"]
+    paired = canonical["spec"]["design"]["kind"] == "paired"
+    # A descriptive comparison (test "none") draws the unit mean without any interval.
+    descriptive = canonical["spec"]["test"] == "none"
+    runs = sorted({r["pair"] for r in rows if r.get("pair")}) if paired else []
+    rng = np.random.default_rng(0)
+    for i, group in enumerate(order):
+        color = series_color(plot, group, COLORS[i % len(COLORS)])
+        points = [r for r in rows if r["condition"] == group]
+        mean, low, high = _unit_interval([r["value"] for r in points])
+        if descriptive:
+            low = high = None
+        graphical_summary.append({"condition": group, "mean": mean, "ci_low": low, "ci_high": high,
+                                  "n_units": len(points),
+                                  "interval": ("not computed (descriptive comparison)" if descriptive
+                                               else "95% t interval of independent-unit values")})
+        # The summary sits beside the points so it never hides a unit.
+        summary_x = i if bars else i + .32
+        if bars:
+            ax.bar(i, mean, width=.55, color=color, alpha=.25, edgecolor=color, linewidth=.6, zorder=1)
+        else:
+            ax.hlines(mean, summary_x - .07, summary_x + .07, color="#222222", linewidth=1.1, zorder=4)
+        if low is not None:
+            ax.errorbar(summary_x, mean, yerr=[[mean - low], [high - mean]], fmt="none", ecolor="#222222",
+                        elinewidth=.8, capsize=3, zorder=4)
+        for j, unit in enumerate(points):
+            marker = MARKERS[(runs.index(unit["pair"]) if unit.get("pair") in runs else j) % len(MARKERS)]
+            if not bars:
+                below = [f["value"] for f in fields if f["condition"] == group
+                         and f["experimental_unit"] == unit["experimental_unit"]]
+                ax.scatter(i + rng.uniform(-.18, .18, len(below)), below, s=7, color=color, alpha=.45,
+                           marker=marker, linewidths=0, zorder=2)
+            bind_points(ax.scatter([i], [unit["value"]], s=40, color=color, marker=marker, edgecolor="#222222",
+                                   linewidth=.6, zorder=5), [unit])
+            glyphs.append({**unit, "display_x": float(i), "display_y": unit["value"]})
+    for pair in canonical["pair_ledger"] if paired else []:
+        if pair["status"] != "selected":
+            continue
+        values = [next(r["value"] for r in rows if r["condition"] == c and r["experimental_unit"] == pair["units"][c])
+                  for c in order]
+        ax.plot(range(len(order)), values, color="#888888", linewidth=.5, zorder=3)
 
 
 def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION):
@@ -220,6 +352,23 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 ax.set_ylabel(plot["y_label"] or ("独立実験単位数" if ja else "Independent-unit count"))
                 ax.legend(frameon=False)
                 note = "Histogram counts independent units using shared equal-width bins; rugs show every unit."
+            elif plot["kind"] in ("superplot", "unit-mean-bar"):
+                bars = plot["kind"] == "unit-mean-bar"
+                _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars)
+                ax.set_xticks(range(len(order)), [textwrap.fill(c, 16) + f"\nn={sum(r['condition'] == c for r in rows)}" for c in order])
+                ax.set_xlim(-.5, len(order) - .5)
+                ax.set_xlabel(plot["x_label"] or _unit_axis(spec, ja))
+                ax.set_ylabel(plot["y_label"] or _label(canonical, ja))
+                per_field = spec["selection"].get("source") == "field-summary"
+                units = "recorded experimental units, independence not confirmed" if spec["test"] == "none" else "independent experimental units"
+                note = (f"Large points are {units} (field values → sample mean → unit mean"
+                        if per_field else f"Large points are {units} (median per field → sample mean → unit mean")
+                note += "); the same marker marks the same run" + (" and lines join a run's units" if spec["design"]["kind"] == "paired" else "")
+                note += ". " if bars else "; small points are field values" + ("" if per_field else " (median of the field's observations)") + ". "
+                note += ("Bars show the mean of unit values" if bars else "Horizontal lines show the mean of unit values")
+                note += (" (descriptive: no test or interval, run independence not confirmed). n is the number of experimental units, not fields or nuclei."
+                         if spec["test"] == "none" else
+                         " with its 95% t interval (error bars). n is the number of independent units, not fields or nuclei.")
             else:
                 for i, group in enumerate(order):
                     points = [r for r in rows if r["condition"] == group]
@@ -260,9 +409,10 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                     # Equal category margins must not depend on the random jitter,
                     # unit count, or whether a box/violin contributes to autoscaling.
                     ax.set_xlim(-.5, len(order) - .5)
-                ax.set_xlabel(plot["x_label"] or ("条件（n：独立実験単位）" if ja else "Condition (n: independent units)"))
+                ax.set_xlabel(plot["x_label"] or _unit_axis(spec, ja))
                 ax.set_ylabel(plot["y_label"] or _label(canonical, ja))
-                note = "Points are independent-unit summaries; jitter affects display only (seed 0). "
+                note = ("Points are summaries of recorded experimental units (independence not confirmed); jitter affects display only (seed 0). "
+                        if spec.get("test") == "none" else "Points are independent-unit summaries; jitter affects display only (seed 0). ")
                 if plot["kind"] == "box":
                     note += "Boxes show linear-interpolated quartiles and median; whiskers end at observations within 1.5 IQR. All units remain shown."
                 elif plot["kind"] == "violin":

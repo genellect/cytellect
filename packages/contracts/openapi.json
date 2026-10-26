@@ -785,6 +785,60 @@
         }
       }
     },
+    "/v1/revisions/{rid}/compartment-ledger": {
+      "get": {
+        "summary": "Compartment Ledger View",
+        "description": "Per field: all nuclei, those with an established nucleolus, the missing ones by reason and the\nexplicitly excluded ones, for the confirmation before statistics (Q-05). A state that cannot be\nkept as missing is refused with its reason.",
+        "operationId": "compartment_ledger_view_v1_revisions__rid__compartment_ledger_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Field Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/review": {
       "post": {
         "summary": "Review",
@@ -3676,6 +3730,16 @@
                 "type": "null"
               }
             ]
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentDesign"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5267,7 +5331,9 @@
               "paired",
               "histogram",
               "box",
-              "violin"
+              "violin",
+              "superplot",
+              "unit-mean-bar"
             ],
             "title": "Kind",
             "default": "distribution"
@@ -5592,6 +5658,26 @@
             "type": "object",
             "title": "Method Settings"
           },
+          "estimates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComparisonEstimates"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompartmentMissingSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "figure": {
             "additionalProperties": true,
             "type": "object",
@@ -5676,6 +5762,123 @@
         ],
         "title": "ComparisonDesign"
       },
+      "ComparisonEstimates": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "comparison-estimates/1.0.0",
+            "title": "Protocol",
+            "default": "comparison-estimates/1.0.0"
+          },
+          "direction": {
+            "type": "string",
+            "const": "treatment_minus_control",
+            "title": "Direction",
+            "default": "treatment_minus_control"
+          },
+          "control": {
+            "type": "string",
+            "title": "Control"
+          },
+          "treatment": {
+            "type": "string",
+            "title": "Treatment"
+          },
+          "design": {
+            "type": "string",
+            "enum": [
+              "independent",
+              "paired"
+            ],
+            "title": "Design"
+          },
+          "test": {
+            "type": "string",
+            "enum": [
+              "welch-t",
+              "paired-t",
+              "mann-whitney-u",
+              "wilcoxon",
+              "none"
+            ],
+            "title": "Test"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "scale": {
+            "type": "string",
+            "enum": [
+              "ratio",
+              "difference",
+              "fraction",
+              "log2"
+            ],
+            "title": "Scale"
+          },
+          "n_control": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "N Control"
+          },
+          "n_treatment": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "N Treatment"
+          },
+          "n_pairs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Pairs"
+          },
+          "difference": {
+            "$ref": "#/components/schemas/EstimateInterval"
+          },
+          "ratio": {
+            "$ref": "#/components/schemas/EstimateInterval"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupEstimate"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunEstimate"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "control",
+          "treatment",
+          "design",
+          "test",
+          "metric",
+          "scale",
+          "n_control",
+          "n_treatment",
+          "n_pairs",
+          "difference",
+          "ratio",
+          "groups",
+          "runs"
+        ],
+        "title": "ComparisonEstimates"
+      },
       "ComparisonFamily": {
         "properties": {
           "family_id": {
@@ -5731,6 +5934,191 @@
           "contrasts"
         ],
         "title": "ComparisonFamily"
+      },
+      "CompartmentMissingConfirmation": {
+        "properties": {
+          "policy": {
+            "type": "string",
+            "const": "unresolved-as-missing/1.0.0",
+            "title": "Policy"
+          },
+          "confirmed": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Confirmed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "policy",
+          "confirmed"
+        ],
+        "title": "CompartmentMissingConfirmation",
+        "description": "The researcher's confirmation of the unresolved-nucleoli list (policy 1.0.0, requirements Q-05):\nper field, the number of nuclei kept as missing by reason, exactly as the revision records them."
+      },
+      "CompartmentMissingRow": {
+        "additionalProperties": false,
+        "description": "One condition \u00d7 experimental unit of the confirmed unresolved-nucleoli ledger (Q-05):\nnuclei = resolved + missing; excluded is part of resolved; the denominator is all nuclei.",
+        "properties": {
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
+          },
+          "experimental_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experimental Unit"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "fields": {
+            "minimum": 0,
+            "title": "Fields",
+            "type": "integer"
+          },
+          "nuclei": {
+            "minimum": 0,
+            "title": "Nuclei",
+            "type": "integer"
+          },
+          "resolved": {
+            "minimum": 0,
+            "title": "Resolved",
+            "type": "integer"
+          },
+          "missing": {
+            "minimum": 0,
+            "title": "Missing",
+            "type": "integer"
+          },
+          "excluded": {
+            "minimum": 0,
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "reasons": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "title": "Reasons",
+            "type": "object"
+          }
+        },
+        "required": [
+          "condition",
+          "experimental_unit",
+          "run",
+          "fields",
+          "nuclei",
+          "resolved",
+          "missing",
+          "excluded",
+          "reasons"
+        ],
+        "title": "CompartmentMissingRow",
+        "type": "object"
+      },
+      "CompartmentMissingSummary": {
+        "additionalProperties": false,
+        "description": "Unresolved-nucleoli policy 1.0.0: values describe the nuclei whose nucleolus was established.",
+        "properties": {
+          "policy": {
+            "const": "unresolved-as-missing/1.0.0",
+            "title": "Policy",
+            "type": "string"
+          },
+          "warning_points": {
+            "title": "Warning Points",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CompartmentMissingRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/CompartmentMissingWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "policy",
+          "warning_points",
+          "rows",
+          "warnings"
+        ],
+        "title": "CompartmentMissingSummary",
+        "type": "object"
+      },
+      "CompartmentMissingWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "difference_points": {
+            "title": "Difference Points",
+            "type": "number"
+          },
+          "fractions": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Fractions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "run",
+          "difference_points",
+          "fractions"
+        ],
+        "title": "CompartmentMissingWarning",
+        "type": "object"
       },
       "CompartmentSummarySelection": {
         "additionalProperties": false,
@@ -5799,6 +6187,86 @@
           "metric"
         ],
         "title": "CompartmentSummarySelection",
+        "type": "object"
+      },
+      "CompartmentSummarySelectionV11": {
+        "additionalProperties": false,
+        "description": "Compartment-summary selection 1.1.0: 1.0.0 metrics plus nucleolar total area and shape.\n\nLike 1.0.0, values describe nuclei with at least one adopted nucleolus; a\ncandidate-free nucleus is missing (no_nucleolus), never zero.",
+        "properties": {
+          "source": {
+            "const": "compartment-summary",
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "const": "1.1.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "region_set_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id",
+            "type": "string"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "enum": [
+                  "log2_nucleoplasm_over_nucleolus",
+                  "nucleolar_area_fraction",
+                  "nucleolar_count"
+                ],
+                "type": "string"
+              },
+              {
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
+                ],
+                "type": "string"
+              }
+            ],
+            "title": "Metric"
+          },
+          "gfp_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gfp Gate"
+          }
+        },
+        "required": [
+          "source",
+          "version",
+          "region_set_id",
+          "metric"
+        ],
+        "title": "CompartmentSummarySelectionV11",
         "type": "object"
       },
       "ContourView": {
@@ -6024,18 +6492,15 @@
               },
               {
                 "$ref": "#/components/schemas/CompartmentSummarySelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelectionV11"
+              },
+              {
+                "$ref": "#/components/schemas/FieldSummarySelection"
               }
             ],
-            "title": "Selection",
-            "discriminator": {
-              "propertyName": "source",
-              "mapping": {
-                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
-                "legacy-cell": "#/components/schemas/LegacySelection",
-                "numerical": "#/components/schemas/NumericalSelection",
-                "region": "#/components/schemas/RegionSelection"
-              }
-            }
+            "title": "Selection"
           },
           "group_by": {
             "type": "string",
@@ -6574,6 +7039,82 @@
         ],
         "title": "DraftStatistics"
       },
+      "EstimateInterval": {
+        "properties": {
+          "estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "confidence_level": {
+            "type": "number",
+            "maximum": 0.95,
+            "minimum": 0.95,
+            "title": "Confidence Level",
+            "default": 0.95
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estimate",
+          "ci_low",
+          "ci_high",
+          "basis",
+          "unavailable_reason"
+        ],
+        "title": "EstimateInterval"
+      },
       "Exclusion": {
         "properties": {
           "field_id": {
@@ -6606,6 +7147,154 @@
           "reason"
         ],
         "title": "Exclusion"
+      },
+      "ExperimentDesign": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "single",
+              "pair"
+            ],
+            "title": "Layout"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentGroup"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Groups"
+          },
+          "control_group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Group Id"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentRun"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Runs"
+          },
+          "independence_confirmed": {
+            "type": "boolean",
+            "title": "Independence Confirmed",
+            "default": false
+          },
+          "fields": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/FieldAssignment"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "layout",
+          "groups"
+        ],
+        "title": "ExperimentDesign"
+      },
+      "ExperimentGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ExperimentGroup"
+      },
+      "ExperimentRun": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "performed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Performed On"
+          },
+          "acquired_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ExperimentRun",
+        "description": "One independently performed experiment (seeded, treated and stained separately)."
       },
       "ExploratoryGfpGateFilter": {
         "additionalProperties": false,
@@ -6684,6 +7373,56 @@
         ],
         "title": "ExploratoryGfpGateFilter",
         "type": "object"
+      },
+      "FieldAssignment": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Group Id"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Run Id"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 24,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          },
+          "acquired_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "group_id",
+          "run_id"
+        ],
+        "title": "FieldAssignment"
       },
       "FieldLinkWrite": {
         "properties": {
@@ -6801,6 +7540,61 @@
           "acquisition_date"
         ],
         "title": "FieldMetadata"
+      },
+      "FieldSummarySelection": {
+        "additionalProperties": false,
+        "description": "One observation per field: nucleus counts and positivity among adopted nuclei.\n\nPositivity reuses the recorded nucleus gates (negative-control gfp-gate/2.0.0\nor exploratory gfp-gate/3.0.0) with keep=\"positive\"; the gate channel is the\nchannel that is judged, whatever its stain.",
+        "properties": {
+          "source": {
+            "const": "field-summary",
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "region_set_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id",
+            "type": "string"
+          },
+          "metric": {
+            "enum": [
+              "nucleus_count",
+              "nucleus_density_per_mm2",
+              "positive_count",
+              "positive_fraction"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "positivity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positivity"
+          }
+        },
+        "required": [
+          "source",
+          "region_set_id",
+          "metric"
+        ],
+        "title": "FieldSummarySelection",
+        "type": "object"
       },
       "FieldView": {
         "properties": {
@@ -6966,6 +7760,23 @@
                   "ncl_nucleoplasm_over_nucleoli",
                   "ncl_log2_nucleoplasm_over_nucleoli",
                   "ncl_legacy_release"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
                 ]
               }
             ],
@@ -7214,6 +8025,86 @@
           "fields"
         ],
         "title": "GfpGateRequest"
+      },
+      "GroupEstimate": {
+        "properties": {
+          "condition": {
+            "type": "string",
+            "title": "Condition"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "N"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "condition",
+          "n",
+          "mean",
+          "sd",
+          "ci_low",
+          "ci_high",
+          "unavailable_reason"
+        ],
+        "title": "GroupEstimate"
       },
       "HTTPValidationError": {
         "properties": {
@@ -8602,15 +9493,6 @@
             "type": "string"
           },
           "selection": {
-            "discriminator": {
-              "mapping": {
-                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
-                "legacy-cell": "#/components/schemas/LegacySelection",
-                "numerical": "#/components/schemas/NumericalSelection",
-                "region": "#/components/schemas/RegionSelection"
-              },
-              "propertyName": "source"
-            },
             "oneOf": [
               {
                 "$ref": "#/components/schemas/LegacySelection"
@@ -8623,6 +9505,12 @@
               },
               {
                 "$ref": "#/components/schemas/CompartmentSummarySelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelectionV11"
+              },
+              {
+                "$ref": "#/components/schemas/FieldSummarySelection"
               }
             ],
             "title": "Selection"
@@ -10223,6 +11111,18 @@
                 "type": "null"
               }
             ]
+          },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "unresolved-as-missing/1.0.0"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compartment Missing"
           }
         },
         "additionalProperties": false,
@@ -10471,16 +11371,15 @@
               },
               {
                 "$ref": "#/components/schemas/CompartmentSummarySelection"
+              },
+              {
+                "$ref": "#/components/schemas/CompartmentSummarySelectionV11"
+              },
+              {
+                "$ref": "#/components/schemas/FieldSummarySelection"
               }
             ],
-            "title": "Selection",
-            "discriminator": {
-              "propertyName": "source",
-              "mapping": {
-                "compartment-summary": "#/components/schemas/CompartmentSummarySelection",
-                "region": "#/components/schemas/RegionSelection"
-              }
-            }
+            "title": "Selection"
           },
           "design": {
             "$ref": "#/components/schemas/ComparisonDesign"
@@ -10528,7 +11427,8 @@
               "welch-t",
               "paired-t",
               "mann-whitney-u",
-              "wilcoxon"
+              "wilcoxon",
+              "none"
             ],
             "title": "Test"
           },
@@ -10546,6 +11446,18 @@
               }
             ],
             "title": "Omnibus"
+          },
+          "estimates": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "comparison-estimates/1.0.0"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimates"
           }
         },
         "additionalProperties": false,
@@ -13512,6 +14424,16 @@
             "type": "array",
             "maxItems": 100,
             "title": "Accept Invalidated Fields"
+          },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompartmentMissingConfirmation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -13588,6 +14510,48 @@
           "created"
         ],
         "title": "RevisionView"
+      },
+      "RunEstimate": {
+        "properties": {
+          "pair": {
+            "type": "string",
+            "title": "Pair"
+          },
+          "control": {
+            "type": "number",
+            "title": "Control"
+          },
+          "treatment": {
+            "type": "number",
+            "title": "Treatment"
+          },
+          "difference": {
+            "type": "number",
+            "title": "Difference"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pair",
+          "control",
+          "treatment",
+          "difference",
+          "ratio"
+        ],
+        "title": "RunEstimate",
+        "description": "One independent run of a paired comparison, from the saved pair ledger."
       },
       "RuntimeSettingsDraft": {
         "properties": {
@@ -14391,6 +15355,23 @@
                   "ncl_nucleoplasm_over_nucleoli",
                   "ncl_log2_nucleoplasm_over_nucleoli",
                   "ncl_legacy_release"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
                 ]
               }
             ],
@@ -15656,7 +16637,8 @@
             "enum": [
               "nuclei",
               "regions",
-              "observations"
+              "observations",
+              "fields"
             ],
             "title": "Observation Kind",
             "type": "string"
@@ -15748,6 +16730,16 @@
             ],
             "default": null,
             "title": "Source Review"
+          },
+          "compartment_missing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompartmentMissingSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

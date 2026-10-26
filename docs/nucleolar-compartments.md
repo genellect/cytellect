@@ -104,6 +104,16 @@ missing. Otherwise assembling a cohort is refused with
 applies to per-nucleus nucleolar summaries (nucleolar count, area fraction),
 which read the same compartment revisions.
 
+The unresolved-nucleoli policy `unresolved-as-missing/1.0.0` (requirements Q-05,
+2026-10-26) is the explicit alternative. The researcher confirms, before the
+calculation, the nuclei without an established nucleolus by group, unit and reason;
+they then stay as missing instead of being deleted. This is not a blanket acceptance
+of unresolved masks: the confirmation must equal the revision's own per-field list,
+only `no_candidate`, `indeterminate` and empty nucleoplasm can be kept as missing, and
+failures still stop. The result states, beside its sentence, that it describes the
+nuclei with an established nucleolus, with every group and unit's missing / all
+nuclei and the within-run warning ([methods](methods.md#unresolved-nucleoli-policy-100-2026-10-26)).
+
 Nucleolar edits (`region-edits` on a compartment revision) are restricted to
 exactly one saved parent nucleus: an added or redrawn nucleolus that leaves its
 parent or spans two nuclei is rejected (`nucleolus_outside_parent`), and a merge

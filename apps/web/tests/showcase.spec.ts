@@ -13,6 +13,18 @@ const DEV = process.env.CYTELLECT_SHOWCASE_DEV_BACKEND?.replace(/\/$/, "") || ""
 const PUBLISHED = fs.existsSync(path.resolve("public/showcase/seed.zip"));
 const live = 240_000;
 
+/** The published scenes (snapshot/scenes.json); a single-scene demo reads as one scene without an id. */
+interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; fields: unknown[]}
+const SCENES: Scene[] = (() => {
+  try {return (JSON.parse(fs.readFileSync(path.resolve("public/showcase/snapshot/scenes.json"), "utf8")) as {scenes: Scene[]}).scenes;}
+  catch {return [];}
+})();
+const sceneUrl = (scene: Scene | undefined, query = "") => scene ? `/demo?id=${scene.workspaceId}${query ? `&${query}` : ""}` : `/demo${query ? `?${query}` : ""}`;
+const OPENING = SCENES[0];
+/** The scene with nucleoli and a measured stain besides the nuclear one, for the nucleolar checks. */
+const NUCLEOLAR = SCENES.find(scene => scene.regions.includes("nucleoli"));
+const scopeText = (scene: Scene | undefined) => (scene?.assistantScope ?? "このデモは、記録した公開画像の解析だけに答えます。").slice(0, 20);
+
 test.describe.configure({mode: "serial"});
 test.beforeEach(() => {
   test.skip(!PUBLISHED && !DEV, "The public demo files (apps/web/public/showcase/seed.zip) are not built; set CYTELLECT_SHOWCASE_DEV_BACKEND to use the development backend.");
@@ -69,7 +81,9 @@ async function noOverflow(page: Page) {
   await page.setViewportSize({width: 1440, height: 1000});
 }
 const notRecorded = (page: Page) => page.getByRole("status").filter({hasText: "公開デモに記録していません"});
-const stage = (page: Page) => page.getByRole("img").filter({has: page.locator("image")}).first();
+// A shown result table: the experiment details above the results start folded once an experiment exists.
+const shownTable = (region: Locator) => region.locator("table").filter({visible: true}).first();
+const stage = (page: Page) => page.getByRole("group").filter({has: page.locator("image")}).first();
 const regions = (page: Page) => page.locator("svg path[data-region]");
 async function regionBoxes(page: Page) {
   return regions(page).evaluateAll(nodes => nodes.map(node => {const box = node.getBoundingClientRect(); return {id: Number(node.getAttribute("data-region")), x: box.x, y: box.y, width: box.width, height: box.height};}));
@@ -119,11 +133,20 @@ test("demo: image, outline, measurement, statistics and figure features run with
   }
   await expect(stage(page)).toBeVisible({timeout: live});
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  // The demo opens on nuclei over a colour merge of the two stains, without starting the in-browser API.
-  await expect(page.locator("[class*=measureToggle] span")).toHaveText("核");
-  await expect(page.getByRole("button", {name: "重ねて表示", exact: true})).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("[data-composite=nuclear]").first()).toBeAttached();
+  // The demo opens on nuclei, two groups side by side, each image with its outlines and measurements,
+  // without starting the in-browser API. The comparison's sentence and figure are one tab away (統計).
+  await expect(page.locator("[class*=channelBar]").getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  const merge = page.getByRole("button", {name: "重ねて表示", exact: true});
+  if (await merge.count()) await expect(merge).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", {name: "2 画面", exact: true})).toHaveAttribute("aria-pressed", "true");
+  const paneTables = page.getByRole("region", {name: /の測定値$/});
+  await expect(paneTables).toHaveCount(2, {timeout: live});
+  for (const table of await paneTables.all()) await expect(table.locator("tbody tr").first()).toBeVisible({timeout: live});
+  await expect(page.getByRole("region", {name: "比較の結果"})).toHaveCount(0);
   await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
+  if (SCENES.length > 1) await expect(header.getByRole("combobox", {name: "場面"})).toHaveValue(OPENING.id);
+  // The rest of this walk uses one field at a time.
+  await page.getByRole("button", {name: "2 画面", exact: true}).click();
   await noOverflow(page);
 
   // The guide stays closed so the image and results show at once; 「使い方」 walks the real tabs.
@@ -158,7 +181,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
 
   // Channels, zoom, fit, pan and outlines.
   const channelBar = page.getByRole("button", {name: "染色対応", exact: true}).locator("..");
-  const channels = channelBar.getByRole("button").filter({hasText: " · "});
+  const channels = channelBar.locator("button[data-channel]");
   const channelCount = await channels.count();
   await channels.nth(channelCount - 1).click();
   await expect(channels.nth(channelCount - 1)).toHaveAttribute("aria-pressed", "true");
@@ -229,18 +252,18 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await idle(page);
   await composer.fill("ミトコンドリアを数えたい");
   await page.getByRole("button", {name: "AIへ送信"}).click();
-  await expect(page.getByText("この公開画像（核を染めた Hoechst と、核小体の NPM1）では")).toBeVisible({timeout: live});
+  await expect(page.getByText(scopeText(OPENING))).toBeVisible({timeout: live});
   await page.getByRole("button", {name: "パネルを閉じる"}).click();
   expect(await alerts(page)).toEqual([]);
 
   // Statistics: the opening result and its group comparison, then their figures.
   await header.getByRole("button", {name: "統計", exact: true}).click();
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(results.locator("table").first()).toBeVisible({timeout: live});
+  await expect(shownTable(results)).toBeVisible({timeout: live});
   await calculate(page);
   await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
   await calculate(page);
-  await expect(results.locator("table").first()).toBeVisible();
+  await expect(shownTable(results)).toBeVisible();
   await expect(notRecorded(page)).toHaveCount(0);
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
@@ -252,8 +275,60 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await noErrors(page, watch);
 });
 
+test("the scene switcher opens each scene's own images and examples", async ({page}) => {
+  test.skip(SCENES.length < 2, "The published demo has one scene.");
+  const watch = await openDemo(page);
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  for (const scene of SCENES.slice(1).concat(SCENES[0])) {
+    await header.getByRole("combobox", {name: "場面"}).selectOption(scene.id);
+    await expect(page).toHaveURL(new RegExp(`id=${scene.workspaceId}`));
+    await expect(regions(page).first()).toBeAttached({timeout: live});
+    await expect(page.locator("[class*=fieldCard]")).toHaveCount(scene.fields.length, {timeout: live});
+  }
+  await noErrors(page, watch);
+});
+
+/** The fields each pane can show for the run on screen (the panes' field choices). */
+async function paneFields(page: Page) {
+  const panes = page.getByRole("combobox", {name: / の視野$/});
+  await expect(panes).toHaveCount(2, {timeout: live});
+  return Promise.all((await panes.all()).map(select => select.locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))));
+}
+test("the selected field drives the pair: a figure's source opens on its run and pane, the list on its pane", async ({page}) => {
+  const watch = await openDemo(page, sceneUrl(OPENING));
+  const panes = page.getByRole("combobox", {name: / の視野$/});
+  const [control] = await paneFields(page);
+  // A field chosen in the list shows in its group's pane, also after another field was chosen in that pane.
+  await panes.first().selectOption(control[1]);
+  await expect(panes.first()).toHaveValue(control[1]);
+  const label = (await panes.first().locator(`option[value="${control[0]}"]`).textContent())!.trim();
+  await page.locator("[class*=fieldCard]").filter({hasText: label}).first().click();
+  await expect(panes.first()).toHaveValue(control[0]);
+  // A point of the saved figure from another run lists its fields; opening one shows it on its run, in its pane.
+  const runs = page.getByRole("combobox", {name: "実験回", exact: true});
+  const first = (await runs.locator("option:checked").textContent())!.trim();
+  await page.locator("header").getByRole("button", {name: "グラフ", exact: true}).click();
+  await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
+  const units = await page.locator("[data-cytellect-source]").evaluateAll(elements => elements.map(element => {
+    try {return (JSON.parse(element.getAttribute("data-cytellect-source") ?? "") as {experimental_unit?: string}).experimental_unit ?? "";} catch {return "";}
+  }));
+  const other = units.findIndex(unit => unit && !unit.startsWith(`${first} `));
+  expect(other).toBeGreaterThanOrEqual(0);
+  const run = units[other].split(" ")[0];
+  await page.locator("[data-cytellect-source]").nth(other).dispatchEvent("click");
+  const listed = page.getByRole("region", {name: "選択した点の試料・視野"}).locator("tbody button").first();
+  const opened = (await listed.textContent())!.trim();
+  await listed.click();
+  await expect(page.locator("header").getByRole("button", {name: "画像", exact: true})).toHaveAttribute("aria-current", "page");
+  await expect(runs.locator("option:checked")).toHaveText(run, {timeout: live});
+  await expect(page.getByRole("combobox", {name: / の視野$/}).locator("option:checked", {hasText: opened})).toHaveCount(1);
+  await expect(page.getByRole("button", {name: "元の結果へ戻る"})).toBeVisible();
+  expect(await alerts(page)).toEqual([]);
+  await noErrors(page, watch);
+});
 test("deep links open the requested step without the guide", async ({page}) => {
-  const watch = await openDemo(page, "/demo?step=figure");
+  const watch = await openDemo(page, sceneUrl(OPENING, "step=figure"));
   await expect(page.locator("header").getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("complementary", {name: "公開デモの使い方"})).toHaveCount(0);
   await expect(page.getByRole("region", {name: "図の作成・保存"})).toBeVisible({timeout: live});
@@ -283,15 +358,11 @@ test("phones run the guided operations from the recorded tour", async ({page}) =
   expect(await alerts(page)).toEqual([]);
 
   // Statistics, its figure and the publication package, as 「使い方」 leads.
-  await page.goto("/demo?step=statistics");
+  await page.goto(sceneUrl(OPENING, "step=statistics"));
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(results.locator("table").first()).toBeVisible({timeout: live});
-  // The confirmation covers every field, so it can be given once all of them have loaded.
-  const reviewed = results.getByLabel("測定領域と採用する視野を確認した");
-  if (!await reviewed.isChecked()) await reviewed.check();
-  await results.getByRole("button", {name: "計算", exact: true}).click();
-  await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
-  expect(await alerts(page)).toEqual([]);
+  await expect(shownTable(results)).toBeVisible({timeout: live});
+  // The opening comparison asks for both confirmations, given once every field has loaded.
+  await calculate(page);
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   const figure = page.getByRole("region", {name: "図の作成・保存"});
   const update = figure.getByRole("button", {name: "図を更新", exact: true});
@@ -316,6 +387,15 @@ async function openSettings(page: Page) {
   await expect(inspector).toBeVisible();
   return inspector;
 }
+/** A metric of a fixed region (such as nucleolar count) hides the region choice; area brings it back. */
+async function chooseMetric(page: Page, region: string, metric: string, channel: string | null) {
+  const side = page.getByRole("complementary", {name: "解析対象"});
+  const choice = side.getByRole("combobox", {name: "領域", exact: true});
+  if (!await choice.count()) await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
+  await choice.selectOption(region);
+  await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
+  if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
+}
 async function fillIfEmpty(control: Locator, value: string) {
   if (await control.count() && !await control.inputValue()) await control.fill(value);
 }
@@ -327,6 +407,10 @@ async function calculate(page: Page) {
   if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
   const reviewed = results.getByLabel("測定領域と採用する視野を確認した");
   if (!await reviewed.isChecked()) await reviewed.check();
+  // Nuclei without an established nucleolus are listed by group, run and reason once read (Q-05).
+  const keep = results.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
+  await expect(results.getByRole("button", {name: "計算", exact: true}).and(page.locator(":enabled")).or(keep).first()).toBeVisible({timeout: live});
+  if (await keep.count() && !await keep.isChecked()) await keep.check();
   await results.getByRole("button", {name: "計算", exact: true}).click();
   await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
   await expect(results.getByText("測定結果または解析条件が変わりました。再計算してください。")).toHaveCount(0);
@@ -340,26 +424,29 @@ async function renderFigure(page: Page) {
   expect(await alerts(page)).toEqual([]);
 }
 
-test("every field, region and channel shows recorded results", async ({page}) => {
-  test.setTimeout(600_000);
-  const watch = await openDemo(page);
+for (const scene of SCENES.length ? SCENES : [undefined]) test(`every field, region and channel shows recorded results${scene ? ` (${scene.id})` : ""}`, async ({page}) => {
+  test.setTimeout(900_000);
+  const watch = await openDemo(page, sceneUrl(scene));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
   const cards = page.locator("[class*=fieldCard]");
-  await expect(cards).toHaveCount(6, {timeout: live});
+  const total = scene ? scene.fields.length : 6;
+  await expect(cards).toHaveCount(total, {timeout: live});
   const inspector = await openSettings(page);
   const region = inspector.getByRole("combobox", {name: "領域", exact: true});
-  const channels = page.getByRole("button", {name: "染色対応", exact: true}).locator("..").getByRole("button").filter({hasText: " · "});
-  for (let index = 0; index < 6; index++) {
+  const channels = page.getByRole("button", {name: "染色対応", exact: true}).locator("..").locator("button[data-channel]");
+  for (let index = 0; index < total; index++) {
     await cards.nth(index).click();
-    for (const value of ["nuclei", "nucleoli", "nucleoplasm"]) {
+    for (const value of scene?.regions ?? ["nuclei", "nucleoli", "nucleoplasm"]) {
       await region.selectOption(value);
       for (let channel = 0; channel < await channels.count(); channel++) await channels.nth(channel).click();
       await expect(regions(page).first()).toBeAttached({timeout: 10_000});
     }
   }
   await header.getByRole("button", {name: "統計", exact: true}).click();
-  await expect(page.getByRole("region", {name: "測定結果の統計解析"}).locator("table").first()).toBeVisible({timeout: live});
+  await expect(shownTable(page.getByRole("region", {name: "測定結果の統計解析"}))).toBeVisible({timeout: live});
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   const history = page.getByRole("region", {name: "図の作成・保存"}).getByRole("combobox", {name: "保存した図", exact: true});
   for (const value of await history.locator("option:not([disabled])").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))) {
@@ -374,14 +461,17 @@ test("every field, region and channel shows recorded results", async ({page}) =>
 
 test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows recorded results", async ({page}) => {
   test.setTimeout(600_000);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
   for (const [target, label] of [["nucleoli", "核小体"], ["nucleoplasm", "核質"]]) {
-    const watch = await openDemo(page);
+    const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
     const header = page.locator("header");
     await expect(regions(page).first()).toBeAttached({timeout: live});
     const inspector = await openSettings(page);
     const region = inspector.getByRole("combobox", {name: "領域", exact: true});
     await region.selectOption(target);
-    await expect(page.locator("[class*=measureToggle] span")).toHaveText(label);
+    // The toolbar shows the region chosen in the panel, and each pane counts its objects.
+    await expect(page.locator("[class*=channelBar]").getByRole("combobox", {name: "領域", exact: true})).toHaveValue(target);
+    await expect(page.locator("[class*=paneHead] small").first()).toContainText(label);
     await header.getByLabel("測定する視野").selectOption("all");
     await header.getByRole("button", {name: "測定", exact: true}).click();
     await idle(page);
@@ -390,7 +480,7 @@ test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows re
     await idle(page);
     await header.getByRole("button", {name: "統計", exact: true}).click();
     const results = page.getByRole("region", {name: "測定結果の統計解析"});
-    await expect(results.locator("table").first()).toBeVisible({timeout: live});
+    await expect(shownTable(results)).toBeVisible({timeout: live});
     await calculate(page);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
     await calculate(page);
@@ -410,13 +500,16 @@ test("operations the recording does not hold are explained at once, without the 
   // controls that cannot answer.
   await expect(inspector.getByRole("combobox", {name: "背景補正", exact: true})).toHaveCount(0);
   await expect(inspector.getByRole("combobox", {name: "核染色", exact: true})).toHaveCount(0);
-  await expect(inspector.getByText(/公開デモでは、記録した次の検出条件で解析します/)).toBeVisible();
+  await expect(inspector.getByText(/記録した条件で検出しています/)).toBeVisible();
   const recorded = inspector.locator("dl").filter({hasText: "確率閾値"});
-  await expect(recorded).toContainText("Hoechst · hoechst");
+  await expect(recorded).toContainText("Hoechst · ");
   await expect(recorded).toContainText("0.5");
   await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
-  // A hand correction of an outline is explained at once.
+  // A hand correction of an outline, made one field at a time, is explained at once.
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
+  await expect(regions(page).first()).toBeAttached({timeout: live});
   await selectRegion(page, (await largestRegion(page)).id);
   const started = Date.now();
   await page.getByRole("button", {name: "選択領域を削除", exact: true}).click();
@@ -427,56 +520,137 @@ test("operations the recording does not hold are explained at once, without the 
   await noErrors(page, watch);
 });
 
-test("statistics of nucleoli, nucleoplasm and nucleolar measures, and associations, show results without errors", async ({page}) => {
+test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, descriptively while independence is unconfirmed", async ({page}) => {
   test.setTimeout(600_000);
-  const watch = await openDemo(page);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await header.getByRole("button", {name: "統計", exact: true}).click();
-  const side = page.getByRole("complementary", {name: "解析対象"});
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(results.locator("table").first()).toBeVisible({timeout: live});
+  await expect(shownTable(results)).toBeVisible({timeout: live});
+  // Both changes the source reports, recorded before measurement, are one click apart (goals C7).
+  const recorded = results.getByRole("group", {name: "記録した比較"});
+  await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
+  const sentence = results.getByRole("region", {name: "結果のまとめ"}).locator("p").first();
+  // The opening comparison names its region and channel, and the side panel already agrees with it.
+  await expect(sentence).toContainText("核小体の平均輝度（eu5）");
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
+  await recorded.getByRole("button", {name: /離心率/}).click();
+  await expect(sentence).toContainText("離心率");
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("nucleolar_eccentricity");
+  await recorded.getByRole("button", {name: /eu5/}).click();
+  await expect(sentence).toContainText("平均輝度");
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
     ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],
     ["nucleoplasm", "mean", "npm1", "distribution"], ["nuclei", "nucleolar_count", null, "comparison"],
     ["nuclei", "nucleolar_area_fraction", null, "distribution"], ["nuclei", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
-    ["nuclei", "mean", "npm1", "association"], ["nuclei", "area_px", null, "association"],
+    ["nucleoli", "mean", "eu5", "comparison"],
   ];
   for (const [region, metric, channel, kind] of cases) {
-    await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
-    await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
-    if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
+    await chooseMetric(page, region, metric, channel);
     await operation.selectOption(kind);
     await calculate(page);
-    await expect(results.locator("table").first()).toBeVisible();
+    await expect(shownTable(results)).toBeVisible();
     await expect(notRecorded(page)).toHaveCount(0);
   }
+  // Without confirmed independence the comparison is descriptive and an association is not offered (E-05).
+  await expect(results.getByRole("region", {name: "結果のまとめ"})).toContainText("検定なし（記述のみ）");
+  await expect(operation.locator("option[value=association]")).toHaveAttribute("disabled", "");
   // The last result's figure.
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
-  // Brightness with saturated pixels is not offered for comparison, with its reason, instead of failing.
+  await noErrors(page, watch);
+});
+
+test("a per-nucleus nucleolar result is read and checked on the nucleoli, and unresolved nuclei stay counted as missing", async ({page}) => {
+  test.setTimeout(300_000);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
   await header.getByRole("button", {name: "統計", exact: true}).click();
-  await side.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
-  await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("mean");
-  await side.getByRole("combobox", {name: "染色", exact: true}).selectOption("hoechst");
-  await expect(operation.locator("option[value=comparison]")).toHaveAttribute("disabled", "");
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  const summary = results.getByRole("region", {name: "結果のまとめ"});
+  const recorded = results.getByRole("group", {name: "記録した比較"});
+  await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
+  // Both recorded comparisons count the same unresolved nuclei, and never also say nothing is missing (Q-05, S-03).
+  for (const name of [/eu5/, /離心率/]) {
+    await recorded.getByRole("button", {name}).click();
+    await summary.getByText("n の内訳と除外").click();
+    await expect(summary).toContainText(/核小体を確定できない核 \d+（欠測）/);
+    await expect(summary).not.toContainText("欠測はありません");
+  }
+  // The eccentricity comes from the per-nucleus summary but is a shape of the nucleoli, and reads so everywhere.
+  await expect(results.locator("[class*=current]")).toContainText("核小体（核ごとの値） · 核小体の離心率");
+  await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("領域：核小体（核ごとの値）");
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
+  await header.getByRole("button", {name: "画像", exact: true}).click();
+  await expect(page.locator("[class*=fieldCard] small").first()).toHaveText(/^核小体 \d+/, {timeout: live});
+  // The figure offers no interval a descriptive comparison does not have (S-07).
+  await header.getByRole("button", {name: "グラフ", exact: true}).click();
+  await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
+  await expect(page.locator("label").filter({hasText: "図のレイアウト"}).locator("option[value=superplot]")).toHaveText("実験回ごと（視野・実験回・平均）");
+  await expect(page.getByText("検定なしの記述のため、信頼区間は描きません。")).toBeVisible();
+  // A run's point lists its nuclei with the field to open first; the identifiers are folded.
+  const points = page.locator("[data-cytellect-source]");
+  const unit = (await points.evaluateAll(elements => elements.map(element => {
+    try {const value = JSON.parse(element.getAttribute("data-cytellect-source") ?? "") as {field_id?: string; experimental_unit?: string}; return !value.field_id && !!value.experimental_unit;} catch {return false;}
+  }))).indexOf(true);
+  expect(unit).toBeGreaterThanOrEqual(0);
+  await points.nth(unit).dispatchEvent("click");
+  const source = page.getByRole("region", {name: "選択した点の試料・視野"});
+  const columns = await source.locator("table").first().locator("thead th").allTextContents();
+  expect(columns).toEqual(["視野", "実験回", "群", "領域番号", "親核番号", "測定値"]);
+  // Folded tables are drawn only once opened, so thousands of saved rows never weigh on the page (N-03).
+  await expect(page.locator("details:not([open]) table")).toHaveCount(0);
+  await source.getByText("記録の詳細").click();
+  await expect(source.locator("details table thead")).toContainText("試料");
+  await expect(source.locator("details table thead")).toContainText("解析版");
+  await expect(source.locator("details table tbody")).not.toContainText(/\b(true|false|selected)\b/);
+  // Opening a nucleus shows that saved analysis's nucleoli with the nucleus outlined.
+  await source.locator("tbody button").first().click();
+  await expect(header.getByRole("button", {name: "画像", exact: true})).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("svg polygon[data-context=selected]")).toHaveCount(1, {timeout: live});
+  await expect(page.getByText(/核小体 \d+ · 図の保存時の版/)).toBeVisible();
+  await expect(notRecorded(page)).toHaveCount(0);
+  await page.getByRole("button", {name: "元の結果へ戻る"}).click();
+  await expect(header.getByRole("button", {name: "グラフ", exact: true})).toHaveAttribute("aria-current", "page");
+  expect(await alerts(page)).toEqual([]);
+  await noErrors(page, watch);
+});
+
+test("phones keep the guide and the download in the demo menu", async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  const watch = await openDemo(page);
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  const menu = page.locator("header").getByLabel("デモ：使い方・ダウンロード・画像の出典");
+  await menu.click();
+  await expect(page.locator("header").getByRole("link", {name: "ダウンロード"})).toBeVisible();
+  // The whole menu stays on the screen and scrolls inside (N-08).
+  const box = (await page.locator("header [class*=popover]").boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator("header").getByRole("button", {name: "使い方", exact: true}).click();
+  await expect(page.getByRole("complementary", {name: "公開デモの使い方"})).toBeVisible();
   await noErrors(page, watch);
 });
 
 test("an AI example on another field, then measuring and statistics of each region, keep showing results", async ({page}) => {
   test.setTimeout(900_000);
-  const watch = await openDemo(page);
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  const side = page.getByRole("complementary", {name: "解析対象"});
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   const statistics = async (region: string, metric: string, channel: string | null, kind: string) => {
     await header.getByRole("button", {name: "統計", exact: true}).click();
-    await expect(results.locator("table").first()).toBeVisible({timeout: live});
-    await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
-    await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
-    if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
+    await expect(shownTable(results)).toBeVisible({timeout: live});
+    await chooseMetric(page, region, metric, channel);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption(kind);
     await calculate(page);
     await expect(notRecorded(page)).toHaveCount(0);
@@ -508,8 +682,8 @@ test("an AI example on another field, then measuring and statistics of each regi
   await expect(results.locator("details").filter({hasText: "実験情報"}).locator("input").first()).toHaveAttribute("readonly", "");
   await statistics("nucleoli", "area_px", null, "distribution");
   await measure("nuclei", "selected");
-  await statistics("nuclei", "area_px", null, "association");
-  await statistics("nucleoplasm", "mean_corrected", "npm1", "association");
+  await statistics("nuclei", "area_px", null, "comparison");
+  await statistics("nucleoplasm", "mean_corrected", "npm1", "distribution");
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
   // An example choosing rank-based methods: the statistics that follow keep them.
@@ -520,15 +694,15 @@ test("an AI example on another field, then measuring and statistics of each regi
   if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
   await page.getByRole("button", {name: "パネルを閉じる"}).click();
   await statistics("nucleoli", "nucleolar_area_fraction", null, "comparison");
-  await statistics("nucleoplasm", "mean", "npm1", "association");
+  await statistics("nucleoplasm", "mean", "npm1", "comparison");
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
   await noErrors(page, watch);
 });
 
-test("each preset AI instruction returns a settings draft that applies like a real proposal", async ({page}) => {
+for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI instruction returns a settings draft that applies like a real proposal${scene ? ` (${scene.id})` : ""}`, async ({page}) => {
   test.setTimeout(900_000);
-  const watch = await openDemo(page);
+  const watch = await openDemo(page, sceneUrl(scene));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const notRecorded = page.getByRole("status").filter({hasText: "記録した指示の例だけに応答します"});
@@ -554,7 +728,7 @@ test("each preset AI instruction returns a settings draft that applies like a re
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await composer.fill("ミトコンドリアを数えたい");
   await page.getByRole("button", {name: "AIへ送信"}).click();
-  await expect(page.getByText("この公開画像（核を染めた Hoechst と、核小体の NPM1）では")).toBeVisible({timeout: live});
+  await expect(page.getByText(scopeText(scene))).toBeVisible({timeout: live});
   await expect(notRecorded).toHaveCount(0);
   await noErrors(page, watch);
 });

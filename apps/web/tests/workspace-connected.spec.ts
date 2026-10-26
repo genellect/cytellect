@@ -90,8 +90,10 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/workspaces" && response.request().method() === "GET");
   await page.goto("/workspace-review");
   await loaded;
-  await expect(page.getByRole("heading", {name: "画像解析", exact: true, level: 1})).toBeVisible();
-  await expect(page.getByRole("button", {name: "画像を追加", exact: true})).toBeEnabled();
+  // A new workspace starts by choosing the form of the experiment (requirements E-01).
+  await expect(page.getByRole("heading", {name: "解析の形を選ぶ", exact: true, level: 1})).toBeVisible();
+  await expect(page.getByRole("button", {name: /^1 画面/})).toBeEnabled();
+  await expect(page.getByRole("button", {name: /^2 画面/})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
   await expect(page.getByRole("button", {name: "染色対応", exact: true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
@@ -116,7 +118,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   expect(runCount).toBe(1);
   await expect(page.getByRole("button", {name: "DAPI · c1", exact: true})).toBeVisible();
   await expect(page.getByRole("button", {name: "GFP · c2", exact: true})).toBeVisible();
-  const image = page.getByRole("img", {name: /DAPI/}).first();
+  const image = page.getByRole("group", {name: /DAPI/}).first();
   await expect(image).toBeVisible();
   const dimensions = await image.evaluate(element => {
     const imageRect = element.querySelector("image")!.getBoundingClientRect();
@@ -170,7 +172,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   const beforeNew=workspaceReads;
   await page.getByRole("button",{name:"新しいワークスペース",exact:true}).click();
   await expect(page).not.toHaveURL(/[?&]id=/);
-  await expect(page.getByRole("button",{name:"画像を追加",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:/^2 画面/})).toBeVisible();
   await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toHaveCount(0);
   expect(workspaceReads).toBe(beforeNew);
   expect(writes).toHaveLength(savedWrites);

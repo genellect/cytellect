@@ -105,6 +105,12 @@ random. No field-level measurement failure is converted into a zero or an inferr
 observation count. Region-level exclusions of every outcome are insufficient to
 silently drop an entire unit: that decision requires explicit whole-field
 exclusions and remains visible in the unit ledger.
+Nuclei without an established nucleolus are not field failures. Under the
+unresolved-nucleoli policy (Q-05) the researcher confirms them by group, unit and
+reason and they stay in the ledger as missing; the result keeps every group and
+unit's missing / all nuclei and warns when, within a run, the groups' missing
+fractions differ by 10 percentage points or more
+([methods](methods.md#unresolved-nucleoli-policy-100-2026-10-26)).
 An excluded failed field must also have the same whole-field exclusion and reason
 in the saved source configuration. A failure-ledger entry alone cannot authorize
 dropping that field or its unit. This integrity check also applies to the shared

@@ -1,5 +1,6 @@
+import {descriptiveSupported} from "../../../lib/workspace/comparison-adapter";
 import {describe,it,expect} from "vitest";
-import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,seriesOrder,type ResultDesign} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
@@ -84,5 +85,41 @@ describe("saturated signal", () => {
     expect(saturatedGroups([source("a", [row(1, "hoechst", 0.02)])], fields, "area_px", "hoechst").size).toBe(0);
     expect(saturatedGroups([source("a", [row(1, "hoechst", 0.02)])], fields, "nucleolar_count", null).size).toBe(0);
     expect(saturatedGroups([source("x", [row(1, "hoechst", 0.02)])], fields, "mean", "hoechst").size).toBe(0);
+  });
+});
+
+describe("run table", () => {
+  it("lays saved field medians out by run and group, control first, without combining them", () => {
+    const design = {groups:[{id:"t",label:"ActD"},{id:"c",label:"Untreated"}], control_group_id:"c",
+      runs:[{id:"r1",label:"Rep1"},{id:"r2",label:"Rep2"},{id:"r3",label:"Rep3"}],
+      fields:{a:{group_id:"c",run_id:"r1"},b:{group_id:"c",run_id:"r1"},d:{group_id:"t",run_id:"r1"},e:{group_id:"t",run_id:"r2"}}};
+    const table = runTable(design, [{field_id:"a",median:10},{field_id:"b",median:12},{field_id:"d",median:2},{field_id:"e",median:null},{field_id:"x",median:5}]);
+    expect(table!.groups.map(group => group.label)).toEqual(["Untreated", "ActD"]);
+    expect(table!.runs).toEqual([{id:"r1",label:"Rep1",cells:[[10,12],[2]]},{id:"r2",label:"Rep2",cells:[[],[null]]}]);
+    expect(runTable({...design, groups:[design.groups[0]]}, [])).toBeNull();
+  });
+});
+
+
+describe("one-group summary distributions", () => {
+  it.each([
+    ["nucleus_count", "field-summary", "1.0.0"],
+    ["nucleus_density_per_mm2", "field-summary", "1.0.0"],
+    ["nucleolar_area_px", "compartment-summary", "1.1.0"],
+    ["nucleolar_area_um2", "compartment-summary", "1.1.0"],
+    ["nucleolar_eccentricity", "compartment-summary", "1.1.0"],
+  ])("keeps %s descriptive with unknown independence and one field", (metric, source, version) => {
+    expect(descriptiveSupported(metric)).toBe(true);
+    const result = resultRequest({...design, operation:"distribution", metric, confirmed:false,
+      channel:null, regionSet:source === "field-summary" ? "nuclei" : "nucleoplasm"}, {f1:emptyMetadata}, plot);
+    expect(result).toMatchObject({mode:"descriptive", group_by:"field", selection:{source, version, metric},
+      figure_policy:{version:"2.0.0", layout:"field-pages"}});
+    expect(result).not.toHaveProperty("design");
+    expect(result).not.toHaveProperty("test");
+    expect(result).not.toHaveProperty("conditions");
+  });
+  it("does not enable unconnected positivity", () => {
+    expect(descriptiveSupported("positive_count")).toBe(false);
+    expect(descriptiveSupported("positive_fraction")).toBe(false);
   });
 });

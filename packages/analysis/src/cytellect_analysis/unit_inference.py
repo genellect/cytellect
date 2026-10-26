@@ -63,6 +63,10 @@ def compare_unit_arrays(va, vb, *, paired):
 
 
 def apply_holm(comparisons, family_id):
+    if not comparisons:
+        # An empty family (a descriptive comparison) has nothing to adjust; statsmodels
+        # versions differ on an empty input (one divides by the zero test count).
+        return comparisons
     adjusted = multipletests([row["p_value"] for row in comparisons], method="holm")[1]
     for row, p in zip(comparisons, adjusted, strict=True):
         row["p_holm"] = float(p)

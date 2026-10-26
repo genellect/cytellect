@@ -1,10 +1,11 @@
 """New opt-in contracts; historical generic comparison v1 remains unchanged."""
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, StrictBool, TypeAdapter, field_validator, model_validator
+from pydantic import Field, StrictBool, TypeAdapter, field_validator, model_serializer, model_validator
 
 from .contracts import PlotSpec
-from .descriptive_contracts import CompartmentSummarySelection, RegionSelection
+from .descriptive_contracts import CompartmentMissingSummary, RegionSelection, _omit_default
+from .group_comparison_contracts import ComparisonEstimates, ComparisonSelection
 from .region_comparison_contracts import (
     AcquisitionReview,
     ComparisonDesign,
@@ -17,7 +18,9 @@ from .regions import RegionModel
 
 class CommonComparisonPlot(PlotSpec):
     # Opt-in protocol expands this enum without changing the historical PlotSpec schema.
-    kind: Literal["distribution", "paired", "histogram", "box", "violin"] = "distribution"  # type: ignore[assignment]
+    # "superplot" and "unit-mean-bar" draw the experiment hierarchy (requirements F-01, F-02).
+    kind: Literal["distribution", "paired", "histogram", "box", "violin", "superplot",
+                  "unit-mean-bar"] = "distribution"  # type: ignore[assignment]
     histogram_bins: Annotated[int, Field(strict=True, ge=3, le=50)] = 10
 
 
@@ -25,14 +28,31 @@ class RegionComparisonRequestV2(RegionComparisonRequest):
     # Pydantic overrides are intentional version discriminators, not substitutable v1 inputs.
     version: Literal["2.0.0"]  # type: ignore[assignment]
     # Additive, separately versioned observation source; region selections are unchanged.
-    selection: Annotated[RegionSelection | CompartmentSummarySelection,  # type: ignore[assignment]
-                         Field(discriminator="source")]
-    test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon"]
+    selection: ComparisonSelection  # type: ignore[assignment]
+    # "none": a descriptive comparison (unit values, per-run differences) without any test,
+    # p-value or interval, for designs whose run independence is not confirmed (requirements E-05).
+    test: Literal["welch-t", "paired-t", "mann-whitney-u", "wilcoxon", "none"]
     omnibus: Literal["welch-anova", "kruskal-wallis"] | None = None
     plot: CommonComparisonPlot = Field(default_factory=CommonComparisonPlot)  # type: ignore[assignment]
+    # Opt-in treatment − control estimates (comparison-estimates/1.0.0) for one declared
+    # contrast [treatment, control]. Absent from historical requests and their saved bytes.
+    estimates: Literal["comparison-estimates/1.0.0"] | None = Field(default=None, json_schema_extra=_omit_default)
+
+    @model_serializer(mode="wrap")
+    def omit_absent_estimates(self, handler):
+        value = handler(self)
+        if isinstance(value, dict) and self.estimates is None:
+            value.pop("estimates", None)
+        return value
 
     @model_validator(mode="after")
     def method_matches_design(self):
+        if self.estimates is not None and (len(self.conditions) != 2 or len(self.comparison_family.contrasts) != 1):
+            raise ValueError("comparison_estimates_single_contrast_required")
+        if self.test == "none":
+            if self.omnibus is not None:
+                raise ValueError("common_statistics_omnibus_design_mismatch")
+            return self
         if (self.test in ("paired-t", "wilcoxon")) != (self.design.kind == "paired"):
             raise ValueError("common_statistics_test_design_mismatch")
         if self.omnibus is not None and (self.design.kind != "independent" or len(self.conditions) < 3):
@@ -52,6 +72,18 @@ class RegionComparisonResultV2(RegionComparisonResult):
     spec: RegionComparisonRequestV2
     omnibus: dict[str, Any] | None
     method_settings: dict[str, Any]
+    estimates: ComparisonEstimates | None = Field(default=None, json_schema_extra=_omit_default)
+    # Present only for a revision reviewed under the unresolved-nucleoli policy (Q-05).
+    compartment_missing: CompartmentMissingSummary | None = Field(default=None, json_schema_extra=_omit_default)
+
+    @model_serializer(mode="wrap")
+    def omit_absent_estimates(self, handler):
+        value = handler(self)
+        if isinstance(value, dict) and self.estimates is None:
+            value.pop("estimates", None)
+        if isinstance(value, dict) and self.compartment_missing is None:
+            value.pop("compartment_missing", None)
+        return value
 
 
 class AssociationPlot(PlotSpec):

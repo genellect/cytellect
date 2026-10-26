@@ -1,77 +1,210 @@
 {
  "version": 1,
- "title": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
- "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; centre-cropped, channel subset.",
- "licence": "CC-BY-4.0",
- "licenceUrl": "https://creativecommons.org/licenses/by/4.0/",
- "sourceUrl": "https://zenodo.org/records/6643470",
- "doi": "10.5281/zenodo.6643470",
- "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
- "description": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
- "modifications": "Centre 1536 x 1536 crop of each 2304 x 2304 plane; channels Hoechst (OME c3, filter DAPI) and NPM1-mTagRFP (OME c1, filter TRITC) only; pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
+ "id": "cpg0016-jump-source13-plk1",
+ "label": "核数：PLK1 ノックアウトと対照（JUMP）",
+ "workspaceId": "80f78531-148c-47c3-a2a2-2c1fbd5cbfc6",
+ "title": "JUMP Cell Painting, cpg0016 source_13 CRISPR plates (Cell Painting Gallery)",
+ "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only.",
+ "licence": "CC0-1.0",
+ "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+ "sourceUrl": "https://github.com/broadinstitute/cellpainting-gallery",
+ "doi": "10.1038/s41592-025-02753-9",
+ "citation": "Chandrasekaran SN et al. Morphological map of under- and overexpression of genes in human cells. Nature Methods 22, 1742-1752 (2025). doi:10.1038/s41592-025-02753-9",
+ "description": "U2OS-311 (Cas9) cells, 96 h after transfection with pooled CRISPR guides; Cell Painting. Yokogawa CV7000, confocal, NA 0.75, 0.65 um/px (JUMP microscope_config.csv), 1280 x 1080 px, single plane, uint16 TIFF. Channel: Hoechst 33342 (DNA, C01).",
+ "modifications": "None to pixel values or image size (1280 x 1080): one of the five channels (DNA) is used, re-saved as an uncompressed single-plane TIFF.",
  "caveats": [
-  "All replicates (Rep1-Rep3) were acquired on the same date (2021-12-01). The source does not state whether Rep1-Rep3 are independent experiments; they are treated as replicate units for demonstration only.",
-  "Each replicate contains both conditions; the demo pairs conditions by replicate (paired t-test over three pairs, one field per condition and replicate). With three pairs the test has very low power; p-values are illustrations of the workflow, not findings.",
-  "Nucleoli are defined from NPM1 with the workspace's nucleolar-marker definition (default parameters). Under ActD, NPM1 partly relocates to the nucleoplasm, so marker-defined nucleoli reflect NPM1 distribution, not nucleolar structure alone.",
-  "Hoechst saturates (value 65535) in a small fraction of pixels in some fields; counts are listed in manifest.json (selection.results[].saturated_pixels).",
-  "Demonstration numbers from public images; they do not establish scientific validity for any laboratory's images.",
-  "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。",
-  "Before the nucleolar analysis, the demo's researcher review deleted small objects that StarDist segmented as nuclei but that are fragments (smaller than 0.6 x the field's median nuclear area) and in which no nucleolus could be established; the deleted objects are listed in manifest.json (fragment_review)."
+  "Run1–Run3 は、バッチ 20220914_Run1、20221009_Run2、20221017_Run3 のプレート CP-CC9-R1-01、R2-01、R3-01 です。出典は各プレートを播種から 96 時間で固定したと述べていますが、別々に播種・導入・染色した独立した実験であるとは明記していません。日付から独立性を推定しないため、デモでは独立性を未確認として扱い、検定をしません。",
+  "日付はバッチ名の日付です。撮影日かどうかは出典に書かれていません。",
+  "各実験回・各条件で 1 ウェル 3 視野（3 × 3 の中央の行、視野 4〜6）です。ウェルは公開されたプレート配置の対照 A02（non-targeting）と A23（PLK1）です。視野は核の数や値で選んでいません。比較は実験回ごとの値と差による記述です。",
+  "核数は視野に写った核の数で、生存率や増殖率そのものではありません。PLK1 のノックアウトでは大きく不規則な核や、断片化した核の塊も見え、塊は小さな物体に分かれて検出・計数されることがあります。両群に同じ検出を当て、物体の大きさによる除外はしていません。デモでは核の形を解釈しません。",
+  "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
+  "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
  ],
+ "reportedChange": {
+  "source": "Chandrasekaran ら 2025、Nature Methods、Methods「Within-plate controls」：“CRISPR plates – PLK1; knocking it down kills cells.”",
+  "comparison": "同じプレートの PLK1 ノックアウトと non-targeting（標的のないガイド）",
+  "direction": "PLK1 のノックアウトで細胞が死ぬ（視野の核が減る）",
+  "quantity": "出典は向きだけを述べ、視野あたりの核数の変化量は報告していません",
+  "scope": "核は Hoechst から数えます。核数は画像に写った核の数で、生存率そのものではありません。値は視野 → 試料 → 実験回の順にまとめています。",
+  "independence": "Run1–Run3 は日付の異なるバッチの別のプレートです。出典は各プレートを播種から 96 時間で固定したと述べていますが、別々に播種・導入・染色した独立した実験であるとは明記していません。このため、この場面では検定と信頼区間を計算せず、実験回ごとの値と差を示します。"
+ },
+ "regions": [
+  "nuclei"
+ ],
+ "target": "nuclei",
+ "examples": [
+  {
+   "label": "核の数と面積の分布",
+   "instruction": "核の数と面積を視野ごとに確認したい"
+  },
+  {
+   "label": "核の面積を対照と PLK1 KO で比較",
+   "instruction": "核の面積を対照とPLK1ノックアウトで比較したい"
+  }
+ ],
+ "assistantScope": "この公開画像（核を染めた Hoechst）では、核の数・面積・輝度を、視野ごとや、対照（non-targeting）と PLK1 ノックアウトの間で比べられます。",
  "fields": [
   {
    "field": "視野 1",
-   "source_file": "40x_1.4_Rep1_Untreated_20211201_01_05",
-   "condition": "Untreated",
-   "experimental_unit": "Rep1 Untreated",
-   "sample": "Rep1 Untreated",
-   "acquisition_date": "2021-12-01",
-   "pair": "Rep1"
+   "source_file": "CP-CC9-R1-01_A02_F004",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run1 · Non-targeting",
+   "sample": "Run1 · Non-targeting",
+   "acquisition_date": "2022-09-14",
+   "pair": "Run1"
   },
   {
    "field": "視野 2",
-   "source_file": "40x_1.4_Rep2_Untreated_20211201_01_61",
-   "condition": "Untreated",
-   "experimental_unit": "Rep2 Untreated",
-   "sample": "Rep2 Untreated",
-   "acquisition_date": "2021-12-01",
-   "pair": "Rep2"
+   "source_file": "CP-CC9-R1-01_A02_F005",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run1 · Non-targeting",
+   "sample": "Run1 · Non-targeting",
+   "acquisition_date": "2022-09-14",
+   "pair": "Run1"
   },
   {
    "field": "視野 3",
-   "source_file": "40x_1.4_Rep3_Untreated_20211201_01_121",
-   "condition": "Untreated",
-   "experimental_unit": "Rep3 Untreated",
-   "sample": "Rep3 Untreated",
-   "acquisition_date": "2021-12-01",
-   "pair": "Rep3"
+   "source_file": "CP-CC9-R1-01_A02_F006",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run1 · Non-targeting",
+   "sample": "Run1 · Non-targeting",
+   "acquisition_date": "2022-09-14",
+   "pair": "Run1"
   },
   {
    "field": "視野 4",
-   "source_file": "40x_1.4_Rep1_ActD1_20211201_01_51",
-   "condition": "ActD 1 µM",
-   "experimental_unit": "Rep1 ActD 1 µM",
-   "sample": "Rep1 ActD 1 µM",
-   "acquisition_date": "2021-12-01",
-   "pair": "Rep1"
+   "source_file": "CP-CC9-R1-01_A23_F004",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run1 · PLK1 KO",
+   "sample": "Run1 · PLK1 KO",
+   "acquisition_date": "2022-09-14",
+   "pair": "Run1"
   },
   {
    "field": "視野 5",
-   "source_file": "40x_1.4_Rep2_ActD1_20211201_01_111",
-   "condition": "ActD 1 µM",
-   "experimental_unit": "Rep2 ActD 1 µM",
-   "sample": "Rep2 ActD 1 µM",
-   "acquisition_date": "2021-12-01",
-   "pair": "Rep2"
+   "source_file": "CP-CC9-R1-01_A23_F005",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run1 · PLK1 KO",
+   "sample": "Run1 · PLK1 KO",
+   "acquisition_date": "2022-09-14",
+   "pair": "Run1"
   },
   {
    "field": "視野 6",
-   "source_file": "40x_1.4_Rep3_ActD1_20211201_01_171",
-   "condition": "ActD 1 µM",
-   "experimental_unit": "Rep3 ActD 1 µM",
-   "sample": "Rep3 ActD 1 µM",
-   "acquisition_date": "2021-12-01",
-   "pair": "Rep3"
+   "source_file": "CP-CC9-R1-01_A23_F006",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run1 · PLK1 KO",
+   "sample": "Run1 · PLK1 KO",
+   "acquisition_date": "2022-09-14",
+   "pair": "Run1"
+  },
+  {
+   "field": "視野 7",
+   "source_file": "CP-CC9-R2-01_A02_F004",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run2 · Non-targeting",
+   "sample": "Run2 · Non-targeting",
+   "acquisition_date": "2022-10-09",
+   "pair": "Run2"
+  },
+  {
+   "field": "視野 8",
+   "source_file": "CP-CC9-R2-01_A02_F005",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run2 · Non-targeting",
+   "sample": "Run2 · Non-targeting",
+   "acquisition_date": "2022-10-09",
+   "pair": "Run2"
+  },
+  {
+   "field": "視野 9",
+   "source_file": "CP-CC9-R2-01_A02_F006",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run2 · Non-targeting",
+   "sample": "Run2 · Non-targeting",
+   "acquisition_date": "2022-10-09",
+   "pair": "Run2"
+  },
+  {
+   "field": "視野 10",
+   "source_file": "CP-CC9-R2-01_A23_F004",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run2 · PLK1 KO",
+   "sample": "Run2 · PLK1 KO",
+   "acquisition_date": "2022-10-09",
+   "pair": "Run2"
+  },
+  {
+   "field": "視野 11",
+   "source_file": "CP-CC9-R2-01_A23_F005",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run2 · PLK1 KO",
+   "sample": "Run2 · PLK1 KO",
+   "acquisition_date": "2022-10-09",
+   "pair": "Run2"
+  },
+  {
+   "field": "視野 12",
+   "source_file": "CP-CC9-R2-01_A23_F006",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run2 · PLK1 KO",
+   "sample": "Run2 · PLK1 KO",
+   "acquisition_date": "2022-10-09",
+   "pair": "Run2"
+  },
+  {
+   "field": "視野 13",
+   "source_file": "CP-CC9-R3-01_A02_F004",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run3 · Non-targeting",
+   "sample": "Run3 · Non-targeting",
+   "acquisition_date": "2022-10-17",
+   "pair": "Run3"
+  },
+  {
+   "field": "視野 14",
+   "source_file": "CP-CC9-R3-01_A02_F005",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run3 · Non-targeting",
+   "sample": "Run3 · Non-targeting",
+   "acquisition_date": "2022-10-17",
+   "pair": "Run3"
+  },
+  {
+   "field": "視野 15",
+   "source_file": "CP-CC9-R3-01_A02_F006",
+   "condition": "Non-targeting",
+   "experimental_unit": "Run3 · Non-targeting",
+   "sample": "Run3 · Non-targeting",
+   "acquisition_date": "2022-10-17",
+   "pair": "Run3"
+  },
+  {
+   "field": "視野 16",
+   "source_file": "CP-CC9-R3-01_A23_F004",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run3 · PLK1 KO",
+   "sample": "Run3 · PLK1 KO",
+   "acquisition_date": "2022-10-17",
+   "pair": "Run3"
+  },
+  {
+   "field": "視野 17",
+   "source_file": "CP-CC9-R3-01_A23_F005",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run3 · PLK1 KO",
+   "sample": "Run3 · PLK1 KO",
+   "acquisition_date": "2022-10-17",
+   "pair": "Run3"
+  },
+  {
+   "field": "視野 18",
+   "source_file": "CP-CC9-R3-01_A23_F006",
+   "condition": "PLK1 KO",
+   "experimental_unit": "Run3 · PLK1 KO",
+   "sample": "Run3 · PLK1 KO",
+   "acquisition_date": "2022-10-17",
+   "pair": "Run3"
   }
  ]
 }

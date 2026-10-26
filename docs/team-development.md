@@ -60,7 +60,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 |---|---|---|---|
 | 非公開データ | 研究室の未発表画像、正解の輪郭、測定表、論文草稿、ファイル名とパス、参加者情報 | 研究室が管理するストレージ（checkout の外） | 使用不可 |
 | 公開データ | 出典とライセンスを確認した公開画像 | 登録済みの fixture。出典、染色情報、再配布条件、ハッシュを記録 | 使用可（リポジトリに置くのは再配布できるものだけ） |
-| 合成データ | テスト用に生成した画像・数値 | リポジトリ | 使用可 |
+| 合成データ | 計算の照合に使う最小の数値・ラベルの配列（細胞を模した画像は除く） | リポジトリ | [開発の原則](development-principles.md#研究データと検証)の条件を満たす場合に限り使用可 |
 | 認証情報 | API キー、トークン、招待リンク | 各サービスの secret 管理 | 使用不可 |
 
 - 非公開データは、コード、ログ、Issue、PR、スクリーンショット、CI、開発用 AI（チャットへの貼り付けを含む）に含めない。
@@ -139,7 +139,7 @@ Research data falls into these categories.
 |---|---|---|---|
 | Private data | Unpublished lab images, ground-truth contours, measurement tables, manuscript drafts, file names and paths, participant information | Lab-managed storage outside the checkout | Not permitted |
 | Public data | Published images with confirmed source and license | Registered fixtures with recorded source, stain metadata, redistribution terms and hashes | Permitted (only redistributable assets in the repository) |
-| Synthetic data | Generated test images and values | Repository | Permitted |
+| Synthetic data | Minimal numeric or label arrays for checking calculations (not images imitating cells) | Repository | Permitted only under the conditions in [Development principles](development-principles.md#研究データと検証) |
 | Credentials | API keys, tokens, invitation links | Each service's secret store | Not permitted |
 
 - Keep private data out of code, logs, issues, PRs, screenshots, CI and development AI, including pasting into chat.

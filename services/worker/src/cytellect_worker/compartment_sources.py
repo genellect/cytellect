@@ -55,3 +55,38 @@ def load_compartment_summaries(store, rev, report):
                 raise ValueError("compartment_summary_mask_mismatch")
         summaries[fid] = read_json(summary_path)
     return summaries
+
+
+def load_nucleolar_shapes(store, rev, report, summaries):
+    """Per-nucleus nucleolar shapes from the adopted nuclear and nucleolar masks of each field.
+
+    Each field uses its own source revision (a cohort pins one per field). The shapes are
+    bound to the saved summary: every summarized nucleus must have the same nuclear and
+    nucleolar-union pixel areas in these masks.
+    """
+    from cytellect_analysis.nucleolar_shape import nucleolar_eccentricity
+    from cytellect_analysis.region_contracts import RegionCompartmentRecipe, RegionImageInfo
+
+    from .regions import _adopted_nucleoli, _compartment_nuclei
+
+    shapes = {}
+    pins = rev["config"].get("cohort_sources") or {}
+    for fid in sorted(report["field_tables"]):
+        source = store.one(revisions, id=pins[fid]["revision_id"]) if fid in pins else rev
+        if (source is None or source["workspace_id"] != rev["workspace_id"] or source["state"] != "succeeded"
+                or fid not in source["config"].get("field_snapshot", {})):
+            raise ValueError("compartment_summary_shape_unavailable")
+        recipe = RegionCompartmentRecipe.model_validate(source["config"]["recipe"])
+        if recipe.nucleolar_revision_id is None:
+            raise ValueError("compartment_summary_shape_unavailable")
+        image_info = RegionImageInfo.model_validate(source["config"]["field_snapshot"][fid]["image_info"])
+        nuclei, _, _ = _compartment_nuclei(store, recipe, rev["workspace_id"], fid, image_info)
+        nucleoli, _, _ = _adopted_nucleoli(store, recipe, rev["workspace_id"], fid, image_info)
+        rows = next(iter(summaries[fid]["channels"].values()))["rows"]
+        for row in rows:
+            nucleus = nuclei == row["nucleus_id"]
+            if (int(nucleus.sum()) != row["nucleus_area_px"]
+                    or int((nucleus & (nucleoli > 0)).sum()) != row["nucleolar_area_px"]):
+                raise ValueError("compartment_summary_shape_mismatch")
+        shapes[fid] = nucleolar_eccentricity(nuclei, nucleoli)
+    return shapes

@@ -44,7 +44,7 @@ test("nuclear and nucleolar candidates retain source identity and explicit adopt
   const selection=async()=>{const response=await page.request.get(`${api}/v1/workspaces/${wid}/selection`);expect(response.ok()).toBeTruthy();return await response.json() as WorkspaceSelection;};
   expect((await selection()).entries[0].target_revisions?.nuclei).toBeUndefined();
   await page.getByRole("button",{name:"DNA · c2",exact:true}).click();
-  const image=page.getByRole("img",{name:/DNA/}).first();
+  const image=page.getByRole("group",{name:/DNA/}).first();
   const modes=page.getByRole("navigation",{name:"作業の切替"});
   await expect(image).toBeVisible();
   expect(await image.locator("[data-region]").count()).toBeGreaterThan(0);

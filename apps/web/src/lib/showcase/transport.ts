@@ -14,6 +14,7 @@
  * The transport only returns Responses; `lib/api.ts` keeps its own error handling.
  */
 import type {HeaderList, Journal, JournalEntry, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
+import {openingPair, type ExperimentDesign} from "../workspace/experiment-design";
 
 export type EngineState = "idle" | "preparing" | "active" | "unavailable";
 export interface ShowcaseState {engine: EngineState; reason: "device" | "failed" | "unpublished" | null}
@@ -51,6 +52,9 @@ function headerList(headers: RequestInit["headers"]): HeaderList {
   return list;
 }
 /** A recorded body matches when equal, with "*" in the recording standing for any value the client generates or counts. */
+/** How long after the first paint the recorded tour starts loading (it competes with the opening images). */
+const JOURNAL_DELAY_MS = 6000;
+
 export function journalBodyMatches(recorded: string | null, actual: string | null): boolean {
   if (recorded === null) return true;
   if (actual === null) return false;
@@ -74,7 +78,7 @@ export function journalPathMatches(recorded: string, actual: string): boolean {
   const left = path.split("/"), right = other.split("/");
   return query === otherQuery && left.length === right.length && left.every((segment, index) => segment === right[index] || (segment === "*" && right[index] !== ""));
 }
-const SETTINGS = /^\/v1\/workspaces\/[^/?]+\/analysis-spec$/;
+const SETTINGS = /^\/v1\/workspaces\/([^/?]+)\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
 const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
 const JOBS = /^\/v1\/workspaces\/[^/?]+\/jobs$/;
@@ -137,40 +141,58 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         if (!response.ok) {await response.text(); return null;}
         const value = await response.json() as SnapshotIndex;
         if (value?.version !== 1 || !value.entries || typeof value.entries !== "object") return null;
-        const keep = (key: string) => {
-          const file = value.entries[key]?.file;
-          if (file && /^[A-Za-z0-9._-]+$/.test(file) && !opening.has(file)) opening.set(file, read(file));
-          return file ? opening.get(file)! : null;
-        };
-        for (const key of Object.keys(value.entries)) if (OPENING.test(key)) keep(key);
-        void openingField(value, keep);
+        for (const key of Object.keys(value.entries)) if (OPENING.test(key)) keep(value, key);
         return value;
       }).catch(() => null);
     return index;
   }
-  /** The first field opens first: its previews, masks and measurements are requested with the records. */
-  async function openingField(value: SnapshotIndex, keep: (key: string) => Promise<ArrayBuffer | null> | null) {
-    const keys = Object.keys(value.entries), listing = keys.find(key => /^GET \/v1\/workspaces\/[^/?]+\/region-fields$/.test(key));
-    const bytes = listing ? await keep(listing) : null;
-    let first: string | undefined;
-    try {first = (JSON.parse(new TextDecoder().decode(bytes ?? undefined)) as Array<{id?: string}>)[0]?.id;} catch {return;}
-    if (!first) return;
-    const field = encodeURIComponent(first), revisions = new Set<string>();
-    for (const key of keys) {
-      if (!key.includes(`/region-fields/${field}/preview?`) && !key.endsWith(`field_id=${field}`)) continue;
-      keep(key);
-      const revision = /^GET \/v1\/revisions\/([^/?]+)\/region-masks\?/.exec(key)?.[1];
-      if (revision) revisions.add(revision);
+  /** Starts loading a recorded file once; later reads of it take the same bytes. */
+  function keep(value: SnapshotIndex, key: string) {
+    const file = value.entries[key]?.file;
+    if (file && /^[A-Za-z0-9._-]+$/.test(file) && !opening.has(file)) opening.set(file, read(file));
+    return file ? opening.get(file)! : null;
+  }
+  const opened = new Set<string>();
+  /** What a workspace shows first loads first: once its saved settings are read, the fields it opens on
+   * (a two-group design: the first run's field of each group; else its first field) have their previews,
+   * masks and measurements requested together, before the client asks for them one by one. */
+  async function openingFields(workspace: string) {
+    if (opened.has(workspace)) return;
+    opened.add(workspace);
+    const value = await snapshot();
+    if (!value) return;
+    const parse = async (key: string) => {try {return JSON.parse(new TextDecoder().decode((await keep(value, key)) ?? undefined)) as unknown;} catch {return null;}};
+    const [settings, listing] = await Promise.all([parse(`GET /v1/workspaces/${workspace}/analysis-spec`), parse(`GET /v1/workspaces/${workspace}/region-fields`)]);
+    const pair = openingPair((settings as {spec?: {experiment?: ExperimentDesign | null} | null} | null)?.spec?.experiment ?? null);
+    const first = Array.isArray(listing) ? (listing[0] as {id?: unknown} | undefined)?.id : undefined;
+    const fields = pair.length > 1 ? pair : typeof first === "string" ? [first] : [];
+    const keys = Object.keys(value.entries), revisions = new Set<string>();
+    for (const id of fields) {
+      const field = encodeURIComponent(id);
+      for (const key of keys) {
+        if (!key.includes(`/region-fields/${field}/preview?`) && !key.endsWith(`field_id=${field}`)) continue;
+        keep(value, key);
+        const revision = /^GET \/v1\/revisions\/([^/?]+)\/region-masks\?/.exec(key)?.[1];
+        if (revision) revisions.add(revision);
+      }
     }
-    for (const revision of revisions) keep(`GET /v1/revisions/${revision}/region-measurements`);
+    for (const revision of revisions) keep(value, `GET /v1/revisions/${revision}/region-measurements`);
   }
   async function recorded(path: string): Promise<Response | null> {
+    const later = await recordedLater(path);
+    return later ? later() : null;
+  }
+  /** The opening snapshot's answer for a read, decided now; its file is requested now and read when awaited. */
+  async function recordedLater(path: string): Promise<(() => Promise<Response | null>) | null> {
     const entry = (await snapshot())?.entries[snapshotKey(path)];
     if (!entry || !/^[A-Za-z0-9._-]+$/.test(entry.file)) return null;
-    const bytes = await (opening.get(entry.file) ?? read(entry.file));
-    if (!bytes) return null;
-    // Each caller reads its own copy; the cached bytes stay intact.
-    return new Response(nullBody(entry.status) ? null : bytes.slice(0), {status: entry.status, headers: entry.headers});
+    const pending = opening.get(entry.file) ?? read(entry.file);
+    return async () => {
+      const bytes = await pending;
+      if (!bytes) return null;
+      // Each caller reads its own copy; the cached bytes stay intact.
+      return new Response(nullBody(entry.status) ? null : bytes.slice(0), {status: entry.status, headers: entry.headers});
+    };
   }
   async function fromSnapshot(path: string) {
     const response = await recorded(path);
@@ -395,7 +417,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     prepare() {
       // The build-time recorder runs every operation through the API, so it starts the API at once.
       if (dependencies.record) {void ensureEngine().catch(() => undefined); return;}
-      void loadJournal();
+      // The opening images go first; a change before this loads the recording on demand.
+      setTimeout(() => void loadJournal(), JOURNAL_DELAY_MS);
     },
     async fetch(path: string, init: RequestInit = {}): Promise<Response> {
       const signal = init.signal;
@@ -405,13 +428,22 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const isRead = reading(method);
       const text = async () => isRead || init.body === undefined || init.body === null ? null : new TextDecoder().decode((await bodyBytes(init.body)) ?? undefined);
       if (!dependencies.record) {
-        // Decisions are taken in request order, so a read issued after a change sees that change.
-        const decided = gate.then(async () => {
-          const found = await fromJournal(method, path, await text()) ?? (isRead ? await fromSnapshot(path) : null);
-          return isRead ? withKnownJobs(path, found) : found;
+        // Decisions are taken in request order, so a read issued after a change sees that change. A read
+        // the opening snapshot answers is decided in order too, but its file (an image, masks) downloads
+        // alongside the next requests instead of holding them (the two opening images load together).
+        const workspace = SETTINGS.exec(path)?.[1];
+        if (isRead && workspace) void openingFields(workspace);
+        const decided = gate.then(async (): Promise<Response | null | (() => Promise<Response | null>)> => {
+          const journaled = await fromJournal(method, path, await text());
+          if (journaled || !isRead) return isRead ? withKnownJobs(path, journaled) : journaled;
+          if (JOBS.test(path)) return withKnownJobs(path, await fromSnapshot(path));
+          const later = await recordedLater(path);
+          if (later) seen.set(path, "snapshot");
+          return later;
         });
         gate = decided.catch(() => null);
-        const answered = await decided;
+        const decision = await decided;
+        const answered = typeof decision === "function" ? await decision() : decision;
         if (signal?.aborted) throw abortError();
         if (answered) return answered;
         return (await snapshot()) ? noticeResponse("showcase_action_not_recorded", 409) : noticeResponse("showcase_unavailable", 503);

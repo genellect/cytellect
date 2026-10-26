@@ -8,9 +8,10 @@ import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, ty
 import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
 import {cellposeDetector,nclCellposeDetector,isCellposeDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
 import {applicableProcessing, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
-import {loadReviewPreview, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
+import {loadReviewPreview, newestWorkspaceId, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
+import {openingPair,type ExperimentDesign} from "./experiment-design";
 
 export interface RuntimeSettings {
   nuclearMaxSide: number | null; nuclearProbability: number; nuclearNms: number;
@@ -25,12 +26,15 @@ const normalizedRuntimeSettings=(settings:RuntimeSettings):RuntimeSettings=>({..
   nucleolarDefinition:{...defaultRuntimeSettings().nucleolarDefinition,...settings.nucleolarDefinition},cellDefinition:settings.cellDefinition??{source:"manual",channel:""}});
 export interface RuntimeSnapshot {
   data: ReviewData | null; busy: boolean; operation: string; error: string; assignments: ChannelAssignments;
+  /** True while fields and saved results load (nothing to stop; analyses wait). */
+  loading: boolean;
   activeTarget: ReviewTarget; settings: RuntimeSettings; proposal: ValidatedProposal | null; processing: ProposalProcessing | null; importIssues: Grouping["issues"];
 }
 type Adapter = ReturnType<typeof createApiAdapter>;
 export interface RuntimeCandidate {result:SavedResult;recipe:Recipe;settingsFingerprint:string;runId?:string;runState?:WorkspaceRun["state"];backgroundPending?:boolean}
 type RuntimeTargets = Partial<Record<ReviewTarget, TargetResult>>;
-export interface RuntimeSpecification {version:number; spec:({channel_assignment_version:number;target:ReviewTarget;settings:RuntimeSettings;processing:ProposalProcessing|null;measurement:typeof rawMeasurement|null;selection?:unknown;statistics?:unknown;figure?:unknown;metrics?:unknown[];additional_analyses?:unknown[];figure_proposals?:unknown[];backgrounds?:Record<string,Record<string,{polygon:Point[];confirmed:true}>>;confirmed_channel_ids?:string[]})|null}
+export interface RuntimeSpecification {version:number; spec:({channel_assignment_version:number;target:ReviewTarget;settings:RuntimeSettings;processing:ProposalProcessing|null;measurement:typeof rawMeasurement|null;selection?:unknown;statistics?:unknown;figure?:unknown;metrics?:unknown[];additional_analyses?:unknown[];figure_proposals?:unknown[];experiment?:ExperimentDesign|null;backgrounds?:Record<string,Record<string,{polygon:Point[];confirmed:true}>>;confirmed_channel_ids?:string[]})|null}
+
 type Dependencies = {adapter?:Adapter; loadPreview?:typeof loadReviewPreview; releasePreview?:typeof releaseReviewPreview;
   readSpecification?:(workspace:string)=>Promise<RuntimeSpecification>; writeSpecification?:(workspace:string,value:RuntimeSpecification)=>Promise<RuntimeSpecification>};
 const emptyData = (): ReviewData => ({workspaceId:"",title:"画像解析",fields:[],channels:[]});
@@ -118,7 +122,7 @@ export function runtimeProposalProcessing(channel:ChannelDefinition,settings:Run
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
-  let state:RuntimeSnapshot={data:null,busy:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[]};
+  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[]};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify(value)}));
   let specification:RuntimeSpecification={version:0,spec:null},specificationDirty=false;
@@ -131,7 +135,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const candidateStore=new Map<string,Partial<Record<ReviewTarget,RuntimeCandidate>>>();
   const histories=new Map<string,{undo:TargetResult[];redo:TargetResult[]}>(),listeners=new Set<()=>void>();
   function publish(patch:Partial<RuntimeSnapshot>){if(closed)return;state={...state,...patch};for(const listener of listeners)listener();}
-  function replaceData(data:ReviewData){const previous=state.data;publish({data});if(previous && previous!==data)releasePreview(previous);}
+  function replaceData(data:ReviewData){const previous=state.data;publish({data});if(previous && previous!==data)releasePreview(previous,data);}
   const workspace=()=>{if(!state.data?.workspaceId)throw new Error("画像を追加してください。");return state.data.workspaceId;};
   const history=(field:string,target:ReviewTarget)=>{const key=`${field}:${target}`;if(!histories.has(key))histories.set(key,{undo:[],redo:[]});return histories.get(key)!;};
   const definitions=(fieldId?:string):ChannelDefinition[]=>(fieldId?state.data?.fields.find(field=>field.id===fieldId)?.channels??[]:state.data?.channels??[]).map(value=>({token:value.id,stain:value.stain,role:value.role === "unused" ? null:value.role,evidence:"user"}));
@@ -139,10 +143,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   function bound(field:string,target:ReviewTarget,revision?:string){const result=currentTargets.get(field)?.[target];if(!result || (revision && result.result.revision!==revision))throw new Error("操作対象の解析版が変更されています。再読み込みしてください。");return result;}
   /** Lets the browser draw what was just published before more loading occupies it. */
   const painted=()=>new Promise<void>(resolve=>typeof requestAnimationFrame==="function"?requestAnimationFrame(()=>setTimeout(resolve,0)):resolve());
-  async function refresh(id?:string,restoreSettings=false,limit?:number){
+  async function refresh(id?:string,restoreSettings=false,limit?:number,fieldIds?:readonly string[]){
     const ticket=++epoch;let next:ReviewData;
-    try{next=await loadPreview(id || state.data?.workspaceId || undefined,undefined,limit===undefined?undefined:{limit});}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
-    if(closed || ticket!==epoch){releasePreview(next);return;}
+    // Previews already shown are kept: a field's image does not change, only its results do.
+    try{next=await loadPreview(id || state.data?.workspaceId || undefined,fieldIds,{...(limit===undefined?{}:{limit}),reuse:state.data});}catch(error){if(error instanceof Error && error.message==="no_saved_workspace"){replaceData(emptyData());return;}throw error;}
+    if(closed || ticket!==epoch){releasePreview(next,state.data);return;}
     try{
       const saved=await adapter.restore(next.workspaceId),assignments=await adapter.getChannelAssignments(next.workspaceId);
       const recordedSpecification=await readSpecification(next.workspaceId);
@@ -331,13 +336,20 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   }
   async function showImported(saved:ImportedField,key:string){uploaded.set(key,saved.id);names.set(saved.id,key.split("/").at(-1)||key);registered.set(saved.id,saved);const partial=await loadPreview(workspace(),[saved.id]);const freshField=partial.fields.find(value=>value.id===saved.id);if(freshField&&state.data){freshField.label=names.get(saved.id)||freshField.label;const retained=state.data.fields.filter(value=>value.id!==saved.id);const previous=state.data.fields.find(value=>value.id===saved.id);if(previous)releasePreview({...partial,fields:[previous]});const channels=[...state.data.channels];for(const channel of freshField.channels)if(!channels.some(value=>value.id===channel.id))channels.push(channel);publish({data:{...state.data,fields:[...retained,freshField],channels},operation:`${uploaded.size} 視野を登録済み`});}
   }
+  /** The two fields a saved two-group design opens on, read before any image; undefined otherwise. */
+  async function openingFields(id?:string):Promise<string[]|undefined>{
+    try{const workspaceId=id??await newestWorkspaceId();if(!workspaceId)return undefined;const pair=openingPair((await readSpecification(workspaceId)).spec?.experiment??null);return pair.length>1?pair:undefined;}
+    catch{return undefined;}
+  }
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
   return {
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
-    async load(id?:string){closed=false;publish({busy:true,error:"",operation:"画像と保存結果を読み込み中"});
-      // The first field shows as soon as it has loaded; the others follow in the background.
-      try{await refresh(id,true,1);}catch(error){publish({busy:false,operation:"",error:message(error)});throw error;}
-      try{if(registered.size>1){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}},
+    async load(id?:string){closed=false;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中"});
+      // What is shown first loads first: a two-group design opens side by side on the first run's field
+      // of each group (V-01), both together; any other design on its first field. The others follow.
+      try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
+      try{
+        if(registered.size>(state.data?.fields.length??0)){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
@@ -410,9 +422,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     saveBackgrounds(backgrounds:Record<string,Record<string,{polygon:Point[];confirmed:true}>>,confirmed_channel_ids:string[]){return exclusive("背景領域を保存中",async()=>{await checkCurrent();publish({settings:{...state.settings,background:"confirmed_roi"}});specificationDirty=true;specification={...specification,spec:{...(specification.spec??{channel_assignment_version:state.assignments.version,target:state.activeTarget,settings:state.settings,processing:state.processing,measurement:null}),backgrounds,confirmed_channel_ids}};await persistSpecification(state.activeTarget);publish({});});},
     saveSelection(selection:unknown){return exclusive("対象選択を保存中",async()=>{await checkCurrent();await persistSpecification(specification.spec?.target??state.activeTarget);specification=await writeSpecification(workspace(),{...specification,spec:{...specification.spec!,selection}});publish({});});},
     resultRecipe(field:string,target:ReviewTarget){return currentTargets.get(field)?.[target]?.recipe;},canUndo(field:string,target:ReviewTarget){return history(field,target).undo.length>0;},canRedo(field:string,target:ReviewTarget){return history(field,target).redo.length>0;},stop(){stopped=true;if(activeRunId)void adapter.cancelWorkspaceRun(workspace(),activeRunId).catch(error=>publish({error:message(error)}));},
+    /** Registers the images and returns the IDs of the fields this call added (in upload order). */
     importFiles(list:FileList|File[],mode:"automatic"|"single"="automatic"){return exclusive("画像を登録中",async()=>{stopped=false;
       // A batch has its own identity: names in a later drop cannot overwrite earlier pixels.
-      const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[];
+      const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[],addedIds:string[]=[];
       for(const file of Array.from(list)){
         const originalPath=file.webkitRelativePath||file.name;if(!isSupportedImage(originalPath))continue;
         if(file.size>256*1024*1024)throw new Error("画像ファイルは256 MiB以下にしてください。");
@@ -424,8 +437,13 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       }
       if(!fresh.length&&!added.length&&!omeFiles.size)throw new Error("TIFF画像を選択してください。");added.push(...fresh);const grouping=groupFiles(added,mode);publish({importIssues:grouping.issues});if(grouping.issues.some(value=>value.kind==="duplicate_channel"))throw new Error("同じ視野・チャンネルの画像が複数あります。画像の対応を確認してください。");
       if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
-      try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);const saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);await showImported(saved,field.key);} for(const [key,file] of omeFiles){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);await showImported(await adapter.uploadOme(workspace(),file,entry),key);} } finally {await refresh(workspace());}
+      try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);const saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);await showImported(saved,field.key);addedIds.push(saved.id);} for(const [key,file] of omeFiles){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);const saved=await adapter.uploadOme(workspace(),file,entry);await showImported(saved,key);addedIds.push(saved.id);} } finally {await refresh(workspace());}
+      return addedIds;
     });},
+    /** The saved experiment design (groups, runs, samples), or null. */
+    experiment(){return specification.spec?.experiment??null;},
+    /** Saves the experiment design; it never runs, adopts or changes measurements. */
+    saveExperiment(experiment:ExperimentDesign){return exclusive("実験の形を保存中",async()=>{await checkCurrent();const spec={...currentSpecification(specification.spec?.target??state.activeTarget),experiment};specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;publish({});});},
     saveAssignments(assignments:ChannelAssignment[],fieldId?:string){return exclusive("染色設定を保存中",async()=>{
       const selected=fieldId?registered.get(fieldId):null;
       if(fieldId&&!selected)throw new Error("登録した画像が見つかりません。");

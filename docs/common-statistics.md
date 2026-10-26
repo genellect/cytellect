@@ -31,6 +31,13 @@ must be repaired or explicitly excluded at the source, never silently dropped.
 | Linear association between two outcomes | Pearson | At least three matched independent units; beta null under independent normal samples |
 | Monotonic association between two outcomes | Spearman | At least three matched independent units; pairing permutation null |
 
+A two-group comparison can also be requested with `test: "none"` when the
+researcher has not confirmed that the experimental units are independent
+(requirements E-05). It aggregates exactly as above and saves unit values, run-wise
+values and differences, but computes no test, p-value, omnibus or interval; figures
+draw unit means without error bars and the Methods state that the comparison is
+descriptive.
+
 Constant inputs are handled by the selected method, not a universal prefilter.
 Pearson/Spearman reject either constant axis; Welch ANOVA requires positive finite
 variance in every group. Welch/paired t retain their original estimability guards
@@ -109,6 +116,18 @@ descriptive density, not a confidence interval. Histograms share equal-width
 bins across conditions, with saved endpoints/counts and individual-unit rugs.
 The final bin includes its right endpoint. Distribution/box/violin points use
 display-only jitter seed 0; paired connectors use saved pair identities.
+
+Two run-based layouts draw the experiment hierarchy of a comparison
+(group-comparison requirements F-01, F-02). `superplot` shows field values as
+small points (the field median of the observations, or the field value of a
+field summary), each independent unit as a large point with one marker per run,
+lines joining a run's units in a paired design, and each group's unit mean with
+its 95% t interval beside the points. `unit-mean-bar` shows each group's unit
+mean as a bar with the same interval and every unit as a point. The interval is
+descriptive (mean ± t₀.₉₇₅,n−1 · SD/√n of the unit values; none below two units)
+and is saved in the graphical summary. The figure legend states what each point
+is, the aggregation rule and that n counts independent units. A declared
+two-group experiment uses `superplot` as its first figure.
 
 Figure renderer 1.0.1 fixes categorical X limits at half a category outside each
 end group. This keeps edge groups and their labels away from the plot boundary,

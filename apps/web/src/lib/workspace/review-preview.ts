@@ -22,6 +22,8 @@ export interface ReviewField {
   kind?:"analysis"|"reference";referenceFor?:string|null;
   width: number;
   height: number;
+  /** Confirmed XY pixel size in µm, or null when the field has none (I04). */
+  pixelSizeUm?: {x: number; y: number} | null;
   channels: ReviewChannel[];
   previews: Record<string, string>;
   previewDisplay?: Record<string, DisplayReceipt>;
@@ -57,19 +59,30 @@ async function ensureSession() {
   }
 }
 
-export function releaseReviewPreview(data: ReviewData) {
-  for (const url of new Set(data.fields.flatMap(field => Object.values(field.previews)))) URL.revokeObjectURL(url);
+/** Revokes the preview URLs of `data`, except those `kept` still shows (previews reused by a reload). */
+export function releaseReviewPreview(data: ReviewData, kept?: ReviewData | null) {
+  const shown = new Set(kept?.fields.flatMap(field => Object.values(field.previews)) ?? []);
+  for (const url of new Set(data.fields.flatMap(field => Object.values(field.previews)))) if (!shown.has(url)) URL.revokeObjectURL(url);
 }
 
-export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonly string[], options: {limit?: number} = {}): Promise<ReviewData> {
+/** The newest workspace that is neither deleted nor expired, or undefined when there is none. */
+export async function newestWorkspaceId(): Promise<string | undefined> {
+  await ensureSession();
+  // API returns a bare, unsorted list; created is in WorkspaceView's response.
+  const saved = await request<Array<Workspace & {created: number; deleted: boolean}>>("/v1/workspaces");
+  return saved.filter(value => !value.deleted && workspaceNotExpired(value.expires))
+    .sort((left, right) => right.created - left.created)[0]?.id;
+}
+
+/** `reuse`: data already shown for this workspace; a field's channel preview found there is kept
+ * instead of fetched again (a field's image never changes; its results are always read again). */
+export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonly string[], options: {limit?: number; reuse?: ReviewData | null} = {}): Promise<ReviewData> {
   await ensureSession();
   if (!workspaceId) {
-    // API returns a bare, unsorted list; created is in WorkspaceView's response.
-    const saved = await request<Array<Workspace & {created: number; deleted: boolean}>>("/v1/workspaces");
-    workspaceId = saved.filter(value => !value.deleted && workspaceNotExpired(value.expires))
-      .sort((left, right) => right.created - left.created)[0]?.id;
+    workspaceId = await newestWorkspaceId();
     if (!workspaceId) throw new Error("no_saved_workspace");
   }
+  const reused = options.reuse?.workspaceId === workspaceId ? new Map(options.reuse.fields.map(field => [field.id, field])) : new Map<string, ReviewField>();
   const adapter = createApiAdapter();
   const saved = await adapter.restore(workspaceId);
   const data: ReviewData = {workspaceId, title: saved.record.title, fields: [], channels: [], warnings: []};
@@ -93,7 +106,9 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
       });
       const displayName = input.metadata.display_name;
       const field: ReviewField = {id: input.id, label: typeof displayName === "string" && displayName.trim() ? displayName : `視野 ${index + 1}`,
-        metadata: input.metadata,kind:link?.kind??"analysis",referenceFor:link?.reference_for_field_id??null, width: input.image_info.shape[1], height: input.image_info.shape[0], channels, previews: {}, previewDisplay: {}, results: {}};
+        metadata: input.metadata,kind:link?.kind??"analysis",referenceFor:link?.reference_for_field_id??null, width: input.image_info.shape[1], height: input.image_info.shape[0],
+        pixelSizeUm: input.image_info.calibration?.confirmed ? {x: input.image_info.calibration.pixel_size_x_um, y: input.image_info.calibration.pixel_size_y_um} : null,
+        channels, previews: {}, previewDisplay: {}, results: {}};
       const entry = saved.selection.entries.find(value => value.field_id === input.id);
       if (entry?.exclusion_reason) field.exclusionReason = entry.exclusion_reason;
       if (!entry) errors.push("保存された解析対象への登録が完了していません。");
@@ -113,7 +128,10 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
           recipes[target] = revision.config.recipe;
         } catch {errors.push("採用した領域または測定値を読み込めません。");}
       });
+      const previous = reused.get(input.id);
       const previews = channels.map(async channel => {
+        const known = previous?.previews[channel.id];
+        if (known && previous?.previewDisplay?.[channel.id] !== undefined) {field.previews[channel.id] = known; field.previewDisplay![channel.id] = previous.previewDisplay[channel.id]; return;}
         try {
           const response = await fetchPrivateResponse(`/v1/region-fields/${encodeURIComponent(input.id)}/preview?channel_id=${encodeURIComponent(channel.id)}&gain=1`);
           const receipt = readPreviewDisplay(response.headers.get(PREVIEW_DISPLAY_HEADER), {fieldId: input.id, channel: channel.id, gain: 1, composite: false});
@@ -153,7 +171,7 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
     data.warnings = [...new Set(data.warnings)];
     return data;
   } catch (error) {
-    releaseReviewPreview(data);
+    releaseReviewPreview(data, options.reuse);
     throw error;
   }
 }

@@ -83,6 +83,26 @@ def test_common_statistics_pixel_job_download_and_replay(tmp_path, association):
     assert client.get(f"/v1/jobs/{jid}/files/figure.pdf").status_code == 404
 
 
+@pytest.mark.parametrize("test", ["welch-t", "none"])
+def test_common_statistics_estimate_tables_download_with_the_figure_sources(tmp_path, test):
+    client, app, settings = authenticated(tmp_path)
+    _, rid, _ = reviewed_units(client, app, settings)
+    request = {**common_request(), "test": test, "estimates": "comparison-estimates/1.0.0"}
+    response = client.post(f"/v1/revisions/{rid}/common-statistics", headers=HEADERS, json=request)
+    assert response.status_code == 202, response.text
+    jid = response.json()["job_id"]
+    process_one(app.state.store, settings)
+    files = client.get(f"/v1/jobs/{jid}/common-statistics").json()["figure"]["source_files"]
+    # The fixture is not paired, so it has no per-run table.
+    assert {"estimates.csv", "estimates-groups.csv"} <= set(files)
+    for filename in files:
+        downloaded = client.get(f"/v1/jobs/{jid}/files/{filename}")
+        assert downloaded.status_code == 200, (filename, downloaded.text)
+    # A descriptive comparison names why the difference has no interval.
+    estimates = client.get(f"/v1/jobs/{jid}/files/estimates.csv").text
+    assert ("inference_not_requested" in estimates) == (test == "none")
+
+
 def test_compartment_summary_selection_requires_a_nucleoplasm_from_adopted_nucleoli_revision(tmp_path):
     client, app, settings = authenticated(tmp_path)
     _, rid, _ = reviewed_units(client, app, settings)

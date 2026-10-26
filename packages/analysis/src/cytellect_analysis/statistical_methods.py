@@ -168,7 +168,10 @@ def _measurement(result):
             else:
                 lines.append("Raw-intensity protocol 3.0.0 measured original pixels. Background was not established; corrected intensities are missing.")
         if "area_only" in modes:
-            if metric not in ("area_px", "area_um2"):
+            summary_geometry = (result["spec"]["selection"]["source"] in ("field-summary", "compartment-summary")
+                                and metric in ("nucleus_count", "nucleus_density_per_mm2", "nucleolar_area_px",
+                                               "nucleolar_area_um2", "nucleolar_eccentricity"))
+            if metric not in ("area_px", "area_um2") and not summary_geometry:
                 raise ValueError("statistical_methods_source_invalid")
             lines.append("Area-only measurement used measurement protocol 2.0.0 and policy 1.0.0 (area_only). "
                          "Fluorescence intensity and signal-saturation fractions were not measured. "
@@ -200,7 +203,12 @@ def _measurement(result):
     if result["spec"]["selection"].get("source") == "compartment-summary":
         from .common_statistics_figures import compartment_methods_sentence
 
-        lines.append(compartment_methods_sentence("The outcome", metric))
+        lines.append(compartment_methods_sentence("The outcome", metric,
+                                                  result["spec"]["selection"].get("version", "1.0.0")))
+    elif result["spec"]["selection"].get("source") == "field-summary":
+        from .common_statistics_figures import field_summary_methods_sentence
+
+        lines.append(field_summary_methods_sentence("The outcome", metric))
     elif "area_px" in metric or "area_um2" in metric:
         lines.append("Area is the number of original-coordinate mask pixels; calibrated area multiplies this count by "
                      "the recorded X and Y pixel sizes (or the square of the scalar pixel size in nuclear recipes). "
@@ -290,6 +298,9 @@ def readable_descriptive_methods(result):
              "Hashes in the accompanying source/manifest identify those files.",
              "Original acquisition details and biological suitability require researcher review; absent facts are not inferred.",
              "Warnings: " + "; ".join(result["warnings"]), ""]
+    if result["spec"]["selection"]["source"] == "field-summary":
+        lines.append("One point per field; no redundant within-field median is shown. "
+                     "A successfully measured field without adopted nuclei has count zero; failed fields do not.")
     return "\n".join(lines)
 
 

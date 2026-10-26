@@ -68,7 +68,7 @@ async function settle(label) {
 
 // Session of the workspace owner, created by the builder (never logged or saved).
 await context.addCookies([{name: config.cookie, value: config.token, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Strict"}]);
-await page.goto(`${config.origin}/workspace`, {waitUntil: "domcontentloaded", timeout: 180000});
+await page.goto(`${config.origin}/workspace${config.workspace ? `?id=${config.workspace}` : ""}`, {waitUntil: "domcontentloaded", timeout: 180000});
 const cards = page.locator("[class*=fieldCard]");
 try {await cards.first().waitFor({timeout: 180000});}
 catch (error) {
@@ -79,22 +79,29 @@ catch (error) {
 }
 await settle("initial");
 await mkdir(config.out, {recursive: true});
+// One field at a time, so every field's own views are requested. Side by side lists only the two shown
+// fields, so the fields are counted (and walked) after leaving it.
+const pair = page.getByRole("button", {name: "2 画面", exact: true});
+if (await pair.count() && await pair.getAttribute("aria-pressed") === "true") await step("one field at a time", () => pair.click());
+// The fields the pair opens on load first; the others follow, so the list is counted once they are all in.
+for (let waited = 0; waited < 360 && await cards.count() < config.fields; waited++) await page.waitForTimeout(500);
 const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
 // Every field, region and channel a visitor can look at, so browsing never meets an unrecorded
 // view (regions through the settings panel; never 細胞ROI: it starts a run).
 const region = page.locator("select").filter({has: page.locator("option[value=nucleoplasm]")}).first();
-const channels = page.locator("[class*=channelBar] > button[aria-pressed]:not([aria-label])");
+const channels = page.locator("[class*=channelBar] > button[data-channel], [class*=channelBar] > button[data-composite]");
 for (let index = 0; index < count; index++) {
   await step(`field ${index + 1}`, () => cards.nth(index).click());
   if (!(await region.isVisible())) await step("settings panel", () => page.getByRole("button", {name: "設定パネル"}).click());
-  for (const value of ["nuclei", "nucleoli", "nucleoplasm"]) {
+  for (const value of config.regions ?? ["nuclei", "nucleoli", "nucleoplasm"]) {
     await step(`field ${index + 1} region ${value}`, () => region.selectOption(value));
     const total = await channels.count();
     for (let channel = 0; channel < total; channel++) await step(`field ${index + 1} ${value} channel ${channel + 1}`, () => channels.nth(channel).click());
   }
 }
 await step("first field", () => cards.first().click());
+if (await pair.count() && await pair.getAttribute("aria-pressed") === "false") await step("side by side", () => pair.click());
 await step("region nuclei", () => region.selectOption("nuclei"));
 const tabs = page.getByRole("navigation", {name: "作業の切替"});
 await step("statistics", () => tabs.getByRole("button", {name: "統計"}).click());
@@ -106,6 +113,47 @@ if (await history.count()) {
   report.figures = values.length;
 } else report.alerts.push("no saved figure history");
 await step("back to image", () => tabs.getByRole("button", {name: "画像"}).click());
+/** Records one more GET with the same session (GETs never change the state); its status (200 is recorded). */
+async function recordRead(path) {
+  if (entries[`GET ${path}`]) return 200;
+  const response = await context.request.get(config.api + path, {headers: {Origin: config.origin}});
+  if (response.status() !== 200) return response.status();
+  const body = await response.body(), headers = response.headers();
+  const type = (headers["content-type"] || "").split(";")[0].trim();
+  const file = `${createHash("sha256").update(body).digest("hex").slice(0, 24)}${EXTENSIONS[type] || ".bin"}`;
+  entries[`GET ${path}`] = {status: 200, headers: KEEP_HEADERS.filter(name => headers[name] !== undefined).map(name => [name, headers[name]]), file};
+  bodies.set(file, body);
+  return 200;
+}
+// A saved result's figure points open their source fields (the result's revision, each field's pinned
+// revision, its measurements and masks), so returning from a result to its images is recorded too.
+report.sources = 0;
+for (const [key, entry] of Object.entries({...entries})) {
+  if (!/^GET \/v1\/jobs\/[^/]+\/(result|common-statistics)$/.test(key) || !bodies.get(entry.file)) continue;
+  let revision;
+  try {revision = JSON.parse(bodies.get(entry.file).toString("utf8")).revision_id;} catch {continue;}
+  if (typeof revision !== "string" || await recordRead(`/v1/revisions/${revision}`) !== 200) continue;
+  const record = JSON.parse(bodies.get(entries[`GET /v1/revisions/${revision}`].file).toString("utf8"));
+  const pinned = record.config?.cohort_sources ?? {};
+  for (const field of record.config?.field_ids ?? []) {
+    const source = pinned[field]?.revision_id ?? revision;
+    if (await recordRead(`/v1/revisions/${source}`) !== 200) {report.alerts.push(`source revision ${source}`); continue;}
+    if (await recordRead(`/v1/revisions/${source}/region-measurements`) !== 200
+        || await recordRead(`/v1/revisions/${source}/region-masks?field_id=${encodeURIComponent(field)}`) !== 200) report.alerts.push(`source ${source} ${field}`);
+    report.sources++;
+  }
+}
+// The statistics view reads each source's list of nuclei without an established nucleolus (Q-05)
+// for any region a visitor chooses there: one read per shown revision and field, kept when the
+// revision has compartments (a nuclear one answers 409 and is never read).
+report.ledgers = 0;
+for (const key of Object.keys(entries)) {
+  const shown = /^GET \/v1\/revisions\/([^/?]+)\/region-masks\?field_id=([^&]+)$/.exec(key);
+  if (!shown) continue;
+  const status = await recordRead(`/v1/revisions/${shown[1]}/compartment-ledger?field_id=${shown[2]}`);
+  if (status === 200) report.ledgers++;
+  else if (status !== 409) report.alerts.push(`ledger ${shown[1]} ${shown[2]}: ${status}`);
+}
 // Chromium does not keep bodies of responses the page consumed as blobs (previews, figure
 // files); fetch those same GETs again with the same session (GETs never change the state).
 report.refetched = 0;

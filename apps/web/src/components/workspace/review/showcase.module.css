@@ -22,5 +22,11 @@
 .badgeMenu{position:relative;flex-shrink:0;margin-left:-6px}.badgeMenu .badge{margin-left:0;cursor:pointer;list-style:none;padding:0 8px!important;font-size:13px!important}.badgeMenu summary::-webkit-details-marker{display:none}
 .popover{position:absolute;z-index:20;top:30px;left:0;width:min(360px,calc(100vw - 32px));background:#fff;border:1px solid #dfe3e8;border-radius:8px;padding:12px 14px;box-shadow:0 8px 28px #20252b30;font-size:13px;font-weight:400;color:#20252b}
 .credit p{margin:0 0 6px;font-size:13px!important;line-height:1.6}.credit ul{margin:4px 0 8px;padding-left:18px;font-size:13px;line-height:1.6;color:#4c5663}.credit a{color:#1757b6}
-.sideCredit{margin:0;padding:6px 10px 0;font-size:12px;line-height:1.5;color:#65707d;overflow-wrap:anywhere}.sideCredit a{color:#1757b6}
-@media(max-width:620px){.sideCredit{display:none}.download,.guideButton,.live{display:none}.badge,.badgeMenu{margin-left:0}.badge{padding:0 6px;font-size:12px}}
+.sideCredit{display:flex;flex-wrap:wrap;gap:0 6px;margin:0;padding:6px 10px 0;font-size:12px;line-height:1.6;color:#65707d}.sideCredit>*{white-space:nowrap}.sideCredit a{color:#1757b6}
+.badgeActions{display:none;gap:8px;margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid #e3e7ed}
+.badgeActions a,.badgeActions button{font:inherit;font-size:14px;border:1px solid #d8dde5;background:#fff;border-radius:5px;padding:6px 12px;cursor:pointer;color:#1757b6;text-decoration:none}
+@media(max-width:620px){.sideCredit{display:none}.download,.guideButton,.live{display:none}.badgeActions{display:flex}.badge,.badgeMenu{margin-left:0}.badge{padding:0 6px;font-size:12px}
+  /* The menu spans the screen within its gutters and scrolls inside, instead of starting at the badge and running off the screen (N-08). */
+  .popover{position:fixed;top:52px;left:16px;right:16px;width:auto;max-height:calc(100dvh - 140px);overflow:auto}}
+/* Doubled class: the workspace stacks label text above controls; the scene choice stays on the header line. */
+.scene.scene{flex-direction:row;align-items:center;gap:6px;margin:0;font-size:13px;flex-shrink:1;min-width:0;white-space:nowrap}.scene.scene select{font-size:13px;width:auto;max-width:240px;min-width:0;text-overflow:ellipsis}@media(max-width:1050px){.sceneLabel{display:none}.scene.scene select{max-width:180px}}@media(max-width:620px){.scene.scene select{min-width:120px;max-width:150px}}

@@ -9,7 +9,7 @@ export type AssociationRequest=components["schemas"]["RegionAssociationRequest"]
 export type AssociationResult=components["schemas"]["AssociationView"];
 
 export type ComparisonMethod="legacy"|"parametric"|"rank";
-export type CommonPlotKind="distribution"|"paired"|"histogram"|"box"|"violin";
+export type CommonPlotKind="distribution"|"paired"|"histogram"|"box"|"violin"|"superplot"|"unit-mean-bar";
 export function comparisonMethod(method:ComparisonMethod,design:"independent"|"paired",count:number){
  if(method==="legacy")return null;
  return {version:"2.0.0" as const,test:design==="paired"?(method==="rank"?"wilcoxon" as const:"paired-t" as const):(method==="rank"?"mann-whitney-u" as const:"welch-t" as const),omnibus:design==="independent"&&count>=3?(method==="rank"?"kruskal-wallis" as const:"welch-anova" as const):null};

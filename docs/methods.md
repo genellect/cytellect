@@ -292,7 +292,9 @@ quartiles). Only the observation source is new and separately versioned.
   of the reviewed nucleoplasm table with the same area, and no other region may
   exist. Each row must satisfy union + nucleoplasm = nucleus area for candidate
   parents, zero nucleoplasm for candidate-free parents, the recorded area
-  fraction, and log2 = log2(nucleoplasm mean / nucleolar mean) exactly. Nucleus
+  fraction, and log2 = log2(nucleoplasm mean / nucleolar mean) within a relative and
+  absolute 1e-12 (a few units in the last place: the browser runtime's libm can round
+  log2 one bit away from the server's; the saved value is used as saved). Nucleus
   geometry must agree across channels. Failures are explicit error codes.
 - Observations are nuclei; a nucleus keeps the nucleoplasm region ID (its parent
   nucleus ID). Region exclusions of the nucleoplasm revision and whole-field
@@ -485,3 +487,226 @@ Measurements use unchanged original pixels and the final integer labels. Existin
 replace researcher-adopted or corrected masks. Local private real-image acceptance
 compares complete label regions with the approved trial, independently checks
 original-pixel measurements, and is distinct from general biological validation.
+
+## Group comparison contracts (2026-10-25)
+
+The group-comparison workflow ([goals](drafts/group-comparison/goals.md),
+[requirements](drafts/group-comparison/requirements.md)) adds the contracts below.
+They are additive: existing selections retain their request/result serialization
+and measurement/figure definitions. Saved workspaces, statistics, figures and
+public-demo recordings replay under their original versions. The new observation sources and estimates are
+accepted by the common-statistics comparison endpoint (two-screen comparisons).
+Field-summary 1.0.0 and compartment-summary 1.1.0 are also accepted by the
+descriptive endpoint (one-screen descriptions); comparison estimates remain comparison-only.
+
+### Version and compatibility table
+
+| Contract | Version | Status | Compatibility |
+|---|---|---|---|
+| Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
+| Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons and per-field descriptions: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
+| Compartment-summary selection | 1.1.0 | Comparisons and per-field descriptions (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
+| Comparison estimates | `comparison-estimates/1.0.0` | Opt-in `estimates` on common-statistics 2.0.0 comparisons with one contrast | Absent from historical requests and results |
+| Unresolved-nucleoli policy | `unresolved-as-missing/1.0.0` | Opt-in `compartment_missing` on cohorts and reviews of nucleolar/nucleoplasm revisions; comparisons and descriptions | Absent from historical requests, review records and results; without it every parent must be a candidate |
+| Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
+
+### Descriptive observation-source extension
+
+Descriptive 1.0.0 retains its existing per-field medians, linearly interpolated
+quartiles, exclusion and missingness ledger, without inference or an independence
+claim. Only its independently versioned observation sources are extended; existing
+requests and result bytes retain their previous serialization and definitions.
+Field-summary 1.0.0 uses `prepare_field_summary_observations`: one value and one
+plotted point per measured field, including a measured zero-nucleus field.
+Uncalibrated density is missing; explicitly excluded and failed fields follow the
+same source rules as comparisons. The redundant within-field median marker is
+omitted for this new source. Compartment-summary 1.1.0 uses the shared compartment
+adapter and the adopted-mask shape loader: one value per nucleus, with nuclei
+without an adopted nucleolus missing, never zero. These selections require reviewed
+sources and do not enable automatic previews. The 1.1.0 API/worker uses the same
+`assert_complete_compartments` admission check as comparisons: unresolved nuclear
+compartments must be resolved or explicitly excluded before queuing; the shared
+observation adapter still preserves missingness reasons. Historical 1.0.0
+admission behavior is unchanged. The existing figure versions retain
+their historical output for previously supported selections.
+
+### Experiment design 1.0.0
+
+A design records what the researcher declared: `layout` (`single`: one group
+described; `pair`: two groups compared), the groups (1 or 2), the control group
+(required before a pair comparison), the independent runs, each field's group,
+run and optional sample (coverslip or well), and whether the researcher confirmed
+that the runs were performed independently. Group, run and sample labels are at
+most 24 characters, without leading or trailing spaces, control characters or the
+separator `·`. Dates are ISO `YYYY-MM-DD`. Nothing is inferred from file names,
+folders, dates or plate labels.
+
+Derived per-field metadata (`experiment_design.field_metadata`), used unchanged by
+the existing ledgers and the field → sample → unit aggregation (S02):
+
+- condition = group label;
+- experimental unit = `run · group` (one unit per run and group, so independent and
+  paired designs both validate);
+- sample = `run · sample`, or the unit when the run has one sample per group;
+- pair = run label for `pair` designs, otherwise none;
+- acquisition date = the field's own imaging date, else the run's, else unknown.
+
+`experiment_design.readiness` lists issues to resolve before inference: unassigned
+or unknown fields, no runs, no control, a run missing a group, fields without an
+imaging date (needed for intensity comparisons, not for areas or counts), and
+unconfirmed independence. Descriptions never wait for these issues (S09). The default pair
+comparison is paired by run with contrast `[treatment, control]`, so the reported
+effect is treatment − control; the researcher still confirms the design (S10).
+
+### Field-summary selection 1.0.0
+
+One observation per field, computed from the adopted, non-excluded regions of the
+selected nuclear region set (`field_summary.field_summary_values`):
+
+- `nucleus_count`: the number of adopted nuclei, including nuclei touching the
+  image border; `border_count` reports how many touch it. A measured field with no
+  regions is an observed zero, not a missing value.
+- `nucleus_density_per_mm2`: `nucleus_count / (rows × columns × s² × 10⁻⁶)` with
+  the confirmed square pixel size `s` in µm; missing (`calibration_unknown`)
+  without calibration.
+- `positive_count` and `positive_fraction`: nuclei classified positive by the
+  recorded nucleus gate (`gfp-gate/2.0.0` negative-control or `gfp-gate/3.0.0`
+  manual/batch Otsu, `keep: "positive"`) on the judged channel. The denominator of
+  the fraction is the number of nuclei with a gate value (`evaluable_count`); the
+  total and the non-evaluable count are reported. No evaluable nucleus → fraction
+  missing (`no_evaluable_nuclei`); positive count 0.
+- Failed and explicitly excluded fields are not observations (`field_failed`,
+  `field_excluded`) and stay in the comparison ledger; their counts are unknown
+  (`null`), not zero.
+- `evaluable_count` and `positive_count` are reported only for `positive_*`
+  selections (otherwise `null`). `excluded_region_count` is the number of the
+  field's explicitly excluded regions, which are never counted as nuclei.
+- `field_area_mm2` is reported whenever the pixel size is known.
+- Aggregation is unchanged: the single field value is the field summary, then the
+  sample mean and the unit mean. The count is a count of imaged nuclei, not a
+  viability or proliferation measure, and it depends on field selection.
+- Only nuclear region sets are counted: StarDist nuclei or researcher-supplied
+  (manual/imported) regions. Positive regions, nuclear compartments and Cellpose
+  cells are refused (`field_summary_nuclear_source_required`).
+- Acquisition review follows pixel area: equal spatial sampling must be confirmed
+  and all compared fields must share one calibration, because the count depends on
+  the imaged area and resolution.
+
+### Compartment-summary selection 1.1.0
+
+Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
+(candidate-free nuclei are missing with `no_nucleolus`, never zero):
+
+- `nucleolar_area_px`, `nucleolar_area_um2`: pixel area of the nucleolar union of
+  the nucleus (calibration required for µm²).
+- `nucleolar_eccentricity` (`nucleolar_shape.nucleolar_eccentricity`): for each
+  nucleolar object of the nucleus, `e = sqrt(1 − λmin / λmax)`, where λ are the
+  eigenvalues of the population covariance of the object's pixel-centre
+  coordinates (equal to scikit-image `regionprops` eccentricity). A one-pixel
+  object (`λmax = 0`) is not measured; a one-pixel-wide line has `e = 1`. The nucleus value is the area-weighted mean of its measured objects;
+  if none is measurable it is missing (`degenerate_objects`). Larger values mean
+  more elongated nucleoli; rounder nucleoli have smaller values.
+- Eccentricity is computed when the comparison runs, from each field's adopted
+  nuclear mask (with its exclusions) and adopted nucleolar mask, the same inputs as
+  the saved summary. Every summarized nucleus must have the same nuclear and
+  nucleolar-union pixel areas and nucleolus count in these masks, otherwise the
+  comparison is refused (`compartment_summary_shape_mismatch`).
+- `nucleolar_area_um2` needs a confirmed calibration (`compartment_summary_calibration_required`);
+  area and eccentricity follow the pixel-area acquisition review (equal sampling,
+  one calibration), µm² the calibrated-area review.
+
+### Comparison estimates 1.0.0
+
+Computed from the independent-unit values of a saved two-group comparison
+(`comparison_estimates.comparison_estimates`), always as treatment − control. The
+metric's scale (`group_comparison_contracts.metric_scale`) decides what is shown:
+
+| Scale | Metrics | Difference | Ratio |
+|---|---|---|---|
+| ratio | areas, counts, density, raw mean/median/integrated, nucleolar count and area | in the metric's unit | when every unit value is positive |
+| difference | background-corrected intensities, nucleolar eccentricity | in the metric's unit | not shown (`ratio_not_applicable`) |
+| fraction | positive fraction, nucleolar area fraction | in percentage points (×100) | not shown |
+| log2 | log2 nucleoplasm/nucleolus | in log2 units | not shown |
+
+- Paired t test: difference = mean of per-run differences, 95% t interval with
+  n_pairs − 1 degrees of freedom; ratio = `exp(mean(log(t_i / c_i)))` with the 95%
+  t interval of the mean log ratio, exponentiated. Fewer than two pairs →
+  `too_few_pairs`; zero variance → `zero_variance`.
+- Welch t test: difference of group means with the Welch–Satterthwaite interval;
+  ratio of geometric means, `exp(mean(log t) − mean(log c))`, with the Welch interval
+  on log values. A group with fewer than two units → `too_few_units`.
+- Rank tests (Mann–Whitney U, Wilcoxon): no difference or ratio interval
+  (`rank_test`); the result keeps the existing rank effect sizes, and paired
+  designs list the per-run values and differences descriptively.
+- Descriptive comparison (`test: "none"`, used while the researcher has not confirmed
+  that the runs are independent, requirements E-05): no difference, ratio or interval
+  (`inference_not_requested`); group summaries keep n, mean and SD without an interval;
+  paired designs list each run's values and difference. No test or p value exists.
+- Any non-positive unit value → ratio missing (`nonpositive_values`).
+- Group summaries: n, mean, sample SD and the 95% t interval of each group's unit
+  values (`too_few_units` below two units).
+- Paired designs list each run's control, treatment, difference and (for the ratio
+  scale with positive values) ratio, in the saved pair order.
+- For the fraction scale, the saved difference, its interval and each run's
+  difference are in percentage points (the fraction difference × 100); unit values
+  and group summaries stay fractions. The declared test's own estimate in the
+  comparison table keeps the fraction unit.
+
+These are pointwise intervals for one declared contrast. The p value remains the
+declared test's; estimates never select or replace a test.
+
+The saved estimates are exported with the common-statistics figure as
+`estimates.csv` (difference and ratio with basis or reason), `estimates-groups.csv`
+and `estimates-runs.csv`, and stated in its Methods.
+
+### Unresolved-nucleoli policy 1.0.0 (2026-10-26)
+
+Requirements Q-05; design and options in
+[genellect/cytellect#109](https://github.com/genellect/cytellect/pull/109).
+Without the policy, statistics on a nucleolar or nucleoplasm revision still require
+every parent nucleus to be a `candidate` (and, for nucleoplasm, a non-empty
+nucleoplasm). With it, a nucleus whose nucleolus was not established stays in the
+ledger as missing instead of being removed (`compartment_review.py`).
+
+- Kept as missing: parents recorded as `no_candidate` or `indeterminate`, and
+  candidate parents whose nucleoplasm is empty after subtraction
+  (`empty_after_subtraction`, nucleoplasm revisions only). Their nuclear masks,
+  measurements and IDs are unchanged.
+- Still stopped: `processing_failed`, `unclassified`, `review_required` (saved
+  candidates of a truncated parent await the researcher's review; whether to count
+  them individually needs its own rule), `not_measured_recipe`, `legacy_candidate`,
+  `none_after_edit` (`compartment_state_not_missing`), and a state table that does not
+  list every missing parent (`compartment_ledger_invalid`). An unexcluded
+  experimental unit without any value still stops the comparison
+  ([region comparisons](region-comparisons.md#input-ledger-and-missingness)).
+- Ledger per field: all parent nuclei; resolved (with an established compartment);
+  missing by reason; explicitly excluded (nucleoplasm region exclusions, which are
+  parent nuclei; part of resolved). nuclei = resolved + missing.
+- Confirmation: a cohort request names the policy (`compartment_missing`) and the
+  review sends, per field, the missing count by reason. The API rebuilds the ledger
+  from the revision's provenance and accepts the review only when the confirmation
+  equals it exactly (`compartment_missing_confirmation_mismatch`); the review record
+  keeps the policy and the ledger. `GET /v1/revisions/{rid}/compartment-ledger`
+  returns the ledger before the review. Statistics stop when the ledger no longer
+  equals the reviewed one (`compartment_missing_ledger_changed`).
+- Results (common-statistics 2.0.0 comparisons and descriptive results) carry
+  `compartment_missing`: per condition and experimental unit, fields, nuclei,
+  resolved, missing (with reasons) and excluded. The missing fraction is
+  missing / all nuclei; exclusions never shrink the denominator.
+- Warning (`compartment_missing_rate_differs`): within one run (the field's `pair`;
+  fields without a run form one run), the groups' missing fractions (missing / all
+  nuclei, summed over the run's units of each group) differ by at least 10
+  percentage points, decided with exact fractions. Groups without nuclei have no
+  fraction. Runs whose differences cancel out are each warned. The threshold was
+  fixed before it was applied to any data; no warning is not evidence that no
+  selection related to the treatment remains.
+- Values describe the nuclei whose nucleolus was established, not all nuclei, and
+  are not a bias-corrected estimate of the treatment effect.
+- Associations refuse a revision reviewed under the policy
+  (`compartment_missing_association_unsupported`): their result has no place for the
+  ledger.
+- The comparison figure exports `compartment-missing.csv`; comparison and
+  descriptive Methods state the policy, every group and unit's missing / all nuclei
+  and the warning. Descriptive exports keep the ledger in `figure-data.json`.
+  Export replay and the in-browser runtime recompute the same ledger from the saved
+  review record.

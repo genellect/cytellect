@@ -8,6 +8,7 @@ import {regionAnnotations} from "../../../lib/workspace/image-viewport";
 import styles from "./review-image.module.css";
 import {isShowcaseNoticeError} from "./showcase-ui";
 
+
 export interface ReviewImageCanvasProps {
   src: string;
   width: number;
@@ -42,6 +43,8 @@ export interface ReviewImageCanvasProps {
   outlineTone?: "nuclear" | "marker";
   /** Display-only outlines of an enclosing structure (e.g. nuclei around nucleoli); not selectable. */
   context?: Array<{id: number; points: Point[]}>;
+  /** The enclosing structure a per-structure value belongs to (a nucleus whose nucleoli were measured), outlined apart. */
+  contextSelected?: number;
   /** Initial magnification relative to the whole-image fit (display only). */
   initialZoom?: number;
   /** Image point (source pixels) the initial magnification centres on; the image centre when absent. */
@@ -108,7 +111,7 @@ function Icon({kind}: {kind: keyof typeof iconPaths}) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;
 }
 
-export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, initialZoom, initialFocus}: ReviewImageCanvasProps) {
+export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, contextSelected, initialZoom, initialFocus}: ReviewImageCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<Size>({width: 0, height: 0});
   const [manual, setManual] = useState<{source: string; camera: Camera} | null>(null);
@@ -133,7 +136,8 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const whole = reviewImageFit(imageSize, available);
   // 画像全体を表示 switches to the whole-image fit, which keeps following viewport size changes.
   const [wholeView, setWholeView] = useState(false);
-  const zoomed = initialZoom && initialZoom > 1 && !wholeView ? whole.scale * initialZoom : 0;
+  const factor = initialZoom;
+  const zoomed = factor && factor > 1 && !wholeView ? whole.scale * factor : 0;
   const fit = zoomed ? boundedCamera(initialFocus
     ? {scale: zoomed, x: available.width / 2 - initialFocus[0] * zoomed, y: available.height / 2 - initialFocus[1] * zoomed}
     : reviewImageZoom(whole, zoomed, {x: available.width / 2, y: available.height / 2}), imageSize, available) : whole;
@@ -279,7 +283,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
       onPointerUp={endDrag} onPointerCancel={endDrag}
       onPointerLeave={event => {if (drag.current && !drag.current.moved) endDrag(event);}}
       onDoubleClick={event => {if (!draft && !suppressClick.current && onOpen) {event.preventDefault(); onOpen();}}}>
-      <svg className={styles.image} role="img" aria-label={label} width="100%" height="100%">
+      <svg className={styles.image} role="group" aria-roledescription="画像" aria-label={label} width="100%" height="100%">
         <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.scale})`}>
           {layers?.length ? <>
             <defs>{layers.map((layer, index) => <filter key={layer.src} id={`tint-${index}-${layer.color.slice(1)}`} colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values={tint(layer.color)}/></filter>)}</defs>
@@ -289,7 +293,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
               onError={() => {if (layer.src === src) setFailedSource(src);}}/>)}
             {!layers.some(layer => layer.src === src) && <image href={src} width={0} height={0} onLoad={() => {setLoadedSource(src); setFailedSource(null);}} onError={() => setFailedSource(src)}/>}
           </> : <image href={src} width={width} height={height} preserveAspectRatio="xMidYMid meet" onLoad={() => {setLoadedSource(src);setFailedSource(null);}} onError={() => setFailedSource(src)}/>}
-          {visible && context?.map(outline => <polygon key={`context-${outline.id}`} points={outline.points.map(point => point.join(",")).join(" ")} className={styles.context} vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
+          {visible && context?.map(outline => <polygon key={`context-${outline.id}`} points={outline.points.map(point => point.join(",")).join(" ")} className={outline.id === contextSelected ? styles.contextSelected : styles.context} data-context={outline.id === contextSelected ? "selected" : undefined} vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
           {visible && regions.map(region => <path key={region.id} d={region.path} fillRule="evenodd" data-region={region.id} data-classification={classification&&Number(region.id) in classification?(classification[Number(region.id)]===null?"unknown":classification[Number(region.id)]?"positive":"negative"):undefined}
             className={(draft?.operation === "merge" ? draft.merged.includes(Number(region.id)) : Number(region.id) === selected) ? styles.selected : styles.outline} vectorEffect="non-scaling-stroke"
             role="button" tabIndex={0} aria-label={`領域 ${region.id}`} aria-pressed={Number(region.id) === selected}

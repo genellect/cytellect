@@ -172,6 +172,13 @@ def test_full_workflow_runs_inline_from_seed(seed, tmp_path, fake_replay, isolat
         assert code == 200
         with zipfile.ZipFile(io.BytesIO(response["body"])) as bundle:
             assert {"analysis.zip", "manifest.json", "figure-result.json"} <= set(bundle.namelist())
+        # The selection changes after the statistics are saved (statistics of another region do): the
+        # build's rederive replays each job under the selection it was saved with, then restores the last.
+        changed = await client.ok("POST", f"/v1/workspaces/{wid}/selection", selection)
+        from cytellect_showcase.rederive import rederive_in_place
+        redone = rederive_in_place()
+        assert redone["statistics"] >= 2 and redone["figure_render"] >= 1
+        assert await client.ok("GET", f"/v1/workspaces/{wid}/selection") == changed
         jobs = await client.ok("GET", f"/v1/workspaces/{wid}/jobs")
         assert jobs and all(job["state"] in ("succeeded", "failed", "cancelled") for job in jobs)
 
