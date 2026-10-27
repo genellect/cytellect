@@ -29,6 +29,7 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 - [群間比較の UX 改善：目標定義書（案）](drafts/group-comparison/goals.md)、[要件定義書（案）](drafts/group-comparison/requirements.md)、[開発体制（案）](drafts/group-comparison/development.md)：レビュー中の下書き
 - [クラウド開発環境：実装計画（案）](drafts/cloud-development/plan.md)：オーナーの承認待ち
 - [本番構成での動作確認と研究者 UX 評価：実施計画（案）](drafts/cloud-development/verification.md)：オーナーの承認待ち
+- [エージェントによる画面の評価：2026-10-27](drafts/cloud-development/agent-evaluation-2026-10-27.md)：研究者による評価ではない
 
 ## 設計と実装
 
