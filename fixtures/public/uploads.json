@@ -3,6 +3,8 @@
   "purpose": "Files a shared development environment accepts as uploads (CYTELLECT_UPLOAD_ALLOWLIST). Each is a registered public image, byte-identical to its prepared form.",
   "files": [
     {"sha256": "fabeb893e3060813d650cf4c233c06732fd2f0cdbf468da55381bbf334bc2313", "dataset": "BBBC007v1", "file": "a9-actin.tif", "license": "CC0-1.0", "prepared_by": "scripts/prepare_workspace_bbbc007.py"},
-    {"sha256": "1abc5c6e7c53bdb7e97fd9409ee963e9cb903496e1776f585fa338cd9f5563e2", "dataset": "BBBC007v1", "file": "a9-dna.tif", "license": "CC0-1.0", "prepared_by": "scripts/prepare_workspace_bbbc007.py"}
+    {"sha256": "1abc5c6e7c53bdb7e97fd9409ee963e9cb903496e1776f585fa338cd9f5563e2", "dataset": "BBBC007v1", "file": "a9-dna.tif", "license": "CC0-1.0", "prepared_by": "scripts/prepare_workspace_bbbc007.py"},
+    {"sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e", "dataset": "BBBC013v1", "file": "A01-dapi.tif", "license": "CC-BY-3.0", "prepared_by": "fixtures/public/bbbc013/A01-dapi.tif"},
+    {"sha256": "ef0bd8c6903d78fb5145e65eae8f7dd8aa721cbe7693783799b9a965c19e1616", "dataset": "BBBC013v1", "file": "A01-gfp.tif", "license": "CC-BY-3.0", "prepared_by": "fixtures/public/bbbc013/A01-gfp.tif"}
   ]
 }
