@@ -8,16 +8,16 @@ Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に
 
 ## クラウド開発
 
-手元に何も入れずに、道具と Fiji が揃った環境ですぐに始められる。Claude Code や Codex のクラウド環境では、環境の設定に次のセットアップスクリプトを登録する。
+固定版の開発ツールと Fiji を備えたクラウド環境で開発する。手元の PC への導入は不要で、画面は環境内のブラウザ（Playwright）で確認する。環境の設定には、使うツールに応じたセットアップスクリプトを登録する。
 
 | ツール | セットアップスクリプト |
 |---|---|
 | Claude Code | `bash .claude/cloud-setup.sh` |
 | Codex | `bash .codex/setup.sh` |
 
-Claude Code のスクリプトは、固定版の Node.js、pnpm、uv と、日本語フォント、Fiji を揃え、実際の Fiji での試験まで行う（初回は約 9 分）。Codex で Fiji も使うときは、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップする。
+Claude Code のスクリプトは、固定版の Node.js、pnpm、uv、日本語フォント、Fiji を導入し、実際の Fiji での試験まで行う。初回は約 9 分かかる。Codex で Fiji も使うときは、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップする。
 
-Claude Code の環境の設定（セッションのタイトルバーのクラウド環境のメニュー → Edit）には、[外部サービス](#外部サービス)の環境変数も登録する。登録した値は新しいセッションから読み込まれ、セットアップスクリプトからは読めない。ネットワークは、パッケージマネージャーの既定の接続先に加えて、次の接続先を許可する。
+Claude Code の環境の設定（セッションのタイトルバーのクラウド環境のメニュー → Edit）には、[外部サービス](#外部サービス)の環境変数と、次の接続先も登録する。環境変数は新しいセッションから読み込まれ、セットアップスクリプトからは参照できない。接続先は、パッケージマネージャーの既定の許可に加えて設定する。
 
 | 用途 | 接続先 |
 |---|---|
@@ -27,32 +27,30 @@ Claude Code の環境の設定（セッションのタイトルバーのクラ�
 | 公開画像 | `bbbc.broadinstitute.org`、`cellpainting-gallery.s3.amazonaws.com`、`zenodo.org` |
 | 外部サービス | `*.modal.direct`、`*.workers.dev` |
 
-作業を始めるシェルでは、最初に `env.sh` を読み込み、準備を確かめてから起動する。`env.sh` は、固定版の道具と Fiji、試験に使う Chromium、クラウド GPU の接続キーを設定する。
+作業を始めるシェルでは、`env.sh` を読み込んでから準備を確認し、起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。
 
 ```bash
 source "$HOME/.local/share/cytellect-cloud/env.sh"
-python3 scripts/dev.py doctor   # 道具、フォント、Fiji、外部サービスの設定を確認
+python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
 python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
 ```
 
-クラウド環境の `localhost` は手元のブラウザからは開けないため、画面は環境の中の Playwright で確かめる。
-
 ## ローカル開発
 
-手元のブラウザで画面を直接操作でき、編集もすぐに確かめられる。Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。Linux では、図の描画に使う日本語フォント `fonts-noto-cjk` も入れておく。
+手元の PC で開発する。画面を手元のブラウザで操作でき、開発サーバーを使うと Web の変更がすぐに反映される。Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。Linux では、図の描画に使う日本語フォント `fonts-noto-cjk` も導入する。
 
-依存パッケージと Fiji を揃え、準備を確かめてから起動する。Fiji と作業データは checkout の外に置く。
+依存パッケージと Fiji を導入し、準備を確認してから起動する。Fiji と作業データは checkout の外に置く。
 
 ```bash
 python3 scripts/dev.py setup --fiji ~/cytellect-fiji
 export CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji
-python3 scripts/dev.py doctor   # 道具、フォント、Fiji、外部サービスの設定を確認
+python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
 python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
 ```
 
 ブラウザで `http://localhost:3000/workspace` を開き、招待コードを入力する。API は接続元の Origin を厳密に照合するため、`127.0.0.1` ではなく `localhost` を使う。`serve` は研究室の PC と同じ設定で動き、Ctrl-C で全体が止まる。作業データの既定の場所は `~/cytellect-data` で、Web を変えていなければ `--skip-build` でビルドを省ける。`serve` は Linux 向けで、Windows では下の 3 つの端末で起動する。
 
-画面を編集しながら確かめるときは、変更がすぐ反映される開発サーバーを使う。API、計算ワーカー、Web を別の端末で起動し、API とワーカーの端末には同じ環境変数を設定する。
+Web を編集しながら確認するときは、開発サーバーを使う。API、計算ワーカー、Web を別の端末で起動し、API とワーカーの端末には同じ環境変数を設定する。
 
 ```bash
 export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
@@ -72,7 +70,7 @@ pnpm dev                             # 端末 3：Web
 | Cellpose-SAM（CPU） | `python3 scripts/dev.py setup --cellpose ~/cytellect-cellpose`（約 2.5 GB）。最後に表示される `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` を設定する |
 | 解析提案 | `CYTELLECT_PROPOSAL_URL` と `CYTELLECT_PROPOSAL_TOKEN`：Worker の URL と、この環境の端末トークン（[解析提案](docs/proposal-service.md#development-environments)） |
 
-`doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。`doctor --live` は実際に接続して確かめる。このとき停止中の GPU が起動し、約 3 分かかって使った秒数だけ課金される。解析提案は空の依頼でトークンだけを確かめ、モデルは呼ばない。外部サービスも必須とするときは `--require-cloud` を付ける。
+`doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。`doctor --live` は実際に接続して確認する。このとき停止中の GPU が起動し、起動に約 3 分かかり、使った秒数に応じて課金される。解析提案は空の依頼でトークンだけを確認し、モデルは呼ばない。外部サービスも必須とするときは `--require-cloud` を付ける。
 
 ## PR を出す前に
 
