@@ -143,34 +143,14 @@ StarDist で検出した核を親として、核小体・細胞質を Cellpose-S
 
 ## 開発
 
-### ローカル開発
+開発環境の構築と起動の手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめている。
 
-Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用する。Linux での起動手順は次のとおり。
+| 環境 | 特徴 | セットアップ |
+|---|---|---|
+| [クラウド開発](CONTRIBUTING.md#クラウド開発) | 固定版の開発ツールと Fiji を備えたクラウド環境。手元への導入は不要 | Claude Code は `bash .claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` |
+| [ローカル開発](CONTRIBUTING.md#ローカル開発) | 手元の PC とブラウザで操作。開発サーバーで Web の変更を即時に反映 | `python3 scripts/dev.py setup --fiji ~/cytellect-fiji` |
 
-```bash
-python3 scripts/dev.py setup --fiji ~/cytellect-fiji
-
-export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
-uv run cytellect invite --hours 24
-uv run cytellect serve      # 端末 1
-uv run cytellect-worker     # 端末 2（同じ環境変数を設定）
-pnpm dev                    # 端末 3
-```
-
-CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査である。統計結果は独立した数式や全列挙による計算と照合している。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認する。
-
-```bash
-python3 scripts/dev.py check
-```
-
-### クラウド開発
-
-Claude Code や Codex のクラウド環境では、次のセットアップスクリプトを環境の設定に登録する。Fiji の導入などの詳しい手順は [CONTRIBUTING](CONTRIBUTING.md#クラウド開発) にまとめている。
-
-| ツール | セットアップスクリプト |
-|---|---|
-| Claude Code | `bash .claude/cloud-setup.sh` |
-| Codex | `bash .codex/setup.sh` |
+どちらの環境も `python3 scripts/dev.py serve` で起動し、PR の前に `python3 scripts/dev.py check` で CI と同じ検査を行う。CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows 版の導入、依存パッケージの監査である。統計結果は独立した数式や全列挙による計算と照合している。
 
 ## ライセンス
 

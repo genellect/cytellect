@@ -4,22 +4,53 @@ Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に
 
 作業を始める前に、人も AI エージェントも守る[開発の原則](docs/development-principles.md)のうち、作業に関係する節を必ず読む。PR でどの CI ジョブが実行されるかは、[CI の構成](docs/ci.md)にある。
 
-## 必要な環境
+研究データと認証情報は、[チーム開発ルール §6](docs/team-development.md#6-研究データの扱い)に従って扱う。試験と動作確認には[登録済みの公開画像](fixtures/public)だけを使う。
 
-Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。図の描画には日本語フォントを使うため、Linux では `fonts-noto-cjk` も入れておく。
+## クラウド開発
 
-研究データと認証情報は、[チーム開発ルール §6](docs/team-development.md#6-研究データの扱い)に従って扱う。
+固定版の開発ツールと Fiji を備えたクラウド環境で開発する。手元の PC への導入は不要で、画面は環境内のブラウザ（Playwright）で確認する。どちらの環境も、配布版と同じ固定ファイル（ロックファイル、Fiji の固定版、デプロイ済みの GPU サーバーと Worker）から作るため、機能が増えても手順は変わらない。環境の設定には、使うツールに応じたセットアップスクリプトを登録する。
+
+| ツール | セットアップスクリプト |
+|---|---|
+| Claude Code | `bash .claude/cloud-setup.sh` |
+| Codex | `bash .codex/setup.sh` |
+
+Claude Code のスクリプトは、固定版の Node.js、pnpm、uv、日本語フォント、Fiji を導入し、実際の Fiji での試験まで行う。初回は約 9 分かかる。Codex で Fiji も使うときは、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップする。
+
+Claude Code の環境の設定（セッションのタイトルバーのクラウド環境のメニュー → Edit）には、[外部サービス](#外部サービス)の環境変数と、次の接続先も登録する。環境変数は新しいセッションから読み込まれ、セットアップスクリプトからは参照できない。接続先は、パッケージマネージャーの既定の許可に加えて設定する。
+
+| 用途 | 接続先 |
+|---|---|
+| Node.js、uv | `nodejs.org`、`github.com`、`release-assets.githubusercontent.com` |
+| Fiji | `downloads.imagej.net`、`sites.imagej.net`、`repo.maven.apache.org` |
+| 日本語フォント | `archive.ubuntu.com`、`azure.archive.ubuntu.com`、`mirrors.edge.kernel.org` |
+| 公開画像 | `bbbc.broadinstitute.org`、`cellpainting-gallery.s3.amazonaws.com`、`zenodo.org` |
+| 外部サービス | `*.modal.direct`、`*.workers.dev` |
+
+作業を始めるシェルでは、`env.sh` を読み込んでから準備を確認し、起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。
+
+```bash
+source "$HOME/.local/share/cytellect-cloud/env.sh"
+python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
+python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
+```
 
 ## ローカル開発
 
-依存パッケージと Fiji は一つのコマンドで揃う。Cellpose-SAM（約 2.5 GB）も使う場合は、続けて導入する。導入先はどちらも checkout の外を指定する。
+手元の PC で開発する。画面を手元のブラウザで操作でき、開発サーバーを使うと Web の変更がすぐに反映される。Python 3.12、Node.js、pnpm、uv を用意する。版は `.node-version`、`package.json` の `packageManager`、CI の uv の指定が正本で、`doctor` がこれらと照合する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。Linux では、図の描画に使う日本語フォント `fonts-noto-cjk` も導入する。
+
+依存パッケージと Fiji を導入し、準備を確認してから起動する。Fiji と作業データは checkout の外に置く。
 
 ```bash
 python3 scripts/dev.py setup --fiji ~/cytellect-fiji
-python3 scripts/dev.py setup --cellpose ~/cytellect-cellpose
+export CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji
+python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
+python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
 ```
 
-API、計算ワーカー、Web は、それぞれ別の端末で起動する。API とワーカーの端末では、最初に同じ環境変数を設定する。
+ブラウザで `http://localhost:3000/workspace` を開き、招待コードを入力する。API は接続元の Origin を厳密に照合するため、`127.0.0.1` ではなく `localhost` を使う。`serve` は研究室の PC と同じ設定で動き、Ctrl-C で全体が止まる。作業データの既定の場所は `~/cytellect-data` で、Web を変えていなければ `--skip-build` でビルドを省ける。`serve` は Linux 向けで、Windows では下の 3 つの端末で起動する。
+
+Web を編集しながら確認するときは、開発サーバーを使う。API、計算ワーカー、Web を別の端末で起動し、API とワーカーの端末には同じ環境変数を設定する。
 
 ```bash
 export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
@@ -29,19 +60,17 @@ uv run cytellect-worker              # 端末 2：計算ワーカー
 pnpm dev                             # 端末 3：Web
 ```
 
-ブラウザで `http://localhost:3000/workspace` を開き、招待コードを入力するとワークスペースに入れる。API は接続元の Origin を厳密に照合するため、アドレスは `127.0.0.1` ではなく `localhost` を使う。Cellpose-SAM を導入した場合は、`setup` が最後に表示する `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` も、API とワーカーの端末で設定する。
+## 外部サービス
 
-## クラウド開発
+GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の設定があるときに使える。認証情報はオーナーから受け取り、チャット、コミット、ログには書かない。
 
-Claude Code や Codex のクラウド環境では、環境の設定にセットアップスクリプトを登録しておくと、依存パッケージが揃った状態で作業を始められる。
-
-| ツール | セットアップスクリプト |
+| 機能 | 設定 |
 |---|---|
-| Claude Code | `bash .claude/cloud-setup.sh` |
-| Codex | `bash .codex/setup.sh` |
+| GPU 推論 | `CYTELLECT_MODAL_PROXY_KEY` と `CYTELLECT_MODAL_PROXY_SECRET`：Modal の接続用トークンの ID（`wk-…`）と Secret（`ws-…`）（[クラウド GPU](docs/cloud-gpu.ja.md#開発環境から使う)） |
+| CPU 推論（GPU 推論の代わり） | `python3 scripts/dev.py setup --cellpose ~/cytellect-cellpose`（約 2.5 GB）。最後に表示される `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` を設定する |
+| 解析提案 | `CYTELLECT_PROPOSAL_URL` と `CYTELLECT_PROPOSAL_TOKEN`：Worker の URL と、この環境の端末トークン（[解析提案](docs/proposal-service.md#development-environments)） |
 
-Claude Code では、作業を始めるシェルで `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行すると、固定版の Node.js とブラウザの試験に使う Chromium が使えるようになる。Fiji も必要なら、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップする。図の描画に使う日本語フォント（`fonts-noto-cjk`）も、環境の設定で導入しておく。
-
+`doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。`doctor --live` は実際に接続して確認する。このとき停止中の GPU が起動し、起動に約 3 分かかり、使った秒数に応じて課金される。解析提案は空の依頼でトークンだけを確認し、モデルは呼ばない。外部サービスも必須とするときは `--require-cloud` を付ける。
 
 ## PR を出す前に
 
@@ -54,4 +83,4 @@ python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既�
 python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
+ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。ブラウザの試験を手元で行うときは、`serve` を起動したまま、CI の `fiji-browser` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ手順で公開画像を準備して `pnpm test:e2e` を実行する。`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
