@@ -9,6 +9,9 @@ test("the public analysis screen is the demo and opens without analytics or a pr
   await expect(page.getByText("デモ", {exact:true})).toBeVisible();
   expect(external).toEqual([]);
   expect((await page.request.get("/legacy")).status()).toBe(404);
+  // The former review route is the workspace, which is the demo here.
+  await page.goto("/workspace-review");
+  await expect(page).toHaveURL(/\/demo(\?|$)/);
 });
 
 test("the configured analysis screen requires a session and enters the workspace after invitation exchange", async ({page}) => {
@@ -24,7 +27,9 @@ test("the configured analysis screen requires a session and enters the workspace
     if (path === "/v1/invitations/redeem") {expect(route.request().postDataJSON()).toEqual({token}); authenticated = true;return route.fulfill({headers,contentType:"application/json",body:"{}"});}
     return route.fulfill({status:404, headers,contentType:"application/json",body:'{"detail":"not_found"}'});
   });
-  await page.goto("/workspace");
+  // The former review route is the workspace behind the same session gate.
+  await page.goto("/workspace-review");
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByTestId("file-input")).toHaveCount(0);
   await page.getByLabel("招待コード",{exact:true}).fill(token);
   await page.getByRole("button",{name:"ワークスペースに接続",exact:true}).click();

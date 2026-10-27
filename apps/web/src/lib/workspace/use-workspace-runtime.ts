@@ -4,6 +4,7 @@ import {ApiError, errorCodeMessage, errorMessage, request} from "../api";
 import type {Point} from "../types";
 import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {effectiveChannelAssignments} from "./channel-assignments";
+import {intakePath} from "./dropped-files";
 import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, type Grouping} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
 import {cellposeDetector,nclCellposeDetector,isCellposeDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
@@ -427,7 +428,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       // A batch has its own identity: names in a later drop cannot overwrite earlier pixels.
       const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[],addedIds:string[]=[];
       for(const file of Array.from(list)){
-        const originalPath=file.webkitRelativePath||file.name;if(!isSupportedImage(originalPath))continue;
+        const originalPath=intakePath(file);if(!isSupportedImage(originalPath))continue;
         if(file.size>256*1024*1024)throw new Error("画像ファイルは256 MiB以下にしてください。");
         const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer()),sha256=Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,"0")).join("");
 

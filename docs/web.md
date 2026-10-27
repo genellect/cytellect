@@ -67,7 +67,8 @@ and measured, with saved statistics and figures. Everything except adding images
 production and is computed by the same API and analysis package, serverless. The architecture,
 the shared contracts and the demo files are described in [the showcase document](showcase.md).
 `/workspace` on the public build redirects to `/demo`; installations with an API (local package,
-Docker, development) keep their workspace at `/` and `/workspace` and have no `/demo`.
+Docker, development) keep their workspace at `/` and `/workspace` and have no `/demo`. The former
+review route `/workspace-review` (the workspace without its session gate) redirects to `/workspace`.
 
 - Transport: `lib/showcase` answers visitors from recordings only, on every device and without
   waiting: the recorded GET responses (`/showcase/snapshot/`, every field, region and channel)
@@ -78,17 +79,24 @@ Docker, development) keep their workspace at `/` and `/workspace` and have no `/
   unrecorded settings) shows an information notice at once ("公開デモに記録していません"), never
   the error banner. Unrecorded detection conditions, unrecorded AI instructions and uploads are
   notices too.
-- Detection inputs offer only recorded values (`snapshot/recorded-options.json`); the AI composer
-  offers the recorded instructions (`snapshot/proposal-examples.json`) as examples. The header
-  shows a デモ badge with the image source and limits (`snapshot/dataset.json`) and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that
-  points to the Windows/Docker versions.
-- `?step=image|statistics|figure` opens that tab. A four-step guide (画像と輪郭 → 測定値 → 統計 →
-  グラフと書き出し) opens from 「使い方」; it never opens by itself, so the image and results show at once.
+- The same as in production: several stains open as a colour merge (重ねて表示: the nuclear stain blue,
+  each other used stain its own colour; choosing one stain shows it alone); nucleoli and nucleoplasm
+  open on the nucleolar marker with the adopted nuclei outlined faintly; side by side (2 画面) each
+  pane has the outline tools of one field; focusing the AI composer opens the AI panel;
+  `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved
+  result, and saved comparisons switch with one click (保存した比較). In production a drop of files
+  or folders adds images as the 画像 and フォルダ buttons do.
+- Demo only: the AI composer also offers the recorded instructions (`snapshot/proposal-examples.json`)
+  as examples. The header shows a デモ badge with the image source and limits (`snapshot/dataset.json`)
+  and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that points to the
+  Windows/Docker versions. A four-step guide (画像と輪郭 → 測定値 → 統計 → グラフと書き出し) opens from
+  「使い方」; it never opens by itself, so the image and results show at once.
 - Controls whose results cannot be recorded are fixed to the recorded values with a short note and
   shown as locked (statistics method and design, experiment information, figure labels, axes,
   colours and sizes). The detection conditions, nuclear stain and background correction are shown
-  as the recorded settings of the adopted result (text, not controls); cell ROIs and GFP, absent from the dataset, are not offered. Missing optional demo files leave the
-  matching controls as in production.
+  as the recorded settings of the adopted result (text, not controls), so the demo offers no
+  detection inputs; cell ROIs and GFP, absent from the dataset, are not offered. Missing optional
+  demo files leave the matching controls as in production.
 - Development without the demo build: `scripts/dev_showcase_backend.py` serves the same
   boot/handle contract from a local CPython API with a threshold stand-in for detection, for
   builds made with `NEXT_PUBLIC_SHOWCASE_DEV_BACKEND=http://127.0.0.1:8000` (loopback only; never

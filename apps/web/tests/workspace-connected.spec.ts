@@ -88,7 +88,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
     return json({detail: "unexpected_synthetic_route"}, 404);
   });
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/workspaces" && response.request().method() === "GET");
-  await page.goto("/workspace-review");
+  await page.goto("/workspace");
   await loaded;
   // A new workspace starts by choosing the form of the experiment (requirements E-01).
   await expect(page.getByRole("heading", {name: "解析の形を選ぶ", exact: true, level: 1})).toBeVisible();
@@ -146,6 +146,9 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   expect((await figure.boundingBox())!.width).toBeGreaterThan(800);
   await page.screenshot({path:`${evidence}/${viewport.width}x${viewport.height}-figure.png`});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth)).toBe(0);
+  // The figure view opens on the latest saved figure without choosing it.
+  await expect(page.getByRole("combobox",{name:"保存した図"})).toHaveValue("historical-figure");
+  await expect(page.getByText("Synthetic saved figure",{exact:true})).toBeVisible();
   await page.getByRole("combobox",{name:"保存した図"}).selectOption("historical-figure");
   await expect(page.getByText("Synthetic saved figure",{exact:true})).toBeVisible();
   await page.screenshot({path:`${evidence}/${viewport.width}x${viewport.height}-saved-figure.png`});
