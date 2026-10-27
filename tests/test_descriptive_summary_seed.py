@@ -97,7 +97,7 @@ def test_public_api_worker_saved_values(public_store, metric, kind):
     fresh = store.one(revisions, id=rev["id"])
     provenance = read_json(store.safe_path(rev["result_dir"], "provenance.json"))
     dependencies = collect_dependencies(store, fresh, report, provenance)
-    replayed = _recompute_statistics(report, {**fresh["config"], "review_record":fresh["review_record"]}, result, dependencies)
+    replayed = _recompute_statistics(report, {**fresh["config"], "review_record":fresh["review_record"]}, result, dependencies, provenance)
     assert replayed == {key:value for key,value in result.items() if key != "figure"}
     assert client.get(f"/v1/jobs/{jid}/files/figure.zip").status_code == 200
     assert "comparisons" not in result

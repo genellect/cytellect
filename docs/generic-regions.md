@@ -157,6 +157,8 @@ operate on one logical region set without assigning parent/child biology.
 
 Every edit or background/exclusion change creates an unreviewed analysis revision.
 Unchanged masks preserve their mask revision ID; edited masks receive a new one.
+Each field's provenance history keeps every edit across reuse, batches and cohorts;
+descriptive outputs count these edits ([manual mask edits](descriptive.md#manual-mask-edits)).
 An explicit `reuse_revision` can expand a representative-field trial into a batch:
 previously analyzed selected fields retain their corrected masks, while newly
 selected fields initialize from the chosen source. The recipe

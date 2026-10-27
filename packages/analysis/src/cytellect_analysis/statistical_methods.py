@@ -9,10 +9,18 @@ from pydantic import BaseModel, ConfigDict
 class StatisticalMethodsTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True, revalidate_instances="always")
     id: Literal["cytellect-statistical-methods"]
-    version: Literal["1.0.0"]
+    version: Literal["1.0.0", "1.1.0"]
 
 
-CURRENT_METHODS_TEMPLATE = StatisticalMethodsTemplate(id="cytellect-statistical-methods", version="1.0.0")
+# 1.1.0 names generic region sets in English and states recorded manual mask edits.
+# The 1.0.0 body is retained unchanged for its saved documents.
+CURRENT_METHODS_TEMPLATE = StatisticalMethodsTemplate(id="cytellect-statistical-methods", version="1.1.0")
+REGION_SETS_EN = {"nuclei": "nuclei", "nucleoli": "nucleoli", "nucleoplasm": "nucleoplasm",
+                  "gfp_positive": "GFP-positive signal regions", "ncl_positive": "NCL-positive signal regions"}
+REGION_SOURCES_EN = {"stardist_nuclear": "StarDist nuclear segmentation", "cellpose_cell": "Cellpose cell segmentation",
+                     "fiji_positive_regions": "Fiji signal thresholding",
+                     "fiji_nuclear_compartment": "Fiji nuclear-compartment detection",
+                     "manual": "manual drawing", "imported": "an imported label image"}
 
 
 def methods_metadata(template):
@@ -20,6 +28,25 @@ def methods_metadata(template):
     if template is None:
         return {}
     return {"methods_template": StatisticalMethodsTemplate.model_validate(template).model_dump(mode="json")}
+
+
+def template_version(template):
+    """The validated document version, or None for the historical dispatch."""
+    return None if template is None else StatisticalMethodsTemplate.model_validate(template).version
+
+
+def region_set_name(region_set):
+    """English name of a generic region set; the recorded (possibly translated) label is not prose."""
+    region_set_id, source = region_set["region_set_id"], region_set.get("source")
+    if region_set_id == "cell":
+        return "cells" if source == "cellpose_cell" else "cell ROIs"
+    return REGION_SETS_EN.get(region_set_id, region_set_id)
+
+
+def region_definition(region_set):
+    source = region_set.get("source")
+    return (f"{region_set_name(region_set)} (region set ID {region_set['region_set_id']}; regions from "
+            f"{REGION_SOURCES_EN.get(source, source)}; the recorded label is retained in figure-data.json)")
 
 
 def saved_methods_template(result):
@@ -106,7 +133,7 @@ def _automatic_background(result, metric, fields, channel_id):
     return lines
 
 
-def _measurement(result):
+def _measurement(result, version="1.0.0"):
     source, metric, fields = result["source_kind"], result["metric"], result["source_fields"]
     if not fields:
         raise ValueError("statistical_methods_source_invalid")
@@ -138,7 +165,13 @@ def _measurement(result):
         if len(labels) != 1:
             raise ValueError("statistical_methods_source_invalid")
         review_word = "saved" if result.get("source_review") == "automatic_unreviewed" else "saved reviewed"
-        lines.append(f"Region definition: {next(iter(labels))}. {review_word.capitalize()} integer-labelled pixel unions "
+        definition = next(iter(labels))
+        if version != "1.0.0":
+            definitions = {region_definition(field["region_set"]) for field in fields}
+            if len(definitions) != 1:
+                raise ValueError("statistical_methods_source_invalid")
+            definition = next(iter(definitions))
+        lines.append(f"Region definition: {definition}. {review_word.capitalize()} integer-labelled pixel unions "
                      "in original image coordinates defined the measured regions; an object ID does not establish a biological cell.")
         channel_id = result["spec"]["selection"].get("channel_id")
         if channel_id is not None:
@@ -269,16 +302,19 @@ def _gating(result):
     return lines
 
 
-def readable_descriptive_methods(result):
+def readable_descriptive_methods(result, version="1.0.0"):
     from .gfp_selection import recorded_gate_lines
+    from .mask_corrections import mask_correction_methods_lines
 
     counts, selection = result["counts"], result["selection"]
+    corrections = (mask_correction_methods_lines(result, lambda fid: f"Field {fid}")
+                   if version != "1.0.0" else [])
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.",
-             "Statistical Methods template: cytellect-statistical-methods 1.0.0.",
+             f"Statistical Methods template: cytellect-statistical-methods {version}.",
              f"Descriptive protocol: {result['descriptive_version']}; source: {result['source_kind']}.",
              *(["Regions have not completed visual review. These automatic descriptive outputs do not certify segmentation quality."]
                if result.get("source_review") == "automatic_unreviewed" else []),
-             *_measurement(result),
+             *_measurement(result, version),
              "Only per-field descriptions were calculated: median and linearly interpolated quartiles "
              "at index (n−1)p in the ordered observations. No hypothesis test, regression, standard error or confidence interval was calculated.",
              f"Selected observations: {_count(counts, 'observations')}; fields with selected values: "
@@ -287,6 +323,7 @@ def readable_descriptive_methods(result):
              f"Of {_count(selection, 'input_rows')} measured observation rows, {_count(selection, 'excluded')} were explicitly excluded, "
              f"{_count(selection, 'gate_unselected')} were unselected by the saved gate and "
              f"{_count(selection, 'missing_metric_selected')} otherwise selected outcomes were missing.",
+             *corrections,
              f"Explicitly excluded failed fields: {_count(counts, 'excluded_failed_fields')}; their observation counts remain unknown. "
              "Missing values and empty fields were retained with reasons, not replaced with zero.",
              *_gating(result),
@@ -304,7 +341,7 @@ def readable_descriptive_methods(result):
     return "\n".join(lines)
 
 
-def readable_comparison_methods(result):
+def readable_comparison_methods(result, version="1.0.0"):
     design, family = result["spec"]["design"], result["spec"]["comparison_family"]
     paired = design["kind"] == "paired"
     expected = "paired t-test" if paired else "Welch t-test"
@@ -313,9 +350,9 @@ def readable_comparison_methods(result):
                                or row["confidence_level"] != .95 for row in comparisons)):
         raise ValueError("statistical_methods_source_invalid")
     lines = ["# Cytellect generic-region comparison Methods", "", "Generated from saved settings; review before publication.",
-             "Statistical Methods template: cytellect-statistical-methods 1.0.0.",
+             f"Statistical Methods template: cytellect-statistical-methods {version}.",
              f"Region comparison protocol: {result['region_comparison_version']}; inference core: {result['inference_version']}.",
-             *_measurement(result), f"Declared independent experimental unit: {design['unit_definition']}.",
+             *_measurement(result, version), f"Declared independent experimental unit: {design['unit_definition']}.",
              "Aggregation: median of region observations within each field, mean of fields within each sample, "
              "then mean of samples within each independent experimental unit. Each retained unit contributes one value per condition; "
              "unequal numbers of regions or fields do not weight independent units."]

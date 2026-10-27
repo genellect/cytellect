@@ -16467,7 +16467,10 @@
             "type": "string"
           },
           "version": {
-            "const": "1.0.0",
+            "enum": [
+              "1.0.0",
+              "1.1.0"
+            ],
             "title": "Version",
             "type": "string"
           }
@@ -16606,6 +16609,214 @@
         "title": "PagedDescriptiveOutput",
         "type": "object"
       },
+      "MaskCorrectionField": {
+        "additionalProperties": false,
+        "description": "Recorded hand edits of one measured field's mask (mask-corrections 1.0.0).",
+        "properties": {
+          "field_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "recorded",
+              "not_recorded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "mask_revision_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Mask Revision Id",
+            "type": "string"
+          },
+          "initial_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Source"
+          },
+          "initial_revision_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Revision Id"
+          },
+          "edit_revision_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "title": "Edit Revision Ids",
+            "type": "array"
+          },
+          "operations": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "add",
+                "replace",
+                "delete",
+                "merge",
+                "split"
+              ]
+            },
+            "title": "Operations",
+            "type": "object"
+          },
+          "initial_regions": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Regions"
+          },
+          "added_regions": {
+            "minimum": 0,
+            "title": "Added Regions",
+            "type": "integer"
+          },
+          "redrawn_regions": {
+            "minimum": 0,
+            "title": "Redrawn Regions",
+            "type": "integer"
+          },
+          "deleted_regions": {
+            "minimum": 0,
+            "title": "Deleted Regions",
+            "type": "integer"
+          },
+          "split_regions": {
+            "minimum": 0,
+            "title": "Split Regions",
+            "type": "integer"
+          },
+          "merged_regions": {
+            "minimum": 0,
+            "title": "Merged Regions",
+            "type": "integer"
+          },
+          "final_regions": {
+            "minimum": 0,
+            "title": "Final Regions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "field_id",
+          "status",
+          "mask_revision_id",
+          "initial_source",
+          "initial_revision_id",
+          "edit_revision_ids",
+          "operations",
+          "initial_regions",
+          "added_regions",
+          "redrawn_regions",
+          "deleted_regions",
+          "split_regions",
+          "merged_regions",
+          "final_regions"
+        ],
+        "title": "MaskCorrectionField",
+        "type": "object"
+      },
+      "MaskCorrectionSummary": {
+        "additionalProperties": false,
+        "description": "Initial regions are reconstructed from the measured mask and the recorded edit operations.",
+        "properties": {
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "region_set_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Set Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "source_revision_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "title": "Source Revision Ids",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/MaskCorrectionField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "edited_fields": {
+            "minimum": 0,
+            "title": "Edited Fields",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "region_set_id",
+          "source",
+          "source_revision_ids",
+          "fields",
+          "edited_fields"
+        ],
+        "title": "MaskCorrectionSummary",
+        "type": "object"
+      },
       "PagedDescriptiveResult": {
         "additionalProperties": false,
         "properties": {
@@ -16735,6 +16946,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/CompartmentMissingSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mask_corrections": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MaskCorrectionSummary"
               },
               {
                 "type": "null"

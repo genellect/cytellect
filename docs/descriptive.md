@@ -178,6 +178,24 @@ new job; previous outputs and failure records remain intact. Public/synthetic
 software checks do not establish private-image validity or observed researcher
 usability; the M4 and M5 gates remain open.
 
+## Manual mask edits
+
+New generic-region results carry `mask_corrections` 1.0.0. It is read from the
+measured revision's provenance only: per measured field, the edit revisions since
+the masks were initialized, the regions deleted, added, redrawn, split and merged,
+and the measured region count. The last recorded initialize or edit must be the
+measured mask revision; otherwise the description fails with
+`descriptive_mask_history_mismatch`. The initial count is reconstructed from the
+measured mask and the fixed label operations; no other revision is read. Edits to
+pinned parent masks (nuclei of a compartment or cell set) are named by revision,
+not counted.
+
+Methods template 1.1.0 and the legend state these counts; the statistics field
+table shows them beside the exclusion counts. A deleted region is absent from the
+measured mask, so it is not an explicit exclusion and does not change the
+observation partition. Results created before this ledger keep their saved shape;
+export and replay recompute it only when the saved result has it.
+
 ## Inspecting a saved region measurement
 
 The generic-region workspace provides a paged **図に使った測定値** table beside

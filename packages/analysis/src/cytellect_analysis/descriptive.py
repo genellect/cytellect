@@ -44,7 +44,7 @@ SAFE_ERROR_CODES = frozenset({
     "descriptive_page_preset_unsupported", "descriptive_page_policy_required", "descriptive_page_limit_exceeded",
     "descriptive_output_manifest_mismatch", "descriptive_output_source_mismatch",
     "descriptive_output_artifact_mismatch", "descriptive_output_artifact_not_found",
-    "descriptive_output_source_required",
+    "descriptive_output_source_required", "descriptive_mask_history_mismatch",
 })
 
 

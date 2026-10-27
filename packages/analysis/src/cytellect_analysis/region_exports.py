@@ -348,7 +348,7 @@ def _descriptive_shapes(result, dependencies, config):
     return shapes
 
 
-def _recompute_statistics(report, config, result, dependencies=None):
+def _recompute_statistics(report, config, result, dependencies=None, provenance=None):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
     from .region_export_dependencies import inputs
@@ -401,6 +401,12 @@ def _recompute_statistics(report, config, result, dependencies=None):
         if config.get("recipe", {}).get("version") not in ("1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.7.0") or result["spec"].get("mode") != "descriptive":
             raise ValueError("region_export_statistics_unrecognized_fields")
         calculated["source_review"] = "automatic_unreviewed"
+    if "mask_corrections" in result:
+        from .mask_corrections import with_mask_corrections
+
+        if provenance is None:
+            raise ValueError("region_export_statistics_source_mismatch")
+        with_mask_corrections(calculated, report, provenance)
     if set(result) - (set(calculated) | {"figure"}):
         raise ValueError("region_export_statistics_unrecognized_fields")
     return calculated
@@ -452,7 +458,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
                     raise ValueError("region_bundle_background_exclusion_mismatch")
     descriptions = []
     for result in statistics_results:
-        calculated = _recompute_statistics(report, config, result, dependencies)
+        calculated = _recompute_statistics(report, config, result, dependencies, provenance)
         if any(result.get(key) != value for key, value in calculated.items()):
             raise ValueError("region_export_statistics_source_mismatch")
         descriptions.append(calculated)
@@ -643,7 +649,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     paged_outputs = []
     for path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         result = json.loads(path.read_text(encoding="utf-8"))
-        replayed = _recompute_statistics(reproduced, config, result, dependencies)
+        replayed = _recompute_statistics(reproduced, config, result, dependencies, provenance)
         matches = all(result.get(key) == value for key, value in replayed.items())
         if result["analysis_kind"] == "region-comparison":
             has_comparisons = True
