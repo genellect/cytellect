@@ -47,7 +47,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行します�
 ### 3. GitHub に登録してデプロイする
 
 1. リポジトリの Settings → Secrets and variables → Actions に、`MODAL_TOKEN_ID` と `MODAL_TOKEN_SECRET`（手順 2 の 3）を登録します。
-2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行します（オーナーの指示で行います）。サーバーの URL は、ログの `Created Server CellposeServer` の行に出ます。Modal の Server 型の URL は `https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct` です（`*.modal.run` ではありません）。ログの出力が折り返されるため、実行結果の概要には表示されません。
+2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行します（オーナーの指示で行います）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示されます。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、実行結果の概要には表示されません。
 
 デプロイ用のトークンは GitHub の秘密の値にだけ置き、研究室の PC や作業環境には置きません。この作業環境（Claude Code のクラウドセッション）からは、通信の制約で `modal deploy` を実行できません。
 
@@ -78,14 +78,14 @@ uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A
 
 ### 開発環境から使う
 
-Linux の[本番相当の環境](../CONTRIBUTING.md#本番相当の環境)（`python3 scripts/dev.py serve`）も、同じサーバーを使います。手順 2 の 4 の接続用トークンを、ID と Secret に分けて環境の秘密の管理に置きます。
+Linux の[本番相当の環境](../CONTRIBUTING.md#本番相当の環境)（`python3 scripts/dev.py serve`）も、同じサーバーを使います。手順 2 の 4 の接続用トークンを ID と Secret に分け、作業環境の環境変数として登録します。
 
 | 環境変数 | 値 |
 | --- | --- |
 | `CYTELLECT_MODAL_PROXY_KEY` | 接続用トークンの ID（`wk-…`） |
 | `CYTELLECT_MODAL_PROXY_SECRET` | 接続用トークンの Secret（`ws-…`） |
 
-`scripts/dev.py` は 2 つをピリオドでつないで接続キーにし、上の URL を接続先にします。`python3 scripts/dev.py doctor --live` は、この接続キーで `/health` を呼び、200 が返るかを確かめます。停止中の GPU は起動に約 3 分かかり、その間と起動後 20 秒は課金されます。試験には公開画像だけを使います。
+`scripts/dev.py` は 2 つをピリオドでつないで接続キーにし、上の URL を接続先にします。`python3 scripts/dev.py doctor --live` は、この接続キーで `/health` を呼び、200 が返るかを確かめます。停止中の GPU は起動に約 3 分かかり、起動中と使用後の 20 秒も課金されます。試験には公開画像だけを使います。
 
 ## 送ったデータの扱い（Modal）
 
@@ -116,5 +116,5 @@ GPU では、TF32 を使わない float32 と、毎回同じ結果になる計�
 | クラウド GPU の起動が時間内に終わりませんでした | 停止していた GPU の起動に時間がかかっています。数分おいて、もう一度実行します。月の無料枠を使い切った場合も起動しません（Modal の Usage を確認します） |
 | クラウド GPU の版がこの Cytellect と一致しません | Cytellect を更新した後は、同じ版のイメージを手順 1 で公開し、`IMAGE` を差し替えて手順 3 でデプロイし直します |
 | クラウド GPU に接続できませんでした | ネットワークの接続と、手順 4 の URL を確認します |
-| `/health` が `503 no upstreams available` を返し続ける（3 分以上） | コンテナが動いていません。Modal の画面で、アプリのコンテナとログを確認します。2026-10-27 は「GPU_L4 ワーカーへの割り当て待ち（容量確保中）」で、無料枠は残っていました。この場合は Modal 側の GPU の空きを待ちます。起動の失敗や Usage（無料枠の使い切り）でも同じ表示になります |
+| `/health` が 3 分以上 `503 no upstreams available` を返す | コンテナが起動していません。Modal の画面で、アプリのコンテナとログを確認します。GPU（L4）の割り当て待ち、起動の失敗、無料枠の使い切り（Usage）のいずれかです。割り当て待ちの場合は、Modal 側で GPU が空くまで待ちます |
 | サーバーが起動しない（イメージを取得できない） | 手順 1 のパッケージが公開（Public）になっているか確認します |

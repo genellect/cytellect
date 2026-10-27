@@ -47,7 +47,6 @@ AI による解析設定
 | GPU 推論 | Modal（NVIDIA L4） | GHCR の digest 固定イメージ。使用後 20 秒で停止（`infra/modal_cellpose.py`） | 検出用の 1 チャンネルと核マスク |
 | LLM の中継 | Cloudflare Workers · D1 | 費用の予約と精算（`services/proposal-worker`） | 指示文・チャンネルの対応・画像寸法・現在の設定 |
 | 公開サイト | Vercel | LP と公開デモ。`main` へのマージで自動デプロイ | 研究画像は受け付けない |
-| 開発（本番相当） | Linux（手元・クラウドの作業環境） | `scripts/dev.py serve` で Web・API・ワーカーと Fiji を起動。Cellpose は GPU 推論、解析設定は LLM の中継を使う（[CONTRIBUTING](CONTRIBUTING.md#本番相当の環境)） | 登録済みの公開画像だけを使う |
 
 ### ディレクトリ構成
 
@@ -144,34 +143,22 @@ StarDist で検出した核を親として、核小体・細胞質を Cellpose-S
 
 ## 開発
 
-### ローカル開発
-
-Python 3.12、Node.js 24、pnpm 11.19.0、uv を使用する。Linux での起動手順は次のとおり。
+Python 3.12、Node.js 24、pnpm 11.19.0、uv 0.12.2 を使う。手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめている。
 
 ```bash
-python3 scripts/dev.py setup --fiji ~/cytellect-fiji
-
-export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
-uv run cytellect invite --hours 24
-uv run cytellect serve      # 端末 1
-uv run cytellect-worker     # 端末 2（同じ環境変数を設定）
-pnpm dev                    # 端末 3
+python3 scripts/dev.py setup --fiji ~/cytellect-fiji   # 依存パッケージと Fiji
+export CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji
+python3 scripts/dev.py serve                           # 研究室の PC と同じ構成で起動（Linux）
+python3 scripts/dev.py check                           # PR の CI と同じ検査
 ```
 
-CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows のセットアップ、依存パッケージの監査である。統計結果は独立した数式や全列挙による計算と照合している。Windows 版ではソースのテストに加え、配布 ZIP の導入からブラウザ操作、再計算までを確認する。
-
-```bash
-python3 scripts/dev.py check
-```
-
-### クラウド開発
-
-Claude Code や Codex のクラウド環境では、次のセットアップスクリプトを環境の設定に登録する。Fiji の導入などの詳しい手順は [CONTRIBUTING](CONTRIBUTING.md#クラウド開発) にまとめている。
-
-| ツール | セットアップスクリプト |
+| 作業環境 | セットアップ |
 |---|---|
-| Claude Code | `bash .claude/cloud-setup.sh` |
-| Codex | `bash .codex/setup.sh` |
+| 手元の PC | 上の `setup`（[ローカル開発](CONTRIBUTING.md#ローカル開発)） |
+| Claude Code のクラウド環境 | `bash .claude/cloud-setup.sh`（[クラウド開発](CONTRIBUTING.md#クラウド開発)） |
+| Codex のクラウド環境 | `bash .codex/setup.sh` |
+
+CI は型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows 版の導入、依存パッケージの監査を確かめ、統計結果を独立した数式や全列挙による計算と照合する。
 
 ## ライセンス
 
