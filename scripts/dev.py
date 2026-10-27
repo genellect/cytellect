@@ -41,7 +41,9 @@ PNPM_VERSION = "11.19.0"
 UV_VERSION = "0.12.2"
 # The deployed Modal server (infra/modal_cellpose.py, Cellpose Modal deploy workflow); authentication required.
 MODAL_CELLPOSE_URL = "https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct"
-USER_AGENT = "cytellect-dev"  # Cloudflare refuses Python's default agent (error 1010)
+USER_AGENT = "cytellect-dev"
+# Where .claude/cloud-setup.sh provisions pinned tools and Fiji (its env.sh exports them).
+CLOUD_RUNTIME = Path.home() / ".local/share/cytellect-cloud"  # Cloudflare refuses Python's default agent (error 1010)
 CONTRACT_OUTPUTS = ("packages/contracts", "apps/web/src/lib/generated.ts", "apps/web/src/lib/recipe-defaults.json")
 OPENAPI = ("uv", "run", "cytellect", "openapi", "--output", "packages/contracts/openapi.json",
            "--recipe-defaults", "apps/web/src/lib/recipe-defaults.json")
@@ -229,6 +231,15 @@ def cloud_env(base: dict[str, str]) -> dict[str, str]:
     return env
 
 
+def fiji_path() -> str:
+    """CYTELLECT_FIJI_EXECUTABLE, else the cloud setup's Fiji, so a shell without env.sh still finds it."""
+    configured = os.environ.get("CYTELLECT_FIJI_EXECUTABLE", "")
+    if configured:
+        return configured
+    provisioned = CLOUD_RUNTIME / "fiji"
+    return str(provisioned) if provisioned.exists() else ""
+
+
 def tool_version(argv: tuple[str, ...]) -> str:
     executable = shutil.which(argv[0])
     if executable is None:
@@ -239,18 +250,24 @@ def tool_version(argv: tuple[str, ...]) -> str:
 
 def doctor(args: argparse.Namespace) -> None:
     failed = False
+    hint = f' (run `source "{CLOUD_RUNTIME / "env.sh"}"` first)' if (CLOUD_RUNTIME / "env.sh").exists() else ""
 
-    def report(state: str, name: str, detail: str) -> None:
+    def report(state: str, name: str, detail: str, cloud: bool = False) -> None:
+        """Cloud services only warn unless required: development continues while a GPU is unavailable."""
         nonlocal failed
+        if state == "NG" and cloud and not args.require_cloud:
+            state = "!!"
         failed = failed or state == "NG"
         print(f"[{state}] {name}: {detail}")
 
     node = tool_version(("node", "-p", "process.versions.node"))
-    report("ok" if node.split(".")[0] == NODE_MAJOR else "NG", "Node.js", node or "not installed")
+    ready = node.split(".")[0] == NODE_MAJOR
+    report("ok" if ready else "NG", "Node.js", (node or "not installed") + ("" if ready else hint))
     pnpm = tool_version(("pnpm", "--version"))
-    report("ok" if pnpm == PNPM_VERSION else "NG", "pnpm", pnpm or "not installed")
+    report("ok" if pnpm == PNPM_VERSION else "NG", "pnpm", (pnpm or "not installed") + ("" if pnpm == PNPM_VERSION else hint))
     uv = tool_version(("uv", "--version"))
-    report("ok" if uv.split()[1:2] == [UV_VERSION] else "NG", "uv", uv or "not installed")
+    ready = uv.split()[1:2] == [UV_VERSION]
+    report("ok" if ready else "NG", "uv", (uv or "not installed") + ("" if ready else hint))
     if sys.platform.startswith("linux"):
         fonts = tool_version(("fc-list", ":lang=ja", "family"))
         report("ok" if fonts else "NG", "Japanese figure font", "installed" if fonts else "install fonts-noto-cjk")
@@ -258,7 +275,7 @@ def doctor(args: argparse.Namespace) -> None:
     if chromium:
         report("ok" if Path(chromium).exists() else "NG", "Browser for tests", chromium)
 
-    fiji = os.environ.get("CYTELLECT_FIJI_EXECUTABLE", "")
+    fiji = fiji_path()
     if not fiji:
         report("NG", "Fiji (nuclei)", "set CYTELLECT_FIJI_EXECUTABLE (run `setup --fiji DIR`)")
     else:
@@ -272,7 +289,7 @@ def doctor(args: argparse.Namespace) -> None:
     if not url:
         report("--", "Cloud GPU (Cellpose)", "not configured; nucleoli and cytoplasm detection is unavailable")
     elif not url.startswith("https://") or not key:
-        report("NG", "Cloud GPU (Cellpose)", "set an https CYTELLECT_CELLPOSE_REMOTE_URL and CYTELLECT_CELLPOSE_REMOTE_TOKEN")
+        report("NG", "Cloud GPU (Cellpose)", cloud=True, detail="set an https CYTELLECT_CELLPOSE_REMOTE_URL and CYTELLECT_CELLPOSE_REMOTE_TOKEN")
     elif not args.live:
         report("ok", "Cloud GPU (Cellpose)", "configured; `doctor --live` contacts it (starts the GPU for about 20 s)")
     else:
@@ -281,22 +298,23 @@ def doctor(args: argparse.Namespace) -> None:
             headers["X-Cytellect-Secret"] = env["CYTELLECT_CELLPOSE_REMOTE_SECRET"]
         status, _ = probe(urllib.request.Request(url.rstrip("/") + "/health", headers=headers), timeout=180)
         ok, detail = cellpose_state(status)
-        report("ok" if ok else "NG", "Cloud GPU (Cellpose)", detail)
+        report("ok" if ok else "NG", "Cloud GPU (Cellpose)", detail, cloud=True)
 
     service, token = os.environ.get("CYTELLECT_PROPOSAL_URL", "").strip(), proposal_token()
     if not service:
         report("--", "Analysis proposals (LLM)", "not configured; the AI instruction box stays disabled")
     elif not service.startswith("https://") or not token:
-        report("NG", "Analysis proposals (LLM)", "set an https CYTELLECT_PROPOSAL_URL and the device token")
+        report("NG", "Analysis proposals (LLM)", cloud=True, detail="set an https CYTELLECT_PROPOSAL_URL and the device token")
     elif not args.live:
         report("ok", "Analysis proposals (LLM)", "configured; `doctor --live` checks the device token without a model call")
     else:
         request = urllib.request.Request(service.rstrip("/") + "/v1/proposals", data=b"{}", method="POST",
                                          headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
         ok, detail = proposal_state(*probe(request, timeout=30))
-        report("ok" if ok else "NG", "Analysis proposals (LLM)", detail)
+        report("ok" if ok else "NG", "Analysis proposals (LLM)", detail, cloud=True)
     if failed:
         sys.exit("Some required parts are not ready (see CONTRIBUTING.md).")
+    print("Ready. Warnings ([!!]) concern the cloud GPU or proposals; pass --require-cloud to treat them as failures.")
 
 
 def serve_env(base: dict[str, str], data_dir: Path) -> dict[str, str]:
@@ -328,7 +346,7 @@ def stop(processes: list[subprocess.Popen]) -> None:
 
 
 def serve(args: argparse.Namespace) -> None:
-    fiji = os.environ.get("CYTELLECT_FIJI_EXECUTABLE", "")
+    fiji = fiji_path()
     if not fiji or not Path(fiji).expanduser().exists():
         sys.exit("serve needs Fiji: run `setup --fiji DIR` and export CYTELLECT_FIJI_EXECUTABLE")
     for url in (API_ORIGIN + "/v1/health", APP_ORIGIN):
@@ -336,7 +354,7 @@ def serve(args: argparse.Namespace) -> None:
             sys.exit(f"{url} is already in use; stop the other server first")
     data = outside_checkout(args.data_dir, "Data directory")
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
-    env = serve_env(cloud_env(dict(os.environ)), data)
+    env = serve_env(cloud_env({**os.environ, "CYTELLECT_FIJI_EXECUTABLE": fiji}), data)
     if not args.skip_build:
         run(("pnpm", "build"), env)  # NEXT_PUBLIC_API_ORIGIN is fixed at build time
     uv = shutil.which("uv") or sys.exit("uv is not installed; see CONTRIBUTING.md")
@@ -391,6 +409,8 @@ def main() -> None:
     p = sub.add_parser("doctor", help="Report whether tools, Fiji, the cloud GPU and proposals are ready")
     p.add_argument("--live", action="store_true",
                    help="Also contact the configured cloud GPU and proposal service (no model call)")
+    p.add_argument("--require-cloud", action="store_true",
+                   help="Fail, not warn, when the cloud GPU or proposals are misconfigured or unavailable")
     p.set_defaults(func=doctor)
     p = sub.add_parser("serve", help="Run the API, worker and production web build like an installation")
     p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",

@@ -107,3 +107,15 @@ def test_a_modal_proxy_token_stored_in_two_parts_becomes_the_engine_bearer_value
     # An env.sh that already joined the token still gets the deployed server as its default.
     joined = cloud_env({"CYTELLECT_MODAL_PROXY_KEY": "wk-abc", "CYTELLECT_CELLPOSE_REMOTE_TOKEN": "wk-abc.ws-def"})
     assert joined["CYTELLECT_CELLPOSE_REMOTE_URL"] == MODAL_CELLPOSE_URL
+
+
+def test_fiji_falls_back_to_the_cloud_setup_location(tmp_path, monkeypatch):
+    import dev
+
+    monkeypatch.delenv("CYTELLECT_FIJI_EXECUTABLE", raising=False)
+    monkeypatch.setattr(dev, "CLOUD_RUNTIME", tmp_path)
+    assert dev.fiji_path() == ""
+    (tmp_path / "fiji").mkdir()
+    assert dev.fiji_path() == str(tmp_path / "fiji")
+    monkeypatch.setenv("CYTELLECT_FIJI_EXECUTABLE", "/explicit/fiji")
+    assert dev.fiji_path() == "/explicit/fiji"

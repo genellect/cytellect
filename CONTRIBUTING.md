@@ -42,7 +42,7 @@ python3 scripts/dev.py doctor --live   # 道具、Fiji、クラウド GPU、解�
 python3 scripts/dev.py serve           # API・ワーカー・Web の本番ビルドを起動し、招待コードを表示する
 ```
 
-`serve` は Web を本番と同じ形でビルドしてから起動し、`http://localhost:3000/workspace` と招待コードを表示する。Ctrl-C で全体が止まる。作業データは checkout の外（既定は `~/cytellect-data`）に置き、ログは一時ディレクトリに出す。
+`doctor` は既定では外部に接続しない。`--live` を付けたときだけクラウド GPU と解析提案に問い合わせる。クラウド側の不調は警告（`[!!]`）として示し、Fiji と画面の開発は続けられる。失敗として扱うときは `--require-cloud` を付ける。`serve` は Web を本番と同じ形でビルドしてから起動し、`http://localhost:3000/workspace` と招待コードを表示する。Ctrl-C で全体が止まる。作業データは checkout の外（既定は `~/cytellect-data`）に置き、ログは一時ディレクトリに出す。
 
 クラウド GPU と解析提案は、次の環境変数があるときだけ使える。値はオーナーから受け取り、各サービスの秘密の管理（クラウド環境では環境の設定）に置く。チャット、コミット、ログには書かない。
 
