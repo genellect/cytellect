@@ -4,13 +4,42 @@ Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に
 
 作業を始める前に、人も AI エージェントも守る[開発の原則](docs/development-principles.md)のうち、作業に関係する節を必ず読む。PR でどの CI ジョブが実行されるかは、[CI の構成](docs/ci.md)にある。
 
-## 必要な環境
-
-Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。図の描画には日本語フォントを使うため、Linux では `fonts-noto-cjk` も入れておく。クラウド環境では、[クラウド開発](#クラウド開発)のセットアップスクリプトがこれらを揃える。
-
 研究データと認証情報は、[チーム開発ルール §6](docs/team-development.md#6-研究データの扱い)に従って扱う。試験と動作確認には[登録済みの公開画像](fixtures/public)だけを使う。
 
+## クラウド開発
+
+手元に何も入れずに、道具と Fiji が揃った環境ですぐに始められる。Claude Code や Codex のクラウド環境では、環境の設定に次のセットアップスクリプトを登録する。
+
+| ツール | セットアップスクリプト |
+|---|---|
+| Claude Code | `bash .claude/cloud-setup.sh` |
+| Codex | `bash .codex/setup.sh` |
+
+Claude Code のスクリプトは、固定版の Node.js、pnpm、uv と、日本語フォント、Fiji を揃え、実際の Fiji での試験まで行う（初回は約 9 分）。Codex で Fiji も使うときは、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップする。
+
+Claude Code の環境の設定（セッションのタイトルバーのクラウド環境のメニュー → Edit）には、[外部サービス](#外部サービス)の環境変数も登録する。登録した値は新しいセッションから読み込まれ、セットアップスクリプトからは読めない。ネットワークは、パッケージマネージャーの既定の接続先に加えて、次の接続先を許可する。
+
+| 用途 | 接続先 |
+|---|---|
+| Node.js、uv | `nodejs.org`、`github.com`、`release-assets.githubusercontent.com` |
+| Fiji | `downloads.imagej.net`、`sites.imagej.net`、`repo.maven.apache.org` |
+| 日本語フォント | `archive.ubuntu.com`、`azure.archive.ubuntu.com`、`mirrors.edge.kernel.org` |
+| 公開画像 | `bbbc.broadinstitute.org`、`cellpainting-gallery.s3.amazonaws.com`、`zenodo.org` |
+| 外部サービス | `*.modal.direct`、`*.workers.dev` |
+
+作業を始めるシェルでは、最初に `env.sh` を読み込み、準備を確かめてから起動する。`env.sh` は、固定版の道具と Fiji、試験に使う Chromium、クラウド GPU の接続キーを設定する。
+
+```bash
+source "$HOME/.local/share/cytellect-cloud/env.sh"
+python3 scripts/dev.py doctor   # 道具、フォント、Fiji、外部サービスの設定を確認
+python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
+```
+
+クラウド環境の `localhost` は手元のブラウザからは開けないため、画面は環境の中の Playwright で確かめる。
+
 ## ローカル開発
+
+手元のブラウザで画面を直接操作でき、編集もすぐに確かめられる。Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。Linux では、図の描画に使う日本語フォント `fonts-noto-cjk` も入れておく。
 
 依存パッケージと Fiji を揃え、準備を確かめてから起動する。Fiji と作業データは checkout の外に置く。
 
@@ -44,33 +73,6 @@ pnpm dev                             # 端末 3：Web
 | 解析提案 | `CYTELLECT_PROPOSAL_URL` と `CYTELLECT_PROPOSAL_TOKEN`：Worker の URL と、この環境の端末トークン（[解析提案](docs/proposal-service.md#development-environments)） |
 
 `doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。`doctor --live` は実際に接続して確かめる。このとき停止中の GPU が起動し、約 3 分かかって使った秒数だけ課金される。解析提案は空の依頼でトークンだけを確かめ、モデルは呼ばない。外部サービスも必須とするときは `--require-cloud` を付ける。
-
-## クラウド開発
-
-Claude Code や Codex のクラウド環境では、環境の設定にセットアップスクリプトを登録しておくと、依存パッケージが揃った状態で作業を始められる。
-
-| ツール | セットアップスクリプト |
-|---|---|
-| Claude Code | `bash .claude/cloud-setup.sh` |
-| Codex | `bash .codex/setup.sh` |
-
-Claude Code のスクリプトは、固定版の Node.js、pnpm、uv と、日本語フォント、Fiji を揃え、実際の Fiji での試験まで行う（初回は約 9 分）。Codex で Fiji も使うときは、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップする。
-
-Claude Code の環境の設定（セッションのタイトルバーのクラウド環境のメニュー → Edit）には、[外部サービス](#外部サービス)の環境変数も登録する。登録した値は新しいセッションから読み込まれ、セットアップスクリプトからは読めない。ネットワークは、パッケージマネージャーの既定の接続先に加えて、次の接続先を許可する。
-
-| 用途 | 接続先 |
-|---|---|
-| Node.js、uv | `nodejs.org`、`github.com`、`release-assets.githubusercontent.com` |
-| Fiji | `downloads.imagej.net`、`sites.imagej.net`、`repo.maven.apache.org` |
-| 日本語フォント | `archive.ubuntu.com`、`azure.archive.ubuntu.com`、`mirrors.edge.kernel.org` |
-| 公開画像 | `bbbc.broadinstitute.org`、`cellpainting-gallery.s3.amazonaws.com`、`zenodo.org` |
-| 外部サービス | `*.modal.direct`、`*.workers.dev` |
-
-作業を始めるシェルでは、最初に `env.sh` を読み込む。固定版の道具と Fiji、試験に使う Chromium、クラウド GPU の接続キーが設定され、そのまま `doctor` と `serve` を使える。クラウド環境の `localhost` は手元のブラウザからは開けないため、画面は環境の中の Playwright で確かめる。
-
-```bash
-source "$HOME/.local/share/cytellect-cloud/env.sh"
-```
 
 ## PR を出す前に
 

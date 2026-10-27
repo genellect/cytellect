@@ -143,15 +143,14 @@ StarDist で検出した核を親として、核小体・細胞質を Cellpose-S
 
 ## 開発
 
-開発環境の構築と起動は [CONTRIBUTING](CONTRIBUTING.md) にまとめている。Linux では次の 3 つで、研究室の PC と同じ構成の画面が起動する。クラウド環境では、Claude Code は `bash .claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` をセットアップスクリプトに登録する。
+手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめている。
 
-```bash
-python3 scripts/dev.py setup --fiji ~/cytellect-fiji   # 依存パッケージと Fiji
-export CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji
-python3 scripts/dev.py serve                           # 起動して招待コードを表示
-```
+| 環境 | 長所 | 始め方 |
+|---|---|---|
+| [クラウド開発](CONTRIBUTING.md#クラウド開発) | 手元に何も入れずに、道具と Fiji が揃った環境ですぐに始められる | セットアップスクリプトに `bash .claude/cloud-setup.sh`（Codex は `bash .codex/setup.sh`）を登録 |
+| [ローカル開発](CONTRIBUTING.md#ローカル開発) | 手元のブラウザで画面を直接操作でき、編集もすぐに確かめられる | `python3 scripts/dev.py setup --fiji ~/cytellect-fiji` |
 
-PR の前には `python3 scripts/dev.py check` で CI と同じ検査を行う。CI は型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows 版の導入、依存パッケージの監査を確かめ、統計結果を独立した数式や全列挙による計算と照合する。
+どちらも `python3 scripts/dev.py serve` で研究室の PC と同じ構成の画面を起動し、PR の前に `python3 scripts/dev.py check` で CI と同じ検査を行う。CI は型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows 版の導入、依存パッケージの監査を確かめ、統計結果を独立した数式や全列挙による計算と照合する。
 
 ## ライセンス
 
