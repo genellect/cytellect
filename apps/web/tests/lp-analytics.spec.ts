@@ -58,6 +58,22 @@ test("LP sends only fixed page identity and allowlisted actions; exit destroys t
   expect(errors).toEqual([]);
 });
 
+test("the demo's experiment tab and guide button send fixed events without the scene ID", async ({page, baseURL}) => {
+  await isolatedSite(page, baseURL!);
+  await page.goto(origin + "/demo");
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
+  const header = page.locator("header");
+  await header.getByRole("navigation", { name: "作業の切替" }).getByRole("button", { name: "実験", exact: true }).click();
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"demo_experiment"');
+  await header.getByRole("button", { name: "使い方", exact: true }).click();
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"demo_guide_click"');
+  const events = await commands(page);
+  expect(events.find(row => row[1] === "demo_step_click" && (row[2] as Record<string, unknown>)?.content_id === "demo_experiment")).toBeTruthy();
+  // The page moves to /demo?id=<workspace>; only the fixed page identity is measured.
+  expect(new URL(page.url()).searchParams.get("id")).toBeTruthy();
+  expect(JSON.stringify(events)).not.toContain(new URL(page.url()).searchParams.get("id")!);
+});
+
 test("download click uses a fixed event without sending the asset URL", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!);
   await page.goto(origin + "/");
