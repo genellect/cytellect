@@ -46,7 +46,7 @@ Use `uv run cytellect invite --hours 24` (or `docker compose exec api cytellect 
 
 ## Shared development environments
 
-A development environment that other people can reach (planned: [cloud development plan](drafts/cloud-development/plan.md)) sets `CYTELLECT_UPLOAD_ALLOWLIST=fixtures/public/uploads.json`. The API then hashes every uploaded image or table after streaming it to the private volume and, unless its SHA-256 is in that list of registered public files, deletes it and answers `403 unregistered_upload`. This makes "registered public images only" a technical boundary rather than a convention. An empty or malformed list is a startup error, never "allow all". Installations leave the variable unset. The CI `fiji-browser` job checks that the prepared public inputs are still byte-identical to the list (`scripts/check_public_uploads.py`).
+A development environment that other people can reach sets `CYTELLECT_UPLOAD_ALLOWLIST=fixtures/public/uploads.json`. The API then hashes every uploaded image or table after streaming it to the private volume and, unless its SHA-256 is in that list of registered public files, deletes it and answers `403 unregistered_upload`. This makes "registered public images only" a technical boundary rather than a convention. An empty or malformed list is a startup error, never "allow all". Installations leave the variable unset. The CI `fiji-browser` job checks that the prepared public inputs are still byte-identical to the list (`scripts/check_public_uploads.py`).
 
 ## Windows local mode
 
