@@ -56,6 +56,7 @@ class RegionFieldView(BaseModel):
     metadata: RegionFieldMetadata
     image_info: RegionImageInfo
     synthetic: bool
+    display_name: str | None = None
 
 
 def is_region(value):
@@ -208,6 +209,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             for candidate in conn.execute(select(fields).where(fields.c.workspace_id == wid).order_by(fields.c.id)).mappings():
                 info = candidate["image_info"]
                 if (not is_region(candidate) or info.get("inputs") != inputs
+                        or candidate["display_name"] != spec.display_name
                         or info.get("input_mode", "native") != spec.input_mode
                         or info.get("calibration") != (spec.calibration.model_dump(mode="json") if spec.calibration else None)
                         or candidate["metadata"] != spec.metadata.model_dump(mode="json")):
@@ -289,7 +291,8 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 conn.execute(fields.insert().values(id=fid, workspace_id=wid,
                              metadata=spec.metadata.model_dump(mode="json"),
                              image_info=info.model_dump(mode="json"), synthetic=False,
-                             client_upload_id=spec.client_upload_id, upload_fingerprint=fingerprint))
+                             client_upload_id=spec.client_upload_id, upload_fingerprint=fingerprint,
+                             display_name=spec.display_name))
                 conn.execute(update(workspaces).where(workspaces.c.id == wid).values(bytes=w["bytes"] + total))
                 result = dict(conn.execute(select(fields).where(fields.c.id == fid)).mappings().one())
             keep_folder = True

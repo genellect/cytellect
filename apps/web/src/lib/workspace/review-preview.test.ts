@@ -39,6 +39,11 @@ beforeEach(() => {
 });
 
 describe("stage-one read-only review loader", () => {
+  it("labels a field with its saved registration name, and numbers older unnamed fields", async () => {
+    fixtures["/v1/workspaces/latest/region-fields"] = [{...registered, display_name: "A01"}, {...registered, id: "f2", display_name: null}];
+    const data = await loadReviewPreview("latest");
+    expect(data.fields.map(field => field.label)).toEqual(["A01", "視野 2"]);
+  });
   it("loads only the requested new field preview during sequential intake", async () => {
     fixtures["/v1/workspaces/latest/region-fields"] = [registered, {...registered,id:"f2"}];
     const data = await loadReviewPreview("latest",["f2"]);

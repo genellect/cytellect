@@ -125,6 +125,37 @@ class CompartmentMissingSummary(StrictModel):
     warnings: list[CompartmentMissingWarning]
 
 
+NonNegative = Annotated[StrictInt, Field(ge=0)]
+
+
+class MaskCorrectionField(StrictModel):
+    """Recorded hand edits of one measured field's mask (mask-corrections 1.0.0)."""
+    field_id: Id
+    status: Literal["recorded", "not_recorded"]
+    mask_revision_id: Id
+    initial_source: str | None
+    initial_revision_id: Id | None
+    edit_revision_ids: list[Id]
+    operations: dict[Literal["add", "replace", "delete", "merge", "split"], NonNegative]
+    initial_regions: NonNegative | None
+    added_regions: NonNegative
+    redrawn_regions: NonNegative
+    deleted_regions: NonNegative
+    split_regions: NonNegative
+    merged_regions: NonNegative
+    final_regions: NonNegative
+
+
+class MaskCorrectionSummary(StrictModel):
+    """Initial regions are reconstructed from the measured mask and the recorded edit operations."""
+    version: Literal["1.0.0"]
+    region_set_id: Id | None
+    source: str | None
+    source_revision_ids: list[Id]
+    fields: list[MaskCorrectionField]
+    edited_fields: NonNegative
+
+
 class _OptionalGate(StrictModel):
     """Omit an absent gate so ungated requests and results keep their historical bytes."""
 
@@ -317,6 +348,8 @@ class DescriptiveResult(StrictModel):
     source_review: Literal["automatic_unreviewed"] | None = None
     # Present only for a revision reviewed under the unresolved-nucleoli policy (absent from older results).
     compartment_missing: CompartmentMissingSummary | None = Field(default=None, json_schema_extra=_omit_default)
+    # Present for region results created with the mask-correction ledger (absent from older results).
+    mask_corrections: MaskCorrectionSummary | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_serializer(mode="wrap")
     def omit_absent_review_marker(self, handler):
@@ -325,6 +358,8 @@ class DescriptiveResult(StrictModel):
             result.pop("source_review", None)
         if self.compartment_missing is None:
             result.pop("compartment_missing", None)
+        if self.mask_corrections is None:
+            result.pop("mask_corrections", None)
         return result
 
 
