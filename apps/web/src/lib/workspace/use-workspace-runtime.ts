@@ -40,6 +40,10 @@ type Dependencies = {adapter?:Adapter; loadPreview?:typeof loadReviewPreview; re
 const emptyData = (): ReviewData => ({workspaceId:"",title:"画像解析",fields:[],channels:[]});
 const labels = {nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
 const message = (error:unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? errorCodeMessage(error.message) : "処理できませんでした。";
+// Each import gets a private batch folder; researchers only ever see their own relative path.
+const shownPath = (path:string) => path.replace(/^import-[0-9a-f-]+\/(?:image-[0-9a-f-]+\/)?/,"");
+const shownIssue = (issue:Grouping["issues"][number]):Grouping["issues"][number] => ({...issue,
+  ..."path" in issue?{path:shownPath(issue.path)}:{},..."paths" in issue?{paths:issue.paths.map(shownPath)}:{},..."field" in issue?{field:shownPath(issue.field)}:{}});
 const fingerprint = (value:unknown):string => JSON.stringify(value,(_,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
 // The API stores an absent nucleolar parent as null (RegionCompartmentRecipe); the client omits it.
 const comparableRecipe = (recipe:Recipe) => {const {nucleolar_revision_id,...rest}=recipe as Recipe&{nucleolar_revision_id?:string|null};return nucleolar_revision_id==null?rest:recipe;};
@@ -435,9 +439,18 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         if(fresh.some(value=>value.path===path))path=`${batch}/image-${crypto.randomUUID()}/${originalPath}`;
         if(await tiffHasOmeMetadata(file))omeFiles.set(path,file);else fresh.push({path,size:file.size,sha256,inputMode:await tiffInputMode(file)});files.set(path,file);
       }
-      if(!fresh.length&&!added.length&&!omeFiles.size)throw new Error("TIFF画像を選択してください。");added.push(...fresh);const grouping=groupFiles(added,mode);publish({importIssues:grouping.issues});if(grouping.issues.some(value=>value.kind==="duplicate_channel"))throw new Error("同じ視野・チャンネルの画像が複数あります。画像の対応を確認してください。");
+      if(!fresh.length&&!added.length&&!omeFiles.size)throw new Error("TIFF画像を選択してください。");added.push(...fresh);const grouping=groupFiles(added,mode);publish({importIssues:grouping.issues.map(shownIssue)});if(grouping.issues.some(value=>value.kind==="duplicate_channel"))throw new Error("同じ視野・チャンネルの画像が複数あります。画像の対応を確認してください。");
       if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
-      try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);const saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);await showImported(saved,field.key);addedIds.push(saved.id);} for(const [key,file] of omeFiles){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);const saved=await adapter.uploadOme(workspace(),file,entry);await showImported(saved,key);addedIds.push(saved.id);} } finally {await refresh(workspace());}
+      // A file the API rejects is reported by name and dropped, so the next import neither resends it nor stops at it.
+      const rejected:string[]=[];
+      const reject=async(key:string,paths:string[],error:unknown)=>{
+        if(!(error instanceof ApiError&&error.status===422))throw error;
+        rejected.push(`${paths.map(shownPath).join("、")}：${message(error)}`);
+        for(const path of paths){files.delete(path);omeFiles.delete(path);const index=added.findIndex(value=>value.path===path);if(index>=0)added.splice(index,1);}
+        const entry=uploadKeys.get(key);uploadKeys.delete(key);if(entry)await adapter.forgetImport(workspace(),entry);
+      };
+      try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);let saved:ImportedField;try{saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);}catch(error){await reject(field.key,Object.values(field.files).map(file=>file.path),error);continue;}await showImported(saved,field.key);addedIds.push(saved.id);} for(const [key,file] of [...omeFiles]){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);let saved:ImportedField;try{saved=await adapter.uploadOme(workspace(),file,entry);}catch(error){await reject(key,[key],error);continue;}await showImported(saved,key);addedIds.push(saved.id);} } finally {await refresh(workspace());}
+      if(rejected.length){publish({importIssues:groupFiles(added,mode).issues.map(shownIssue)});throw new Error(`登録できなかった画像があります。${rejected.join(" ")}`);}
       return addedIds;
     });},
     /** The saved experiment design (groups, runs, samples), or null. */

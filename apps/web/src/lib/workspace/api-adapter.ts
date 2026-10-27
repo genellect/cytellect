@@ -204,6 +204,11 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       if (!selection) await loadSelection(workspace);
       if (!selection!.entries.some(entry => entry.id === id)) await saveSelection(workspace, [...selection!.entries, {id, field_id: null, revision_id: null, exclusion_reason: null}]);
     },
+    /** Drops the placeholder of an import the API rejected, so it never fills the ledger. */
+    async forgetImport(workspace: string, id: string) {
+      if (!selection) await loadSelection(workspace);
+      if (selection!.entries.some(entry => entry.id === id && !entry.field_id)) await saveSelection(workspace, selection!.entries.filter(entry => entry.id !== id));
+    },
     async excludeField(workspace: string, id: string, reason: string | null) {
       return saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, exclusion_reason: reason} : entry));
     },
