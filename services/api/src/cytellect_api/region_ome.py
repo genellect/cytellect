@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, select, update
 
 from .db import fields, uid, workspaces
+from .public_uploads import require_registered
 
 
 def read_region_ome(path):
@@ -67,7 +68,9 @@ def register_region_ome_routes(api, store, settings, owner, workspace, touch, vi
                     if total > 256 * 1024**2:
                         raise HTTPException(413, "field_upload_limit")
                     stream.write(chunk)
-            inputs = {"ome": {"sha256": sha256(path), "bytes": total}}
+            digest = sha256(path)
+            require_registered(settings.upload_allowlist, digest)
+            inputs = {"ome": {"sha256": digest, "bytes": total}}
             # A name is part of the accepted upload; unnamed uploads keep their historical fingerprint.
             identity = inputs if display_name is None else {"display_name": display_name, "inputs": inputs}
             fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()

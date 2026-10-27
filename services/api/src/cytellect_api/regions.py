@@ -43,6 +43,7 @@ from sqlalchemy import func, select, update
 from .db import fields, uid, workspaces
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution
+from .public_uploads import require_registered
 from .region_enqueue import enqueue_region, validate_region_request
 from .region_inputs import read_label_tiff
 from .region_ome import register_region_ome_routes
@@ -218,6 +219,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                             raise HTTPException(413, "field_upload_limit")
                         stream.write(chunk)
                 inputs[slot] = {"sha256": sha256(path), "bytes": path.stat().st_size}
+            require_registered(settings.upload_allowlist, *(value["sha256"] for value in inputs.values()))
             if spec.client_upload_id is not None:
                 canonical = json.dumps({
                     "specification": spec.model_dump(mode="json", exclude={"client_upload_id"}),
