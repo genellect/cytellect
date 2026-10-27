@@ -27,6 +27,7 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 - [要件](requirements.md)（英語）
 - [研究者の作業の流れと改善の進め方](research-workflow.md)（英語）
 - [群間比較の UX 改善：目標定義書（案）](drafts/group-comparison/goals.md)、[要件定義書（案）](drafts/group-comparison/requirements.md)、[開発体制（案）](drafts/group-comparison/development.md)：レビュー中の下書き
+- [クラウド開発環境：実装計画（案）](drafts/cloud-development/plan.md)：オーナーの承認待ち
 
 ## 設計と実装
 
