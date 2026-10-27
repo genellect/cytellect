@@ -137,9 +137,11 @@ describe("saved mask-correction counts",()=>{
     const edited={field_id:"a",status:"recorded" as const,initial_regions:350,deleted_regions:1,added_regions:0,redrawn_regions:0,split_regions:0,merged_regions:0};
     const unrecorded={...edited,field_id:"c",status:"not_recorded" as const,initial_regions:null,deleted_regions:0};
     const merged=withMaskCorrections(rows,{fields:[edited,unrecorded]});
-    expect(merged[0]).toEqual({field_id:"a",input_rows:349,excluded:0,initial_regions:350,deleted_regions:1,added_regions:0,redrawn_regions:0,split_regions:0,merged_regions:0});
+    expect(merged[0]).toEqual({field_id:"a",input_rows:349,excluded:0,manual_edits:"最初 350 · 削除 1"});
     expect(merged[1]).toEqual(rows[1]);
-    expect(merged[2]).toMatchObject({excluded:1,initial_regions:null,deleted_regions:null});
+    expect(merged[2]).toEqual({...rows[2],manual_edits:"記録なし"});
+    expect(withMaskCorrections(rows,{fields:[{...edited,deleted_regions:0}]})[0]).toMatchObject({manual_edits:"なし"});
+    expect(withMaskCorrections(rows,{fields:[{...edited,deleted_regions:2,merged_regions:3}]})[0]).toMatchObject({manual_edits:"最初 350 · 削除 2 · 結合 3"});
     expect(withMaskCorrections(rows,undefined)).toBe(rows);
   });
 });
