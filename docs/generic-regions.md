@@ -235,6 +235,13 @@ Uploaded filenames are not storage paths or identity. The transaction repeats
 the identity lookup, checks quotas and inserts once, so concurrent retries cannot
 double-count fields or bytes. Unused temporary files are removed.
 
+An upload may carry an optional `display_name` (1–120 characters, no control
+characters or surrounding spaces); the workspace sends the name it lists, the last
+segment of the grouped file name. It is saved with the field and its revision
+snapshots as a label only: it is part of the retry identity, but never a path,
+field identity or experimental metadata, and nothing is inferred from it. Uploads
+without a name keep their historical fingerprint, and older fields have none.
+
 The generic upload route retains authentication, ownership, expiry, Origin/CSRF,
 body/time and concurrency limits before parsing. Its workspace count/byte quota
 check occurs in the registration transaction, after the retry lookup. This lets a

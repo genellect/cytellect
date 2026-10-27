@@ -9,7 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from .descriptive_contracts import PagedDescriptiveOutput, PagedDescriptiveRequest, parse_descriptive_request
-from .descriptive_figures import _caption, descriptive_methods, render_descriptive
+from .descriptive_figures import _caption, descriptive_methods, labelled, render_descriptive
 from .descriptive_pages import VERSION, DescriptivePresentationError, page_layout, render_pages
 from .exports_csv import csv_sha256, write_csv
 from .images import sha256
@@ -101,7 +101,7 @@ def _output_caption(result, layout, status, methods_template=None):
     text += "\nPage / saved field mapping (field numbers are global; all pages share one Y scale):\n"
     for page in layout["page_plan"]:
         text += f"- Page {page['page_index']}: " + "; ".join(
-            f"{layout['labels'][fid]}: field_id={fid}" for fid in page["field_ids"]) + "\n"
+            f"{labelled(result, layout['labels'], fid)}: field_id={fid}" for fid in page["field_ids"]) + "\n"
     if status != "ready":
         text += "The mapping describes the planned pages; no partially rendered page is published.\n"
     return text

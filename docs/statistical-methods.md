@@ -17,6 +17,7 @@ for its saved documents.
 - Descriptive Methods and legends state recorded manual mask edits
   ([Descriptive outputs](descriptive.md#manual-mask-edits)). A deleted region is
   not an explicitly excluded observation, so the excluded count stays separate.
+  An edited field is named by its registered display name with its field ID.
 
 The feature is source implementation pending its release checks; it is not an
 update to an already downloaded immutable local package. Biological validation

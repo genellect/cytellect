@@ -105,6 +105,8 @@ PNG and label-layout rejection. It does not change the existing inferential
 renderer. Points show selected observations and open squares show field
 medians. Horizontal jitter uses a recorded seed of zero and never changes values.
 Fields receive short display labels whose actual IDs are in the source mapping.
+The mapping also gives a field's registered display name when its label does not
+show it.
 The selected acquired channel is named on the axis, and the caption records
 its exact ID, label and actual stain (or explicitly unrecorded stain).
 Counts are explicitly named observations, not an unlabeled independent `n`.
@@ -139,6 +141,13 @@ in the page plan; explicitly excluded failed fields retain their separate
 diagnostics and unknown observation counts. Pagination never pools values,
 selects observations or infers an independent replicate count. Jitter is
 generated once in global field order with seed zero.
+
+A field's registered display name is its global label when it is unique, at most
+12 columns wide (a wide character counts two), not another field's number and,
+for English figures, printable ASCII. Otherwise the label is its global field
+number. The legend's mapping lists every label with its display name and field ID,
+and `figure-data.json` records the labels. Fields without a name keep the numbered
+labels of older outputs.
 
 Each page provides editable SVG/PDF and a PNG preview. A single complete set of
 CSV tables, Methods and source JSON covers all pages. Policy 2.0.0 fixes CSV

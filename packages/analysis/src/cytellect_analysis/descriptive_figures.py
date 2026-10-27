@@ -55,6 +55,12 @@ def _selected_channel(result):
                 if item["channel"]["channel_id"] == selection["channel_id"])
 
 
+def labelled(result, labels, fid):
+    """A figure label with the registered field name when the label does not already show it."""
+    name = next((field.get("display_name") for field in result["source_fields"] if field["field_id"] == fid), None)
+    return labels[fid] if not name or name == labels[fid] else f"{labels[fid]} ({name})"
+
+
 def _caption(result, labels, methods_template=None):
     ja = result["spec"]["plot"]["language"] == "ja"
     version = template_version(methods_template)
@@ -116,7 +122,7 @@ def _caption(result, labels, methods_template=None):
         definition = field.get("region_set", {}).get("label", result["observation_kind"])
         if version not in (None, "1.0.0") and "region_set" in field:
             definition = region_set_name(field["region_set"])
-        lines.append(f"- {labels[fid]}: field_id={fid}; selected={summary['selected_rows']}; "
+        lines.append(f"- {labelled(result, labels, fid)}: field_id={fid}; selected={summary['selected_rows']}; "
                      f"status={summary['status']}; definition={definition}; {identity}")
     for item in result.get("excluded_failed_fields", []):
         lines.append(f"- Explicitly excluded failed field: {item['field_id']}; reason={item['reason']}.")

@@ -307,8 +307,10 @@ def readable_descriptive_methods(result, version="1.0.0"):
     from .mask_corrections import mask_correction_methods_lines
 
     counts, selection = result["counts"], result["selection"]
-    corrections = (mask_correction_methods_lines(result, lambda fid: f"Field {fid}")
-                   if version != "1.0.0" else [])
+    names = {field["field_id"]: field.get("display_name") for field in result["source_fields"]}
+    corrections = (mask_correction_methods_lines(
+        result, lambda fid: f"{names[fid]} (field_id={fid})" if names.get(fid) else f"Field {fid}")
+        if version != "1.0.0" else [])
     lines = ["# Cytellect descriptive Methods", "", "Generated from saved settings; review before publication.",
              f"Statistical Methods template: cytellect-statistical-methods {version}.",
              f"Descriptive protocol: {result['descriptive_version']}; source: {result['source_kind']}.",

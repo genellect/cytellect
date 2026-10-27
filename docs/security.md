@@ -6,7 +6,7 @@ This early prototype has local automated tests for invitation replay/revocation,
 
 Unpublished research images, papers, filenames, conditions, masks, tables and plots stay outside Git, Cloud development, CI, external AI and public demos. The exceptions are the product's analysis proposal request and the operator-configured remote Cellpose inference service (both below). Public published images can be used for appropriate internal tests with recorded source and conditions. Only assets with a verified public redistribution basis belong in the public UI/repository; register hashes and attribution separately. Synthetic images remain numerical unit-test fixtures.
 
-Browser uploads go directly to the analysis API. Disable Vercel image optimization, analytics/session recording, Service Workers and CDN caching for research content. API responses carry no-store. Every read checks the owning live session and workspace; IDs alone confer no permission. Do not log request bodies, filenames or token values.
+Browser uploads go directly to the analysis API. Disable Vercel image optimization, analytics/session recording, Service Workers and CDN caching for research content. API responses carry no-store. Every read checks the owning live session and workspace; IDs alone confer no permission. Do not log request bodies, filenames or token values. A field's display name (by default the last segment of its file name, as the workspace lists it) is stored with the field and appears in its figure labels, legends and Methods, so exported figures carry it; it is not sent to the proposal or Cellpose services.
 
 ## Analysis proposal service
 

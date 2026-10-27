@@ -4587,6 +4587,17 @@
               }
             ],
             "title": "Client Upload Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
           }
         },
         "type": "object",
@@ -12088,6 +12099,17 @@
           "synthetic": {
             "type": "boolean",
             "title": "Synthetic"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
           }
         },
         "type": "object",

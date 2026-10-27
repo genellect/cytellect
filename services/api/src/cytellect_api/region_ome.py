@@ -7,9 +7,10 @@ from typing import Annotated
 import numpy as np
 import tifffile
 from cytellect_analysis.images import read_tiff, sha256
-from cytellect_analysis.region_contracts import RegionFieldInput, RegionImageInfo
+from cytellect_analysis.region_contracts import DISPLAY_NAME, RegionFieldInput, RegionImageInfo
 from defusedxml import ElementTree
 from fastapi import Depends, File, Form, HTTPException, UploadFile
+from pydantic import ValidationError
 from sqlalchemy import func, select, update
 
 from .db import fields, uid, workspaces
@@ -44,8 +45,15 @@ def register_region_ome_routes(api, store, settings, owner, workspace, touch, vi
     Owner = Annotated[str, Depends(owner)]
 
     @api.post("/v1/workspaces/{wid}/region-fields/ome", status_code=201, response_model=view_model)
-    async def upload_ome(wid: str, who: Owner, ome: UploadFile = File(...), client_upload_id: str | None = Form(None)):
+    async def upload_ome(wid: str, who: Owner, ome: UploadFile = File(...), client_upload_id: str | None = Form(None),
+                         display_name: str | None = Form(None)):
         workspace(wid, who)
+        if display_name is not None:
+            try:
+                DISPLAY_NAME.validate_python(display_name)
+            except ValidationError:
+                await ome.close()
+                raise HTTPException(422, "invalid_region_field_specification") from None
         fid = uid()
         folder = store.safe_path("workspaces", wid, "fields", fid)
         folder.mkdir(parents=True)
@@ -60,7 +68,9 @@ def register_region_ome_routes(api, store, settings, owner, workspace, touch, vi
                         raise HTTPException(413, "field_upload_limit")
                     stream.write(chunk)
             inputs = {"ome": {"sha256": sha256(path), "bytes": total}}
-            fingerprint = hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
+            # A name is part of the accepted upload; unnamed uploads keep their historical fingerprint.
+            identity = inputs if display_name is None else {"display_name": display_name, "inputs": inputs}
+            fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
             def existing(conn):
                 if client_upload_id is None:
@@ -80,6 +90,7 @@ def register_region_ome_routes(api, store, settings, owner, workspace, touch, vi
                     return prior
             stack, names = read_region_ome(path)
             spec = RegionFieldInput.model_validate({"version": "1.1.0", "client_upload_id": client_upload_id,
+                "display_name": display_name,
                 "channels": [{"channel_id": f"c{i + 1}", "label": name or f"c{i + 1}", "stain": name,
                               "identity_source": "ome_metadata" if name else "unresolved"}
                              for i, name in enumerate(names)]})
@@ -103,7 +114,7 @@ def register_region_ome_routes(api, store, settings, owner, workspace, touch, vi
                     raise HTTPException(409, "workflow_kind_mismatch")
                 conn.execute(fields.insert().values(id=fid, workspace_id=wid, metadata=spec.metadata.model_dump(mode="json"),
                     image_info=info.model_dump(mode="json"), synthetic=False, client_upload_id=client_upload_id,
-                    upload_fingerprint=fingerprint))
+                    upload_fingerprint=fingerprint, display_name=spec.display_name))
                 conn.execute(update(workspaces).where(workspaces.c.id == wid).values(bytes=record["bytes"] + total))
                 result = dict(conn.execute(select(fields).where(fields.c.id == fid)).mappings().one())
             keep = True

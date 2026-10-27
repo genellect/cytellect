@@ -1607,6 +1607,8 @@ export interface components {
             ome: string;
             /** Client Upload Id */
             client_upload_id?: string | null;
+            /** Display Name */
+            display_name?: string | null;
         };
         /** Body_upload_region_field_v1_workspaces__wid__region_fields_post */
         Body_upload_region_field_v1_workspaces__wid__region_fields_post: {
@@ -4644,6 +4646,8 @@ export interface components {
             image_info: components["schemas"]["RegionImageInfo"];
             /** Synthetic */
             synthetic: boolean;
+            /** Display Name */
+            display_name?: string | null;
         };
         /** RegionImageInfo */
         RegionImageInfo: {

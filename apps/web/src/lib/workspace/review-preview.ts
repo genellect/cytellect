@@ -104,7 +104,7 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
         return {id: channel.channel_id, label: assignment ? assignment.stain || channel.channel_id : channel.label,
           stain: assignment ? assignment.stain : channel.stain, role: assignment?.role ?? null};
       });
-      const displayName = input.metadata.display_name;
+      const displayName = input.display_name;
       const field: ReviewField = {id: input.id, label: typeof displayName === "string" && displayName.trim() ? displayName : `視野 ${index + 1}`,
         metadata: input.metadata,kind:link?.kind??"analysis",referenceFor:link?.reference_for_field_id??null, width: input.image_info.shape[1], height: input.image_info.shape[0],
         pixelSizeUm: input.image_info.calibration?.confirmed ? {x: input.image_info.calibration.pixel_size_x_um, y: input.image_info.calibration.pixel_size_y_um} : null,
