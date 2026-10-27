@@ -14,10 +14,12 @@ export interface ChannelAssignment {channel_id: string; stain: string | null; ro
 export interface ChannelAssignmentGroup {id:string;field_ids:string[];channel_ids:string[];assignments:ChannelAssignment[]}
 export interface ChannelAssignments {version: number; assignments: ChannelAssignment[];groups?:ChannelAssignmentGroup[];global_field_ids?:string[]}
 export interface FieldLinks {version:number;entries:Array<{field_id:string;kind:"analysis"|"reference";reference_for_field_id:string|null;previous_exclusion?:string|null}>}
+/** Where a registered channel's stain name came from (region field ChannelSpec.identity_source). */
+export type StainSource = "filename" | "ome_metadata" | "user_entered" | "unresolved";
 export interface ImportedField {
   id: string; workspace_id: string;
   metadata: Record<string, string | number | null>;
-  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
+  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null; identity_source?: StainSource}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
 }
 export interface MeasurementRow {
   region_id: number; channel_id: string; area_px: number; area_um2: number | null;
