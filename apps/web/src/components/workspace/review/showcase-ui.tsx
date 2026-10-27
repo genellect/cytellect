@@ -100,7 +100,7 @@ export function DemoBadge({dataset, onGuide}: {dataset: ShowcaseDataset | null; 
   return <details className={styles.badgeMenu} ref={menu}>
     <summary className={styles.badge} aria-label="デモ：使い方・ダウンロード・画像の出典">デモ</summary>
     <div className={styles.popover}>
-      <div className={styles.badgeActions}><button type="button" onClick={() => {if (menu.current) menu.current.open = false; onGuide();}}>使い方</button><a href={DOWNLOAD_HREF} data-lp-event="demo_download">ダウンロード</a></div>
+      <div className={styles.badgeActions}><button type="button" data-lp-event="demo_guide" onClick={() => {if (menu.current) menu.current.open = false; onGuide();}}>使い方</button><a href={DOWNLOAD_HREF} data-lp-event="demo_download">ダウンロード</a></div>
       <DatasetCredit dataset={dataset}/>
     </div>
   </details>;
