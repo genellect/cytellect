@@ -6,6 +6,11 @@ import type {MeasurementRow} from "../../../lib/workspace/api-adapter";
 
 export type ResultOperation = "distribution" | "comparison" | "association";
 export const emptyMetadata: Metadata = {condition:null,sample:null,experimental_unit:null,pair:null,acquisition_date:null,repeat_length:null};
+/** The metric a saved statistics block names, in the selector's terms; null when none was named (a proposal with no metrics). */
+export function restoredMetric(statistics:{metric?:string|null}):string|null{
+  if(!statistics.metric)return null;
+  return statistics.metric==="ncl_log2_nucleoplasm_over_nucleoli"?"log2_nucleoplasm_over_nucleolus":statistics.metric;
+}
 /** The numeric renderer names its explicitly declared formats figure.<format>. */
 export function numericFigureFiles(figure:{source_files?:string[];formats?:string[]}):string[]{
   return [...new Set([...(figure.source_files||[]),...(figure.formats||[]).filter(format=>["svg","pdf","png"].includes(format)).map(format=>`figure.${format}`)])];

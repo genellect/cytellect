@@ -10,7 +10,7 @@ import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type Compart
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricStructure,metricUsesChannel} from "@/lib/workspace/metric-catalog";
-import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import type {ShowcaseDataset} from "@/lib/showcase";
@@ -169,7 +169,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     if(skipOwnSpec.current){skipOwnSpec.current=false;return;}
     const stat=initialSpec.statistics,figure=initialSpec.figure;
     if(stat?.method){setOperation(stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setConfirmed(false);
-      onMetricChange?.(stat.metric==="ncl_log2_nucleoplasm_over_nucleoli"?"log2_nucleoplasm_over_nucleolus":stat.metric,stat.channel_id??null);
+      const restored=restoredMetric(stat);if(restored)onMetricChange?.(restored,stat.channel_id??null);
       const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)onMetricChange?.(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
     }
     if(figure?.plot){const p=figure.plot as typeof figure.plot & {style?:RenderPlot["style"];axes?:RenderPlot["axes"]};setFigureKind(p.kind);setWidth(p.width_inches*25.4);setHeight(p.height_inches*25.4);setFont(p.font_size);setXLabel(p.x_label);setYLabel(p.y_label);setYMin(p.y_min==null?"":String(p.y_min));setYMax(p.y_max==null?"":String(p.y_max));setColors(p.style?.series_colors||{});setLegend(p.style?.show_legend??true);setPointSize(p.point_size??18);setOrder(p.group_order||[]);setXAxis({min:p.axes?.x_min==null?"":String(p.axes.x_min),max:p.axes?.x_max==null?"":String(p.axes.x_max),step:p.axes?.x_tick_step==null?"":String(p.axes.x_tick_step),scale:p.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:p.y_tick_step==null?"":String(p.y_tick_step),scale:p.axes?.y_scale||"linear"});}

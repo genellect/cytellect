@@ -1,11 +1,18 @@
 import {descriptiveSupported} from "../../../lib/workspace/comparison-adapter";
 import {describe,it,expect} from "vitest";
-import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
 const plot=checkedPlot(178,100,7,"","","","");
 describe("connected result contracts",()=>{
+  it("restores no metric from a proposal that named none, so the selector keeps its own",()=>{
+    // A descriptive proposal with metrics: [] saves statistics without a metric (the AI asked for channels first).
+    expect(restoredMetric({})).toBeNull();
+    expect(restoredMetric({metric:null})).toBeNull();
+    expect(restoredMetric({metric:"mean"})).toBe("mean");
+    expect(restoredMetric({metric:"ncl_log2_nucleoplasm_over_nucleoli"})).toBe("log2_nucleoplasm_over_nucleolus");
+  });
   it("uses only declared numeric formats for the original renderer manifest",()=>{
     expect(numericFigureFiles({source_files:["data.csv","figure.svg"],formats:["svg","pdf","png","html"]})).toEqual(["data.csv","figure.svg","figure.pdf","figure.png"]);
     expect(numericFigureFiles({source_files:["data.csv"]})).toEqual(["data.csv"]);
