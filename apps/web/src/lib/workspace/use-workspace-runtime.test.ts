@@ -1,4 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
+import {ApiError} from "../api";
 import {createWorkspaceRuntime, defaultRuntimeSettings, runtimeRecipe, sameRuntimeRecipe} from "./use-workspace-runtime";
 import type {createApiAdapter, ImportedField, Recipe, SavedResult, ValidatedProposal} from "./api-adapter";
 import type {ReviewData, ReviewTarget} from "./review-preview";
@@ -21,7 +22,7 @@ function fixture(withResult=true,initialSpecification:import("./use-workspace-ru
     editMask:vi.fn(async(_workspace:string,_source:SavedResult,recipe:Recipe)=>{const saved=result(`edit${++serial}`);revisions.set(saved.revision,recipe);adopted.set(target(recipe),saved);return saved;}),
     selectRevision:vi.fn(async(_workspace:string,id:string)=>{const saved=result(id);adopted.set(target(revisions.get(id)!),saved);return saved;}),
     draft:vi.fn(async()=>({proposal:{draft:{recipe:"nuclear-intensity",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"fixture",processing:{version:"1.0.0",nuclei:{channel:"c4",detection_max_side_px:null,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.65,nms:.3,percentile_low:1,percentile_high:99.8}},nucleoli:null,signal:null}},needs_confirmation:[]} as ValidatedProposal})),
-    registerImport:vi.fn(),uploadOme:vi.fn(async()=>input),upload:vi.fn(async()=>input),create:vi.fn(async()=>({id:"w",title:"fixture"})),selection:()=>({version:1,entries:[]}),
+    registerImport:vi.fn<(workspace:string,id:string)=>Promise<void>>(),excludeField:vi.fn<(workspace:string,id:string,reason:string|null)=>Promise<void>>(),uploadOme:vi.fn(async()=>input),upload:vi.fn<(workspace:string,field:{key:string},channels?:unknown,files?:unknown,entry?:string)=>Promise<ImportedField>>(async()=>input),create:vi.fn(async()=>({id:"w",title:"fixture"})),selection:()=>({version:1,entries:[]}),
   };
   let spec=initialSpecification;
   const writeSpecification=vi.fn(async(_id:string,value:import("./use-workspace-runtime").RuntimeSpecification)=>{spec={...value,version:spec.version+1};return spec;});
@@ -141,6 +142,37 @@ describe("functional workspace runtime",()=>{
   it("never requests AI or starts analysis on import, but explicitly sent empty text applies and previews",async()=>{
     const {runtime,adapter,loadPreview}=fixture();await runtime.load("w");await runtime.importFiles([new File([new Uint8Array(4)],"view_c4.tif")]);expect(adapter.draft).not.toHaveBeenCalled();expect(adapter.run).not.toHaveBeenCalled();expect(loadPreview).toHaveBeenCalledWith("w",["f1"]);
     await runtime.requestProposal("","f1");expect(adapter.draft.mock.calls[0]).toBeDefined();expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.run.mock.calls[0][1]).toBe("f1");
+  });
+  it("names a rejected file, keeps its ledger entry until it is excluded with a reason, and never resends it",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");
+    // The ledger the API keeps: each import registers an entry, which an accepted upload fills and an exclusion annotates.
+    const pending=new Map<string,string|null>(),filled=new Set<string>();
+    adapter.registerImport.mockImplementation(async(_workspace:string,id:string)=>{if(!pending.has(id))pending.set(id,null);});
+    adapter.excludeField.mockImplementation(async(_workspace:string,id:string,reason:string|null)=>{pending.set(id,reason);});
+    const restore=adapter.restore.getMockImplementation()!;
+    adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);
+      return {...value,selection:{...value.selection,entries:[...value.selection.entries,...[...pending].filter(([id])=>!filled.has(id)).map(([id,reason])=>({id,field_id:null,revision_id:null,exclusion_reason:reason}))]}} as unknown as typeof value;});
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(field.key.endsWith("a-labels"))throw new ApiError("region_image_bit_depth_unsupported",422);filled.add(entry!);return {id:`f-${field.key.split("/").at(-1)}`,workspace_id:"w",metadata:{},image_info:{shape:[10,10],channels:[{channel_id:"c4",label:"DAPI",stain:"DAPI"}]}};});
+    const files=["a_c1.tif","a_c4.tif","b_c4.tif","a-labels.tif"].map((name,index)=>new File([new Uint8Array([index])],name));
+    const failure=await runtime.importFiles(files).catch((error:Error)=>error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain("a-labels.tif：8-bit または 16-bit の画像ではありません");
+    expect((failure as Error).message).not.toContain("import-");
+    const keys=()=>adapter.upload.mock.calls.map(call=>call[1].key.split("/").at(-1));
+    expect(keys().sort()).toEqual(["a","a-labels","b"]);
+    // Issues name the researcher's own files, not the private batch folder.
+    expect(runtime.getSnapshot().importIssues).toContainEqual({kind:"missing_channel",field:"b",token:"c1"});
+    expect(JSON.stringify(runtime.getSnapshot().importIssues)).not.toContain("import-");
+    const [unfinished]=runtime.getSnapshot().unfinishedImports;
+    expect(runtime.getSnapshot().unfinishedImports).toHaveLength(1);
+    expect(unfinished).toMatchObject({name:"a-labels.tif",reason:expect.stringContaining("8-bit または 16-bit")});
+    await runtime.importFiles([new File([new Uint8Array([9])],"c_c4.tif")]);
+    expect(keys().sort()).toEqual(["a","a-labels","b","c"]);
+    expect(runtime.getSnapshot().unfinishedImports).toHaveLength(1);
+    await expect(runtime.excludeImport(unfinished.entry," ")).rejects.toThrow("除外の理由を入力してください。");
+    await runtime.excludeImport(unfinished.entry,"整数ラベル画像で、測る画像ではない");
+    expect(adapter.excludeField).toHaveBeenCalledWith("w",unfinished.entry,"整数ラベル画像で、測る画像ではない");
+    expect(runtime.getSnapshot().unfinishedImports).toEqual([]);
   });
   it("retains separate file identities when later images have the same filename",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");

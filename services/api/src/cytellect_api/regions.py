@@ -128,6 +128,21 @@ class GfpGateRequest(BaseModel):
         return self
 
 
+# Reader causes a researcher can act on, by the slot being read; other causes keep the generic code.
+REGION_IMAGE_ERRORS = {
+    "uint8_or_uint16_required": "region_image_bit_depth_unsupported",
+    "only_2d_supported": "region_image_not_2d",
+    "grayscale_axes_required": "region_image_not_grayscale",
+    "explicit_channels_required": "region_image_multichannel_requires_ome",
+    "channel_dimensions_mismatch": "region_channel_dimensions_mismatch",
+    "pixel_limit": "region_image_pixel_limit",
+}
+REGION_LABEL_ERRORS = {
+    "single_label_plane_required": "region_labels_single_plane_required",
+    "original_coordinate_integer_labels_required": "region_labels_shape_or_type_mismatch",
+    "label_plane_incomplete": "region_labels_incomplete",
+}
+
 def register_region_routes(api, store, settings, owner, workspace, revision,
                            field_record, result_root, queue, touch, child_revision):
     Owner = Annotated[str, Depends(owner)]
@@ -205,6 +220,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                     return dict(candidate)
             return None
 
+        reading = REGION_IMAGE_ERRORS
         try:
             inputs = {}
             for slot, file in uploads.items():
@@ -241,6 +257,7 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
                 arrays[channel.channel_id] = {"sha256": sha256(path), "bytes": path.stat().st_size}
             label_info = None
             if labels is not None:
+                reading = REGION_LABEL_ERRORS
                 plane = read_label_tiff(folder / "labels.tif", shape)
                 path = folder / "labels.npy"
                 np.save(path, plane, allow_pickle=False)
@@ -277,6 +294,9 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             return result
         except HTTPException:
             raise
+        except ValueError as exc:
+            # Only known reader causes are named; never the exception text, which can carry paths or bytes.
+            raise HTTPException(422, reading.get(str(exc), "unsupported_or_invalid_region_image")) from None
         except Exception:
             raise HTTPException(422, "unsupported_or_invalid_region_image") from None
         finally:
