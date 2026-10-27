@@ -100,12 +100,12 @@ def test_methods_and_caption_state_edits_only_in_the_new_template(tmp_path):
     result = with_mask_corrections(describe_regions(report, snapshot, selector), report, provenance)
     assert result["selection"]["excluded"] == 0
     text = descriptive_methods(result, methods_template=CURRENT_METHODS_TEMPLATE)
-    assert "Manual mask edits: masks of 1 of 1 measured fields were edited by hand" in text
-    assert "Field f1: 2 initial regions; 1 deleted; 1 regions measured." in text
+    assert "Manual mask edits: masks of 1 of 1 measured field were edited by hand" in text
+    assert "Field f1: 2 initial regions; 1 deleted; 1 region measured." in text
     assert "not counted as explicitly excluded" in text and "provenance.json" in text
     assert "Manual mask edits" not in descriptive_methods(result, methods_template=V1_0_0)
     caption = _caption(result, {"f1": "Field 1"}, CURRENT_METHODS_TEMPLATE)
-    assert "Field 1: 1 deleted (2 initial, 1 measured regions)" in caption
+    assert "Field 1: 1 deleted (2 initial regions, 1 measured)" in caption
     assert "definition=reviewed" in caption and "Reviewed regions" not in caption
     japanese = copy.deepcopy(result)
     japanese["spec"]["plot"]["language"] = "ja"
@@ -138,10 +138,10 @@ def test_api_edit_to_paged_description_export_replay_and_edited_figure(tmp_path)
     assert result["selection"]["excluded"] == 0
     assert result["figure"]["methods_template"] == CURRENT_METHODS_TEMPLATE.model_dump()
     methods = client.get(f"/v1/jobs/{jid}/files/methods.md").text
-    assert "1 initial regions; 1 deleted, 1 added; 1 regions measured." in methods
+    assert "1 initial region; 1 deleted, 1 added; 1 region measured." in methods
     assert "Region definition: objects (region set ID objects; regions from an imported label image;" in methods
     assert "Reviewed regions" not in methods
-    assert "1 deleted, 1 added (1 initial, 1 measured regions)" in client.get(f"/v1/jobs/{jid}/files/figure-caption.md").text
+    assert "1 deleted, 1 added (1 initial region, 1 measured)" in client.get(f"/v1/jobs/{jid}/files/figure-caption.md").text
     render = client.post(f"/v1/jobs/{jid}/figure-render", headers=HEADERS,
                          json={"request_id": "edited", "plot": {"y_label": "Area"}}).json()["job_id"]
     assert process_one(store, settings)

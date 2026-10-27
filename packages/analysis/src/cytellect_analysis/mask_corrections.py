@@ -98,6 +98,11 @@ def with_mask_corrections(result, report, provenance):
     return result
 
 
+def _n(count, noun):
+    """``1 region``, ``2 regions``: the English Methods count their nouns."""
+    return f"{count} {noun}{'' if count == 1 else 's'}"
+
+
 def _changes(row, ja):
     merged, merges = row["merged_regions"], row["operations"]["merge"]
     if ja:
@@ -123,20 +128,20 @@ def mask_correction_methods_lines(result, identify):
     rows, edited = summary["fields"], [row for row in summary["fields"] if row["edit_revision_ids"]]
     initial = INITIAL_EN.get(summary["source"], f"initial regions ({summary['source']})")
     if edited:
-        lines = [f"Manual mask edits: masks of {len(edited)} of {len(rows)} measured fields were edited by hand "
+        lines = [f"Manual mask edits: masks of {len(edited)} of {_n(len(rows), 'measured field')} were edited by hand "
                  f"after their initial regions ({initial}) were created."]
-        lines += [f"{identify(row['field_id'])}: {row['initial_regions']} initial regions; {_changes(row, False)}; "
-                  f"{row['final_regions']} regions measured." for row in edited]
+        lines += [f"{identify(row['field_id'])}: {_n(row['initial_regions'], 'initial region')}; {_changes(row, False)}; "
+                  f"{_n(row['final_regions'], 'region')} measured." for row in edited]
         lines.append("Initial region counts are reconstructed from the measured masks and the recorded edit operations. "
                      "Deleted regions are absent from the measured masks and are not counted as explicitly excluded "
                      "observations. Each edit's revision, operation, region IDs and polygon are retained in "
                      "provenance.json; per-field counts are in figure-data.json (mask_corrections).")
     else:
-        lines = [f"Manual mask edits: none are recorded for the {len(rows)} measured fields; "
+        lines = [f"Manual mask edits: none are recorded for the {_n(len(rows), 'measured field')}; "
                  f"their measured masks are the initial regions ({initial})."]
     missing = sum(row["status"] == "not_recorded" for row in rows)
     if missing:
-        lines.append(f"No mask edit history is recorded for {missing} measured fields.")
+        lines.append(f"No mask edit history is recorded for {_n(missing, 'measured field')}.")
     if summary["source_revision_ids"]:
         lines.append("Edits to the pinned source masks (revisions " + ", ".join(summary["source_revision_ids"])
                      + ") are recorded in those revisions and are not counted here.")
@@ -160,7 +165,7 @@ def mask_correction_caption_lines(result, labels, ja):
         return lines
     lines = (["Manual mask edits (counts in figure-data.json, mask_corrections): "
               + "; ".join(f"{labels.get(row['field_id'], row['field_id'])}: {_changes(row, False)} "
-                         f"({row['initial_regions']} initial, {row['final_regions']} measured regions)" for row in edited) + "."]
+                         f"({_n(row['initial_regions'], 'initial region')}, {row['final_regions']} measured)" for row in edited) + "."]
              if edited else ["No manual mask edits are recorded; masks are the initial regions."])
     if missing:
         lines.append("No mask edit history is recorded for: " + ", ".join(missing) + ".")

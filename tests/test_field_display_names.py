@@ -83,9 +83,9 @@ def test_paged_figure_legend_and_methods_name_fields_with_their_ids(tmp_path):
     assert read_json(folder / "figure-data.json")["field_labels"] == {a01: "A01", a06: "A06"}
     caption = client.get(f"/v1/jobs/{jid}/files/figure-caption.md").text
     assert f"- A01: field_id={a01};" in caption and f"A06: field_id={a06}" in caption
-    assert "A01: 1 added (1 initial, 2 measured regions)" in caption
+    assert "A01: 1 added (1 initial region, 2 measured)" in caption
     methods = client.get(f"/v1/jobs/{jid}/files/methods.md").text
-    assert f"A01 (field_id={a01}): 1 initial regions; 1 added; 2 regions measured." in methods
+    assert f"A01 (field_id={a01}): 1 initial region; 1 added; 2 regions measured." in methods
     assert "A01" in (folder / "figure-001.svg").read_text(encoding="utf-8")
 
 
