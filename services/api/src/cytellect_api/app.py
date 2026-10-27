@@ -1,5 +1,6 @@
 """Private API. No patient/research content is logged or externally transmitted."""
 
+import hashlib
 import json
 import secrets
 import shutil
@@ -52,6 +53,7 @@ from .figure_render import register_figure_render_routes
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
 from .proposals import register_proposal_routes
+from .public_uploads import require_registered
 from .region_cohorts import register_region_cohort_routes
 from .region_comparisons import register_region_comparison_routes
 from .regions import is_region, register_region_routes
@@ -380,6 +382,7 @@ def create_app(settings: Settings | None = None):
                             raise HTTPException(413, "field_upload_limit")
                         output.write(chunk)
                 input_info[role] = {"sha256": sha256(path), "bytes": path.stat().st_size}
+            require_registered(settings.upload_allowlist, *(value["sha256"] for value in input_info.values()))
             if ome:
                 indices = json.loads(mapping)
                 if not isinstance(indices, list) or any(type(v) is not int for v in indices):
@@ -932,6 +935,7 @@ def create_app(settings: Settings | None = None):
         await file.close()
         if len(content) > 8 * 1024**2:
             raise HTTPException(413, "table_size_limit")
+        require_registered(settings.upload_allowlist, hashlib.sha256(content).hexdigest())
         parsed = parse_numeric_csv(content, mode=mode)
         tid = uid()
         folder = store.safe_path("workspaces", wid, "tables", tid)
