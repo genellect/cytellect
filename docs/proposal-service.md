@@ -94,13 +94,6 @@ remote D1 execution remains a separate deployment check.
 
 ## Development environments
 
-The [development configuration reference](development-environment.md#ai-による解析提案)
-(Japanese) lists the local settings, their purpose and where they belong.
-Contributors use the relay URL and an environment-specific device token; the
-operator's `OPENAI_API_KEY` and `ADMIN_TOKEN` stay with the service operator.
-For local development, load `.env` explicitly as shown in
-[CONTRIBUTING](../CONTRIBUTING.md#ローカル開発). The Python API does not load it automatically.
-
 A development environment that runs the installation's stack
 (`python3 scripts/dev.py serve`, see [CONTRIBUTING](../CONTRIBUTING.md#外部サービス))
 is enrolled like any installation, with its own device token:

@@ -9,8 +9,6 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 3. [開発の原則](development-principles.md)：人も AI エージェントも守る原則。作業に関係する節を必ず読む
 4. [CI の構成](ci.md)：PR と `main` で実行されるジョブ
 
-環境構築で使う変数と認証情報の用途・保存先は、[開発環境の設定](development-environment.md)にまとめている。
-
 ## 使う
 
 - [はじめての画像解析](quickstart.ja.md)

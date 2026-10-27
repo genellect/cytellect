@@ -80,7 +80,7 @@ uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A
 
 ### 開発環境から使う
 
-開発環境（`python3 scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#外部サービス)）でも、オーナーが指定したサーバーを使います。開発用の接続トークンをオーナーから受け取り、ID と Secret に分けて作業環境の環境変数として登録します。用途・保存先・管理用キーとの違いは[開発環境の設定](development-environment.md#cellpose-の-gpu-推論)にまとめています。
+開発環境（`python3 scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#外部サービス)）も、同じサーバーを使います。手順 2 の 4 の接続用トークンを ID と Secret に分け、作業環境の環境変数として登録します。
 
 | 環境変数 | 値 |
 | --- | --- |
@@ -88,8 +88,6 @@ uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A
 | `CYTELLECT_MODAL_PROXY_SECRET` | 接続用トークンの Secret（`ws-…`） |
 
 `scripts/dev.py` は 2 つをピリオドでつないで接続キーにし、上の URL を接続先にします。`python3 scripts/dev.py doctor --live` は、この接続キーで `/health` を呼び、200 が返るかを確かめます。停止中の GPU は起動に約 3 分かかり、起動中と使用後の 20 秒も課金されます。試験には公開画像だけを使います。
-
-接続先と結合済みのキーを `CYTELLECT_CELLPOSE_REMOTE_URL` と `CYTELLECT_CELLPOSE_REMOTE_TOKEN` に明示することもできます。こちらを設定した場合は、分割した ID・Secret より優先されます。`uv run cytellect-worker` で計算ワーカーを直接起動する場合は、`scripts/dev.py` の結合処理を通らないため、結合済みの形を使います。手元の `.env` の読み込み方は [CONTRIBUTING](../CONTRIBUTING.md#ローカル開発)を参照してください。
 
 ## 送ったデータの扱い（Modal）
 
