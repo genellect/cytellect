@@ -255,6 +255,7 @@ jobs:
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --evaluate /tmp/cytellect-bbbc007-run --fiji /tmp/cytellect-fiji
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --check-report /tmp/cytellect-bbbc007-run/benchmark.json
           uv run python scripts/prepare_workspace_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --output /tmp/cytellect-workspace-inputs
+          uv run python scripts/check_public_uploads.py /tmp/cytellect-workspace-inputs
       - name: Retain public-image execution summary only
         if: always()
         uses: actions/upload-artifact@v4

@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 
 from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION
 
+from .public_uploads import load_allowlist
+
 
 def checkout_root(module_file: str | Path | None = None) -> Path | None:
     """The source checkout that private data must stay outside, if any.
@@ -70,6 +72,8 @@ class Settings:
     proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
     desktop_owner: bool = False
     workspace_retention_mode: str = "ttl"
+    # Digests of the registered public files a shared development environment accepts (public_uploads.py).
+    upload_allowlist: frozenset[str] | None = None
 
     def __post_init__(self):
         if self.workspace_retention_mode not in {"ttl", "manual"}:
@@ -116,6 +120,8 @@ class Settings:
             proposal_model=os.environ.get("CYTELLECT_PROPOSAL_MODEL", "gpt-6.1-sol"),
             proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", PROPOSAL_PROMPT_VERSION),
             desktop_owner=os.environ.get("CYTELLECT_DESKTOP_OWNER", "false").lower() == "true",
+            upload_allowlist=(load_allowlist(os.environ["CYTELLECT_UPLOAD_ALLOWLIST"])
+                              if os.environ.get("CYTELLECT_UPLOAD_ALLOWLIST") else None),
         )
 
 
