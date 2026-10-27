@@ -29,8 +29,9 @@ updates are remeasured on current masks. Old statistics remain visibly labelled 
 An image the API rejects is named with its reason (for example, an integer label mask sent as an
 image to measure) and is not sent again. Its entry stays in the workspace record, because a field
 that failed to import is never dropped silently: the comparison waits until the researcher excludes
-it with a reason from the import list (取込). The API does not store file names, so after a reload
-the entry is listed without one.
+it with a reason from the import list (取込). Rejections with the same reason are stated once, several
+entries can be excluded together with one reason, and the statistics view says how many are waiting.
+The API does not store file names, so after a reload the entry is listed without one.
 
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm
@@ -85,7 +86,7 @@ review route `/workspace-review` (the workspace without its session gate) redire
   the error banner. Unrecorded detection conditions, unrecorded AI instructions and uploads are
   notices too.
 - The same as in production: several stains open as a colour merge (重ねて表示: the nuclear stain blue,
-  each other used stain its own colour; choosing one stain shows it alone); nucleoli and nucleoplasm
+  each other used stain the colour of its channel position, so assigning the nuclear stain recolours only that channel; choosing one stain shows it alone); nucleoli and nucleoplasm
   open on the nucleolar marker with the adopted nuclei outlined faintly; side by side (2 画面) each
   pane has the outline tools of one field; focusing the AI composer opens the AI panel;
   `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved

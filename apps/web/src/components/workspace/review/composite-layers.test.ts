@@ -20,6 +20,8 @@ describe("colour merge", () => {
     const unassigned = compositeLayers({channels, previews: previews("c1", "c2")});
     expect(unassigned.map(layer => layer.color)).not.toContain("#3f86ff");
     expect(new Set(unassigned.map(layer => layer.color)).size).toBe(2);
+    // Assigning the nuclear stain recolours only that channel.
+    expect(compositeLayers({channels, previews: previews("c1", "c2"), nuclearChannelId: "c1"})[1].color).toBe(unassigned[1].color);
   });
 
   it("leaves out channels assigned 「使用しない」 and previews not yet loaded", () => {

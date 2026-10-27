@@ -450,21 +450,25 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(!fresh.length&&!added.length&&!omeFiles.size)throw new Error("TIFF画像を選択してください。");added.push(...fresh);const grouping=groupFiles(added,mode);publish({importIssues:grouping.issues.map(shownIssue)});if(grouping.issues.some(value=>value.kind==="duplicate_channel"))throw new Error("同じ視野・チャンネルの画像が複数あります。画像の対応を確認してください。");
       if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
       // A file the API rejects is reported by name and not resent; its ledger entry stays until the researcher excludes it with a reason.
-      const rejected:string[]=[];
+      const rejected=new Map<string,string[]>();
       const reject=(key:string,paths:string[],error:unknown)=>{
         const entry=uploadKeys.get(key),name=paths.map(shownPath).join("、");
         if(!(error instanceof ApiError&&error.status===422)){if(entry)failedImports.set(entry,{name,reason:null,key,paths});throw error;}
-        rejected.push(`${name}：${message(error)}`);if(entry)failedImports.set(entry,{name,reason:message(error),key,paths});
+        rejected.set(message(error),[...(rejected.get(message(error))??[]),name]);if(entry)failedImports.set(entry,{name,reason:message(error),key,paths});
         dropImport(key,paths);
       };
       try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);let saved:ImportedField;try{saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);}catch(error){reject(field.key,Object.values(field.files).map(file=>file.path),error);continue;}await showImported(saved,field.key);addedIds.push(saved.id);} for(const [key,file] of [...omeFiles]){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);let saved:ImportedField;try{saved=await adapter.uploadOme(workspace(),file,entry);}catch(error){reject(key,[key],error);continue;}await showImported(saved,key);addedIds.push(saved.id);} } finally {await refresh(workspace());}
-      if(rejected.length){publish({importIssues:groupFiles(added,mode).issues.map(shownIssue)});throw new Error(`登録できなかった画像があります。${rejected.join(" ")} 比較の前に、「取込」の一覧で理由を付けて除外してください。`);}
+      if(rejected.size){publish({importIssues:groupFiles(added,mode).issues.map(shownIssue)});
+        // One line per reason, naming at most three files: twelve label images are one problem, not twelve.
+        const lines=[...rejected].map(([reason,names])=>`${names.slice(0,3).join("、")}${names.length>3?` ほか ${names.length-3} 件`:""}：${reason}`);
+        throw new Error(`登録できなかった画像が ${[...rejected.values()].flat().length} 件あります。${lines.join(" ")} 比較の前に、「取込」の一覧で理由を付けて除外してください。`);}
       return addedIds;
     });},
-    /** Records why an import that never became a field is left out; it is never dropped silently. */
-    excludeImport(entry:string,reason:string){return exclusive("登録できなかった画像を除外中",async()=>{
+    /** Records why imports that never became fields are left out; they are never dropped silently. */
+    excludeImports(entries:string[],reason:string){return exclusive("登録できなかった画像を除外中",async()=>{
       if(!reason.trim())throw new Error("除外の理由を入力してください。");await checkCurrent();
-      await adapter.excludeField(workspace(),entry,reason.trim());const known=failedImports.get(entry);if(known)dropImport(known.key,known.paths);failedImports.delete(entry);await refresh(workspace());
+      for(const entry of entries){await adapter.excludeField(workspace(),entry,reason.trim());const known=failedImports.get(entry);if(known)dropImport(known.key,known.paths);failedImports.delete(entry);}
+      await refresh(workspace());
     });},
     /** The saved experiment design (groups, runs, samples), or null. */
     experiment(){return specification.spec?.experiment??null;},

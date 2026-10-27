@@ -6,6 +6,7 @@ import {formatValue,type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
 import {comparisonWarnings} from "@/lib/region-comparison-view";
 import {commonWarnings} from "@/lib/common-statistics";
+import {descriptiveWarning} from "@/lib/descriptive-view";
 import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CompartmentLedgerEntry,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
@@ -346,7 +347,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
           :<SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>)}
         {mode==="statistics"&&saved.result.omnibus&&<p>全体検定 {String(saved.result.omnibus.method)} · p = {formatValue(saved.result.omnibus.p_value)}</p>}
         {mode==="statistics"&&Array.isArray(saved.result.counts)&&<SavedTable rows={saved.result.counts} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}
-        {!!saved.result.warnings?.length&&<details><summary>解析上の注意</summary><ul>{saved.result.warnings.map(value=><li key={value}>{comparisonWarnings[value]||commonWarnings[value]||value}</li>)}</ul></details>}
+        {!!saved.result.warnings?.length&&<details><summary>解析上の注意</summary><ul>{saved.result.warnings.map(value=><li key={value}>{comparisonWarnings[value]||commonWarnings[value]||descriptiveWarning(value)}</li>)}</ul></details>}
         {!!saved.result.plot_data?.length&&<Folded summary="図の元データ">{()=><SavedTable rows={saved.result.plot_data!} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>}
         <details><summary>元の視野{saved.historical?"（保存時の解析版）":""}</summary>{(saved.sources||[]).map(source=><button key={source.field} onClick={()=>onSource(source.field,undefined,saved.revision,saved.target,savedChannel,savedStructure)}>{items.find(item=>item.fieldId===source.field)?.label||source.label}</button>)}</details>
       </>:<p className={styles.empty}>計算した結果とグラフをここに表示します。</p>}

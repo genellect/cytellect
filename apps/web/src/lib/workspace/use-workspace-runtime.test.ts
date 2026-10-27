@@ -152,26 +152,30 @@ describe("functional workspace runtime",()=>{
     const restore=adapter.restore.getMockImplementation()!;
     adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);
       return {...value,selection:{...value.selection,entries:[...value.selection.entries,...[...pending].filter(([id])=>!filled.has(id)).map(([id,reason])=>({id,field_id:null,revision_id:null,exclusion_reason:reason}))]}} as unknown as typeof value;});
-    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(field.key.endsWith("a-labels"))throw new ApiError("region_image_bit_depth_unsupported",422);filled.add(entry!);return {id:`f-${field.key.split("/").at(-1)}`,workspace_id:"w",metadata:{},image_info:{shape:[10,10],channels:[{channel_id:"c4",label:"DAPI",stain:"DAPI"}]}};});
-    const files=["a_c1.tif","a_c4.tif","b_c4.tif","a-labels.tif"].map((name,index)=>new File([new Uint8Array([index])],name));
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(field.key.endsWith("-labels"))throw new ApiError("region_image_bit_depth_unsupported",422);filled.add(entry!);return {id:`f-${field.key.split("/").at(-1)}`,workspace_id:"w",metadata:{},image_info:{shape:[10,10],channels:[{channel_id:"c4",label:"DAPI",stain:"DAPI"}]}};});
+    const files=["a_c1.tif","a_c4.tif","b_c4.tif","a-labels.tif","b-labels.tif"].map((name,index)=>new File([new Uint8Array([index])],name));
     const failure=await runtime.importFiles(files).catch((error:Error)=>error);
     expect(failure).toBeInstanceOf(Error);
-    expect((failure as Error).message).toContain("a-labels.tif：8-bit または 16-bit の画像ではありません");
+    // One reason, both files: the same problem is stated once.
+    expect((failure as Error).message).toContain("登録できなかった画像が 2 件あります。");
+    expect((failure as Error).message).toMatch(/[ab]-labels\.tif、[ab]-labels\.tif：8-bit または 16-bit の画像ではありません/);
+    expect((failure as Error).message.match(/8-bit または 16-bit/g)).toHaveLength(1);
     expect((failure as Error).message).not.toContain("import-");
     const keys=()=>adapter.upload.mock.calls.map(call=>call[1].key.split("/").at(-1));
-    expect(keys().sort()).toEqual(["a","a-labels","b"]);
+    expect(keys().sort()).toEqual(["a","a-labels","b","b-labels"]);
     // Issues name the researcher's own files, not the private batch folder.
     expect(runtime.getSnapshot().importIssues).toContainEqual({kind:"missing_channel",field:"b",token:"c1"});
     expect(JSON.stringify(runtime.getSnapshot().importIssues)).not.toContain("import-");
-    const [unfinished]=runtime.getSnapshot().unfinishedImports;
-    expect(runtime.getSnapshot().unfinishedImports).toHaveLength(1);
-    expect(unfinished).toMatchObject({name:"a-labels.tif",reason:expect.stringContaining("8-bit または 16-bit")});
+    const unfinished=runtime.getSnapshot().unfinishedImports;
+    expect(unfinished.map(item=>item.name).sort()).toEqual(["a-labels.tif","b-labels.tif"]);
+    expect(unfinished[0]).toMatchObject({reason:expect.stringContaining("8-bit または 16-bit")});
     await runtime.importFiles([new File([new Uint8Array([9])],"c_c4.tif")]);
-    expect(keys().sort()).toEqual(["a","a-labels","b","c"]);
-    expect(runtime.getSnapshot().unfinishedImports).toHaveLength(1);
-    await expect(runtime.excludeImport(unfinished.entry," ")).rejects.toThrow("除外の理由を入力してください。");
-    await runtime.excludeImport(unfinished.entry,"整数ラベル画像で、測る画像ではない");
-    expect(adapter.excludeField).toHaveBeenCalledWith("w",unfinished.entry,"整数ラベル画像で、測る画像ではない");
+    expect(keys().sort()).toEqual(["a","a-labels","b","b-labels","c"]);
+    expect(runtime.getSnapshot().unfinishedImports).toHaveLength(2);
+    const entries=unfinished.map(item=>item.entry);
+    await expect(runtime.excludeImports(entries," ")).rejects.toThrow("除外の理由を入力してください。");
+    await runtime.excludeImports(entries,"整数ラベル画像で、測る画像ではない");
+    for(const entry of entries)expect(adapter.excludeField).toHaveBeenCalledWith("w",entry,"整数ラベル画像で、測る画像ではない");
     expect(runtime.getSnapshot().unfinishedImports).toEqual([]);
   });
   it("retains separate file identities when later images have the same filename",async()=>{

@@ -107,7 +107,7 @@ test("several stains open as a colour merge in their stain colours, and choosing
   // The nuclear stain of the adopted nuclei (DAPI) is blue and NPM1 has its own colour; the measured channel stays DAPI.
   const frame=page.locator("div[data-composite]");
   await expect(frame.locator("svg[aria-label='視野 1 DAPI']")).toBeVisible();
-  expect(await frame.locator("filter").evaluateAll(filters=>filters.map(filter=>filter.id.split("-").at(-1)))).toEqual(["3f86ff","ff4fb3"]);
+  expect(await frame.locator("filter").evaluateAll(filters=>filters.map(filter=>filter.id.split("-").at(-1)))).toEqual(["3f86ff","4fd36a"]);
   await expect(bar.locator("button[data-channel][aria-pressed=true]")).toHaveCount(0);
   await bar.getByRole("button",{name:"NPM1 · c2",exact:true}).click();
   await expect(merge).toHaveAttribute("aria-pressed","false");

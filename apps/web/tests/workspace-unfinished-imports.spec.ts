@@ -47,30 +47,36 @@ test("a rejected image is named, kept in the record and left out only with a rea
   await page.goto("/workspace?id=w");
   await loaded;
   await expect(page.getByRole("status").first()).toHaveText("");
-  await page.getByTestId("file-input").setInputFiles([{name:"A01_c1.tif",mimeType:"image/tiff",buffer:Buffer.from([1,2,3])},{name:"A01-labels.tif",mimeType:"image/tiff",buffer:Buffer.from([4,5,6])}]);
-  // The researcher's own file name and the reason, never the private batch folder.
-  await expect(page.getByRole("alert").filter({hasText:/A01-labels\.tif：8-bit または 16-bit の画像ではありません/})).toBeVisible();
+  await page.getByTestId("file-input").setInputFiles([{name:"A01_c1.tif",mimeType:"image/tiff",buffer:Buffer.from([1,2,3])},{name:"A01-labels.tif",mimeType:"image/tiff",buffer:Buffer.from([4,5,6])},{name:"A02-labels.tif",mimeType:"image/tiff",buffer:Buffer.from([7,8,9])}]);
+  // The researcher's own file names and the reason, stated once for both, never the private batch folder.
+  const alert=page.getByRole("alert").filter({hasText:"登録できなかった画像が 2 件あります。"});
+  await expect(alert).toContainText(/A0[12]-labels\.tif、A0[12]-labels\.tif：8-bit または 16-bit の画像ではありません/);
+  expect((await alert.textContent())?.match(/8-bit または 16-bit/g)).toHaveLength(1);
   await expect(page.getByText(/import-[0-9a-f]/)).toHaveCount(0);
-  expect(selection.entries.filter(entry=>!entry.field_id)).toHaveLength(1);
+  expect(selection.entries.filter(entry=>!entry.field_id)).toHaveLength(2);
   expect(selection.entries.filter(entry=>entry.field_id==="accepted")).toHaveLength(1);
-  const issues=page.getByText("取込 1件",{exact:true});
-  await issues.click();
+  // Statistics say where the comparison is blocked before it is attempted.
+  await page.getByRole("button",{name:"統計",exact:true}).click();
+  await expect(page.getByRole("status").filter({hasText:"登録できなかった画像が 2 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。"})).toBeVisible();
+  await page.getByText("取込 2件",{exact:true}).click();
   await expect(page.getByText("A01-labels.tif",{exact:true})).toBeVisible();
-  await expect(page.getByLabel("除外の理由")).toHaveValue(/^登録できない画像のため除外：8-bit/);
-  // After a reload the entry is still there; only its name is not recorded by the API.
+  await expect(page.getByText("A02-labels.tif",{exact:true})).toBeVisible();
+  await expect(page.getByLabel("除外の理由").first()).toHaveValue(/^登録できない画像のため除外：8-bit/);
+  await expect(page.getByLabel("登録できなかった 2 件をまとめて除外の理由")).toHaveValue(/^登録できない画像のため除外：8-bit/);
+  // After a reload the entries are still there; only their names are not recorded by the API.
   const reloaded=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/analysis-spec"));
   await page.reload();
   await reloaded;
-  await page.getByText("取込 1件",{exact:true}).click();
-  await expect(page.getByText("名前の記録がない登録",{exact:true})).toBeVisible();
-  const reason=page.getByLabel("除外の理由");
+  await page.getByText("取込 2件",{exact:true}).click();
+  await expect(page.getByText("名前の記録がない登録",{exact:true})).toHaveCount(2);
+  const reason=page.getByLabel("登録できなかった 2 件をまとめて除外の理由");
   await expect(reason).toHaveValue("");
-  await expect(page.getByRole("button",{name:"除外",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"まとめて除外",exact:true})).toBeDisabled();
   await reason.fill("整数ラベル画像で、測る画像ではない");
-  await page.getByRole("button",{name:"除外",exact:true}).click();
-  await expect(page.getByText("取込 1件",{exact:true})).toHaveCount(0);
-  expect(selection.entries.find(entry=>!entry.field_id)?.exclusion_reason).toBe("整数ラベル画像で、測る画像ではない");
-  expect(selection.entries).toHaveLength(2);
+  await page.getByRole("button",{name:"まとめて除外",exact:true}).click();
+  await expect(page.getByText(/^取込 \d+件$/)).toHaveCount(0);
+  expect(selection.entries.filter(entry=>!entry.field_id).map(entry=>entry.exclusion_reason)).toEqual(["整数ラベル画像で、測る画像ではない","整数ラベル画像で、測る画像ではない"]);
+  expect(selection.entries).toHaveLength(3);
   expect(unexpected).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
