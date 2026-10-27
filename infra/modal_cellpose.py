@@ -23,6 +23,9 @@ PORT = 8080
 # Idle seconds before scaling to zero: short enough that a finished batch stops
 # billing quickly, long enough to keep the model loaded between fields of a batch.
 SCALEDOWN_SECONDS = 20
+# Let accepted inference finish when Modal drains a container. Match the remote
+# client's request deadline; this is a shutdown grace, not an always-warm period.
+EXIT_GRACE_SECONDS = 1800
 
 image = modal.Image.from_registry(IMAGE, setup_dockerfile_commands=["USER root"])
 app = modal.App("cytellect-cellpose")
@@ -34,8 +37,10 @@ app = modal.App("cytellect-cellpose")
     cpu=2,
     memory=8192,
     max_containers=1,
+    target_concurrency=1,
     max_concurrency=1,
     scaledown_window=SCALEDOWN_SECONDS,
+    exit_grace_period=EXIT_GRACE_SECONDS,
     startup_timeout=600,
     port=PORT,
     unauthenticated=False,
