@@ -119,3 +119,56 @@ def test_fiji_falls_back_to_the_cloud_setup_location(tmp_path, monkeypatch):
     assert dev.fiji_path() == str(tmp_path / "fiji")
     monkeypatch.setenv("CYTELLECT_FIJI_EXECUTABLE", "/explicit/fiji")
     assert dev.fiji_path() == "/explicit/fiji"
+
+
+def test_require_cloud_fails_when_a_cloud_service_is_not_configured(monkeypatch, capsys):
+    import argparse
+
+    import dev
+    import pytest
+
+    for name in ("CYTELLECT_CELLPOSE_REMOTE_URL", "CYTELLECT_CELLPOSE_REMOTE_TOKEN", "CYTELLECT_MODAL_PROXY_KEY",
+                 "CYTELLECT_MODAL_PROXY_SECRET", "CYTELLECT_PROPOSAL_URL", "CYTELLECT_PROPOSAL_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(dev, "tool_version", lambda argv: "")  # no tools, so every run exits on them
+    for required, state in ((False, "[--]"), (True, "[NG]")):
+        with pytest.raises(SystemExit):
+            dev.doctor(argparse.Namespace(live=False, require_cloud=required))
+        lines = capsys.readouterr().out.splitlines()
+        assert f"{state} Cloud GPU (Cellpose): not configured; nucleoli and cytoplasm detection is unavailable" in lines
+        assert any(line.startswith(f"{state} Analysis proposals (LLM)") for line in lines)
+
+
+def test_stop_also_ends_descendants_that_outlive_their_leader():
+    import os
+    import subprocess
+    import time
+
+    import dev
+    import pytest
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("process groups and /proc")
+
+    def alive(pid: int) -> bool:
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except FileNotFoundError:
+            return False
+        return state != "Z"
+
+    child = "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); print(flush=True); time.sleep(60)"
+    leader = (f"import subprocess, sys; c = subprocess.Popen([sys.executable, '-c', {child!r}], stdout=subprocess.PIPE); "
+              "c.stdout.readline(); print(c.pid, flush=True); c.wait()")
+    process = subprocess.Popen([sys.executable, "-c", leader], stdout=subprocess.PIPE, text=True, start_new_session=True)
+    descendant = int(process.stdout.readline())
+    try:
+        dev.stop([process], grace=1)
+        assert process.returncode is not None
+        deadline = time.monotonic() + 5
+        while alive(descendant) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not alive(descendant)
+    finally:
+        if alive(descendant):
+            os.kill(descendant, 9)

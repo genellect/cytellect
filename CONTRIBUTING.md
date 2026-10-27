@@ -50,7 +50,7 @@ python3 scripts/dev.py serve           # 本番ビルドで起動し、招待コ
 | `CYTELLECT_MODAL_PROXY_KEY`、`CYTELLECT_MODAL_PROXY_SECRET` | Modal の接続用トークンの ID（`wk-…`）と Secret（`ws-…`）（[クラウド GPU](docs/cloud-gpu.ja.md#開発環境から使う)） |
 | `CYTELLECT_PROPOSAL_URL`、`CYTELLECT_PROPOSAL_TOKEN` | 解析提案の Worker の URL と、この環境の端末トークン（[解析提案](docs/proposal-service.md#development-environments)） |
 
-`doctor` は、クラウド GPU と解析提案の未設定や不調を警告（`[!!]`）として示す。この間も Fiji と画面の開発は続けられる。失敗として扱うときは `--require-cloud` を付ける。`--live` は停止中の GPU を起動するため、約 3 分かかり、使った秒数だけ課金される。解析提案は空の依頼でトークンだけを確かめ、モデルは呼ばない。
+`doctor` は、クラウド GPU と解析提案が未設定なら `[--]`、不調なら警告（`[!!]`）を示す。この間も Fiji と画面の開発は続けられる。どちらも失敗として扱うときは `--require-cloud` を付ける。`--live` は停止中の GPU を起動するため、約 3 分かかり、使った秒数だけ課金される。解析提案は空の依頼でトークンだけを確かめ、モデルは呼ばない。
 
 `serve` は作業データを checkout の外（既定は `~/cytellect-data`）に置く。Web を変えていなければ、`--skip-build` でビルドを省ける。ブラウザの通しの試験は、`serve` を起動したまま、CI の `fiji-browser` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じく公開画像を準備して `pnpm test:e2e` を実行する。このとき `CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。Windows 版と Docker 版はこの環境では再現せず、CI で確かめる（[CI の構成](docs/ci.md)）。
 

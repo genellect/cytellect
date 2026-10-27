@@ -257,6 +257,8 @@ def doctor(args: argparse.Namespace) -> None:
         nonlocal failed
         if state == "NG" and cloud and not args.require_cloud:
             state = "!!"
+        elif state == "--" and cloud and args.require_cloud:
+            state = "NG"
         failed = failed or state == "NG"
         print(f"[{state}] {name}: {detail}")
 
@@ -287,7 +289,7 @@ def doctor(args: argparse.Namespace) -> None:
     env = cloud_env(dict(os.environ))
     url, key = env.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip(), env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN", "")
     if not url:
-        report("--", "Cloud GPU (Cellpose)", "not configured; nucleoli and cytoplasm detection is unavailable")
+        report("--", "Cloud GPU (Cellpose)", "not configured; nucleoli and cytoplasm detection is unavailable", cloud=True)
     elif not url.startswith("https://") or not key:
         report("NG", "Cloud GPU (Cellpose)", cloud=True, detail="set an https CYTELLECT_CELLPOSE_REMOTE_URL and CYTELLECT_CELLPOSE_REMOTE_TOKEN")
     elif not args.live:
@@ -302,7 +304,7 @@ def doctor(args: argparse.Namespace) -> None:
 
     service, token = os.environ.get("CYTELLECT_PROPOSAL_URL", "").strip(), proposal_token()
     if not service:
-        report("--", "Analysis proposals (LLM)", "not configured; the AI instruction box stays disabled")
+        report("--", "Analysis proposals (LLM)", "not configured; the AI instruction box stays disabled", cloud=True)
     elif not service.startswith("https://") or not token:
         report("NG", "Analysis proposals (LLM)", cloud=True, detail="set an https CYTELLECT_PROPOSAL_URL and the device token")
     elif not args.live:
@@ -314,7 +316,8 @@ def doctor(args: argparse.Namespace) -> None:
         report("ok" if ok else "NG", "Analysis proposals (LLM)", detail, cloud=True)
     if failed:
         sys.exit("Some required parts are not ready (see CONTRIBUTING.md).")
-    print("Ready. Warnings ([!!]) concern the cloud GPU or proposals; pass --require-cloud to treat them as failures.")
+    print("Ready. Cloud GPU and proposal items marked [!!] or [--] do not block development; "
+          "pass --require-cloud to require them.")
 
 
 def serve_env(base: dict[str, str], data_dir: Path) -> dict[str, str]:
@@ -331,18 +334,32 @@ def responding(url: str) -> bool:
         return False
 
 
-def stop(processes: list[subprocess.Popen]) -> None:
+def stop(processes: list[subprocess.Popen], grace: float = 20) -> None:
+    """Stop each process group, not only its leader: `uv run` and pnpm start the servers as children."""
+    def signal_group(process: subprocess.Popen, sig: int) -> None:
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+
     for process in processes:
-        if process.poll() is None:
-            if os.name == "nt":
+        if os.name == "nt":
+            if process.poll() is None:
                 process.terminate()
-            else:
-                os.killpg(process.pid, signal.SIGTERM)
+        else:
+            signal_group(process, signal.SIGTERM)
+    deadline = time.monotonic() + grace
     for process in processes:
         try:
-            process.wait(timeout=20)
+            process.wait(timeout=max(0, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
+            pass
+    for process in processes:
+        if os.name == "nt":
             process.kill()
+        else:
+            signal_group(process, signal.SIGKILL)  # members that ignored SIGTERM or outlived their leader
+        process.wait()
 
 
 def serve(args: argparse.Namespace) -> None:
@@ -410,7 +427,7 @@ def main() -> None:
     p.add_argument("--live", action="store_true",
                    help="Also contact the configured cloud GPU and proposal service (no model call)")
     p.add_argument("--require-cloud", action="store_true",
-                   help="Fail, not warn, when the cloud GPU or proposals are misconfigured or unavailable")
+                   help="Fail when the cloud GPU or proposals are not configured, misconfigured or unavailable")
     p.set_defaults(func=doctor)
     p = sub.add_parser("serve", help="Run the API, worker and production web build like an installation")
     p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",
