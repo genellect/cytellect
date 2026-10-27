@@ -26,6 +26,11 @@ without relying on canvas interaction. Nucleus/nucleolus/manual ROI edits create
 immutable revisions. Undo/Redo selects earlier/later revisions through the API.
 Nucleus edits require nucleolar resegmentation/review. Exclusions and background/gating
 updates are remeasured on current masks. Old statistics remain visibly labelled old.
+An image the API rejects is named with its reason (for example, an integer label mask sent as an
+image to measure) and is not sent again. Its entry stays in the workspace record, because a field
+that failed to import is never dropped silently: the comparison waits until the researcher excludes
+it with a reason from the import list (取込). The API does not store file names, so after a reload
+the entry is listed without one.
 
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm
