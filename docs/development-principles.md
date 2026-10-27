@@ -70,7 +70,7 @@ Cytellect の開発で、人も AI エージェントも守る原則。作業の
 
 ## 画面と文章
 
-- LP の基準は[現在の採用文](../apps/web/src/components/PublicLanding.tsx)と [interface-design.md](interface-design.md)、見た目と素材の正本は [LP の美術方針](lp-art-direction.md)（2026-10-23 承認）とする。
+- LP の基準は[現在の採用文](../apps/web/src/components/PublicLanding.tsx)と [interface-design.md](interface-design.md)、LP を編集する場合は [LP の美術方針](lp-art-direction.md)（2026-10-23 承認）を必ず参照する。
 - LP は写真・文字・構図・実際の出力を中心に据える。開発バッジ、防御的な注釈、素材写真の断り書きを足さない。機能・実績・推薦を創作しない。
 - 画像・映像の出典は、フッターの折りたたみのクレジットに、素材ごとの作者と配布元へのリンクで示す。ライセンスが求める場合は、ライセンスと加工の内容も書く。
 - 明るい背景と読みやすい文字・CTA を保ち、サイエンスと世界観は実写級の実験室の映像で表す。手作りの造形、細胞や分子の可視化、暗色・青を基調とする以前の配色を主役に戻さない。
