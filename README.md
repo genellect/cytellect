@@ -47,6 +47,7 @@ AI による解析設定
 | GPU 推論 | Modal（NVIDIA L4） | GHCR の digest 固定イメージ。使用後 20 秒で停止（`infra/modal_cellpose.py`） | 検出用の 1 チャンネルと核マスク |
 | LLM の中継 | Cloudflare Workers · D1 | 費用の予約と精算（`services/proposal-worker`） | 指示文・チャンネルの対応・画像寸法・現在の設定 |
 | 公開サイト | Vercel | LP と公開デモ。`main` へのマージで自動デプロイ | 研究画像は受け付けない |
+| 開発（本番相当） | Linux（手元・クラウドの作業環境） | `scripts/dev.py serve` で Web・API・ワーカーと Fiji を起動。Cellpose は GPU 推論、解析設定は LLM の中継を使う（[CONTRIBUTING](CONTRIBUTING.md#本番相当の環境)） | 登録済みの公開画像だけを使う |
 
 ### ディレクトリ構成
 

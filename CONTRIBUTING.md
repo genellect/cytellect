@@ -31,6 +31,30 @@ pnpm dev                             # 端末 3：Web
 
 ブラウザで `http://localhost:3000/workspace` を開き、招待コードを入力するとワークスペースに入れる。API は接続元の Origin を厳密に照合するため、アドレスは `127.0.0.1` ではなく `localhost` を使う。Cellpose-SAM を導入した場合は、`setup` が最後に表示する `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` も、API とワーカーの端末で設定する。
 
+## 本番相当の環境
+
+研究室の PC で動く版と同じ構成の解析画面を、Linux で起動して試す。構成は、解析 API、計算ワーカー、Web の本番ビルド、Fiji（核の検出）、クラウド GPU（核小体・細胞質の検出、Cellpose-SAM）、解析提案（LLM）である。試験には[登録済みの公開画像](fixtures/public)だけを使う。
+
+```bash
+python3 scripts/dev.py setup --fiji ~/cytellect-fiji
+export CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji
+python3 scripts/dev.py doctor --live   # 道具、Fiji、クラウド GPU、解析提案の準備を確かめる
+python3 scripts/dev.py serve           # API・ワーカー・Web の本番ビルドを起動し、招待コードを表示する
+```
+
+`serve` は Web を本番と同じ形でビルドしてから起動し、`http://localhost:3000/workspace` と招待コードを表示する。Ctrl-C で全体が止まる。作業データは checkout の外（既定は `~/cytellect-data`）に置き、ログは一時ディレクトリに出す。
+
+クラウド GPU と解析提案は、次の環境変数があるときだけ使える。値はオーナーから受け取り、各サービスの秘密の管理（クラウド環境では環境の設定）に置く。チャット、コミット、ログには書かない。
+
+| 環境変数 | 内容 | 発行 |
+|---|---|---|
+| `CYTELLECT_MODAL_PROXY_KEY`、`CYTELLECT_MODAL_PROXY_SECRET` | Modal の接続用トークン（Proxy Auth Token）の ID（`wk-…`）と Secret（`ws-…`）。`dev.py` がつないで接続キーにし、デプロイ済みの GPU サーバーを接続先にする | オーナー（[クラウド GPU](docs/cloud-gpu.ja.md)） |
+| `CYTELLECT_PROPOSAL_URL`、`CYTELLECT_PROPOSAL_TOKEN` | 解析提案の Worker の URL と、この環境の端末トークン | オーナーが招待コードから発行（[解析提案](docs/proposal-service.md#development-environments)） |
+
+接続キーをそのまま渡す場合は `CYTELLECT_CELLPOSE_REMOTE_URL` と `CYTELLECT_CELLPOSE_REMOTE_TOKEN`（`wk-….ws-…`）を設定する。こちらが優先される。
+
+費用に注意する。クラウド GPU は使った秒数で課金され（Modal の無料枠、支出の上限は 0 ドル）、`doctor --live` でも GPU が起動する。解析提案は月 5 ドルの予算と、端末ごとの月の回数の上限の中で動く。`doctor --live` の解析提案の確認は空の依頼だけを送り、モデルを呼ばない。Windows 版の導入と Docker 版は、この環境では再現せず CI で確かめる（[CI の構成](docs/ci.md)）。
+
 ## クラウド開発
 
 Claude Code や Codex のクラウド環境では、環境の設定にセットアップスクリプトを登録しておくと、依存パッケージが揃った状態で作業を始められる。
@@ -40,7 +64,9 @@ Claude Code や Codex のクラウド環境では、環境の設定にセット�
 | Claude Code | `bash .claude/cloud-setup.sh` |
 | Codex | `bash .codex/setup.sh` |
 
-Claude Code では、作業を始めるシェルで `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行すると、固定版の Node.js とブラウザの試験に使う Chromium が使えるようになる。Fiji も必要なら、`CYTELLECT_SETUP_FIJI=1` と、checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定してからセットアップする。図の描画に使う日本語フォント（`fonts-noto-cjk`）も、環境の設定で導入しておく。
+Claude Code のセットアップスクリプトは、固定版の Node.js・pnpm・uv、日本語フォント（`fonts-noto-cjk`）、Fiji（checkout の外）を揃え、実際の Fiji での試験まで行う。作業を始めるシェルで `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行すると、固定版の道具、Fiji の場所、ブラウザの試験に使う Chromium が設定される。続けて `python3 scripts/dev.py doctor` で準備を確かめ、[本番相当の環境](#本番相当の環境)を起動できる。
+
+クラウド GPU と解析提案の環境変数は、環境の設定（セッションのタイトルバーのクラウド環境のメニュー → Edit）に登録する。登録した値は新しいセッションから読み込まれる。セットアップスクリプトはこれらの値を読めない。
 
 
 ## PR を出す前に

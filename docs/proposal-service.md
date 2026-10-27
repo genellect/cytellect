@@ -71,7 +71,8 @@ Requires the operator's Cloudflare and OpenAI accounts. No paid contract is impl
 7. On the PC, set `CYTELLECT_PROPOSAL_URL=https://…` and `CYTELLECT_PROPOSAL_TOKEN=<device token>` for the local API. HTTPS is required except for `127.0.0.1`/`localhost` testing.
 
 Local `CYTELLECT_PROPOSAL_MODEL` and `CYTELLECT_PROPOSAL_PROMPT_VERSION` default
-to the selected Sol model and `2026-10-07.1` and must match the deployed Worker.
+to the selected Sol model and `PROPOSAL_PROMPT_VERSION` in `proposal_contracts.py`
+(`2026-10-09.1`), and must match the deployed Worker.
 `CYTELLECT_PROPOSAL_TIMEOUT_SECONDS` defaults to 300: this is an upper deadline,
 not a predicted wait, and covers at most two 120-second provider requests. An
 incomplete model answer is classified separately and never automatically repeated
@@ -90,6 +91,31 @@ with provider billing; do not routinely delete them to restore quota. D1 migrati
 device/request UUID returns 409 rather than initiate another paid request; no research
 prompt or answer is stored remotely. D1 SQL is tested locally using `node:sqlite`;
 remote D1 execution remains a separate deployment check.
+
+## Development environments
+
+A Linux development environment that runs the installation-equivalent stack
+(`python3 scripts/dev.py serve`, see [CONTRIBUTING](../CONTRIBUTING.md#本番相当の環境))
+is enrolled like any installation, with its own device token:
+
+1. The operator issues an invitation on their own machine (step 6 above) and redeems it
+   once with `POST /v1/devices`. Neither the admin token nor the device token is pasted
+   into chat, commits, issues or logs.
+2. The operator stores `CYTELLECT_PROPOSAL_URL` and `CYTELLECT_PROPOSAL_TOKEN` in the
+   environment's secret settings (for Claude Code cloud sessions: the environment's
+   variables, read by new sessions). `serve` passes them to the local API unchanged.
+3. `python3 scripts/dev.py doctor --live` sends an authenticated empty request.
+   The Worker rejects its body (`400 request_invalid`) after checking the device,
+   the configuration and the budget hold, so the check makes no model call and adds
+   no reservation. `401` means the device token is not active; `503` names the
+   disabled or budget-blocked state. Python's default user agent is refused by
+   Cloudflare (`403`, error 1010); the local API and `doctor` send their own.
+
+Each development environment counts against the same monthly budget and its own
+`DEVICE_MONTHLY_REQUESTS`. Test proposals use registered public images only. To
+stop an environment, the operator sets `revoked_at` on its device record in D1
+(there is no revocation endpoint); deleting the environment variable alone leaves
+the token valid.
 
 ## Model evaluation before enabling
 
