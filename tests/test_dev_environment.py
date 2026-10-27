@@ -56,6 +56,9 @@ def test_probe_reads_the_error_code_without_following_redirects():
 
     class Redirect(http.server.BaseHTTPRequestHandler):
         def do_POST(self):  # noqa: N802
+            # Read the request body first: closing with unread bytes resets the connection on
+            # Windows, and the client then sees no response at all.
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
             if self.path == "/moved":
                 self.send_response(307)
                 self.send_header("Location", target_url + "/v1/proposals")
