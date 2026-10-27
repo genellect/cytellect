@@ -5,7 +5,8 @@
 # spending more than 20 minutes of a 30-minute job before any test ran. Each mirror
 # therefore gets a bounded attempt that stops when the transfer stays slow, and the
 # downloaded file must match the SHA-256 in the signed apt index before it is
-# installed, so every mirror yields the same package.
+# installed, so every mirror yields the same package. The package has no dependencies,
+# so dpkg installs the verified file directly.
 set -euo pipefail
 
 package=fonts-noto-cjk
@@ -44,7 +45,8 @@ for round in 1 2; do
     fi
     if [[ -f $deb && $(stat -c %s "$deb") -eq $size ]]; then
       if sha256sum --check --status <<<"$sha256  $deb"; then
-        sudo apt-get install -y "$deb"
+        # dpkg installs this file itself; apt would fetch the same version again from the slow mirror.
+        sudo dpkg -i "$deb"
         exit 0
       fi
       echo "The file from $mirror does not match the apt index; discarding it." >&2
