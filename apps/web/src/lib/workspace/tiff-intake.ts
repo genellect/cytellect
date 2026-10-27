@@ -46,7 +46,8 @@ export async function tiffHasOmeMetadata(file: Blob): Promise<boolean> {
     const start=length<=(big?8:4)?offset+countBytes+index+(big?12:8):big?Number(entries.getBigUint64(index+12,little)):entries.getUint32(index+8,little);
     if(!Number.isSafeInteger(start)||start<0||start+length>file.size)return false;
     const text=new TextDecoder().decode(await file.slice(start,start+length).arrayBuffer());
-    return /^\s*(?:<\?xml[^>]*>\s*)?<(?:(?:[\w.-]+):)?OME(?:\s|>)/.test(text);
+    // Bio-Formats (Fiji) writes a comment between the declaration and the OME root.
+    return /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<(?:(?:[\w.-]+):)?OME(?:\s|>)/.test(text);
   }
   return false;
 }
