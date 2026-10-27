@@ -46,8 +46,24 @@ export async function tiffHasOmeMetadata(file: Blob): Promise<boolean> {
     const start=length<=(big?8:4)?offset+countBytes+index+(big?12:8):big?Number(entries.getBigUint64(index+12,little)):entries.getUint32(index+8,little);
     if(!Number.isSafeInteger(start)||start<0||start+length>file.size)return false;
     const text=new TextDecoder().decode(await file.slice(start,start+length).arrayBuffer());
-    // Bio-Formats (Fiji) writes a comment between the declaration and the OME root.
-    return /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<(?:(?:[\w.-]+):)?OME(?:\s|>)/.test(text);
+    return startsWithOmeRoot(text);
   }
   return false;
+}
+
+/** Whether XML opens with an OME root after an optional declaration and comments (Bio-Formats, as in Fiji, writes
+ * one between them). Each part is skipped once from the front, so the time is linear in the description's length. */
+function startsWithOmeRoot(text: string): boolean {
+  let rest = text.trimStart();
+  if (rest.startsWith("<?xml")) {
+    const end = rest.indexOf(">");
+    if (end < 0) return false;
+    rest = rest.slice(end + 1).trimStart();
+  }
+  while (rest.startsWith("<!--")) {
+    const end = rest.indexOf("-->", 4);
+    if (end < 0) return false;
+    rest = rest.slice(end + 3).trimStart();
+  }
+  return /^<(?:[\w.-]+:)?OME(?:\s|>)/.test(rest);
 }

@@ -35,6 +35,11 @@ describe("OME routing",()=>{
     expect(await tiffHasOmeMetadata(tiff(`<?xml version="1.0" encoding="UTF-8"?>${comment}<OME xmlns="http://www.openmicroscopy.org/Schemas/OME/2016-06"><Image/></OME>`))).toBe(true);
     expect(await tiffHasOmeMetadata(tiff(`<?xml version="1.0"?>${comment}<ImageJ/>`))).toBe(false);
     expect(await tiffHasOmeMetadata(tiff(`<?xml version="1.0"?><!-- unterminated <OME/>`))).toBe(false);
+    // Many comments before another root are read once each, not retried in every split (a hostile file cannot stall the page).
+    const started=performance.now();
+    expect(await tiffHasOmeMetadata(tiff(`<?xml version="1.0"?>${"<!-- x -->".repeat(2000)}<ImageJ/>`))).toBe(false);
+    expect(await tiffHasOmeMetadata(tiff(`<?xml version="1.0"?>${"<!-- x -->".repeat(2000)}<OME></OME>`))).toBe(true);
+    expect(performance.now()-started).toBeLessThan(1000);
   });
   it("does not infer metadata from an OME filename or invalid contents",async()=>{
     expect(await tiffHasOmeMetadata(new File(["ordinary image"],"DAPI_GFP.ome.tif"))).toBe(false);
