@@ -146,7 +146,8 @@ def test_api_edit_to_paged_description_export_replay_and_edited_figure(tmp_path)
                          json={"request_id": "edited", "plot": {"y_label": "Area"}}).json()["job_id"]
     assert process_one(store, settings)
     edited = store.safe_path(store.one(jobs, id=render)["result_dir"])
-    assert (edited / "methods.md").read_text(encoding="utf-8") == methods
+    # Bytes, not text: reading text translates Windows line endings while the HTTP body keeps them.
+    assert (edited / "methods.md").read_bytes() == client.get(f"/v1/jobs/{jid}/files/methods.md").content
     export = client.post(f"/v1/revisions/{rid}/export", headers=HEADERS).json()["job_id"]
     assert process_one(store, settings)
     archive = client.get(f"/v1/jobs/{export}/files/analysis.zip")
