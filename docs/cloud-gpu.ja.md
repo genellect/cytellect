@@ -78,7 +78,7 @@ uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A
 
 ### 開発環境から使う
 
-Linux の[本番相当の環境](../CONTRIBUTING.md#本番相当の環境)（`python3 scripts/dev.py serve`）も、同じサーバーを使います。手順 2 の 4 の接続用トークンを ID と Secret に分け、作業環境の環境変数として登録します。
+開発環境（`python3 scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#外部サービス)）も、同じサーバーを使います。手順 2 の 4 の接続用トークンを ID と Secret に分け、作業環境の環境変数として登録します。
 
 | 環境変数 | 値 |
 | --- | --- |

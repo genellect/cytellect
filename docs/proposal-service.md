@@ -94,8 +94,8 @@ remote D1 execution remains a separate deployment check.
 
 ## Development environments
 
-A Linux development environment that runs the installation-equivalent stack
-(`python3 scripts/dev.py serve`, see [CONTRIBUTING](../CONTRIBUTING.md#本番相当の環境))
+A development environment that runs the installation's stack
+(`python3 scripts/dev.py serve`, see [CONTRIBUTING](../CONTRIBUTING.md#外部サービス))
 is enrolled like any installation, with its own device token:
 
 1. The operator issues an invitation on their own machine (step 6 above) and redeems it

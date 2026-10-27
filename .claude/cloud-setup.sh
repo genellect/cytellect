@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Public dependencies only. API credentials are unavailable during setup.
-# Provisions the installation-equivalent stack for `scripts/dev.py serve`: pinned
+# Provisions the same stack as an installation for `scripts/dev.py serve`: pinned
 # Node.js, pnpm and uv, the Japanese figure font and Fiji (nuclei). Cellpose runs on
 # the cloud GPU and proposals on the Worker; their credentials come from the
 # environment's variables at run time (CONTRIBUTING.md).

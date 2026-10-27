@@ -10,7 +10,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU（Modal）で実行できる。2026-10-23 にデプロイし、公開画像で CPU と結果が一致した。2026-10-27 の時点では、GPU（L4）の割り当て待ちで起動しなかった（[クラウド GPU](cloud-gpu.ja.md)） |
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
-| 開発環境 | 研究室の PC と同じ構成を Linux で起動し、公開画像で試せる（`scripts/dev.py serve`、[本番相当の環境](../CONTRIBUTING.md#本番相当の環境)） |
+| 開発環境 | 研究室の PC と同じ構成を Linux で起動し、公開画像で試せる（`scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#ローカル開発)） |
 | 核小体検出 | NCL の protocol 4.3.0（追加学習した Cellpose-SAM と境界補正）。[計算仕様](methods.md) |
 
 ## 今後の計画
