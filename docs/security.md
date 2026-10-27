@@ -44,6 +44,10 @@ For Linux containers create a dedicated private directory owned by UID 10001 wit
 
 Use `uv run cytellect invite --hours 24` (or `docker compose exec api cytellect invite --hours 24`) from a private operator terminal. The CLI emits the one-use invitation once: do not pipe it into shared logs. Tokens are stored hashed; sessions use HttpOnly cookies. Logout revokes the session.
 
+## Shared development environments
+
+A development environment that other people can reach (planned: [cloud development plan](drafts/cloud-development/plan.md)) sets `CYTELLECT_UPLOAD_ALLOWLIST=fixtures/public/uploads.json`. The API then hashes every uploaded image or table after streaming it to the private volume and, unless its SHA-256 is in that list of registered public files, deletes it and answers `403 unregistered_upload`. This makes "registered public images only" a technical boundary rather than a convention. An empty or malformed list is a startup error, never "allow all". Installations leave the variable unset. The CI `fiji-browser` job checks that the prepared public inputs are still byte-identical to the list (`scripts/check_public_uploads.py`).
+
 ## Windows local mode
 
 The local launcher binds only the literal `127.0.0.1` address and uses strict Host/Origin/CSRF checks, but it does not install OS firewall restrictions for its Python/Fiji worker. Fixed recipes, installed-artifact hashes and the absence of runtime downloads are application safeguards, not proof of denied network egress. See [local delivery](local.md) for the single-user trust boundary and cleanup behavior while the PC is off.

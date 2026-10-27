@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "purpose": "Files a shared development environment accepts as uploads (CYTELLECT_UPLOAD_ALLOWLIST). Each is a registered public image, byte-identical to its prepared form.",
+  "files": [
+    {"sha256": "fabeb893e3060813d650cf4c233c06732fd2f0cdbf468da55381bbf334bc2313", "dataset": "BBBC007v1", "file": "a9-actin.tif", "license": "CC0-1.0", "prepared_by": "scripts/prepare_workspace_bbbc007.py"},
+    {"sha256": "1abc5c6e7c53bdb7e97fd9409ee963e9cb903496e1776f585fa338cd9f5563e2", "dataset": "BBBC007v1", "file": "a9-dna.tif", "license": "CC0-1.0", "prepared_by": "scripts/prepare_workspace_bbbc007.py"}
+  ]
+}
