@@ -1,5 +1,10 @@
 # Proposal Worker deployment
 
+The [development configuration reference](development-environment.md#管理デプロイの設定)
+(Japanese) explains which settings belong to the operator and which are needed
+by contributors using an existing relay. Never distribute the provider key or
+admin token in a contributor's `.env`.
+
 This runbook deploys the relay with **model calls disabled**. The approved public
 evaluation allowance is not a production operating budget. OpenAI quota resolution,
 successful public-case evaluation and separate production-budget approval remain

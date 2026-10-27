@@ -143,7 +143,7 @@ StarDist で検出した核を親として、核小体・細胞質を Cellpose-S
 
 ## 開発
 
-開発環境の構築と起動の手順は [CONTRIBUTING](CONTRIBUTING.md) にまとめている。
+開発環境の構築と起動の手順は [CONTRIBUTING](CONTRIBUTING.md)、必要な環境変数・認証情報とその用途は[開発環境の設定](docs/development-environment.md)にまとめている。
 
 | 環境 | 特徴 | セットアップ |
 |---|---|---|

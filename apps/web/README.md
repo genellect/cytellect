@@ -2,6 +2,13 @@
 
 The default production build serves the public microscopy samples with analysis connections disabled unless `NEXT_PUBLIC_API_ORIGIN` is explicitly configured. `pnpm build:local` produces the separate loopback bundle; its UI uses same-origin API paths and never shows release download controls.
 
+For the API-connected development stack, follow [CONTRIBUTING](../../CONTRIBUTING.md#ローカル開発)
+and the [environment reference](../../docs/development-environment.md) (Japanese).
+From the repository root, `uv run --env-file .env -- pnpm dev` gives Web the same
+explicit environment as the API and analysis worker. Keep credentials out of
+`NEXT_PUBLIC_*`: those values are exposed to the browser. GPU and proposal tokens
+are consumed by the analysis worker and API, respectively, and need no public-prefixed equivalents.
+
 ## Windows release link
 
 `src/lib/published-release.json` records the publicly available versioned Windows ZIP, SHA-256, source commit and byte size. Update it only after the asset has been published, independently downloaded or checked against its published digest, and validated as an installed application. The fallback validates the metadata and exact versioned repository URL before displaying the download surface.
