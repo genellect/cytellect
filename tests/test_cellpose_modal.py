@@ -41,6 +41,29 @@ def test_modal_app_runs_the_published_image_and_unchanged_server():
     assert 'user=10001' in SOURCE
 
 
+def test_inflight_inference_is_tracked_and_can_finish_before_shutdown():
+    options = server_options()
+    constants = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in TREE.body
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+    }
+    # A request occupies the only slot; max_concurrency alone does not enable
+    # demand tracking. Keep scale-to-zero independent of the shutdown grace.
+    assert ast.literal_eval(options["target_concurrency"]) == 1
+    assert ast.literal_eval(options["max_concurrency"]) == 1
+    assert constants[options["scaledown_window"].id] == 20
+    assert "min_containers" not in options
+    client = ast.parse((ROOT / "packages/analysis/src/cytellect_analysis/cellpose_engine.py").read_text(encoding="utf-8"))
+    deadline = next(
+        ast.literal_eval(node.value) for node in client.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "REMOTE_REQUEST_TIMEOUT_SECONDS" for target in node.targets)
+    )
+    grace = constants[options["exit_grace_period"].id]
+    assert deadline <= grace <= 3600  # Modal Server's supported upper bound.
+
+
 def test_modal_deploy_runs_only_from_main_with_hashed_client():
     workflow = (ROOT / ".github" / "workflows" / "cellpose-modal-deploy.yml").read_text(encoding="utf-8")
     assert "if: github.ref == 'refs/heads/main'" in workflow and "--require-hashes" in workflow
