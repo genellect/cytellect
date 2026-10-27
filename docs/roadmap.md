@@ -7,7 +7,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 対象 | 状況 |
 |---|---|
 | 公開サイト | [cytellect.vercel.app](https://cytellect.vercel.app/)。LP、`/demo`、`/plan` で構成する。`/demo` は本番と同じ解析ワークスペースを、登録済みの公開画像でサーバーレスに動かす（[公開デモ](showcase.md)）。画像の追加は Windows 版・Docker 版だけで行い、公開サイトは研究画像を受け付けない。公開サイトの `/workspace` は `/demo` へ転送する。`main` へのマージで自動デプロイ |
-| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU で実行できる。GPU サーバーは 2026-10-23 に Modal へデプロイし、公開画像で CPU と一致した。2026-10-27 には接続キーは通るが起動せず（`503 no upstreams available`）、原因を Modal の画面で確認中（[クラウド GPU](cloud-gpu.ja.md)） |
+| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU で実行できる。GPU サーバーは 2026-10-23 に Modal へデプロイし、公開画像で CPU と一致した。2026-10-27 には接続キーは通るが起動しなかった（`503 no upstreams available`）。Modal の画面では、稼働 0 台・GPU_L4 の割り当て待ち 1 台で、無料枠は残っていた（[クラウド GPU](cloud-gpu.ja.md)） |
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
 | 開発環境 | Linux で、研究室の PC と同じ構成（API・ワーカー・Web の本番ビルド・Fiji・クラウド GPU・解析提案）を `scripts/dev.py serve` で起動し、公開画像で試せる（[CONTRIBUTING](../CONTRIBUTING.md#本番相当の環境)） |

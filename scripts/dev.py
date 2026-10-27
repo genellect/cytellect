@@ -199,7 +199,8 @@ def cellpose_state(status: int) -> tuple[bool, str]:
     if status in (401, 403):
         return False, "connection key rejected: use the Modal proxy token as `wk-….ws-…` (docs/cloud-gpu.ja.md)"
     if status in (502, 503, 504):
-        return False, f"GPU server unavailable ({status}): it may be starting, stopped or out of Modal budget"
+        return False, (f"GPU server unavailable ({status}): starting (about 3 minutes), waiting for Modal GPU "
+                       "capacity, stopped or out of budget; check the app in Modal")
     return False, f"unexpected response {status or 'none'}"
 
 
@@ -223,7 +224,8 @@ def cloud_env(base: dict[str, str]) -> dict[str, str]:
     key, secret = env.get("CYTELLECT_MODAL_PROXY_KEY", "").strip(), env.get("CYTELLECT_MODAL_PROXY_SECRET", "").strip()
     if key and secret and not env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN"):
         env["CYTELLECT_CELLPOSE_REMOTE_TOKEN"] = f"{key}.{secret}"
-        env.setdefault("CYTELLECT_CELLPOSE_REMOTE_URL", MODAL_CELLPOSE_URL)
+    if key and env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN") and not env.get("CYTELLECT_CELLPOSE_REMOTE_URL"):
+        env["CYTELLECT_CELLPOSE_REMOTE_URL"] = MODAL_CELLPOSE_URL
     return env
 
 

@@ -64,7 +64,7 @@ Claude Code や Codex のクラウド環境では、環境の設定にセット�
 | Claude Code | `bash .claude/cloud-setup.sh` |
 | Codex | `bash .codex/setup.sh` |
 
-Claude Code のセットアップスクリプトは、固定版の Node.js・pnpm・uv、日本語フォント（`fonts-noto-cjk`）、Fiji（checkout の外）を揃え、実際の Fiji での試験まで行う。作業を始めるシェルで `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行すると、固定版の道具、Fiji の場所、ブラウザの試験に使う Chromium が設定される。続けて `python3 scripts/dev.py doctor` で準備を確かめ、[本番相当の環境](#本番相当の環境)を起動できる。
+Claude Code のセットアップスクリプトは、固定版の Node.js・pnpm・uv、日本語フォント（`fonts-noto-cjk`）、Fiji（checkout の外）を揃え、実際の Fiji での試験まで行う。作業を始めるシェルで `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行すると、固定版の道具、Fiji の場所、ブラウザの試験に使う Chromium、Modal の 2 つの変数から組み立てたクラウド GPU の接続キーと接続先が設定される。スクリプトは `env.sh` のうち自分が書く部分だけを差し替え、環境の設定が書いたほかの行は残す。続けて `python3 scripts/dev.py doctor` で準備を確かめ、[本番相当の環境](#本番相当の環境)を起動できる。
 
 クラウド GPU と解析提案の環境変数は、環境の設定（セッションのタイトルバーのクラウド環境のメニュー → Edit）に登録する。登録した値は新しいセッションから読み込まれる。セットアップスクリプトはこれらの値を読めない。
 

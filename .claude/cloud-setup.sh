@@ -42,11 +42,27 @@ if ! fc-list :lang=ja family 2>/dev/null | grep -q .; then bash scripts/install_
 # Fiji outside the checkout; `.codex/setup.sh` provisions it and runs the real-Fiji tests.
 export CYTELLECT_SETUP_FIJI="${CYTELLECT_SETUP_FIJI:-1}"
 export CYTELLECT_FIJI_EXECUTABLE="${CYTELLECT_FIJI_EXECUTABLE:-$runtime/fiji}"
+# Replace only this script's block, so lines the environment itself keeps in env.sh survive.
+begin='# >>> cytellect .claude/cloud-setup.sh >>>' end='# <<< cytellect .claude/cloud-setup.sh <<<'
+touch "$runtime/env.sh"
+awk -v b="$begin" -v e="$end" '$0 == b {skip=1} !skip {print} $0 == e {skip=0}' "$runtime/env.sh" > "$runtime/env.sh.new"
 {
+  echo "$begin"
   printf 'export PATH=%q:%q:%q:$PATH\n' "$uv_dir" "$node_dir/bin" "$HOME/.local/bin"
   printf 'export CYTELLECT_FIJI_EXECUTABLE=%q\n' "$CYTELLECT_FIJI_EXECUTABLE"
   if [ -x /opt/pw-browsers/chromium ]; then printf 'export CYTELLECT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium\n'; fi
-} > "$runtime/env.sh"
+  # The Modal proxy token as the engine's bearer value (ID.secret) and the deployed server; explicit values win.
+  cat <<'EOS'
+if [ -z "${CYTELLECT_CELLPOSE_REMOTE_TOKEN:-}" ] && [ -n "${CYTELLECT_MODAL_PROXY_KEY:-}" ] && [ -n "${CYTELLECT_MODAL_PROXY_SECRET:-}" ]; then
+  export CYTELLECT_CELLPOSE_REMOTE_TOKEN="$CYTELLECT_MODAL_PROXY_KEY.$CYTELLECT_MODAL_PROXY_SECRET"
+fi
+if [ -n "${CYTELLECT_CELLPOSE_REMOTE_TOKEN:-}" ] && [ -z "${CYTELLECT_CELLPOSE_REMOTE_URL:-}" ] && [ -n "${CYTELLECT_MODAL_PROXY_KEY:-}" ]; then
+  export CYTELLECT_CELLPOSE_REMOTE_URL=https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct
+fi
+EOS
+  echo "$end"
+} >> "$runtime/env.sh.new"
+mv "$runtime/env.sh.new" "$runtime/env.sh"
 bash .codex/setup.sh
 pnpm --filter @cytellect/proposal-worker check
 pnpm --filter @cytellect/proposal-worker test

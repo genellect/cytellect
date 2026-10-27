@@ -37,7 +37,7 @@ def test_an_empty_proposal_request_proves_the_token_only_when_the_service_reject
 def test_cellpose_health_distinguishes_a_rejected_key_from_a_starting_server():
     assert cellpose_state(200)[0]
     assert "rejected" in cellpose_state(401)[1]
-    assert "starting" in cellpose_state(503)[1]
+    assert "capacity" in cellpose_state(503)[1]
 
 
 def test_probe_reads_the_error_code_without_following_redirects():
@@ -104,3 +104,6 @@ def test_a_modal_proxy_token_stored_in_two_parts_becomes_the_engine_bearer_value
     assert explicit["CYTELLECT_CELLPOSE_REMOTE_TOKEN"] == "other"
     assert explicit["CYTELLECT_CELLPOSE_REMOTE_URL"] == "https://x.example"
     assert "CYTELLECT_CELLPOSE_REMOTE_TOKEN" not in cloud_env({"CYTELLECT_MODAL_PROXY_KEY": "wk-abc"})
+    # An env.sh that already joined the token still gets the deployed server as its default.
+    joined = cloud_env({"CYTELLECT_MODAL_PROXY_KEY": "wk-abc", "CYTELLECT_CELLPOSE_REMOTE_TOKEN": "wk-abc.ws-def"})
+    assert joined["CYTELLECT_CELLPOSE_REMOTE_URL"] == MODAL_CELLPOSE_URL
