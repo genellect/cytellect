@@ -8,7 +8,7 @@ Cytellect の開発は、[チーム開発ルール](docs/team-development.md)に
 
 ## クラウド開発
 
-固定版の開発ツールと Fiji を備えたクラウド環境で開発する。手元の PC への導入は不要で、画面は環境内のブラウザ（Playwright）で確認する。環境の設定には、使うツールに応じたセットアップスクリプトを登録する。
+固定版の開発ツールと Fiji を備えたクラウド環境で開発する。手元の PC への導入は不要で、画面は環境内のブラウザ（Playwright）で確認する。どちらの環境も、配布版と同じ固定ファイル（ロックファイル、Fiji の固定版、デプロイ済みの GPU サーバーと Worker）から作るため、機能が増えても手順は変わらない。環境の設定には、使うツールに応じたセットアップスクリプトを登録する。
 
 | ツール | セットアップスクリプト |
 |---|---|
@@ -37,7 +37,7 @@ python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカ�
 
 ## ローカル開発
 
-手元の PC で開発する。画面を手元のブラウザで操作でき、開発サーバーを使うと Web の変更がすぐに反映される。Python 3.12、Node.js 24（`.node-version`）、pnpm 11.19.0、uv 0.12.2 を用意する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。Linux では、図の描画に使う日本語フォント `fonts-noto-cjk` も導入する。
+手元の PC で開発する。画面を手元のブラウザで操作でき、開発サーバーを使うと Web の変更がすぐに反映される。Python 3.12、Node.js、pnpm、uv を用意する。版は `.node-version`、`package.json` の `packageManager`、CI の uv の指定が正本で、`doctor` がこれらと照合する。Linux と Windows のどちらでも開発でき、Fiji はそれぞれの固定版を使う。Linux では、図の描画に使う日本語フォント `fonts-noto-cjk` も導入する。
 
 依存パッケージと Fiji を導入し、準備を確認してから起動する。Fiji と作業データは checkout の外に置く。
 
@@ -62,12 +62,12 @@ pnpm dev                             # 端末 3：Web
 
 ## 外部サービス
 
-核小体・細胞質の検出（Cellpose-SAM）と解析提案（LLM）は、次の設定があるときに使える。認証情報はオーナーから受け取り、チャット、コミット、ログには書かない。
+GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の設定があるときに使える。認証情報はオーナーから受け取り、チャット、コミット、ログには書かない。
 
 | 機能 | 設定 |
 |---|---|
-| Cellpose-SAM（クラウド GPU） | `CYTELLECT_MODAL_PROXY_KEY` と `CYTELLECT_MODAL_PROXY_SECRET`：Modal の接続用トークンの ID（`wk-…`）と Secret（`ws-…`）（[クラウド GPU](docs/cloud-gpu.ja.md#開発環境から使う)） |
-| Cellpose-SAM（CPU） | `python3 scripts/dev.py setup --cellpose ~/cytellect-cellpose`（約 2.5 GB）。最後に表示される `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` を設定する |
+| GPU 推論 | `CYTELLECT_MODAL_PROXY_KEY` と `CYTELLECT_MODAL_PROXY_SECRET`：Modal の接続用トークンの ID（`wk-…`）と Secret（`ws-…`）（[クラウド GPU](docs/cloud-gpu.ja.md#開発環境から使う)） |
+| CPU 推論（GPU 推論の代わり） | `python3 scripts/dev.py setup --cellpose ~/cytellect-cellpose`（約 2.5 GB）。最後に表示される `CYTELLECT_CELLPOSE_PYTHON` と `CYTELLECT_CELLPOSE_MODEL_DIR` を設定する |
 | 解析提案 | `CYTELLECT_PROPOSAL_URL` と `CYTELLECT_PROPOSAL_TOKEN`：Worker の URL と、この環境の端末トークン（[解析提案](docs/proposal-service.md#development-environments)） |
 
 `doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。`doctor --live` は実際に接続して確認する。このとき停止中の GPU が起動し、起動に約 3 分かかり、使った秒数に応じて課金される。解析提案は空の依頼でトークンだけを確認し、モデルは呼ばない。外部サービスも必須とするときは `--require-cloud` を付ける。

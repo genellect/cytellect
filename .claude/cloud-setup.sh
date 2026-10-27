@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Public dependencies only. API credentials are unavailable during setup.
 # Provisions the same stack as an installation for `scripts/dev.py serve`: pinned
-# Node.js, pnpm and uv, the Japanese figure font and Fiji (nuclei). Cellpose runs on
+# Node.js, pnpm and uv, the Japanese figure font and Fiji (StarDist). Cellpose runs on
 # the cloud GPU and proposals on the Worker; their credentials come from the
 # environment's variables at run time (CONTRIBUTING.md).
 set -euo pipefail
@@ -35,9 +35,10 @@ if [ ! -x "$uv_dir/uv" ]; then
   rm "$archive"
 fi
 export PATH="$uv_dir:$node_dir/bin:$HOME/.local/bin:$PATH"
-node -e 'if(process.versions.node!=="24.18.0")process.exit(1)'
+node -e "if(process.versions.node!==\"$node_version\")process.exit(1)"
 [ "$(uv --version | cut -d' ' -f2)" = "$uv_version" ]
-if ! command -v pnpm >/dev/null 2>&1 || [ "$(pnpm --version)" != "11.19.0" ]; then npm install --global pnpm@11.19.0; fi
+pnpm_version=$(node -p 'require("./package.json").packageManager.split("@")[1]')
+if ! command -v pnpm >/dev/null 2>&1 || [ "$(pnpm --version)" != "$pnpm_version" ]; then npm install --global "pnpm@$pnpm_version"; fi
 if ! fc-list :lang=ja family 2>/dev/null | grep -q .; then bash scripts/install_figure_font.sh; fi
 # Fiji outside the checkout; `.codex/setup.sh` provisions it and runs the real-Fiji tests.
 export CYTELLECT_SETUP_FIJI="${CYTELLECT_SETUP_FIJI:-1}"

@@ -135,7 +135,7 @@ def test_require_cloud_fails_when_a_cloud_service_is_not_configured(monkeypatch,
         with pytest.raises(SystemExit):
             dev.doctor(argparse.Namespace(live=False, require_cloud=required))
         lines = capsys.readouterr().out.splitlines()
-        assert f"{state} Cloud GPU (Cellpose): not configured; nucleoli and cytoplasm detection is unavailable" in lines
+        assert f"{state} Cloud GPU (Cellpose): not configured; Cellpose needs this or a CPU runtime (`setup --cellpose`)" in lines
         assert any(line.startswith(f"{state} Analysis proposals (LLM)") for line in lines)
 
 
@@ -172,3 +172,15 @@ def test_stop_also_ends_descendants_that_outlive_their_leader():
     finally:
         if alive(descendant):
             os.kill(descendant, 9)
+
+
+def test_cloud_setup_installs_the_versions_the_repository_pins():
+    import re
+
+    import dev
+
+    pins = dev.pinned_versions()
+    setup = (ROOT / ".claude/cloud-setup.sh").read_text()
+    assert re.search(r"^node_version=(\d+)\.", setup, re.M).group(1) == pins["node"]
+    assert re.search(r"^uv_version=(\S+)", setup, re.M).group(1) == pins["uv"]
+    assert "packageManager" in setup  # pnpm comes from package.json, not a second copy

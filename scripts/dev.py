@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -36,14 +37,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 API_ORIGIN = "http://localhost:8000"
 APP_ORIGIN = "http://localhost:3000"
-NODE_MAJOR = "24"
-PNPM_VERSION = "11.19.0"
-UV_VERSION = "0.12.2"
 # The deployed Modal server (infra/modal_cellpose.py, Cellpose Modal deploy workflow); authentication required.
 MODAL_CELLPOSE_URL = "https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct"
-USER_AGENT = "cytellect-dev"
+USER_AGENT = "cytellect-dev"  # Cloudflare refuses Python's default agent (error 1010)
 # Where .claude/cloud-setup.sh provisions pinned tools and Fiji (its env.sh exports them).
-CLOUD_RUNTIME = Path.home() / ".local/share/cytellect-cloud"  # Cloudflare refuses Python's default agent (error 1010)
+CLOUD_RUNTIME = Path.home() / ".local/share/cytellect-cloud"
 CONTRACT_OUTPUTS = ("packages/contracts", "apps/web/src/lib/generated.ts", "apps/web/src/lib/recipe-defaults.json")
 OPENAPI = ("uv", "run", "cytellect", "openapi", "--output", "packages/contracts/openapi.json",
            "--recipe-defaults", "apps/web/src/lib/recipe-defaults.json")
@@ -240,6 +238,16 @@ def fiji_path() -> str:
     return str(provisioned) if provisioned.exists() else ""
 
 
+def pinned_versions() -> dict[str, str]:
+    """The repository's own pins (.node-version, packageManager, CI's uv), so a version bump edits only those."""
+    uv = set(re.findall(r"uv==([0-9.]+)", (ROOT / ".github/workflows/ci.yml").read_text()))
+    if len(uv) != 1:
+        sys.exit(f"CI must pin exactly one uv version, found {sorted(uv)}")
+    return {"node": (ROOT / ".node-version").read_text().strip().split(".")[0],
+            "pnpm": json.loads((ROOT / "package.json").read_text())["packageManager"].split("@", 1)[1],
+            "uv": uv.pop()}
+
+
 def tool_version(argv: tuple[str, ...]) -> str:
     executable = shutil.which(argv[0])
     if executable is None:
@@ -262,13 +270,14 @@ def doctor(args: argparse.Namespace) -> None:
         failed = failed or state == "NG"
         print(f"[{state}] {name}: {detail}")
 
+    pins = pinned_versions()
     node = tool_version(("node", "-p", "process.versions.node"))
-    ready = node.split(".")[0] == NODE_MAJOR
+    ready = node.split(".")[0] == pins["node"]
     report("ok" if ready else "NG", "Node.js", (node or "not installed") + ("" if ready else hint))
     pnpm = tool_version(("pnpm", "--version"))
-    report("ok" if pnpm == PNPM_VERSION else "NG", "pnpm", (pnpm or "not installed") + ("" if pnpm == PNPM_VERSION else hint))
+    report("ok" if pnpm == pins["pnpm"] else "NG", "pnpm", (pnpm or "not installed") + ("" if pnpm == pins["pnpm"] else hint))
     uv = tool_version(("uv", "--version"))
-    ready = uv.split()[1:2] == [UV_VERSION]
+    ready = uv.split()[1:2] == [pins["uv"]]
     report("ok" if ready else "NG", "uv", (uv or "not installed") + ("" if ready else hint))
     if sys.platform.startswith("linux"):
         fonts = tool_version(("fc-list", ":lang=ja", "family"))
@@ -279,17 +288,17 @@ def doctor(args: argparse.Namespace) -> None:
 
     fiji = fiji_path()
     if not fiji:
-        report("NG", "Fiji (nuclei)", "set CYTELLECT_FIJI_EXECUTABLE (run `setup --fiji DIR`)")
+        report("NG", "Fiji (StarDist)", "set CYTELLECT_FIJI_EXECUTABLE (run `setup --fiji DIR`)")
     else:
         path = Path(fiji).expanduser().resolve()
         inside = path == ROOT or ROOT in path.parents
-        report("ok" if path.exists() and not inside else "NG", "Fiji (nuclei)",
+        report("ok" if path.exists() and not inside else "NG", "Fiji (StarDist)",
                "outside the checkout" if path.exists() and not inside else f"missing or inside the checkout: {path}")
 
     env = cloud_env(dict(os.environ))
     url, key = env.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip(), env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN", "")
     if not url:
-        report("--", "Cloud GPU (Cellpose)", "not configured; nucleoli and cytoplasm detection is unavailable", cloud=True)
+        report("--", "Cloud GPU (Cellpose)", "not configured; Cellpose needs this or a CPU runtime (`setup --cellpose`)", cloud=True)
     elif not url.startswith("https://") or not key:
         report("NG", "Cloud GPU (Cellpose)", cloud=True, detail="set an https CYTELLECT_CELLPOSE_REMOTE_URL and CYTELLECT_CELLPOSE_REMOTE_TOKEN")
     elif not args.live:
