@@ -105,6 +105,30 @@ UI reference: [QuPath first steps](https://qupath.readthedocs.io/en/stable/docs/
 object selection, annotations and measurement inspection; [OMERO](https://www.openmicroscopy.org/omero/)
 for image-centred browser organization. No upstream UI code or assets were copied.
 
+## Search engines
+
+Only the landing page (`/`) and, on the public demo build, `/demo` are offered to search
+engines; every other page is `noindex` (`app/layout.tsx`). `robots.txt` allows crawling so
+that crawlers can read those `noindex` tags, and `sitemap.xml` lists the indexed pages with
+canonical links (`src/lib/site.ts`).
+
+| Build variable (hosting project) | Effect |
+|---|---|
+| `VERCEL_PROJECT_PRODUCTION_URL` | Set by Vercel; the public origin, e.g. `https://cytellect.vercel.app` |
+| `CYTELLECT_SITE_URL` | Overrides the origin (bare `https://` origin, e.g. after moving to a custom domain) |
+| `CYTELLECT_GOOGLE_SITE_VERIFICATION` | Google Search Console HTML-tag token (`google-site-verification`) on `/` |
+| `CYTELLECT_BING_SITE_VERIFICATION` | Bing Webmaster Tools HTML-tag token (`msvalidate.01`) on `/` |
+
+The tokens are public by design but belong to whoever owns the Search Console property, so
+they live in the hosting project's environment, not the repository. A build without a public
+origin (local package, an analysis API on this computer, other hosts without the variables)
+serves `Disallow: /` and an empty sitemap.
+
+Registration (owner): add a URL-prefix property for the origin in Google Search Console, set
+the HTML-tag token, redeploy production and verify, then submit `sitemap.xml`. In Bing
+Webmaster Tools, import the property from Search Console (or set the Bing token the same way).
+Keep the tokens set afterwards; removing them revokes verification.
+
 ## Accessible editing and browser boundary
 
 The image viewer offers pointer polygon placement and equivalent numeric coordinate input.
