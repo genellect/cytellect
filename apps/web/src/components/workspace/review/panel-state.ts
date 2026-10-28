@@ -2,7 +2,7 @@ export type PanelView = "settings" | "ai" | "closed";
 export type PanelState = {view: PanelView; returnView: "settings" | "closed"};
 export type PanelAction = "settings" | "open-ai" | "toggle-ai" | "close" | "work";
 
-export const initialPanelState: PanelState = {view: "settings", returnView: "settings"};
+export const initialPanelState: PanelState = {view: "closed", returnView: "closed"};
 
 /** Navigation changes only the visible panel, never analysis settings or requests. */
 export function panelReducer(state: PanelState, action: PanelAction): PanelState {

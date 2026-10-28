@@ -1,7 +1,8 @@
 import {expect,test} from "@playwright/test";
 
 test("stain assignments persist, name thumbnails and determine the actual nuclear input",async({page})=>{
-  const channels=["c1","c2"].map(channel_id=>({channel_id,label:channel_id,stain:null}));
+  // c2 carries a stain read only from its file name; the editor must say so until a person saves it.
+  const channels=[{channel_id:"c1",label:"c1",stain:null},{channel_id:"c2",label:"c2",stain:"DAPI",identity_source:"filename"}];
   const field={id:"field",workspace_id:"assignments",metadata:{},image_info:{shape:[32,32],channels}};
   const recipe={id:"region-2d",version:"1.2.0",source:"stardist_nuclear",region_set_id:"nuclei",label:"核",defining_channel_id:"c1",nuclear_role_source:"user_selected_role"};
   let assignments:{version:number;assignments:Array<{channel_id:string;stain:string|null;role:string}>}={version:0,assignments:[]};
@@ -33,7 +34,14 @@ test("stain assignments persist, name thumbnails and determine the actual nuclea
   });
   await page.goto("/workspace?id=assignments");
   await expect(page.getByRole("button",{name:"染色対応",exact:true})).toBeEnabled();
+  // The field menu closes with Escape instead of staying over the image and table.
+  await page.getByLabel("画像の設定").click();
+  await expect(page.getByLabel("画像の用途")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("画像の用途")).toBeHidden();
   await page.getByRole("button",{name:"染色対応",exact:true}).click();
+  await expect(page.getByLabel("c2の染色名")).toHaveValue("DAPI");
+  await expect(page.getByText("ファイル名から読み取った名前です。",{exact:false})).toHaveCount(1);
   await page.getByLabel("c1の染色名").fill("GFP");
   await page.getByLabel("c1の役割").selectOption("measure");
   await page.getByLabel("c2の染色名").fill("DAPI");
@@ -51,5 +59,6 @@ test("stain assignments persist, name thumbnails and determine the actual nuclea
   await expect(page.getByLabel("c1の染色名")).toHaveValue("GFP");
   await expect(page.getByLabel("c2の染色名")).toHaveValue("DAPI");
   await expect(page.getByLabel("c2の役割")).toHaveValue("nuclear");
+  await expect(page.getByText("ファイル名から読み取った名前です。",{exact:false})).toHaveCount(0);
   expect(unexpected).toEqual([]);
 });

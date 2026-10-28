@@ -88,17 +88,24 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
     return json({detail: "unexpected_synthetic_route"}, 404);
   });
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/workspaces" && response.request().method() === "GET");
-  await page.goto("/workspace-review");
+  await page.goto("/workspace");
   await loaded;
   // A new workspace starts by choosing the form of the experiment (requirements E-01).
   await expect(page.getByRole("heading", {name: "解析の形を選ぶ", exact: true, level: 1})).toBeVisible();
   await expect(page.getByRole("button", {name: /^1 画面/})).toBeEnabled();
   await expect(page.getByRole("button", {name: /^2 画面/})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
+  // Images added before the form is chosen wait for it; one screen takes them and opens on them.
+  await expect(page.getByRole("status").filter({hasText: "画像 2 件を受け取りました。"})).toBeVisible();
+  expect(writes.some(value => /region-fields/.test(value))).toBe(false);
+  await page.getByRole("button", {name: /^1 画面/}).click();
   await expect(page.getByRole("button", {name: "染色対応", exact: true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
   expect(runCount).toBe(0);
   expect(writes.some(value => /proposal|analyses|\/runs/.test(value))).toBe(false);
+  // The settings panel starts closed, as in the demo.
+  await expect(page.getByRole("complementary", {name: "画像解析", exact: true})).toHaveCount(0);
+  await page.getByRole("button", {name: "設定パネル", exact: true}).click();
   await page.getByRole("combobox", {name:"背景補正",exact:true}).selectOption("confirmed_roi");
   await page.getByRole("button", {name:"背景を描く",exact:true}).click();
   const drawing=page.locator('[data-drawing="true"]');
@@ -146,6 +153,9 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   expect((await figure.boundingBox())!.width).toBeGreaterThan(800);
   await page.screenshot({path:`${evidence}/${viewport.width}x${viewport.height}-figure.png`});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth)).toBe(0);
+  // The figure view opens on the latest saved figure without choosing it.
+  await expect(page.getByRole("combobox",{name:"保存した図"})).toHaveValue("historical-figure");
+  await expect(page.getByText("Synthetic saved figure",{exact:true})).toBeVisible();
   await page.getByRole("combobox",{name:"保存した図"}).selectOption("historical-figure");
   await expect(page.getByText("Synthetic saved figure",{exact:true})).toBeVisible();
   await page.screenshot({path:`${evidence}/${viewport.width}x${viewport.height}-saved-figure.png`});

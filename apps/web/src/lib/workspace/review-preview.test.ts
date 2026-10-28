@@ -60,12 +60,18 @@ describe("stage-one read-only review loader", () => {
     releaseReviewPreview(data);
     expect(calls.revoke).toHaveBeenCalledWith("blob:test-preview");
   });
+  it("keeps where a stain name came from, so a name read from the file name can be checked", async () => {
+    fixtures["/v1/workspaces/latest/region-fields"] = [{...registered, image_info: {...registered.image_info,
+      channels: [{channel_id: "dapi", label: "dapi", stain: "DAPI", identity_source: "filename"}]}}];
+    const data = await loadReviewPreview("latest");
+    expect(data.fields[0].channels[0]).toMatchObject({id: "dapi", stain: "DAPI", stainSource: "filename"});
+  });
   it("retains the field with explicit failures and applies only persisted channel assignments", async () => {
     fixtures["/v1/workspaces/latest/channel-assignments"] = {version: 2, assignments: [{channel_id: "c4", stain: "GFP", role: "measure"}]};
     delete fixtures["/v1/revisions/n1/region-masks?field_id=f1"];
     calls.preview.mockRejectedValue(new Error("private details must not propagate"));
     const data = await loadReviewPreview("latest");
-    expect(data.channels[0]).toMatchObject({id: "c4", stain: "GFP", role: "measure"});
+    expect(data.channels[0]).toMatchObject({id: "c4", stain: "GFP", role: "measure", stainSource: "assignment"});
     expect(data.fields[0].results).toEqual({});
     expect(data.fields[0].nuclearChannelId).toBeUndefined();
     expect(data.fields[0].error).toContain("採用した領域または測定値を読み込めません");
