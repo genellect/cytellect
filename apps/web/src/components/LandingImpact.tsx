@@ -13,10 +13,7 @@ export function LandingImpact() {
       <div className={lp.impactPanel}>
         <h2 id="impact-title" className={lp.impactTitle} aria-label="研究の先に、待っている患者さんがいる。"><span>研究の先に、</span><span>待っている患者さんがいる。</span></h2>
         <ol className={lp.path} aria-label="研究から患者さんまで">
-          {PATH.map((lines, index) => <li key={lines[0]}>
-            <b>{lines.map(line => <span key={line}>{line}</span>)}</b>
-            {index < PATH.length - 1 && <span className={lp.pathArrow} aria-hidden="true">→</span>}
-          </li>)}
+          {PATH.map(lines => <li key={lines[0]}><b>{lines.map(line => <span key={line}>{line}</span>)}</b></li>)}
         </ol>
         <div className={lp.impactMessage}>
           <p>画像解析を、すべての研究者へ。</p>
