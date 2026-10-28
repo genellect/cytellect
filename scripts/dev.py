@@ -56,6 +56,7 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
         ("uv", "run", "python", "scripts/check_public_tree.py"),
         ("uv", "run", "python", "scripts/check_docs.py"),
         ("uv", "run", "python", "scripts/proposal_schema.py", "--check"),
+        ("uv", "run", "python", "scripts/build_showcase_runtime.py", "--check"),
     ),
     "web": (
         OPENAPI,
@@ -68,6 +69,8 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
         ("pnpm", "--filter", "@cytellect/proposal-worker", "test:deployment"),
         ("node", "--test", "apps/web/scripts/finalize-local-export.test.mjs"),
         ("pnpm", "build"),
+        ("pnpm", "--filter", "@cytellect/web", "build:local"),
+        ("uv", "run", "python", "scripts/check_local_web_bundle.py"),
     ),
 }
 FIJI_CHECK = ("uv", "run", "pytest", "-m", "fiji")

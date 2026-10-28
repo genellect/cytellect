@@ -8,8 +8,8 @@ PR では、変更したファイルが影響しうるジョブだけを実行�
 
 | 領域 | 主な内容 | 選ばれる変更 |
 |---|---|---|
-| `python` | Ruff、mypy、Linux でのテスト一式、解析計画と解析提案の検査、依存パッケージの監査と SBOM | 解析、API、ワーカー、`scripts`、`tests`、`engines`、`infra` |
-| `web` | API 契約の再生成、Next.js の検査とビルド、解析提案の Worker、公開サイトのブラウザ試験 | `apps/web`、契約、解析提案の Worker、解析・API・ワーカー |
+| `python` | Ruff、mypy、Linux でのテスト一式、解析計画と解析提案の検査、公開デモの実行環境と解析ソースの一致、依存パッケージの監査と SBOM | 解析、API、ワーカー、`scripts`、`tests`、`engines`、`infra` |
+| `web` | API 契約の再生成、Next.js の検査とビルド、解析提案の Worker、公開サイトのブラウザ試験、ローカル版の Web 出力が配布物の境界に収まること | `apps/web`、契約、解析提案の Worker、解析・API・ワーカー |
 | `lp` | Next.js の検査とビルド、LP のブラウザ試験 | LP の部品・素材・試験だけ。`web` が選ばれたときは実行しない |
 | `fiji` | 実際の Fiji、API とブラウザの連携、コンテナ、ローカル版の Web | `apps/web`、契約、解析・API・ワーカー、`scripts`、`tests`、Fiji、`infra` |
 | `windows` | Windows のセットアップとランチャーの試験、Python 3.14 でのテスト一式 | 解析・API・ワーカー、`scripts`、`tests`、`engines`、ローカル版の書き出し |
@@ -23,6 +23,14 @@ PR では、変更したファイルが影響しうるジョブだけを実行�
 公開ツリーの検査、文書のリンク検査、全履歴のシークレット走査は、どの変更でも実行する。Python のテスト一式が選ばれないときは、配布物に含める文書の試験を実行する。実行しなかったジョブは、ブランチ保護には成功として報告される。
 
 図の描画に使う日本語フォント（`fonts-noto-cjk`、約 61 MB）は、Linux のジョブで `scripts/install_figure_font.sh` が導入する。遅いミラーが取得に 20 分以上かかり、`python` ジョブが試験の途中で 30 分の上限に達したことがあるため、取得が 20 秒続けて遅いミラーは打ち切り、別の公式ミラーで続きから取得する。導入するのは、apt の署名済みの索引にある SHA-256 と一致したファイルだけで、どのミラーからでも同じパッケージになる。照合したファイルは `dpkg` で直接導入する。`apt-get` に渡すと、同じ版を遅いミラーから取り直すことがあるため。
+
+## マージの前に見つける境界の検査
+
+統合試験はマージ後にしか走らないため、PR で数分で確かめられる境界は PR のジョブに置く。
+
+- `web`：ローカル版の静的出力（`pnpm --filter @cytellect/web build:local`）を作り、`scripts/check_local_web_bundle.py` で配布物の許可リストに収まることを確かめる。生成するファイルが増えたとき（例：`sitemap.xml`）に、`fiji-browser` と `windows-installed` より先に失敗する。
+- `python`：`scripts/build_showcase_runtime.py --check` で、公開デモがブラウザで動かす Cytellect のホイールが、解析・API・ワーカーのソースと一致することを確かめる。Python を変えたら、同じ PR で作り直す（[公開デモ](showcase.md)）。
+- `python-windows-314`：Windows のテスト一式の所要時間を減らす準備として、遅いテスト 40 件の時間を記録する（`--durations=40`）。試験は減らさない。
 
 ## main で実行される統合試験
 

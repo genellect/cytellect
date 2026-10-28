@@ -120,7 +120,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 ### ビルドと検査
 
-`uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。
+`uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。CI の `python` ジョブは、Python を変える PR で `--check` を実行します（[CI の構成](ci.md)）。
 
 公開デモの作り直し（`services/showcase/src/cytellect_showcase/build.py`）は、`publish` → `snapshot` → `journal` の順に実行します。`journal` は、公開ビルドと同じ `/demo` をブラウザ内の API で開き、次の操作を初期状態から 1 場面ずつ実行して記録します。警告や想定外のエラーが 1 件でも出れば失敗します。
 
