@@ -51,8 +51,10 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
   await expect(page.getByTestId("file-input")).toBeEnabled();
   const uploaded = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/region-fields") && response.request().method() === "POST");
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer, index) => ({name: `a9_c${index + 1}.tif`, mimeType: "image/tiff", buffer})));
+  await page.getByRole("button", {name: /^1 画面/}).click();
   const upload = await uploaded; expect(upload.status()).toBe(201); const field = await upload.json();
   expect(field.image_info.channels.map((value: {stain: string | null}) => value.stain)).toEqual([null, null]);
+  await page.getByRole("button", {name: "設定パネル", exact: true}).click();
   const method = page.getByRole("complementary", {name: "画像解析", exact: true});
   await method.getByRole("combobox", {name:"背景補正",exact: true}).selectOption("raw");
   await method.getByRole("combobox", {name:"核染色",exact: true}).selectOption("c2");

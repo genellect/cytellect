@@ -6,6 +6,7 @@ import {formatValue,type Job} from "@/lib/types";
 import {usePrivateImage} from "@/lib/usePrivateImage";
 import {comparisonWarnings} from "@/lib/region-comparison-view";
 import {commonWarnings} from "@/lib/common-statistics";
+import {descriptiveWarning} from "@/lib/descriptive-view";
 import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CompartmentLedgerEntry,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
@@ -33,7 +34,7 @@ export interface ConnectedResultsProps {
   onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]})=>Promise<unknown>;
   onMetricChange?:(metric:string,channel:string|null)=>void;
   onAnalysisTargetChange?:(target:ReviewTarget)=>void;
-  /** The demo opened on a recorded result: its metric and channel, for a view nobody has changed yet. */
+  /** The view opened on the latest saved result: its metric and channel, for a view nobody has changed yet. */
   onOpening?:(metric:string,channel:string|null)=>void;
   onPrepareMissing?:()=>Promise<unknown>;
   /** The declared experiment design; its derived metadata replaces per-field typing (E-08). */
@@ -244,13 +245,12 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   }
   function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setConfirmed(false);}
   function restoreFigure(selected:Saved){setSaved(selected);setFigureKind(selected.plot.kind);setWidth(selected.plot.width_inches*25.4);setHeight(selected.plot.height_inches*25.4);setFont(selected.plot.font_size);setXLabel(selected.plot.x_label);setYLabel(selected.plot.y_label);setYMin(selected.plot.y_min==null?"":String(selected.plot.y_min));setYMax(selected.plot.y_max==null?"":String(selected.plot.y_max));setPointSize(selected.plot.point_size??18);setColors(selected.plot.style?.series_colors||{});setLegend(selected.plot.style?.show_legend??true);setOrder(selected.plot.group_order);setXAxis({min:selected.plot.axes?.x_min==null?"":String(selected.plot.axes.x_min),max:selected.plot.axes?.x_max==null?"":String(selected.plot.axes.x_max),step:selected.plot.axes?.x_tick_step==null?"":String(selected.plot.axes.x_tick_step),scale:selected.plot.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:selected.plot.y_tick_step==null?"":String(selected.plot.y_tick_step),scale:selected.plot.axes?.y_scale||"linear"});}
-  // The public demo opens on the latest saved result (as a researcher's own session would
-  // have left it) instead of an empty view; production keeps the explicit choice.
+  // Statistics and figures open on the latest saved result (as the researcher's last session left it), not an empty view.
   const showcaseUi=useShowcaseUi(),demo=showcaseUi.enabled,showcaseDataset=showcaseUi.dataset,openedSaved=useRef(false);
-  // The demo records the opening comparison and, beside it, the source's other recorded changes (goals C7):
-  // the newest figure of each saved comparison, the opening one first.
+  // Saved comparisons are one click apart (in the demo, the opening comparison and the source's other recorded
+  // changes, goals C7): the newest figure of each, newest first.
   const recorded:Saved[]=[];
-  if(demo&&mode==="statistics")for(const entry of history)if(entry.operation==="comparison"&&entry.result.estimates&&!recorded.some(value=>value.job===entry.job))recorded.push(entry);
+  if(mode==="statistics")for(const entry of history)if(entry.operation==="comparison"&&entry.result.estimates&&!recorded.some(value=>value.job===entry.job))recorded.push(entry);
   function showRecorded(entry:Saved){
     restoreFigure(entry);
     // The side panel follows, so the shown result is the chosen metric's and not a "previous" one.
@@ -261,7 +261,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const [savedNote,setSavedNote]=useState("");
   useEffect(()=>{if(demo&&saved&&!saved.historical&&Math.abs(saved.plot.width_inches*25.4-width)>.5)void render();},[saved?.job]);// eslint-disable-line react-hooks/exhaustive-deps
   const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);});
-  useEffect(()=>{if(!demo||openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[demo,history]);
+  useEffect(()=>{if(openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[history]);
   const shownTarget=saved?.historical?saved.target:target;const shownMetric=saved?.historical?(saved.result.metric||saved.result.y_source?.metric||saved.result.spec?.selection?.metric||""):metric;const shownChannel=saved?.historical?(saved.result.channel?.channel_id||saved.result.y_source?.channel?.channel_id||saved.result.spec?.selection?.channel_id||null):channel;
   // The shown result differs from the side panel's choice in region, metric or channel.
   const previous=(()=>{if(!saved)return null;const selection=saved.result.spec?.selection,savedMetric=selection?.metric??saved.result.metric??"",savedChannelId=selection?.channel_id??null;
@@ -328,7 +328,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {mode==="statistics"&&previous&&<p role="status" className={styles.previous}>表示中は{saved.historical?"記録した結果":"前の結果"}（{previous.shown}）です。「計算」で、選んだ条件（{previous.chosen}）の結果になります。</p>}
         {mode==="statistics"?<div className={styles.resultGrid} data-columns={(!!saved.result.estimates||saved.operation==="distribution"&&!!experiment)&&svgFiles.length>0?2:1}>
           <div>
-            {recorded.length>1&&<div className={styles.recorded} role="group" aria-label="記録した比較">{recorded.map(entry=>{const channelId=entry.result.spec?.selection?.channel_id;return <button key={entry.job} aria-pressed={saved.job===entry.job} onClick={()=>showRecorded(entry)}>{metricLabels[entry.result.estimates!.metric]||entry.result.estimates!.metric}{channelId?` · ${channelId}`:""}</button>;})}</div>}
+            {recorded.length>1&&<div className={styles.recorded} role="group" aria-label="保存した比較">{recorded.map(entry=>{const channelId=entry.result.spec?.selection?.channel_id;return <button key={entry.job} aria-pressed={saved.job===entry.job} onClick={()=>showRecorded(entry)}>{metricLabels[entry.result.estimates!.metric]||entry.result.estimates!.metric}{channelId?` · ${channelId}`:""}</button>;})}</div>}
             {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={resultMetricLabel(saved.result,saved.result.estimates.metric)} unit={unitLabel(saved.result.unit)} warnings={(saved.result.warnings||[]).map(value=>comparisonWarnings[value]||commonWarnings[value]).filter((value):value is string=>!!value)}
           reported={showcaseDataset?.reported??null}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域",
@@ -347,7 +347,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
           :<SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>)}
         {mode==="statistics"&&saved.result.omnibus&&<p>全体検定 {String(saved.result.omnibus.method)} · p = {formatValue(saved.result.omnibus.p_value)}</p>}
         {mode==="statistics"&&Array.isArray(saved.result.counts)&&<SavedTable rows={saved.result.counts} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}
-        {!!saved.result.warnings?.length&&<details><summary>解析上の注意</summary><ul>{saved.result.warnings.map(value=><li key={value}>{comparisonWarnings[value]||commonWarnings[value]||value}</li>)}</ul></details>}
+        {!!saved.result.warnings?.length&&<details><summary>解析上の注意</summary><ul>{saved.result.warnings.map(value=><li key={value}>{comparisonWarnings[value]||commonWarnings[value]||descriptiveWarning(value)}</li>)}</ul></details>}
         {!!saved.result.plot_data?.length&&<Folded summary="図の元データ">{()=><SavedTable rows={saved.result.plot_data!} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>}
         <details><summary>元の視野{saved.historical?"（保存時の解析版）":""}</summary>{(saved.sources||[]).map(source=><button key={source.field} onClick={()=>onSource(source.field,undefined,saved.revision,saved.target,savedChannel,savedStructure)}>{items.find(item=>item.fieldId===source.field)?.label||source.label}</button>)}</details>
       </>:<p className={styles.empty}>計算した結果とグラフをここに表示します。</p>}

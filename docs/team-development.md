@@ -36,9 +36,10 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 - オーナー以外が作成した PR には、作成者とは別のメンバー 1 名以上の承認が要る。
 - オーナー自身の PR は、レビューを省略できる。PR と必須 CI は省略できない。
 - エージェントが作成した変更は、作業を依頼した人の変更として扱う。オーナーのアカウントで動くエージェントが他のメンバーの依頼で作成した変更にも、レビューが要る。
-- レビューでは次の点を確認する。
-  - 変更が目的に合い、無関係な修正を含まないか
-  - 画素値、マスク、測定値、統計、図への影響が説明・検証されているか
+- レビューで最も重視するのは次の 2 点である。
+  1. 変更が目的に合い、合理的で、無関係な修正を含まないか
+  2. 本番への影響（公開サイト、Windows 版、Docker 版、AI サービス）と、画素値・マスク・測定値・統計・図への影響が検証されているか
+- あわせて次の点を確認する。
   - 原因が証拠で特定され、個別の対症ではなく一般則や構造で対処しているか（[問題への対処](development-principles.md#問題への対処)）
   - 非公開データや認証情報が含まれていないか
   - 検証の結果が事実どおりに書かれ、未実施の項目が明示されているか
@@ -115,9 +116,10 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 - PRs authored by anyone other than the owner require approval from at least one member other than the author.
 - The owner's own PRs may omit review. They still require a PR and all required checks.
 - A change made by an agent belongs to the person who requested it. An agent running under the owner's account on another member's behalf still requires review.
-- Reviewers check that:
-  - the change matches its purpose and contains no unrelated edits;
-  - effects on pixel values, masks, measurements, statistics and figures are explained and tested;
+- Review focuses first on two points:
+  1. the change matches its purpose, is reasonable and contains no unrelated edits;
+  2. its effects on production (public site, Windows release, Docker release, AI services) and on pixel values, masks, measurements, statistics and figures are tested.
+- Reviewers also check that:
   - causes are identified from evidence and fixed through general rules or structure rather than case-specific patches ([Development principles](development-principles.md#問題への対処), Japanese);
   - no private data or credentials are included;
   - validation results are reported accurately and unrun checks are stated.

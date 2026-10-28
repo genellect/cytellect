@@ -4,7 +4,7 @@ import {effectiveChannelAssignments} from "./channel-assignments";
 import {ApiError, fetchPrivateResponse, post, request} from "../api";
 import {PREVIEW_DISPLAY_HEADER, readPreviewDisplay, type DisplayReceipt} from "../preview-display";
 import type {Workspace} from "../types";
-import {createApiAdapter, type ChannelAssignments, type Recipe, type SavedResult} from "./api-adapter";
+import {createApiAdapter, type ChannelAssignments, type Recipe, type SavedResult, type StainSource} from "./api-adapter";
 
 export type ReviewTarget = "nuclei" | "nucleoli" | "nucleoplasm" | "cell";
 export interface ReviewChannel {
@@ -12,6 +12,8 @@ export interface ReviewChannel {
   label: string;
   stain: string | null;
   role: "nuclear" | "measure" | "unused" | null;
+  /** Where `stain` came from: a saved assignment, or the registered channel's identity source. */
+  stainSource?: StainSource | "assignment";
 }
 export interface ReviewField {
   id: string;
@@ -102,7 +104,8 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
       const channels = input.image_info.channels.map(channel => {
         const assignment = assigned.get(channel.channel_id);
         return {id: channel.channel_id, label: assignment ? assignment.stain || channel.channel_id : channel.label,
-          stain: assignment ? assignment.stain : channel.stain, role: assignment?.role ?? null};
+          stain: assignment ? assignment.stain : channel.stain, role: assignment?.role ?? null,
+          stainSource: assignment ? "assignment" as const : channel.identity_source};
       });
       const displayName = input.display_name;
       const field: ReviewField = {id: input.id, label: typeof displayName === "string" && displayName.trim() ? displayName : `視野 ${index + 1}`,

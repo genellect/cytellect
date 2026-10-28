@@ -11,7 +11,10 @@ interface Props {
   busy:boolean;
   readOnly:boolean;
   onSave:(design:ExperimentDesign)=>Promise<void>;
-  onAdd:(target:AddTarget,files:FileList,design:ExperimentDesign)=>Promise<void>;
+  onAdd:(target:AddTarget,files:FileList,design:ExperimentDesign)=>Promise<unknown>;
+  /** Images added before the form was chosen: one screen takes them at once, two screens ask for their group.
+   * Registering them without a form keeps typing groups and independent units per field in the statistics view. */
+  pending?:{count:number;onPlace:(target:AddTarget,design:ExperimentDesign)=>Promise<void>;onWithoutForm:()=>void;onDiscard:()=>void};
   onOpenField:(fieldId:string)=>void;
   onCsv?:()=>void;
 }
@@ -22,20 +25,26 @@ function uniqueRunLabel(date:string,taken:string[]){const used=new Set(taken.map
 
 /** Chooses one screen (describe one group) or two screens (compare two groups), then
  * groups, independent runs and samples before images are added (requirements E-01–E-08). */
-export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpenField,onCsv}:Props){
+export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pending,onOpenField,onCsv}:Props){
   const [draft,setDraft]=useState<ExperimentDesign|null>(design);
   const [labels,setLabels]=useState<Record<string,string>>({});
   const [runDate,setRunDate]=useState(today());
   const [samples,setSamples]=useState<Record<string,string>>({});
   const [error,setError]=useState("");
+  const [pendingTarget,setPendingTarget]=useState("");
   const fileInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null);
   const target=useRef<AddTarget|null>(null);
   useEffect(()=>{setDraft(design);},[design]);
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
   const fieldLabel=(id:string)=>fields.find(value=>value.id===id)?.label??id;
 
-  async function save(next:ExperimentDesign){setError("");setDraft(next);try{await onSave(next);}catch(cause){setError(cause instanceof Error?cause.message:"保存できませんでした。");}}
-  function choose(layout:"single"|"pair"){const next=emptyDesign(layout);void save(addRun(next,{label:runDate,performed_on:runDate}));}
+  async function save(next:ExperimentDesign){setError("");setDraft(next);try{await onSave(next);return true;}catch(cause){setError(cause instanceof Error?cause.message:"保存できませんでした。");return false;}}
+  async function place(target:AddTarget,next:ExperimentDesign){setError("");try{await pending?.onPlace(target,next);}catch(cause){setError(cause instanceof Error?cause.message:"画像を登録できませんでした。");}}
+  async function choose(layout:"single"|"pair"){
+    const next=addRun(emptyDesign(layout),{label:runDate,performed_on:runDate});
+    // One screen has one group and one run, so images that waited for the choice go there; two screens ask which group.
+    if(await save(next)&&pending&&layout==="single")await place({groupId:next.groups[0].id,runId:next.runs![0].id,sample:null},next);
+  }
   function pick(add:AddTarget,folder:boolean){target.current=add;(folder?folderInput:fileInput).current?.click();}
   async function received(list:FileList|null){
     if(!list?.length||!target.current||!draft)return;
@@ -46,6 +55,9 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
   if(!draft)return <section className={styles.choice} aria-label="解析の形を選ぶ">
     <h1>解析の形を選ぶ</h1>
     <p>実験の形に合わせて、画面の数を選びます。あとから 1 画面を 2 画面に広げられます。</p>
+    {pending&&<p className={styles.pending} role="status">画像 {pending.count} 件を受け取りました。1 画面か 2 画面かを選ぶと登録します。
+      <button className={styles.link} disabled={busy} title="群・試料・独立実験単位を、統計の画面で視野ごとに入力します" onClick={pending.onWithoutForm}>形を決めずに登録（群は統計で入力）</button>
+      <button className={styles.link} disabled={busy} onClick={pending.onDiscard}>取り消す</button></p>}
     <div className={styles.choices}>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("single")}><strong>1 画面</strong><span>1 つの群を記述する</span><small>核の大きさや数の分布を、実験回ごとに確かめます。検定はしません。</small></button>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("pair")}><strong>2 画面</strong><span>2 つの群を比べる</span><small>対照と処理（例：WT と変異体、溶媒と薬剤）を並べ、同じ実験回の 2 群を対にして比べます。</small></button>
@@ -75,6 +87,15 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
     <p className={styles.lead}>{draft.layout==="pair"
       ?"同じ実験回（実験日）に行った対照と処理を対にして比べます。n は実験回の数で、細胞や視野の数ではありません。"
       :"1 つの群の値の分布を、実験回ごとに示します。"}</p>
+    {pending&&!readOnly&&<section className={styles.pendingPlace} aria-label="受け取った画像の追加先">
+      <p>受け取った画像 {pending.count} 件を追加する実験回と群を選んでください。群ごとに分かれた画像は「取り消す」を押し、各群の「画像を追加」から追加します。</p>
+      <select aria-label="追加先" disabled={locked} value={pendingTarget} onChange={event=>setPendingTarget(event.target.value)}>
+        <option value="">追加先を選ぶ…</option>
+        {runs.flatMap(run=>draft.groups.map(group=><option key={`${run.id}:${group.id}`} value={`${run.id}\u0000${group.id}`}>{run.label} · {group.label}</option>))}
+      </select>
+      <button disabled={locked||!pendingTarget} onClick={()=>{const [runId,groupId]=pendingTarget.split("\u0000");setPendingTarget("");void place({groupId,runId,sample:null},draft);}}>追加</button>
+      <button className={styles.link} disabled={locked} onClick={pending.onDiscard}>取り消す</button>
+    </section>}
     <div className={styles.grid} style={{gridTemplateColumns:`minmax(200px,270px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
       <div role="row" className={styles.row}>
         <div role="columnheader" className={styles.corner}>実験回</div>
