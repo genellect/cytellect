@@ -2,14 +2,13 @@
 /** Additions of the public demo (/demo). Production renders none of these: the context defaults to disabled. */
 import {createContext, useContext, useEffect, useRef, useState, useSyncExternalStore} from "react";
 import {ApiError} from "../../../lib/api";
-import {isShowcaseNotice, isShowcaseNoticeCode, showcaseTransport, type ProposalExample, type RecordedOptions, type ShowcaseDataset, type ShowcaseScene} from "../../../lib/showcase";
+import {isShowcaseNotice, isShowcaseNoticeCode, showcaseTransport, type ProposalExample, type ShowcaseDataset, type ShowcaseScene} from "../../../lib/showcase";
 import type {ShowcaseState} from "../../../lib/showcase/transport";
 import styles from "./showcase.module.css";
 
 export type DemoStep = "image" | "statistics" | "figure";
 export interface ShowcaseUi {
   enabled: boolean;
-  options: RecordedOptions | null;
   examples: ProposalExample[];
   dataset: ShowcaseDataset | null;
   /** Demo scenes (one workspace each) and the one shown; empty for a single-scene demo. */
@@ -17,7 +16,7 @@ export interface ShowcaseUi {
   scene: ShowcaseScene | null;
   requestUpload: (kind: "image" | "csv") => void;
 }
-export const ShowcaseContext = createContext<ShowcaseUi>({enabled: false, options: null, examples: [], dataset: null, scenes: [], scene: null, requestUpload: () => undefined});
+export const ShowcaseContext = createContext<ShowcaseUi>({enabled: false, examples: [], dataset: null, scenes: [], scene: null, requestUpload: () => undefined});
 /** Switches the demo to another scene (its own workspace); a fresh page keeps the scenes apart. */
 export function SceneSwitcher({scenes, scene}: {scenes: ShowcaseScene[]; scene: ShowcaseScene | null}) {
   if (scenes.length < 2) return null;
@@ -29,14 +28,6 @@ export function SceneSwitcher({scenes, scene}: {scenes: ShowcaseScene[]; scene: 
 }
 export const useShowcaseUi = () => useContext(ShowcaseContext);
 export const DOWNLOAD_HREF = "/#download";
-
-/** Recorded values for one detector field; "locked" when the demo holds no alternative. */
-export function recordedValues(options: RecordedOptions | null, kind: string, field: string): Array<number | null> | "locked" | undefined {
-  if (!options) return undefined;
-  const values = options[kind]?.[field];
-  return Array.isArray(values) && values.length ? values.filter(value => value === null || Number.isFinite(value)) : "locked";
-}
-export const recordedKind = (options: RecordedOptions | null, ...kinds: string[]) => !options || kinds.some(kind => !!options[kind]);
 
 /** An error that only reports a demo limitation is shown as information. */
 export function isShowcaseNoticeError(error: unknown) {
@@ -106,11 +97,11 @@ export function DemoBadge({dataset, onGuide}: {dataset: ShowcaseDataset | null; 
   </details>;
 }
 
-/** The steps; the first names only the regions this scene has, and where outlines are edited. */
+/** The steps; the first names only the regions this scene has, and where outlines are corrected. */
 function guideSteps(dataset: ShowcaseDataset | null): Array<{mode: DemoStep; title: string; text: string; table?: boolean}> {
   const nucleolar = !!dataset?.regions?.includes("nucleoli");
   return [
-  {mode: "image", title: "画像と輪郭", text: `2 つの群を並べ、検出した輪郭を重ねています。輪郭を選ぶと、その値が表で分かります。輪郭の修正は「2 画面」を外した 1 視野の表示で行えます。${nucleolar ? "「領域」で核・核小体・核質を切り替えられます。" : ""}`},
+  {mode: "image", title: "画像と輪郭", text: `2 つの群を並べ、検出した輪郭を重ねています。輪郭を選ぶと、その値が表で分かります。輪郭の修正は、各画像の左下の操作で行えます（公開デモでは修正を記録しないため、試すと案内が出ます）。${nucleolar ? "「領域」で核・核小体・核質を切り替えられます。" : ""}`},
   {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を、各画像の下の表で確認できます。", table: true},
   {mode: "statistics", title: "統計", text: "視野や群をまとめて計算します。"},
   {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIPで保存できます。"},

@@ -24,7 +24,13 @@ from .figures import (
     series_color,
 )
 from .gfp_selection import recorded_gate_lines
-from .statistical_methods import methods_metadata, readable_descriptive_methods
+from .mask_corrections import mask_correction_caption_lines
+from .statistical_methods import (
+    methods_metadata,
+    readable_descriptive_methods,
+    region_set_name,
+    template_version,
+)
 
 FIGURE_VERSION = "1.0.1"
 
@@ -49,8 +55,15 @@ def _selected_channel(result):
                 if item["channel"]["channel_id"] == selection["channel_id"])
 
 
-def _caption(result, labels):
+def labelled(result, labels, fid):
+    """A figure label with the registered field name when the label does not already show it."""
+    name = next((field.get("display_name") for field in result["source_fields"] if field["field_id"] == fid), None)
+    return labels[fid] if not name or name == labels[fid] else f"{labels[fid]} ({name})"
+
+
+def _caption(result, labels, methods_template=None):
     ja = result["spec"]["plot"]["language"] == "ja"
+    version = template_version(methods_template)
     area_only = getattr(_source_measurement_policy(result), "mode", None) == "area_only"
     numeric = result["source_kind"] == "measured-numerical-assay"
     observation = {"regions": ("regions", "領域"), "nuclei": ("nuclei", "核"),
@@ -59,6 +72,10 @@ def _caption(result, labels):
     channel = _selected_channel(result)
     selected_identity = (f"channel_id={channel['channel_id']}; label={channel['label']}; "
                          f"stain={channel.get('stain') or 'not recorded'}") if channel else None
+    selection_line = (f"入力 {selection['input_rows']}、明示除外 {selection['excluded']}、保存済み選別外 {selection['gate_unselected']}、"
+                      f"指標欠測 {selection['missing_metric_selected']}。" if ja else
+                      f"Input={selection['input_rows']}; explicitly excluded={selection['excluded']}; "
+                      f"outside saved selection={selection['gate_unselected']}; missing metric={selection['missing_metric_selected']}.")
     if ja:
         lines = ["# 図の説明", "", f"{result['metric']}（{result['unit']}）の視野別記述図。",
                  f"点は{observation}の測定値、四角は" + ("CSV の測定グループ" if numeric else "視野") + "内の中央値を示す。",
@@ -66,8 +83,7 @@ def _caption(result, labels):
                  "観測数・視野数は独立した実験反復数ではない。この記述解析では実験単位の独立性を判定していない。",
                  "検定、回帰、標準誤差、信頼区間は計算していない。撮影条件の比較可能性は確認していない。",
                  "四分位数は観測分布の記述であり信頼区間ではない。隣接順位間の線形補間 h=(n−1)p を使用した。",
-                 f"入力 {selection['input_rows']}、明示除外 {selection['excluded']}、保存済み選別外 {selection['gate_unselected']}、"
-                 f"指標欠測 {selection['missing_metric_selected']}。",
+                 selection_line,
                  "点の横方向の配置にのみ固定乱数 seed=0 を使用した。値・選別は変更していない。"]
     else:
         lines = ["# Figure legend", "", f"Per-field descriptive measurements: {result['metric']} ({result['unit']}).",
@@ -79,8 +95,7 @@ def _caption(result, labels):
                  "No hypothesis test, regression, standard error or confidence interval was calculated. "
                  "Acquisition comparability has not been established.",
                  "Quartiles describe the observed distribution, not uncertainty; linear interpolation uses h=(n−1)p.",
-                 f"Input={selection['input_rows']}; explicitly excluded={selection['excluded']}; "
-                 f"outside saved selection={selection['gate_unselected']}; missing metric={selection['missing_metric_selected']}.",
+                 selection_line,
                  "Horizontal jitter affects display only (seed 0); values and selection are unchanged."]
     if result["observation_kind"] == "fields":
         lines[3] = ("1 視野 1 点。点は視野の値で、核ごとの分布ではない。視野内中央値の重複表示は行わない。"
@@ -91,6 +106,9 @@ def _caption(result, labels):
     if result["spec"]["selection"]["source"] == "compartment-summary":
         lines.insert(3, ("核ごとの区画サマリー値: " if ja else "Per-nucleus compartment-summary value: ")
                      + result["metric_definition"] + ".")
+    # Present only in results with the mask-correction ledger; older captions are unchanged.
+    at = lines.index(selection_line) + 1
+    lines[at:at] = mask_correction_caption_lines(result, labels, ja)
     if result.get("source_review") == "automatic_unreviewed":
         lines.append("領域の目視確認前に生成した記述図。" if ja else "Descriptive output generated before visual review of regions.")
     # Recorded in English: the gate thresholds and filter are the reproducible record.
@@ -102,7 +120,9 @@ def _caption(result, labels):
         identity = "; ".join(f"{p['channel']['label']} (stain={p['channel'].get('stain') or 'unknown'})"
                              for p in field.get("channel_provenance", []))
         definition = field.get("region_set", {}).get("label", result["observation_kind"])
-        lines.append(f"- {labels[fid]}: field_id={fid}; selected={summary['selected_rows']}; "
+        if version not in (None, "1.0.0") and "region_set" in field:
+            definition = region_set_name(field["region_set"])
+        lines.append(f"- {labelled(result, labels, fid)}: field_id={fid}; selected={summary['selected_rows']}; "
                      f"status={summary['status']}; definition={definition}; {identity}")
     for item in result.get("excluded_failed_fields", []):
         lines.append(f"- Explicitly excluded failed field: {item['field_id']}; reason={item['reason']}.")
@@ -125,7 +145,7 @@ def descriptive_methods(result, *, methods_template=None):
 
 def _descriptive_methods(result, *, methods_template=None):
     if methods_metadata(methods_template):
-        return readable_descriptive_methods(result)
+        return readable_descriptive_methods(result, template_version(methods_template))
     spec = parse_descriptive_request(result["spec"])
     policy = _source_measurement_policy(result)
     if getattr(policy, "mode", None) in ("raw_intensity", "automatic_background"):
@@ -287,7 +307,7 @@ def render_descriptive(result, output: Path, *, methods_template=None):
         if items:
             write_csv(output / f"{name}.csv", items)
             files.append(f"{name}.csv")
-    (output / "figure-caption.md").write_text(_caption(result, labels), encoding="utf-8")
+    (output / "figure-caption.md").write_text(_caption(result, labels, methods_template), encoding="utf-8")
     (output / "methods.md").write_text(descriptive_methods(result, methods_template=methods_template), encoding="utf-8")
     source = {key: value for key, value in result.items() if key != "figure"}
     source.update(descriptive_figure_version=FIGURE_VERSION, style=style, field_labels=labels,

@@ -62,7 +62,6 @@ export function isShowcaseNotice(text: string | null | undefined) {
   return !!text && showcaseActive() && Object.values(showcaseNotices).some(notice => text.includes(notice));
 }
 
-export type RecordedOptions = Record<string, Record<string, Array<number | null>>>;
 export interface ProposalExample {label: string; instruction: string}
 /** Optional files from the demo build; absence leaves the controls as they are. */
 /** `snapshot/dataset.json`: source and limits of the demo's public images. */
@@ -111,14 +110,13 @@ export function validScenes(value: unknown): ShowcaseScene[] {
     return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples), ...(assistantScope ? {assistantScope} : {}), ...(channel ? {channel} : {})}] : [];
   });
 }
-export async function loadShowcaseExtras(): Promise<{options: RecordedOptions | null; examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]}> {
+export async function loadShowcaseExtras(): Promise<{examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]}> {
   const read = async (name: string) => {
     try {const response = await fetch(`${snapshotBase}${name}`, {credentials: "same-origin"}); if (!response.ok) {await response.text(); return null;} return await response.json() as unknown;}
     catch {return null;}
   };
-  const [options, examples, dataset, scenes] = await Promise.all([read("recorded-options.json"), read("proposal-examples.json"), read("dataset.json"), read("scenes.json")]);
-  const validOptions = options && typeof options === "object" && !Array.isArray(options) ? options as RecordedOptions : null;
-  return {options: validOptions, examples: validExamplesOf(examples), dataset: validDataset(dataset), scenes: validScenes(scenes)};
+  const [examples, dataset, scenes] = await Promise.all([read("proposal-examples.json"), read("dataset.json"), read("scenes.json")]);
+  return {examples: validExamplesOf(examples), dataset: validDataset(dataset), scenes: validScenes(scenes)};
 }
 
 
