@@ -20,14 +20,13 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 2. **ブランチを作る。** 最新の `origin/main` から作る。名前は `<種類>/<内容>` とし、種類は `feat`、`fix`、`docs`、`test`、`chore` のいずれか（例: `fix/nucleolus-boundary`）。エージェントのツールが付ける接頭辞（`claude/`、`codex/`）も使える。
 3. **変更する。** 1 つの PR では 1 つの目的だけを扱う。仕様・テスト・文書は、コードと同じ PR で更新する。
 4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)のすべての項目を書く。作業途中の共有には Draft PR を使う。
-5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしない。PR の CI は、変更したファイルに関係する検査だけを実行する。Fiji・Cellpose の画像・Windows の導入の統合試験は、マージ前の一括検証（手順 6）と `main` への取り込み後に実行する。Windows 版の配布は、配布するコミットでこれらすべての成功を確認してから行う（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消す。
-6. **マージする。** `main` は `main-owner-only-merge` のルールで更新をオーナーに限っているため、自動マージは完了しない。オーナー（またはオーナーが対象の PR を指定して指示したエージェント）が、ルールのバイパス（`gh pr merge <番号> --squash --admin`）でマージする。バイパスは必須 CI の条件も飛ばすため、マージする PR をまとめて 1 回だけ検証してからマージする（一括検証）。PR の本数によらず、CI の待ちは 1 回で済む。
-   1. 最新の `origin/main` から検証用のブランチ（`chore/merge-batch-<日付>`）を作り、マージする PR の head を、マージする順に取り込んで push する。競合したら、その PR のブランチで解消してから作り直す。
-   2. 検証用のブランチで CI を手動実行する（`gh workflow run ci.yml --ref <ブランチ>`）。手動実行では、統合試験を含むすべてのジョブが走る。
-   3. すべてのジョブが成功したら、同じ順に `gh pr merge <番号> --squash --admin --match-head-commit <取り込んだ head>` でマージする。検証の後に、ほかの変更で `main` が進んだり PR に push されたりしたときは、1 からやり直す。
-   4. `git diff --exit-code <検証したコミット> origin/main` で、マージ後の `main` の内容が検証したものと同じことを確かめ、検証用のブランチを削除する。差があれば報告し、`main` の CI の成功を確かめる。
+5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしない。PR の CI は、変更したファイルに関係する検査だけを実行する。Fiji・Cellpose の画像・Windows の導入の統合試験は、マージ前の一括検証（手順 6）と `main` で実行し、Windows 版の配布は、配布するコミットでこれらすべての成功を確認してから行う（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消す。
+6. **マージする。** オーナーがルールのバイパス（`--admin`）でマージする（`main-owner-only-merge` の更新制限で自動マージは完了せず、個人アカウントではマージキューも使えない）。バイパスは必須 CI も飛ばすため、マージする PR をまとめて 1 回検証してからマージする。
+   1. 最新の `origin/main` に PR をマージする順に取り込んだブランチ `chore/merge-batch-<日付>` を push し、CI を手動実行する（`gh workflow run ci.yml --ref <ブランチ>`。統合試験も走る）。
+   2. すべて成功したら、同じ順に `gh pr merge <番号> --squash --admin --match-head-commit <取り込んだ head>` を実行する。失敗したら、原因の PR を直すか外して 1 からやり直す。
+   3. `git diff --exit-code <検証したコミット> origin/main` で差がないことを確かめ、ブランチを消す。
 
-   マージする PR が 1 本で、最新の `main` を取り込んだ head で PR の CI がすべて成功している場合は、1・2 を省いてよい（統合試験はマージ後の `main` で走る）。失敗したジョブがあれば、原因の PR を直すか外してやり直す。未成功の試験を無視したり、保護設定を変更したりしない。PR のタイトルがそのままコミットの件名になるため、変更の内容が分かるタイトルにする。このリポジトリは個人アカウントの所有で、GitHub のマージキューは使えない。
+   検証の後に `main` や PR が変わったら、1 からやり直す。PR が 1 本で、最新の `main` を含む head で PR の CI が成功していれば、1 を省ける。PR のタイトルはそのままコミットの件名になる。
 
 ### 3. Git の運用
 
@@ -106,14 +105,13 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 2. **Create a branch** from the latest `origin/main`, named `<type>/<summary>`, where type is `feat`, `fix`, `docs`, `test` or `chore` (for example `fix/nucleolus-boundary`). Prefixes added by agent tools (`claude/`, `codex/`) are also acceptable.
 3. **Make the change.** Keep each PR to one purpose. Update specifications, tests and documentation in the same PR as the code.
 4. **Open a PR** and fill in every section of the [PR template](../.github/pull_request_template.md) (Japanese). Use a draft PR to share work in progress.
-5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run in the batch verification before merge (step 6) and after merge on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
-6. **Merge.** The `main-owner-only-merge` rule restricts updates to `main` to the owner, so auto-merge never completes. The owner (or an agent the owner instructs for named PRs) merges with the rule bypass (`gh pr merge <number> --squash --admin`). The bypass also skips the required checks, so the PRs to merge are verified together once before merging (batch verification); however many PRs there are, CI is waited on once.
-   1. Create a verification branch (`chore/merge-batch-<date>`) from the latest `origin/main`, merge in the head of each PR in merge order, and push it. If a merge conflicts, resolve it on that PR's branch and recreate the verification branch.
-   2. Run CI manually on the verification branch (`gh workflow run ci.yml --ref <branch>`). A manual run executes every job, the integration jobs included.
-   3. When every job has passed, merge in the same order with `gh pr merge <number> --squash --admin --match-head-commit <merged head>`. If `main` gains another change or a PR receives a push after verification, start again from step 1.
-   4. Confirm with `git diff --exit-code <verified commit> origin/main` that `main` after the merges has the verified content, then delete the verification branch. If they differ, report it and confirm that CI passes on `main`.
+5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run in the batch verification (step 6) and on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
+6. **Merge.** The owner merges with the rule bypass (`--admin`): the `main-owner-only-merge` update restriction keeps auto-merge from completing, and a personal-account repository has no merge queue. The bypass also skips required CI, so the PRs to merge are verified together once first.
+   1. Push a branch `chore/merge-batch-<date>` that merges the PRs, in merge order, into the latest `origin/main`, and run CI on it manually (`gh workflow run ci.yml --ref <branch>`; the integration jobs run too).
+   2. When everything passes, run `gh pr merge <number> --squash --admin --match-head-commit <merged head>` in the same order. If something fails, fix or drop the PR that caused it and start again.
+   3. Confirm with `git diff --exit-code <verified commit> origin/main` that nothing differs, then delete the branch.
 
-   For a single PR whose head includes current `main` and has passed all pull-request checks, steps 1 and 2 may be skipped (the integration jobs then run on `main` after merge). If a job fails, fix or drop the PR that caused it and start again. Do not ignore unsuccessful tests or change protection settings. The PR title becomes the commit subject, so make it describe the change. The repository is owned by a personal account, where GitHub's merge queue is unavailable.
+   If `main` or a PR changes after verification, start again. For a single PR whose head includes current `main` and has passed its pull-request CI, step 1 may be skipped. The PR title becomes the commit subject.
 
 ### 3. Git
 
