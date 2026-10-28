@@ -71,8 +71,8 @@ test("the table beside one image names the stain and field of its rows, also whe
   await page.goto("/workspace?id=w");
   const bar=page.locator("[class*=channelBar]");
   await bar.getByRole("button",{name:"DAPI · c1",exact:true}).click();
-  // The table sits beside the image when the settings panel leaves it room.
-  await page.getByRole("button",{name:"パネルを閉じる",exact:true}).click();
+  // The table sits beside the image: the settings panel starts closed and leaves it room.
+  await expect(page.getByRole("complementary",{name:"画像解析",exact:true})).toHaveCount(0);
   const side=page.locator("[class*=sideMeasurements]");
   const heading=side.getByRole("heading",{level:3});
   await expect(heading).toHaveText("核の測定値 · DAPI");
@@ -170,7 +170,8 @@ test("a drop of image files adds them as the 画像 button does",async({page,con
 test("the AI composer opens the AI panel when focused, without the demo's examples",async({page,context})=>{
   const fixture=await imageWorkspace(context,page);
   await page.goto("/workspace?id=w");
-  await expect(page.getByRole("complementary",{name:"画像解析"})).toBeVisible();
+  await expect(page.locator("[class*=fieldCard]")).toHaveCount(2);
+  await expect(page.getByRole("complementary",{name:"画像解析"})).toHaveCount(0);
   await page.getByLabel("AIへの指示",{exact:true}).click();
   await expect(page.getByRole("complementary",{name:"AI"})).toBeVisible();
   await expect(page.getByLabel("AIへの指示",{exact:true})).toHaveAttribute("placeholder","AIに指示");
