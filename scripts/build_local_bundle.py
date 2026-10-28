@@ -32,7 +32,8 @@ INSTALL_REQUIREMENTS = "engines/python/windows-requirements.txt"
 INSTALL_MANIFEST = "engines/python/windows-install.json"
 DOCS = {"docs/oss.md", "docs/local.md", "docs/security.md", "docs/hosting-costs.ja.md", "docs/windows-runtime.md"}
 DATA_NOTICES = {"fixtures/public/allowlist.json"}
-WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".svg", ".woff2", ".woff", ".ttf",
+# ".xml" is the generated sitemap.xml; the local build serves an empty one beside robots.txt.
+WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".xml", ".svg", ".woff2", ".woff", ".ttf",
                 ".ico", ".png", ".jpg", ".jpeg", ".webp"}
 REGISTERED_MARKETING_SUFFIXES = {".mp4", ".webm", ".csv", ".glb", ".md"}
 # The serverless public showcase (browser runtime wheels, seed) belongs to the public
