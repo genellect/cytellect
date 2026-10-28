@@ -36,6 +36,8 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   if (!resume) {
     await expect(page.getByTestId("file-input")).toBeEnabled();
     await page.getByTestId("file-input").setInputFiles(files);
+    // Unpaired groups with typed independent units: registered without a form, groups are entered in statistics.
+    await page.getByRole("button", {name: /^形を決めずに登録/}).click();
     await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/未測定/})).toHaveCount(4, {timeout:120000});
     await page.getByRole("button", {name:"染色対応", exact:true}).click();
     await page.getByLabel("c1の染色名", {exact:true}).fill("DAPI");

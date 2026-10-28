@@ -1,6 +1,6 @@
 import {descriptiveSupported} from "../../../lib/workspace/comparison-adapter";
 import {describe,it,expect} from "vitest";
-import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,type ResultDesign} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
@@ -128,5 +128,20 @@ describe("one-group summary distributions", () => {
   it("does not enable unconnected positivity", () => {
     expect(descriptiveSupported("positive_count")).toBe(false);
     expect(descriptiveSupported("positive_fraction")).toBe(false);
+  });
+});
+
+describe("saved mask-correction counts",()=>{
+  it("adds the recorded hand edits beside exclusions and leaves unrecorded history empty",()=>{
+    const rows=[{field_id:"a",input_rows:349,excluded:0},{field_id:"b",input_rows:242,excluded:0},{field_id:"c",input_rows:5,excluded:1}];
+    const edited={field_id:"a",status:"recorded" as const,initial_regions:350,deleted_regions:1,added_regions:0,redrawn_regions:0,split_regions:0,merged_regions:0};
+    const unrecorded={...edited,field_id:"c",status:"not_recorded" as const,initial_regions:null,deleted_regions:0};
+    const merged=withMaskCorrections(rows,{fields:[edited,unrecorded]});
+    expect(merged[0]).toEqual({field_id:"a",input_rows:349,excluded:0,manual_edits:"最初 350 · 削除 1"});
+    expect(merged[1]).toEqual(rows[1]);
+    expect(merged[2]).toEqual({...rows[2],manual_edits:"記録なし"});
+    expect(withMaskCorrections(rows,{fields:[{...edited,deleted_regions:0}]})[0]).toMatchObject({manual_edits:"なし"});
+    expect(withMaskCorrections(rows,{fields:[{...edited,deleted_regions:2,merged_regions:3}]})[0]).toMatchObject({manual_edits:"最初 350 · 削除 2 · 結合 3"});
+    expect(withMaskCorrections(rows,undefined)).toBe(rows);
   });
 });

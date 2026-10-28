@@ -190,8 +190,10 @@ def test_methods_describe_saved_values_and_missing_backgrounds_without_changing_
     assert "does not use these automatic background corrections" in raw and "Euclidean" not in raw
     nuclei = descriptive_methods(describe(additional_exclusion=True), methods_template=CURRENT_METHODS_TEMPLATE)
     assert "every nucleus of the pinned source nuclear revision, including excluded nuclei" in nuclei
-    # Historical dispatch (no saved template) never borrows the area-only or confirmed-ROI prose.
-    assert descriptive_methods(result) == text
+    # Historical dispatch (no saved template) never borrows the area-only or confirmed-ROI prose;
+    # it keeps the template 1.0.0 body.
+    historical = {"id": CURRENT_METHODS_TEMPLATE.id, "version": "1.0.0"}
+    assert descriptive_methods(result) == descriptive_methods(result, methods_template=historical)
 
 
 @pytest.mark.parametrize("tamper", ["confirmed", "constants", "algorithm", "protocol", "policy", "mixed"])

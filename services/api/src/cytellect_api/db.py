@@ -117,6 +117,7 @@ fields = Table(
     Column("synthetic", Boolean, default=False, nullable=False),
     Column("client_upload_id", String),
     Column("upload_fingerprint", String),
+    Column("display_name", String),
     Index("uq_fields_workspace_client_upload_id", "workspace_id", "client_upload_id", unique=True),
 )
 revisions = Table(
