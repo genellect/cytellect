@@ -68,6 +68,8 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
         ("pnpm", "--filter", "@cytellect/proposal-worker", "test:deployment"),
         ("node", "--test", "apps/web/scripts/finalize-local-export.test.mjs"),
         ("pnpm", "build"),
+        ("pnpm", "--filter", "@cytellect/web", "build:local"),
+        ("uv", "run", "python", "scripts/check_local_web_bundle.py"),
     ),
 }
 FIJI_CHECK = ("uv", "run", "pytest", "-m", "fiji")
