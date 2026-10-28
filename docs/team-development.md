@@ -20,8 +20,13 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 2. **ブランチを作る。** 最新の `origin/main` から作る。名前は `<種類>/<内容>` とし、種類は `feat`、`fix`、`docs`、`test`、`chore` のいずれか（例: `fix/nucleolus-boundary`）。エージェントのツールが付ける接頭辞（`claude/`、`codex/`）も使える。
 3. **変更する。** 1 つの PR では 1 つの目的だけを扱う。仕様・テスト・文書は、コードと同じ PR で更新する。
 4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)のすべての項目を書く。作業途中の共有には Draft PR を使う。
-5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしない。PR の CI は、変更したファイルに関係する検査だけを実行する。Fiji・Cellpose の画像・Windows の導入の統合試験は `main` への取り込み後に実行し、Windows 版の配布は、配布するコミットでこれらすべての成功を確認してから行う（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消す。
-6. **マージする。** オーナーが squash merge で `main` に取り込む。PR のタイトルがそのままコミットの件名になるため、変更の内容が分かるタイトルにする。`main` はルールセットで更新を制限しており、PR をマージできるのはバイパス権限を持つオーナーだけ。オーナーはマージ画面でルールのバイパスを選ぶか、`gh pr merge <番号> --squash --admin` を実行する。このバイパスでも必須 CI は省略されない。
+5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしない。PR の CI は、変更したファイルに関係する検査だけを実行する。Fiji・Cellpose の画像・Windows の導入の統合試験は、変更に関係するものをマージ前の一括検証（手順 6）で、すべてを `main` で実行し、Windows 版の配布は、配布するコミットでこれらすべての成功を確認してから行う（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消す。
+6. **マージする。** オーナーがルールのバイパス（`--admin`）でマージする（`main-owner-only-merge` の更新制限で自動マージは完了せず、個人アカウントではマージキューも使えない）。バイパスは必須 CI も飛ばすため、マージする PR をまとめて 1 回検証してからマージする。
+   1. 最新の `origin/main` に PR をマージする順に取り込んだブランチ `chore/merge-batch-<日付>` を push し、CI を手動実行する（`gh workflow run ci.yml --ref <ブランチ>`。PR と同じく変更に関係するジョブを選び、関係する統合試験も走る）。
+   2. すべて成功したら、同じ順に `gh pr merge <番号> --squash --admin --match-head-commit <取り込んだ head>` を実行する。失敗したら、原因の PR を直すか外して 1 からやり直す。
+   3. `git diff --exit-code <検証したコミット> origin/main` で差がないことを確かめ、ブランチを消す。
+
+   検証の後に `main` や PR が変わったら、1 からやり直す。PR が 1 本で、最新の `main` を含む head で PR の CI が成功していれば、1 を省ける。PR のタイトルはそのままコミットの件名になる。
 
 ### 3. Git の運用
 
@@ -100,8 +105,13 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 2. **Create a branch** from the latest `origin/main`, named `<type>/<summary>`, where type is `feat`, `fix`, `docs`, `test` or `chore` (for example `fix/nucleolus-boundary`). Prefixes added by agent tools (`claude/`, `codex/`) are also acceptable.
 3. **Make the change.** Keep each PR to one purpose. Update specifications, tests and documentation in the same PR as the code.
 4. **Open a PR** and fill in every section of the [PR template](../.github/pull_request_template.md) (Japanese). Use a draft PR to share work in progress.
-5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run after merge on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
-6. **Merge.** The owner squash-merges into `main`. The PR title becomes the commit subject, so make it describe the change. A ruleset restricts updates to `main`, so only the owner, who holds bypass permission, can merge PRs. The owner selects the rule bypass on the merge screen or runs `gh pr merge <number> --squash --admin`. The bypass does not skip required CI.
+5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run in the batch verification (step 6) when the changes affect them, and all of them run on `main`; a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
+6. **Merge.** The owner merges with the rule bypass (`--admin`): the `main-owner-only-merge` update restriction keeps auto-merge from completing, and a personal-account repository has no merge queue. The bypass also skips required CI, so the PRs to merge are verified together once first.
+   1. Push a branch `chore/merge-batch-<date>` that merges the PRs, in merge order, into the latest `origin/main`, and run CI on it manually (`gh workflow run ci.yml --ref <branch>`; as on a PR it selects the jobs the changes affect, integration jobs included).
+   2. When everything passes, run `gh pr merge <number> --squash --admin --match-head-commit <merged head>` in the same order. If something fails, fix or drop the PR that caused it and start again.
+   3. Confirm with `git diff --exit-code <verified commit> origin/main` that nothing differs, then delete the branch.
+
+   If `main` or a PR changes after verification, start again. For a single PR whose head includes current `main` and has passed its pull-request CI, step 1 may be skipped. The PR title becomes the commit subject.
 
 ### 3. Git
 
