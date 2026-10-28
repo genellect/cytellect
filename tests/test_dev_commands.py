@@ -15,6 +15,7 @@ CI_ONLY = {
     "uv run python scripts/scientific_review.py": "CI evidence receipt",
     "uv run pytest tests/test_local_bundle.py tests/test_ci_changes.py": "subset of the full suite",
     "uv run python scripts/scan_secrets.py": "audit",
+    "uv run python scripts/build_showcase_runtime.py": "drift warning on main (docs/ci.md)",
     "uv run pytest tests/test_scan_secrets.py": "audit (needs the pinned scanner cache)",
     "uv run pip-audit": "audit",
     "uv run python scripts/sbom.py": "audit",

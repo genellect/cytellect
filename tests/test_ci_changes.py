@@ -5,7 +5,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from ci_changes import (  # noqa: E402
     ALL,
     areas_for,
-    compares_with_base,
     documentation_registry_change,
     normalize,
     select,
@@ -31,13 +30,10 @@ def test_each_area_follows_what_its_jobs_build_or_run():
     assert areas_for("tests/test_statistics.py") == {"python", "fiji", "windows"}
 
 
-def test_pull_request_boundary_checks_run_when_either_side_changes():
-    # The local web boundary runs in the web job; the demo runtime check runs in the python job.
+def test_the_local_web_boundary_check_runs_when_the_packager_changes():
+    # The web job checks the compiled local UI against the packager's boundary.
     assert areas_for("scripts/build_local_bundle.py") == ALL
     assert areas_for("scripts/check_local_web_bundle.py") == ALL
-    assert areas_for("apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl") == {"python", "web", "fiji"}
-    assert areas_for("apps/web/public/showcase/manifest.json") == {"python", "web", "fiji"}
-    assert areas_for("apps/web/src/lib/showcase/runtime-config.json") == {"python", "web", "fiji"}
 
 
 def test_landing_page_changes_select_only_the_landing_page_checks():
@@ -83,12 +79,3 @@ def test_a_documentation_registry_change_alone_selects_nothing():
     assert select_changes([registry, "README.md", "docs/images/a.webp"], documentation_registry=True) == frozenset()
     assert select_changes([registry, "services/proposal-worker/src/a.ts"], documentation_registry=True) == {"web"}
     assert select_changes([registry], documentation_registry=False) == {"python", "lp"}
-
-
-def test_only_pull_requests_and_branch_verification_select_from_the_diff():
-    # The batch verification before merging runs only the jobs (integration jobs included) its changes affect.
-    assert compares_with_base("pull_request", "abc", "def")
-    assert compares_with_base("workflow_dispatch", "origin/main", "def")
-    # Pushes to main and full manual runs keep every job, as the Windows release requires.
-    assert not compares_with_base("push", "", "def")
-    assert not compares_with_base("workflow_dispatch", "", "def")

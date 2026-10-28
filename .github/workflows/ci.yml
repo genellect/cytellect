@@ -4,11 +4,6 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      all_jobs:
-        description: Run every job instead of only the jobs affected by the changes against main
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
@@ -31,9 +26,8 @@ jobs:
         id: classify
         env:
           EVENT: ${{ github.event_name }}
-          # A manual run of a branch (the batch verification before merging) selects from its diff with main.
-          BASE: ${{ github.event.pull_request.base.sha || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && !inputs.all_jobs && 'origin/main') || '' }}
-          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
         run: python3 scripts/ci_changes.py
   python:
     needs: changes
@@ -74,11 +68,11 @@ jobs:
       - run: uv run python scripts/check_docs.py
       - if: needs.changes.outputs.python == 'true'
         run: uv run python scripts/proposal_schema.py --check
-      # The public demo runs the committed Cytellect wheel in the browser; a Python change that
-      # does not rebuild it would ship stale analysis code to the demo after merge.
-      - name: Public demo runtime matches the analysis sources
-        if: needs.changes.outputs.python == 'true'
-        run: uv run python scripts/build_showcase_runtime.py --check --cache /tmp/cytellect-showcase-cache
+      # The public demo runs the committed Cytellect wheel. Pull requests are not made to rebuild it
+      # (every Python PR would then conflict on the wheel); main reports drift until the deploy builds it.
+      - name: Report whether the public demo runtime matches the analysis sources
+        if: github.event_name == 'push' && needs.changes.outputs.python == 'true'
+        run: uv run python scripts/build_showcase_runtime.py --check --cache /tmp/cytellect-showcase-cache || echo "::warning::The public demo runtime is older than the analysis sources; rebuild it with scripts/build_showcase_runtime.py"
       - name: Packaged documentation and change classification (Python suite not selected)
         if: needs.changes.outputs.python != 'true'
         run: uv run pytest tests/test_local_bundle.py tests/test_ci_changes.py
@@ -239,7 +233,7 @@ jobs:
   fiji-browser:
     needs: changes
     # Integration jobs run after merge (every push to main) and on manual runs (the batch verification
-    # before merging, for the areas its changes affect), not on each pull request; the release workflow still requires them on the released commit.
+    # before merging), not on each pull request; the release workflow still requires them on the released commit.
     if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -518,12 +512,17 @@ jobs:
             if (-not $status.ready) { throw 'Updated application is not ready' }
             if ($status.retention_mode -ne 'manual') { throw 'Update did not switch to manual workspace retention' }
           } finally { Stop-Installed $process }
-  python-windows-314:
+  windows-tests:
     needs: changes
     if: needs.changes.outputs.windows == 'true'
+    name: windows-tests (${{ matrix.shard }}/4)
     runs-on: windows-latest
-    # The suite takes 21-34 minutes on windows-latest for the same code, so keep a margin above it.
-    timeout-minutes: 45
+    # The full suite took 21-34 minutes in one job; each of four shards runs about a quarter of it.
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     env:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
@@ -532,19 +531,49 @@ jobs:
         with: {python-version: "3.14.8"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --dev --python 3.14.8 --no-python-downloads
-      - name: Full Windows compatibility suite without a Python support override
+      - name: One shard of the Windows compatibility suite without a Python support override
         env:
           CYTELLECT_TEST_DATA_DIR: ${{ runner.temp }}/scientific-windows-data
-        # --durations records the slowest tests so the suite can be split or sped up without dropping any.
-        run: uv run --no-sync python -B -m pytest tests -m "not fiji" --durations=40 --basetemp="${{ runner.temp }}/scientific-windows-tests" --junitxml="${{ runner.temp }}/scientific-windows.xml" --scientific-collection="${{ runner.temp }}/scientific-windows-collection.json"
-      - name: Scoped compatibility receipt including failed and skipped cases
+        # --durations records the slowest tests so the shards can be rebalanced without dropping any.
+        run: uv run --no-sync python -B -m pytest tests -m "not fiji" --shard=${{ matrix.shard }}/4 --durations=20 --basetemp="${{ runner.temp }}/scientific-windows-tests" --junitxml="${{ runner.temp }}/scientific-windows.xml" --scientific-collection="${{ runner.temp }}/scientific-windows-collection.json"
+      - name: Keep only test identities and outcomes
         if: always()
-        run: uv run --no-sync python -B scripts/scientific_review.py --junit "${{ runner.temp }}/scientific-windows.xml" --collection "${{ runner.temp }}/scientific-windows-collection.json" --output "${{ runner.temp }}/scientific-windows-receipt.json" --source-commit "${{ github.sha }}"
+        run: uv run --no-sync python -B scripts/merge_test_shards.py strip --junit "${{ runner.temp }}/scientific-windows.xml" --collection "${{ runner.temp }}/scientific-windows-collection.json" --output-dir "${{ runner.temp }}/shard"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-tests-${{ matrix.shard }}
+          path: ${{ runner.temp }}/shard/
+          if-no-files-found: error
+          retention-days: 1
+  python-windows-314:
+    # Keeps the required-check and release-gate name: passes only when every shard passed and
+    # the shards together are one full run of the Windows suite.
+    needs: [changes, windows-tests]
+    if: ${{ !cancelled() && needs.changes.outputs.windows == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --dev
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: windows-tests-*
+          path: /tmp/windows-shards
+      - name: Combine the shards into one run
+        run: uv run python scripts/merge_test_shards.py merge --shards /tmp/windows-shards --output-junit /tmp/scientific-windows.xml --output-collection /tmp/scientific-windows-collection.json
+      - name: Scoped compatibility receipt including failed and skipped cases
+        run: uv run python scripts/scientific_review.py --junit /tmp/scientific-windows.xml --collection /tmp/scientific-windows-collection.json --output /tmp/cytellect-compliance/scientific-windows-receipt.json --source-commit "${{ github.sha }}"
       - name: Retain aggregate Windows compatibility evidence only
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scientific-windows-314
-          path: ${{ runner.temp }}/scientific-windows-receipt.json
+          path: /tmp/cytellect-compliance/scientific-windows-receipt.json
           if-no-files-found: error
           retention-days: 14
+      - name: Every shard passed
+        run: test "${{ needs.windows-tests.result }}" = success

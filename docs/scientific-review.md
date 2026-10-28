@@ -14,6 +14,8 @@ uv run python scripts/scientific_review.py --junit /private/evidence/tests.xml \
   --output /private/evidence/scientific-review.json --source-commit FULL_40_CHARACTER_SHA
 ```
 
+The Windows suite runs as four shards (`--shard=INDEX/4`, whole test modules per shard). Each shard keeps only test identities and outcomes (`scripts/merge_test_shards.py strip`), and `merge` accepts them only when every index of the same collection is present once and the shards together select everything collected. One shard alone never counts as a full run.
+
 Add `--source-dirty` if testing uncommitted changes; a commit ID alone does not identify those changes. For a release, rerun required CI at the committed source. No receipt retrospectively changes an older release's evidence.
 
 Registered checks cover original-pixel/compartment arithmetic, independent inferential calculations, figure/source consistency, public-input regression boundaries, generic API/edit/replay integrity, explicit nuclear initialization, generic-unit comparisons and planning-to-actual-source boundaries. The descriptive path stays noninferential. In the non-Fiji run, selected engine contract tests do not stand in for deselected real-Fiji cases. Public dataset regression tests do **not** download and run the real dataset. Real Fiji, independent ImageJ measurements, source hashes, accepted/rejected fields and exact preprocessing belong in their separate run reports. Biological validity is never inferred from a passing Python check.
