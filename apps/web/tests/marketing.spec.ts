@@ -30,7 +30,11 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(features.getByRole("tab",{name:"統計と論文の図",exact:true})).toHaveAttribute("aria-selected","true");
  await expect(page.getByRole("link",{name:"図を拡大",exact:true})).toHaveAttribute("href","/marketing/lp-figure.svg");
  // The latter half runs from research to the patients waiting, then invites to the demo before the reference material.
- await expect(page.getByRole("list",{name:"研究から患者さんまで",exact:true}).getByRole("listitem").locator("b")).toHaveText(["測る","解き明かす","見つける","届ける"]);
+ const impact=page.getByRole("region",{name:"研究の先に、待っている患者さんがいる。",exact:true});
+ const impactSteps=impact.getByRole("list",{name:"研究から患者さんまで",exact:true}).getByRole("listitem");
+ await expect(impactSteps.locator("b")).toHaveText(["病気のしくみを解き明かす","新しい薬の可能性を見つける","患者へ届ける"]);
+ await expect(impact.getByText("画像解析を、すべての研究者へ。",{exact:true})).toBeVisible();
+ await expect(impact.getByText("ライフサイエンスの根幹を支え、新しい治療につながる研究を後押しする。",{exact:true})).toBeVisible();
  expect(await page.locator("main > :is(section,figure)").evaluateAll(nodes=>nodes.slice(-3).map(node=>node.id))).toEqual(["impact","start","download"]);
  const invite=page.getByRole("region",{name:"その未来を、あなたの研究から。",exact:true});
  await expect(invite.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
@@ -39,6 +43,12 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  for(const [width,height] of [[1440,900],[1280,800],[768,1024],[390,844],[360,800]]){
   await page.setViewportSize({width,height});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  const stepBoxes=await impactSteps.evaluateAll(nodes=>nodes.map(node=>{const {x,y,right}=node.getBoundingClientRect();return {x,y,right};}));
+  expect(stepBoxes.every(box=>box.x>=0&&box.right<=width)).toBe(true);
+  for(let i=1;i<stepBoxes.length;i++){
+   if(width>760){expect(stepBoxes[i].x).toBeGreaterThan(stepBoxes[i-1].x);expect(stepBoxes[i].y).toBe(stepBoxes[0].y);}
+   else{expect(stepBoxes[i].y).toBeGreaterThan(stepBoxes[i-1].y);expect(stepBoxes[i].x).toBe(stepBoxes[0].x);}
+  }
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
