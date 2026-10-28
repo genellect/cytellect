@@ -48,6 +48,7 @@ test("a rejected image is named, kept in the record and left out only with a rea
   await loaded;
   await expect(page.getByRole("status").first()).toHaveText("");
   await page.getByTestId("file-input").setInputFiles([{name:"A01_c1.tif",mimeType:"image/tiff",buffer:Buffer.from([1,2,3])},{name:"A01-labels.tif",mimeType:"image/tiff",buffer:Buffer.from([4,5,6])},{name:"A02-labels.tif",mimeType:"image/tiff",buffer:Buffer.from([7,8,9])}]);
+  await page.getByRole("button",{name:/^形を決めずに登録/}).click();
   // The researcher's own file names and the reason, stated once for both, never the private batch folder.
   const alert=page.getByRole("alert").filter({hasText:"登録できなかった画像が 2 件あります。"});
   await expect(alert).toContainText(/A0[12]-labels\.tif、A0[12]-labels\.tif：8-bit または 16-bit の画像ではありません/);

@@ -86,9 +86,11 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const regionOffered=(id:ReviewTarget)=>!demo||(id!=="cell"&&(!showcase.dataset?.regions||showcase.dataset.regions.includes(id)));
   const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>("nuclei"),[region,setRegion]=useState<number>();
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
+  // The first images of a workspace without a form, held until the form is chosen (see add).
+  const [pending,setPending]=useState<File[]|null>(null);
   const [metric,setMetric]=useState("mean"),[range,setRange]=useState("selected"),[compare,setCompare]=useState(false),[picked,setPicked]=useState<string[]>([]),[picker,setPicker]=useState(false),[table,setTable]=useState(false);
-  // The images come first: the panel starts closed in the demo (its settings are recorded) and where it would cover the image.
-  const [panelState,dispatchPanel]=useReducer(panelReducer,initialPanelState,state=>(demo||typeof window!=="undefined"&&window.matchMedia("(max-width: 1050px)").matches)?{view:"closed",returnView:"closed"} as typeof state:state);
+  // The images come first: the panel starts closed, in the demo and in production alike; 設定 opens it.
+  const [panelState,dispatchPanel]=useReducer(panelReducer,initialPanelState);
   // Several stains open as a colour merge; choosing one stain shows it alone.
   const [composite,setComposite]=useState(true);
   const ai=panelState.view==="ai",panel=panelState.view==="settings";
@@ -218,7 +220,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     });
   }
   function returnToResult(){if(editing)return;const context=sourceReturn.current;if(!context)return;++sourceRequest.current;setSelected(context.field);setChannel(context.channel);setTarget(context.target);setMetric(context.metric);setRegion(context.region);setHistorical(context.historical);setMode(context.mode);setReturnMode(null);sourceReturn.current=null;}
-  function newWorkspace(){++sourceRequest.current;sourceReturn.current=null;r.newWorkspace();const url=new URL(window.location.href);url.searchParams.delete("id");window.history.replaceState(window.history.state,"",url);setHistorical(null);setSelected("");setChannel("");setPicked([]);setRegion(undefined);setGfpSaved(null);setViewport({});setPreviewRequest(null);setMode("image");setReturnMode(null);setLocalError("");}
+  function newWorkspace(){++sourceRequest.current;sourceReturn.current=null;r.newWorkspace();const url=new URL(window.location.href);url.searchParams.delete("id");window.history.replaceState(window.history.state,"",url);setHistorical(null);setSelected("");setChannel("");setPicked([]);setRegion(undefined);setGfpSaved(null);setViewport({});setPreviewRequest(null);setMode("image");setReturnMode(null);setLocalError("");setPending(null);}
   function changeMode(value:Mode){if(editing)return;dispatchPanel("work");if(returnMode===value){returnToResult();return;}++sourceRequest.current;sourceReturn.current=null;setPreviewRequest(null);if(value==="statistics"||value==="figure")setLastResultMode(value);setMode(value);setReturnMode(null);setAssignments(false);setPicker(false);if(value!=="image"&&!data?.workspaceId&&!r.busy)void act(()=>r.ensureWorkspace());}
   function queuePreview(nextTarget:ReviewTarget=target){if(field)setPreviewRequest({field:field.id,target:nextTarget,sequence:Date.now()});}
   function setSetting<K extends keyof RuntimeSettings>(key:K,value:RuntimeSettings[K]){r.setSettings(previous=>({...previous,[key]:value}));queuePreview();}
@@ -275,7 +277,12 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   }
   // The 画像 and フォルダ buttons and a drop of files or folders add images the same way. A chosen list is read at once
   // (the input is cleared right after); a drop's files arrive once its folders are read.
-  function add(list:FileList|Promise<File[]>|null){if(list instanceof Promise)void act(async()=>r.importFiles(await list));else if(list)void act(()=>r.importFiles(list));}
+  // The first images of a workspace without a form wait for the choice (1 画面, 2 画面 or none), so they never land in a
+  // view the researcher did not choose; later images follow the choice already made.
+  function add(list:FileList|Promise<File[]>|null){
+    if(!demo&&!experiment&&!fields.length){void (list instanceof Promise?list:Promise.resolve(list?Array.from(list):[])).then(files=>{if(files.length){setPending(files);setMode("experiment");}});return;}
+    if(list instanceof Promise)void act(async()=>r.importFiles(await list));else if(list)void act(()=>r.importFiles(list));
+  }
   // Experiment design (requirements E-01–E-08): saving never runs or changes analyses.
   const experiment=r.experiment();
   // Two-group designs open side by side (V-01); the single view stays one click away.
@@ -299,9 +306,11 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // Another method's published objects for this scene's images (demo only, display only).
   async function explained<T>(task:()=>Promise<T>){try{return await task();}catch(error){throw new Error(error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。");}}
   const saveExperiment=(design:ExperimentDesign)=>explained(async()=>{if(!r.workspaceId)await r.ensureWorkspace();await r.saveExperiment(design);if(mode==="image"&&!fields.length)setMode("experiment");});
-  const addToExperiment=(target:AddTarget,list:FileList,design:ExperimentDesign)=>explained(async()=>{const ids=await r.importFiles(list);if(ids.length)await r.saveExperiment(assignFields(design,ids,{group_id:target.groupId,run_id:target.runId,sample:target.sample}));});
+  const addToExperiment=(target:AddTarget,list:FileList|File[],design:ExperimentDesign)=>explained(async()=>{const ids=await r.importFiles(list);if(ids.length)await r.saveExperiment(assignFields(design,ids,{group_id:target.groupId,run_id:target.runId,sample:target.sample}));return ids;});
+  // The images that waited for the choice go where the researcher puts them; one screen has one place, and opens on them.
+  const placePending=async(target:AddTarget,design:ExperimentDesign)=>{if(!pending)return;const ids=await addToExperiment(target,pending,design);setPending(null);if(design.layout==="single"&&ids[0]){setSelected(ids[0]);setMode("image");}};
   const setup=<ExperimentSetup design={experiment} fields={fields.filter(value=>value.kind!=="reference").map(value=>{const ch=value.nuclearChannelId||value.channels[0]?.id;return {id:value.id,label:value.label,preview:ch?value.previews[ch]:undefined};})}
-    busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
+    busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} pending={pending&&!demo?{count:pending.length,onPlace:placePending,onWithoutForm:()=>{const files=pending;setPending(null);setMode("image");void act(()=>r.importFiles(files));},onDiscard:()=>setPending(null)}:undefined} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
   const setupShown=experimentSetupShown(mode,!!field,demo);
   function guideStep(next:DemoStep,openTable:boolean){changeMode(next);if(openTable){setTable(true);setPairTables(true);}}
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);

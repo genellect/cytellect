@@ -90,8 +90,11 @@ review route `/workspace-review` (the workspace without its session gate) redire
   open on the nucleolar marker with the adopted nuclei outlined faintly; side by side (2 画面) each
   pane has the outline tools of one field; focusing the AI composer opens the AI panel;
   `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved
-  result, and saved comparisons switch with one click (保存した比較). In production a drop of files
-  or folders adds images as the 画像 and フォルダ buttons do.
+  result, and saved comparisons switch with one click (保存した比較); the settings panel starts
+  closed and opens with 設定. In production a drop of files or folders adds images as the 画像 and
+  フォルダ buttons do; the first images of a workspace without a form wait for the choice of the form
+  (1 画面 takes them, 2 画面 asks which run and group, 形を決めずに登録 keeps typing groups per field
+  in statistics, 取り消す drops them), so they never open in a view the researcher did not choose.
 - Demo only: the AI composer also offers the recorded instructions (`snapshot/proposal-examples.json`)
   as examples. The header shows a デモ badge with the image source and limits (`snapshot/dataset.json`)
   and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that points to the
