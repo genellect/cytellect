@@ -145,7 +145,7 @@ test("the footer credits every image and video at its source and has no security
  const credits=footer.locator("details");
  await expect(credits).not.toHaveAttribute("open");
  await credits.getByText("画像・映像の出典",{exact:true}).click();
- await expect(credits.getByRole("link")).toHaveCount(7);
+ await expect(credits.getByRole("link")).toHaveCount(9);
  await expect(credits.getByRole("link",{name:"Schmidt HB, Rohatgi R, Brandman O (2022) / Zenodo",exact:true})).toHaveAttribute("href","https://doi.org/10.5281/zenodo.6643470");
  await expect(credits.getByRole("link",{name:"CC BY 4.0",exact:true})).toHaveAttribute("href","https://creativecommons.org/licenses/by/4.0/deed.ja");
  expect(await credits.getByRole("link").evaluateAll(links=>links.every(link=>/^https:\/\/(www\.pexels\.com|unsplash\.com|doi\.org|creativecommons\.org)\//.test((link as HTMLAnchorElement).href)&&(link as HTMLAnchorElement).rel.includes("noopener")))).toBe(true);

@@ -82,6 +82,41 @@
       "source_sha256": "4bfa7e56395a8030e6596f085285c3c4ef6a83e9a0d6cc5155a136b7e44ca89d",
       "source_record": "scripts/lp_film/sources.json#px-p-8940473",
       "processing": "Downscaled to 2400 px wide and re-encoded as WebP (quality 80). No crop, retouching or generative editing."
+    },
+    {
+      "path": "apps/web/public/marketing/lp-impact-discovery.webp",
+      "sha256": "7affee781e55cd4b3413ef69837884142662ffab92f05d5e79a92b5036e894c1",
+      "bytes": 94502,
+      "width": 960,
+      "height": 640,
+      "creator": "CDC (James Gathany)",
+      "source_url": "https://unsplash.com/photos/person-holding-syringe-near-container-WCEOtVmk2VY",
+      "title": "Pipetting pink culture medium into a six-well plate",
+      "alt_ja": "桃色の培地が入った6穴プレートに、ピペットで分注する",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "license_verified_on": "2026-10-28",
+      "source_context": "Stock photograph. Not the developer laboratory, user research data, a Cytellect user or a patient record.",
+      "source_sha256": "af47ae8ce3e48c70397120ee12288dba8e1e8a349d7255ae6fb4eaeffccbcc47",
+      "source_record": "scripts/lp_film/sources.json#us-WCEOtVmk2VY",
+      "processing": "Downloaded at 2400 px wide from the Unsplash CDN, cropped to the plate and pipette (960 x 640, excluding the rack and cap) and re-encoded as WebP (quality 82). No retouching or generative editing."
+    },
+    {
+      "path": "apps/web/public/marketing/lp-impact-patient.webp",
+      "sha256": "fdacd5d12bfcbc80c76bb7171242b6898eaea3d4e6354412d044053917e546b4",
+      "bytes": 37688,
+      "width": 1800,
+      "height": 1200,
+      "creator": "Kampus Production",
+      "source_url": "https://www.pexels.com/photo/young-persons-hand-holding-an-old-persons-hand-7551677/",
+      "title": "A hand holding a patient's hand on a hospital bed",
+      "alt_ja": "ベッドに横たわる人の手を、もう一人の手が握る",
+      "license": "Pexels License",
+      "license_url": "https://www.pexels.com/license/",
+      "license_verified_on": "2026-10-28",
+      "source_context": "Stock photograph. Not the developer laboratory, user research data, a Cytellect user or a patient record.",
+      "source_sha256": "b24d65aee02a0037c8a966dfb657d82d7b6e6865a2635956ad5a8572f6afc77c",
+      "processing": "Cropped to the hands (excluding the face), downscaled to 1800 x 1200 and re-encoded as WebP (quality 80). No retouching or generative editing."
     }
   ]
 }

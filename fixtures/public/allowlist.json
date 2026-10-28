@@ -140,7 +140,7 @@
     "license": "Unsplash License"
   },
   "apps/web/public/marketing/photo-provenance.json": {
-    "sha256": "a011ff282c88d80aa9cdd7228daf06dfeb15ccbe53179eed8f85ce2b90d27f7a",
+    "sha256": "ad523556f60be718cd0228652c55c54e7f6bfaffeb5ef4d4f7c9e0d78946af00",
     "source": "https://unsplash.com/license",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -824,5 +824,15 @@
     "sha256": "50424372f2d08ca7d36cb26dacb55f35b6dfe03336849922b4c5cabbd8b21d6a",
     "source": "Cytellect LP UI review; before: origin/main component and CSS rendered in isolation; after: local production build. No research images or personal data.",
     "license": "Apache-2.0 (Cytellect UI); OFL-1.1 (Inter and Noto Sans JP)"
+  },
+  "apps/web/public/marketing/lp-impact-discovery.webp": {
+    "sha256": "7affee781e55cd4b3413ef69837884142662ffab92f05d5e79a92b5036e894c1",
+    "source": "https://unsplash.com/photos/person-holding-syringe-near-container-WCEOtVmk2VY",
+    "license": "Unsplash License"
+  },
+  "apps/web/public/marketing/lp-impact-patient.webp": {
+    "sha256": "fdacd5d12bfcbc80c76bb7171242b6898eaea3d4e6354412d044053917e546b4",
+    "source": "https://www.pexels.com/photo/young-persons-hand-holding-an-old-persons-hand-7551677/",
+    "license": "Pexels License"
   }
 }
