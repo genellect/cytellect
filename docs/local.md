@@ -186,6 +186,6 @@ reverted, even if setup is rerun with the other choice. Docker Desktop selects i
 with `CYTELLECT_WORKSPACE_RETENTION_MODE=manual`. The mode is consistently
 propagated to the child worker. Its API/UI reports no age
 deadline; manual deletion, session expiry and job leases are unchanged. See
-[Docker Desktop retention](docker-desktop.md#explicit-laboratory-retention-implementation-not-a-release-acceptance)
+[Docker Desktop retention](docker-desktop.md#研究室で作業データを手動保持する)
 for the durable mode marker, capacity responsibility and transition restrictions.
 This is source implementation, not installed-copy or Docker delivery acceptance.
