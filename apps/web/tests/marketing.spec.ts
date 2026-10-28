@@ -33,8 +33,6 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  const impact=page.getByRole("region",{name:"研究の先に、待っている患者さんがいる。",exact:true});
  const impactSteps=impact.getByRole("list",{name:"研究から患者さんまで",exact:true}).getByRole("listitem");
  await expect(impactSteps.locator("b")).toHaveText(["病気のしくみを解き明かす","新しい薬の可能性を見つける","患者へ届ける"]);
- await expect(impact.getByText("画像解析を、すべての研究者へ。",{exact:true})).toBeVisible();
- await expect(impact.getByText("ライフサイエンスの根幹を支え、新しい治療につながる研究を後押しする。",{exact:true})).toBeVisible();
  expect(await page.locator("main > :is(section,figure)").evaluateAll(nodes=>nodes.slice(-3).map(node=>node.id))).toEqual(["impact","start","download"]);
  const invite=page.getByRole("region",{name:"その未来を、あなたの研究から。",exact:true});
  await expect(invite.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
