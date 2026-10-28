@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
   pull_request:
-  merge_group:
   workflow_dispatch:
 permissions:
   contents: read
@@ -233,8 +232,8 @@ jobs:
           pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts tests/lp-viewport-review.spec.ts tests/lp-analytics.spec.ts --grep-invert "published Windows asset downloads"
   fiji-browser:
     needs: changes
-    # Integration jobs run after merge (every push to main), in the merge queue and on manual runs,
-    # not on each pull request; the release workflow still requires them on the released commit.
+    # Integration jobs run after merge (every push to main) and on manual runs (the batch verification
+    # before merging), not on each pull request; the release workflow still requires them on the released commit.
     if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
