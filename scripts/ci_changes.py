@@ -9,9 +9,10 @@ already runs the landing-page tests, so lp is dropped whenever web is selected.
 Registering a documentation image (an allowlist entry under docs/) is part of the
 documentation change and selects nothing.
 
-Pushes to main, manual runs (the batch verification before merging), an unreadable diff and any
-path not listed below select every area, so each main commit keeps the full evidence the Windows
-release workflow requires. Hygiene checks (public tree, documentation links,
+A manual run of a branch (the batch verification before merging) selects from its diff with main,
+as a pull request does, and also runs the integration jobs of the selected areas. Pushes to main,
+manual runs of main or with all_jobs, an unreadable diff and any path not listed below select every
+area, so each main commit keeps the full evidence the Windows release workflow requires. Hygiene checks (public tree, documentation links,
 secret scan) always run.
 """
 from __future__ import annotations
@@ -120,10 +121,15 @@ def select_changes(paths: list[str], documentation_registry: bool) -> frozenset[
     return select(paths)
 
 
+def compares_with_base(event: str, base: str, head: str) -> bool:
+    """Pull requests and manual runs of a branch select from their diff; everything else runs every area."""
+    return event in {"pull_request", "workflow_dispatch"} and bool(base) and bool(head)
+
+
 def main() -> None:
     event = os.environ.get("EVENT", "")
     base, head = os.environ.get("BASE", ""), os.environ.get("HEAD", "")
-    if event != "pull_request" or not base or not head:
+    if not compares_with_base(event, base, head):
         selected = ALL
     else:
         diff = subprocess.run(["git", "diff", "--name-only", f"{base}...{head}"],

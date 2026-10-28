@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      all_jobs:
+        description: Run every job instead of only the jobs affected by the changes against main
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -26,8 +31,9 @@ jobs:
         id: classify
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          # A manual run of a branch (the batch verification before merging) selects from its diff with main.
+          BASE: ${{ github.event.pull_request.base.sha || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && !inputs.all_jobs && 'origin/main') || '' }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 scripts/ci_changes.py
   python:
     needs: changes
@@ -233,7 +239,7 @@ jobs:
   fiji-browser:
     needs: changes
     # Integration jobs run after merge (every push to main) and on manual runs (the batch verification
-    # before merging), not on each pull request; the release workflow still requires them on the released commit.
+    # before merging, for the areas its changes affect), not on each pull request; the release workflow still requires them on the released commit.
     if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45

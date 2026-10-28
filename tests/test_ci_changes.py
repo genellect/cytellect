@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from ci_changes import (  # noqa: E402
     ALL,
     areas_for,
+    compares_with_base,
     documentation_registry_change,
     normalize,
     select,
@@ -82,3 +83,12 @@ def test_a_documentation_registry_change_alone_selects_nothing():
     assert select_changes([registry, "README.md", "docs/images/a.webp"], documentation_registry=True) == frozenset()
     assert select_changes([registry, "services/proposal-worker/src/a.ts"], documentation_registry=True) == {"web"}
     assert select_changes([registry], documentation_registry=False) == {"python", "lp"}
+
+
+def test_only_pull_requests_and_branch_verification_select_from_the_diff():
+    # The batch verification before merging runs only the jobs (integration jobs included) its changes affect.
+    assert compares_with_base("pull_request", "abc", "def")
+    assert compares_with_base("workflow_dispatch", "origin/main", "def")
+    # Pushes to main and full manual runs keep every job, as the Windows release requires.
+    assert not compares_with_base("push", "", "def")
+    assert not compares_with_base("workflow_dispatch", "", "def")
