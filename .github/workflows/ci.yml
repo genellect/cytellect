@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
   pull_request:
-  merge_group:
   workflow_dispatch:
 permissions:
   contents: read
@@ -69,6 +68,11 @@ jobs:
       - run: uv run python scripts/check_docs.py
       - if: needs.changes.outputs.python == 'true'
         run: uv run python scripts/proposal_schema.py --check
+      # The public demo runs the committed Cytellect wheel in the browser; a Python change that
+      # does not rebuild it would ship stale analysis code to the demo after merge.
+      - name: Public demo runtime matches the analysis sources
+        if: needs.changes.outputs.python == 'true'
+        run: uv run python scripts/build_showcase_runtime.py --check --cache /tmp/cytellect-showcase-cache
       - name: Packaged documentation and change classification (Python suite not selected)
         if: needs.changes.outputs.python != 'true'
         run: uv run pytest tests/test_local_bundle.py tests/test_ci_changes.py
@@ -153,6 +157,13 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:3000 >/dev/null
           pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts tests/lp-viewport-review.spec.ts tests/lp-analytics.spec.ts tests/showcase.spec.ts tests/workspace-layout.spec.ts tests/workspace-entry.spec.ts --grep-invert "published Windows asset downloads"
+      # The local release ships apps/web/out; a generated file the packager rejects
+      # (for example sitemap.xml) must fail here, not after merge in fiji-browser and windows-installed.
+      # Runs after the public-site checks because the static export reuses the .next directory.
+      - name: Local release web output fits the packager's boundary
+        run: |
+          pnpm --filter @cytellect/web build:local
+          uv run python scripts/check_local_web_bundle.py
       - run: pnpm audit --prod --audit-level high
       - name: Verify installed license evidence and generate combined inventory
         run: uv run python scripts/sbom.py --output /tmp/cytellect-compliance/dependency-inventory.json --web-notices /tmp/cytellect-compliance/THIRD_PARTY_WEB_NOTICES.txt
@@ -221,8 +232,8 @@ jobs:
           pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts tests/lp-viewport-review.spec.ts tests/lp-analytics.spec.ts --grep-invert "published Windows asset downloads"
   fiji-browser:
     needs: changes
-    # Integration jobs run after merge (every push to main), in the merge queue and on manual runs,
-    # not on each pull request; the release workflow still requires them on the released commit.
+    # Integration jobs run after merge (every push to main) and on manual runs (the batch verification
+    # before merging), not on each pull request; the release workflow still requires them on the released commit.
     if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -518,7 +529,8 @@ jobs:
       - name: Full Windows compatibility suite without a Python support override
         env:
           CYTELLECT_TEST_DATA_DIR: ${{ runner.temp }}/scientific-windows-data
-        run: uv run --no-sync python -B -m pytest tests -m "not fiji" --basetemp="${{ runner.temp }}/scientific-windows-tests" --junitxml="${{ runner.temp }}/scientific-windows.xml" --scientific-collection="${{ runner.temp }}/scientific-windows-collection.json"
+        # --durations records the slowest tests so the suite can be split or sped up without dropping any.
+        run: uv run --no-sync python -B -m pytest tests -m "not fiji" --durations=40 --basetemp="${{ runner.temp }}/scientific-windows-tests" --junitxml="${{ runner.temp }}/scientific-windows.xml" --scientific-collection="${{ runner.temp }}/scientific-windows-collection.json"
       - name: Scoped compatibility receipt including failed and skipped cases
         if: always()
         run: uv run --no-sync python -B scripts/scientific_review.py --junit "${{ runner.temp }}/scientific-windows.xml" --collection "${{ runner.temp }}/scientific-windows-collection.json" --output "${{ runner.temp }}/scientific-windows-receipt.json" --source-commit "${{ github.sha }}"
