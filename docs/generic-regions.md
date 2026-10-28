@@ -157,6 +157,8 @@ operate on one logical region set without assigning parent/child biology.
 
 Every edit or background/exclusion change creates an unreviewed analysis revision.
 Unchanged masks preserve their mask revision ID; edited masks receive a new one.
+Each field's provenance history keeps every edit across reuse, batches and cohorts;
+descriptive outputs count these edits ([manual mask edits](descriptive.md#manual-mask-edits)).
 An explicit `reuse_revision` can expand a representative-field trial into a batch:
 previously analyzed selected fields retain their corrected masks, while newly
 selected fields initialize from the chosen source. The recipe
@@ -232,6 +234,13 @@ that ID produce `region_upload_id_conflict`; they never overwrite a field.
 Uploaded filenames are not storage paths or identity. The transaction repeats
 the identity lookup, checks quotas and inserts once, so concurrent retries cannot
 double-count fields or bytes. Unused temporary files are removed.
+
+An upload may carry an optional `display_name` (1–120 characters, no control
+characters or surrounding spaces); the workspace sends the name it lists, the last
+segment of the grouped file name. It is saved with the field and its revision
+snapshots as a label only: it is part of the retry identity, but never a path,
+field identity or experimental metadata, and nothing is inferred from it. Uploads
+without a name keep their historical fingerprint, and older fields have none.
 
 The generic upload route retains authentication, ownership, expiry, Origin/CSRF,
 body/time and concurrency limits before parsing. Its workspace count/byte quota

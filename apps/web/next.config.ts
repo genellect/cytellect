@@ -22,9 +22,10 @@ const config: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
   ...(!local ? {
-    // One canonical landing page; earlier /product links keep working.
+    // One canonical landing page; earlier /product links keep working. The former review route
+    // (/workspace-review, the workspace without its session gate) is the workspace.
     // Without an analysis API the analysis screen is the public demo.
-    async redirects() { return [{ source: "/product", destination: "/", permanent: true }, ...(showcase ? [{ source: "/workspace", destination: "/demo", permanent: false }] : [])]; },
+    async redirects() { return [{ source: "/product", destination: "/", permanent: true }, { source: "/workspace-review", destination: "/workspace", permanent: true }, ...(showcase ? [{ source: "/workspace", destination: "/demo", permanent: false }] : [])]; },
     async headers() {
       return [{ source: "/:path*", headers: [
         { key: "Cache-Control", value: "no-store, max-age=0" },

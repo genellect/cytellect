@@ -154,6 +154,8 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(guide).toHaveCount(0);
   await header.getByRole("button", {name: "使い方", exact: true}).click();
   await expect(guide).toBeVisible();
+  // Outlines are corrected with the tools on each image, side by side too.
+  await expect(guide).toContainText("輪郭の修正は、各画像の左下の操作で行えます");
   await guide.getByRole("button", {name: "次へ"}).click();
   await expect(page.getByRole("button", {name: /^測定値/})).toHaveAttribute("aria-expanded", "true");
   await guide.getByRole("button", {name: "次へ"}).click();
@@ -506,9 +508,23 @@ test("operations the recording does not hold are explained at once, without the 
   await expect(recorded).toContainText("0.5");
   await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
-  // A hand correction of an outline, made one field at a time, is explained at once.
+  // A hand correction of an outline side by side is explained at once, as in one field: each pane has the same tools.
   const pair = page.getByRole("button", {name: "2 画面", exact: true});
-  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
+  if (await pair.getAttribute("aria-pressed") === "true") {
+    const pane = page.getByRole("region", {name: /（対照）$/});
+    await pane.getByRole("region", {name: /の測定値$/}).locator("tbody button").first().click({timeout: live});
+    await expect(pane.locator("svg path[data-region][aria-pressed=true]")).toHaveCount(1);
+    const outlines = await pane.locator("svg path[data-region]").count();
+    const started = Date.now();
+    await pane.getByRole("button", {name: "選択領域を削除", exact: true}).click();
+    await expect(notRecorded(page)).toBeVisible({timeout: 5000});
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(await pane.locator("svg path[data-region]").count()).toBe(outlines);
+    await page.getByRole("button", {name: "案内を閉じる", exact: true}).click();
+    await expect(notRecorded(page)).toHaveCount(0);
+    await pair.click();
+  }
+  // One field at a time.
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await selectRegion(page, (await largestRegion(page)).id);
   const started = Date.now();
@@ -517,6 +533,29 @@ test("operations the recording does not hold are explained at once, without the 
   expect(Date.now() - started).toBeLessThan(5000);
   await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
   expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
+  await noErrors(page, watch);
+});
+
+test("one field of several stains opens as a colour merge, each stain in its own colour, with the nuclei outlined around nucleoli", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
+  const bar = page.locator("[class*=channelBar]");
+  const merge = bar.getByRole("button", {name: "重ねて表示", exact: true});
+  await expect(merge).toHaveAttribute("aria-pressed", "true");
+  const stains = await bar.locator("button[data-channel]").count();
+  const colours = await page.locator("div[data-composite] filter").evaluateAll(filters => filters.map(filter => filter.id.split("-").at(-1)));
+  expect(colours).toHaveLength(stains);
+  expect(new Set(colours).size).toBe(stains);
+  expect(colours).toContain("3f86ff");
+  await bar.getByRole("combobox", {name: "領域", exact: true}).selectOption("nucleoli");
+  await expect(page.locator("svg polygon[class*=context]").first()).toBeAttached({timeout: live});
+  // Choosing one stain shows it alone.
+  await bar.locator("button[data-channel]").first().click();
+  await expect(merge).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("div[data-composite]")).toHaveCount(0);
   await noErrors(page, watch);
 });
 
@@ -530,7 +569,7 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   await expect(shownTable(results)).toBeVisible({timeout: live});
   // Both changes the source reports, recorded before measurement, are one click apart (goals C7).
-  const recorded = results.getByRole("group", {name: "記録した比較"});
+  const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   const sentence = results.getByRole("region", {name: "結果のまとめ"}).locator("p").first();
   // The opening comparison names its region and channel, and the side panel already agrees with it.
@@ -574,7 +613,7 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   await header.getByRole("button", {name: "統計", exact: true}).click();
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   const summary = results.getByRole("region", {name: "結果のまとめ"});
-  const recorded = results.getByRole("group", {name: "記録した比較"});
+  const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   // Both recorded comparisons count the same unresolved nuclei, and never also say nothing is missing (Q-05, S-03).
   for (const name of [/eu5/, /離心率/]) {

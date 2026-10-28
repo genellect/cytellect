@@ -133,9 +133,11 @@ def test_comparison_and_description_show_the_denominators_and_warn_on_different_
     saved = store.one(revisions, id=rid)
     report = read_json(store.safe_path(saved["result_dir"], "measurements.json"))
     config = {**saved["config"], "review_record": saved["review_record"]}
+    provenance = read_json(store.safe_path(saved["result_dir"], "provenance.json"))
     for job_id in (jid, described.json()["job_id"]):
         stored = read_json(store.safe_path(store.one(jobs, id=job_id)["result_dir"], "result.json"))
-        assert _recompute_statistics(report, config, stored) == {key: item for key, item in stored.items() if key != "figure"}
+        assert _recompute_statistics(report, config, stored, provenance=provenance) == {
+            key: item for key, item in stored.items() if key != "figure"}
 
 
 def test_a_changed_ledger_or_a_failed_nucleus_still_stops(tmp_path):

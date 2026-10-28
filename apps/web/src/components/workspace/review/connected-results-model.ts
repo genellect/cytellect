@@ -15,6 +15,21 @@ export function restoredMetric(statistics:{metric?:string|null}):string|null{
 export function numericFigureFiles(figure:{source_files?:string[];formats?:string[]}):string[]{
   return [...new Set([...(figure.source_files||[]),...(figure.formats||[]).filter(format=>["svg","pdf","png"].includes(format)).map(format=>`figure.${format}`)])];
 }
+/** One field of the saved mask-correction ledger (server-computed from the recorded edits). */
+export interface MaskCorrectionRow {field_id:string;status:"recorded"|"not_recorded";initial_regions:number|null;deleted_regions:number;added_regions:number;redrawn_regions:number;split_regions:number;merged_regions:number}
+const corrections=[["deleted_regions","削除"],["added_regions","追加"],["redrawn_regions","描き直し"],["split_regions","分割"],["merged_regions","結合"]] as const;
+/** The saved hand edits of one field in one cell (「最初 350 · 削除 1」), so the table keeps one column for them. */
+export function maskCorrectionText(row:MaskCorrectionRow):string{
+  if(row.status!=="recorded")return "記録なし";
+  const parts=corrections.filter(([key])=>row[key]>0).map(([key,label])=>`${label} ${row[key]}`);
+  return parts.length?[`最初 ${row.initial_regions}`,...parts].join(" · "):"なし";
+}
+/** Field rows with the saved hand edits beside the exclusion counts; a deletion is not an exclusion. */
+export function withMaskCorrections(rows:Record<string,unknown>[],saved?:{fields:MaskCorrectionRow[]}|null):Record<string,unknown>[]{
+  if(!saved)return rows;
+  const byField=new Map(saved.fields.map(row=>[row.field_id,row]));
+  return rows.map(row=>{const field=byField.get(String(row.field_id));return field?{...row,manual_edits:maskCorrectionText(field)}:row;});
+}
 export interface ResultDesign {
   operation: ResultOperation; metric: string; channel: string | null; regionSet: string;
   paired: boolean; rank: boolean; unit: string; pairing: string; confirmed: boolean;

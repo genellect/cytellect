@@ -48,7 +48,7 @@ def test_native_bundle_keeps_recorded_methods_in_child_parent_and_replay(tmp_pat
         assert ("methods_template" in saved["figure"]) is current
         assert saved["plot_data"] == result["plot_data"] and saved["selection"] == result["selection"]
     top = (bundle / "methods.md").read_text(encoding="utf-8")
-    assert ("cytellect-statistical-methods 1.0.0" in top) is current
+    assert (f"cytellect-statistical-methods {CURRENT.version}" in top) is current
     assert ("Selection: {" in top) is not current
     assert original == {path.name: path.read_bytes() for path in folder.iterdir()}
 
@@ -108,3 +108,13 @@ def test_new_manifest_rejects_explicit_null_unknown_and_rehashed_incorrect_metho
     (root / "descriptive-output.json").write_text(json.dumps(altered["figure"]), encoding="utf-8")
     with pytest.raises(ValueError, match="source_mismatch"):
         validate_descriptive_output(altered, root, require_index=True)
+
+
+def test_saved_1_0_0_document_still_validates_after_the_1_1_0_template(tmp_path):
+    result, _, _ = description(1)
+    root = tmp_path / "saved"
+    saved = {"id": CURRENT.id, "version": "1.0.0"}
+    result["figure"] = render_descriptive_output(result, root, methods_template=saved)
+    assert validate_descriptive_output(result, root, require_index=True).methods_template.version == "1.0.0"
+    text = (root / "methods.md").read_text(encoding="utf-8")
+    assert "cytellect-statistical-methods 1.0.0" in text and "Manual mask edits" not in text

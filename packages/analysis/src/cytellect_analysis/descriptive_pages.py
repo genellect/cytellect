@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import math
+import unicodedata
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +37,26 @@ def _page_capacity(style):
     # Custom pages reserve nine font-size units per field's two-line tick label.
     # Keep the manifest's eight-field bound; rendering still validates text fit.
     return max(1, min(8, math.floor(style["width_inches"] * 72 / (9 * style["font_size_pt"]))))
+
+
+TICK_NAME_COLUMNS = 12  # Two half-width columns per wide character; fits the reserved tick width.
+
+
+def _tick_name(name, ja):
+    """A registered name fits a tick when short and, in English figures, printable ASCII."""
+    if not isinstance(name, str) or not name.isprintable() or (not ja and not name.isascii()):
+        return None
+    columns = sum(2 if unicodedata.east_asian_width(char) in "WF" else 1 for char in name)
+    return name if columns <= TICK_NAME_COLUMNS else None
+
+
+def field_labels(result, order, ja):
+    """Global labels: the registered name when unique and short, otherwise the field number."""
+    numbered = {fid: f"{'視野' if ja else 'Field'} {index + 1}" for index, fid in enumerate(order)}
+    names = {field["field_id"]: _tick_name(field.get("display_name"), ja) for field in result["source_fields"]}
+    counts = Counter(name for name in names.values() if name)
+    return {fid: name if (name := names.get(fid)) and counts[name] == 1 and name not in numbered.values()
+            else numbered[fid] for fid in order}
 
 
 def page_layout(result):
@@ -75,7 +97,7 @@ def page_layout(result):
              for index in range(0, len(order), capacity)]
     if len(plans) > 999:
         raise ValueError("descriptive_page_limit_exceeded")
-    labels = {fid: f"{'視野' if ja else 'Field'} {index + 1}" for index, fid in enumerate(order)}
+    labels = field_labels(result, order, ja)
     if result["source_kind"] == "measured-numerical-assay":
         labels = {fid: f"{'測定群' if ja else 'Set'} {index + 1}" for index, fid in enumerate(order)}
     # Ask the existing linear Matplotlib scale to expand constant values once.
