@@ -39,7 +39,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const used = registered.files.filter(file => SITES.includes(file.site));
   expect(used).toHaveLength(120);
   for (const file of used) expect(existsSync(path.join(inputs!, file.name)), file.name).toBe(true);
-  execFileSync(python, ["-B", "-I", "-c", "import sys,json,hashlib\nfrom pathlib import Path\nroot=Path(sys.argv[1])\nfor item in json.loads(sys.argv[2]):\n assert hashlib.sha256((root/item['name']).read_bytes()).hexdigest()==item['sha256'],item['name']", inputs!, JSON.stringify(used)]);
+  // The list goes on standard input: as an argument it would exceed the Windows command-line limit.
+  execFileSync(python, ["-B", "-I", "-c", "import sys,json,hashlib\nfrom pathlib import Path\nroot=Path(sys.argv[1])\nfor item in json.load(sys.stdin):\n assert hashlib.sha256((root/item['name']).read_bytes()).hexdigest()==item['sha256'],item['name']", inputs!], {input: JSON.stringify(used)});
 
   const token = execFileSync(python, ["-B", "-c", "import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl')).invite(3600))"], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
   expect((await page.request.post(`${api}/v1/invitations/redeem`, {headers: {Origin: origin, "X-Cytellect-Request": "1"}, data: {token}})).ok()).toBeTruthy();
