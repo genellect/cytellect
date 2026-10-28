@@ -26,6 +26,12 @@ without relying on canvas interaction. Nucleus/nucleolus/manual ROI edits create
 immutable revisions. Undo/Redo selects earlier/later revisions through the API.
 Nucleus edits require nucleolar resegmentation/review. Exclusions and background/gating
 updates are remeasured on current masks. Old statistics remain visibly labelled old.
+An image the API rejects is named with its reason (for example, an integer label mask sent as an
+image to measure) and is not sent again. Its entry stays in the workspace record, because a field
+that failed to import is never dropped silently: the comparison waits until the researcher excludes
+it with a reason from the import list (取込). Rejections with the same reason are stated once, several
+entries can be excluded together with one reason, and the statistics view says how many are waiting.
+The API does not store file names, so after a reload the entry is listed without one.
 
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm
@@ -67,7 +73,8 @@ and measured, with saved statistics and figures. Everything except adding images
 production and is computed by the same API and analysis package, serverless. The architecture,
 the shared contracts and the demo files are described in [the showcase document](showcase.md).
 `/workspace` on the public build redirects to `/demo`; installations with an API (local package,
-Docker, development) keep their workspace at `/` and `/workspace` and have no `/demo`.
+Docker, development) keep their workspace at `/` and `/workspace` and have no `/demo`. The former
+review route `/workspace-review` (the workspace without its session gate) redirects to `/workspace`.
 
 - Transport: `lib/showcase` answers visitors from recordings only, on every device and without
   waiting: the recorded GET responses (`/showcase/snapshot/`, every field, region and channel)
@@ -78,17 +85,27 @@ Docker, development) keep their workspace at `/` and `/workspace` and have no `/
   unrecorded settings) shows an information notice at once ("公開デモに記録していません"), never
   the error banner. Unrecorded detection conditions, unrecorded AI instructions and uploads are
   notices too.
-- Detection inputs offer only recorded values (`snapshot/recorded-options.json`); the AI composer
-  offers the recorded instructions (`snapshot/proposal-examples.json`) as examples. The header
-  shows a デモ badge with the image source and limits (`snapshot/dataset.json`) and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that
-  points to the Windows/Docker versions.
-- `?step=image|statistics|figure` opens that tab. A four-step guide (画像と輪郭 → 測定値 → 統計 →
-  グラフと書き出し) opens from 「使い方」; it never opens by itself, so the image and results show at once.
+- The same as in production: several stains open as a colour merge (重ねて表示: the nuclear stain blue,
+  each other used stain the colour of its channel position, so assigning the nuclear stain recolours only that channel; choosing one stain shows it alone); nucleoli and nucleoplasm
+  open on the nucleolar marker with the adopted nuclei outlined faintly; side by side (2 画面) each
+  pane has the outline tools of one field; focusing the AI composer opens the AI panel;
+  `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved
+  result, and saved comparisons switch with one click (保存した比較); the settings panel starts
+  closed and opens with 設定. In production a drop of files or folders adds images as the 画像 and
+  フォルダ buttons do; the first images of a workspace without a form wait for the choice of the form
+  (1 画面 takes them, 2 画面 asks which run and group, 形を決めずに登録 keeps typing groups per field
+  in statistics, 取り消す drops them), so they never open in a view the researcher did not choose.
+- Demo only: the AI composer also offers the recorded instructions (`snapshot/proposal-examples.json`)
+  as examples. The header shows a デモ badge with the image source and limits (`snapshot/dataset.json`)
+  and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that points to the
+  Windows/Docker versions. A four-step guide (画像と輪郭 → 測定値 → 統計 → グラフと書き出し) opens from
+  「使い方」; it never opens by itself, so the image and results show at once.
 - Controls whose results cannot be recorded are fixed to the recorded values with a short note and
   shown as locked (statistics method and design, experiment information, figure labels, axes,
   colours and sizes). The detection conditions, nuclear stain and background correction are shown
-  as the recorded settings of the adopted result (text, not controls); cell ROIs and GFP, absent from the dataset, are not offered. Missing optional demo files leave the
-  matching controls as in production.
+  as the recorded settings of the adopted result (text, not controls), so the demo offers no
+  detection inputs; cell ROIs and GFP, absent from the dataset, are not offered. Missing optional
+  demo files leave the matching controls as in production.
 - Development without the demo build: `scripts/dev_showcase_backend.py` serves the same
   boot/handle contract from a local CPython API with a threshold stand-in for detection, for
   builds made with `NEXT_PUBLIC_SHOWCASE_DEV_BACKEND=http://127.0.0.1:8000` (loopback only; never

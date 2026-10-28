@@ -131,6 +131,7 @@ def test_exploratory_gfp_intent_saved_without_control_fields(tmp_path, method, t
 def test_migration_creates_empty_spec_table(tmp_path):
     store = Store(tmp_path)
     with store.transaction() as conn:
+        conn.exec_driver_sql("ALTER TABLE fields DROP COLUMN display_name")
         conn.exec_driver_sql("DROP TABLE retention_policy")
         conn.exec_driver_sql("DROP TABLE workspace_field_links")
         conn.exec_driver_sql("ALTER TABLE workspace_channel_assignments DROP COLUMN groups")
@@ -142,4 +143,4 @@ def test_migration_creates_empty_spec_table(tmp_path):
     migrated = Store(tmp_path)
     assert migrated.one(workspace_analysis_specs, workspace_id="absent") is None
     with migrated.engine.connect() as conn:
-        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0010"
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0011"

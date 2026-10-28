@@ -1607,6 +1607,8 @@ export interface components {
             ome: string;
             /** Client Upload Id */
             client_upload_id?: string | null;
+            /** Display Name */
+            display_name?: string | null;
         };
         /** Body_upload_region_field_v1_workspaces__wid__region_fields_post */
         Body_upload_region_field_v1_workspaces__wid__region_fields_post: {
@@ -4644,6 +4646,8 @@ export interface components {
             image_info: components["schemas"]["RegionImageInfo"];
             /** Synthetic */
             synthetic: boolean;
+            /** Display Name */
+            display_name?: string | null;
         };
         /** RegionImageInfo */
         RegionImageInfo: {
@@ -6041,9 +6045,9 @@ export interface components {
             id: "cytellect-statistical-methods";
             /**
              * Version
-             * @constant
+             * @enum {string}
              */
-            version: "1.0.0";
+            version: "1.0.0" | "1.1.0";
         };
         /** PagedDescriptiveOutput */
         PagedDescriptiveOutput: {
@@ -6086,6 +6090,66 @@ export interface components {
             };
             /** Methods Template */
             methods_template?: components["schemas"]["StatisticalMethodsTemplate"];
+        };
+        /**
+         * MaskCorrectionField
+         * @description Recorded hand edits of one measured field's mask (mask-corrections 1.0.0).
+         */
+        MaskCorrectionField: {
+            /** Field Id */
+            field_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "recorded" | "not_recorded";
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Initial Source */
+            initial_source: string | null;
+            /** Initial Revision Id */
+            initial_revision_id: string | null;
+            /** Edit Revision Ids */
+            edit_revision_ids: string[];
+            /** Operations */
+            operations: {
+                [key: string]: number;
+            };
+            /** Initial Regions */
+            initial_regions: number | null;
+            /** Added Regions */
+            added_regions: number;
+            /** Redrawn Regions */
+            redrawn_regions: number;
+            /** Deleted Regions */
+            deleted_regions: number;
+            /** Split Regions */
+            split_regions: number;
+            /** Merged Regions */
+            merged_regions: number;
+            /** Final Regions */
+            final_regions: number;
+        };
+        /**
+         * MaskCorrectionSummary
+         * @description Initial regions are reconstructed from the measured mask and the recorded edit operations.
+         */
+        MaskCorrectionSummary: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /** Region Set Id */
+            region_set_id: string | null;
+            /** Source */
+            source: string | null;
+            /** Source Revision Ids */
+            source_revision_ids: string[];
+            /** Fields */
+            fields: components["schemas"]["MaskCorrectionField"][];
+            /** Edited Fields */
+            edited_fields: number;
         };
         /** PagedDescriptiveResult */
         PagedDescriptiveResult: {
@@ -6160,6 +6224,7 @@ export interface components {
              */
             source_review: "automatic_unreviewed" | null;
             compartment_missing?: components["schemas"]["CompartmentMissingSummary"] | null;
+            mask_corrections?: components["schemas"]["MaskCorrectionSummary"] | null;
         };
     };
     responses: never;

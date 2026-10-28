@@ -19,7 +19,7 @@ interface Props {
   selectedField?:string;region?:number;onSelect:(fieldId:string,channel:string,region?:number)=>void;
   /** A figure's source: the saved version of that field, shown instead of the adopted one (read-only). */
   historical?:Historical|null;
-  onEditing:(value:boolean)=>void;demo?:boolean;
+  onEditing:(value:boolean)=>void;
   /** The run shown (the toolbar chooses it), whether zoom is linked and whether each pane lists its measurements. */
   runId:string;linked:boolean;tables:boolean;onDisplay?:(value:PairDisplay|null)=>void;
 }
@@ -35,7 +35,7 @@ export const pairRuns=(design:ExperimentDesign)=>(design.runs??[]).filter(run=>d
  * that version's structures, with its nucleus (`nucleus`) outlined among the nuclei of the same analysis (`context`). */
 export interface Historical {target:ReviewTarget;result:SavedResult;context?:SavedResult["masks"]["regions"];nucleus?:number}
 
-export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,demo=false,runId,linked,tables,onDisplay}:Props){
+export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,runId,linked,tables,onDisplay}:Props){
   const runs=pairRuns(design);
   const run=runs.find(value=>value.id===runId)??runs[0];
   const [chosen,setChosen]=useState<Record<string,string>>({});
@@ -77,7 +77,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
       // A detection preview (for example an AI proposal) is shown as in one field, read-only until adopted.
       const savedView=field&&historical?.target===target&&historical.result.field===field.id?historical:undefined,saved=savedView?.result;
       const candidate=field&&!saved?r.candidateResult(field.id,target):undefined,value=field?saved||candidate||r.currentResult(field.id,target):undefined;
-      const editable=!demo&&!!field&&!!value&&!saved&&!candidate&&target!=="nucleoplasm";
+      // Outlines are corrected in each pane as in one field (the public demo explains that it does not record corrections).
+      const editable=!!field&&!!value&&!saved&&!candidate&&target!=="nucleoplasm";
       const shown=field&&field.id===selectedField?region:undefined;
       const view=linked?viewport.shared:field?viewport[field.id]:undefined;
       const rows=value?.rows.filter(row=>row.channel_id===channel)??[];
@@ -107,7 +108,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"}
           // The whole field at the scale both panes share (V-01), so neither view is chosen by its content.
           style={{width:field.width*layout.scale,height:field.height*layout.scale,flex:"none"}}
-          context={savedView?.context??(demo&&(target==="nucleoli"||target==="nucleoplasm")?r.currentResult(field.id,"nuclei")?.masks.regions:undefined)}
+          context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(field.id,"nuclei")?.masks.regions:undefined)}
           contextSelected={savedView?.nucleus}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
           {rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}

@@ -79,6 +79,11 @@ def run_descriptive(store, job, output):
     else:
         result = describe_legacy(report, snapshot, request)
     result["revision_id"] = rev["id"]
+    if generic:
+        from cytellect_analysis.mask_corrections import with_mask_corrections
+
+        # Hand edits are part of the measured masks' provenance, not exclusions (requirements U05).
+        with_mask_corrections(result, report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
     if preview:
         result["source_review"] = "automatic_unreviewed"
     else:
