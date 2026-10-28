@@ -10,12 +10,17 @@ from cytellect_analysis.descriptive_figures import descriptive_methods
 from cytellect_analysis.measurement import region_values
 from cytellect_analysis.region_comparison import compare_regions
 from cytellect_analysis.region_comparison_figures import region_comparison_methods
-from cytellect_analysis.statistical_methods import CURRENT_METHODS_TEMPLATE, saved_methods_template
+from cytellect_analysis.statistical_methods import (
+    CURRENT_METHODS_TEMPLATE,
+    StatisticalMethodsTemplate,
+    saved_methods_template,
+)
 from pydantic import ValidationError
 from test_descriptive import legacy_fixture, region_fixture, request
 from test_region_comparison import comparison_fixture, comparison_request
 
 CURRENT = CURRENT_METHODS_TEMPLATE
+V1_0_0 = StatisticalMethodsTemplate(id="cytellect-statistical-methods", version="1.0.0")
 
 
 @pytest.mark.parametrize("compatibility", [False, True])
@@ -34,7 +39,7 @@ def test_negative_pixel_hand_reference_is_described_in_its_actual_recipe(compati
     assert "The compatibility recipe converted RGB" not in text
     assert "No hypothesis test" in text and "Independent experimental n was not assessed" in text
     assert "NCL compartments" not in text
-    assert "Statistical Methods template: cytellect-statistical-methods 1.0.0" in text
+    assert f"Statistical Methods template: cytellect-statistical-methods {CURRENT.version}" in text
 
 
 @pytest.mark.parametrize("metric", ["mean", "mean_corrected", "integrated_corrected", "area_px", "area_um2"])
@@ -42,7 +47,10 @@ def test_actual_generic_marker_units_and_selected_formula(metric):
     report, snapshot = region_fixture()
     result = describe_regions(report, snapshot, request(metric=metric))
     text = descriptive_methods(result, methods_template=CURRENT)
-    assert "Manual regions" in text and "GFP" not in text and "NCL" not in text
+    # 1.1.0 names the region set in English; the recorded label stays in the source JSON.
+    assert "Region definition: regions (region set ID regions; regions from manual drawing;" in text
+    assert "Manual regions" not in text and "GFP" not in text and "NCL" not in text
+    assert "Region definition: Manual regions." in descriptive_methods(result, methods_template=V1_0_0)
     if metric.startswith("area"):
         assert "recorded X and Y pixel sizes" in text and "stain:" not in text
     else:
@@ -150,6 +158,28 @@ def test_unknown_source_recipe_never_becomes_native_prose(recipe):
     result = describe_legacy(report, snapshot, request("legacy-cell", "gfp_mean_corrected"))
     with pytest.raises(ValueError, match="source_invalid"):
         descriptive_methods(result, methods_template=CURRENT)
+
+
+def test_template_1_0_0_body_is_unchanged_for_its_saved_documents():
+    # Pinned against the 1.0.0 formatter before template 1.1.0 was added.
+    report, snapshot = region_fixture()
+    region = describe_regions(report, snapshot, request(metric="mean_corrected"))
+    area = describe_regions(report, snapshot, request(metric="area_px"))
+    legacy_report, legacy_snapshot = legacy_fixture((1, 9))
+    legacy = describe_legacy(legacy_report, legacy_snapshot, request("legacy-cell", "gfp_mean_corrected"))
+    texts = [descriptive_methods(item, methods_template=V1_0_0) for item in (region, area, legacy)]
+    for paired in (False, True):
+        compared_report, config = comparison_fixture((('A', [3, 8, 2]), ('B', [4, 10, 5])))
+        compared = compare_regions(compared_report, config, comparison_request(paired=paired))
+        texts.append(region_comparison_methods(compared, methods_template=V1_0_0))
+    assert [hashlib.sha256(text.encode()).hexdigest() for text in texts] == [
+        "db1619bd187e32eaff8e47f1f84c90610db148c265a0cfb5de40614bb02e24b3",
+        "926bc8084b5e68cf0f1705761c87ad56664f2ba36b833106c75acf767b354bcd",
+        "4ea211aa0c806b0b20721d7b0bc256f73b284dbc5d381868653f3979eb21c816",
+        "c1d9040c2f2afb8debfcc8f582cb852894947feb8e7250cb22ab55d70fee25e7",
+        "221bdbd063a71e19a5a64c6d18a65a263b4f16f34cfc45911dc96c6904947333",
+    ]
+    assert all("Manual mask edits" not in text for text in texts)
 
 
 def test_old_default_methods_are_not_replaced_by_the_new_template():

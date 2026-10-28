@@ -1,5 +1,6 @@
 """Presentation-only worker; never import or call statistical estimators."""
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -9,6 +10,7 @@ from cytellect_analysis.descriptive_output import render_descriptive_output
 from cytellect_analysis.figures import render_figures
 from cytellect_analysis.images import sha256
 from cytellect_analysis.region_comparison_figures import render_region_comparison
+from cytellect_analysis.statistical_methods import saved_methods_template
 from cytellect_api.db import jobs
 from cytellect_api.figure_render import validated_plot
 from cytellect_api.storage import read_json, write_json
@@ -20,6 +22,7 @@ def run_figure_render(store, job, output):
             or source["revision_id"] != job["revision_id"] or source["state"] != "succeeded"):
         raise ValueError("figure_source_mismatch")
     result = deepcopy(read_json(store.safe_path(source["result_dir"], "result.json")))
+    recorded = {"figure": result.get("figure", {})}
     result.pop("figure", None)
     result.pop("source_job_id", None)
     result["spec"]["plot"] = validated_plot(result, job["payload"]["plot"])
@@ -27,11 +30,12 @@ def run_figure_render(store, job, output):
     if result.get("analysis_kind") == "region-association" or result.get("region_comparison_version") == "2.0.0":
         renderer = render_common_statistics
     elif result.get("analysis_kind") == "region-comparison":
-        renderer = render_region_comparison
+        # Edited figures keep the recorded Methods document version, as export and replay do.
+        renderer = partial(render_region_comparison, methods_template=saved_methods_template(recorded))
     elif result.get("source_kind") == "measured-numerical-assay" and result.get("spec", {}).get("mode") != "descriptive":
         renderer = render_figures
     else:
-        renderer = render_descriptive_output
+        renderer = partial(render_descriptive_output, methods_template=saved_methods_template(recorded))
     manifest = renderer(result, output)
     manifest["source_files"] = list(dict.fromkeys([*manifest["source_files"], *[f"figure.{suffix}" for suffix in manifest.get("formats", []) if suffix in ("svg", "pdf", "png")]]))
     result["figure"] = manifest
@@ -116,6 +120,7 @@ for name, digest in manifest['files'].items():
     if path.resolve().is_relative_to(root) is False or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
         raise ValueError('source file changed')
 result = json.loads((root / 'figure-result.json').read_text(encoding='utf-8'))
+template = result.get('figure', {}).get('methods_template')
 result.pop('figure', None)
 if result.get('analysis_kind') == 'region-association' or result.get('region_comparison_version') == '2.0.0':
     renderer = render_common_statistics
@@ -125,5 +130,9 @@ elif result.get('source_kind') == 'measured-numerical-assay' and result.get('spe
     renderer = render_figures
 else:
     renderer = render_descriptive_output
-renderer(result, Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'regenerated-figure')
+destination = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'regenerated-figure'
+if template is not None and renderer in (render_descriptive_output, render_region_comparison):
+    renderer(result, destination, methods_template=template)
+else:
+    renderer(result, destination)
 """

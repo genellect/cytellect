@@ -8,7 +8,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat, StrictInt, TypeAdapter, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    Field,
+    FiniteFloat,
+    StrictInt,
+    TypeAdapter,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from .cellpose_engine import CellposeDetectorSpec
 from .compartment_engine import NucleolarDetector, NucleolarDetectorSpec
@@ -50,6 +59,18 @@ Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 OptionalText = Annotated[str, Field(min_length=1, max_length=80)]
 
 
+def _display_name(value: str) -> str:
+    if value != value.strip() or any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ValueError("region_display_name_invalid")
+    return value
+
+
+# The researcher-visible field name, used only as a label. It is never a path,
+# an identity or experimental metadata, and nothing is inferred from it.
+DisplayName = Annotated[str, Field(min_length=1, max_length=120), AfterValidator(_display_name)]
+DISPLAY_NAME: TypeAdapter[str] = TypeAdapter(DisplayName)
+
+
 class RegionFieldMetadata(RegionModel):
     condition: OptionalText | None = None
     experimental_unit: OptionalText | None = None
@@ -84,6 +105,15 @@ class RegionFieldInput(RegionModel):
     channels: Annotated[list[ChannelSpecType], Field(min_length=1, max_length=4)]
     metadata: RegionFieldMetadata = Field(default_factory=RegionFieldMetadata)
     calibration: Calibration2D | None = None
+    display_name: DisplayName | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_absent_display_name(self, handler):
+        # Uploads without a name keep their historical specification bytes and fingerprint.
+        value = handler(self)
+        if isinstance(value, dict) and self.display_name is None:
+            value.pop("display_name", None)
+        return value
 
     @model_validator(mode="after")
     def unique_channels(self):
