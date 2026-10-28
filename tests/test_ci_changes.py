@@ -30,6 +30,15 @@ def test_each_area_follows_what_its_jobs_build_or_run():
     assert areas_for("tests/test_statistics.py") == {"python", "fiji", "windows"}
 
 
+def test_pull_request_boundary_checks_run_when_either_side_changes():
+    # The local web boundary runs in the web job; the demo runtime check runs in the python job.
+    assert areas_for("scripts/build_local_bundle.py") == ALL
+    assert areas_for("scripts/check_local_web_bundle.py") == ALL
+    assert areas_for("apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl") == {"python", "web", "fiji"}
+    assert areas_for("apps/web/public/showcase/manifest.json") == {"python", "web", "fiji"}
+    assert areas_for("apps/web/src/lib/showcase/runtime-config.json") == {"python", "web", "fiji"}
+
+
 def test_landing_page_changes_select_only_the_landing_page_checks():
     for path in ["apps/web/src/components/PublicLanding.tsx", "apps/web/src/components/LandingFeatures.tsx",
                  "apps/web/src/components/HeroFilm.tsx", "apps/web/src/components/optical-landing.module.css",

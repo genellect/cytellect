@@ -11,6 +11,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
 | 開発環境 | 研究室の PC と同じ構成を Linux で起動し、公開画像で試せる（`scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#ローカル開発)）。共有する開発環境では、登録済みの公開画像だけを受け付けられる（`CYTELLECT_UPLOAD_ALLOWLIST`、[データ保護](security.md#shared-development-environments)）。共有の起動と研究者による評価の計画は[実装計画（案）](drafts/cloud-development/plan.md)にある |
+| CI とマージ | PR では変更したファイルに関係するジョブだけを実行し、マージは複数の PR をまとめて 1 回検証してから行う（[CI の構成](ci.md)）。CI 1 回の待ちは Windows のテスト一式（約 34 分）で決まる。次の段階は、Windows のテスト一式の分割、`fiji-browser` の分割、必須チェックの 1 つへの集約（`ci-required`）、公開サイトのデプロイが CI の成功を待つかの確認 |
 | 核小体検出 | NCL の protocol 4.3.0（追加学習した Cellpose-SAM と境界補正）。[計算仕様](methods.md) |
 
 ## 今後の計画
