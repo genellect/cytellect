@@ -28,13 +28,27 @@ def _module(item):
     return item.nodeid.split("::", 1)[0].replace("\\", "/")
 
 
-def assign_modules(counts, shards):
-    """Whole modules to shards, largest first onto the lightest shard; the same collection always splits the same way."""
-    loads, assignment = [0] * shards, {}
-    for module, count in sorted(counts.items(), key=lambda entry: (-entry[1], entry[0])):
+WEIGHTS = Path(__file__).with_name("shard_weights.json")
+
+
+def module_weights(counts):
+    """Recorded seconds per module (scripts/merge_test_shards.py weights); new modules get the average per test."""
+    try:
+        recorded = json.loads(WEIGHTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        recorded = {}
+    known = [module for module in counts if isinstance(recorded.get(module), (int, float))]
+    per_test = sum(recorded[m] for m in known) / sum(counts[m] for m in known) if known else 1.0
+    return {module: float(recorded[module]) if module in known else per_test * count for module, count in counts.items()}
+
+
+def assign_modules(weights, shards):
+    """Whole modules to shards, heaviest first onto the lightest shard; the same collection always splits the same way."""
+    loads, assignment = [0.0] * shards, {}
+    for module, weight in sorted(weights.items(), key=lambda entry: (-entry[1], entry[0])):
         target = min(range(shards), key=lambda index: (loads[index], index))
         assignment[module] = target
-        loads[target] += count
+        loads[target] += weight
     return assignment
 
 
@@ -56,7 +70,7 @@ def pytest_collection_modifyitems(config, items):
     # "deselected": the receipt records them separately so one shard never reads as a full run.
     if config.getoption("shard"):
         index, count = _shard(config.getoption("shard"))
-        assignment = assign_modules(Counter(_module(item) for item in items), count)
+        assignment = assign_modules(module_weights(Counter(_module(item) for item in items)), count)
         others = [item for item in items if assignment[_module(item)] != index]
         items[:] = [item for item in items if assignment[_module(item)] == index]
         if state is not None:

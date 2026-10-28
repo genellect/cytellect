@@ -534,9 +534,8 @@ jobs:
       - name: One shard of the Windows compatibility suite without a Python support override
         env:
           CYTELLECT_TEST_DATA_DIR: ${{ runner.temp }}/scientific-windows-data
-        # --durations records the slowest tests so the shards can be rebalanced without dropping any.
-        run: uv run --no-sync python -B -m pytest tests -m "not fiji" --shard=${{ matrix.shard }}/4 --durations=20 --basetemp="${{ runner.temp }}/scientific-windows-tests" --junitxml="${{ runner.temp }}/scientific-windows.xml" --scientific-collection="${{ runner.temp }}/scientific-windows-collection.json"
-      - name: Keep only test identities and outcomes
+        run: uv run --no-sync python -B -m pytest tests -m "not fiji" --shard=${{ matrix.shard }}/4 --basetemp="${{ runner.temp }}/scientific-windows-tests" --junitxml="${{ runner.temp }}/scientific-windows.xml" --scientific-collection="${{ runner.temp }}/scientific-windows-collection.json"
+      - name: Keep only test identities, outcomes and timings
         if: always()
         run: uv run --no-sync python -B scripts/merge_test_shards.py strip --junit "${{ runner.temp }}/scientific-windows.xml" --collection "${{ runner.temp }}/scientific-windows-collection.json" --output-dir "${{ runner.temp }}/shard"
       - if: always()

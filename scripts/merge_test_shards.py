@@ -1,7 +1,7 @@
 """Combine sharded pytest runs into one JUnit XML and one full-collection receipt.
 
 Each shard job runs ``pytest tests --shard I/N --junitxml=... --scientific-collection=...``
-and then ``strip`` keeps only test identities and outcomes, so no failure text, path or
+and then ``strip`` keeps only test identities, outcomes and timings, so no failure text, path or
 measurement leaves the runner. ``merge`` accepts the shards only when they come from the same
 collection, cover every index once and select disjoint modules that, with the marker
 deselection, add up to everything collected. The result is checked by scientific_review.py
@@ -26,7 +26,7 @@ def _sha(data: bytes) -> str:
 
 
 def strip(junit: bytes, collection: dict) -> tuple[bytes, dict]:
-    """Keep each test's identity and outcome; drop messages, output, properties and timings."""
+    """Keep each test's identity, outcome and time; drop messages, output and properties."""
     if collection.get("junit_sha256") != _sha(junit) or "shard" not in collection:
         raise ValueError("shard_receipt_not_bound_to_junit")
     root = SafeET.fromstring(junit)
@@ -35,7 +35,8 @@ def strip(junit: bytes, collection: dict) -> tuple[bytes, dict]:
         clean = ET.SubElement(out, "testsuite", {"name": "pytest"})
         counts = dict.fromkeys(("tests", "failures", "errors", "skipped"), 0)
         for case in suite.findall("testcase"):
-            item = ET.SubElement(clean, "testcase", {"classname": case.get("classname", ""), "name": case.get("name", "")})
+            item = ET.SubElement(clean, "testcase", {"classname": case.get("classname", ""), "name": case.get("name", ""),
+                                                      "time": case.get("time", "0")})
             counts["tests"] += 1
             for tag, key in zip(OUTCOMES, ("failures", "errors", "skipped")):
                 if case.find(tag) is not None:
@@ -92,6 +93,18 @@ def merge(shards: list[tuple[bytes, dict]]) -> tuple[bytes, dict]:
     return data, combined
 
 
+def weights(junits: list[bytes]) -> dict[str, float]:
+    """Seconds per test module, for tests/shard_weights.json."""
+    totals: dict[str, float] = {}
+    for junit in junits:
+        for case in SafeET.fromstring(junit).iter("testcase"):
+            parts = case.get("classname", "").split(".")
+            if len(parts) >= 2 and parts[0] == "tests":
+                module = f"tests/{parts[1]}.py"
+                totals[module] = totals.get(module, 0.0) + float(case.get("time") or 0)
+    return {module: round(seconds, 1) for module, seconds in sorted(totals.items())}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -103,7 +116,13 @@ def main() -> None:
     many.add_argument("--shards", type=Path, required=True, help="Directory with one sub-directory per shard")
     many.add_argument("--output-junit", type=Path, required=True)
     many.add_argument("--output-collection", type=Path, required=True)
+    record = commands.add_parser("weights", help="Write seconds per test module from JUnit files")
+    record.add_argument("--junit", type=Path, nargs="+", required=True)
+    record.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.command == "weights":
+        args.output.write_text(json.dumps(weights([path.read_bytes() for path in args.junit]), indent=1) + "\n", encoding="utf-8")
+        return
     if args.command == "strip":
         data, receipt = strip(args.junit.read_bytes(), json.loads(args.collection.read_text(encoding="utf-8")))
         args.output_dir.mkdir(parents=True, exist_ok=True)

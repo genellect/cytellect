@@ -91,6 +91,21 @@ def test_a_failure_in_any_shard_fails_without_leaking_its_text(tmp_path):
     assert REVIEW.summarize(PLAN, xml, receipt, "a" * 40, False)["status"] == "incomplete_or_failed"
 
 
+def test_recorded_times_weight_modules_and_new_modules_get_the_average(tmp_path, monkeypatch):
+    weights = tmp_path / "shard_weights.json"
+    weights.write_text(json.dumps({"tests/test_a.py": 30.0, "tests/test_b.py": 10.0}), encoding="utf-8")
+    monkeypatch.setattr(CONFTEST, "WEIGHTS", weights)
+    counts = {"tests/test_a.py": 3, "tests/test_b.py": 1, "tests/test_new.py": 2}
+    assert CONFTEST.module_weights(counts) == {"tests/test_a.py": 30.0, "tests/test_b.py": 10.0, "tests/test_new.py": 20.0}
+
+
+def test_weights_are_seconds_per_module():
+    junit = (b'<testsuites><testsuite><testcase classname="tests.test_a" name="x" time="1.25"/>'
+             b'<testcase classname="tests.test_a.TestCase" name="y" time="2"/><testcase classname="tests.test_b" name="z" time="0.5"/>'
+             b'</testsuite></testsuites>')
+    assert MERGE.weights([junit]) == {"tests/test_a.py": 3.2, "tests/test_b.py": 0.5}
+
+
 def test_modules_split_deterministically_onto_the_lightest_shard():
     counts = {"tests/test_a.py": 5, "tests/test_b.py": 4, "tests/test_c.py": 3, "tests/test_d.py": 2}
     assert CONFTEST.assign_modules(counts, 2) == {"tests/test_a.py": 0, "tests/test_b.py": 1, "tests/test_c.py": 1, "tests/test_d.py": 0}
