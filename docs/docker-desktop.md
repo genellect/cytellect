@@ -1,85 +1,89 @@
-# Docker Desktopでのブラウザ操作
+# Docker Desktop で使う
 
-Windows側のPythonやFijiを使わず、LinuxコンテナのWeb・API・Fijiワーカーを起動します。Docker DesktopをLinuxコンテナで起動してください。Compose 2.24.4以降が必要です。
+この手順では、Windows に Python や Fiji をインストールせず、Docker Desktop の Linux コンテナで Cytellect を起動します。
 
-リポジトリのPowerShellから実行します。
+## 始める前に
+
+- Docker Desktop をインストールし、Linux コンテナで起動してください。
+- Docker Compose 2.24.4 以降が必要です。
+- 初回のビルドにはインターネット接続と、数 GB の空き容量が必要です。
+
+## 起動する
+
+リポジトリのフォルダーで PowerShell を開き、次を実行します。
 
 ```powershell
 .\scripts\docker-desktop.ps1 Start
 ```
 
-ブラウザで **http://127.0.0.1:3087/** を開きます。初回は自分だけが見られるターミナルで次を実行し、表示された一度限りの招待コードを入力してください。コードをIssue、チャット、共有ログへ貼り付けないでください。
+初回は Web、API、解析ワーカーなどのコンテナイメージをビルドします。Linux 版 Fiji もビルド中に取得されるため、Windows 版 Fiji や Linux 版 Fiji を別途インストールする必要はありません。変更されていない依存関係や Fiji のレイヤーは、次回以降のビルドで再利用されます。
+
+起動したら、ブラウザーで [http://127.0.0.1:3087/](http://127.0.0.1:3087/) を開きます。初回だけ、別の PowerShell で次を実行して招待コードを発行し、ブラウザーに入力してください。
 
 ```powershell
 .\scripts\docker-desktop.ps1 Invite
 ```
 
-以後の操作はブラウザで行います。[公開画像の手順](quickstart.ja.md)の画像登録以降を利用できます。BBBC013の核染色はDRAQ、蛍光標識はFKHR-EGFPです。公開画像の視野を独立実験として扱わないでください。
+招待コードは一度だけ使えます。自分だけが見られる端末で発行し、Issue、チャット、共有ログには貼り付けないでください。
+
+ログイン後はブラウザーで操作します。画像の登録方法は[はじめての画像解析](quickstart.ja.md)を参照してください。公開練習画像 BBBC013 の核染色は DRAQ、蛍光標識は FKHR-EGFP です。この画像の視野を、独立した実験の繰り返しとして扱わないでください。
+
+## 状態を確認して停止する
+
+サービスの状態を確認するには、次を実行します。
 
 ```powershell
 .\scripts\docker-desktop.ps1 Status
+```
+
+停止するには、次を実行します。
+
+```powershell
 .\scripts\docker-desktop.ps1 Stop
 ```
 
-`Stop`はサービスを停止し、データやFijiイメージを削除しません。`Start`は更新されたソースをビルドし、変更のない依存・Fijiレイヤーを再利用します。最初の構築にはネット接続と数GBの容量が必要です。Windows版FijiはLinuxコンテナから実行できないため、Linux版が一度別途必要です。
+`Stop` はサービスを停止します。画像、解析結果、コンテナイメージは削除しません。
 
-画像と結果は専用の`cytellect-human-e2e_research`ボリュームに保持され、GitやWindowsの既存インストールとは分離されます。初期化サービスはボリューム直下の所有者と権限だけを設定し、研究ファイルには触れません。アプリ内の削除と24時間の保存期限が適用されます。停止中の期限切れデータは再起動後に回収されます。`docker compose down -v`やDockerの初期化はデータを失うため、通常の停止に使わないでください。
+## データの保存と通信
 
-Web3087/API8001は127.0.0.1にだけ公開します。APIはDocker Desktopのポート転送のため通常ブリッジにも接続します。API自体の外向き通信遮断は保証しません。Fijiワーカーは引き続き`network_mode: none`、非root、読み取り専用root、上限5GiBで実行します。このローカル解析UIはGA4を読み込みません。
+画像と解析結果は、Docker が管理する専用ボリューム `cytellect-human-e2e_research` に保存されます。Git の作業フォルダーや Windows 版の保存先とは分かれています。初期化処理はボリューム直下の所有者とアクセス権を設定します。
 
-## 起動時の問題
+保存期限は、最後に明示的な操作をしてから 24 時間です。停止中に期限を過ぎたデータは、次に起動したときに削除されます。通常の停止には `Stop` を使ってください。`docker compose down -v` や Docker Desktop の初期化を行うと、保存データを失うことがあります。
 
-- Dockerが起動しない場合は、まずDesktop側のエラーを確認します。Cytellectの再インストールではDocker自体のエラーは直りません。
-- 使用中の3087/8001がある場合、他アプリを停止せずポート競合を確認してください。変更時はComposeのWeb/API URLとポートを一緒に変更します。
-- WindowsでDockerの`dockerInference`ソケットにエラー1920が発生する場合があります。実際の原因を確認せずFactory ResetやWSL削除を実行しないでください。
+Web（3087）と API（8001）は、この PC のみから接続できるよう `127.0.0.1` に公開します。API コンテナは Docker Desktop のポート転送に必要なネットワークにも接続するため、API 自体の外向き通信が遮断される保証はありません。解析ワーカーはネットワークなし（`network_mode: none`）で、非 root ユーザー、読み取り専用のルートファイルシステム、メモリ上限 5 GiB で動作します。このローカル解析 UI は GA4 を読み込みません。
 
-この手順での動作確認はDocker版の確認です。Windowsネイティブ配布物のインストール成否や、人による使いやすさの評価とは別に記録します。
+## 起動時に困ったとき
 
-## 開発者の数値・再実行検査
+- **Docker が起動しない:** まず Docker Desktop に表示されるエラーを確認してください。Cytellect を再インストールしても、Docker Desktop 自体のエラーは解決しません。
+- **3087 または 8001 ポートが使用中:** どのアプリが使用しているかを確認してください。ポートを変更する場合は、Compose の Web/API の URL とポート設定を一緒に変更する必要があります。
+- **Windows で `dockerInference` ソケットのエラー 1920 が出る:** 原因を特定する前に Factory Reset や WSL の削除を行わないでください。
 
-クリーンなソースから構築するときは、APIとWorkerに同じ
-`CYTELLECT_CODE_REVISION`（40桁のGitコミット）を渡します。`compose.yaml`が
-この値を解析出力の環境記録へ引き継ぎます。変更したファイルがある状態を
-そのコミットの実物として扱わないでください。
+この手順で確認するのは Docker 版です。Windows ネイティブ版のインストール確認や、利用者による使いやすさの評価とは別に扱います。
 
-`scripts/verify_docker_regions.py`は、専用の受入環境で生成画素を登録し、
-独立・対応あり比較、順位検定、相関、出力ZIPのハッシュと再計算一致を確認します。
-Windows配布物の検査と同じ参照式を再利用しますが、Dockerの招待認証を使い、
-Windowsのインストール成功には数えません。出力先はrepo外に設定します。
+## 開発者向け：数値と再実行の確認
 
-## Explicit laboratory retention (implementation, not a release acceptance)
+クリーンなソースから構築するときは、API と Worker に同じ `CYTELLECT_CODE_REVISION` を渡します。値は 40 桁の Git コミット ID です。`compose.yaml` はこの値を解析結果の環境記録に引き継ぎます。未コミットの変更を、そのコミットの内容として記録しないでください。
 
-The optional `infra/compose.lab.yaml` overlay sets
-`CYTELLECT_WORKSPACE_RETENTION_MODE=manual` for both API and worker. Apply it
-only to a separately named lab installation after stopping all its writers.
-The ordinary Desktop/developer configuration remains `ttl` (24 hours by default).
-This overlay does not supply pinned release images or a verified backup tool;
-those delivery requirements and fresh-installation acceptance remain open.
+`scripts/verify_docker_regions.py` は専用の受入環境で動作し、登録した画素を使って、独立・対応ありの比較、順位検定、相関、出力 ZIP のハッシュ、再計算結果との一致を確認します。この検査は Docker の招待認証を使います。Windows 配布物のインストール確認には数えません。出力先はリポジトリの外に設定してください。
 
-Manual mode retains workspaces until the owner explicitly deletes them. It does
-not silently expire data while the PC is off or when it restarts. The API reports
-`expires: null`; the UI shows manual retention and hides deadline-extension
-controls. Session/invitation expiry, ownership, job leases, cancellation and
-explicit deletion still apply. No synthetic-image validation is implied.
+## 研究室向け：作業データを手動で保持する
 
-The private volume keeps an empty `.manual-workspace-retention` marker. Keep it
-with the database and artifacts in any future quiesced backup/restore. A TTL
-launch on a marked volume fails before opening the database; a stale TTL writer
-also refuses subsequent workspace operations. Do not delete the marker or
-switch modes on a live installation. Manual-to-TTL conversion is not provided:
-old stored deadlines could otherwise cause immediate data deletion. Existing
-numeric deadlines are not rewritten, and previously deleted data is not restored.
-TTL-to-manual transition requires every writer to be stopped first: the marker
-cannot synchronize cleanup already in flight in an older process. New marker
-creation flushes the file and, on POSIX, its parent directory. Power-loss recovery
-has not been verified; this is not a crash-proof backup guarantee.
-Older binaries do not know this marker. Never roll back a manual-retention volume
-to a version without manual-retention support; restore a separately compatible
-snapshot under its recorded policy instead.
+通常の Docker Desktop / 開発環境では、作業データは既定で 24 時間後に削除されます。研究室向けの任意設定 `infra/compose.lab.yaml` を使うと、API と Worker の保存方式を手動保持（`manual`）にできます。この設定は、書き込みを行うすべてのサービスを停止し、別名の研究室用インストールに適用してください。通常の Desktop 設定に重ねて使わないでください。
 
-Manual retention has no automatic storage reclamation. The lab must monitor disk
-space, explicitly delete unwanted workspaces through the product, export needed
-results and maintain a private backup on another medium. Never use `down -v`,
-prune, or deletion of unknown files as an update procedure. A named volume alone
-is not a backup; verified whole DB/artifact backup and rollback remain a separate
-release requirement. This change does not alter any currently running service.
+手動保持では、利用者がアプリ内で削除するまで作業データを保持します。PC の停止や再起動によって期限切れにはなりません。API は期限を `null` として返し、画面には手動保持であることを表示します。招待やセッションの有効期限、所有権確認、ジョブの停止・取消、利用者による明示的な削除は引き続き有効です。
+
+### 保存方式を切り替える前に
+
+手動保持にしたデータ領域には、空の `.manual-workspace-retention` マーカーが保存されます。バックアップや復元を行う場合は、データベース・成果物と一緒にこのマーカーを保持してください。
+
+- 手動保持中のデータ領域を、手動保持に対応していない古いバイナリで開かないでください。戻す必要がある場合は、記録された保存方式に対応するバックアップを復元してください。
+- 手動保持から TTL（期限付き保存）への切り替えには対応していません。保存済みの期限によってデータがすぐ削除される可能性があるためです。
+- TTL から手動保持へ切り替えるときは、すべての書き込み処理を先に停止してください。古いプロセスで削除処理が進行中の場合、マーカーだけでは止められません。
+- 稼働中にマーカーを削除したり、保存方式を切り替えたりしないでください。
+- マーカー作成時の書き込みは同期しますが、停電後の復旧は検証されていません。クラッシュ耐性のあるバックアップを保証するものではありません。
+
+### 手動保持中のデータ管理
+
+手動保持では古いデータの自動削除がありません。研究室で空き容量を監視し、不要な作業をアプリから削除し、必要な結果を書き出してください。データは別の媒体にもバックアップしてください。名前付きボリュームだけではバックアップになりません。データベースと成果物をまとめたバックアップ・復元やロールバックの検証は、別途必要です。
+
+更新手順として `down -v`、Docker の prune、正体の分からないファイルの削除を実行しないでください。この設定を追加しても、現在動作中のサービスの保存方式は変わりません。
