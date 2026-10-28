@@ -56,6 +56,7 @@ test("a new target cannot display the previous target mask while running or afte
   await expect(image.locator("text")).toHaveCount(0);
   await image.locator('[data-region="7"]').click();
   await expect(image.locator("text")).toHaveText("7");
+  await page.getByRole("button",{name:"設定パネル",exact:true}).click();
   const method = page.getByRole("complementary",{name:"画像解析",exact:true});
   // The current UI exposes independent manual cell ROIs. Changing target starts
   // their run, while the adopted nuclear mask must stay on its own target.

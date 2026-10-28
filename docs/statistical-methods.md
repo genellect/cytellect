@@ -2,10 +2,22 @@
 
 New worker-generated descriptive and generic-region comparison outputs identify
 their document template as
-`methods_template={"id":"cytellect-statistical-methods","version":"1.0.0"}`.
+`methods_template={"id":"cytellect-statistical-methods","version":"1.1.0"}`.
 This is a document protocol, distinct from the measurement, inference, figure and
 enclosing reproducibility-bundle Methods versions. It changes no pixels,
-selection, statistics, caption or independent-unit definition.
+selection, statistics or independent-unit definition.
+
+Template 1.1.0 differs from 1.0.0 in two statements; the 1.0.0 body is unchanged
+for its saved documents.
+
+- The region definition names the region set in English from its recorded ID and
+  source, for example `nuclei (region set ID nuclei; regions from StarDist nuclear
+  segmentation; …)`. The recorded label, which may be Japanese, stays in
+  `figure-data.json`. The figure legend's field mapping uses the same name.
+- Descriptive Methods and legends state recorded manual mask edits
+  ([Descriptive outputs](descriptive.md#manual-mask-edits)). A deleted region is
+  not an explicitly excluded observation, so the excluded count stays separate.
+  An edited field is named by its registered display name with its field ID.
 
 The feature is source implementation pending its release checks; it is not an
 update to an already downloaded immutable local package. Biological validation
@@ -74,6 +86,8 @@ prose.
 Export and replay dispatch using the **recorded** figure metadata. New paginated
 exports continue copying verified original artifact bytes. Single figures and
 comparisons retain their recorded template when exported or separately replayed.
+A figure edited in the workspace and its `replay-figure.py` also keep the recorded
+template.
 The outer legacy bundle Methods embeds the same child's document version.
 Historical text is not retroactively corrected; a newly generated document is
 identified separately. Replay never overwrites the original artifact.
@@ -93,6 +107,10 @@ missingness and bounded prose size with a complete 20,000-observation ledger.
 `tests/test_statistical_methods_export.py` covers actual original/archived/replayed
 Methods bytes, historical/current single and paged paths, parent/child document
 agreement, area-only output and altered Methods with a recomputed file hash.
+Template 1.0.0 output is pinned by hash, and a saved 1.0.0 paged output still
+validates. `tests/test_mask_corrections.py` covers the edit counts, a refused
+history that does not reach the measured mask, and the API path from an edit to
+Methods, legend, edited figure, export and replay.
 `tests/test_automatic_background_statistics.py` measures protocol 4.0.0 through
 the API and runs descriptive, Welch comparison and common statistics on it, and
 refuses tampered or mixed automatic-background sources.

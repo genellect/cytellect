@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
-import {assertWorkspaceConnection, automaticBackground, channelSpecification, createApiAdapter, figureIdentity, nuclearRecipe, type SavedResult, type Transport} from "./api-adapter";
+import {assertWorkspaceConnection, automaticBackground, channelSpecification, createApiAdapter, displayNameOf, figureIdentity, nuclearRecipe, type SavedResult, type Transport} from "./api-adapter";
 import type {ChannelDefinition} from "./grouping";
 
 const channel: ChannelDefinition = {token: "channel2", stain: null, role: "nuclear", evidence: "user"};
@@ -18,6 +18,7 @@ describe("real workspace transport boundaries", () => {
       expect(path).toBe("/v1/workspaces/w1/region-fields/ome");
       const form=options?.body as FormData;
       expect(form.get("client_upload_id")).toBe("ome-import");
+      expect(form.get("display_name")).toBe("fixture.ome.tif");
       expect(await (form.get("ome") as File).arrayBuffer()).toEqual(await file.arrayBuffer());
       return {id:"f1",workspace_id:"w1",metadata:{},image_info:{shape:[2,2],channels:[{channel_id:"c1",label:"DAPI",stain:"DAPI"}]}};
     });
@@ -47,6 +48,17 @@ describe("real workspace transport boundaries", () => {
     expect(nuclearRecipe(channel)).not.toHaveProperty("detection_max_side_px");
     expect(nuclearRecipe(channel, 320)).toMatchObject({version: "1.5.0", detection_max_side_px: 320, defining_channel_id: "channel2"});
     for (const invalid of [0, 63, 2049, 320.5, NaN]) expect(() => nuclearRecipe(channel, invalid)).toThrow();
+  });
+  it("saves the listed field name with the upload, only as a valid label", async () => {
+    let specification: Record<string, unknown> = {};
+    const {adapter} = fake(async (_path, options) => {specification = JSON.parse(String((options?.body as FormData).get("specification"))); return {id: "f1", workspace_id: "w1", image_info: {shape: [2, 2], channels: []}, metadata: {}};});
+    await adapter.registerImport("w1", "pending");
+    await adapter.upload("w1", {key: "import-batch/plate/A01", files: {channel2: {path: "plane.tif", size: 1}}, candidates: {}}, [channel], new Map([["plane.tif", new File(["x"], "plane.tif")]]), "pending");
+    expect(specification.display_name).toBe("A01");
+    expect(displayNameOf("import-batch/ B02 ")).toEqual({display_name: "B02"});
+    expect(displayNameOf("import-batch/")).toEqual({});
+    expect(displayNameOf("x".repeat(121))).toEqual({});
+    expect(displayNameOf("bad\u0007name")).toEqual({});
   });
   it("merges a deduplicated upload without changing the existing adopted revision", async () => {
     const {adapter} = fake(async () => ({id: "f1", workspace_id: "w1", image_info: {shape: [2, 2], channels: []}, metadata: {}}));
