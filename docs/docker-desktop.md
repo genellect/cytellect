@@ -1,8 +1,14 @@
 # Docker Desktop で使う
 
-Windows に Python や Fiji を入れずに、Docker Desktop の Linux コンテナで Cytellect を動かす手順。Web 画面、API、解析ワーカーの 3 つのコンテナを起動し、この PC のブラウザーから使う。操作はすべてリポジトリの [`scripts/docker-desktop.ps1`](../scripts/docker-desktop.ps1) で行う。
+Windows に Python や Fiji を入れずに、Docker Desktop の Linux コンテナで Cytellect を動かす手順。Web 画面、API、解析ワーカーの 3 つのコンテナを起動し、この PC のブラウザーから使う。
 
-Fiji と Cellpose はビルド中にコンテナへ自動で取得される。Windows 版や Linux 版の Fiji を別途インストールする必要はない。
+| 項目 | 内容 |
+|---|---|
+| 対象 | ソースから Cytellect を動かす研究者・研究室の管理者 |
+| 対象版 | このリポジトリの現在のソース |
+| 操作 | リポジトリの [`scripts/docker-desktop.ps1`](../scripts/docker-desktop.ps1) を PowerShell から実行する |
+| Windows 版との違い | 配布版のセットアップは不要。Fiji と Cellpose はビルド中にコンテナへ自動で取得される |
+| Cellpose | 解析ワーカーの CPU で実行する。ワーカーはネットワークから切り離されているため、[クラウド GPU](cloud-gpu.ja.md) は使えない |
 
 ## 1. 動作環境
 
@@ -48,7 +54,7 @@ Fiji と Cellpose はビルド中にコンテナへ自動で取得される。Wi
 
 ## 4. 動作確認（初回のみ）
 
-1. [はじめての画像解析](quickstart.ja.md)の「用意するもの」で練習画像を入手し、「1．測ることを決める」から進める。インストールに関する記述は Windows 版のものなので読み飛ばす。
+1. [はじめての画像解析](quickstart.ja.md)の「1. 準備する」で練習画像を入手し、「2. 測ることを決める」から進める。同ガイドの詳細画面は [http://127.0.0.1:3087/legacy](http://127.0.0.1:3087/legacy) で開く。Windows 版の起動に関する記述は読み飛ばす。
 2. 公開練習画像 BBBC013 の核染色は DRAQ、蛍光標識は FKHR-EGFP。この画像の視野を、独立した実験の繰り返しとして扱わない。
 3. 練習画像の結果は操作の確認用で、研究画像での検出精度を保証するものではない。
 
@@ -153,3 +159,10 @@ uv run python scripts/verify_docker_regions.py --docker docker --container cytel
 ### 招待コード
 
 `.\scripts\docker-desktop.ps1 Invite` は、24 時間有効で一度だけ使える招待コードを発行する。Docker Desktop 版は招待コードなしで接続するため、通常の利用では使わない。発行する場合は自分だけが見られる端末で行い、Issue、チャット、共有ログに貼り付けない。
+
+## 関連文書
+
+- [はじめての画像解析](quickstart.ja.md)：公開画像を使った操作の練習
+- [Windows 版のインストールと更新](install-windows.ja.md)：配布版を使う場合の手順
+- [ローカル版のブラウザ配信](local.md)（英語）：作業画面の入口と解析提案の中継の詳細
+- [データ保護と運用](security.md)（英語）：Docker Desktop の所有者接続と手動保持の設計
