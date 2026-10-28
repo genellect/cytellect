@@ -57,6 +57,8 @@ def _collection_status(collection, junit, cases):
         raise ValueError("full_collection_receipt_required")
     if collection.get("junit_sha256") != hashlib.sha256(junit).hexdigest():
         raise ValueError("collection_junit_hash_mismatch")
+    if "shard" in collection:
+        return False  # one shard is never a full run; scripts/merge_test_shards.py combines them
     for key in ("collected", "selected", "deselected", "collection_errors", "exit_status"):
         if type(collection.get(key)) is not int or collection[key] < 0:
             raise ValueError("invalid_collection_count")

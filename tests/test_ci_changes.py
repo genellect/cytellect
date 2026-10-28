@@ -30,6 +30,12 @@ def test_each_area_follows_what_its_jobs_build_or_run():
     assert areas_for("tests/test_statistics.py") == {"python", "fiji", "windows"}
 
 
+def test_the_local_web_boundary_check_runs_when_the_packager_changes():
+    # The web job checks the compiled local UI against the packager's boundary.
+    assert areas_for("scripts/build_local_bundle.py") == ALL
+    assert areas_for("scripts/check_local_web_bundle.py") == ALL
+
+
 def test_landing_page_changes_select_only_the_landing_page_checks():
     for path in ["apps/web/src/components/PublicLanding.tsx", "apps/web/src/components/LandingFeatures.tsx",
                  "apps/web/src/components/HeroFilm.tsx", "apps/web/src/components/optical-landing.module.css",

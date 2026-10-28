@@ -1,37 +1,61 @@
 # CI の構成
 
-PR と `main` で実行される CI のジョブと、その選ばれ方をまとめる。手元では `python3 scripts/dev.py check` で、PR の `python` ジョブと `web` ジョブと同じ検査を実行できる（[CONTRIBUTING](../CONTRIBUTING.md)）。
+`main` は公開サイトに自動でデプロイされる。そのため CI は、`main` を常に検証済みに保ちながら、PR の待ちを短くするように組む。
 
-## PR で実行されるジョブ
-
-PR では、変更したファイルが影響しうるジョブだけを実行する。どのファイルがどの領域に当たるかは、`scripts/ci_changes.py` が決める。
-
-| 領域 | 主な内容 | 選ばれる変更 |
+| 段階 | 実行するジョブ | 役割 |
 |---|---|---|
-| `python` | Ruff、mypy、Linux でのテスト一式、解析計画と解析提案の検査、依存パッケージの監査と SBOM | 解析、API、ワーカー、`scripts`、`tests`、`engines`、`infra` |
-| `web` | API 契約の再生成、Next.js の検査とビルド、解析提案の Worker、公開サイトのブラウザ試験 | `apps/web`、契約、解析提案の Worker、解析・API・ワーカー |
-| `lp` | Next.js の検査とビルド、LP のブラウザ試験 | LP の部品・素材・試験だけ。`web` が選ばれたときは実行しない |
-| `fiji` | 実際の Fiji、API とブラウザの連携、コンテナ、ローカル版の Web | `apps/web`、契約、解析・API・ワーカー、`scripts`、`tests`、Fiji、`infra` |
-| `windows` | Windows のセットアップとランチャーの試験、Python 3.14 でのテスト一式 | 解析・API・ワーカー、`scripts`、`tests`、`engines`、ローカル版の書き出し |
+| PR | 変更したファイルに関係するジョブ（統合試験を除く） | マージの条件。最新の `main` を取り込んだ head で成功してからマージする |
+| `main` | すべてのジョブ（統合試験を含む） | 配布の根拠。失敗したら次の PR より先に直す |
 
-**LP だけの変更**：LP の部品（`PublicLanding`、`Landing*`、`HeroFilm`、`optical-landing.module.css`）、`lp-metrics`、LP のブラウザ試験（`marketing`、`lp-*`）は `lp` だけを選ぶ。LP の素材（`apps/web/public/marketing/**`）と `fixtures/public/allowlist.json` は Windows 版の配布物にも含まれるため、`python` と `lp` を選ぶ。`lp` は API 契約の再生成、解析提案の Worker、デモのブラウザ試験、依存の記録を省き、pnpm のストアと試験用のブラウザをキャッシュから復元する。`web` も同じ LP の試験を実行するため、`web` が選ばれたとき（`main` への push を含む）は `lp` を実行しない。ヒーロー映像の制作用スクリプト（`scripts/lp_film/**`）は、どの領域も選ばない。
+手元では `python3 scripts/dev.py check` で、PR の `python` と `web` のジョブと同じ検査を実行できる（[CONTRIBUTING](../CONTRIBUTING.md)）。マージの手順は[チーム開発ルール](team-development.md)の「開発の流れ」にある。
 
-**文書だけの変更**：`docs/**`、ルートの Markdown、`.github/` 配下の Markdown（PR・Issue のテンプレート）、`LICENSE`、`NOTICE` は、どの領域も選ばない。`fixtures/public/allowlist.json` の変更が `docs/` の画像の登録だけの場合も、文書の変更として扱い、どの領域も選ばない。
+## ジョブ
 
-**すべての領域を選ぶ変更**：workflow、lockfile、パッケージの定義、`fixtures/` のその他のファイル、規則にないパス。トップレベルのディレクトリを追加するときは、`scripts/ci_changes.py` の規則とその試験も更新する。
+| ジョブ | 確かめること | PR で実行する条件 |
+|---|---|---|
+| `python` | Linux でのテスト一式、lint と型、依存の監査、シークレット走査 | 常に（テスト一式は Python に関わる変更のとき） |
+| `web` | Web のビルドと試験、API 契約、公開サイトのブラウザ試験、ローカル版の Web 出力と配布物の境界 | Web・API に関わる変更 |
+| `lp` | LP のビルドとブラウザ試験 | LP だけの変更 |
+| `local-windows` | Windows のセットアップとランチャー | Windows 版に関わる変更 |
+| `windows-tests` → `python-windows-314` | Windows・Python 3.14 でのテスト一式を 4 つに分けて並列に実行し、1 回の完全な実行として照合する | Windows 版に関わる変更 |
+| `fiji-browser` | 実際の Fiji、API とブラウザの連携、本番のコンテナ | `main` だけ |
+| `cellpose-gpu-image` | GPU 推論のイメージが CPU 版と同じラベルを返すこと | `main` だけ |
+| `windows-installed` | 配布 ZIP の新規導入と、前の版からの更新 | `main` だけ |
 
-公開ツリーの検査、文書のリンク検査、全履歴のシークレット走査は、どの変更でも実行する。Python のテスト一式が選ばれないときは、配布物に含める文書の試験を実行する。実行しなかったジョブは、ブランチ保護には成功として報告される。
+ジョブは並行して走り、PR の待ちは最も長いジョブで決まる。Windows のテスト一式は 1 つのジョブで約 34 分かかっていたため、テストのモジュール単位で 4 つに分けた。分けた結果は `scripts/merge_test_shards.py` が、同じ収集のすべての分割がそろい、合わせて全テストになることを確かめてから 1 回の実行にまとめ、科学的な回帰試験のレシートを作る（[独立した確認](scientific-review.md)）。分け方は、モジュールごとの所要時間の記録（`tests/shard_weights.json`）で均す。記録にない新しいモジュールは、1 テストあたりの平均で見積もる。偏りが出たら、`scripts/merge_test_shards.py weights` で記録を作り直す。
 
-図の描画に使う日本語フォント（`fonts-noto-cjk`、約 61 MB）は、Linux のジョブで `scripts/install_figure_font.sh` が導入する。遅いミラーが取得に 20 分以上かかり、`python` ジョブが試験の途中で 30 分の上限に達したことがあるため、取得が 20 秒続けて遅いミラーは打ち切り、別の公式ミラーで続きから取得する。導入するのは、apt の署名済みの索引にある SHA-256 と一致したファイルだけで、どのミラーからでも同じパッケージになる。照合したファイルは `dpkg` で直接導入する。`apt-get` に渡すと、同じ版を遅いミラーから取り直すことがあるため。
+## ジョブの選び方
 
-## main で実行される統合試験
+PR では、`scripts/ci_changes.py` が、`main` との差分のファイルからジョブを選ぶ。規則の正本はこのスクリプトで、試験は `tests/test_ci_changes.py` にある。
 
-`fiji-browser`（実際の Fiji、API とブラウザの連携、コンテナ、ローカル版の Web）、`cellpose-gpu-image`、`windows-installed`（配布 ZIP の新規導入と更新）の 3 つの統合試験は、PR では実行しない。`main` への push、マージキュー、手動実行のときに、すべての領域とあわせて実行する。
+- 文書だけの変更（`docs/**`、ルートの Markdown、PR・Issue のテンプレート、`LICENSE`、`NOTICE`）では、重いジョブを実行しない。
+- LP だけの変更では `lp` だけを実行する。LP の素材は Windows 版にも含まれるため、`python` も実行する。
+- workflow、lockfile、パッケージの定義、規則にないパスでは、すべてのジョブを実行する。トップレベルのディレクトリを追加するときは、規則と試験も更新する。
 
-Windows 版は、この 3 つを含む 7 つのジョブが、配布する `main` のコミットですべて成功している場合にだけ配布する。`main` で失敗した場合は、次の配布までに修正するか取り消す。
+公開ツリー・文書のリンク・シークレット走査は、どの変更でも実行する。実行しなかったジョブは、ブランチ保護には成功として報告される。
+
+## マージ前に境界を確かめる
+
+統合試験は PR では実行しないため、統合試験で初めて見つかっていた失敗のうち、数十秒で確かめられるものは PR のジョブで確かめる。
+
+- **ローカル版の Web 出力**（`web`）：生成するファイルが配布物の許可リストに収まるか。例：`sitemap.xml` を加えたとき。パッケージ化のスクリプトを変えたときも実行する。
+
+公開デモがブラウザで動かす Cytellect のホイールは、PR では作り直しを求めない（Python を変える PR がすべてホイールで競合するため）。`main` への push で解析のソースとのずれを警告として示し、ずれていれば作り直す（[公開デモ](showcase.md)）。デプロイの中で作る形に移す予定。
+
+## 配布の条件
+
+Windows 版は、配布する `main` のコミットで次の 7 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。
+
+`python`、`web`、`fiji-browser`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`python-windows-314`
+
+`main` で失敗した場合は、次の配布までに修正するか取り消す。
 
 ## 依存パッケージの記録とシークレット走査
 
 シークレット走査は、固定版の gitleaks を検証してから、Git の全履歴と追跡中のファイルを調べる。そのため CI は `fetch-depth: 0` で checkout し、保存するのは件数と規則 ID だけ。
 
-依存パッケージの記録は、Python パッケージのライセンスの根拠や、Web の直接依存のライセンス本文が欠けていると失敗する。この分類と表示の収集は根拠の確認であって、法的な適合性の判断ではない。範囲は [OSS の管理](oss.md) を参照する。依存の記録とシークレット走査の要約は 7 日で消える。生の検出結果、ログ、研究データを、成果物のアップロード対象に加えない。
+依存パッケージの記録は、Python パッケージのライセンスの根拠や、Web の直接依存のライセンス本文が欠けていると失敗する。この分類と表示の収集は根拠の確認であって、法的な適合性の判断ではない。範囲は [OSS の管理](oss.md) を参照する。依存の記録とシークレット走査の要約は 7 日で消える。生の検出結果、ログ、研究データを、成果物のアップロード対象に加えない。Windows のテストの分割は、テストの名前・結果・所要時間だけを 1 日だけ残す。
+
+## 日本語フォントの導入
+
+図の描画に使う日本語フォント（`fonts-noto-cjk`、約 61 MB）は、Linux のジョブで `scripts/install_figure_font.sh` が導入する。遅いミラーで `python` ジョブが 30 分の上限に達したことがあるため、取得が 20 秒続けて遅いミラーは打ち切り、別の公式ミラーで続きから取得する。導入するのは、apt の署名済みの索引にある SHA-256 と一致したファイルだけで、`dpkg` で直接導入する（`apt-get` は同じ版を遅いミラーから取り直すことがある）。

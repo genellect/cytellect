@@ -12,11 +12,52 @@ import pytest
 def pytest_addoption(parser):
     parser.addoption("--scientific-collection", metavar="PATH", default=None,
                      help="Write a collection receipt bound to this run's JUnit XML")
+    parser.addoption("--shard", metavar="INDEX/COUNT", default=None,
+                     help="Run one of COUNT deterministic shards of whole test modules "
+                          "(CI; scripts/merge_test_shards.py rebuilds the full receipt)")
+
+
+def _shard(value):
+    match = re.fullmatch(r"([0-9]+)/([1-9][0-9]*)", value or "")
+    if not match or int(match.group(1)) >= int(match.group(2)):
+        raise pytest.UsageError("--shard must be INDEX/COUNT with 0 <= INDEX < COUNT")
+    return int(match.group(1)), int(match.group(2))
+
+
+def _module(item):
+    return item.nodeid.split("::", 1)[0].replace("\\", "/")
+
+
+WEIGHTS = Path(__file__).with_name("shard_weights.json")
+
+
+def module_weights(counts):
+    """Recorded seconds per module (scripts/merge_test_shards.py weights); new modules get the average per test."""
+    try:
+        recorded = json.loads(WEIGHTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        recorded = {}
+    known = [module for module in counts if isinstance(recorded.get(module), (int, float))]
+    per_test = sum(recorded[m] for m in known) / sum(counts[m] for m in known) if known else 1.0
+    return {module: float(recorded[module]) if module in known else per_test * count for module, count in counts.items()}
+
+
+def assign_modules(weights, shards):
+    """Whole modules to shards, heaviest first onto the lightest shard; the same collection always splits the same way."""
+    loads, assignment = [0.0] * shards, {}
+    for module, weight in sorted(weights.items(), key=lambda entry: (-entry[1], entry[0])):
+        target = min(range(shards), key=lambda index: (loads[index], index))
+        assignment[module] = target
+        loads[target] += weight
+    return assignment
 
 
 def pytest_configure(config):
+    if config.getoption("shard"):
+        _shard(config.getoption("shard"))
     if config.getoption("scientific_collection"):
-        config._cytellect_collection = {"collected": [], "deselected": [], "collection_errors": 0}
+        config._cytellect_collection = {"collected": [], "deselected": [], "other_shards": [],
+                                        "collection_errors": 0}
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
@@ -25,6 +66,15 @@ def pytest_collection_modifyitems(config, items):
     if state is not None:
         state["collected"] = list(items)
     yield
+    # After marker deselection, keep this shard's modules. Items of other shards are not
+    # "deselected": the receipt records them separately so one shard never reads as a full run.
+    if config.getoption("shard"):
+        index, count = _shard(config.getoption("shard"))
+        assignment = assign_modules(module_weights(Counter(_module(item) for item in items)), count)
+        others = [item for item in items if assignment[_module(item)] != index]
+        items[:] = [item for item in items if assignment[_module(item)] == index]
+        if state is not None:
+            state["other_shards"] = others
 
 
 def pytest_deselected(items):
@@ -63,6 +113,7 @@ def pytest_sessionfinish(session, exitstatus):
         return
     state = config._cytellect_collection
     collected, deselected, selected = state["collected"], state["deselected"], session.items
+    others = state["other_shards"]
     reasons = []
     if list(config.args) != ["tests"]:
         reasons.append("full_tests_tree_required")
@@ -82,9 +133,11 @@ def pytest_sessionfinish(session, exitstatus):
     collected_ids = {item.nodeid for item in collected}
     selected_ids = {item.nodeid for item in selected}
     deselected_ids = {item.nodeid for item in deselected}
+    other_ids = {item.nodeid for item in others}
     if (len(collected_ids) != len(collected) or len(selected_ids) != len(selected)
             or len(deselected_ids) != len(deselected) or selected_ids & deselected_ids
-            or collected_ids != selected_ids | deselected_ids):
+            or (selected_ids | deselected_ids) & other_ids
+            or collected_ids != selected_ids | deselected_ids | other_ids):
         reasons.append("collection_selection_mismatch")
     selected_modules, selected_invalid = _modules(selected)
     deselected_modules, deselected_invalid = _modules(deselected)
@@ -108,6 +161,11 @@ def pytest_sessionfinish(session, exitstatus):
                "collected": len(collected), "selected": len(selected), "deselected": len(deselected),
                "selected_modules": selected_modules, "deselected_modules": deselected_modules,
                "junit_sha256": junit_sha}
+    if config.getoption("shard"):
+        index, count = _shard(config.getoption("shard"))
+        identities = "\n".join(sorted(item.nodeid.replace("\\", "/") for item in collected)).encode()
+        receipt["shard"] = {"index": index, "count": count, "other_shards": len(others),
+                            "collected_sha256": hashlib.sha256(identities).hexdigest()}
     output = Path(destination)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
