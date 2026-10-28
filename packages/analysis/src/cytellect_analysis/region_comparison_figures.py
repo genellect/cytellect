@@ -7,7 +7,7 @@ from .descriptive_figures import _source_measurement_policy, _ylabel
 from .exports_csv import write_csv
 from .figures import render_figures
 from .region_comparison_contracts import RegionComparisonResult
-from .statistical_methods import methods_metadata, readable_comparison_methods
+from .statistical_methods import methods_metadata, readable_comparison_methods, template_version
 
 FIGURE_VERSION = "1.0.0"
 
@@ -56,7 +56,7 @@ def _caption(result):
 
 def region_comparison_methods(result, *, methods_template=None):
     if methods_metadata(methods_template):
-        return readable_comparison_methods(result)
+        return readable_comparison_methods(result, template_version(methods_template))
     policy = _source_measurement_policy(result)
     if getattr(policy, "mode", None) in ("raw_intensity", "automatic_background"):
         return readable_comparison_methods(result)

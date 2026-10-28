@@ -4,6 +4,7 @@ import {ApiError, errorCodeMessage, errorMessage, request} from "../api";
 import type {Point} from "../types";
 import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {effectiveChannelAssignments} from "./channel-assignments";
+import {intakePath} from "./dropped-files";
 import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, type Grouping} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
 import {cellposeDetector,nclCellposeDetector,isCellposeDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
@@ -29,7 +30,10 @@ export interface RuntimeSnapshot {
   /** True while fields and saved results load (nothing to stop; analyses wait). */
   loading: boolean;
   activeTarget: ReviewTarget; settings: RuntimeSettings; proposal: ValidatedProposal | null; processing: ProposalProcessing | null; importIssues: Grouping["issues"];
+  /** Imports recorded in the ledger without a field; the comparison needs each completed or excluded with a reason. */
+  unfinishedImports: UnfinishedImport[];
 }
+export interface UnfinishedImport {entry:string; name:string|null; reason:string|null}
 type Adapter = ReturnType<typeof createApiAdapter>;
 export interface RuntimeCandidate {result:SavedResult;recipe:Recipe;settingsFingerprint:string;runId?:string;runState?:WorkspaceRun["state"];backgroundPending?:boolean}
 type RuntimeTargets = Partial<Record<ReviewTarget, TargetResult>>;
@@ -40,6 +44,10 @@ type Dependencies = {adapter?:Adapter; loadPreview?:typeof loadReviewPreview; re
 const emptyData = (): ReviewData => ({workspaceId:"",title:"画像解析",fields:[],channels:[]});
 const labels = {nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
 const message = (error:unknown) => error instanceof ApiError ? errorMessage(error) : error instanceof Error ? errorCodeMessage(error.message) : "処理できませんでした。";
+// Each import gets a private batch folder; researchers only ever see their own relative path.
+const shownPath = (path:string) => path.replace(/^import-[0-9a-f-]+\/(?:image-[0-9a-f-]+\/)?/,"");
+const shownIssue = (issue:Grouping["issues"][number]):Grouping["issues"][number] => ({...issue,
+  ..."path" in issue?{path:shownPath(issue.path)}:{},..."paths" in issue?{paths:issue.paths.map(shownPath)}:{},..."field" in issue?{field:shownPath(issue.field)}:{}});
 const fingerprint = (value:unknown):string => JSON.stringify(value,(_,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
 // The API stores an absent nucleolar parent as null (RegionCompartmentRecipe); the client omits it.
 const comparableRecipe = (recipe:Recipe) => {const {nucleolar_revision_id,...rest}=recipe as Recipe&{nucleolar_revision_id?:string|null};return nucleolar_revision_id==null?rest:recipe;};
@@ -122,7 +130,7 @@ export function runtimeProposalProcessing(channel:ChannelDefinition,settings:Run
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
-  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[]};
+  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],unfinishedImports:[]};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify(value)}));
   let specification:RuntimeSpecification={version:0,spec:null},specificationDirty=false;
@@ -132,6 +140,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   let currentTargets=new Map<string,RuntimeTargets>(),registered=new Map<string,ImportedField>();
   const omeFiles=new Map<string,File>();
   const added:AddedFile[]=[],files=new Map<string,File>(),uploadKeys=new Map<string,string>(),uploaded=new Map<string,string>(),names=new Map<string,string>();
+  // What this session knows about an import whose ledger entry has no field yet (names are not stored by the API).
+  const failedImports=new Map<string,{name:string;reason:string|null;key:string;paths:string[]}>();
   const candidateStore=new Map<string,Partial<Record<ReviewTarget,RuntimeCandidate>>>();
   const histories=new Map<string,{undo:TargetResult[];redo:TargetResult[]}>(),listeners=new Set<()=>void>();
   function publish(patch:Partial<RuntimeSnapshot>){if(closed)return;state={...state,...patch};for(const listener of listeners)listener();}
@@ -186,7 +196,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         processing=preserveLegacyMarker||preserveHistoricalCellpose?processing:specification.spec.processing;
       }
       settings=visibleNucleolarSettings(settings,processing);
-      publish({assignments,settings,processing,activeTarget:recordedSpecification.spec?.target??state.activeTarget});replaceData(next);
+      const unfinishedImports=(saved.selection?.entries??[]).filter(entry=>!entry.field_id&&!entry.exclusion_reason).map(entry=>({entry:entry.id,name:failedImports.get(entry.id)?.name??null,reason:failedImports.get(entry.id)?.reason??null}));
+      publish({assignments,settings,processing,activeTarget:recordedSpecification.spec?.target??state.activeTarget,unfinishedImports});replaceData(next);
     }catch(error){releasePreview(next);throw error;}
   }
   async function exclusive<T>(operation:string,task:()=>Promise<T>){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");publish({busy:true,error:"",operation});try{return await task();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}}
@@ -334,6 +345,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       ...(firstFigure?{figure:{...figure,metric:metricMap[firstFigure.metric]??firstFigure.metric,channel_id:firstFigure.channel}}:{})}};
     publish({processing:automatic?processing?{...processing,signal:null}:null:state.processing,settings,activeTarget:target});
   }
+  function dropImport(key:string,paths:string[]){for(const path of paths){files.delete(path);omeFiles.delete(path);const index=added.findIndex(value=>value.path===path);if(index>=0)added.splice(index,1);}uploadKeys.delete(key);}
   async function showImported(saved:ImportedField,key:string){uploaded.set(key,saved.id);names.set(saved.id,key.split("/").at(-1)||key);registered.set(saved.id,saved);const partial=await loadPreview(workspace(),[saved.id]);const freshField=partial.fields.find(value=>value.id===saved.id);if(freshField&&state.data){freshField.label=names.get(saved.id)||freshField.label;const retained=state.data.fields.filter(value=>value.id!==saved.id);const previous=state.data.fields.find(value=>value.id===saved.id);if(previous)releasePreview({...partial,fields:[previous]});const channels=[...state.data.channels];for(const channel of freshField.channels)if(!channels.some(value=>value.id===channel.id))channels.push(channel);publish({data:{...state.data,fields:[...retained,freshField],channels},operation:`${uploaded.size} 視野を登録済み`});}
   }
   /** The two fields a saved two-group design opens on, read before any image; undefined otherwise. */
@@ -353,7 +365,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
-    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[]});replaceData(emptyData());},
+    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();failedImports.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],unfinishedImports:[]});replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
     nclDetector(field:string){
       try {const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);return recipe.detector?.engine==="cytellect-ncl-objects"?recipe.detector:undefined;}catch{return undefined;}
@@ -427,7 +439,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       // A batch has its own identity: names in a later drop cannot overwrite earlier pixels.
       const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[],addedIds:string[]=[];
       for(const file of Array.from(list)){
-        const originalPath=file.webkitRelativePath||file.name;if(!isSupportedImage(originalPath))continue;
+        const originalPath=intakePath(file);if(!isSupportedImage(originalPath))continue;
         if(file.size>256*1024*1024)throw new Error("画像ファイルは256 MiB以下にしてください。");
         const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer()),sha256=Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,"0")).join("");
 
@@ -435,10 +447,28 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         if(fresh.some(value=>value.path===path))path=`${batch}/image-${crypto.randomUUID()}/${originalPath}`;
         if(await tiffHasOmeMetadata(file))omeFiles.set(path,file);else fresh.push({path,size:file.size,sha256,inputMode:await tiffInputMode(file)});files.set(path,file);
       }
-      if(!fresh.length&&!added.length&&!omeFiles.size)throw new Error("TIFF画像を選択してください。");added.push(...fresh);const grouping=groupFiles(added,mode);publish({importIssues:grouping.issues});if(grouping.issues.some(value=>value.kind==="duplicate_channel"))throw new Error("同じ視野・チャンネルの画像が複数あります。画像の対応を確認してください。");
+      if(!fresh.length&&!added.length&&!omeFiles.size)throw new Error("TIFF画像を選択してください。");added.push(...fresh);const grouping=groupFiles(added,mode);publish({importIssues:grouping.issues.map(shownIssue)});if(grouping.issues.some(value=>value.kind==="duplicate_channel"))throw new Error("同じ視野・チャンネルの画像が複数あります。画像の対応を確認してください。");
       if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
-      try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);const saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);await showImported(saved,field.key);addedIds.push(saved.id);} for(const [key,file] of omeFiles){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);const saved=await adapter.uploadOme(workspace(),file,entry);await showImported(saved,key);addedIds.push(saved.id);} } finally {await refresh(workspace());}
+      // A file the API rejects is reported by name and not resent; its ledger entry stays until the researcher excludes it with a reason.
+      const rejected=new Map<string,string[]>();
+      const reject=(key:string,paths:string[],error:unknown)=>{
+        const entry=uploadKeys.get(key),name=paths.map(shownPath).join("、");
+        if(!(error instanceof ApiError&&error.status===422)){if(entry)failedImports.set(entry,{name,reason:null,key,paths});throw error;}
+        rejected.set(message(error),[...(rejected.get(message(error))??[]),name]);if(entry)failedImports.set(entry,{name,reason:message(error),key,paths});
+        dropImport(key,paths);
+      };
+      try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);let saved:ImportedField;try{saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);}catch(error){reject(field.key,Object.values(field.files).map(file=>file.path),error);continue;}await showImported(saved,field.key);addedIds.push(saved.id);} for(const [key,file] of [...omeFiles]){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);let saved:ImportedField;try{saved=await adapter.uploadOme(workspace(),file,entry);}catch(error){reject(key,[key],error);continue;}await showImported(saved,key);addedIds.push(saved.id);} } finally {await refresh(workspace());}
+      if(rejected.size){publish({importIssues:groupFiles(added,mode).issues.map(shownIssue)});
+        // One line per reason, naming at most three files: twelve label images are one problem, not twelve.
+        const lines=[...rejected].map(([reason,names])=>`${names.slice(0,3).join("、")}${names.length>3?` ほか ${names.length-3} 件`:""}：${reason}`);
+        throw new Error(`登録できなかった画像が ${[...rejected.values()].flat().length} 件あります。${lines.join(" ")} 比較の前に、「取込」の一覧で理由を付けて除外してください。`);}
       return addedIds;
+    });},
+    /** Records why imports that never became fields are left out; they are never dropped silently. */
+    excludeImports(entries:string[],reason:string){return exclusive("登録できなかった画像を除外中",async()=>{
+      if(!reason.trim())throw new Error("除外の理由を入力してください。");await checkCurrent();
+      for(const entry of entries){await adapter.excludeField(workspace(),entry,reason.trim());const known=failedImports.get(entry);if(known)dropImport(known.key,known.paths);failedImports.delete(entry);}
+      await refresh(workspace());
     });},
     /** The saved experiment design (groups, runs, samples), or null. */
     experiment(){return specification.spec?.experiment??null;},

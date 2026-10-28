@@ -105,6 +105,8 @@ PNG and label-layout rejection. It does not change the existing inferential
 renderer. Points show selected observations and open squares show field
 medians. Horizontal jitter uses a recorded seed of zero and never changes values.
 Fields receive short display labels whose actual IDs are in the source mapping.
+The mapping also gives a field's registered display name when its label does not
+show it.
 The selected acquired channel is named on the axis, and the caption records
 its exact ID, label and actual stain (or explicitly unrecorded stain).
 Counts are explicitly named observations, not an unlabeled independent `n`.
@@ -139,6 +141,13 @@ in the page plan; explicitly excluded failed fields retain their separate
 diagnostics and unknown observation counts. Pagination never pools values,
 selects observations or infers an independent replicate count. Jitter is
 generated once in global field order with seed zero.
+
+A field's registered display name is its global label when it is unique, at most
+12 columns wide (a wide character counts two), not another field's number and,
+for English figures, printable ASCII. Otherwise the label is its global field
+number. The legend's mapping lists every label with its display name and field ID,
+and `figure-data.json` records the labels. Fields without a name keep the numbered
+labels of older outputs.
 
 Each page provides editable SVG/PDF and a PNG preview. A single complete set of
 CSV tables, Methods and source JSON covers all pages. Policy 2.0.0 fixes CSV
@@ -177,6 +186,24 @@ plot settings, changing only explicitly selected width/language. This creates a
 new job; previous outputs and failure records remain intact. Public/synthetic
 software checks do not establish private-image validity or observed researcher
 usability; the M4 and M5 gates remain open.
+
+## Manual mask edits
+
+New generic-region results carry `mask_corrections` 1.0.0. It is read from the
+measured revision's provenance only: per measured field, the edit revisions since
+the masks were initialized, the regions deleted, added, redrawn, split and merged,
+and the measured region count. The last recorded initialize or edit must be the
+measured mask revision; otherwise the description fails with
+`descriptive_mask_history_mismatch`. The initial count is reconstructed from the
+measured mask and the fixed label operations; no other revision is read. Edits to
+pinned parent masks (nuclei of a compartment or cell set) are named by revision,
+not counted.
+
+Methods template 1.1.0 and the legend state these counts; the statistics field
+table shows them beside the exclusion counts. A deleted region is absent from the
+measured mask, so it is not an explicit exclusion and does not change the
+observation partition. Results created before this ledger keep their saved shape;
+export and replay recompute it only when the saved result has it.
 
 ## Inspecting a saved region measurement
 

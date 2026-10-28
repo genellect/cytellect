@@ -15,7 +15,8 @@ jobs:
   package:
     if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
-    timeout-minutes: 60
+    # The two-group comparison of 120 public JUMP images through installed Fiji adds up to an hour.
+    timeout-minutes: 150
     permissions:
       contents: read
       checks: read
@@ -131,11 +132,17 @@ jobs:
           $env:CYTELLECT_REAL_OUTPUT = Join-Path $env:RUNNER_TEMP 'workspace-evidence'
           $env:CYTELLECT_REQUIRE_REAL_FIJI = '1'
           $env:CYTELLECT_COMPARISON_REAL = '1'
+          # Goals C1/C11: two groups x three runs of registered public JUMP images through installed Fiji.
+          $jump = Join-Path $env:RUNNER_TEMP 'public-jump-plk1'
+          & $python -B scripts/public_jump_plk1.py --output $jump
+          if ($LASTEXITCODE -ne 0) { throw 'Registered JUMP download failed' }
+          $env:CYTELLECT_JUMP_PLK1_INPUTS = $jump
+          $env:CYTELLECT_JUMP_PLK1_OUTPUT = Join-Path $env:RUNNER_TEMP 'jump-evidence'
           $receipt = @{
             schema = 'cytellect-installed-release-acceptance/1'; source_commit = $env:GITHUB_SHA
             version = $env:RELEASE_VERSION; archive_sha256 = (Get-FileHash -LiteralPath $env:CYTELLECT_RELEASE_ZIP).Hash.ToLowerInvariant()
             harness_sha256 = (Get-FileHash -LiteralPath 'scripts/verify_installed_regions.py').Hash.ToLowerInvariant()
-            browser = @{ passed = $false; expected_cases = 26 }
+            browser = @{ passed = $false; expected_cases = 27 }
             numerical_replay_passed = $false; launcher_stopped = $false
             scope = 'Installed public microscopy, planning and retry workflows with generated numerical references; no private-study or human-usability acceptance'
           }
@@ -154,12 +161,12 @@ jobs:
             $localSetup = Invoke-RestMethod -Uri "$env:CYTELLECT_WEB_URL/v1/local/setup"
             if ($localSetup.retention_mode -ne 'manual') { throw 'Installed application is not keeping workspaces until deletion' }
             $receipt.retention_mode = $localSetup.retention_mode
-            pnpm --filter @cytellect/web test:e2e tests/local-workspace.spec.ts tests/generic-workspace.spec.ts tests/nuclear-region-comparison.spec.ts tests/plan-batch-workflow.spec.ts tests/region-trace.spec.ts tests/batch-common-metadata.spec.ts tests/comparison-hierarchy.spec.ts tests/area-only.spec.ts tests/preview-display.spec.ts tests/descriptive-pages.spec.ts tests/native-recipe-guidance.spec.ts tests/region-quality.spec.ts tests/draft-navigation.spec.ts tests/common-statistics.spec.ts tests/workspace-real-fiji.spec.ts tests/workspace-comparison-real.spec.ts --reporter=json
+            pnpm --filter @cytellect/web test:e2e tests/local-workspace.spec.ts tests/generic-workspace.spec.ts tests/nuclear-region-comparison.spec.ts tests/plan-batch-workflow.spec.ts tests/region-trace.spec.ts tests/batch-common-metadata.spec.ts tests/comparison-hierarchy.spec.ts tests/area-only.spec.ts tests/preview-display.spec.ts tests/descriptive-pages.spec.ts tests/native-recipe-guidance.spec.ts tests/region-quality.spec.ts tests/draft-navigation.spec.ts tests/common-statistics.spec.ts tests/workspace-real-fiji.spec.ts tests/workspace-comparison-real.spec.ts tests/workspace-jump-plk1.spec.ts --reporter=json
             $browserExit = $LASTEXITCODE
             if (Test-Path -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE) {
               $browser = Get-Content -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_FILE -Raw | ConvertFrom-Json
-              $receipt.browser = @{ passed = ($browserExit -eq 0 -and $browser.stats.expected -eq 26 -and $browser.stats.unexpected -eq 0 -and $browser.stats.skipped -eq 0 -and $browser.stats.flaky -eq 0)
-                expected_cases = 26; passed_cases = $browser.stats.expected; failed_cases = $browser.stats.unexpected
+              $receipt.browser = @{ passed = ($browserExit -eq 0 -and $browser.stats.expected -eq 27 -and $browser.stats.unexpected -eq 0 -and $browser.stats.skipped -eq 0 -and $browser.stats.flaky -eq 0)
+                expected_cases = 27; passed_cases = $browser.stats.expected; failed_cases = $browser.stats.unexpected
                 skipped_cases = $browser.stats.skipped; flaky_cases = $browser.stats.flaky }
             }
             if (-not $receipt.browser.passed) { throw 'Installed browser verification failed or incomplete' }
@@ -222,5 +229,5 @@ jobs:
       - name: Create a draft prerelease for final review
         shell: bash
         run: |
-          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned signed Python setup, twenty-six installed browser cases covering the new workspace with registered BBBC007 originals and an explicit independent-unit comparison, public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
           gh release create "v$RELEASE_VERSION" release/* --verify-tag --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"

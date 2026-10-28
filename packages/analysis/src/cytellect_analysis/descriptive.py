@@ -16,6 +16,7 @@ from .descriptive_contracts import (
     parse_descriptive_request,
 )
 from .gfp_selection import GATE_KEYS, finish_gated_description, gate_source_observations
+from .region_contracts import DISPLAY_NAME
 from .region_measurement_v2 import region_table_from_json, require_region_metric
 from .region_policy import MEASUREMENT_POLICY, measurement_protocol
 from .regions import CHANNEL_SPEC, Calibration2D
@@ -44,7 +45,7 @@ SAFE_ERROR_CODES = frozenset({
     "descriptive_page_preset_unsupported", "descriptive_page_policy_required", "descriptive_page_limit_exceeded",
     "descriptive_output_manifest_mismatch", "descriptive_output_source_mismatch",
     "descriptive_output_artifact_mismatch", "descriptive_output_artifact_not_found",
-    "descriptive_output_source_required",
+    "descriptive_output_source_required", "descriptive_mask_history_mismatch",
 })
 
 
@@ -337,6 +338,13 @@ def prepare_region_observations(report, field_snapshot, selector):
                        "channel_provenance": [item.model_dump(mode="json") for item in table.channel_provenance]})
         if measurement is not None:
             fields[-1].update(measurement_protocol=measurement_protocol(measurement), measurement=measurement.model_dump(mode="json"))
+        # The researcher's name for the field labels figures; snapshots without one keep their shape.
+        name = field_snapshot[fid].get("display_name")
+        if name is not None:
+            try:
+                fields[-1]["display_name"] = DISPLAY_NAME.validate_python(name)
+            except ValueError:
+                raise ValueError("descriptive_invalid_metadata") from None
     if len(definitions) > 1:
         raise ValueError("descriptive_region_definition_mismatch")
     if len(identities) > 1:

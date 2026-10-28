@@ -112,7 +112,7 @@ gradient is not removed (b is one global median, the tile-median range shows the
 spread); a local diffuse blob is excluded; field-wide diffuse signal is reported
 as background, which is why the candidate is never treated as confirmed.
 Reproducibility exports use bundle format `/4` with measurement Methods 1.4.0.
-Descriptive and comparison Methods (statistical Methods template 1.0.0) describe
+Descriptive and comparison Methods (statistical Methods templates 1.0.0 and 1.1.0) describe
 protocol 4.0.0 sources from their saved provenance, as listed in
 [Statistical Methods documents](statistical-methods.md); common statistics name
 the automatic candidate median as the correction basis. None of these steps

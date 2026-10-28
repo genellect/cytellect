@@ -9,7 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from .descriptive_contracts import PagedDescriptiveOutput, PagedDescriptiveRequest, parse_descriptive_request
-from .descriptive_figures import _caption, descriptive_methods, render_descriptive
+from .descriptive_figures import _caption, descriptive_methods, labelled, render_descriptive
 from .descriptive_pages import VERSION, DescriptivePresentationError, page_layout, render_pages
 from .exports_csv import csv_sha256, write_csv
 from .images import sha256
@@ -87,8 +87,8 @@ def _source_document(result, layout, font_metadata, csv_hashes, methods_template
             "font_metadata": font_metadata, "jitter_seed": 0, "source_hashes": csv_hashes}
 
 
-def _output_caption(result, layout, status):
-    text = _caption(result, layout["labels"])
+def _output_caption(result, layout, status, methods_template=None):
+    text = _caption(result, layout["labels"], methods_template)
     count, pages = result["counts"]["observations"], len(layout["page_plan"])
     if result["spec"]["plot"]["language"] == "ja":
         statement = (f"全{pages}ページに合計{count}観測を表示した。" if status == "ready" else
@@ -101,7 +101,7 @@ def _output_caption(result, layout, status):
     text += "\nPage / saved field mapping (field numbers are global; all pages share one Y scale):\n"
     for page in layout["page_plan"]:
         text += f"- Page {page['page_index']}: " + "; ".join(
-            f"{layout['labels'][fid]}: field_id={fid}" for fid in page["field_ids"]) + "\n"
+            f"{labelled(result, layout['labels'], fid)}: field_id={fid}" for fid in page["field_ids"]) + "\n"
     if status != "ready":
         text += "The mapping describes the planned pages; no partially rendered page is published.\n"
     return text
@@ -145,7 +145,7 @@ def render_descriptive_output(result, output: Path, *, methods_template=None):
                     shutil.move(str(staging / name), str(output / name))
                 pages.append({"page_index": plan["page_index"], "files": page_files})
     status = "ready" if error is None else "tables_only"
-    (output / "figure-caption.md").write_text(_output_caption(result, layout, status), encoding="utf-8")
+    (output / "figure-caption.md").write_text(_output_caption(result, layout, status, methods_template), encoding="utf-8")
     methods = _methods_text(result, status, methods_template)
     (output / "methods.md").write_text(methods, encoding="utf-8")
     csv_hashes = {name: sha256(output / name) for name in data_files}

@@ -14,10 +14,14 @@ export interface ChannelAssignment {channel_id: string; stain: string | null; ro
 export interface ChannelAssignmentGroup {id:string;field_ids:string[];channel_ids:string[];assignments:ChannelAssignment[]}
 export interface ChannelAssignments {version: number; assignments: ChannelAssignment[];groups?:ChannelAssignmentGroup[];global_field_ids?:string[]}
 export interface FieldLinks {version:number;entries:Array<{field_id:string;kind:"analysis"|"reference";reference_for_field_id:string|null;previous_exclusion?:string|null}>}
+/** Where a registered channel's stain name came from (region field ChannelSpec.identity_source). */
+export type StainSource = "filename" | "ome_metadata" | "user_entered" | "unresolved";
 export interface ImportedField {
   id: string; workspace_id: string;
+  /** The researcher-visible name saved at registration (figure labels use it); null for older fields. */
+  display_name?: string | null;
   metadata: Record<string, string | number | null>;
-  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
+  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null; identity_source?: StainSource}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
 }
 export interface MeasurementRow {
   region_id: number; channel_id: string; area_px: number; area_um2: number | null;
@@ -42,6 +46,13 @@ export type MaskOperation = "add" | "replace" | "split" | "merge";
 export type MeasurementPolicy = {version: "1.1.0"; mode: "raw_intensity"} | {version: "1.2.0"; mode: "automatic_background"};
 export const rawMeasurement: MeasurementPolicy = {version: "1.1.0", mode: "raw_intensity"};
 export const automaticBackground: MeasurementPolicy = {version: "1.2.0", mode: "automatic_background"};
+/** The name the workspace list shows for a registered field: the last segment of its grouping key or file name.
+ * It is saved only as a label (1–120 characters, no control characters); nothing is inferred from it. */
+export function displayNameOf(key: string): {display_name?: string} {
+  const name = (key.split("/").at(-1) ?? "").trim();
+  const control = [...name].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127);
+  return name && name.length <= 120 && !control ? {display_name: name} : {};
+}
 const measurementOf = (result: SavedResult) => result.measurement !== undefined ? result.measurement : result.protocol === "1.0.0" ? null : result.protocol === "2.0.0" ? {version:"1.0.0",mode:"area_only"} : result.protocol === "4.0.0" ? automaticBackground : rawMeasurement;
 interface Report {
   revision_id: string; protocol_version?: string; field_tables: Record<string, {rows: MeasurementRow[]}>;
@@ -230,7 +241,8 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const key = `${workspace}:${field.key}`;
       if (!uploadKeys.has(key)) uploadKeys.set(key, crypto.randomUUID());
       data.set("specification", JSON.stringify({version: "1.1.0", client_upload_id: entryId || uploadKeys.get(key),
-        channels: presentChannels.map(channelSpecification), input_mode: modes.has("display-rgb") ? "display-rgb" : "native", metadata: {}, calibration: null}));
+        channels: presentChannels.map(channelSpecification), input_mode: modes.has("display-rgb") ? "display-rgb" : "native", metadata: {}, calibration: null,
+        ...displayNameOf(field.key)}));
       const uploaded = await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields`, {method: "POST", body: data});
       if (entryId) {
         const existing = selection!.entries.find(entry => entry.field_id === uploaded.id && entry.id !== entryId);
@@ -242,6 +254,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     },
     async uploadOme(workspace:string,file:File,entryId:string){
       const data=new FormData();data.set("ome",file);data.set("client_upload_id",entryId);
+      const name=displayNameOf(file.name).display_name;if(name)data.set("display_name",name);
       const uploaded=await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields/ome`,{method:"POST",body:data});
       const existing=selection!.entries.find(entry=>entry.field_id===uploaded.id&&entry.id!==entryId);
       await saveSelection(workspace,existing?selection!.entries.filter(entry=>entry.id!==entryId):selection!.entries.map(entry=>entry.id===entryId?{...entry,field_id:uploaded.id}:entry));

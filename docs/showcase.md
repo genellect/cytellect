@@ -15,7 +15,7 @@
 ```
 
 - 訪問者の操作には、どの端末でも①だけが答える。②は訪問者の端末では起動せず（取得もしない）、ビルド時に操作を記録するときだけ動かす。記録にない操作（輪郭の手修正、記録にない設定での測定など）には、待たせずにその場で案内を表示する。
-- 検出（StarDist/Fiji、Cellpose）はブラウザで実行しない。記録した条件以外の検出は行わず、入力欄は記録した値の範囲に揃える。
+- 検出（StarDist/Fiji、Cellpose）はブラウザで実行しない。記録した条件以外の検出は行わない。検出の設定欄は入力欄を出さず、採用した結果の記録した条件を文字で示す。
 - 測定値と統計は、API と解析パッケージの共通実装だけが生成する。ブラウザ内の計算結果は、同じ操作のサーバー出力と CI で照合する。
 - 有料サービス（LLM）は呼ばない。AI の提案は、記録したモデル出力か、指示の例ごとにデモ用に用意した設定案（`showcase-authored`）だけを返す。
 
@@ -120,7 +120,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 ### ビルドと検査
 
-`uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。
+`uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。CI は `main` への push で `--check` を実行し、ずれていれば警告を示します。PR では作り直しを求めません（[CI の構成](ci.md)）。
 
 公開デモの作り直し（`services/showcase/src/cytellect_showcase/build.py`）は、`publish` → `snapshot` → `journal` の順に実行します。`journal` は、公開ビルドと同じ `/demo` をブラウザ内の API で開き、次の操作を初期状態から 1 場面ずつ実行して記録します。警告や想定外のエラーが 1 件でも出れば失敗します。
 
@@ -144,11 +144,11 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 - `experiment`：研究者が「実験」で入力する実験の形（群・対照・実験回・独立性の確認と根拠）。初期状態の解析設定に保存し、視野の群・独立実験単位・対応ペア・撮影日はこの形から決まる。宣言した 2 群の比較は、処理 − 対照の推定値（comparison-estimates/1.0.0）と、実験回ごとの図（superplot）で計算する。
 - `scenario.nucleoli`：`false` のデータでは核小体・核質を検出せず、画面もその領域と指標を出さない（`snapshot/dataset.json` の `regions`）。
-- `scenario.companions`：出典が報告し、測定の前に計画に記録した、ほかの変化の比較（DS6a では核小体の離心率）。最初の解析の前に保存し、統計の「記録した比較」で最初の比較と切り替えられる。
+- `scenario.companions`：出典が報告し、測定の前に計画に記録した、ほかの変化の比較（DS6a では核小体の離心率）。最初の解析の前に保存し、統計の「保存した比較」で最初の比較と切り替えられる。
 - `scenario.direction_checks`：場面の文が述べる、記録した各比較の向き（実験回ごとの差がすべて出典の向きか）。構築は保存した結果と照合し、文と結果が食い違えば止める（目標 C7）。
 - `scenario.comparison_layouts`：群間比較で、保存した図に加える図の種類。比較を描いた種類（宣言した 2 群では実験回ごとの superplot）は最後に描き直すので、統計の画面はその図で開く。
 - `scenario.opening`：最後に計算する解析。公開デモは、開いたときにこの結果（既定は分布）を表示する。群間比較を指定すると、「統計」を開いたときに結果の文と図が出る。画像の画面は、2 画面の画像・輪郭・各群の測定値だけを出す。
-- `scenario.final_target`：画像の画面が開く領域（既定は核）。最初の比較が測る領域にそろえ、比べている輪郭と測定値で開く（DS6a は核小体。核の輪郭は位置の手がかりとして薄く重ねる）。`snapshot/scenes.json` の `target`。統計を初めて開くと、設定欄の領域・指標・チャンネルを表示中の結果にそろえる。
+- `scenario.final_target`：画像の画面が開く領域（既定は核）。最初の比較が測る領域にそろえ、比べている輪郭と測定値で開く（DS6a は核小体。核の輪郭は位置の手がかりとして薄く重ねる。本番も同じ）。`snapshot/scenes.json` の `target`。統計を初めて開くと、設定欄の領域・指標・チャンネルを表示中の結果にそろえる。
 - `crop_rule`：視野の切り出し位置の規則。`nuclear-window` は、核染色だけを読み、Otsu の閾値を超える画素が最も多い窓（`size`、`step` 画素の格子、同点は中央に近い窓）を選ぶ。測定するチャンネルは読まないので、切り出しが結果に合わせて動くことはない。全チャンネルで同じ窓を使い、画素値は変えない。
 - `scene_label`・`assistant_scope`：場面の名前と、記録にない AI の指示への返答で、その画像で比べられることを示す文。
 - `dataset.reported_change`：出典が報告している変化（比べる条件・向き・量・範囲・実験回の独立性）。画面は、デモでの測定と分けて、結果のまとめの下に向きを 1 行で示し、量・範囲・独立性は折りたたむ（`snapshot/dataset.json` の `reportedChange`）。
@@ -183,6 +183,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 契約の節を補足する、Web 側の実装の詳細です。
 
+- 本番と同じ画面：画像・フォルダのドロップ（本番は「画像」「フォルダ」と同じ取り込み、デモは追加できない案内）、重ねて表示（チャンネルが 2 つ以上なら色の合成で開き、核染色は青、ほかの染色はチャンネルの位置ごとの色で、核染色を決めても他の色は変わらない。1 つの染色を選ぶとその染色だけ）、核小体・核質で採用した核の輪郭を薄く重ねる表示と、マーカーで開く初期チャンネル、2 画面の各画像の輪郭の修正の道具、AI の入力欄を押すと AI のパネルが開く動作、`?step=image|statistics|figure` のタブ指定、統計・グラフを開いたときの最新の保存結果、統計の「保存した比較」の切り替え、最初は閉じている設定パネル（「設定」で開く）。本番では、実験の形を選ぶ前に最初に追加した画像は選ぶまで登録せず、1 画面ならその回に、2 画面なら選んだ実験回と群に登録する（「形を決めずに登録」で統計の画面で群を入力する従来の形も選べる）。デモだけのもの：関門のない入口、デモのバッジ・出典・ダウンロード、場面の切り替え、追加できない案内、AI の指示の例、記録した検出条件の文字での表示、統計・図の入力の固定（下記）。
 - 公開ビルド（API 未設定）の `/demo` だけが `activateShowcase()` で切り替えを有効にし、`lib/api.ts` の `request`・`fetchPrivateResponse`（`download`・`fetchBlob` を含む）がこの経路を使う。API を設定したビルドとローカル版の通信は変わらない。`/workspace` は公開ビルドでは `/demo` へ転送する。
 - 最初の表示：`index.json` が届いた時点で、ワークスペースの記録（セッション、視野一覧、解析版、採用状態、染色設定、解析設定など）と、先頭の視野のプレビュー・輪郭・測定値をまとめて並行して取得する。ワークスペースは先頭の視野を表示してから、残りの視野を読み込む（公開デモに限らず、本番の画面も同じ）。案内は自動では開かず、「使い方」から開く。スマートフォンでは、「使い方」と「ダウンロード」を「デモ」のメニューから開く。
 - 記録の再生：`GET <パスとクエリ>` が `snapshot/index.json` にあれば、その本文を返す。`snapshot` 段階は、全視野 × 領域（核・核小体・核質）× チャンネルの表示と、統計・グラフ・保存した図を開いて記録する。保存した各結果について、図の点から元の視野へ戻るときに読むもの（結果の解析版の記録、各視野が固定した解析版の記録・測定値・輪郭）も記録する（結果からいつでも元の画像に戻れる）。
@@ -192,8 +193,8 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - 記録にない操作：どの端末でも、その場で `showcase_action_not_recorded`（409）を返す。ブラウザ内の API は起動しない。
 - 記録用の経路：ビルド時の記録（`journal.mjs`）は `window.__cytellectShowcaseRecord` を設定してページを開く。このときだけ、初期表示の GET を記録から返し、それ以外の要求をブラウザ内の API へ送る（発行順に 1 件ずつ）。API の Worker は `seed.zip` を先に取得し、`runtime/` の各ファイルを `runtime-config.json` の SHA-256 と照合してから導入する（URL に `?sha256=` を付け、長期キャッシュでも別ビルドの内容を使わない）。Pyodide 本体は `indexURL` の `pyodide.mjs` から読み込む。ホイールは site-packages に展開し、フォントは `/showcase/fonts/`（`runtime.DEFAULT_FONT_DIR`、Node の検証ハーネスと同じ場所）に置き、`boot` の `font_dir` で渡す。
 - 案内として表示するコード：`showcase_detection_not_recorded`、`showcase_proposal_not_recorded`、`showcase_upload_disabled`、`showcase_engine_unavailable`（記録用の API が起動に失敗した）、`showcase_unavailable`（記録が公開されていない）、`showcase_action_not_recorded`（操作の記録にない）。`role="alert"` ではなく情報表示にし、再読み込みではなく「閉じる」で消せる。
-- 任意のファイル（なければ本番と同じ表示）：`snapshot/recorded-options.json` のキーは検出器の `engine`（例 `fiji-stardist-2d`、`cytellect-nucleolar-v2`、`cellpose-sam`）、その中のキーは検出器の項目名で、核の `detection_max_side_px`（`null` は自動）も `fiji-stardist-2d` に含める。記載のある項目は記録した値の選択肢になり、記載のない項目は変更できない。記載のない検出器は選択肢として選べない。`snapshot/proposal-examples.json` は AI の指示の例、`snapshot/dataset.json`（`title`、`attribution`、`licence`、`licenceUrl`、`sourceUrl`、`caveats`）はデモ表示と案内の最後の手順に出典として表示する。
-- 初回表示：読み込み中は画像追加の画面ではなく読み込み中の案内を出す。統計とグラフは、計算前でも保存済みの最新の結果（シナリオの最後の計算）を開く（本番は「保存した図」から選ぶまで空のまま）。
+- 任意のファイル（なければ本番と同じ表示）：`snapshot/proposal-examples.json` は AI の指示の例、`snapshot/dataset.json`（`title`、`attribution`、`licence`、`licenceUrl`、`sourceUrl`、`caveats`）はデモ表示と案内の最後の手順に出典として表示する。`snapshot/recorded-options.json` は、ビルドが記録した検出条件の格子（キーは検出器の `engine`、その中のキーは検出器の項目名。核の `detection_max_side_px` も `fiji-stardist-2d` に含める）で、画面は読まない（検出の設定欄は、採用した結果の記録した条件を文字で示す）。
+- 初回表示：読み込み中は画像追加の画面ではなく読み込み中の案内を出す。統計とグラフは、計算前でも保存済みの最新の結果（シナリオの最後の計算）を開く（本番も同じで、そのワークスペースで最後に保存した結果を開く）。
 - HTTP ヘッダー：公開ビルドの CSP は `'wasm-unsafe-eval'`、`indexURL` のオリジン（script-src・connect-src）、`worker-src 'self' blob:` を加える。`/showcase/runtime/*` と、内容の SHA-256 で名付けた記録ファイル（`snapshot/<24 桁の 16 進>.<拡張子>`）は長期・immutable、`seed.zip`・`manifest.json` とそれ以外の `snapshot/*`（`index.json`・`journal.json`・`scenes.json` など）は毎回再検証、それ以外は従来どおり `no-store`。
 - 開発用：`scripts/dev_showcase_backend.py` は同じ boot/handle の契約を CPython の API で提供する（検出はしきい値による代用で、結果は公開しない）。`NEXT_PUBLIC_SHOWCASE_DEV_BACKEND`（ループバックのみ）を付けたビルドでだけ使う。
 - `.gitignore` は `*.zip` を除外しているため、`seed.zip` を登録する変更では除外の例外を加える。

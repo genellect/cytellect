@@ -21,7 +21,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 3. **変更する。** 1 つの PR では 1 つの目的だけを扱う。仕様・テスト・文書は、コードと同じ PR で更新する。
 4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)のすべての項目を書く。作業途中の共有には Draft PR を使う。
 5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしない。PR の CI は、変更したファイルに関係する検査だけを実行する。Fiji・Cellpose の画像・Windows の導入の統合試験は `main` への取り込み後に実行し、Windows 版の配布は、配布するコミットでこれらすべての成功を確認してから行う（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消す。
-6. **マージする。** オーナーが squash merge で `main` に取り込む。PR のタイトルがそのままコミットの件名になるため、変更の内容が分かるタイトルにする。`main` はルールセットで更新を制限しており、PR をマージできるのはバイパス権限を持つオーナーだけ。オーナーはマージ画面でルールのバイパスを選ぶか、`gh pr merge <番号> --squash --admin` を実行する。このバイパスでも必須 CI は省略されない。
+6. **マージする。** オーナーが squash merge で `main` に取り込む。PR のタイトルがそのままコミットの件名になるため、変更の内容が分かるタイトルにする。`main` はルールセットで更新を制限しており、PR をマージできるのはバイパス権限を持つオーナーだけ。マージの前に最新の `main` を取り込み、その head で必須 CI がすべて成功したことを確かめる。オーナーはマージ画面でルールのバイパスを選ぶか、`gh pr merge <番号> --squash --admin --match-head-commit <確かめた SHA>` を実行する。バイパスは必須 CI の条件も飛ばすため、成功を確かめずに実行しない。
 
 ### 3. Git の運用
 
@@ -36,9 +36,10 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 - オーナー以外が作成した PR には、作成者とは別のメンバー 1 名以上の承認が要る。
 - オーナー自身の PR は、レビューを省略できる。PR と必須 CI は省略できない。
 - エージェントが作成した変更は、作業を依頼した人の変更として扱う。オーナーのアカウントで動くエージェントが他のメンバーの依頼で作成した変更にも、レビューが要る。
-- レビューでは次の点を確認する。
-  - 変更が目的に合い、無関係な修正を含まないか
-  - 画素値、マスク、測定値、統計、図への影響が説明・検証されているか
+- レビューで最も重視するのは次の 2 点である。
+  1. 変更が目的に合い、合理的で、無関係な修正を含まないか
+  2. 本番への影響（公開サイト、Windows 版、Docker 版、AI サービス）と、画素値・マスク・測定値・統計・図への影響が検証されているか
+- あわせて次の点を確認する。
   - 原因が証拠で特定され、個別の対症ではなく一般則や構造で対処しているか（[問題への対処](development-principles.md#問題への対処)）
   - 非公開データや認証情報が含まれていないか
   - 検証の結果が事実どおりに書かれ、未実施の項目が明示されているか
@@ -100,7 +101,7 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 3. **Make the change.** Keep each PR to one purpose. Update specifications, tests and documentation in the same PR as the code.
 4. **Open a PR** and fill in every section of the [PR template](../.github/pull_request_template.md) (Japanese). Use a draft PR to share work in progress.
 5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run after merge on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
-6. **Merge.** The owner squash-merges into `main`. The PR title becomes the commit subject, so make it describe the change. A ruleset restricts updates to `main`, so only the owner, who holds bypass permission, can merge PRs. The owner selects the rule bypass on the merge screen or runs `gh pr merge <number> --squash --admin`. The bypass does not skip required CI.
+6. **Merge.** The owner squash-merges into `main`. The PR title becomes the commit subject, so make it describe the change. A ruleset restricts updates to `main`, so only the owner, who holds bypass permission, can merge PRs. Before merging, integrate current `main` and confirm that every required check passed on that head. The owner then selects the rule bypass on the merge screen or runs `gh pr merge <number> --squash --admin --match-head-commit <verified SHA>`. The bypass also skips the required-check condition, so never use it before confirming success.
 
 ### 3. Git
 
@@ -115,9 +116,10 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 - PRs authored by anyone other than the owner require approval from at least one member other than the author.
 - The owner's own PRs may omit review. They still require a PR and all required checks.
 - A change made by an agent belongs to the person who requested it. An agent running under the owner's account on another member's behalf still requires review.
-- Reviewers check that:
-  - the change matches its purpose and contains no unrelated edits;
-  - effects on pixel values, masks, measurements, statistics and figures are explained and tested;
+- Review focuses first on two points:
+  1. the change matches its purpose, is reasonable and contains no unrelated edits;
+  2. its effects on production (public site, Windows release, Docker release, AI services) and on pixel values, masks, measurements, statistics and figures are tested.
+- Reviewers also check that:
   - causes are identified from evidence and fixed through general rules or structure rather than case-specific patches ([Development principles](development-principles.md#問題への対処), Japanese);
   - no private data or credentials are included;
   - validation results are reported accurately and unrun checks are stated.

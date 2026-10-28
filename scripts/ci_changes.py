@@ -9,8 +9,8 @@ already runs the landing-page tests, so lp is dropped whenever web is selected.
 Registering a documentation image (an allowlist entry under docs/) is part of the
 documentation change and selects nothing.
 
-Pushes to main, merge-queue runs, manual runs, an unreadable diff and any path not listed below
-select every area, so each main commit keeps the full evidence the Windows
+Pushes to main, manual runs (the batch verification before merging), an unreadable diff and any
+path not listed below select every area, so each main commit keeps the full evidence the Windows
 release workflow requires. Hygiene checks (public tree, documentation links,
 secret scan) always run.
 """
@@ -54,6 +54,9 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("scripts/windows/*", frozenset({"python", "windows"})),
     ("scripts/lp_film/*", frozenset()),  # offline hero-film authoring; CI never runs it
     ("scripts/*.ps1", frozenset({"python", "windows"})),
+    # The web job checks the compiled local UI against this packager's boundary.
+    ("scripts/build_local_bundle.py", PY_STACK),
+    ("scripts/check_local_web_bundle.py", PY_STACK),
     ("scripts/*", frozenset({"python", "fiji", "windows"})),
     ("tests/*", frozenset({"python", "fiji", "windows"})),
     ("validation/*", frozenset({"python"})),

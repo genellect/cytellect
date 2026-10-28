@@ -28,6 +28,7 @@ test("nuclear and nucleolar candidates retain source identity and explicit adopt
   page.on("request",request=>{const p=new URL(request.url()).pathname;if(request.method()!=="POST")return;if(p.endsWith("/selection")||p.endsWith("/accept"))selectionWrites.push(p);if(p.endsWith("/runs"))runRequests.push(request.postDataJSON());if(p.endsWith("/proposal-drafts"))paidCalls++;});
   const created=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="POST");
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer,index)=>({name:`a9_c${index+1}.tif`,mimeType:"image/tiff",buffer})));
+  await page.getByRole("button",{name:/^1 画面/}).click();
   const wid=(await (await created).json()).id as string;
   await expect(page.getByRole("button",{name:"染色対応",exact:true})).toBeEnabled();
   expect(runRequests).toHaveLength(0);
@@ -60,6 +61,7 @@ test("nuclear and nucleolar candidates retain source identity and explicit adopt
   await expect(page.getByRole("button",{name:"測定",exact:true})).toBeEnabled();
   const nuclear=(await selection()).entries[0].target_revisions!.nuclei;
   expect(nuclear).toBeTruthy();
+  await page.getByRole("button",{name:"設定パネル",exact:true}).click();
   const inspector=page.getByRole("complementary",{name:"画像解析",exact:true});
   await inspector.getByRole("combobox",{name:"領域",exact:true}).selectOption("nucleoli");
   const adoptedCount=selectionWrites.length;
