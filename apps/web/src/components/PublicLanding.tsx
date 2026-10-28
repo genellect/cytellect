@@ -25,7 +25,6 @@ const CREDITS: { label: string; sources: [string, string][]; note?: ReactNode }[
   { label: "ピペット", sources: [["Thirdman / Pexels", "https://www.pexels.com/photo/scientist-holding-a-pipette-8940473/"]] },
   { label: "核と核小体の蛍光画像", sources: [["Schmidt HB, Rohatgi R, Brandman O (2022) / Zenodo", "https://doi.org/10.5281/zenodo.6643470"]],
     note: <>（<a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>。表示用にコントラストを調整し、Cytellectが検出した輪郭を重ねています）</> },
-  { label: "研究から患者へ", sources: [["CDC (James Gathany) / Unsplash", "https://unsplash.com/photos/person-holding-syringe-near-container-WCEOtVmk2VY"], ["Kampus Production / Pexels", "https://www.pexels.com/photo/young-persons-hand-holding-an-old-persons-hand-7551677/"]] },
 ];
 function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a data-lp-event="guide" href="#guide">ガイド</a><a href="https://yuto-matsui.com/">About the Developer</a><a data-lp-event="download_section" href="#download">ダウンロード</a><Link data-lp-event="example" href="/demo" className={lp.navDownload}>デモを体験 <span aria-hidden="true">→</span></Link></>;}
 
