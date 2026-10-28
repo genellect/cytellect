@@ -93,6 +93,14 @@ def test_unexpected_static_file_is_not_silently_distributed(tmp_path):
         bundle.collect_files(tmp_path, names, web)
 
 
+def test_generated_robots_and_sitemap_are_part_of_the_local_web(tmp_path):
+    names, web = fixture_tree(tmp_path)
+    (web / "robots.txt").write_text("User-Agent: *\nDisallow: /\n", encoding="utf-8")
+    (web / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?><urlset/>', encoding="utf-8")
+    files = bundle.collect_files(tmp_path, names, web)
+    assert {"apps/web/out/robots.txt", "apps/web/out/sitemap.xml"} <= files.keys()
+
+
 def test_bundle_rejects_malformed_windows_flight_export(tmp_path):
     names, web = fixture_tree(tmp_path)
     malformed = web / "plan/__next.plan/__PAGE__.txt"
