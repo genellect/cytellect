@@ -25,6 +25,13 @@ labels for nucleolar protocols, and the detector parameters. Filenames, workspac
 titles, conditions, paths and other channels are not sent. Binding to nuclei,
 refinement, measurement and statistics remain local.
 
+A Windows installation that signs in to the Cytellect cloud service keeps one device
+token in `settings/cloud-account.json`, next to `settings/cellpose-remote.json` and
+outside the research `data` directory, readable only by the OS user. The local API
+never returns or logs it, sends it only to the base URL that issued it, and refuses
+redirects. Signing out deletes it; explicit `CYTELLECT_CELLPOSE_REMOTE_*` settings
+keep precedence over the signed-in service.
+
 The PoC deployment (`infra/modal_cellpose.py`) is a Modal Server: per Modal, Server request and response payloads are proxied to the container and not stored, unlike Web Functions, whose inputs are kept up to 7 days. It uses no Volume or memory snapshot, requires a Modal proxy-auth token, runs at most one single-GPU container (L4 preferred, A10 as fallback) and is deployed only from `main` by a workflow whose deploy token is a repository secret. The workspace spend limit is set to zero in the Modal dashboard; deployment cannot change it. The GPU choice does not change the endpoint or token scope. The main residual risk is takeover of the Modal account or deploy token, which could replace the server with one that records inputs; the account uses GitHub sign-in with two-factor authentication and no other members.
 
 The URL must be https (loopback http only for tests), without credentials, query or

@@ -86,7 +86,7 @@ class RevisionInput(BaseModel):
     revision_id: str
 
 
-def create_app(settings: Settings | None = None):
+def create_app(settings: Settings | None = None, *, proposal_credentials=None):
     settings = settings or Settings.from_env()
     configure_private_tmp(settings)
     store = Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode)
@@ -1137,7 +1137,7 @@ def create_app(settings: Settings | None = None):
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
-    register_proposal_routes(api, store, settings, owner, workspace)
+    register_proposal_routes(api, store, settings, owner, workspace, credentials=proposal_credentials)
     register_workspace_selection_routes(api, store, owner, workspace, touch)
     register_channel_assignment_routes(api, store, owner, workspace, touch)
     register_analysis_spec_routes(api, store, owner, workspace, touch)

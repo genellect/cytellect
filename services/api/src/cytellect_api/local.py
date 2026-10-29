@@ -19,13 +19,13 @@ import webbrowser
 from pathlib import Path
 
 import psutil
-from fastapi import Request, Response
+from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy import update
 from starlette.staticfiles import StaticFiles
 
 from .config import Settings, configure_private_tmp
-from .db import digest, recorded_retention_mode, sessions
+from .db import digest, recorded_retention_mode, sessions, workspaces
 from .process_owner import Identity, process_alive, redirector_owner
 from .views import LocalSetupView, SessionView
 
@@ -126,9 +126,21 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
         settings.data_dir.chmod(0o700)
     owner = _local_owner(settings.data_dir)
     from .app import create_app
+    from .cloud_account import CloudAccount, register_account_routes
 
-    app = create_app(settings)
+    # Explicit proposal configuration (environment) keeps precedence; otherwise the
+    # signed-in device's token reaches the same cloud service as GPU inference.
+    account = CloudAccount(settings.data_dir,
+                           remote_settings=lambda: local_cellpose_remote_environment(settings.data_dir))
+    app = create_app(settings, proposal_credentials=account.credentials)
+    app.state.cloud_account = account
     store = app.state.store
+
+    def local_session(request: Request):
+        token = request.cookies.get(settings.cookie_name)
+        current = store.one(sessions, digest=digest(token)) if token else None
+        if not (current and current["owner"] == owner and not current["revoked"] and current["expires"] > time.time()):
+            raise HTTPException(401, "session_required")
 
     @app.middleware("http")
     async def loopback_security(request: Request, call_next):
@@ -181,6 +193,13 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
             response.set_cookie(settings.cookie_name, token, httponly=True, secure=False,
                                 samesite="strict", max_age=7 * 86400, path="/")
         return {"authenticated": True, "mode": "local", **settings.retention_policy, "demo": settings.demo}
+
+    register_account_routes(app, account, local_session)
+
+    @app.get("/v1/local/first-run")
+    def first_run():
+        # A fresh installation has never held a workspace; an update keeps its rows.
+        return {"first_run": not store.rows(workspaces, owner=owner)}
 
     app.mount("/", StaticFiles(directory=web_dir, html=True, follow_symlink=False), name="local-ui")
     return app
@@ -303,6 +322,11 @@ class WorkerSupervisor:
             env.setdefault(key, value)
         if sys.dont_write_bytecode:
             env["PYTHONDONTWRITEBYTECODE"] = "1"
+        # Read at each Cellpose request, so signing in or out needs no restart.
+        # Explicit CYTELLECT_CELLPOSE_REMOTE_* settings keep precedence.
+        from .cloud_account import account_file
+
+        env["CYTELLECT_CLOUD_ACCOUNT_FILE"] = str(account_file(self.settings.data_dir))
         env.update(CYTELLECT_DATA_DIR=str(self.settings.data_dir),
                    CYTELLECT_APP_ORIGIN=self.settings.app_origin, CYTELLECT_SECURE_COOKIES="false",
                    CYTELLECT_DEMO=str(self.settings.demo).lower(),
