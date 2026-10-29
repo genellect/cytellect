@@ -165,22 +165,9 @@ class AccountStore:
             raise ValueError("cloud_account_path_invalid")
         return self.path
 
-    def _migrate(self) -> None:
-        """Development builds kept the file in the data directory; move it once."""
-        legacy = self.data_dir / ACCOUNT_FILE
-        try:
-            if legacy.is_file() and not legacy.is_symlink() and not self.path.exists():
-                self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-                if os.name != "nt":
-                    legacy.chmod(0o600)
-                os.replace(legacy, self.path)
-        except OSError:
-            pass
-
     def load(self) -> dict:
         try:
             path = self._checked()
-            self._migrate()
             if not path.is_file() or path.stat().st_size > 16_384:
                 return {}
             value = json.loads(path.read_text(encoding="utf-8"))

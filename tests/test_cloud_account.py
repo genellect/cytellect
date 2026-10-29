@@ -671,17 +671,16 @@ def test_a_redirect_never_receives_the_device_token_or_the_image(cloud_gpu, tmp_
             server.server_close()
 
 
-def test_the_token_file_moves_from_the_data_directory_once(tmp_path, cloud):
+def test_a_token_file_in_the_data_directory_is_never_read(tmp_path, cloud):
+    # No released version stored the token under data/; only settings/ is read.
     data = tmp_path / "private"
     data.mkdir()
-    legacy = data / ACCOUNT_FILE
-    legacy.write_text(json.dumps({"schema": SCHEMA, "state": "allowed", "email": ALLOWED, "base_url": cloud.url,
-                                  "device_token": "dev_" + "d" * 40}), encoding="utf-8")
+    (data / ACCOUNT_FILE).write_text(json.dumps({"schema": SCHEMA, "state": "allowed", "email": ALLOWED,
+                                                 "base_url": cloud.url, "device_token": "dev_" + "d" * 40}),
+                                     encoding="utf-8")
     account = CloudAccount(data)
-    assert account.credentials() == (cloud.url, "dev_" + "d" * 40)
-    assert not legacy.exists() and account_path(data).is_file()
-    if os.name != "nt":
-        assert stat.S_IMODE(account_path(data).stat().st_mode) == 0o600
+    assert account.credentials() is None and account.view() == {"state": "signed_out"}
+    assert not account_path(data).exists()
 
 
 def test_a_late_answer_about_an_old_token_keeps_a_newer_sign_in(tmp_path, cloud):
