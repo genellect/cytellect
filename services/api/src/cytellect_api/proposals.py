@@ -6,6 +6,7 @@ input is derived from the workspace. Only normalized metadata leaves the PC;
 the service calls the language model and returns a draft validated here.
 Registered-recipe analysis never depends on this route.
 """
+import dataclasses
 import hashlib
 import json
 import time
@@ -75,6 +76,22 @@ def service_url(settings) -> str | None:
     return url
 
 
+def effective_settings(settings, credentials=None):
+    """The proposal service to call and its device token.
+
+    An operator's explicit configuration (``CYTELLECT_PROPOSAL_URL``) keeps
+    precedence. Otherwise a local installation uses its signed-in cloud account:
+    ``credentials`` returns that account's base URL and device token, or None.
+    ``service_url`` then applies the same https rule to either source.
+    """
+    if settings.proposal_url or credentials is None:
+        return settings
+    account = credentials()
+    if not account:
+        return settings
+    return dataclasses.replace(settings, proposal_url=account[0], proposal_token=account[1])
+
+
 def request_draft(settings, context: ProposalContext, request_id: str | None = None) -> dict:
     """POST the context to the service; never logs or retries the request body."""
     url = service_url(settings)
@@ -92,6 +109,15 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
         code = {401: "proposal_service_unauthorized", 403: "proposal_service_unauthorized",
                 409: "proposal_request_already_sent", 429: "proposal_quota_exhausted"}.get(error.code, "proposal_service_unavailable")
         status = error.code if error.code in (409, 429) else 503
+        if error.code == 403:
+            # The cloud service ends a revoked user's access; say so instead of a key problem.
+            try:
+                data = error.read(2049)
+                failure = json.loads(data) if len(data) <= 2048 else None
+                if isinstance(failure, dict) and failure.get("code") == "revoked":
+                    code = "proposal_access_revoked"
+            except (ValueError, OSError, AttributeError):
+                pass
         if error.code in (502, 503):
             try:
                 data = error.read(2049)
@@ -357,7 +383,7 @@ def _continuation_context(context: ProposalContext, links: list[ProposalChannelL
         "previous_goal":body.previous_goal, "previous_proposal":previous})
 
 
-def register_proposal_routes(api, store, settings, owner, workspace):
+def register_proposal_routes(api, store, settings, owner, workspace, credentials=None):
     Owner = Annotated[str, Depends(owner)]
 
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
@@ -371,9 +397,10 @@ def register_proposal_routes(api, store, settings, owner, workspace):
         except ValueError:
             raise HTTPException(409, "proposal_context_unsupported") from None
         source_stamp = _source_stamp(store, wid)
+        service = effective_settings(settings, credentials)
         identity = {"context": context_sha256(context), "protocol": PROPOSAL_PROTOCOL,
                     "model": settings.proposal_model, "prompt": settings.proposal_prompt_version,
-                    "service": settings.proposal_url, "channels": [link.model_dump() for link in links], "source": source_stamp}
+                    "service": service.proposal_url, "channels": [link.model_dump() for link in links], "source": source_stamp}
         key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         request_id = str(uuid.uuid4())
         now = time.time()
@@ -399,7 +426,7 @@ def register_proposal_routes(api, store, settings, owner, workspace):
                     lease_until=now + settings.proposal_timeout_seconds + 30))
         proposal = None
         try:
-            payload = request_draft(settings, context, request_id)
+            payload = request_draft(service, context, request_id)
             if payload["model"] != settings.proposal_model or payload["prompt_version"] != settings.proposal_prompt_version:
                 raise ProposalServiceError(502, "proposal_service_version_mismatch")
             proposal = validate_draft(context, payload.get("draft"), model=payload["model"],

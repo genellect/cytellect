@@ -1,0 +1,279 @@
+"use client";
+/**
+ * Cloud features of a local installation: sign-in, the pending-approval banner, GPU start-up
+ * and the update notice. Rendered only inside CloudAccountProvider (local mode); elsewhere
+ * every component here renders nothing, so the hosted workspace and the demo are unchanged.
+ */
+import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode} from "react";
+import {
+  accountApi, accountErrorText, accountLabel, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
+  normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, usageText,
+  GPU_POLL_MS, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
+} from "@/lib/cloud-account";
+import styles from "./cloud-account.module.css";
+
+export const PRACTICE_IMAGES_URL = "https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-BBBC013-practice-v1.zip";
+
+type Intro = "local" | "cloud" | null;
+type CloudContext = {
+  account: Account | null; setAccount: (value: Account) => void; refresh: () => Promise<void>;
+  loginOpen: boolean; openLogin: () => void; closeLogin: () => void;
+  gpu: GpuState | null; startGpu: () => void; intro: Intro; dismissIntro: () => void;
+};
+const Context = createContext<CloudContext | null>(null);
+export const useCloudAccount = () => useContext(Context);
+
+export function CloudAccountProvider({children, intro: initialIntro = null}: {children: ReactNode; intro?: Intro}) {
+  const [account, setAccount] = useState<Account | null>(null);
+  const [loginOpen, setLoginOpen] = useState(initialIntro === "cloud");
+  const [gpu, setGpu] = useState<GpuState | null>(null);
+  const [intro, setIntro] = useState<Intro>(initialIntro);
+  const refresh = useCallback(async () => {
+    // A failed check leaves the last state; local analysis never waits on the cloud.
+    try {setAccount(await accountApi.get());} catch {}
+  }, []);
+  const startGpu = useCallback(() => {void accountApi.startGpu().then(setGpu).catch(() => {});}, []);
+  useEffect(() => {void refresh();}, [refresh]);
+  const waiting = account?.state === "pending_approval" && !account.approved;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => void refresh(), PENDING_POLL_MS);
+    return () => clearInterval(timer);
+  }, [waiting, refresh]);
+  useEffect(() => {
+    if (gpu?.state !== "starting") return;
+    const timer = setInterval(() => {void accountApi.gpu().then(setGpu).catch(() => {});}, GPU_POLL_MS);
+    return () => clearInterval(timer);
+  }, [gpu?.state]);
+  // The GPU check learns of an ended login before the account view does.
+  useEffect(() => {if (gpu?.state === "auth_required" || gpu?.state === "revoked") void refresh();}, [gpu?.state, refresh]);
+  // After signing in, a Cellpose choice that waited for the login starts the GPU.
+  const allowed = account?.state === "allowed";
+  const gpuState = gpu?.state;
+  useEffect(() => {if (allowed && (gpuState === "unconfigured" || gpuState === "auth_required")) startGpu();}, [allowed, gpuState, startGpu]);
+  const value: CloudContext = {
+    account, setAccount, refresh, loginOpen, openLogin: () => setLoginOpen(true), closeLogin: () => setLoginOpen(false),
+    gpu, startGpu, intro, dismissIntro: () => setIntro(null),
+  };
+  return <Context.Provider value={value}>{children}{loginOpen && <LoginDialog/>}</Context.Provider>;
+}
+
+function Details({error}: {error: unknown}) {
+  const code = errorDetail(error);
+  return code ? <details className={styles.details}><summary>詳細</summary><code>{code}</code></details> : null;
+}
+
+function NoticeLine({notice, onAction, onClose, closeLabel}: {notice: Notice; onAction?: () => void; onClose?: () => void; closeLabel?: string}) {
+  return <div className={styles.notice} data-tone={notice.tone} role={notice.tone === "problem" ? "alert" : "status"}>
+    <p>{notice.text}</p>
+    {notice.action && onAction && <button className={notice.tone === "ready" ? styles.primary : styles.secondary} onClick={onAction}>{notice.action.label}</button>}
+    {onClose && <button className={styles.quiet} onClick={onClose}>{closeLabel || "閉じる"}</button>}
+  </div>;
+}
+
+/** The header's account control: 「ログイン」, or the address with what is available. */
+export function AccountIndicator() {
+  const cloud = useCloudAccount();
+  if (!cloud) return null;
+  const {label, detail} = accountLabel(cloud.account);
+  const account = cloud.account;
+  if (account?.state === "allowed" || account?.state === "offline") {
+    const usage = usageText(account);
+    const resets = formatDate(account.resets_at);
+    return <details className={styles.account} data-dismissible>
+      <summary aria-label={`アカウント：${label}`}><span>{label}</span>{detail && <small>{detail}</small>}</summary>
+      <div className={styles.accountPanel}>
+        <p className={styles.accountEmail}>{account.email}</p>
+        <p>{account.state === "allowed" ? "GPU による検出と解析提案が使えます。" : "クラウドに接続できません。ネットワークを確認してください。このPCでの解析は使えます。"}</p>
+        {gpuQuotaReached(account) && <p role="status">{gpuQuotaText(account)}</p>}
+        {usage && <p className={styles.small}>今月の利用：{usage}{resets ? `（${resets}にリセット）` : ""}</p>}
+        <button className={styles.secondary} onClick={() => {void accountApi.logout().then(cloud.setAccount).catch(() => {});}}>ログアウト</button>
+      </div>
+    </details>;
+  }
+  return <button className={styles.accountButton} data-state={account?.state || "signed_out"} onClick={cloud.openLogin}>
+    <span>{label}</span>{detail && <small>{detail}</small>}
+  </button>;
+}
+
+/** Banners above the work area: approval, ended access, update, the practice images. */
+export function CloudNotices() {
+  const cloud = useCloudAccount();
+  const [collapsed, setCollapsed] = useState(false);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updating, setUpdating] = useState<"idle" | "running" | "failed">("idle");
+  const enabled = cloud !== null;
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    void accountApi.update().then(value => {if (live) setUpdate(value);}).catch(() => {});
+    return () => {live = false;};
+  }, [enabled]);
+  if (!cloud) return null;
+  const pending = pendingNotice(cloud.account);
+  const ended = accountNotice(cloud.account);
+  async function continueLogin() {
+    const email = cloud?.account?.email;
+    if (!cloud || !email) return;
+    try {cloud.setAccount(await accountApi.sendCode(email));} catch {}
+    cloud.openLogin();
+  }
+  async function applyUpdate() {
+    setUpdating("running");
+    try {await accountApi.applyUpdate();} catch {setUpdating("failed");}
+  }
+  return <div className={styles.notices}>
+    {pending && (pending.action || !collapsed) && <NoticeLine notice={pending} onAction={() => void continueLogin()}
+      onClose={pending.action ? undefined : () => setCollapsed(true)} closeLabel="ローカルの解析を続ける"/>}
+    {ended && <NoticeLine notice={ended} onAction={cloud.openLogin}/>}
+    {update?.available && <div className={styles.notice} data-tone="info" role="status">
+      <p>{updating === "running" ? "更新しています。" : updating === "failed" ? "更新できませんでした。今の版のまま使えます。あとでもう一度更新してください。"
+        : `更新があります${update.latest ? `（${update.latest}）` : ""}。研究データと設定は引き継がれます。`}</p>
+      {updating !== "running" && <button className={styles.primary} onClick={() => void applyUpdate()}>{updating === "failed" ? "もう一度更新する" : "更新する"}</button>}
+    </div>}
+    {cloud.intro === "local" && <div className={styles.notice} data-tone="info" role="status">
+      <p>公開の練習画像（BBBC013）で、核の検出から図までを試せます。ZIP を展開し、画像をこの画面にドラッグしてください。</p>
+      <a className={styles.secondary} href={PRACTICE_IMAGES_URL} rel="noreferrer">練習画像をダウンロード</a>
+      <button className={styles.quiet} onClick={cloud.dismissIntro}>閉じる</button>
+    </div>}
+  </div>;
+}
+
+/** Starts the GPU when a Cellpose detector is chosen and shows its state beside the settings. */
+export function GpuStatus() {
+  const cloud = useCloudAccount();
+  const startGpu = cloud?.startGpu;
+  useEffect(() => {startGpu?.();}, [startGpu]);
+  if (!cloud) return null;
+  const notice = gpuNotice(cloud.gpu);
+  if (!notice || notice.tone === "ready") return null;
+  return <div className={styles.inspectorNotice}><NoticeLine notice={notice} onAction={notice.action?.kind === "login" ? cloud.openLogin : cloud.startGpu}/></div>;
+}
+
+/** 「GPU を起動しています」→「検出しています」 while a Cellpose detection runs. */
+export function CloudPhase({running}: {running: boolean}) {
+  const cloud = useCloudAccount();
+  if (!cloud || !cloud.gpu || cloud.gpu.state === "unconfigured" || cloud.gpu.state === "idle") return null;
+  const phase = inferencePhase(cloud.gpu, running);
+  return phase ? <span className={styles.phase} role="status">{phase}</span> : null;
+}
+
+type Step = "email" | "code" | "pending" | "revoked" | "done";
+function initialStep(account: Account | null): Step {
+  if (account?.state === "code_sent") return "code";
+  if (account?.state === "pending_approval" && !account.approved) return "pending";
+  if (account?.state === "allowed") return "done";
+  return "email";
+}
+
+function LoginDialog() {
+  const cloud = useCloudAccount()!;
+  const title = useId();
+  const [step, setStep] = useState<Step>(() => initialStep(cloud.account));
+  const [email, setEmail] = useState(cloud.account?.email || "");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [retryAt, setRetryAt] = useState(() => Date.now() + (cloud.account?.retry_after_seconds ?? 0) * 1000);
+  const [now, setNow] = useState(() => Date.now());
+  const first = useRef<HTMLInputElement>(null);
+  useEffect(() => {first.current?.focus();}, [step]);
+  useEffect(() => {
+    if (step !== "code") return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [step]);
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {if (event.key === "Escape") cloud.closeLogin();};
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [cloud]);
+  async function requestCode(address: string) {
+    setBusy(true); setError(null);
+    try {
+      const result = await accountApi.sendCode(address);
+      cloud.setAccount(result);
+      setEmail(result.email || address);
+      if (result.state === "code_sent") {setRetryAt(Date.now() + (result.retry_after_seconds ?? 60) * 1000); setNow(Date.now()); setCode(""); setStep("code");}
+      else if (result.state === "pending_approval") setStep("pending");
+      else if (result.state === "revoked") setStep("revoked");
+    } catch (value) {setError(value);}
+    finally {setBusy(false);}
+  }
+  function submitEmail(event: FormEvent) {
+    event.preventDefault();
+    if (!plausibleEmail(email)) {setError(new Error("format")); return;}
+    void requestCode(normalizeEmail(email));
+  }
+  async function submitCode(event: FormEvent) {
+    event.preventDefault();
+    if (!plausibleCode(code)) return;
+    setBusy(true); setError(null);
+    try {
+      const result = await accountApi.verify(code.trim());
+      cloud.setAccount(result);
+      // The owner may have revoked or not yet approved the address since the code was sent.
+      if (result.state === "revoked") setStep("revoked");
+      else if (result.state === "pending_approval") setStep("pending");
+      else {await cloud.refresh(); setStep("done");}
+    }
+    catch (value) {setError(value);}
+    finally {setBusy(false);}
+  }
+  const wait = resendWait(retryAt, now);
+  const invalidEmail = error instanceof Error && error.message === "format";
+  return <div className={styles.backdrop} onMouseDown={event => {if (event.target === event.currentTarget) cloud.closeLogin();}}>
+    <section className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={title}>
+      <h2 id={title}>{step === "done" ? "クラウド機能が使えます" : step === "pending" ? "承認を待っています" : step === "revoked" ? "利用が停止されています" : "クラウド機能を有効にする"}</h2>
+      {step === "email" && <form onSubmit={submitEmail} noValidate>
+        <p>オーナーが許可したメールアドレスに、6 桁のコードを送ります。パスワードは使いません。</p>
+        <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
+          onChange={event => setEmail(event.target.value)} required maxLength={254} placeholder="name@example.ac.jp"/></label>
+        <p className={styles.small}>ログインすると、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像（核小体では核の輪郭も）をクラウドの GPU に送ります。解析提案には画像を送りません。ほかの解析はこれまでどおりこのPCだけで行います。</p>
+        <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信しています" : "コードを送る"}</button>
+      </form>}
+      {step === "code" && <form onSubmit={event => void submitCode(event)}>
+        <p role="status">{email} にコードを送りました。</p>
+        <label>6 桁のコード<input ref={first} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+          inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required/></label>
+        <button className={styles.primary} disabled={busy || !plausibleCode(code)}>{busy ? "確認しています" : "ログイン"}</button>
+        <p className={styles.small}>届かない場合は、迷惑メールのフォルダーを確認してください。コードの有効期限は 10 分です。</p>
+        <div className={styles.row}>
+          <button type="button" className={styles.secondary} disabled={busy || wait > 0} onClick={() => void requestCode(email)}>{wait > 0 ? `コードを再送（${wait} 秒後）` : "コードを再送"}</button>
+          <button type="button" className={styles.quiet} disabled={busy} onClick={() => {setError(null); setCode(""); setStep("email");}}>メールアドレスを修正</button>
+        </div>
+      </form>}
+      {step === "pending" && <>
+        <p>オーナーに利用を申請しました（{email}）。承認されるとメールでお知らせします。それまでも、このPCでの解析は使えます。</p>
+        <button className={styles.quiet} onClick={() => {setError(null); setStep("email");}}>メールアドレスを修正</button>
+      </>}
+      {step === "revoked" && <p>このメールアドレスのクラウド機能は停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。</p>}
+      {step === "done" && <>
+        <p>{cloud.account?.email || email} でログインしました。GPU による検出と解析提案が使えます。</p>
+        {cloud.account && usageText(cloud.account) && <p className={styles.small}>今月の利用：{usageText(cloud.account)}</p>}
+      </>}
+      {error !== null && <div role="alert" className={styles.error}><p>{invalidEmail ? "メールアドレスの形式を確認してください。" : accountErrorText(error)}</p><Details error={error}/></div>}
+      <div className={styles.footer}>
+        {step === "done" ? <button className={styles.primary} onClick={cloud.closeLogin}>作業に戻る</button>
+          : <button className={styles.quiet} onClick={cloud.closeLogin}>ローカルの解析を続ける</button>}
+      </div>
+    </section>
+  </div>;
+}
+
+/** The first screen after installation: work on this PC, or turn on the cloud features. */
+export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string; onChoose: (choice: "local" | "cloud") => void}) {
+  return <section className={styles.firstRun} aria-labelledby="first-run-title">
+    <h2 id="first-run-title">インストールが完了しました</h2>
+    <p>画像の登録・検出・測定・統計・図は、このPCだけで使えます。どちらから始めるかを選んでください。</p>
+    <div className={styles.choices}>
+      <button className={styles.choice} disabled={busy} onClick={() => onChoose("local")}>
+        <b>このPCで解析を始める</b><span>公開の練習画像で、核の検出から図までを試せます。ログインは不要です。</span>
+      </button>
+      <button className={styles.choice} disabled={busy} onClick={() => onChoose("cloud")}>
+        <b>クラウド機能を有効にする</b><span>メールアドレスでログインし、GPU による核小体・細胞の検出と、解析提案を使えるようにします。</span>
+      </button>
+    </div>
+    {error && <p role="alert" className={styles.error}>{error}</p>}
+  </section>;
+}
