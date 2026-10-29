@@ -82,6 +82,8 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 
 変更は PR で提案し、オーナーの承認を得る。日本語と英語は同じ PR で更新し、[AGENTS.md](../AGENTS.md) と内容を一致させる。
 
+文書間の矛盾を見つけた場合は、いずれかの誤りとして扱い、自分の判断で直さない。コード・設定・記録と事実を照合したうえで、ただちにオーナーに確認する。
+
 ## English
 
 These rules apply to everyone contributing to Cytellect. They define how we work, how we use Git and how we handle research data. The principles that people and AI agents follow are in [Development principles](development-principles.md) (Japanese), and setting up a development environment is covered in [CONTRIBUTING](../CONTRIBUTING.md) (Japanese). Instructions for AI agents are in [AGENTS.md](../AGENTS.md) and are consistent with this document.
@@ -161,3 +163,5 @@ Research data falls into these categories.
 ### 8. Changing these rules
 
 Propose changes in a PR and obtain the owner's approval. Update the Japanese and English sections in the same PR and keep [AGENTS.md](../AGENTS.md) consistent.
+
+If you find a contradiction between documents, treat one of them as wrong and do not fix it on your own. Check the facts against the code, settings and records, then ask the owner immediately.
