@@ -16,6 +16,16 @@ export function siteUrl(explicit: string | undefined, vercelProduction: string |
 }
 export const SITE_URL=siteUrl(process.env.CYTELLECT_SITE_URL,process.env.VERCEL_PROJECT_PRODUCTION_URL,OWN_COMPUTER);
 
+/** How an indexed page appears when its link is shared. The image is the landing page's registered hero poster. */
+export function sharePreview(site: string, path: string, title: string, description: string): Pick<Metadata, "openGraph" | "twitter"> {
+ if(!site) return {};
+ const image={url:`${site}/marketing/hero-film-poster.webp`, width:1920, height:1080, alt:"Cytellect"};
+ return {
+  openGraph:{type:"website", siteName:"Cytellect", locale:"ja_JP", url:`${site}${path}`, title, description, images:[image]},
+  twitter:{card:"summary_large_image", title, description, images:[image.url]},
+ };
+}
+
 /** Pages offered to search engines; every other page is noindex (app/layout.tsx). */
 export function indexedPaths(showcase: boolean): string[] {
  return ["/", ...(showcase ? ["/demo"] : [])];

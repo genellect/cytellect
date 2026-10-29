@@ -9,7 +9,7 @@
 | 使う画面 | 詳細画面。起動中に Windows 版は `http://127.0.0.1:8765/legacy`、Docker 版は `http://127.0.0.1:3087/legacy` を開く。標準の作業画面向けの手順は改訂中 |
 | 使う画像 | 公開データ BBBC013 の A01・A06・A12（練習用のチャンネル別 TIFF） |
 
-配布版は常に [Cytellect のサイト](https://cytellect.vercel.app/)の最新版を使う。0.1.0-local.11 などの古い版は使わない。
+配布版は常に [Cytellect のサイト](https://cytellect.app/)の最新版を使う。0.1.0-local.11 などの古い版は使わない。
 
 ## 1. 準備する
 

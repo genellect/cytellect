@@ -23,7 +23,7 @@ Windows PC に Cytellect の配布版を導入し、起動・更新・アンイ�
 
 ## 2. ダウンロードと確認
 
-1. [Cytellect のサイト](https://cytellect.vercel.app/)の「Cytellectをダウンロード」、またはリリースのページから `Cytellect-<版>-windows-x64.zip` を保存する。
+1. [Cytellect のサイト](https://cytellect.app/)の「Cytellectをダウンロード」、またはリリースのページから `Cytellect-<版>-windows-x64.zip` を保存する。
 2. 研究室で求められている場合は、改ざんがないことを確認する。PowerShell で次を実行し、表示された値がリリースのページに記載の SHA-256 と一致することを確かめる。
 
    ```powershell
