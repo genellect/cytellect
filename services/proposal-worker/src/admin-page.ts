@@ -82,7 +82,7 @@ async function load() {
     if (user.state !== "allowed") actions.append(button(user.state === "pending" ? "承認" : "再び許可", false,
       () => change({ email: user.email, action: "allow" }, (d) => user.email + " を許可しました。" + (d.notified ? "メールで知らせました。" : ""))));
     else if (user.email !== data.owner) actions.append(button("取り消す", true, () => {
-      if (confirm(user.email + " の許可を取り消します。すべての端末で GPU と解析提案がすぐに止まります。")) {
+      if (confirm(user.email + " の許可を取り消します。この人がログインしたすべての端末で、GPU と解析提案がすぐに止まります。")) {
         change({ email: user.email, action: "revoke" }, () => user.email + " の許可を取り消しました。");
       }
     }));
@@ -135,7 +135,7 @@ export function adminPage(): Response {
 <p id="summary"></p>
 <div class="panel"><h2>メールアドレスを許可する</h2><form id="allow" class="row"><input id="new-email" type="email" aria-label="許可するメールアドレス" required><button>許可する</button></form>
 <p class="muted">許可した人には、利用できるようになったことをメールで知らせます。</p></div>
-<div class="panel"><h2>利用者</h2><p class="muted">上限の空欄は既定値です。取り消すと、その人のすべての端末で GPU と解析提案がすぐに止まります。</p>
+<div class="panel"><h2>利用者</h2><p class="muted">上限の空欄は既定値です。取り消すと、その人がログインしたすべての端末で GPU と解析提案がすぐに止まります。移行期間の招待トークンは利用者に結びついていないため止まりません（LEGACY_INVITATIONS="false" で止めます）。</p>
 <div class="scroll"><table><thead><tr><th>メールアドレス</th><th>状態</th><th>GPU（今月）</th><th>解析提案（今月）</th><th>申請日時</th><th>上限（秒・USD）</th><th>操作</th></tr></thead><tbody id="users"></tbody></table></div>
 <p id="empty" class="muted" hidden>まだ利用者はいません。</p></div></section>
 <p id="status" class="status" role="status" aria-live="polite"></p>`;

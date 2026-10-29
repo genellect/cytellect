@@ -9,7 +9,7 @@
  */
 import { adminPage, messagePage } from "./admin-page";
 import { D1AuthStore, type CodePurpose, type UserRecord, type UserState } from "./auth-store";
-import { base64url, bearer, equal, fromBase64url, hmac, json, month, nextMonth, readObject, sha256, token } from "./http";
+import { base64url, bearer, boundedText, equal, fromBase64url, hmac, json, month, nextMonth, readObject, sha256, token } from "./http";
 import type { Mailer } from "./mail";
 
 export interface CloudEnv {
@@ -33,6 +33,8 @@ export interface CloudContext {
   /** Wall clock for GPU elapsed time (tests substitute a fake). */
   clock: () => number;
   gpuFetcher: typeof fetch;
+  /** ExecutionContext.waitUntil when running in Workers. */
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 const SECOND = 1000, MINUTE = 60 * SECOND, HOUR = 60 * MINUTE, DAY = 24 * HOUR;
@@ -45,17 +47,31 @@ export const AUTH = {
   adminSessionTtl: 12 * HOUR,
   approvalTtl: 7 * DAY,
   bodyBytes: 4096,
+  /** Wrong codes per address and purpose within a day before the address is locked. */
+  maxFailures: 20,
+  lockDuration: DAY,
 } as const;
-/** Fixed windows per keyed hash of the IP or e-mail address: [kind, max, window]. */
+/**
+ * Limits per keyed hash of the IP (IPv6 by /64) or e-mail address: [kind, max, window].
+ * A window starts at its first hit. Code sends are also limited per recipient, so
+ * rotating IP addresses does not add codes or guesses for one address.
+ */
 export const RATE = {
   codeIp: ["code-ip", 20, HOUR],
   codeEmail: ["code-email", 6, HOUR],
+  codeSendDay: ["code-send-day", 10, DAY],
   verifyIp: ["verify-ip", 30, HOUR],
   requestIp: ["request-ip", 240, HOUR],
   adminIp: ["admin-ip", 10, HOUR],
   adminVerifyIp: ["admin-verify-ip", 20, HOUR],
+  adminSendHour: ["admin-send-hour", 5, HOUR],
+  adminSendDay: ["admin-send-day", 10, DAY],
   ownerNotices: ["owner-notice", 20, DAY],
 } as const satisfies Record<string, readonly [string, number, number]>;
+/** GPU admission: one request in flight per user; a slot older than this is stale. */
+export const GPU_SLOT_STALE_MS = 35 * MINUTE;
+/** Seconds held against the global cap for every other request in flight. */
+export const GPU_GLOBAL_HOLD_SECONDS = 300;
 export const DEFAULT_LIMITS = { gpuSeconds: 3600, proposalUsd: 5 };
 export const GPU_PREFIX = "/v1/cellpose";
 /** Modal server routes (engines/cellpose/server.py), mirrored under GPU_PREFIX. */
@@ -63,7 +79,8 @@ const GPU_ROUTES = { GET: ["/health"], POST: ["/", "/v1/cellpose"] } as const;
 const GPU_MAX_BODY_BYTES = 256 * 1024 * 1024;
 const ADMIN_COOKIE = "__Host-cytellect_admin";
 
-const fail = (status: number, error: string, extra: Record<string, unknown> = {}) => json(status, { error, ...extra });
+const fail = (status: number, error: string, extra: Record<string, unknown> = {}, headers: Record<string, string> = {}) =>
+  json(status, { error, ...extra }, headers);
 
 export function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -95,14 +112,46 @@ export function userLimits(env: CloudEnv, user: { gpu_seconds_month: number | nu
   };
 }
 
-const clientIp = (request: Request) => request.headers.get("cf-connecting-ip") ?? "unknown";
+/** IPv4 address, or the /64 prefix of an IPv6 address (one subscriber's usual allocation). */
+export function ipBucket(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const [head, tail, extra] = ip.toLowerCase().split("::");
+  if (extra !== undefined) return ip;
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const width = (groups: string[]) => groups.reduce((sum, group) => sum + (group.includes(".") ? 2 : 1), 0);
+  const groups = tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - width(left) - width(right))).fill("0"), ...right];
+  const prefix = groups.slice(0, 4);
+  if (prefix.length < 4 || prefix.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return ip;
+  return `${prefix.map((group) => parseInt(group, 16).toString(16)).join(":")}::/64`;
+}
+
+const clientIp = (request: Request) => ipBucket(request.headers.get("cf-connecting-ip") ?? "unknown");
+
+const rateKey = (cfg: AuthConfig, kind: string, value: string) =>
+  hmac(cfg.key, "rate-limit", `${kind}\u0000${value}`).then((hash) => `${kind}:${hash}`);
+
+const retryAfter = (until: number, now: number) => Math.max(1, Math.ceil((until - now) / SECOND));
 
 async function limited(ctx: CloudContext, cfg: AuthConfig, [kind, max, window]: readonly [string, number, number], value: string) {
-  const start = Math.floor(ctx.now / window) * window;
-  const count = await ctx.auth.hit(`${kind}:${await hmac(cfg.key, "rate-limit", `${kind}\u0000${value}`)}`, start);
+  const { count, window_start } = await ctx.auth.hit(await rateKey(cfg, kind, value), ctx.now, window);
   if (count <= max) return null;
-  const retry = Math.max(1, Math.ceil((start + window - ctx.now) / SECOND));
-  return fail(429, "rate_limited", { retry_after_seconds: retry });
+  return fail(429, "rate_limited", { retry_after_seconds: retryAfter(window_start + window, ctx.now) });
+}
+
+/** 429 while the address is locked after too many wrong codes for this purpose. */
+async function lockedOut(ctx: CloudContext, cfg: AuthConfig, email: string, purpose: CodePurpose) {
+  const since = await ctx.auth.lockedSince(await rateKey(cfg, `lock-${purpose}`, email), ctx.now, AUTH.lockDuration);
+  return since === null ? null : fail(429, "rate_limited", { retry_after_seconds: retryAfter(since + AUTH.lockDuration, ctx.now) });
+}
+
+/** Counts a wrong code; at the daily maximum the code is voided and the address locked. */
+async function recordFailure(ctx: CloudContext, cfg: AuthConfig, email: string, purpose: CodePurpose) {
+  const { count } = await ctx.auth.hit(await rateKey(cfg, `fail-${purpose}`, email), ctx.now, DAY);
+  if (count < AUTH.maxFailures) return null;
+  await ctx.auth.lock(await rateKey(cfg, `lock-${purpose}`, email), ctx.now);
+  await ctx.auth.deleteCode(email, purpose);
+  return fail(429, "rate_limited", { retry_after_seconds: AUTH.lockDuration / SECOND });
 }
 
 function sixDigits(): string {
@@ -125,11 +174,18 @@ async function currentUser(ctx: CloudContext, cfg: AuthConfig, email: string): P
 }
 
 async function sendCode(ctx: CloudContext, cfg: AuthConfig, email: string, purpose: CodePurpose): Promise<Response | null> {
+  const locked = await lockedOut(ctx, cfg, email, purpose);
+  if (locked) return locked;
   const existing = await ctx.auth.code(email, purpose);
   if (existing && ctx.now - existing.sent_at < AUTH.codeResend) {
     return fail(429, "rate_limited", { retry_after_seconds: Math.ceil((existing.sent_at + AUTH.codeResend - ctx.now) / SECOND) });
   }
   if (!ctx.mailer) return fail(503, "mail_unavailable");
+  // Per recipient, whatever the requesting IP: bounds codes, guesses and mail volume.
+  const capped = purpose === "admin"
+    ? await limited(ctx, cfg, RATE.adminSendHour, email) ?? await limited(ctx, cfg, RATE.adminSendDay, email)
+    : await limited(ctx, cfg, RATE.codeSendDay, email);
+  if (capped) return capped;
   const code = sixDigits();
   await ctx.auth.putCode(email, purpose, await codeHash(cfg, email, purpose, code), ctx.now, ctx.now + AUTH.codeTtl);
   try {
@@ -147,6 +203,8 @@ async function sendCode(ctx: CloudContext, cfg: AuthConfig, email: string, purpo
 }
 
 async function verifyCode(ctx: CloudContext, cfg: AuthConfig, email: string, code: unknown, purpose: CodePurpose): Promise<Response | null> {
+  const locked = await lockedOut(ctx, cfg, email, purpose);
+  if (locked) return locked;
   const row = await ctx.auth.code(email, purpose);
   if (!row) return fail(400, "code_expired");
   if (row.expires_at <= ctx.now) {
@@ -160,6 +218,8 @@ async function verifyCode(ctx: CloudContext, cfg: AuthConfig, email: string, cod
     return await ctx.auth.consumeCode(email, purpose, hash, ctx.now, AUTH.maxAttempts) ? null : fail(400, "code_expired");
   }
   const attempts = await ctx.auth.failAttempt(email, purpose, AUTH.maxAttempts);
+  const lockedNow = attempts === null ? null : await recordFailure(ctx, cfg, email, purpose);
+  if (lockedNow) return lockedNow;
   if (attempts === null || attempts >= AUTH.maxAttempts) return fail(400, "too_many_attempts");
   return fail(400, "code_invalid", { attempts_left: AUTH.maxAttempts - attempts });
 }
@@ -331,25 +391,30 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
   if (!config) return fail(503, "gpu_service_disabled");
   const user = await authenticate(request, ctx);
   if (user instanceof Response) return user;
-  const period = month(ctx.now);
-  const resets = nextMonth(ctx.now);
-  // Admission requires remaining time; one request in flight may finish beyond it.
-  if ((await ctx.auth.usage(user.email, period)).gpu_seconds >= user.limits.gpu_seconds_month) {
-    return fail(429, "quota_exceeded", { resets_at: resets, scope: "user" });
-  }
-  if (await ctx.auth.globalGpuSeconds(period) >= config.cap) return fail(429, "quota_exceeded", { resets_at: resets, scope: "global" });
-
   const headers = new Headers({ authorization: `Bearer ${config.token}` });
   for (const name of ["content-type", "accept"]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
   let body: ReadableStream<Uint8Array> | null = null;
+  let length = 0;
   if (method === "POST") {
-    const length = Number(request.headers.get("content-length") ?? "");
+    length = Number(request.headers.get("content-length") ?? "");
     if (!request.headers.has("content-length") || !Number.isInteger(length) || length < 0) return fail(411, "cellpose_remote_input_invalid");
     if (length === 0 || length > GPU_MAX_BODY_BYTES) return fail(413, "cellpose_remote_input_too_large");
     headers.set("content-length", String(length));
+  }
+
+  const period = month(ctx.now);
+  const resets = nextMonth(ctx.now);
+  // One request in flight per user, and holds for other users' requests in flight
+  // against the global cap: concurrent requests cannot together overrun either limit.
+  const admitted = await ctx.auth.acquireGpuSlot(user.email, period, ctx.now, ctx.now - GPU_SLOT_STALE_MS,
+    user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS);
+  if (admitted === "busy") return fail(503, "gpu_busy", { retry_after_seconds: 5 }, { "retry-after": "5" });
+  if (admitted !== "ok") return fail(429, "quota_exceeded", { resets_at: resets, scope: admitted });
+
+  if (method === "POST") {
     body = request.body;
     // The Modal server requires Content-Length: keep the stream's length known in Workers.
     const Fixed = (globalThis as { FixedLengthStream?: new (length: number) => TransformStream<Uint8Array, Uint8Array> }).FixedLengthStream;
@@ -360,21 +425,27 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
     }
   }
   const started = ctx.clock();
-  const record = async () => {
-    const seconds = Math.max(1, Math.ceil((ctx.clock() - started) / SECOND));
-    try { await ctx.auth.addGpuSeconds(user.email, period, seconds); } catch { /* the result is still returned */ }
-  };
+  const forward = (async () => {
+    try {
+      return await ctx.gpuFetcher(`${config.base}${route}`, {
+        method, headers, body, redirect: "manual", signal: request.signal,
+        ...(body ? { duplex: "half" } : {}),
+      } as RequestInit);
+    } finally {
+      // Usage and slot release run even if the upstream call fails.
+      const seconds = Math.max(1, Math.ceil((ctx.clock() - started) / SECOND));
+      try { await ctx.auth.addGpuSeconds(user.email, period, seconds); } catch { /* the result is still returned */ }
+      try { await ctx.auth.releaseGpuSlot(user.email, ctx.now); } catch { /* a stale slot expires */ }
+    }
+  })();
+  // Keeps accounting and release alive briefly if the client disconnects.
+  ctx.waitUntil?.(forward.catch(() => undefined));
   let upstream: Response;
   try {
-    upstream = await ctx.gpuFetcher(`${config.base}${route}`, {
-      method, headers, body, redirect: "manual", signal: request.signal,
-      ...(body ? { duplex: "half" } : {}),
-    } as RequestInit);
+    upstream = await forward;
   } catch {
-    await record();
     return fail(502, "gpu_upstream_unreachable");
   }
-  await record();
   if (upstream.status >= 300 && upstream.status < 400) {
     await upstream.body?.cancel().catch(() => undefined);
     return fail(502, "gpu_upstream_invalid");
@@ -478,8 +549,8 @@ async function approvePage(request: Request, url: URL, ctx: CloudContext, cfg: A
     return messagePage(200, "利用申請の承認", `${link.email} に、GPU 推論と解析提案の利用を許可します。承認すると、申請者にメールで知らせます。`,
       { action: "/v1/admin/approve", token: value!, label: "承認する" });
   }
-  const length = Number(request.headers.get("content-length") ?? "0");
-  const form = length <= AUTH.bodyBytes ? new URLSearchParams((await request.text()).slice(0, AUTH.bodyBytes)) : null;
+  const text = await boundedText(request.body, AUTH.bodyBytes);
+  const form = text === null ? null : new URLSearchParams(text);
   const link = await readApprovalToken(cfg, form?.get("t"), ctx.now);
   const email = link && await ctx.auth.useApprovalLink(link.hash, ctx.now);
   if (!link || email !== link.email) {

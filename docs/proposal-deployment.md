@@ -71,8 +71,13 @@ file rather than silently replacing it. Check `account_id`, Worker name, D1 ID,
 All of `0001_init.sql`, `0002_usage_integrity.sql`,
 `0003_budget_reconciliation.sql` and `0004_cloud_access.sql` must be applied before
 enabling calls. Apply `0004` **before** deploying code that includes cloud access:
-that code records the user on every reservation and settlement. Code without cloud
-access keeps working on a database with `0004`. On an existing
+that code looks up login tokens and records the user on every reservation and
+settlement. Deployed first, every `/v1/proposals` request fails with HTTP 500
+(`no such table: user_devices`) for every installation, including invitation
+tokens, until the migration is applied. Immediately before `pnpm cf deploy`, run
+`pnpm cf d1 migrations list cytellect-proposal --remote --config wrangler.disabled.json`
+and deploy only when it reports no unapplied migration. Code without cloud access
+keeps working on a database with `0004`. On an existing
 database, retain a private D1 export before migration (`d1 export --remote` with
 an output path outside the checkout). It contains access/usage records; do not
 publish it. Never clear reservations to make a budget check pass.
@@ -128,7 +133,7 @@ Modal's own spend limit stays in place as the outer bound.
 | Name | Kind | Purpose |
 |---|---|---|
 | `OWNER_EMAIL` | variable | The only address that can open `/admin`; always allowed |
-| `ADMIN_SIGNING_KEY` | secret | At least 32 random characters. Keys the hashes of login codes and rate-limit entries and signs approval links. Rotating it voids pending codes and links, not device tokens |
+| `ADMIN_SIGNING_KEY` | secret | At least 32 random characters. Keys the hashes of login codes and rate-limit entries and signs approval links. Rotating it voids pending codes, links, rate-limit counters and address locks, not device tokens |
 | `RESEND_API_KEY` | secret | Resend API key. Without it, code requests fail with `mail_unavailable`; nothing is sent |
 | `MAIL_FROM` | variable | Sender, for example `Cytellect <noreply@…>` on a domain verified in Resend (SPF/DKIM) |
 | `MODAL_URL` | secret | HTTPS origin of the Modal Cellpose server |
@@ -137,8 +142,8 @@ Modal's own spend limit stays in place as the outer bound.
 | `USER_GPU_SECONDS_MONTH`, `USER_PROPOSAL_USD_MONTH` | variables | Per-user monthly defaults (3600 and 5 when empty). A malformed value means 0 |
 | `LEGACY_INVITATIONS` | variable | `"false"` closes `/v1/admin/invitations`, `/v1/devices` and invitation tokens after installations have moved to login |
 
-Login and `/admin` return 503 (`auth_unavailable`) until `OWNER_EMAIL` and
-`ADMIN_SIGNING_KEY` are set. Enter secrets with `pnpm cf secret put NAME` at the
+Until `OWNER_EMAIL` and `ADMIN_SIGNING_KEY` are set, the login and admin APIs
+return JSON 503 `auth_unavailable` and `/admin` returns an HTML 503 page. Enter secrets with `pnpm cf secret put NAME` at the
 CLI's protected prompt, never as arguments or in tracked files. The global
 proposal budget remains `MONTHLY_BUDGET_USD`.
 
@@ -148,8 +153,14 @@ Owner operations, all on `https://<worker origin>/admin`:
 - **Approve** a request from the e-mail link (one button on the opened page) or
   with **承認** on the page. The requester receives an e-mail.
 - **Pre-register** an address with **許可する**; that person can log in at once.
-- **Revoke** with **取り消す**. Every device of that user stops at its next GPU or
-  proposal request. Re-allowing requires a new login.
+- **Revoke** with **取り消す**. Every device that logged in with that address stops
+  at its next GPU or proposal request. Re-allowing requires a new login.
+  Invitation tokens are not bound to a user and keep working for proposals while
+  `LEGACY_INVITATIONS` is on: for a hard stop, deploy `LEGACY_INVITATIONS="false"`
+  (or set `revoked_at` on the device record in D1).
+- **Locked out**: 20 wrong codes within a day lock an address for 24 hours (also
+  the owner's admin login). Wait, or rotate `ADMIN_SIGNING_KEY`, which also voids
+  pending codes and approval links.
 - **Limits**: set per-user GPU seconds and proposal USD; blank uses the defaults.
 
 Before enabling, check without paid calls: `/v1/auth/code` for an unlisted

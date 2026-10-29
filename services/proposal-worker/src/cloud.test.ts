@@ -1,6 +1,7 @@
 /** Cloud access routes against real SQLite with every migration (requirements A1–A6, C1–C3, C5). */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { D1AuthStore } from "./auth-store";
+import { ipBucket } from "./cloud";
 import { handle, type Env } from "./index";
 import { configuredMailer, MailError, RESEND_ENDPOINT, type MailMessage, type Mailer } from "./mail";
 import { D1Store, type D1Database } from "./store";
@@ -509,4 +510,157 @@ describe("Resend sender", () => {
       vi.fn(async () => new Response("{\"message\":\"private provider detail\"}", { status: 422 })))!;
     await expect(failing.send({ to: USER, subject: "s", text: "t" })).rejects.toThrow(/^mail_failed$/);
   });
+});
+
+describe("brute-force limits", () => {
+  it("buckets IPv6 clients by /64", async () => {
+    expect(ipBucket("2001:DB8:1:2:3:4:5:6")).toBe("2001:db8:1:2::/64");
+    expect(ipBucket("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(ipBucket("2001:db8:0:0:ffff::")).toBe("2001:db8:0:0::/64");
+    expect(ipBucket("::ffff:192.0.2.1")).toBe("0:0:0:0::/64");
+    expect(ipBucket("192.0.2.1")).toBe("192.0.2.1");
+    expect(ipBucket("not-an-ip")).toBe("not-an-ip");
+    const t = await setup();
+    for (let index = 0; index < 20; index += 1) {
+      const ip = `2001:db8:5:6:${index.toString(16)}::1`;
+      expect((await t.send("POST", "/v1/auth/code", { email: `p${index}@example.org` }, { "cf-connecting-ip": ip })).status).toBe(200);
+    }
+    const rotated = await t.send("POST", "/v1/auth/code", { email: "late@example.org" }, { "cf-connecting-ip": "2001:db8:5:6:ffff::9" });
+    expect(rotated.status).toBe(429);
+    expect((await t.send("POST", "/v1/auth/code", { email: "late@example.org" }, { "cf-connecting-ip": "2001:db8:5:7::1" })).status).toBe(200);
+  });
+
+  it("caps admin codes per recipient whatever the IP: 5 per hour and 10 per day", async () => {
+    const t = await setup();
+    const statuses: number[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      statuses.push((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { "cf-connecting-ip": `203.0.113.${index}`, origin: ORIGIN })).status);
+      t.time.now += 61_000;
+    }
+    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+    t.time.now += 3_600_000;
+    for (let index = 0; index < 6; index += 1) {
+      statuses.push((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { "cf-connecting-ip": `198.51.100.${index}` })).status);
+      t.time.now += 61_000;
+    }
+    expect(statuses.slice(6)).toEqual([200, 200, 200, 200, 200, 429]);
+    t.time.now += 3_600_000;
+    expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { "cf-connecting-ip": "192.0.2.200" })).status).toBe(429);
+    expect(t.mailer.to(OWNER)).toHaveLength(10);
+  });
+
+  it.each(["admin", "device"] as const)("locks the address for a day after 20 wrong %s codes from any IP", async (purpose) => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    const email = purpose === "admin" ? OWNER : USER;
+    const codePath = purpose === "admin" ? "/v1/admin/session/code" : "/v1/auth/code";
+    const verifyPath = purpose === "admin" ? "/v1/admin/session/verify" : "/v1/auth/verify";
+    let ip = 0;
+    const from = () => ({ "cf-connecting-ip": `203.0.113.${ip++}`, origin: ORIGIN });
+    let last: Response | undefined;
+    let code = "";
+    for (let round = 0; round < 5; round += 1) {
+      expect((await t.send("POST", codePath, { email }, from())).status).toBe(200);
+      code = t.mailer.code(email);
+      const wrong = code === "000000" ? "111111" : "000000";
+      for (let guess = 0; guess < 4; guess += 1) last = await t.send("POST", verifyPath, { email, code: wrong }, from());
+      t.time.now += 61_000;
+    }
+    expect([last!.status, await last!.json()]).toEqual([429, { error: "rate_limited", retry_after_seconds: 86_400 }]);
+    // Even the right code and a new code are refused until the lock ends.
+    expect((await t.send("POST", verifyPath, { email, code }, from())).status).toBe(429);
+    expect((await t.send("POST", codePath, { email }, from())).status).toBe(429);
+    expect(t.mailer.to(email)).toHaveLength(5);
+    t.time.now += 86_400_000;
+    expect((await t.send("POST", codePath, { email }, from())).status).toBe(200);
+    expect((await t.send("POST", verifyPath, { email, code: t.mailer.code(email) }, from())).status).toBe(purpose === "admin" ? 204 : 200);
+  });
+
+  it("sends at most 10 device codes per address per day", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    const statuses: number[] = [];
+    for (let index = 0; index < 12; index += 1) {
+      if (index === 6) t.time.now += 3_600_000;
+      statuses.push((await t.send("POST", "/v1/auth/code", { email: USER }, { "cf-connecting-ip": `203.0.113.${index}` })).status);
+      t.time.now += 61_000;
+    }
+    expect(statuses).toEqual([200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 429, 429]);
+    expect(t.mailer.to(USER)).toHaveLength(10);
+  });
+});
+
+describe("GPU admission under concurrency", () => {
+  it("lets one request per user run and refuses the rest, so concurrent requests cannot overrun the limit", async () => {
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const t = await setup(BASE_ENV, async () => { await gate; return new Response("{\"status\":\"ok\"}", { status: 200 }); });
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    await t.auth.addGpuSeconds(USER, "2026-10", 3599);
+    const pending = Array.from({ length: 20 }, () => t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device)));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    t.time.wall += 4_000;
+    open();
+    const responses = await Promise.all(pending);
+    const statuses = responses.map((response) => response.status).sort();
+    expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+    expect(statuses.filter((status) => status === 503)).toHaveLength(19);
+    const busy = responses.find((response) => response.status === 503)!;
+    expect(busy.headers.get("retry-after")).toBe("5");
+    expect(await busy.json()).toEqual({ error: "gpu_busy", retry_after_seconds: 5 });
+    expect(t.gpuFetcher).toHaveBeenCalledTimes(1);
+    const after = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+    expect([after.status, await after.json()]).toMatchObject([429, { error: "quota_exceeded", scope: "user" }]);
+    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(3603);
+  });
+
+  it("holds time for other users' requests in flight against the global cap", async () => {
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "300" }, async () => { await gate; return new Response("{}", { status: 200 }); });
+    await t.auth.allow(USER, t.time.now);
+    await t.auth.allow("second@example.org", t.time.now);
+    const first = await t.login(USER);
+    const second = await t.login("second@example.org");
+    const running = t.send("GET", "/v1/cellpose/health", undefined, t.bearer(first));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const refused = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(second));
+    expect([refused.status, await refused.json()]).toMatchObject([429, { error: "quota_exceeded", scope: "global" }]);
+    open();
+    expect((await running).status).toBe(200);
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(second))).status).toBe(200);
+    expect(t.gpuFetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases the slot when the upstream fails and takes over a stale slot", async () => {
+    let failing = true;
+    const t = await setup(BASE_ENV, async () => {
+      if (failing) throw new TypeError("network");
+      return new Response("{}", { status: 200 });
+    });
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    expect(await (await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).json()).toEqual({ error: "gpu_upstream_unreachable" });
+    failing = false;
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+    // A Worker stopped mid-request leaves its slot; it stops blocking after 35 minutes.
+    await t.db.prepare("INSERT INTO gpu_slots (email, started_at) VALUES (?, ?)").bind(USER, t.time.now - 34 * 60_000).run();
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(503);
+    t.time.now += 2 * 60_000;
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+  });
+});
+
+it("reads the approval form body within a bound even without Content-Length", async () => {
+  const t = await setup();
+  await t.send("POST", "/v1/auth/code", { email: USER });
+  const token = new URL(t.mailer.link()).searchParams.get("t")!;
+  const chunk = new TextEncoder().encode(`t=${token}&pad=${"x".repeat(8192)}`);
+  const response = await t.call(new Request(`${ORIGIN}/v1/admin/approve`, {
+    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new ReadableStream({ start(controller) { controller.enqueue(chunk); controller.close(); } }), duplex: "half",
+  } as RequestInit));
+  expect(response.status).toBe(400);
+  expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "pending_approval" });
 });

@@ -138,6 +138,8 @@ export interface HandleOptions {
   gpuFetcher?: typeof fetch;
   /** Wall clock for GPU elapsed time. */
   clock?: () => number;
+  /** ExecutionContext.waitUntil in Workers. */
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 const legacyInvitations = (env: Env) => env.LEGACY_INVITATIONS !== "false";
@@ -149,7 +151,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
   if (isCloudPath(url.pathname)) {
     if (!auth) return json(503, { error: "auth_unavailable" });
     return handleCloud(request, {
-      env, auth, now, clock: options.clock ?? Date.now, gpuFetcher: options.gpuFetcher ?? ((input, init) => fetch(input, init)),
+      env, auth, now, clock: options.clock ?? Date.now, waitUntil: options.waitUntil, gpuFetcher: options.gpuFetcher ?? ((input, init) => fetch(input, init)),
       mailer: "mailer" in options ? options.mailer ?? null : configuredMailer(env),
     });
   }
@@ -248,7 +250,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
 }
 
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
-    return handle(request, env, new D1Store(env.DB));
+  fetch(request: Request, env: Env, context?: { waitUntil(promise: Promise<unknown>): void }): Promise<Response> {
+    return handle(request, env, new D1Store(env.DB), { waitUntil: context ? (promise) => context.waitUntil(promise) : undefined });
   },
 };

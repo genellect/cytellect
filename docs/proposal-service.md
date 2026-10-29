@@ -77,8 +77,8 @@ JSON bodies; addresses are trimmed and lowercased. Errors are `{"error": "…"}`
 
 | Route | Result |
 |---|---|
-| `POST /v1/auth/code {email}` | `{"state":"code_sent","retry_after_seconds":60}` for an allowed address (code valid 10 minutes, stored only as a keyed hash); `{"state":"pending_approval"}` otherwise (request recorded, no code sent); `{"state":"revoked"}`. 429 `rate_limited` with `retry_after_seconds` (per address, per IP, and 60 s between codes). 503 `mail_unavailable` without a mail sender; 502 `mail_failed` if sending fails |
-| `POST /v1/auth/verify {email, code, device_name?}` | `{"device_token","email","expires_at"}`. 400 `code_invalid` with `attempts_left`, `code_expired` (also when no code is active) or `too_many_attempts` (the 5th wrong code voids it). `device_name` is accepted but not stored |
+| `POST /v1/auth/code {email}` | `{"state":"code_sent","retry_after_seconds":60}` for an allowed address (code valid 10 minutes, stored only as a keyed hash); `{"state":"pending_approval"}` otherwise (request recorded, no code sent); `{"state":"revoked"}`. 429 `rate_limited` with `retry_after_seconds` (see [limits](#login-limits)). 503 `mail_unavailable` without a mail sender; 502 `mail_failed` if sending fails |
+| `POST /v1/auth/verify {email, code, device_name?}` | `{"device_token","email","expires_at"}`. 400 `code_invalid` with `attempts_left`, `code_expired` (also when no code is active) or `too_many_attempts` (the 5th wrong code voids it). 429 `rate_limited` while the address is locked. `device_name` is accepted but not stored |
 | `GET /v1/auth/status` (Bearer) | `{"state":"allowed","email","limits":{"gpu_seconds_month","proposal_usd_month"},"usage":{"gpu_seconds","proposal_usd"},"resets_at"}`. 401 `auth_required` (missing, unknown, expired or logged-out token); 403 `revoked` |
 | `GET /v1/auth/request?email=…` | `{"state":"pending_approval"\|"allowed"\|"revoked"\|"none"}` without a token, so the PC can show that the request was approved. Rate-limited per IP |
 | `POST /v1/auth/logout` (Bearer) | 204; the token is deleted |
@@ -92,13 +92,26 @@ and `Content-Length` go upstream, and only `Content-Type`, `Content-Length` and
 `Retry-After` come back. Upstream statuses, including 503 while the GPU starts,
 are returned unchanged for the client to retry. Elapsed wall time from forwarding
 to the upstream response (rounded up to whole seconds, health checks included)
-is added to the user's monthly GPU usage. Errors: 401 `auth_required`, 403
-`revoked`, 429 `{"error":"quota_exceeded","resets_at","scope":"user"|"global"}`,
+is added to the user's monthly GPU usage. The Modal server runs one container
+that serves one request at a time, so this time also includes waiting behind
+other users' requests and the container's start-up.
+
+Admission is one D1 statement. Each user has at most one request in flight
+(health checks included); another request from the same user gets 503
+`{"error":"gpu_busy","retry_after_seconds":5}` with `Retry-After: 5`, which the
+client retries like a starting GPU. The user must have time left, and the global
+total plus 300 seconds for every other user's request in flight must be below
+`GPU_MONTHLY_SECONDS`. A user can therefore exceed a personal limit by at most the
+one request that started before it was reached, and the global cap is exceeded
+only by requests running longer than 300 seconds. A slot left by a Worker stopped
+mid-request stops blocking after 35 minutes.
+
+Errors: 401 `auth_required`, 403 `revoked`, 429
+`{"error":"quota_exceeded","resets_at","scope":"user"|"global"}`, 503 `gpu_busy`,
 411/413 for a missing or excessive `Content-Length`, 502
 `gpu_upstream_unreachable`/`gpu_upstream_invalid` (a redirect is never followed),
 503 `gpu_service_disabled` unless the secrets and a positive `GPU_MONTHLY_SECONDS`
-are set. A request is admitted while time remains, so one request in flight can
-end slightly beyond a limit. Invitation tokens are not accepted by the gateway.
+are set. Invitation tokens are not accepted by the gateway.
 
 For proposals, a login token is checked first: 401 `{"code":"unauthorized"}` when
 expired, 403 `{"code":"revoked"}` when revoked. The worst-case reservation must fit
@@ -109,8 +122,30 @@ Invitation tokens keep working while `LEGACY_INVITATIONS` is not `"false"`;
 they are bound to no user and count only against the global budget.
 
 Months are UTC calendar months. Revocation takes effect on the next request of
-every device of that user; re-allowing a user requires a new login. The owner's
-address is always allowed and cannot be revoked.
+every device that logged in with that address; re-allowing a user requires a new
+login. Invitation tokens are bound to no user, so revocation cannot reach them:
+while `LEGACY_INVITATIONS` is on, a person who also holds one can still request
+proposals with it. Set `LEGACY_INVITATIONS="false"` for a hard stop (or set
+`revoked_at` on that device record). The owner's address is always allowed and
+cannot be revoked.
+
+<a id="login-limits"></a>**Login limits.** Counters are keyed hashes of the
+address or the client IP; an IPv6 client counts by its /64 prefix. A window starts
+at its first hit.
+
+| Limit | Value |
+|---|---|
+| Code requests (`/v1/auth/code`) | 20 per hour per IP, 6 per hour per address, 60 s between codes |
+| Device codes sent | 10 per day per address, whatever the requesting IP |
+| Admin codes sent to the owner | 5 per hour and 10 per day; 10 admin code requests per hour per IP |
+| Code checks | 30 per hour per IP (admin: 20); 5 wrong guesses void a code |
+| Wrong codes per address | 20 within a day lock that address for 24 hours (device and admin separately). The lock also voids the current code and stops new codes |
+| Access requests | 240 status checks per hour per IP; 20 owner notices per day in total |
+
+Rotating IP addresses therefore adds neither codes nor guesses for one address: an
+attacker gets at most 20 wrong guesses per address per day (a one-in-50,000 chance). Anyone can lock an
+address for a day by guessing wrong; the owner can end an admin lock early by
+rotating `ADMIN_SIGNING_KEY`, which also voids pending codes and approval links.
 
 **Owner operations.** The owner opens `/admin`, enters `OWNER_EMAIL` and the code
 sent there (a 12-hour session cookie; codes for other addresses are never sent).
@@ -127,7 +162,8 @@ the page.
 optional limits, request/notice/approval/revocation times), `login_codes` (keyed
 hash, expiry, attempts), `user_devices` and `admin_sessions` (token hashes and
 times), `approval_links` (hash, expiry, use time), `rate_limits` (keyed hashes of
-addresses and IPs with counters) and `user_usage` (GPU seconds and proposal cost
+addresses and IPs with counters and lock times), `gpu_slots` (address and start
+time of a GPU request in flight) and `user_usage` (GPU seconds and proposal cost
 per user and month). Images, goals, prompts, outputs, device names and request
 bodies are not stored or logged.
 

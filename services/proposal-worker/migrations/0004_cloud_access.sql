@@ -56,6 +56,11 @@ CREATE TABLE user_usage (
   proposal_usd REAL NOT NULL DEFAULT 0 CHECK (proposal_usd >= 0),
   PRIMARY KEY (email, month)
 );
+-- At most one GPU request in flight per user; holds only the start time.
+CREATE TABLE gpu_slots (
+  email TEXT PRIMARY KEY,
+  started_at INTEGER NOT NULL
+);
 -- Proposal reservations made with a user-bound token also count against that user.
 ALTER TABLE reservations ADD COLUMN user_email TEXT;
 ALTER TABLE settlements ADD COLUMN user_email TEXT;

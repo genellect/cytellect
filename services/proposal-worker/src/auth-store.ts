@@ -180,14 +180,33 @@ export class D1AuthStore {
     return row?.email ?? null;
   }
 
-  /** Fixed-window counter in one statement; returns the count including this hit. */
-  async hit(key: string, windowStart: number) {
+  /**
+   * Counter whose window starts at its first hit (one statement); returns the count
+   * including this hit and when the window started.
+   */
+  async hit(key: string, now: number, window: number) {
     const row = await this.db.prepare(
       "INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1) ON CONFLICT (key) DO UPDATE SET "
-      + "count = CASE WHEN window_start = excluded.window_start THEN count + 1 ELSE 1 END, window_start = excluded.window_start "
-      + "RETURNING count",
-    ).bind(key, windowStart).first<{ count: number }>();
-    return row?.count ?? Number.MAX_SAFE_INTEGER;
+      + "count = CASE WHEN window_start > ? THEN count + 1 ELSE 1 END, "
+      + "window_start = CASE WHEN window_start > ? THEN window_start ELSE excluded.window_start END "
+      + "RETURNING count, window_start",
+    ).bind(key, now, now - window, now - window).first<{ count: number; window_start: number }>();
+    return row ?? { count: Number.MAX_SAFE_INTEGER, window_start: now };
+  }
+
+  /** Starts (or restarts) a lock at `now`. */
+  async lock(key: string, now: number) {
+    await this.db.prepare(
+      "INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1) "
+      + "ON CONFLICT (key) DO UPDATE SET window_start = excluded.window_start, count = 1",
+    ).bind(key, now).run();
+  }
+
+  /** Start of a lock still within `duration`, or null. */
+  async lockedSince(key: string, now: number, duration: number) {
+    const row = await this.db.prepare("SELECT window_start FROM rate_limits WHERE key = ? AND window_start > ?")
+      .bind(key, now - duration).first<{ window_start: number }>();
+    return row?.window_start ?? null;
   }
 
   async pruneRateLimits(before: number) {
@@ -217,6 +236,30 @@ export class D1AuthStore {
     const row = await this.db.prepare("SELECT COALESCE(SUM(gpu_seconds), 0) AS seconds FROM user_usage WHERE month = ?")
       .bind(month).first<{ seconds: number }>();
     return row?.seconds ?? 0;
+  }
+
+  /**
+   * Admits one GPU request for the user in one statement: at most one in flight per
+   * user (a slot older than `staleBefore` is taken over), remaining user time, and
+   * remaining global time after holding `holdSeconds` for every other request in flight.
+   */
+  async acquireGpuSlot(email: string, month: string, now: number, staleBefore: number,
+    userLimit: number, globalCap: number, holdSeconds: number): Promise<"ok" | "busy" | "user" | "global"> {
+    const result = await this.db.prepare(
+      "INSERT INTO gpu_slots (email, started_at) SELECT ?, ? WHERE "
+      + "COALESCE((SELECT gpu_seconds FROM user_usage WHERE email = ? AND month = ?), 0) < ? AND "
+      + "COALESCE((SELECT SUM(gpu_seconds) FROM user_usage WHERE month = ?), 0) + "
+      + "? * (SELECT COUNT(*) FROM gpu_slots WHERE email <> ? AND started_at > ?) < ? "
+      + "ON CONFLICT (email) DO UPDATE SET started_at = excluded.started_at WHERE gpu_slots.started_at <= ?",
+    ).bind(email, now, email, month, userLimit, month, holdSeconds, email, staleBefore, globalCap, staleBefore).run();
+    if (result.meta.changes === 1) return "ok";
+    // Only selects the reason; admission itself was decided atomically above.
+    if (await this.db.prepare("SELECT 1 AS ok FROM gpu_slots WHERE email = ? AND started_at > ?").bind(email, staleBefore).first()) return "busy";
+    return (await this.usage(email, month)).gpu_seconds >= userLimit ? "user" : "global";
+  }
+
+  async releaseGpuSlot(email: string, startedAt: number) {
+    await this.db.prepare("DELETE FROM gpu_slots WHERE email = ? AND started_at = ?").bind(email, startedAt).run();
   }
 
   async addGpuSeconds(email: string, month: string, seconds: number) {

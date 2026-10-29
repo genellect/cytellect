@@ -62,6 +62,29 @@ export async function readObject(request: Request, limit: number): Promise<Recor
   }
 }
 
+/** UTF-8 text of at most `limit` bytes whatever Content-Length says, or null. */
+export async function boundedText(body: ReadableStream<Uint8Array> | null, limit: number): Promise<string | null> {
+  if (!body) return "";
+  const reader = body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytes = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return text + decoder.decode();
+      bytes += value.byteLength;
+      if (bytes > limit) return null;
+      text += decoder.decode(value, { stream: true });
+    }
+  } catch {
+    return null;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
 export const month = (now: number) => new Date(now).toISOString().slice(0, 7);
 
 /** First instant of the next UTC calendar month, when monthly usage resets. */
