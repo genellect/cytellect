@@ -21,6 +21,8 @@ class LocalSetupView(BaseModel):
     fiji_configured: bool
     retention_mode: Literal["ttl", "manual"]
     retention_hours: float | None
+    # The installed release (Windows); the in-app update confirms the version it switched to.
+    version: str | None = None
 
 
 class WorkspaceView(BaseModel):

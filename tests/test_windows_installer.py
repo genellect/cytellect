@@ -152,8 +152,12 @@ def test_credentials_are_detected_by_rule_without_reporting_content(tmp_path):
     (tmp_path / ".env").write_text("anything")
     (tmp_path / "cellpose-remote.json").write_text("{}")
     (tmp_path / "prose.md").write_text("Use the token pair wk-…….ws-…… from the administrator.")
+    (tmp_path / "relay.toml").write_text("\n".join([
+        "AKIA" + "1B2C3D4E5F6G7H8J", "re_" + "a1B2c3D4" + "_" + "e5F6g7H8j9K0l1M2n3",
+        "CLOUDFLARE_API_TOKEN = " + ("a1B2" * 10), "v1.0-" + "0a" * 12 + "-" + "1b" * 60]))
     findings = builder.scan_for_secrets([tmp_path])
-    assert findings == {"openai_key": 1, "modal_token": 2, "forbidden_file": 2}
+    assert findings == {"openai_key": 1, "modal_token": 2, "forbidden_file": 2, "aws_access_key": 1,
+                        "resend_key": 1, "cloudflare_token": 1, "cloudflare_origin_ca_key": 1}
     assert all(isinstance(value, int) for value in findings.values())
 
 
@@ -196,10 +200,37 @@ def test_compiler_command_versions_and_signing_hook(tmp_path):
     assert re.fullmatch(r"[0-9a-f]{64}", builder.INNO_SHA256) and builder.INNO_URL.startswith("https://github.com/")
 
 
+def generated_wheel(name="numpy", version="2.5.3", license_text=b"Generated license text\n") -> bytes:
+    """A minimal wheel with metadata and a license file; no real package code."""
+    import io
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as wheel:
+        info = f"{name}-{version}.dist-info"
+        wheel.writestr(f"{info}/METADATA", f"Metadata-Version: 2.4\nName: {name}\nVersion: {version}\n"
+                                           "License-Expression: BSD-3-Clause\n")
+        wheel.writestr(f"{info}/licenses/LICENSE.txt", license_text)
+        wheel.writestr(f"{name}/__init__.py", "")
+    return buffer.getvalue()
+
+
+def test_bundled_wheels_contribute_their_license_texts(tmp_path):
+    wheel = tmp_path / "numpy-2.5.3-cp314-cp314-win_amd64.whl"
+    wheel.write_bytes(generated_wheel())
+    notice = builder.wheel_notice(wheel, tmp_path / "licenses/wheels")
+    assert notice["license"] == "BSD-3-Clause" and notice["source"] == "https://pypi.org/project/numpy/2.5.3/"
+    assert notice["files"] == ["wheels/numpy-2.5.3/licenses__LICENSE.txt"]
+    assert (tmp_path / "licenses" / notice["files"][0]).read_bytes() == b"Generated license text\n"
+
+
 def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkeypatch):
     archive = release_zip(tmp_path / "release")
+    wheel_bytes = generated_wheel()
     blobs = {role: b"generated artifact " + role.encode() for role in ("uv", "python", "fiji")}
-    artifacts = [builder.Artifact(role, f"https://example.invalid/{role}", digest(data)) for role, data in blobs.items()]
+    urls = {"uv": "https://github.com/astral-sh/uv/releases/download/0.12.2/uv-x86_64-pc-windows-msvc.zip",
+            "python": "https://www.python.org/ftp/python/3.14.8/python-3.14.8-amd64.zip",
+            "fiji": "https://downloads.imagej.net/fiji/archive/generated.zip"}
+    artifacts = [builder.Artifact(role, urls[role], digest(data)) for role, data in blobs.items()]
 
     def fetch(artifact, cache):
         cache.mkdir(parents=True, exist_ok=True)
@@ -209,7 +240,7 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
 
     def wheels(requirements, directory, scratch, pip_python):
         directory.mkdir()
-        (directory / "numpy-2.5.3-cp314-cp314-win_amd64.whl").write_bytes(b"numpy wheel")
+        (directory / "numpy-2.5.3-cp314-cp314-win_amd64.whl").write_bytes(wheel_bytes)
 
     def compile_installer(command, check, timeout):
         output = Path(next(part for part in command if part.startswith("/DOutputDir="))[len("/DOutputDir="):])
@@ -219,7 +250,7 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
     monkeypatch.setattr(builder, "fetch_artifact", fetch)
     monkeypatch.setattr(builder, "download_wheels", wheels)
     monkeypatch.setattr(builder, "locked_requirements",
-                        lambda text: {"numpy": ("numpy==2.5.3", {digest(b"numpy wheel")})})
+                        lambda text: {"numpy": ("numpy==2.5.3", {digest(wheel_bytes)})})
     monkeypatch.setattr(builder.subprocess, "run", compile_installer)
     receipt = builder.build(archive, tmp_path / "out", tmp_path / "work", tmp_path / "cache", Path("ISCC.exe"), None)
     assert receipt["signed"] is False and receipt["version"] == "0.1.0-local.21"
@@ -231,6 +262,14 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
     assert (payload / "release/local-release.json").is_file()
     offline = json.loads((payload / "offline/offline-manifest.json").read_text())
     assert offline["release_manifest_sha256"] == digest((payload / "release/local-release.json").read_bytes())
+    # Bundled licenses and corresponding-source addresses ship in the installer and the receipt.
+    notices = payload / "licenses/THIRD_PARTY_BUNDLED.txt"
+    text = notices.read_text(encoding="utf-8")
+    assert "GPL-3.0" in text and "https://github.com/fiji/fiji" in text and "uv 0.12.2" in text
+    assert receipt["third_party_notices"]["sha256"] == digest(notices.read_bytes())
+    sources = {item["component"]: item["source"] for item in receipt["third_party"]}
+    assert sources["numpy"] == "https://pypi.org/project/numpy/2.5.3/"
+    assert sources["plugins/MorphoLibJ_-1.6.5.jar"] == "https://github.com/ijpb/MorphoLibJ"
     with pytest.raises(builder.BuildError, match="installer_exists"):
         builder.build(archive, tmp_path / "out", tmp_path / "work2", tmp_path / "cache", Path("ISCC.exe"), None)
 
@@ -269,6 +308,13 @@ def test_installer_is_per_user_without_choices_or_administrator_rights():
     assert f"ShortcutDescription = '{app_update.SHORTCUT_DESCRIPTION}'" in text
     assert app_update.SHORTCUT_DESCRIPTION in SETUP.read_text(encoding="utf-8-sig")
     assert "#ifdef SignToolName" in text  # signing hook (D4), skipped without a certificate
+    # The bundled software's licenses and source addresses are installed with it (docs/oss.md).
+    assert 'Source: "{#PayloadDir}\\licenses\\*"; DestDir: "{app}\\licenses"' in text
+    # A self-help step comes before asking an administrator.
+    for line in text.splitlines():
+        if "管理者にご相談" in line or "管理者に配布物の確認" in line:
+            before = line.split("管理者")[0]
+            assert any(step in before for step in ("もう一度", "ダウンロードし直", "再起動", "移して")), line
 
 
 def test_every_setup_phase_and_preflight_code_has_a_japanese_message():

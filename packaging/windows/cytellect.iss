@@ -85,8 +85,8 @@ PreflightArchitecture=この PC のプロセッサーには対応していませ
 PreflightMemory=メモリーが不足しています。8 GB 以上のメモリーが必要です（この PC: 約 %1 MB）。%n%n何も変更せずに終了します。
 PreflightDisk=インストール先のドライブの空き容量が不足しています。あと約 %1 MB の空きが必要です（必要: 約 %2 MB、空き: 約 %3 MB）。%n%n不要なファイルを削除して空きを作ってから、もう一度このインストーラーを開いてください。何も変更していません。
 PreflightTemp=一時フォルダーのドライブの空き容量が不足しています。あと約 %1 MB の空きが必要です。%n%n空きを作ってから、もう一度このインストーラーを開いてください。何も変更していません。
-PreflightPowerShell=この PC では、インストールに必要な Windows PowerShell を実行できません。PC の管理者にご相談ください。%n%n何も変更せずに終了します。
-RootNotOwned=インストール先「%1」に、Cytellect 以外のファイルがあります。既存のファイルを守るため、何も変更せずに終了します。%n%nPC の管理者にご相談ください。
+PreflightPowerShell=インストールに必要な Windows PowerShell を起動できませんでした。何も変更していません。%n%nPC を再起動してから、もう一度このインストーラーを開いてください。それでも続く場合は、組織の設定で PowerShell が止められている可能性があるため、PC の管理者にご相談ください。
+RootNotOwned=インストール先「%1」に、Cytellect 以外のファイルがあります。既存のファイルを守るため、何も変更せずに終了します。%n%nそのフォルダーの中身が不要か、別の場所に移せるものであれば、移してからもう一度このインストーラーを開いてください。判断できない場合は、PC の管理者にご相談ください。
 PreparingWorkspace=Cytellect を準備しています（約 5〜10 分）。このまま閉じずにお待ちください…
 Phase_verify_release=配布ファイルを確認しています…
 Phase_download_uv=セットアップツールを準備しています…
@@ -103,9 +103,9 @@ Phase_manage_storage=仕上げをしています…
 FinishedHeading=インストールが完了しました
 FinishedText=作業画面をブラウザで開きました。%n%n開かない場合は、デスクトップの「Cytellect」を開き、表示される小さな画面の「作業画面を開く」を押してください。研究データはこの PC の中だけに保存されます。
 FailedHeading=インストールを完了できませんでした
-FailedText=%1%n%nもう一度このインストーラーを開くと、準備済みの部分は再利用され、続きから再開します。それでも続く場合は、PC の管理者にご相談ください。%n%n詳細: %2 / %3
+FailedText=%1%n%n次の順に試してください。%n1. もう一度このインストーラーを開く（準備済みの部分は再利用され、続きから再開します）%n2. PC を再起動してから、もう一度開く%n3. インストーラーをダウンロードし直して開く%nそれでも続く場合は、下の詳細を添えて PC の管理者にご相談ください。%n%n詳細: %2 / %3
 FailedGeneric=準備の途中で止まりました。
-FailedApplicationControl=Windows の保護機能（Smart App Control など）が、Cytellect の一部の実行を止めました。セキュリティ設定は変えずに、PC の管理者に配布物の確認を依頼してください。
+FailedApplicationControl=Windows の保護機能（Smart App Control など）が、Cytellect の一部の実行を止めました。セキュリティ設定は変えないでください。%n%nCytellect の公式サイトからインストーラーをダウンロードし直して開いても止まる場合は、この PC では今の配布物を使えません。PC の管理者に配布物の確認を依頼してください。
 FailedNotOwned=インストール先に Cytellect 以外のファイルがあります。
 FailedPayload=インストーラーのファイルが壊れているか、一部が欠けています。ダウンロードし直してから開いてください。
 AlreadyRunning=この版の Cytellect はインストール済みで、起動しています。作業画面をブラウザで開きます。%n%n開かない場合は、起動・停止の画面の「作業画面を開く」を押してください。
@@ -116,6 +116,8 @@ UninstallAskData=研究データ（作業データ・結果・設定）も削除
 Source: "preflight.ps1"; Flags: dontcopy
 Source: "{#PayloadDir}\release\*"; DestDir: "{tmp}\payload\release"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PayloadDir}\offline\*"; DestDir: "{tmp}\payload\offline"; Flags: ignoreversion recursesubdirs createallsubdirs nocompression
+; Licenses of the bundled software and where its source is published (docs/oss.md).
+Source: "{#PayloadDir}\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Code]
 const

@@ -116,6 +116,18 @@ jobs:
           $env:HTTP_PROXY = 'http://127.0.0.1:9'; $env:HTTPS_PROXY = 'http://127.0.0.1:9'
           $process = Start-Process -FilePath $env:CYTELLECT_RELEASE_INSTALLER -PassThru -Wait -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$env:CYTELLECT_INSTALL_ROOT`"")
           if ($process.ExitCode -ne 0) { throw 'Repeat installation failed' }
+      - name: The setup ZIP still installs online (the alternative until signing is decided)
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'package-source'
+          $install = Join-Path $env:RUNNER_TEMP 'installed-from-zip'
+          Expand-Archive -LiteralPath $env:CYTELLECT_RELEASE_ZIP -DestinationPath $source
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $install -Console -NoShortcut
+          if ($LASTEXITCODE -ne 0) { throw 'ZIP setup with pinned downloads failed' }
+          $completed = @(Get-ChildItem -LiteralPath "$install\apps" -Filter setup-complete.json -Recurse)
+          if ($completed.Count -ne 1) { throw 'Expected exactly one application from the ZIP' }
+          if ((Get-Content -LiteralPath $completed[0].FullName -Raw | ConvertFrom-Json).source_commit -ne $env:GITHUB_SHA) { throw 'ZIP installed revision mismatch' }
+          Remove-Item -LiteralPath $install -Recurse -Force
       - name: Installed image, planning and registration workflows with numerical replay
         shell: pwsh
         run: |

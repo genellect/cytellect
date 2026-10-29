@@ -9,6 +9,10 @@ shortcuts change. Only then does this launcher stop and a small relauncher start
 version. If the new version does not answer, the relauncher restores the database copy
 taken before the switch, the previous shortcuts and the previous version.
 
+Trust: the published ``.sha256`` and GitHub's asset digest come from the same release, so
+they detect corruption and a wrong file, not a compromised release. The trust anchor is
+write access to genellect/cytellect and its release workflow token (docs/security.md).
+
 The only network request is to GitHub's public release list of genellect/cytellect and
 the release's own files. No research data, file names or identifiers are sent. The
 routes exist only in the loopback local application, never in a hosted API.
@@ -20,6 +24,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -34,6 +39,7 @@ from typing import Annotated, Any
 
 REPOSITORY = "genellect/cytellect"
 RELEASES_URL = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=30"
+NOTES_PREFIX = f"https://github.com/{REPOSITORY}/releases/"
 DOWNLOAD_HOSTS = frozenset({"github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"})
 USER_AGENT = "cytellect-local-update"
 CHECK_SECONDS = 6 * 3600
@@ -43,10 +49,14 @@ MAX_JSON_BYTES = 2 * 1024**2
 INSTALLER_TIMEOUT_SECONDS = 3600
 START_TIMEOUT_SECONDS = 300
 EXIT_TIMEOUT_SECONDS = 120
+JOBS_WAIT_SECONDS = 600
 LOCAL_VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)-local\.([0-9]+)")
 SHORTCUT_DESCRIPTION = "Cytellect local analysis and control window"
 ROOT_MARKER = {"product": "cytellect-local", "schema": 1}
-ACTIVE = frozenset({"downloading", "verifying", "installing", "restarting"})
+# States written while this launcher works on an update; "installed" and the results are final.
+ACTIVE = frozenset({"downloading", "installing", "restarting"})
+# Files in updates/ that are not downloads.
+UPDATE_RECORDS = frozenset({"state.json", "latest.json", "switch.json", "rollback"})
 
 
 class UpdateRefused(Exception):
@@ -163,7 +173,10 @@ def latest_release(releases: Any) -> dict[str, Any] | None:
         checksum = assets.get(f"Cytellect-Setup-{version}.exe.sha256")
         if not installer or not checksum:
             continue
-        candidate = {"version": version, "notes_url": release.get("html_url"),
+        notes = release.get("html_url")
+        # The banner links here: only this repository's own release pages.
+        notes = notes if isinstance(notes, str) and notes.startswith(NOTES_PREFIX) else None
+        candidate = {"version": version, "notes_url": notes,
                      "installer_url": installer.get("browser_download_url"),
                      "installer_bytes": installer.get("size"), "installer_digest": installer.get("digest"),
                      "checksum_url": checksum.get("browser_download_url")}
@@ -192,13 +205,31 @@ def file_sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def stop_tree(process: Any) -> None:
+    """Stop a started process and every descendant (the installer runs PowerShell, uv, Python)."""
+    import psutil
+
+    with contextlib.suppress(psutil.Error, OSError, AttributeError):
+        parent = psutil.Process(process.pid)
+        for child in [*parent.children(recursive=True), parent]:
+            with contextlib.suppress(psutil.Error):
+                child.kill()
+
+
 def run_installer(installer: Path, root: Path) -> int:
     """Inno Setup silent mode: no window, no restart, into this installation folder."""
     try:
-        return subprocess.run([str(installer), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/DIR={root}"],
-                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              timeout=INSTALLER_TIMEOUT_SECONDS, check=False).returncode
-    except (OSError, subprocess.SubprocessError):
+        process = subprocess.Popen([str(installer), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/DIR={root}"],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        return -1
+    try:
+        return process.wait(timeout=INSTALLER_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        # A hung setup must not keep running behind the workspace.
+        stop_tree(process)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=30)
         return -1
 
 
@@ -214,17 +245,33 @@ def detach(command: list[str], cwd: Path) -> subprocess.Popen:
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def remove_downloads(updates: Path) -> None:
+    """Downloaded installers and partial files are disposable; the records are kept."""
+    with contextlib.suppress(OSError):
+        for entry in updates.iterdir():
+            if entry.name in UPDATE_RECORDS or entry.name.endswith(".tmp"):
+                continue
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry, ignore_errors=True)
+            else:
+                with contextlib.suppress(OSError):
+                    entry.unlink()
+
+
 class UpdateService:
     def __init__(self, installation: Installation | None, *, port: int = 8765,
                  fetch: Callable[[str], Any] = fetch_json, opener: Callable[[str, float], Any] = open_url,
                  installer: Callable[[Path, Path], int] = run_installer,
                  spawn: Callable[[list[str], Path], Any] = detach,
                  shutdown: Callable[[], Callable[[], None] | None] = lambda: None,
-                 clock: Callable[[], float] = time.time, background: bool = True):
+                 busy: Callable[[], bool] = lambda: False,
+                 clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
+                 background: bool = True):
         self.installation = installation
         self.port = port
         self.fetch, self.opener, self.installer, self.spawn = fetch, opener, installer, spawn
-        self.shutdown, self.clock, self.background = shutdown, clock, background
+        self.shutdown, self.busy, self.clock, self.sleep = shutdown, busy, clock, sleep
+        self.background = background
         self.lock = threading.Lock()
         self.worker: threading.Thread | None = None
         self.memory: dict[str, Any] = {}
@@ -292,6 +339,10 @@ class UpdateService:
             release = self.check()
             if not status["available"] or release is None:
                 raise UpdateRefused("update_not_available")
+            # Switching stops the worker; never interrupt an analysis without notice.
+            if self.busy():
+                raise UpdateRefused("update_jobs_running")
+            remove_downloads(self.installation.updates)
             self._set_state("downloading", version=release["version"])
             self.worker = threading.Thread(target=self._run, args=(release,), daemon=True)
             if self.background:
@@ -314,17 +365,19 @@ class UpdateService:
     def _download(self, release: dict[str, Any], target: Path, expected: str) -> None:
         partial = target.with_name(target.name + ".partial")
         hasher, received = hashlib.sha256(), 0
-        with self.opener(release["installer_url"], 60) as response, partial.open("wb") as stream:
-            while chunk := response.read(1024 * 1024):
-                received += len(chunk)
-                if received > MAX_INSTALLER_BYTES:
-                    raise UpdateRefused("update_installer_too_large")
-                hasher.update(chunk)
-                stream.write(chunk)
-        if hasher.hexdigest() != expected or (release.get("installer_bytes") not in (None, received)):
+        try:
+            with self.opener(release["installer_url"], 60) as response, partial.open("wb") as stream:
+                while chunk := response.read(1024 * 1024):
+                    received += len(chunk)
+                    if received > MAX_INSTALLER_BYTES:
+                        raise UpdateRefused("update_installer_too_large")
+                    hasher.update(chunk)
+                    stream.write(chunk)
+            if hasher.hexdigest() != expected or (release.get("installer_bytes") not in (None, received)):
+                raise UpdateRefused("update_installer_hash_mismatch")
+            os.replace(partial, target)
+        finally:
             partial.unlink(missing_ok=True)
-            raise UpdateRefused("update_installer_hash_mismatch")
-        os.replace(partial, target)
 
     def _run(self, release: dict[str, Any]) -> None:
         assert self.installation is not None
@@ -334,26 +387,39 @@ class UpdateService:
             folder.mkdir(parents=True, exist_ok=True)
             installer = folder / f"Cytellect-Setup-{version}.exe"
             expected = self._expected_digest(release)
-            if not installer.is_file() or file_sha256(installer) != expected:
-                self._download(release, installer, expected)
+            self._download(release, installer, expected)
             self._set_state("installing", version=version)
             # Verify again immediately before execution; the file is in the user's own folder.
             if file_sha256(installer) != expected:
                 raise UpdateRefused("update_installer_hash_mismatch")
             code = self.installer(installer, self.installation.root)
-            # The installer is not needed after it ran; a retry downloads it again.
-            installer.unlink(missing_ok=True)
             if code != 0:
                 # Setup failed before switching: the current version stays as it is.
                 raise UpdateRefused("update_install_failed")
             target = installed_version(self.installation.root, version)
             if target is None:
                 raise UpdateRefused("update_install_incomplete")
+            if not self._wait_for_jobs():
+                # Installed and verified; the shortcut already opens it, so the next start uses it.
+                self._set_state("installed", version=version, error="update_jobs_running")
+                return
             self._switch(target)
         except UpdateRefused as refused:
             self._set_state("failed", version=version, error=str(refused))
         except Exception:
             self._set_state("failed", version=version, error="update_failed")
+        finally:
+            # The installer is not needed after it ran; a retry downloads it again.
+            shutil.rmtree(folder, ignore_errors=True)
+
+    def _wait_for_jobs(self) -> bool:
+        """An analysis started while the installer ran finishes before the switch."""
+        deadline = self.clock() + JOBS_WAIT_SECONDS
+        while self.busy():
+            if self.clock() >= deadline:
+                return False
+            self.sleep(5)
+        return True
 
     def _switch(self, target: Installation) -> None:
         assert self.installation is not None
@@ -400,8 +466,17 @@ def wait_for_exit(pid: int, created: float, timeout: float = EXIT_TIMEOUT_SECOND
     return False
 
 
-def answers(port: int, timeout: float = START_TIMEOUT_SECONDS, process: Any = None) -> bool:
-    """The new launcher serves its local status on the loopback origin."""
+def process_running(pid: int, created: float) -> bool:
+    import psutil
+
+    try:
+        return abs(psutil.Process(pid).create_time() - created) <= 0.01
+    except psutil.Error:
+        return False
+
+
+def answers(port: int, version: str, timeout: float = START_TIMEOUT_SECONDS, process: Any = None) -> bool:
+    """The new launcher, of exactly this version, serves its local status on loopback."""
     deadline = time.monotonic() + timeout
     # Loopback only: a laboratory's system proxy must never see this request.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -410,20 +485,11 @@ def answers(port: int, timeout: float = START_TIMEOUT_SECONDS, process: Any = No
             return False
         with contextlib.suppress(OSError, ValueError):
             with opener.open(f"http://127.0.0.1:{port}/v1/local/setup", timeout=3) as response:
-                if response.status == 200 and json.loads(response.read(65536)).get("mode") == "local":
+                status = json.loads(response.read(65536))
+                if response.status == 200 and status.get("mode") == "local" and status.get("version") == version:
                     return True
         time.sleep(1)
     return False
-
-
-def stop_tree(process: Any) -> None:
-    import psutil
-
-    with contextlib.suppress(psutil.Error, OSError):
-        parent = psutil.Process(process.pid)
-        for child in [*parent.children(recursive=True), parent]:
-            with contextlib.suppress(psutil.Error):
-                child.kill()
 
 
 SHORTCUT_SCRIPT = r"""
@@ -466,13 +532,20 @@ class Relaunch:
 
     wait: Callable[[int, float], bool] = wait_for_exit
     start: Callable[[list[str], Path], Any] = detach
-    healthy: Callable[[int, Any], bool] = lambda port, process: answers(port, process=process)
+    healthy: Callable[[int, str, Any], bool] = lambda port, version, process: answers(port, version, process=process)
     stop: Callable[[Any], None] = stop_tree
     shortcuts: Callable[[Installation], None] = restore_shortcuts
+    copy: Callable[[Path, Path], None] = database_copy
+    alive: Callable[[int, float], bool] = lambda pid, created: process_running(pid, created)
     clock: Callable[[], float] = time.time
 
 
 def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
+    """Switch to the new version; on any failure, return to the previous one (I7).
+
+    Every failure path restores the previous shortcuts and leaves the previous version
+    running. The database copy is deleted only after it was restored or is no longer needed.
+    """
     effects = effects or Relaunch()
     plan = read_json(plan_path)
     if plan.get("schema") != "cytellect-update-switch/1":
@@ -483,47 +556,61 @@ def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
     state_path = root / "updates" / "state.json"
 
     def record(state: str, **values: Any) -> str:
-        write_json(state_path, {"state": state, "time": effects.clock(), **values})
+        with contextlib.suppress(OSError):
+            write_json(state_path, {"state": state, "time": effects.clock(), **values})
         return state
 
     if previous is None or target is None or previous.root != root or target.root != root:
         return record("failed", error="update_switch_invalid")
-    if not effects.wait(int(plan["wait_pid"]), float(plan["wait_created"])):
-        return record("failed", version=target.version, error="update_previous_still_running")
     database = root / "data" / "cytellect.sqlite"
     snapshot = root / "updates" / "rollback" / f"{previous.version}.sqlite"
+    pid, created = int(plan["wait_pid"]), float(plan["wait_created"])
+    errors: list[str] = []
+    process: Any = None
+    had_database = False
+    copied = False
     try:
-        snapshot.unlink(missing_ok=True)
-        if database.is_file():
-            database_copy(database, snapshot)
-    except (OSError, sqlite3.Error):
-        # Without a copy to return to, do not let the new version migrate the database.
-        effects.shortcuts(previous)
-        effects.start(previous.launch(), previous.app)
-        return record("rolled_back", version=target.version, previous=previous.version,
-                      error="update_database_copy_failed")
-    try:
-        process = effects.start(target.launch(), target.app)
-        started = effects.healthy(int(plan["port"]), process)
-    except OSError:
-        process, started = None, False
-    if started:
-        # The copy holds research records; keep none once the new version runs.
-        snapshot.unlink(missing_ok=True)
-        return record("updated", version=target.version, previous=previous.version)
-    # The new version did not start: return to the exact previous state (I7).
+        if not effects.wait(pid, created):
+            errors.append("update_previous_still_running")
+        else:
+            snapshot.unlink(missing_ok=True)
+            had_database = database.is_file()
+            if had_database:
+                effects.copy(database, snapshot)
+                copied = True
+            process = effects.start(target.launch(), target.app)
+            if effects.healthy(int(plan["port"]), target.version, process):
+                # The copy holds research records; keep none once the new version runs.
+                snapshot.unlink(missing_ok=True)
+                return record("updated", version=target.version, previous=previous.version)
+            errors.append("update_new_version_failed_to_start")
+    except Exception:
+        errors.append("update_switch_failed" if copied or not had_database else "update_database_copy_failed")
+    # Return to the previous version. Each step is independent: one failure never skips the rest.
     if process is not None:
-        effects.stop(process)
-    if snapshot.is_file():
-        database_copy(snapshot, database)
-        snapshot.unlink(missing_ok=True)
-    elif database.is_file():
+        with contextlib.suppress(Exception):
+            effects.stop(process)
+    if copied:
+        try:
+            effects.copy(snapshot, database)
+            snapshot.unlink(missing_ok=True)
+        except Exception:
+            # Kept for recovery: updates/rollback/<previous version>.sqlite is the pre-update database.
+            errors.append("update_database_restore_failed")
+    elif had_database is False and process is not None and database.is_file():
         # There was no database before the switch, so this one holds no research records.
-        database.unlink()
-    effects.shortcuts(previous)
-    effects.start(previous.launch(), previous.app)
-    return record("rolled_back", version=target.version, previous=previous.version,
-                  error="update_new_version_failed_to_start")
+        with contextlib.suppress(OSError):
+            database.unlink()
+    with contextlib.suppress(Exception):
+        effects.shortcuts(previous)
+    # Recorded before the previous version starts, so that its first answer already reports it.
+    result = record("rolled_back", version=target.version, previous=previous.version, error=errors[0],
+                    errors=errors)
+    # The previous launcher may still be running (it did not exit): then it is already the previous version.
+    if not effects.alive(pid, created):
+        with contextlib.suppress(Exception):
+            effects.start(previous.launch(), previous.app)
+    return result
 
 
 def register_app_update_routes(api, settings, owner) -> None:
@@ -531,14 +618,24 @@ def register_app_update_routes(api, settings, owner) -> None:
     if urllib.parse.urlsplit(settings.app_origin).hostname != "127.0.0.1" or settings.secure_cookies:
         return
     from fastapi import Depends, HTTPException
+    from sqlalchemy import func, select
+
+    from .db import jobs
 
     Owner = Annotated[str, Depends(owner)]
     port = urllib.parse.urlsplit(settings.app_origin).port or 8765
     holder: dict[str, UpdateService] = {}
 
+    def busy() -> bool:
+        """Queued or running analyses of any workspace on this PC."""
+        with api.state.store.engine.connect() as conn:
+            count = conn.execute(select(func.count()).select_from(jobs)
+                                 .where(jobs.c.state.in_(["queued", "running"]))).scalar_one()
+        return bool(count)
+
     def service() -> UpdateService:
         if "service" not in holder:
-            holder["service"] = UpdateService(current_installation(), port=port,
+            holder["service"] = UpdateService(current_installation(), port=port, busy=busy,
                                               shutdown=lambda: getattr(api.state, "request_shutdown", None))
         return holder["service"]
 

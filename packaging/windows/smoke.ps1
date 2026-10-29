@@ -8,7 +8,10 @@ param(
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$Checkout,
     # A published ZIP release to migrate from (I7: 0.1.0-local.20 data directories).
-    [string]$PreviousZip = ''
+    [string]$PreviousZip = '',
+    # A newer installer of the same source, for the in-app update and its rollback (I7).
+    [string]$UpdateInstaller = '',
+    [string]$UpdateVersion = ''
 )
 
 Set-StrictMode -Version Latest
@@ -260,5 +263,111 @@ if ($PreviousZip) {
     } finally { Stop-Cytellect $process }
     Invoke-Uninstaller $root @('/DELETEDATA')
 }
+if ($UpdateInstaller) {
+    # In-app update (I7, T1) against a generated release feed on 127.0.0.1. The test hook in
+    # packaging/windows/update-test is loaded only through PYTHONPATH and is never distributed.
+    $feedDirectory = Join-Path $Scratch 'update-feed'
+    New-Item -ItemType Directory -Path $feedDirectory | Out-Null
+    $feedPort = 8799
+    $base = "http://127.0.0.1:$feedPort"
+    $name = "Cytellect-Setup-$UpdateVersion.exe"
+    Copy-Item -LiteralPath $UpdateInstaller -Destination (Join-Path $feedDirectory $name)
+    Copy-Item -LiteralPath ($UpdateInstaller + '.sha256') -Destination (Join-Path $feedDirectory ($name + '.sha256'))
+    $feed = @(@{ tag_name = "v$UpdateVersion"; draft = $false
+        html_url = "https://github.com/genellect/cytellect/releases/tag/v$UpdateVersion"
+        assets = @(@{ name = $name; size = (Get-Item -LiteralPath $UpdateInstaller).Length; browser_download_url = "$base/$name" },
+                   @{ name = "$name.sha256"; browser_download_url = "$base/$name.sha256" }) })
+    [IO.File]::WriteAllText((Join-Path $feedDirectory 'releases.json'), (ConvertTo-Json -InputObject $feed -Depth 6))
+    $server = Start-Process -FilePath $python -PassThru -WindowStyle Hidden -ArgumentList @(
+        '-m', 'http.server', "$feedPort", '--bind', '127.0.0.1', '--directory', ('"' + $feedDirectory + '"'))
+    $env:PYTHONPATH = Join-Path $Checkout 'packaging\windows\update-test'
+    $env:CYTELLECT_TEST_RELEASES = "$base/releases.json"
+
+    function Stop-Root([string]$Root) {
+        Get-CimInstance -ClassName Win32_Process | Where-Object {
+            $_.Name -in @('python.exe', 'pythonw.exe') -and $_.ExecutablePath -and
+            $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase) } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { return }
+            Start-Sleep -Milliseconds 500
+        }
+        throw 'launcher kept listening after stop'
+    }
+
+    function Wait-UpdateState([string]$Current, [string]$State) {
+        # The launcher stops and another starts in between; ask again with a new session each time.
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        $last = ''
+        while ($watch.Elapsed.TotalSeconds -lt 1200) {
+            try {
+                $status = Invoke-RestMethod -NoProxy -TimeoutSec 10 -Uri "$Origin/v1/app/update" -WebSession (New-Session)
+                $observed = $status.current + ' ' + $status.state + ' ' + $status.error
+                if ($observed -cne $last) { Write-Host ('update status: ' + $observed); $last = $observed }
+                if ($status.current -ceq $Current -and $status.state -ceq $State) {
+                    Write-Host ('update reached {0} after {1:N0} s' -f $State, $watch.Elapsed.TotalSeconds)
+                    return $status
+                }
+                if ($status.state -ceq 'failed') { throw ('update failed: ' + $status.error) }
+            } catch {
+                # Between launchers nothing answers; only a reported failure ends the wait.
+                if ($_.Exception.Message -like 'update failed:*') { throw }
+            }
+            Start-Sleep -Seconds 3
+        }
+        throw "update did not reach $State"
+    }
+
+    function Assert-ShortcutVersion([string]$Root, [string]$Expected) {
+        $link = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Cytellect.lnk'))
+        if (-not $link.TargetPath.StartsWith((Join-Path $Root "apps\$Expected-"), [StringComparison]::OrdinalIgnoreCase)) {
+            throw "shortcut does not open $Expected"
+        }
+    }
+
+    try {
+        Step 'in-app update: download, verify, install beside, switch to the new version'
+        $root = Join-Path $Scratch 'update'
+        if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the update failed' }
+        $process = Start-Cytellect $root
+        $session = New-Session
+        $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Update check"}'
+        $offer = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
+        if (-not $offer.available -or $offer.latest -cne $UpdateVersion) { throw 'the generated release was not offered' }
+        $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
+        $null = Wait-UpdateState $UpdateVersion 'updated'
+        $kept = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
+        if ($kept.title -cne 'Update check') { throw 'workspace lost in the in-app update' }
+        Assert-ShortcutVersion $root $UpdateVersion
+        if (@(Get-ChildItem -LiteralPath (Join-Path $root 'updates') -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue).Count) {
+            throw 'the downloaded installer remained'
+        }
+        Stop-Root $root
+        Invoke-Uninstaller $root @('/DELETEDATA')
+
+        Step 'in-app update whose new version does not start returns to the previous version'
+        $root = Join-Path $Scratch 'rollback'
+        if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the rollback failed' }
+        $env:CYTELLECT_TEST_FAIL_VERSION = $UpdateVersion
+        $process = Start-Cytellect $root
+        $session = New-Session
+        $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Rollback check"}'
+        $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
+        $status = Wait-UpdateState $Version 'rolled_back'
+        if ($status.error -cne 'update_new_version_failed_to_start') { throw ('unexpected rollback reason ' + $status.error) }
+        $kept = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
+        if ($kept.title -cne 'Rollback check') { throw 'workspace lost in the rollback' }
+        Assert-ShortcutVersion $root $Version
+        if (@(Get-ChildItem -LiteralPath (Join-Path $root 'updates\rollback') -Filter '*.sqlite' -ErrorAction SilentlyContinue).Count) {
+            throw 'the database copy remained after a successful rollback'
+        }
+        Stop-Root $root
+        Invoke-Uninstaller $root @('/DELETEDATA')
+    } finally {
+        $env:PYTHONPATH = $null; $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null
+        if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+    }
+}
+
 if ($null -ne $guiFailure) { throw ('the shortcut launcher window did not start: ' + $guiFailure) }
 Write-Host 'installer smoke passed'

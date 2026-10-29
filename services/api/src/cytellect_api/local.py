@@ -153,10 +153,15 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         return response
 
+    from .app_update import current_installation
+
+    installed = current_installation()
+    version = installed.version if installed else None
+
     @app.get("/v1/local/setup", response_model=LocalSetupView)
     def setup():
         return {"mode": "local", "ready": True, "fiji_configured": bool(settings.fiji_executable),
-                **settings.retention_policy}
+                **settings.retention_policy, "version": version}
 
     @app.post("/v1/local/session", response_model=SessionView)
     def bootstrap(request: Request, response: Response):

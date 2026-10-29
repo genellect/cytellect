@@ -62,12 +62,13 @@ class Opener:
 
 
 def service(tmp_path, releases, *, opener=None, installer=lambda path, root: 0, spawned=None, stops=None,
-            clock=lambda: 1000.0, fetch=None):
+            clock=lambda: 1000.0, fetch=None, busy=lambda: False):
     current = installation(tmp_path)
     stops = stops if stops is not None else []
     return UpdateService(current, fetch=fetch or (lambda url: releases), opener=opener or Opener(),
                          installer=installer, spawn=lambda command, cwd: (spawned if spawned is not None else []).append(command),
-                         shutdown=lambda: (lambda: stops.append(True)), clock=clock, background=False)
+                         shutdown=lambda: (lambda: stops.append(True)), clock=clock, busy=busy,
+                         sleep=lambda seconds: None, background=False)
 
 
 def test_newest_published_local_release_with_installer_and_checksum_is_chosen():
@@ -231,50 +232,170 @@ def switch_plan(root: Path) -> Path:
     return plan
 
 
+class Effects:
+    """Records the relauncher's side effects; any step can be made to fail."""
+
+    def __init__(self, *, exits=True, healthy=False, fail=(), migrate=None, previous_alive=False):
+        self.exits, self.is_healthy, self.fail, self.migrate = exits, healthy, set(fail), migrate
+        self.previous_alive = previous_alive
+        self.started, self.stopped, self.shortcuts_restored, self.copies = [], [], [], []
+
+    def relaunch(self):
+        def start(command, cwd):
+            self.started.append(command[0])
+            if "start" in self.fail and len(self.started) == 1:
+                raise OSError("synthetic start failure")
+            if "0.1.0-local.22" in command[0] and self.migrate:
+                self.migrate()
+            return f"process-{len(self.started)}"
+
+        def copy(source, target):
+            self.copies.append((source.name, target.name))
+            if ("snapshot" in self.fail and len(self.copies) == 1) or ("restore" in self.fail and len(self.copies) == 2):
+                raise sqlite3.OperationalError("synthetic database lock")
+            app_update.database_copy(source, target)
+
+        def stop(process):
+            self.stopped.append(process)
+            if "stop" in self.fail:
+                raise OSError("synthetic stop failure")
+
+        def shortcuts(item):
+            self.shortcuts_restored.append(item.version)
+            if "shortcuts" in self.fail:
+                raise OSError("synthetic shortcut failure")
+
+        return Relaunch(wait=lambda pid, created: self.exits, start=start,
+                        healthy=lambda port, version, process: self.is_healthy and version == "0.1.0-local.22",
+                        stop=stop, shortcuts=shortcuts, copy=copy,
+                        alive=lambda pid, created: self.previous_alive)
+
+
+def state_of(root: Path) -> dict:
+    return json.loads((root / "updates/state.json").read_text())
+
+
 def test_relaunch_success_records_update_and_keeps_no_database_copy(tmp_path):
     plan = switch_plan(tmp_path)
     database(tmp_path / "data/cytellect.sqlite", "before")
-    started = []
-    effects = Relaunch(wait=lambda pid, created: True, start=lambda command, cwd: started.append(command) or "new",
-                       healthy=lambda port, process: True, stop=lambda process: pytest.fail("no stop"),
-                       shortcuts=lambda item: pytest.fail("no shortcut change"))
-    assert app_update.relaunch(plan, effects) == "updated"
-    assert len(started) == 1 and "0.1.0-local.22" in started[0][0]
+    effects = Effects(healthy=True)
+    assert app_update.relaunch(plan, effects.relaunch()) == "updated"
+    assert len(effects.started) == 1 and "0.1.0-local.22" in effects.started[0]
+    assert effects.stopped == [] and effects.shortcuts_restored == []
     assert not list((tmp_path / "updates/rollback").glob("*.sqlite"))
-    state = json.loads((tmp_path / "updates/state.json").read_text())
-    assert state["state"] == "updated" and state["previous"] == "0.1.0-local.21"
+    assert state_of(tmp_path)["state"] == "updated" and state_of(tmp_path)["previous"] == "0.1.0-local.21"
 
 
 def test_new_version_that_does_not_start_falls_back_to_the_previous_version(tmp_path):
     plan = switch_plan(tmp_path)
     data = tmp_path / "data/cytellect.sqlite"
     database(data, "before update")
-    started, stopped, shortcuts = [], [], []
-
-    def start(command, cwd):
-        started.append(command[0])
-        if len(started) == 1:
-            database(data, "migrated by the failed version")
-        return f"process-{len(started)}"
-
-    effects = Relaunch(wait=lambda pid, created: True, start=start, healthy=lambda port, process: False,
-                       stop=stopped.append, shortcuts=lambda item: shortcuts.append(item.version))
-    assert app_update.relaunch(plan, effects) == "rolled_back"
-    assert stopped == ["process-1"] and shortcuts == ["0.1.0-local.21"]
-    assert "0.1.0-local.22" in started[0] and "0.1.0-local.21" in started[1]
+    effects = Effects(migrate=lambda: database(data, "migrated by the failed version"))
+    assert app_update.relaunch(plan, effects.relaunch()) == "rolled_back"
+    assert effects.stopped == ["process-1"] and effects.shortcuts_restored == ["0.1.0-local.21"]
+    assert "0.1.0-local.22" in effects.started[0] and "0.1.0-local.21" in effects.started[1]
     assert marker(data) == "before update"  # the exact pre-update database is back
     assert not list((tmp_path / "updates/rollback").glob("*.sqlite"))
-    state = json.loads((tmp_path / "updates/state.json").read_text())
-    assert state["state"] == "rolled_back" and state["error"] == "update_new_version_failed_to_start"
+    assert state_of(tmp_path)["error"] == "update_new_version_failed_to_start"
     # The previous version then reports the fallback to the workspace banner.
     previous = app_update.read_installation(tmp_path / "apps" / f"0.1.0-local.21-{'a' * 12}")
     assert UpdateService(previous, fetch=lambda url: []).status()["state"] == "rolled_back"
 
 
-def test_relaunch_waits_for_the_previous_launcher(tmp_path):
+@pytest.mark.parametrize("fail,error,kept", [
+    ({"stop"}, "update_new_version_failed_to_start", False),       # stopping the new version fails
+    ({"restore"}, "update_new_version_failed_to_start", True),     # the database file is locked
+    ({"shortcuts"}, "update_new_version_failed_to_start", False),  # the shortcut cannot be rewritten
+    ({"start"}, "update_switch_failed", False),                    # the new version cannot be started
+    ({"snapshot"}, "update_database_copy_failed", False),          # no copy, so the new version never runs
+    ({"stop", "restore", "shortcuts"}, "update_new_version_failed_to_start", True),
+])
+def test_every_failed_switch_restores_shortcuts_and_starts_the_previous_version(tmp_path, fail, error, kept):
     plan = switch_plan(tmp_path)
-    effects = Relaunch(wait=lambda pid, created: False, start=lambda command, cwd: pytest.fail("must not start"))
-    assert app_update.relaunch(plan, effects) == "failed"
+    data = tmp_path / "data/cytellect.sqlite"
+    database(data, "before update")
+    effects = Effects(fail=fail, migrate=lambda: database(data, "migrated"))
+    assert app_update.relaunch(plan, effects.relaunch()) == "rolled_back"
+    assert effects.shortcuts_restored == ["0.1.0-local.21"]
+    assert "0.1.0-local.21" in effects.started[-1]
+    state = state_of(tmp_path)
+    assert state["state"] == "rolled_back" and state["error"] == error
+    snapshots = list((tmp_path / "updates/rollback").glob("*.sqlite"))
+    # A copy that could not be restored stays for recovery; otherwise none is left.
+    assert bool(snapshots) is kept
+    if kept:
+        assert "update_database_restore_failed" in state["errors"] and marker(snapshots[0]) == "before update"
+    else:
+        assert marker(data) == "before update"
+    if "snapshot" in fail:
+        assert len(effects.started) == 1  # only the previous version started
+
+
+def test_previous_launcher_that_does_not_exit_keeps_running_with_its_shortcuts(tmp_path):
+    plan = switch_plan(tmp_path)
+    effects = Effects(exits=False, previous_alive=True)
+    assert app_update.relaunch(plan, effects.relaunch()) == "rolled_back"
+    assert effects.started == []  # the previous version is still the one running
+    assert effects.shortcuts_restored == ["0.1.0-local.21"]
+    assert state_of(tmp_path)["error"] == "update_previous_still_running"
+
+
+def test_running_analyses_block_the_update_and_a_late_one_defers_the_switch(tmp_path):
+    with pytest.raises(UpdateRefused, match="update_jobs_running"):
+        service(tmp_path, [release("0.1.0-local.22")], busy=lambda: True).start()
+    spawned, stops, calls = [], [], []
+    clock = [1000.0]
+
+    def busy():
+        calls.append(1)
+        clock[0] += 100
+        return len(calls) > 1  # free when requested, then an analysis starts during installation
+
+    def install(path, root):
+        make_app(root, "0.1.0-local.22")
+        return 0
+
+    updater = UpdateService(installation(tmp_path / "late"), fetch=lambda url: [release("0.1.0-local.22")],
+                            opener=Opener(), installer=install, spawn=lambda c, d: spawned.append(c),
+                            shutdown=lambda: (lambda: stops.append(True)), busy=busy, clock=lambda: clock[0],
+                            sleep=lambda seconds: None, background=False)
+    status = updater.start()
+    assert spawned == [] and stops == []  # never stops a running analysis
+    assert status["state"] == "installed" and status["error"] == "update_jobs_running"
+
+
+def test_downloads_are_removed_after_installation_and_before_a_new_attempt(tmp_path):
+    seen = []
+    updater = service(tmp_path, [release("0.1.0-local.22")],
+                      installer=lambda path, root: seen.append(path.is_file()) or 20)
+    current = updater.installation
+    stale = current.updates / "0.1.0-local.20"
+    stale.mkdir(parents=True)
+    (stale / "Cytellect-Setup-0.1.0-local.20.exe.partial").write_bytes(b"old partial")
+    updater.start()
+    assert seen == [True] and not stale.exists()
+    assert sorted(path.name for path in current.updates.iterdir()) == ["latest.json", "state.json"]
+
+
+def test_a_hung_installer_is_stopped_with_its_children(tmp_path, monkeypatch):
+    stopped = []
+
+    class Hung:
+        pid = 1234
+
+        def wait(self, timeout):
+            raise app_update.subprocess.TimeoutExpired("setup", timeout)
+
+    monkeypatch.setattr(app_update.subprocess, "Popen", lambda *args, **kwargs: Hung())
+    monkeypatch.setattr(app_update, "stop_tree", stopped.append)
+    assert app_update.run_installer(tmp_path / "setup.exe", tmp_path) == -1
+    assert len(stopped) == 1
+
+
+def test_release_notes_link_only_to_this_repository():
+    foreign = release("0.1.0-local.22")
+    foreign["html_url"] = "https://example.invalid/phishing"
+    assert app_update.latest_release([foreign])["notes_url"] is None
 
 
 def local_client(tmp_path, origin="http://127.0.0.1:8765", secure=False):

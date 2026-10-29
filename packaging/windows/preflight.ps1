@@ -84,7 +84,12 @@ if ($MyInvocation.InvocationName -ne '.') {
         $installPath = [IO.Path]::GetFullPath($InstallRoot)
         $tempPath = [IO.Path]::GetFullPath($(if ($TempRoot) { $TempRoot } else { [IO.Path]::GetTempPath() }))
         $same = [IO.Path]::GetPathRoot($installPath) -ieq [IO.Path]::GetPathRoot($tempPath)
-        $update = [IO.File]::Exists([IO.Path]::Combine($installPath, 'setup-root.json'))
+        # An update reuses the installed Fiji and Python. A folder that kept only research data
+        # after an uninstallation has neither, so it needs the space of a first installation.
+        $runtimes = [IO.Path]::Combine($installPath, 'runtimes')
+        $update = [IO.Directory]::Exists($runtimes) -and
+            @([IO.Directory]::GetDirectories($runtimes, 'fiji-*')).Count -gt 0 -and
+            @([IO.Directory]::GetDirectories($runtimes, 'python-*')).Count -gt 0
         $result = Get-CytellectPreflight (Get-OsVersion) (Get-NativeArchitecture) ([Environment]::Is64BitOperatingSystem) `
             (Get-MemoryMB) (Get-FreeMB $installPath) (Get-FreeMB $tempPath) $same $update `
             $RequiredInstallMB $RequiredUpdateMB $PayloadMB

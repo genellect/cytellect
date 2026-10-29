@@ -54,6 +54,11 @@ SECRET_PATTERNS = {
     "modal_token": re.compile(r"\b(?:ak|as|wk|ws)-[A-Za-z0-9]{16,}\b"),
     "github_token": re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})"),
     "private_key": re.compile(r"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----"),
+    # The relay's providers: AWS, Resend (mail) and Cloudflare (API tokens, Origin CA keys).
+    "aws_access_key": re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+    "resend_key": re.compile(r"\bre_[A-Za-z0-9]{8,}_[A-Za-z0-9]{16,}"),
+    "cloudflare_token": re.compile(r"(?i)\b(?:cloudflare|cf)_?(?:api_?)?token\b[\"']?\s*[:=]\s*[\"']?[A-Za-z0-9_-]{40}\b"),
+    "cloudflare_origin_ca_key": re.compile(r"\bv1\.0-[0-9a-f]{24}-[0-9a-f]{100,}"),
 }
 TEXT_SUFFIXES = {".py", ".ps1", ".cmd", ".json", ".js", ".mjs", ".html", ".css", ".txt", ".md", ".toml",
                  ".lock", ".cfg", ".ini", ".xml", ".svg", ".in", ".env", ".yaml", ".yml", ".csv"}
@@ -305,6 +310,88 @@ def scan_for_secrets(paths: list[Path]) -> dict[str, int]:
     return counts
 
 
+LICENSE_NAME = re.compile(r"(?i)^(?:licen[cs]e|copying|notice|authors?)(?:[._-].*)?$")
+# Where the corresponding source of each bundled runtime is published (GPL/LGPL components
+# included). The Fiji archive keeps every jar's own notices; its JDK keeps its legal/ folder.
+FIJI_SOURCES = ("https://github.com/fiji/fiji", "https://github.com/imagej/ImageJ",
+                "https://github.com/ome/bioformats", "https://maven.scijava.org/ (sources of every bundled jar)")
+
+
+def wheel_notice(path: Path, destination: Path) -> dict:
+    """Name, version, declared license and the license files shipped inside one wheel."""
+    import email.parser
+
+    with zipfile.ZipFile(path) as wheel:
+        names = wheel.namelist()
+        info = sorted({name.split("/", 1)[0] for name in names if name.split("/", 1)[0].endswith(".dist-info")})
+        if len(info) != 1:
+            raise BuildError("wheel_metadata_missing")
+        metadata = email.parser.BytesParser().parsebytes(wheel.read(info[0] + "/METADATA"))
+        legacy = str(metadata.get("License") or "").strip().splitlines()
+        # Some packages put the whole license text in "License"; keep its first line only.
+        declared = str(metadata.get("License-Expression") or "") or (legacy[0][:200] if legacy else "")
+        classifiers = [str(value).split("::")[-1].strip() for value in metadata.get_all("Classifier", [])
+                       if str(value).startswith("License ::")]
+        files = []
+        for name in names:
+            inside = name[len(info[0]) + 1:] if name.startswith(info[0] + "/") else ""
+            if not inside or name.endswith("/"):
+                continue
+            if inside.startswith("licenses/") or LICENSE_NAME.match(PurePosixPath(inside).name):
+                target = destination / (metadata["Name"] + "-" + metadata["Version"]) / inside.replace("/", "__")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(wheel.read(name))
+                files.append(target.relative_to(destination.parent).as_posix())
+    return {"component": metadata["Name"], "version": metadata["Version"],
+            "license": declared or ", ".join(classifiers) or "see the package's license files",
+            "source": f"https://pypi.org/project/{metadata['Name']}/{metadata['Version']}/", "files": sorted(files)}
+
+
+def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheels: list[dict]) -> dict:
+    """licenses/: what the installer bundles, under which license, and where its source is."""
+    directory = payload / "licenses"
+    (directory / "wheels").mkdir(parents=True)
+    fiji = json.loads((release / "engines/fiji/runtime.lock.json").read_text(encoding="utf-8"))
+    runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
+    uv = next(artifact for artifact in artifacts if artifact.role == "uv")
+    uv_version = uv.url.split("/download/")[1].split("/")[0]
+    components = [
+        {"component": "Fiji (archive " + fiji["fiji"]["archive_stamp"] + ", with its JDK)",
+         "license": "GPL-3.0 for Fiji; every bundled component keeps its own license (Bio-Formats GPL-2.0-or-later; "
+                    "the JDK GPL-2.0 WITH Classpath-exception-2.0, see java/*/legal in the installed runtime)",
+         "sha256": fiji["fiji"]["windows-x64"]["sha256"], "url": fiji["fiji"]["windows-x64"]["url"],
+         "source": "; ".join(FIJI_SOURCES)},
+        *({"component": plugin["path"], "license": plugin["license"], "sha256": plugin["sha256"],
+           "url": plugin["url"], "source": plugin["source"]} for plugin in fiji["plugins"]),
+        {"component": "Python " + runtime["python"]["version"], "license": "PSF-2.0 and bundled component terms",
+         "sha256": runtime["python"]["sha256"], "url": runtime["python"]["url"],
+         "source": "https://www.python.org/downloads/source/"},
+        *({"component": notice["path"], "license": notice["license"], "source": notice["source_url"]}
+          for notice in runtime.get("notices", []) if notice.get("scope") == "scripts"),
+        {"component": "uv " + uv_version, "license": "Apache-2.0 OR MIT", "sha256": uv.sha256, "url": uv.url,
+         "source": f"https://github.com/astral-sh/uv/tree/{uv_version}"},
+    ]
+    offline = payload / "offline"
+    for wheel in wheels:
+        components.append(wheel_notice(offline / wheel["path"], directory / "wheels"))
+    lines = ["Cytellect Windows installer: bundled third-party software", "",
+             "Cytellect's own code is licensed under Apache-2.0 (LICENSE). That license does not apply to the",
+             "components below; each keeps its own license. The installed copies keep every notice that the",
+             "upstream archives and wheels contain (runtimes/, apps/*/.venv/Lib/site-packages/*.dist-info/).",
+             "Corresponding source is published at the addresses given for each component.", ""]
+    for item in components:
+        lines += [f"- {item['component']}" + (f" {item['version']}" if item.get("version") else ""),
+                  f"  License: {item['license']}", f"  Source: {item['source']}"]
+        if item.get("sha256"):
+            lines.append(f"  Bundled file SHA-256: {item['sha256']}")
+        for name in item.get("files", []):
+            lines.append(f"  License text: {name}")
+    text = ("\n".join(lines) + "\n").encode("utf-8")
+    (directory / "THIRD_PARTY_BUNDLED.txt").write_bytes(text)
+    (directory / "bundled-components.json").write_text(json.dumps(components, indent=2) + "\n", encoding="utf-8")
+    return {"notices_sha256": hashlib.sha256(text).hexdigest(), "components": components}
+
+
 def numeric_version(version: str) -> str:
     match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:-local\.([0-9]+))?(?:-.*)?", version)
     if not match:
@@ -349,7 +436,8 @@ def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc
     wheels = verify_wheelhouse(requirements, offline / "wheels")
     unique = list({artifact.sha256: artifact for artifact in artifacts}.values())
     write_offline_manifest(offline, (release / "local-release.json").read_bytes(), version, commit, unique, wheels)
-    findings = scan_for_secrets([release, offline / "offline-manifest.json"])
+    notices = write_notices(payload, release, unique, wheels)
+    findings = scan_for_secrets([release, offline / "offline-manifest.json", payload / "licenses"])
     if findings:
         raise BuildError("payload_contains_credentials:" + ",".join(sorted(findings)))
     payload_bytes = tree_bytes(payload)
@@ -367,7 +455,11 @@ def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc
                "installer": installer.name, "installer_sha256": digest, "installer_bytes": installer.stat().st_size,
                "release_zip": release_zip.name, "release_zip_sha256": sha256_file(release_zip),
                "payload_bytes": payload_bytes, "bundled": {"artifacts": len(unique), "wheels": len(wheels)},
-               "inno_setup": INNO_VERSION, "signed": bool(sign_command)}
+               "inno_setup": INNO_VERSION, "signed": bool(sign_command),
+               "third_party_notices": {"path": "licenses/THIRD_PARTY_BUNDLED.txt",
+                                       "sha256": notices["notices_sha256"]},
+               "third_party": [{key: item[key] for key in ("component", "version", "license", "source", "sha256")
+                                if item.get(key)} for item in notices["components"]]}
     (output_dir / f"Cytellect-Setup-{version}.json").write_text(json.dumps(receipt, indent=2) + "\n",
                                                                encoding="utf-8")
     return receipt

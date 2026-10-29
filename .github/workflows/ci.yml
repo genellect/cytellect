@@ -514,7 +514,8 @@ jobs:
           } finally { Stop-Installed $process }
   windows-installer:
     # Builds Cytellect-Setup-<version>.exe from this commit and installs, starts, re-runs,
-    # interrupts, resumes, migrates and uninstalls it on a disposable runner (plan §7.1 T1/T4).
+    # interrupts, resumes, migrates, updates in the app (and rolls back) and uninstalls it on
+    # a disposable runner (plan §7.1 T1/T4). Two versions of the same source test the update.
     # An integration test: main and manual runs only, like windows-installed.
     needs: changes
     if: github.event_name != 'pull_request' && needs.changes.outputs.windows == 'true'
@@ -523,7 +524,8 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       NEXT_TELEMETRY_DISABLED: "1"
-      CI_VERSION: 0.0.0-local.ci
+      CI_VERSION: 0.0.0-local.1
+      UPDATE_VERSION: 0.0.0-local.2
       MIGRATE_VERSION: 0.1.0-local.20
       MIGRATE_SHA256: bcbefa59857b29c4221603045266b167fb7019311d512f1c475fbaef0608525a
     steps:
@@ -536,7 +538,7 @@ jobs:
       - run: uv sync --locked --group build
       - run: npm install --global pnpm@11.19.0
       - run: pnpm install --frozen-lockfile
-      - name: Build the setup ZIP from this exact commit
+      - name: Build the setup ZIPs of two versions from this exact commit
         shell: pwsh
         run: |
           $inputs = Join-Path $env:RUNNER_TEMP 'package-inputs'
@@ -551,10 +553,11 @@ jobs:
           uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'Hashed dependency export failed' }
           $wheel = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')[0].FullName
-          $archive = Join-Path $env:RUNNER_TEMP "zip\Cytellect-$env:CI_VERSION-windows-x64.zip"
-          & $python -B scripts/build_local_bundle.py --version $env:CI_VERSION --output $archive --runtime-data $data --wheel $wheel --requirements $requirements
-          if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
-          "CYTELLECT_CI_ZIP=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
+          foreach ($version in @($env:CI_VERSION, $env:UPDATE_VERSION)) {
+            $archive = Join-Path $env:RUNNER_TEMP "zip\Cytellect-$version-windows-x64.zip"
+            & $python -B scripts/build_local_bundle.py --version $version --output $archive --runtime-data $data --wheel $wheel --requirements $requirements
+            if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
+          }
       - name: Restore pinned public downloads (content-addressed, verified again on use)
         uses: actions/cache@v4
         with:
@@ -571,20 +574,23 @@ jobs:
           $output = Join-Path $env:RUNNER_TEMP 'installer'
           # The project environment has no pip; the runner's Python downloads the hash-locked wheels.
           $pip = (Get-Command python).Source
-          & $python -B scripts/build_windows_installer.py build --release-zip $env:CYTELLECT_CI_ZIP --output-dir $output --work-dir (Join-Path $env:RUNNER_TEMP 'installer-work') --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python $pip
-          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
-          $installer = Join-Path $output "Cytellect-Setup-$env:CI_VERSION.exe"
-          Write-Host ('Installer size: {0:N0} MB' -f ((Get-Item -LiteralPath $installer).Length / 1MB))
-          Get-Content -LiteralPath (Join-Path $output "Cytellect-Setup-$env:CI_VERSION.json")
-          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'installer-work') -Recurse -Force
-          "CYTELLECT_CI_INSTALLER=$installer" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Silent install, start, re-run, uninstall, resume and migrate from the published ZIP release
+          foreach ($version in @($env:CI_VERSION, $env:UPDATE_VERSION)) {
+            $work = Join-Path $env:RUNNER_TEMP "installer-work-$version"
+            & $python -B scripts/build_windows_installer.py build --release-zip (Join-Path $env:RUNNER_TEMP "zip\Cytellect-$version-windows-x64.zip") --output-dir $output --work-dir $work --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python $pip
+            if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+            Write-Host ('Installer {0}: {1:N0} MB' -f $version, ((Get-Item -LiteralPath (Join-Path $output "Cytellect-Setup-$version.exe")).Length / 1MB))
+            Remove-Item -LiteralPath $work -Recurse -Force
+          }
+          Get-Content -LiteralPath (Join-Path $output "Cytellect-Setup-$env:CI_VERSION.json") | Select-Object -First 16
+          "CYTELLECT_CI_INSTALLER=$(Join-Path $output "Cytellect-Setup-$env:CI_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CYTELLECT_UPDATE_INSTALLER=$(Join-Path $output "Cytellect-Setup-$env:UPDATE_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Silent install, start, re-run, uninstall, resume, migrate from the published ZIP release and update in the app
         shell: pwsh
         run: |
           $previous = Join-Path $env:RUNNER_TEMP "Cytellect-$env:MIGRATE_VERSION-windows-x64.zip"
           Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/genellect/cytellect/releases/download/v$env:MIGRATE_VERSION/Cytellect-$env:MIGRATE_VERSION-windows-x64.zip" -OutFile $previous
           if ((Get-FileHash -LiteralPath $previous -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:MIGRATE_SHA256) { throw 'Previous release hash mismatch' }
-          & ./packaging/windows/smoke.ps1 -Installer $env:CYTELLECT_CI_INSTALLER -Scratch (Join-Path $env:RUNNER_TEMP 'installer-smoke') -Version $env:CI_VERSION -Checkout (Get-Location).Path -PreviousZip $previous
+          & ./packaging/windows/smoke.ps1 -Installer $env:CYTELLECT_CI_INSTALLER -Scratch (Join-Path $env:RUNNER_TEMP 'installer-smoke') -Version $env:CI_VERSION -Checkout (Get-Location).Path -PreviousZip $previous -UpdateInstaller $env:CYTELLECT_UPDATE_INSTALLER -UpdateVersion $env:UPDATE_VERSION
   windows-tests:
     needs: changes
     if: needs.changes.outputs.windows == 'true'
