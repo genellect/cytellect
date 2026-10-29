@@ -13,7 +13,7 @@ import stat
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 
 import numpy as np
 import pytest
@@ -27,6 +27,7 @@ from cytellect_analysis.cellpose_engine import (
 from cytellect_api import local as local_module
 from cytellect_api import proposals
 from cytellect_api.cloud_account import ACCOUNT_FILE, SCHEMA, CloudAccount
+from cytellect_api.cloud_account import account_file as account_path
 from cytellect_api.config import Settings
 from cytellect_api.local import WorkerSupervisor, create_local_app
 from fastapi.testclient import TestClient
@@ -47,6 +48,7 @@ class FakeCloud:
         self.codes: dict[str, str] = {}
         self.attempts: dict[str, int] = {}
         self.tokens: dict[str, str] = {}
+        self.requests_by_token: dict[str, str] = {}
         self.requests: list[tuple[str, str, dict, bytes]] = []
         self.status_reply: tuple[int, dict] | None = None
         self.health: list[tuple[int, dict]] = []
@@ -89,11 +91,6 @@ class FakeCloud:
                                             "limits": {"gpu_seconds_month": 3600, "proposal_usd_month": 5},
                                             "usage": {"gpu_seconds": 120, "proposal_usd": 0.4},
                                             "resets_at": "2026-11-01T00:00:00Z", "internal_note": "dropped"})
-                if path.path == "/v1/auth/request":
-                    email = parse_qs(path.query)["email"][0]
-                    state = ("revoked" if email in cloud.revoked else "allowed" if email in cloud.allowed
-                             else "pending_approval" if email in cloud.pending else "none")
-                    return self.reply(200, {"state": state})
                 if path.path == "/v1/cellpose/health":
                     if self.bearer() is None:
                         return self.reply(401, {"error": "auth_required"})
@@ -113,9 +110,16 @@ class FakeCloud:
                         return self.reply(200, {"state": "revoked"})
                     if email not in cloud.allowed:
                         cloud.pending.add(email)
-                        return self.reply(200, {"state": "pending_approval"})
+                        request = "req_" + secrets.token_urlsafe(16)
+                        cloud.requests_by_token[request] = email
+                        return self.reply(200, {"state": "pending_approval", "request_token": request})
                     cloud.codes[email], cloud.attempts[email] = "123456", 5
                     return self.reply(200, {"state": "code_sent", "retry_after_seconds": 60})
+                if self.path == "/v1/auth/request":
+                    email = cloud.requests_by_token.get(body.get("request_token"))
+                    state = ("none" if email is None else "revoked" if email in cloud.revoked
+                             else "allowed" if email in cloud.allowed else "pending_approval")
+                    return self.reply(200, {"state": state})
                 if self.path == "/v1/auth/verify":
                     email = body["email"]
                     if cloud.verify_reply:
@@ -188,12 +192,15 @@ def test_sign_in_stores_the_token_user_only_and_never_returns_it(tmp_path, cloud
     assert view.json() == {"state": "allowed", "email": ALLOWED,
                            "limits": {"gpu_seconds_month": 3600, "proposal_usd_month": 5},
                            "usage": {"gpu_seconds": 120, "proposal_usd": 0.4}, "resets_at": "2026-11-01T00:00:00Z"}
-    stored = settings.data_dir / ACCOUNT_FILE
+    stored = account_path(settings.data_dir)
     record = json.loads(stored.read_text(encoding="utf-8"))
     assert record["schema"] == SCHEMA and record["device_token"] == token and record["base_url"] == cloud.url
     if os.name != "nt":
         assert stat.S_IMODE(stored.stat().st_mode) == 0o600
-    assert not list(settings.data_dir.glob(".cloud-account.json.*"))
+    # Installation settings beside settings/cellpose-remote.json, not research data.
+    assert stored.parent.name == "settings" and stored.parent.parent == settings.data_dir.parent
+    assert not (settings.data_dir / ACCOUNT_FILE).exists()
+    assert not list(stored.parent.glob(".cloud-account.json.*"))
     responses.append(client.post("/v1/account/logout", headers=HEADERS))
     assert responses[-1].json() == {"state": "signed_out"}
     assert ("POST", "/v1/auth/logout") in [(m, p) for m, p, *_ in cloud.requests]
@@ -207,12 +214,17 @@ def test_unapproved_address_waits_and_the_banner_learns_of_approval(tmp_path, cl
     client, _, _ = local(tmp_path)
     pending = client.post("/v1/account/code", json={"email": UNAPPROVED}, headers=HEADERS).json()
     assert pending["state"] == "pending_approval" and pending["email"] == UNAPPROVED
+    assert "request_token" not in json.dumps(pending)
     assert isinstance(pending["requested_at"], float)
     assert client.get("/v1/account").json() == pending
     # Local analysis continues while approval is pending.
     assert client.get("/v1/workspaces").status_code == 200
     cloud.allowed.add(UNAPPROVED)
     assert client.get("/v1/account").json() == {**pending, "approved": True}
+    # Polling names the request by its token, never the address in a URL.
+    polls = [entry for entry in cloud.requests if entry[1].startswith("/v1/auth/request")]
+    assert polls and all(entry[0] == "POST" and entry[1] == "/v1/auth/request" and UNAPPROVED.encode() not in entry[3]
+                         for entry in polls)
     assert client.post("/v1/account/code", json={"email": UNAPPROVED}, headers=HEADERS).json()["state"] == "code_sent"
     assert client.post("/v1/account/verify", json={"code": "123456"}, headers=HEADERS).json()["state"] == "allowed"
 
@@ -223,19 +235,19 @@ def test_revocation_expiry_and_offline_end_only_the_cloud_features(tmp_path, clo
     cloud.httpd.shutdown()
     cloud.httpd.server_close()
     assert client.get("/v1/account").json() == {"state": "offline", "email": ALLOWED}
-    assert json.loads((settings.data_dir / ACCOUNT_FILE).read_text())["device_token"] == token
+    assert json.loads((account_path(settings.data_dir)).read_text())["device_token"] == token
     assert client.get("/v1/workspaces").status_code == 200
 
     revived = FakeCloud()
     revived.tokens[token] = ALLOWED
     revived.revoked.add(ALLOWED)
-    record = json.loads((settings.data_dir / ACCOUNT_FILE).read_text())
+    record = json.loads((account_path(settings.data_dir)).read_text())
     record["base_url"] = revived.url
-    (settings.data_dir / ACCOUNT_FILE).write_text(json.dumps(record))
+    (account_path(settings.data_dir)).write_text(json.dumps(record))
     monkeypatch.setenv("CYTELLECT_CLOUD_URL", revived.url)
     try:
         assert client.get("/v1/account").json() == {"state": "revoked", "email": ALLOWED}
-        assert "device_token" not in json.loads((settings.data_dir / ACCOUNT_FILE).read_text())
+        assert "device_token" not in json.loads((account_path(settings.data_dir)).read_text())
         assert client.post("/v1/account/code", json={"email": ALLOWED}, headers=HEADERS).json() == {
             "state": "revoked", "email": ALLOWED}
         revived.revoked.clear()
@@ -251,10 +263,10 @@ def test_expired_login_asks_to_sign_in_again(tmp_path, cloud):
     signed_in(client, cloud)
     cloud.status_reply = (401, {"error": "auth_required"})
     assert client.get("/v1/account").json() == {"state": "expired", "email": ALLOWED}
-    assert "device_token" not in json.loads((settings.data_dir / ACCOUNT_FILE).read_text())
+    assert "device_token" not in json.loads((account_path(settings.data_dir)).read_text())
     cloud.status_reply = None
-    record = json.loads((settings.data_dir / ACCOUNT_FILE).read_text())
-    (settings.data_dir / ACCOUNT_FILE).write_text(json.dumps({**record, "state": "allowed", "device_token": "x" * 40,
+    record = json.loads((account_path(settings.data_dir)).read_text())
+    (account_path(settings.data_dir)).write_text(json.dumps({**record, "state": "allowed", "device_token": "x" * 40,
                                                               "expires_at": "2000-01-01T00:00:00Z"}))
     assert client.get("/v1/account").json() == {"state": "expired", "email": ALLOWED}
 
@@ -297,7 +309,7 @@ def test_verification_can_find_the_address_revoked_or_not_yet_approved(tmp_path,
     cloud.verify_reply = (403, {"error": error})
     result = client.post("/v1/account/verify", json={"code": "123456"}, headers=HEADERS)
     assert result.status_code == 200 and result.json()["state"] == error
-    record = json.loads((settings.data_dir / ACCOUNT_FILE).read_text())
+    record = json.loads((account_path(settings.data_dir)).read_text())
     assert record["state"] == error and "device_token" not in record
 
 
@@ -326,7 +338,7 @@ def test_gpu_warm_up_waits_through_503_and_reports_quota_and_revocation(tmp_path
     assert account.start_gpu() == {"state": "unconfigured"}
     client, app, _ = local(tmp_path / "app")
     signed_in(client, cloud)
-    account = CloudAccount(app.state.cloud_account.store.root, sleep=slept.append)
+    account = CloudAccount(app.state.cloud_account.data_dir, sleep=slept.append)
     cloud.health = [(503, {}), (503, {}), (200, {"status": "ok"})]
     assert account.start_gpu() == {"state": "starting"}
     account._gpu_thread.join(5)
@@ -357,7 +369,7 @@ def test_gpu_warm_up_gives_up_after_its_bound_and_on_network_failure(tmp_path, c
     clock = [1000.0]
     client, app, _ = local(tmp_path)
     signed_in(client, cloud)
-    account = CloudAccount(app.state.cloud_account.store.root, clock=lambda: clock[0],
+    account = CloudAccount(app.state.cloud_account.data_dir, clock=lambda: clock[0],
                            sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds))
     cloud.health = [(503, {})] * 100
     account.start_gpu()
@@ -454,9 +466,10 @@ def test_signed_in_cellpose_uses_the_cloud_relay_with_the_same_verification(clou
     assert cloud_gpu["token"] not in json.dumps(info)
 
 
-@pytest.mark.parametrize(("reply", "code"), [((403, "revoked"), "cellpose_remote_rejected"),
-                                             ((401, "auth_required"), "cellpose_remote_rejected"),
-                                             ((429, "quota_exceeded"), "cellpose_remote_failed")])
+@pytest.mark.parametrize(("reply", "code"), [((403, "revoked"), "cellpose_remote_revoked"),
+                                             ((401, "auth_required"), "cellpose_remote_auth_required"),
+                                             ((403, "other"), "cellpose_remote_rejected"),
+                                             ((429, "quota_exceeded"), "cellpose_remote_quota_exceeded")])
 def test_signed_in_cellpose_failures_are_final_and_never_echo_the_token(cloud_gpu, tmp_path, monkeypatch, reply, code):
     path = account_file(tmp_path / ACCOUNT_FILE, cloud_gpu["url"], token=cloud_gpu["token"])
     monkeypatch.setenv("CYTELLECT_CLOUD_ACCOUNT_FILE", str(path))
@@ -467,7 +480,7 @@ def test_signed_in_cellpose_failures_are_final_and_never_echo_the_token(cloud_gp
     assert len(cloud_gpu["paths"]) == 1 and cloud_gpu["runner"].calls == []
 
 
-@pytest.mark.parametrize(("reply", "code"), [((503, "gpu_service_disabled"), "cellpose_remote_unavailable"),
+@pytest.mark.parametrize(("reply", "code"), [((503, "gpu_service_disabled"), "cellpose_remote_disabled"),
                                              ((502, "gpu_upstream_invalid"), "cellpose_remote_failed")])
 def test_a_disabled_gateway_is_not_waited_on(cloud_gpu, tmp_path, monkeypatch, reply, code):
     path = account_file(tmp_path / ACCOUNT_FILE, cloud_gpu["url"], token=cloud_gpu["token"])
@@ -481,7 +494,7 @@ def test_a_disabled_gateway_is_not_waited_on(cloud_gpu, tmp_path, monkeypatch, r
 def test_warm_up_reports_a_global_quota_and_a_disabled_service(tmp_path, cloud):
     client, app, _ = local(tmp_path)
     signed_in(client, cloud)
-    account = CloudAccount(app.state.cloud_account.store.root, sleep=lambda _seconds: None)
+    account = CloudAccount(app.state.cloud_account.data_dir, sleep=lambda _seconds: None)
     cloud.health = [(429, {"error": "quota_exceeded", "resets_at": "2026-11-01T00:00:00Z", "scope": "global"})]
     account.start_gpu()
     account._gpu_thread.join(5)
@@ -505,7 +518,7 @@ def test_warm_up_says_the_gpu_is_busy_while_it_waits(tmp_path, cloud):
     client, app, _ = local(tmp_path)
     signed_in(client, cloud)
     seen: list[dict] = []
-    account = CloudAccount(app.state.cloud_account.store.root, sleep=lambda _seconds: seen.append(account.gpu()))
+    account = CloudAccount(app.state.cloud_account.data_dir, sleep=lambda _seconds: seen.append(account.gpu()))
     cloud.health = [(503, {"error": "gpu_busy"}), (200, {"status": "ok"})]
     account.start_gpu()
     account._gpu_thread.join(5)
@@ -519,7 +532,7 @@ def test_warm_up_keeps_waiting_while_the_gateway_reports_the_gpu_starting(tmp_pa
     client, app, _ = local(tmp_path)
     signed_in(client, cloud)
     seen: list[dict] = []
-    account = CloudAccount(app.state.cloud_account.store.root, sleep=lambda _seconds: seen.append(account.gpu()))
+    account = CloudAccount(app.state.cloud_account.data_dir, sleep=lambda _seconds: seen.append(account.gpu()))
     starting = (503, {"error": "gpu_starting", "retry_after_seconds": 5})
     cloud.health = [starting, starting, (200, {"status": "ok"})]
     account.start_gpu()
@@ -550,7 +563,7 @@ def test_launcher_names_the_account_file_for_the_worker(tmp_path, monkeypatch):
     settings = Settings(tmp_path / "private", app_origin=ORIGIN, secure_cookies=False)
     with pytest.raises(RuntimeError):
         WorkerSupervisor(settings, lambda: None)._spawn()
-    assert captured["CYTELLECT_CLOUD_ACCOUNT_FILE"] == str(settings.data_dir / ACCOUNT_FILE)
+    assert captured["CYTELLECT_CLOUD_ACCOUNT_FILE"] == str(account_path(settings.data_dir))
     assert not any("dev_" in value for value in captured.values())
 
 
@@ -612,3 +625,82 @@ def test_proposal_failures_for_a_revoked_user_and_a_monthly_quota(tmp_path, monk
         with pytest.raises(proposals.ProposalServiceError) as error:
             proposals.request_draft(settings, CONTEXT)
         assert (error.value.status, error.value.code) == expected
+
+
+def test_a_redirect_never_receives_the_device_token_or_the_image(cloud_gpu, tmp_path, monkeypatch):
+    received: list[dict] = []
+
+    class Target(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append(dict(self.headers))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *_args):
+            pass
+
+    target = ThreadingHTTPServer(("127.0.0.1", 0), Target)
+    threading.Thread(target=target.serve_forever, daemon=True).start()
+
+    class Redirect(BaseHTTPRequestHandler):
+        status = 307
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(self.status)
+            self.send_header("Location", f"http://127.0.0.1:{target.server_port}/v1/cellpose/v1/cellpose")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *_args):
+            pass
+
+    redirect = ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
+    threading.Thread(target=redirect.serve_forever, daemon=True).start()
+    try:
+        for status in (301, 302, 303, 307, 308):
+            Redirect.status = status
+            path = account_file(tmp_path / ACCOUNT_FILE, f"http://127.0.0.1:{redirect.server_port}", token=cloud_gpu["token"])
+            monkeypatch.setenv("CYTELLECT_CLOUD_ACCOUNT_FILE", str(path))
+            with pytest.raises(ValueError, match="cellpose_remote_failed"):
+                detect_cellpose(image(), CellposeDetectorSpec(), tmp_path / f"attempt-{status}")
+        assert received == []
+    finally:
+        for server in (redirect, target):
+            server.shutdown()
+            server.server_close()
+
+
+def test_the_token_file_moves_from_the_data_directory_once(tmp_path, cloud):
+    data = tmp_path / "private"
+    data.mkdir()
+    legacy = data / ACCOUNT_FILE
+    legacy.write_text(json.dumps({"schema": SCHEMA, "state": "allowed", "email": ALLOWED, "base_url": cloud.url,
+                                  "device_token": "dev_" + "d" * 40}), encoding="utf-8")
+    account = CloudAccount(data)
+    assert account.credentials() == (cloud.url, "dev_" + "d" * 40)
+    assert not legacy.exists() and account_path(data).is_file()
+    if os.name != "nt":
+        assert stat.S_IMODE(account_path(data).stat().st_mode) == 0o600
+
+
+def test_a_late_answer_about_an_old_token_keeps_a_newer_sign_in(tmp_path, cloud):
+    account = CloudAccount(tmp_path / "private")
+    old = {"state": "allowed", "email": ALLOWED, "base_url": cloud.url, "device_token": "dev_" + "e" * 40}
+    account.store.save(old)
+    old = account.store.load()
+    newer = {"state": "allowed", "email": ALLOWED, "base_url": cloud.url, "device_token": "dev_" + "f" * 40}
+    account.store.save(newer)
+    assert account._end(old, "expired")["state"] == "allowed"
+    assert account.store.load()["device_token"] == "dev_" + "f" * 40
+
+
+def test_a_sent_code_lapses_after_ten_minutes(tmp_path, cloud):
+    clock = [1000.0]
+    account = CloudAccount(tmp_path / "private", clock=lambda: clock[0])
+    assert account.send_code(ALLOWED)["state"] == "code_sent"
+    clock[0] += 61
+    assert account.view() == {"state": "code_sent", "email": ALLOWED, "retry_after_seconds": 0}
+    clock[0] += 600
+    assert account.view() == {"state": "signed_out", "email": ALLOWED}
+    assert account.store.load() == {}

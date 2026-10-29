@@ -155,9 +155,9 @@ export type Notice = {text: string; action?: {kind: "retry" | "login"; label: st
 export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): Notice | null {
   switch (gpu?.state) {
     case "starting": return gpu.busy ? {text: "GPU を準備しています。前の検出が終わると始まります。", tone: "progress"}
-      : {text: "GPU を起動しています。止まっていた場合は 1〜数分かかります。", tone: "progress"};
+      : {text: "GPU を起動しています。止まっていた場合は 1〜2 分かかります（起動を待つ時間も利用時間に数えます）。", tone: "progress"};
     case "ready": return {text: "GPU の準備ができました。", tone: "ready"};
-    case "timeout": return {text: "GPU の起動が時間内に終わりませんでした。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
+    case "timeout": return {text: "GPU の起動が 2 分以内に終わりませんでした。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
     case "quota_exceeded": {
       const date = formatDate(gpu.resets_at, timeZone);
       const whose = gpu.scope === "global" ? "クラウド GPU 全体の今月の利用上限" : "今月の GPU の利用上限";
@@ -200,5 +200,7 @@ export const resendWait = (retryAt: number, now: number) => Math.max(0, Math.cei
 
 /** Poll interval for a pending request: 45 s, within the 30–60 s the owner's approval needs. */
 export const PENDING_POLL_MS = 45_000;
+/** Shown beside the usage: the cloud counts the wait for the GPU to start as GPU time. */
+export const GPU_TIME_NOTE = "GPU の起動を待つ時間も、GPU の利用時間に数えます。";
 export const GPU_POLL_MS = 3_000;
 export const FIRST_RUN_KEY = "cytellect.first-run.dismissed";

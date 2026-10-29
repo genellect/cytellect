@@ -211,7 +211,18 @@ def _remote_status(assets: Path) -> dict:
             "packages": gpu["packages"], "python": "3.12", "runtime_downloads": False}
 
 
-def _gateway_error(error: urllib.error.HTTPError) -> str:
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect would resend the image and the Authorization header to another URL; refuse it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def _service_error(error: urllib.error.HTTPError) -> str:
+    """The JSON ``error`` code of a failed response, or ''."""
     try:
         code = json.loads(error.read(4096).decode("utf-8")).get("error", "")
     except (OSError, ValueError, AttributeError):
@@ -219,14 +230,21 @@ def _gateway_error(error: urllib.error.HTTPError) -> str:
     return code if isinstance(code, str) else ""
 
 
-def _remote_error(error: urllib.error.HTTPError) -> str:
-    if error.code in (401, 403):
+def _remote_error(status: int, code: str) -> str:
+    """A final failure as a fixed code; the cloud gateway's states get their own codes."""
+    if 300 <= status < 400:
+        return "cellpose_remote_failed"
+    if status == 403 and code == "revoked":
+        return "cellpose_remote_revoked"
+    if status == 401 and code == "auth_required":
+        return "cellpose_remote_auth_required"
+    if status in (401, 403):
         return "cellpose_remote_rejected"
-    try:
-        code = json.loads(error.read(4096).decode("utf-8")).get("error", "")
-    except (OSError, ValueError, AttributeError):
-        code = ""
-    return code if isinstance(code, str) and code.startswith("cellpose_") and len(code) < 80 else "cellpose_remote_failed"
+    if status == 429 and code == "quota_exceeded":
+        return "cellpose_remote_quota_exceeded"
+    if status == 503 and code == "gpu_service_disabled":
+        return "cellpose_remote_disabled"
+    return code if code.startswith("cellpose_") and len(code) < 80 else "cellpose_remote_failed"
 
 
 def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: CellposeParameters) -> tuple[np.ndarray, dict]:
@@ -259,17 +277,19 @@ def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: Ce
     while True:
         try:
             outgoing = urllib.request.Request(url + "/v1/cellpose", data=stream.getvalue(), headers=headers, method="POST")
-            with urllib.request.urlopen(outgoing, timeout=REMOTE_REQUEST_TIMEOUT_SECONDS) as response:
+            with _OPENER.open(outgoing, timeout=REMOTE_REQUEST_TIMEOUT_SECONDS) as response:
                 content = response.read(REMOTE_RESPONSE_LIMIT + 1)
             break
         except urllib.error.HTTPError as error:
-            # 502-504 while the endpoint starts or restarts; anything else is final.
-            # The cloud gateway's disabled service and invalid upstream do not recover by waiting.
-            if error.code in (502, 503) and _gateway_error(error) in ("gpu_service_disabled", "gpu_upstream_invalid"):
-                raise ValueError("cellpose_remote_unavailable" if error.code == 503 else "cellpose_remote_failed") from None
-            if error.code not in (502, 503, 504) or time.monotonic() + delay > deadline:
-                raise ValueError(_remote_error(error) if error.code not in (502, 503, 504)
-                                 else "cellpose_remote_unavailable") from None
+            # 502-504 while the endpoint starts or restarts (also gpu_starting/gpu_busy);
+            # anything else is final. A disabled service or invalid upstream does not
+            # recover by waiting. Redirects are refused (see _OPENER) and are final.
+            code = _service_error(error)
+            starting = error.code in (502, 503, 504) and code not in ("gpu_service_disabled", "gpu_upstream_invalid")
+            if not starting:
+                raise ValueError(_remote_error(error.code, code)) from None
+            if time.monotonic() + delay > deadline:
+                raise ValueError("cellpose_remote_unavailable") from None
         except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError):
             if time.monotonic() + delay > deadline:
                 raise ValueError("cellpose_remote_unreachable") from None

@@ -2,6 +2,8 @@
 
 Font inputs are obtained from their official distributions and retained with OFL
 licenses. This script does not download or install anything at application runtime.
+Rebuild the font subset with the Brotli recorded in apps/web/public/fonts/subset-manifest.json,
+for example ``uv run --with brotli==1.2.1 python scripts/build_marketing_media.py --fonts-only ...``.
 """
 from __future__ import annotations
 
@@ -81,6 +83,8 @@ def main() -> None:
     (fonts / "subset-manifest.json").write_text(json.dumps({
         "source_sha256": hashlib.sha256((args.font_inputs / "NotoSansJP[wght].ttf").read_bytes()).hexdigest(),
         "license": "OFL-1.1", "weight_axis": "100-900", "fonttools_version": __import__("fontTools").version,
+        # woff2 bytes depend on the Brotli encoder; record it so the subset can be rebuilt byte for byte.
+        "brotli_version": __import__("brotli").__version__,
         "requested_codepoints": sorted(codepoints),
         "sources": {str(p.relative_to(root)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_paths},
         "output_sha256": hashlib.sha256((fonts / "NotoSansJPVariable.woff2").read_bytes()).hexdigest(),

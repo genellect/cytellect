@@ -319,9 +319,9 @@ class WorkerSupervisor:
             env["PYTHONDONTWRITEBYTECODE"] = "1"
         # Read at each Cellpose request, so signing in or out needs no restart.
         # Explicit CYTELLECT_CELLPOSE_REMOTE_* settings keep precedence.
-        from .cloud_account import ACCOUNT_FILE
+        from .cloud_account import account_file
 
-        env["CYTELLECT_CLOUD_ACCOUNT_FILE"] = str(self.settings.data_dir / ACCOUNT_FILE)
+        env["CYTELLECT_CLOUD_ACCOUNT_FILE"] = str(account_file(self.settings.data_dir))
         env.update(CYTELLECT_DATA_DIR=str(self.settings.data_dir),
                    CYTELLECT_APP_ORIGIN=self.settings.app_origin, CYTELLECT_SECURE_COOKIES="false",
                    CYTELLECT_DEMO=str(self.settings.demo).lower(),

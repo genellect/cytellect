@@ -4,11 +4,11 @@
  * and the update notice. Rendered only inside CloudAccountProvider (local mode); elsewhere
  * every component here renders nothing, so the hosted workspace and the demo are unchanged.
  */
-import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode} from "react";
+import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from "react";
 import {
   accountApi, accountErrorText, accountLabel, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
   normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, usageText,
-  GPU_POLL_MS, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
+  GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
 import styles from "./cloud-account.module.css";
 
@@ -16,23 +16,37 @@ export const PRACTICE_IMAGES_URL = "https://github.com/genellect/cytellect/relea
 
 type Intro = "local" | "cloud" | null;
 type CloudContext = {
-  account: Account | null; setAccount: (value: Account) => void; refresh: () => Promise<void>;
+  account: Account | null; checking: boolean; setAccount: (value: Account) => void; refresh: () => Promise<void>;
+  /** When 「コードを再送」 becomes available (epoch ms), kept across reopening the dialog. */
+  resendAt: number;
   loginOpen: boolean; openLogin: () => void; closeLogin: () => void;
-  gpu: GpuState | null; startGpu: () => void; intro: Intro; dismissIntro: () => void;
+  gpu: GpuState | null; startGpu: () => void; warmUpOnce: () => void; intro: Intro; dismissIntro: () => void;
 };
 const Context = createContext<CloudContext | null>(null);
 export const useCloudAccount = () => useContext(Context);
 
 export function CloudAccountProvider({children, intro: initialIntro = null}: {children: ReactNode; intro?: Intro}) {
-  const [account, setAccount] = useState<Account | null>(null);
+  const [account, setAccountState] = useState<Account | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [resendAt, setResendAt] = useState(0);
   const [loginOpen, setLoginOpen] = useState(initialIntro === "cloud");
   const [gpu, setGpu] = useState<GpuState | null>(null);
   const [intro, setIntro] = useState<Intro>(initialIntro);
+  const warmed = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const setAccount = useCallback((value: Account) => {
+    setAccountState(value);
+    if (value.state === "code_sent" && typeof value.retry_after_seconds === "number") setResendAt(Date.now() + value.retry_after_seconds * 1000);
+  }, []);
   const refresh = useCallback(async () => {
     // A failed check leaves the last state; local analysis never waits on the cloud.
     try {setAccount(await accountApi.get());} catch {}
-  }, []);
-  const startGpu = useCallback(() => {void accountApi.startGpu().then(setGpu).catch(() => {});}, []);
+    finally {setChecking(false);}
+  }, [setAccount]);
+  const startGpu = useCallback(() => {warmed.current = true; void accountApi.startGpu().then(setGpu).catch(() => {});}, []);
+  // The cloud counts the start-up wait as GPU time: start it by itself once per session,
+  // afterwards only when the researcher asks (「もう一度試す」) or a detection runs.
+  const warmUpOnce = useCallback(() => {if (!warmed.current) startGpu();}, [startGpu]);
   useEffect(() => {void refresh();}, [refresh]);
   const waiting = account?.state === "pending_approval" && !account.approved;
   useEffect(() => {
@@ -52,8 +66,11 @@ export function CloudAccountProvider({children, intro: initialIntro = null}: {ch
   const gpuState = gpu?.state;
   useEffect(() => {if (allowed && (gpuState === "unconfigured" || gpuState === "auth_required")) startGpu();}, [allowed, gpuState, startGpu]);
   const value: CloudContext = {
-    account, setAccount, refresh, loginOpen, openLogin: () => setLoginOpen(true), closeLogin: () => setLoginOpen(false),
-    gpu, startGpu, intro, dismissIntro: () => setIntro(null),
+    account, checking, setAccount, refresh, resendAt, loginOpen,
+    openLogin: () => {opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setLoginOpen(true);},
+    // Focus returns to the control that opened the dialog.
+    closeLogin: () => {setLoginOpen(false); const target = opener.current; opener.current = null; setTimeout(() => target?.focus(), 0);},
+    gpu, startGpu, warmUpOnce, intro, dismissIntro: () => setIntro(null),
   };
   return <Context.Provider value={value}>{children}{loginOpen && <LoginDialog/>}</Context.Provider>;
 }
@@ -74,20 +91,29 @@ function NoticeLine({notice, onAction, onClose, closeLabel}: {notice: Notice; on
 /** The header's account control: 「ログイン」, or the address with what is available. */
 export function AccountIndicator() {
   const cloud = useCloudAccount();
+  const [logoutError, setLogoutError] = useState<unknown>(null);
   if (!cloud) return null;
+  // The first check can wait for the network; do not offer a sign-in that may already exist.
+  if (cloud.checking && !cloud.account) return <button className={styles.accountButton} disabled><span>確認しています</span></button>;
   const {label, detail} = accountLabel(cloud.account);
   const account = cloud.account;
   if (account?.state === "allowed" || account?.state === "offline") {
     const usage = usageText(account);
     const resets = formatDate(account.resets_at);
+    async function logout() {
+      setLogoutError(null);
+      try {cloud?.setAccount(await accountApi.logout());} catch (error) {setLogoutError(error);}
+    }
     return <details className={styles.account} data-dismissible>
-      <summary aria-label={`アカウント：${label}`}><span>{label}</span>{detail && <small>{detail}</small>}</summary>
+      <summary><span>{label}</span>{detail && <small>{detail}</small>}</summary>
       <div className={styles.accountPanel}>
         <p className={styles.accountEmail}>{account.email}</p>
         <p>{account.state === "allowed" ? "GPU による検出と解析提案が使えます。" : "クラウドに接続できません。ネットワークを確認してください。このPCでの解析は使えます。"}</p>
         {gpuQuotaReached(account) && <p role="status">{gpuQuotaText(account)}</p>}
         {usage && <p className={styles.small}>今月の利用：{usage}{resets ? `（${resets}にリセット）` : ""}</p>}
-        <button className={styles.secondary} onClick={() => {void accountApi.logout().then(cloud.setAccount).catch(() => {});}}>ログアウト</button>
+        <p className={styles.small}>{GPU_TIME_NOTE}</p>
+        <button className={styles.secondary} onClick={() => void logout()}>ログアウト</button>
+        {logoutError !== null && <div role="alert" className={styles.error}><p>ログアウトできませんでした。{accountErrorText(logoutError)}</p><Details error={logoutError}/></div>}
       </div>
     </details>;
   }
@@ -100,6 +126,7 @@ export function AccountIndicator() {
 export function CloudNotices() {
   const cloud = useCloudAccount();
   const [collapsed, setCollapsed] = useState(false);
+  const [continueError, setContinueError] = useState<unknown>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [updating, setUpdating] = useState<"idle" | "running" | "failed">("idle");
   const enabled = cloud !== null;
@@ -115,16 +142,25 @@ export function CloudNotices() {
   async function continueLogin() {
     const email = cloud?.account?.email;
     if (!cloud || !email) return;
-    try {cloud.setAccount(await accountApi.sendCode(email));} catch {}
-    cloud.openLogin();
+    setContinueError(null);
+    try {cloud.setAccount(await accountApi.sendCode(email)); cloud.openLogin();}
+    catch (error) {setContinueError(error);}
   }
   async function applyUpdate() {
     setUpdating("running");
     try {await accountApi.applyUpdate();} catch {setUpdating("failed");}
   }
   return <div className={styles.notices}>
+    {/* The request stays visible at the top; it can be folded to one line, not dismissed. */}
     {pending && (pending.action || !collapsed) && <NoticeLine notice={pending} onAction={() => void continueLogin()}
       onClose={pending.action ? undefined : () => setCollapsed(true)} closeLabel="ローカルの解析を続ける"/>}
+    {pending && !pending.action && collapsed && <div className={styles.notice} data-tone="info" role="status">
+      <p>承認待ち。このPCでの解析は使えます。</p>
+      <button className={styles.quiet} onClick={() => setCollapsed(false)}>詳しく</button>
+    </div>}
+    {continueError !== null && <div className={styles.notice} data-tone="problem" role="alert">
+      <p>{accountErrorText(continueError)}</p><Details error={continueError}/>
+    </div>}
     {ended && <NoticeLine notice={ended} onAction={cloud.openLogin}/>}
     {update?.available && <div className={styles.notice} data-tone="info" role="status">
       <p>{updating === "running" ? "更新しています。" : updating === "failed" ? "更新できませんでした。今の版のまま使えます。あとでもう一度更新してください。"
@@ -142,8 +178,8 @@ export function CloudNotices() {
 /** Starts the GPU when a Cellpose detector is chosen and shows its state beside the settings. */
 export function GpuStatus() {
   const cloud = useCloudAccount();
-  const startGpu = cloud?.startGpu;
-  useEffect(() => {startGpu?.();}, [startGpu]);
+  const warmUpOnce = cloud?.warmUpOnce;
+  useEffect(() => {warmUpOnce?.();}, [warmUpOnce]);
   if (!cloud) return null;
   const notice = gpuNotice(cloud.gpu);
   if (!notice || notice.tone === "ready") return null;
@@ -166,6 +202,8 @@ function initialStep(account: Account | null): Step {
   return "email";
 }
 
+const FOCUSABLE = "input:not([disabled]), button:not([disabled]), a[href], summary, [tabindex]:not([tabindex='-1'])";
+
 function LoginDialog() {
   const cloud = useCloudAccount()!;
   const title = useId();
@@ -174,10 +212,20 @@ function LoginDialog() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [retryAt, setRetryAt] = useState(() => Date.now() + (cloud.account?.retry_after_seconds ?? 0) * 1000);
   const [now, setNow] = useState(() => Date.now());
   const first = useRef<HTMLInputElement>(null);
-  useEffect(() => {first.current?.focus();}, [step]);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const dialog = useRef<HTMLElement>(null);
+  // Each step moves focus to its field, or to the heading when it has none.
+  useEffect(() => {(first.current ?? heading.current)?.focus();}, [step]);
+  function trapFocus(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab" || !dialog.current) return;
+    const items = [...dialog.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    if (!items.length) return;
+    const [start, end] = [items[0], items[items.length - 1]];
+    if (event.shiftKey && (document.activeElement === start || document.activeElement === heading.current)) {event.preventDefault(); end.focus();}
+    else if (!event.shiftKey && document.activeElement === end) {event.preventDefault(); start.focus();}
+  }
   useEffect(() => {
     if (step !== "code") return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -194,7 +242,7 @@ function LoginDialog() {
       const result = await accountApi.sendCode(address);
       cloud.setAccount(result);
       setEmail(result.email || address);
-      if (result.state === "code_sent") {setRetryAt(Date.now() + (result.retry_after_seconds ?? 60) * 1000); setNow(Date.now()); setCode(""); setStep("code");}
+      if (result.state === "code_sent") {setNow(Date.now()); setCode(""); setStep("code");}
       else if (result.state === "pending_approval") setStep("pending");
       else if (result.state === "revoked") setStep("revoked");
     } catch (value) {setError(value);}
@@ -220,11 +268,12 @@ function LoginDialog() {
     catch (value) {setError(value);}
     finally {setBusy(false);}
   }
-  const wait = resendWait(retryAt, now);
+  const wait = resendWait(cloud.resendAt, now);
+  const approved = step === "pending" && cloud.account?.state === "pending_approval" && !!cloud.account.approved;
   const invalidEmail = error instanceof Error && error.message === "format";
   return <div className={styles.backdrop} onMouseDown={event => {if (event.target === event.currentTarget) cloud.closeLogin();}}>
-    <section className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={title}>
-      <h2 id={title}>{step === "done" ? "クラウド機能が使えます" : step === "pending" ? "承認を待っています" : step === "revoked" ? "利用が停止されています" : "クラウド機能を有効にする"}</h2>
+    <section ref={dialog} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={title} onKeyDown={trapFocus}>
+      <h2 id={title} ref={heading} tabIndex={-1}>{step === "done" ? "クラウド機能が使えます" : approved ? "承認されました" : step === "pending" ? "承認を待っています" : step === "revoked" ? "利用が停止されています" : "クラウド機能を有効にする"}</h2>
       {step === "email" && <form onSubmit={submitEmail} noValidate>
         <p>オーナーが許可したメールアドレスに、6 桁のコードを送ります。パスワードは使いません。</p>
         <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
@@ -243,10 +292,13 @@ function LoginDialog() {
           <button type="button" className={styles.quiet} disabled={busy} onClick={() => {setError(null); setCode(""); setStep("email");}}>メールアドレスを修正</button>
         </div>
       </form>}
-      {step === "pending" && <>
+      {step === "pending" && (approved ? <>
+        <p>{email} の利用が承認されました。ログインを続けると、6 桁のコードをメールで送ります。</p>
+        <button className={styles.primary} disabled={busy} onClick={() => void requestCode(email)}>ログインを続ける</button>
+      </> : <>
         <p>オーナーに利用を申請しました（{email}）。承認されるとメールでお知らせします。それまでも、このPCでの解析は使えます。</p>
         <button className={styles.quiet} onClick={() => {setError(null); setStep("email");}}>メールアドレスを修正</button>
-      </>}
+      </>)}
       {step === "revoked" && <p>このメールアドレスのクラウド機能は停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。</p>}
       {step === "done" && <>
         <p>{cloud.account?.email || email} でログインしました。GPU による検出と解析提案が使えます。</p>

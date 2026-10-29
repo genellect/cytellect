@@ -3,6 +3,7 @@
   "license": "OFL-1.1",
   "weight_axis": "100-900",
   "fonttools_version": "4.66.1",
+  "brotli_version": "1.2.1",
   "requested_codepoints": [
     10,
     32,
@@ -964,7 +965,7 @@
     "apps/web/src/components/Workbench.tsx": "1d6aff98ce2e139da184914ca0dd3c7695f9bb652e9fd2f7bbc336e9cf58d634",
     "apps/web/src/components/WorkspaceApp.tsx": "3b3d242608254a2069250e47fa2e778e934cfc43f0736e92e3955fe202c2241c",
     "apps/web/src/components/WorkspaceEntry.tsx": "bc6be5fb9f22d9c4ffd373d814776ae39acede4a328f01f3c73428e8d7976fda",
-    "apps/web/src/components/workspace/CloudAccount.tsx": "f56ae77888be3612858738c9f8c9414f461518402423b4e8e0a2a8178aa737a6",
+    "apps/web/src/components/workspace/CloudAccount.tsx": "24a7ee59af17ef39e1f5812d18acc731c8e5d10a9f965e44a850d50b23a50ad9",
     "apps/web/src/components/workspace/FieldImage.tsx": "5841ccceeb13d4b6a26b786dc6d9bd5d6fddfec71ce3549d074ffd2708676f7a",
     "apps/web/src/components/workspace/ProposalPanels.tsx": "5e6e01fcbb8cfa9566f068c3e20695e1aecdf409d5a6b36dcf8514ff4bbd43f8",
     "apps/web/src/components/workspace/WorkspaceAccess.tsx": "ea86db0c9de639d99e9947e844926131dce701f9f078beff3ad6c5d4f66643a9",
@@ -990,11 +991,11 @@
     "apps/web/src/lib/analysis-submission.ts": "a7f1ca9beae0461f33ce6338cfafe97008c62740da8f65eafefa799a40f75ece",
     "apps/web/src/lib/api-local.test.ts": "b9c4eac357b8a8db63207632e557f3f96ed927099d0e5bee25f86a6ee9ddbc3c",
     "apps/web/src/lib/api.test.ts": "dfb3e205b614e71fd26936ec60f5f01647466dca7b56626dfbaaa8b96169004f",
-    "apps/web/src/lib/api.ts": "ee1aa3a125c89fb8b6d12be775a39863d8c80231ed2419b86d54b15921fe47cd",
+    "apps/web/src/lib/api.ts": "259d010f1610370ac05c3826278e00f795a2ffac321c5f4f78622d92e9c560f7",
     "apps/web/src/lib/batch-common-metadata.test.ts": "77490e04e3f2132130db09796ca9e56f2e8f2b73640955efffd8abc233c8f471",
     "apps/web/src/lib/batch-common-metadata.ts": "30244332809d60e6b11f71e1b21ae6719933112bc3590028b1b993bbfe609443",
     "apps/web/src/lib/cloud-account.test.ts": "0a4074bfa4d32f647632889e11147233f52320b9862c1a1e7882e453f4eb1286",
-    "apps/web/src/lib/cloud-account.ts": "d2aa90e1c8264e3c736ca55105173c4d25dfb60a186ff8cdc911b37106f792dc",
+    "apps/web/src/lib/cloud-account.ts": "7a29b5038ad5f08ef1deec33b41fa5f6a9e731a69f71bd359f74081d6d864d42",
     "apps/web/src/lib/common-statistics.test.ts": "541b8fb7ef7d0277814efb0154317f0968d153fec931056809aa76b889fdfe47",
     "apps/web/src/lib/common-statistics.ts": "a402bcd9e32b0ae073aed0c42c80f3f011207baa3dba96fa455080074740f11e",
     "apps/web/src/lib/descriptive-view.test.ts": "6ca9093750f325834f6975c5bc91682a4bd0b6080220ea2f28041558b61908a4",
@@ -1054,5 +1055,5 @@
     "apps/web/src/lib/value-format.test.ts": "2788aabb109fb9c5ab9233512e2657dd2fd378f09db83e766b9014a1df9f3bd1",
     "apps/web/src/lib/workspace-test-runtime.test.ts": "3caceee8de3c159d67f9e384103552b01d34a683de8eaffd5a3ea1bf43b5c2de"
   },
-  "output_sha256": "747b0476d8b775f8f114bb1f66657b90bba4fee77b657894f34fa57b2b105488"
+  "output_sha256": "2c9018e76994b79f4d80bd1271478b442faef8499e1381a43ab70587b715d37e"
 }

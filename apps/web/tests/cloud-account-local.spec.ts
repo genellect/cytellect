@@ -17,6 +17,7 @@ type Mock = {
   session: boolean; firstRun: boolean; account: Account; update: {status: number; body: unknown};
   onCode?: (email: string) => {status: number; body: Account};
   onVerify?: (code: string) => {status: number; body: Account};
+  logoutFails?: boolean; accountHeld?: Promise<void>;
   calls: string[];
 };
 
@@ -31,7 +32,7 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
     if (path === "/v1/local/setup") return json(route, 200, {mode: "local", ready: true, fiji_configured: true, retention_mode: "manual", retention_hours: null});
     if (path === "/v1/local/first-run") return json(route, 200, {first_run: mock.firstRun});
     if (path === "/v1/local/session") {mock.session = true; return json(route, 200, {authenticated: true, mode: "local", retention_mode: "manual", retention_hours: null});}
-    if (path === "/v1/account" && method === "GET") return json(route, 200, mock.account);
+    if (path === "/v1/account" && method === "GET") {await mock.accountHeld; return json(route, 200, mock.account);}
     if (path === "/v1/account/code") {
       const reply = mock.onCode?.(body.email) ?? {status: 200, body: {state: "code_sent", email: body.email, retry_after_seconds: 60}};
       if (reply.status === 200) mock.account = reply.body;
@@ -43,6 +44,7 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
       if (reply.status === 200) mock.account = {...reply.body, limits: {gpu_seconds_month: 3600, proposal_usd_month: 5}, usage: {gpu_seconds: 0, proposal_usd: 0}, resets_at: "2026-11-01T00:00:00Z"};
       return json(route, reply.status, reply.body);
     }
+    if (path === "/v1/account/logout" && mock.logoutFails) return json(route, 503, {detail: "local_api_unreachable"});
     if (path === "/v1/account/logout") {mock.account = {state: "signed_out"}; return json(route, 200, mock.account);}
     if (path === "/v1/account/gpu") return json(route, 200, {state: "idle"});
     if (path === "/v1/app/update") return json(route, mock.update.status, mock.update.body);
@@ -84,6 +86,9 @@ test("sign-in with an e-mail code: resend waits, wrong codes count down, success
   await expect(resend).toContainText("秒後");
   await page.clock.fastForward(61_000);
   await expect(resend).toBeEnabled();
+  // Tab stays inside the dialog.
+  for (let index = 0; index < 8; index++) await page.keyboard.press("Tab");
+  expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
   await dialog.getByLabel("6 桁のコード").fill("000000");
   await dialog.getByRole("button", {name: "ログイン", exact: true}).click();
   await expect(dialog.getByRole("alert")).toContainText("あと 4 回入力できます");
@@ -111,11 +116,21 @@ test("an unapproved address waits at the top and switches to continuing the logi
   await dialog.getByLabel("メールアドレス").fill("newcomer@example.org");
   await dialog.getByRole("button", {name: "コードを送る"}).click();
   await expect(dialog.getByText(/オーナーに利用を申請しました/)).toBeVisible();
+  await expect(dialog.getByRole("heading", {name: "承認を待っています"})).toBeFocused();
   await dialog.getByRole("button", {name: "ローカルの解析を続ける"}).click();
+  // Focus returns to the header control that opened the dialog.
+  await expect(page.getByRole("button", {name: "承認待ち"})).toBeFocused();
   await expect(page.getByText(/^承認待ち（.*に申請）/)).toBeVisible();
-  await expect(page.getByRole("button", {name: "承認待ち"})).toBeVisible();
+  // The request can be folded to one line but stays at the top.
+  await page.getByRole("button", {name: "ローカルの解析を続ける"}).click();
+  await expect(page.getByText("承認待ち。このPCでの解析は使えます。")).toBeVisible();
+  await page.getByRole("button", {name: "承認待ち"}).click();
+  await expect(page.getByRole("dialog").getByRole("heading", {name: "承認を待っています"})).toBeVisible();
   mock.account = {...mock.account, approved: true};
   await page.clock.fastForward(46_000);
+  // The open dialog switches to continuing the login as well.
+  await expect(page.getByRole("dialog").getByRole("heading", {name: "承認されました"})).toBeVisible();
+  await page.keyboard.press("Escape");
   const resume = page.getByRole("button", {name: "承認されました。ログインを続ける"});
   await expect(resume).toBeVisible();
   await resume.click();
@@ -130,6 +145,10 @@ test("a used-up GPU allowance names the date it resumes, and an update is offere
   await expect(page.getByText("GPU：今月の上限（12月1日に再開）")).toBeVisible();
   await page.getByRole("group").filter({hasText: EMAIL}).locator("summary").click();
   await expect(page.getByText(/今月の GPU の利用上限に達しました。12月1日から再び使えます/)).toBeVisible();
+  await expect(page.getByText("GPU の起動を待つ時間も、GPU の利用時間に数えます。")).toBeVisible();
+  mock.logoutFails = true;
+  await page.getByRole("button", {name: "ログアウト"}).click();
+  await expect(page.getByRole("alert").filter({hasText: "ログアウトできませんでした"})).toBeVisible();
   await expect(page.getByText("更新があります（0.1.0-local.22）。研究データと設定は引き継がれます。")).toBeVisible();
   await page.getByRole("button", {name: "更新する"}).click();
   expect(mock.calls).toContain("POST /v1/app/update");
@@ -142,4 +161,16 @@ test("an installation without the update route shows no update notice", async ({
   await expect(page.getByRole("button", {name: "ログイン", exact: true})).toBeVisible();
   await expect.poll(() => mock.calls.includes("GET /v1/app/update")).toBe(true);
   await expect(page.getByText(/更新があります/)).toHaveCount(0);
+});
+
+test("while the first account check waits for the network, the header offers no sign-in", async ({page}) => {
+  let release!: () => void;
+  const mock = await mockLocalApi(page, {session: true, firstRun: false, account: {state: "allowed", email: EMAIL},
+    accountHeld: new Promise<void>(resolve => {release = resolve;})});
+  await page.goto(origin + "/workspace");
+  await expect(page.getByRole("button", {name: "確認しています"})).toBeDisabled();
+  await expect(page.getByRole("button", {name: "ログイン", exact: true})).toHaveCount(0);
+  release();
+  await expect(page.getByText("GPU・解析提案：利用可")).toBeVisible();
+  expect(mock.calls).not.toContain("POST /v1/account/code");
 });

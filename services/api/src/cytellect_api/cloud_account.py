@@ -4,8 +4,10 @@ GPU inference (Cellpose) and analysis proposals are paid services that the
 owner grants per e-mail address. The PC signs in with a one-time e-mail code
 and receives a device token. That token is the only credential on the PC:
 
-- it is stored in the data directory as ``cloud-account.json``, readable only
-  by this OS user, and is sent only to the cloud base URL that issued it;
+- it is stored beside the other installation settings as
+  ``settings/cloud-account.json`` (next to ``settings/cellpose-remote.json``,
+  outside the research ``data`` directory), readable only by this OS user, and
+  is sent only to the cloud base URL that issued it;
 - it never appears in a response, a log line or an error message.
 
 Local analysis never depends on this module. A signed-out, pending or offline
@@ -25,7 +27,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
 from fastapi import Depends
 from fastapi.responses import JSONResponse
@@ -36,14 +38,18 @@ ACCOUNT_FILE = "cloud-account.json"
 DEFAULT_CLOUD_URL = "https://api.cytellect.app"
 RESPONSE_LIMIT = 64 * 1024
 REQUEST_TIMEOUT_SECONDS = 15
-# The GPU starts from zero in about a minute; allocation can take longer.
-WARM_UP_SECONDS = 600
+# The cloud counts the start-up wait as GPU time, so a warm-up gives up after two
+# minutes and the researcher decides whether to try again (「もう一度試す」).
+WARM_UP_SECONDS = 120
 WARM_UP_REUSE_SECONDS = 60
+# A sent code is valid for 10 minutes on the service; after that, start again.
+CODE_LIFETIME_SECONDS = 600
 # The cloud gateway holds a health request up to 25 s while the GPU starts, then
 # answers 503 gpu_starting; wait longer than that for one answer.
 HEALTH_TIMEOUT_SECONDS = 40
 EMAIL = re.compile(r"[^@\s]{1,64}@[^@\s.][^@\s]{0,251}\.[^@\s.]{2,63}")
 TOKEN = re.compile(r"[A-Za-z0-9._~+/=-]{20,512}")
+REQUEST_TOKEN = re.compile(r"[A-Za-z0-9._~+/=-]{16,512}")
 CODE = re.compile(r"[0-9]{6}")
 ACCOUNT_STATES = {"code_sent", "pending_approval", "allowed", "revoked", "expired"}
 
@@ -141,21 +147,40 @@ def call_cloud(method: str, url: str, *, body: dict | None = None, token: str | 
         raise CloudUnreachable() from None
 
 
+def account_file(data_dir: Path) -> Path:
+    """``settings/cloud-account.json`` beside the data directory (installation settings, not research data)."""
+    return Path(data_dir).resolve().parent / "settings" / ACCOUNT_FILE
+
+
 class AccountStore:
-    """``cloud-account.json`` in the data directory, written atomically, user-only."""
+    """``settings/cloud-account.json``, written atomically, user-only."""
 
     def __init__(self, data_dir: Path):
-        self.root = Path(data_dir)
-        self.path = self.root / ACCOUNT_FILE
+        self.data_dir = Path(data_dir)
+        self.path = account_file(self.data_dir)
+        self.root = self.path.parent
 
     def _checked(self) -> Path:
         if self.path.is_symlink() or self.path.resolve().parent != self.root.resolve():
             raise ValueError("cloud_account_path_invalid")
         return self.path
 
+    def _migrate(self) -> None:
+        """Development builds kept the file in the data directory; move it once."""
+        legacy = self.data_dir / ACCOUNT_FILE
+        try:
+            if legacy.is_file() and not legacy.is_symlink() and not self.path.exists():
+                self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+                if os.name != "nt":
+                    legacy.chmod(0o600)
+                os.replace(legacy, self.path)
+        except OSError:
+            pass
+
     def load(self) -> dict:
         try:
             path = self._checked()
+            self._migrate()
             if not path.is_file() or path.stat().st_size > 16_384:
                 return {}
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -168,11 +193,14 @@ class AccountStore:
         token = value.get("device_token")
         if token is not None and (not isinstance(token, str) or TOKEN.fullmatch(token) is None):
             return {}
+        request = value.get("request_token")
+        if request is not None and (not isinstance(request, str) or REQUEST_TOKEN.fullmatch(request) is None):
+            return {}
         return value
 
     def save(self, value: dict) -> None:
         path = self._checked()
-        self.root.mkdir(parents=True, exist_ok=True)
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = path.with_name(f".{ACCOUNT_FILE}.{os.getpid()}.{threading.get_ident()}.tmp")
         temporary.unlink(missing_ok=True)
         # Created user-only (POSIX 0600). On Windows the per-user data directory's
@@ -225,6 +253,7 @@ class CloudAccount:
     def __init__(self, data_dir: Path, *, base_url: str | None = None,
                  remote_settings: Callable[[], dict[str, str]] | None = None,
                  clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep):
+        self.data_dir = Path(data_dir)
         self.store = AccountStore(data_dir)
         self._base_url = base_url
         self.remote_settings = remote_settings or (lambda: {})
@@ -265,8 +294,12 @@ class CloudAccount:
             return {"state": "offline", "email": email}
         if record["state"] == "pending_approval":
             pending = {"state": "pending_approval", "email": email, "requested_at": record.get("requested_at")}
+            if not record.get("request_token"):
+                return pending
             try:
-                status, body = call_cloud("GET", self._cloud(record) + "/v1/auth/request?email=" + quote(email or "", safe=""))
+                # The request token (never shown) identifies this PC's request without the address.
+                status, body = call_cloud("POST", self._cloud(record) + "/v1/auth/request",
+                                          body={"request_token": record["request_token"]})
             except CloudUnreachable:
                 return pending
             if status == 200 and body.get("state") == "allowed":
@@ -278,6 +311,13 @@ class CloudAccount:
                 return {"state": "signed_out"}
             return pending
         if record["state"] == "code_sent":
+            sent = _number(record.get("sent_at"))
+            if sent is None or now - sent > CODE_LIFETIME_SECONDS:
+                # The code has expired on the service; offer the address again.
+                with self.lock:
+                    if self.store.load() == record:
+                        self.store.clear()
+                return {"state": "signed_out", "email": email}
             retry = max(0, int(round(float(record.get("retry_at", 0)) - now)))
             view = {"state": "code_sent", "email": email, "retry_after_seconds": retry}
             if isinstance(record.get("attempts_left"), int):
@@ -286,8 +326,17 @@ class CloudAccount:
         return {"state": record["state"], "email": email}
 
     def _end(self, record: dict, state: str) -> dict:
-        """Drop the token on expiry or revocation; keep the address so sign-in can resume."""
+        """Drop the token on expiry or revocation; keep the address so sign-in can resume.
+
+        Compare-and-set: a late answer about an older token (or request) must not
+        overwrite a newer sign-in made meanwhile.
+        """
         with self.lock:
+            current = self.store.load()
+            if (current.get("device_token") != record.get("device_token")
+                    or current.get("request_token") != record.get("request_token")
+                    or current.get("state") != record.get("state")):
+                return {"state": current.get("state", "signed_out"), "email": current.get("email")}
             self.store.save({"state": state, "email": record.get("email"), "base_url": record["base_url"]})
         return {"state": state, "email": record.get("email")}
 
@@ -315,8 +364,14 @@ class CloudAccount:
                 return {"state": "code_sent", "email": email, "retry_after_seconds": wait}
             if state == "pending_approval":
                 requested = record.get("requested_at") if record.get("email") == email else None
-                self.store.save({"state": "pending_approval", "email": email, "base_url": base,
-                                 "requested_at": requested or now})
+                request = body.get("request_token")
+                pending: dict[str, Any] = {"state": "pending_approval", "email": email, "base_url": base,
+                                           "requested_at": requested or now}
+                if isinstance(request, str) and REQUEST_TOKEN.fullmatch(request):
+                    pending["request_token"] = request
+                elif record.get("email") == email and record.get("request_token"):
+                    pending["request_token"] = record["request_token"]
+                self.store.save(pending)
                 return {"state": "pending_approval", "email": email, "requested_at": requested or now}
             if state == "revoked":
                 self.store.save({"state": "revoked", "email": email, "base_url": base})
