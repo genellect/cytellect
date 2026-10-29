@@ -64,6 +64,18 @@ function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$G
     Get-Process -Name python, pythonw -ErrorAction SilentlyContinue |
         ForEach-Object { Write-Host ('process {0} window "{1}"' -f $_.ProcessName, $_.MainWindowTitle) }
     Write-Host ('listening on 8765: ' + [bool](Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue))
+    # The launcher's dialogs carry fixed texts only (no paths); read them through UI Automation.
+    $probe = @'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$condition = New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, 'Cytellect')
+foreach ($window in [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)) {
+    foreach ($item in $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)) {
+        if ($item.Current.Name) { 'window text: ' + $item.Current.ControlType.ProgrammaticName + ' ' + $item.Current.Name }
+    }
+}
+'@
+    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command $probe | ForEach-Object { Write-Host $_ }
     throw 'launcher did not answer'
 }
 
@@ -173,6 +185,11 @@ try {
 Step 'idempotent re-run'
 if ((Invoke-Installer $root -Offline) -ne 0) { throw 're-run failed' }
 $null = Get-App $root
+
+Step 'the shortcut launcher window after earlier starts'
+try { Stop-Cytellect (Start-Cytellect $root -Gui); Write-Host 'GUI launch after earlier starts passed' }
+catch { $guiFailure = ($guiFailure, 'again after earlier starts') -join '; '; Write-Host 'GUI launch after earlier starts failed' }
+Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 Step 'uninstall keeps research data, reinstall keeps the workspace'
 Invoke-Uninstaller $root
