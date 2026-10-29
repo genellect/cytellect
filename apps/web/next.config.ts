@@ -25,7 +25,8 @@ const config: NextConfig = {
     // One canonical landing page; earlier /product links keep working. The former review route
     // (/workspace-review, the workspace without its session gate) is the workspace.
     // Without an analysis API the analysis screen is the public demo.
-    async redirects() { return [{ source: "/product", destination: "/", permanent: true }, { source: "/workspace-review", destination: "/workspace", permanent: true }, ...(showcase ? [{ source: "/workspace", destination: "/demo", permanent: false }] : [])]; },
+    // The site moved from the Vercel address to its own domain; old links keep their path and query.
+    async redirects() { return [{ source: "/:path*", has: [{ type: "host", value: "cytellect.vercel.app" }], destination: "https://cytellect.app/:path*", permanent: true }, { source: "/product", destination: "/", permanent: true }, { source: "/workspace-review", destination: "/workspace", permanent: true }, ...(showcase ? [{ source: "/workspace", destination: "/demo", permanent: false }] : [])]; },
     async headers() {
       return [{ source: "/:path*", headers: [
         { key: "Cache-Control", value: "no-store, max-age=0" },

@@ -131,7 +131,7 @@ canonical links (`src/lib/site.ts`).
 
 | Build variable (hosting project) | Effect |
 |---|---|
-| `VERCEL_PROJECT_PRODUCTION_URL` | Set by Vercel; the public origin, e.g. `https://cytellect.vercel.app` |
+| `VERCEL_PROJECT_PRODUCTION_URL` | Set by Vercel; the public origin, e.g. `https://cytellect.app` |
 | `CYTELLECT_SITE_URL` | Overrides the origin (bare `https://` origin, e.g. after moving to a custom domain) |
 | `CYTELLECT_GOOGLE_SITE_VERIFICATION` | Google Search Console HTML-tag token (`google-site-verification`) on `/` |
 | `CYTELLECT_BING_SITE_VERIFICATION` | Bing Webmaster Tools HTML-tag token (`msvalidate.01`) on `/` |
@@ -145,6 +145,21 @@ Registration (owner): add a URL-prefix property for the origin in Google Search 
 the HTML-tag token, redeploy production and verify, then submit `sitemap.xml`. In Bing
 Webmaster Tools, import the property from Search Console (or set the Bing token the same way).
 Keep the tokens set afterwards; removing them revokes verification.
+
+### Custom domain
+
+The public site is served at `https://cytellect.app` (Cloudflare Registrar and DNS; the
+records point to Vercel with the Cloudflare proxy off). The former address
+`cytellect.vercel.app` answers every path with a permanent (308) redirect to the same path
+and query on `cytellect.app` (`next.config.ts`); preview deployments are not redirected.
+The redirect is kept indefinitely so links in papers, released packages and documents keep
+working. `www.cytellect.app` redirects to the apex in the Vercel domain settings.
+
+Page measurement accepts only `https://cytellect.app` (`LandingAnalytics.tsx`,
+`public/lp-metrics.js`), so previews and the former address are never counted. Indexed pages
+also carry Open Graph and X card metadata built from the public origin (`sharePreview` in
+`src/lib/site.ts`). The domain sends no mail yet: its SPF (`v=spf1 -all`) and DMARC
+(`p=reject`) records reject spoofed senders until a sending service is configured.
 
 ## Accessible editing and browser boundary
 
