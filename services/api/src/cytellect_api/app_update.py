@@ -755,4 +755,9 @@ def main(argv: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # `python -m` runs this file as a second module named __main__. Run the importable
+    # cytellect_api.app_update instead, so the relauncher uses the one copy of its classes
+    # and functions that every other import (and the CI update hook) sees.
+    from cytellect_api.app_update import main as _main
+
+    _main()

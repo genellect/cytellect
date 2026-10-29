@@ -544,3 +544,39 @@ def test_routes_exist_only_in_the_loopback_application_and_require_a_session(tmp
     hosted, _ = local_client(tmp_path / "hosted", origin="https://cytellect.example", secure=True)
     assert hosted.get("/v1/app/update").status_code == 404
     assert "/v1/app/update" not in json.dumps(client.app.openapi())  # the public contract is unchanged
+
+
+def test_the_relauncher_entry_runs_the_importable_module(monkeypatch):
+    """`python -m cytellect_api.app_update` must use cytellect_api.app_update itself.
+
+    Run as __main__, the file would otherwise be a second copy whose classes nothing else
+    sees: the CI hook's failing start (and any other patch of the module) would not apply.
+    """
+    import runpy
+    import warnings
+
+    seen = []
+    monkeypatch.setattr(app_update, "relaunch", lambda plan: seen.append(plan) or "updated")
+    monkeypatch.setattr("sys.argv", ["app_update", "relaunch", "--plan", "switch.json"])
+    with warnings.catch_warnings(), pytest.raises(SystemExit) as stopped:
+        warnings.simplefilter("ignore", RuntimeWarning)  # runpy: module already imported
+        runpy.run_module("cytellect_api.app_update", run_name="__main__")
+    assert stopped.value.code == 0 and seen == [Path("switch.json")]
+
+
+def test_the_ci_update_hook_makes_only_the_named_version_fail_to_start(tmp_path, monkeypatch):
+    import importlib.util
+
+    hook = Path(__file__).resolve().parents[1] / "packaging/windows/update-test/cytellect_ci_update_hook.py"
+    # monkeypatch restores what the hook replaces.
+    monkeypatch.setattr(app_update.Installation, "launch", app_update.Installation.launch)
+    monkeypatch.setattr(app_update, "allowed_download", app_update.allowed_download)
+    monkeypatch.setattr(app_update, "RELEASES_URL", app_update.RELEASES_URL)
+    monkeypatch.delenv("CYTELLECT_TEST_RELEASES", raising=False)
+    monkeypatch.setenv("CYTELLECT_TEST_FAIL_VERSION", "0.1.0-local.22")
+    spec = importlib.util.spec_from_file_location("cytellect_ci_update_hook_test", hook)
+    assert spec is not None and spec.loader is not None
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+    failing = installation(tmp_path / "new", "0.1.0-local.22")
+    assert failing.launch()[1:] == ["-E", "-c", "raise SystemExit(3)"]
+    assert installation(tmp_path / "old").launch()[1:5] == ["-B", "-E", "-m", "cytellect_api.local"]
