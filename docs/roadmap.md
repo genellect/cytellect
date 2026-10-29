@@ -7,7 +7,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 対象 | 状況 |
 |---|---|
 | 公開サイト | [cytellect.vercel.app](https://cytellect.vercel.app/)。LP、`/demo`、`/plan` で構成する。`/demo` は本番と同じ解析ワークスペースを、登録済みの公開画像でサーバーレスに動かす（[公開デモ](showcase.md)）。画像の追加は Windows 版・Docker 版だけで行い、公開サイトは研究画像を受け付けない。公開サイトの `/workspace` は `/demo` へ転送する。`main` へのマージで自動デプロイ |
-| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU（Modal）で実行できる。2026-10-23 にデプロイし、公開画像で CPU と結果が一致した。2026-10-27 は L4 で protocol 4.0／4.1 が成功し、4.3 は処理中のコンテナ停止で失敗した。この停止の修正（PR #126）はマージ・再デプロイ済み。2026-10-28〜29 は、無料枠と予算に余裕がありながら L4 の空き待ちが続いたため、A10 を予備の GPU に加えた（Modal への再デプロイで有効になる）。4.3 の推論・採用・測定と、A10 での推論・L4 との比較は未実施（[クラウド GPU](cloud-gpu.ja.md)） |
+| Windows 版 | [0.1.0-local.20](local-release-0.1.0-local.20.md)。群間比較（2 画面、群と独立した実験回、結果の一文、実験回を n とする図）を含む最初の版で、インストールした版で公開 JUMP 画像の群間比較（C1）まで受入を通した（C11）。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU（Modal）で実行する。GPU は L4 を優先し、空きがなければ A10 を使う。2026-10-29 の再デプロイ後、公開画像で A10 が CPU と同じラベルを返し（BBBC013 の 358 個、4DN NCL の切り出しの 9 個）、所要時間は BBBC013 で 22 秒、NCL の全視野（protocol 4.3.0）で 48 秒だった。L4 との比較と、画面での採用・測定は未実施（[クラウド GPU](cloud-gpu.ja.md)） |
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
 | 開発環境 | 研究室の PC と同じ構成を Linux で起動し、公開画像で試せる（`scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#ローカル開発)）。共有する開発環境では、登録済みの公開画像だけを受け付けられる（`CYTELLECT_UPLOAD_ALLOWLIST`、[データ保護](security.md#shared-development-environments)）。共有の起動と研究者による評価の計画は[実装計画（案）](drafts/cloud-development/plan.md)にある |
