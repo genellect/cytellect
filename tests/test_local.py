@@ -459,3 +459,18 @@ def test_stop_during_pending_worker_restart_reaps_unadopted_process(tmp_path, mo
             if process.poll() is None:
                 process.kill()
             process.wait(timeout=5)
+
+
+def test_windowless_launcher_configures_its_server_without_standard_streams(monkeypatch):
+    """The shortcut runs pythonw, which has no stdout or stderr; startup must not need them."""
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+
+    async def app(scope, receive, send):
+        pass
+
+    local_module.server_config(app, 8765).load()  # failed with "Unable to configure formatter"
+    local_module._null_missing_streams()
+    assert sys.stdout is not None and sys.stderr is not None
+    sys.stdout.close()
+    sys.stderr.close()

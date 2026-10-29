@@ -490,6 +490,15 @@ def _gui(server, url: str, run_server, open_browser: bool):
         thread.join()
 
 
+def server_config(app, port: int):
+    import uvicorn
+
+    # use_colors=False: uvicorn otherwise asks sys.stdout.isatty(), and the shortcut's
+    # windowless pythonw has no stdout, so its logging configuration would fail.
+    return uvicorn.Config(app, host="127.0.0.1", port=port, access_log=False, proxy_headers=False,
+                          log_level="error", use_colors=False, timeout_graceful_shutdown=5)
+
+
 def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_browser=True, gui=False):
     import uvicorn
 
@@ -497,9 +506,7 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
     configure_private_tmp(settings)
     with runtime_lock(settings.data_dir), launcher_mutex(), bind_loopback(port) as sock:
         app = create_local_app(settings, web_dir, port)
-        server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, access_log=False,
-                                               proxy_headers=False, log_level="error",
-                                               timeout_graceful_shutdown=5))
+        server = uvicorn.Server(server_config(app, port))
         # A verified in-app update stops this launcher before its successor starts.
         app.state.request_shutdown = lambda: setattr(server, "should_exit", True)
         supervisor = WorkerSupervisor(settings, lambda: setattr(server, "should_exit", True))
@@ -593,7 +600,15 @@ def _gui_failure_message(error: Exception, *, opened: bool = False) -> str:
             "開き直しても続く場合は、インストーラーをもう一度開いてください（データは保たれます）。")
 
 
+def _null_missing_streams() -> None:
+    """pythonw (the shortcut) starts without stdout/stderr; libraries expect file objects."""
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))  # noqa: SIM115 - process lifetime
+
+
 def main(argv=None):
+    _null_missing_streams()
     parser = argparse.ArgumentParser(prog="cytellect local")
     parser.add_argument("--data-dir", type=Path, default=os.environ.get("CYTELLECT_DATA_DIR"))
     parser.add_argument("--web-dir", type=Path, default=os.environ.get("CYTELLECT_WEB_DIR"))
