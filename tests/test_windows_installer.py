@@ -318,7 +318,7 @@ def test_preflight_decisions_in_windows_powershell(tmp_path):
         {**base, "memory": 4000},
         {**base, "memory": 7400},                    # an 8 GB PC after hardware reservations
         {**base, "free": 5000},                      # 4096 + 1200 needed on one drive
-        {**base, "free": 2000, "update": True},      # an update reuses Fiji and Python
+        {**base, "free": 3000, "update": True},      # an update reuses Fiji and Python: 1536 + 1200
         {**base, "same": False, "free": 4500, "temp": 500},
         {**base, "memory": -1, "free": -1},          # unmeasurable values never block
     ]

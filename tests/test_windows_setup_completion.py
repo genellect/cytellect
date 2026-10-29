@@ -270,7 +270,9 @@ if ($env:CYTELLECT_TEST_OFFLINE) {
     # Bind the bundled payload to the release manifest as rewritten above.
     $offlinePath=Join-Path $env:CYTELLECT_TEST_OFFLINE 'offline-manifest.json'
     $offline=Get-Content -LiteralPath $offlinePath -Raw | ConvertFrom-Json
-    $offline.release_manifest_sha256=(Get-FileHash -LiteralPath (Join-Path $env:CYTELLECT_TEST_SOURCE 'local-release.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    # .NET directly: this prelude runs before the harness restores the inbox module path.
+    $bytes=[IO.File]::ReadAllBytes((Join-Path $env:CYTELLECT_TEST_SOURCE 'local-release.json'))
+    $offline.release_manifest_sha256=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant()
     [IO.File]::WriteAllText($offlinePath,($offline | ConvertTo-Json -Depth 5))
 }
 '''

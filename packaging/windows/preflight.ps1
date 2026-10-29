@@ -14,6 +14,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# Keep the Windows inbox modules (CIM) reachable even under a PowerShell 7 parent.
+$env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 # Windows 10 1809 or later (Windows 11 reports 10.0.22000+). An 8 GB PC reports
 # slightly less than 8192 MiB after hardware reservations.
 $script:MinimumBuild = 17763
