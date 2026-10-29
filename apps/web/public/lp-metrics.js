@@ -1,7 +1,7 @@
 /* Only the listed public pages may create this document. No application state is read. */
 (() => {
   "use strict";
-  const origin = "https://cytellect.vercel.app";
+  const origin = "https://cytellect.app";
   const measurement = "G-EHKJ8B8N0Y";
   if (location.origin !== origin || location.search || location.hash || window.parent === window
     || navigator.doNotTrack === "1" || navigator.globalPrivacyControl) return;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { indexedPaths, siteUrl, siteVerification } from "./site";
+import { indexedPaths, sharePreview, siteUrl, siteVerification } from "./site";
 
 describe("public site origin",()=>{
  it("uses the Vercel production domain unless an origin is named",()=>{
@@ -27,5 +27,16 @@ describe("search engine ownership tokens",()=>{
   expect(siteVerification("google_site_token",undefined,true)).toBeUndefined();
   expect(siteVerification(undefined,undefined,false)).toBeUndefined();
   expect(siteVerification('x" onload="y',"short",false)).toBeUndefined();
+ });
+});
+
+describe("share preview",()=>{
+ it("points shared links at the public origin and the registered hero poster",()=>{
+  const preview=sharePreview("https://cytellect.app","/demo","T","D");
+  expect(preview.openGraph).toMatchObject({url:"https://cytellect.app/demo",siteName:"Cytellect",locale:"ja_JP",title:"T",description:"D"});
+  expect(preview.twitter).toMatchObject({card:"summary_large_image",images:["https://cytellect.app/marketing/hero-film-poster.webp"]});
+ });
+ it("is absent on the user's own computer",()=>{
+  expect(sharePreview("","/","T","D")).toEqual({});
  });
 });

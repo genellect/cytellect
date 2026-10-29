@@ -2,9 +2,9 @@
 
 **Get your microscopy publication-ready.**
 
-[![Cytellect](docs/images/readme-hero.webp)](https://cytellect.vercel.app/)
+[![Cytellect](docs/images/readme-hero.webp)](https://cytellect.app/)
 
-[日本語](README.md) · [Product site](https://cytellect.vercel.app/) · [Live demo](https://cytellect.vercel.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.20) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md) · [Documentation](docs/README.md)
+[日本語](README.md) · [Product site](https://cytellect.app/) · [Live demo](https://cytellect.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.20) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md) · [Documentation](docs/README.md)
 
 Cytellect is an analysis platform for life-science researchers that handles everything from microscopy image analysis to statistical processing and graph output. Image processing uses the pretrained deep-learning models StarDist and Cellpose-SAM, and numerical computation uses Python.
 

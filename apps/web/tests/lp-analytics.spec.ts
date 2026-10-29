@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const origin = "https://cytellect.vercel.app";
+const origin = "https://cytellect.app";
 test.beforeEach(() => test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED !== "1", "Public build only"));
 test.afterEach(async ({ page }) => { await page.waitForLoadState("networkidle"); await page.unrouteAll({ behavior: "wait" }); });
 
