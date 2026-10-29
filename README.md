@@ -30,7 +30,7 @@ Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力ま�
   → services/api          FastAPI。設定を版で保存し、ジョブを SQLite に登録
   → services/worker       実行権を compare-and-swap で取得し、ジョブごとに子プロセスで実行
     → engines/fiji        核の検出（StarDist · TensorFlow Java）
-    → engines/cellpose    核小体・細胞質の検出（Cellpose-SAM · PyTorch）。CPU または Modal の L4
+    → engines/cellpose    核小体・細胞質の検出（Cellpose-SAM · PyTorch）。CPU または Modal の GPU
     → packages/analysis   測定・統計・作図（NumPy · SciPy · statsmodels · Matplotlib）
 
 AI による解析設定
@@ -44,7 +44,7 @@ AI による解析設定
 |---|---|---|---|
 | Windows 版 | 研究室の PC | 専用の Python・Fiji 環境。`127.0.0.1` で待ち受け | — |
 | Docker 版 | 研究室の PC | Web・API・ワーカーを別コンテナで実行。ワーカーはネットワークなし | — |
-| GPU 推論 | Modal（NVIDIA L4） | GHCR の digest 固定イメージ。使用後 20 秒で停止（`infra/modal_cellpose.py`） | 検出用の 1 チャンネルと核マスク |
+| GPU 推論 | Modal（L4 優先、A10 を予備候補） | GHCR の digest 固定イメージ。使用後 20 秒で停止（`infra/modal_cellpose.py`） | 検出用の 1 チャンネルと核マスク |
 | LLM の中継 | Cloudflare Workers · D1 | 費用の予約と精算（`services/proposal-worker`） | 指示文・チャンネルの対応・画像寸法・現在の設定 |
 | 公開サイト | Vercel | LP と公開デモ。`main` へのマージで自動デプロイ | 研究画像は受け付けない |
 

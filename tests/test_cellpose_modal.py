@@ -25,10 +25,12 @@ def server_options():
 
 def test_modal_app_is_an_authenticated_single_gpu_server_without_storage():
     options = server_options()
-    assert ast.literal_eval(options["gpu"]) == "L4"
+    # Ordered, explicit candidates: no larger GPU counts or unbounded "any" pool.
+    assert ast.literal_eval(options["gpu"]) == ["L4", "A10"]
     assert ast.literal_eval(options["max_containers"]) == 1
     assert ast.literal_eval(options["unauthenticated"]) is False
     assert "volumes" not in options and "enable_memory_snapshot" not in options
+    assert "buffer_containers" not in options
     # Web Function decorators would retain request inputs; none may be used.
     for name in ("fastapi_endpoint", "web_endpoint", "asgi_app", "wsgi_app", "web_server", "method"):
         assert f"modal.{name}" not in SOURCE
