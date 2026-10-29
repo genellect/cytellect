@@ -29,12 +29,15 @@ Modal の Starter プラン（月額 0 円）を使う。
 | --- | --- |
 | 無料枠 | カードを登録すると毎月 30 ドル分（登録前は 1 ドル分）。使い残しは翌月に繰り越さない |
 | GPU（NVIDIA L4） | 1 秒あたり 0.000222 ドル（1 時間で約 0.8 ドル）。CPU とメモリは別に秒単位 |
+| 予備の GPU（NVIDIA A10） | 1 秒あたり 0.000306 ドル（1 時間で約 1.1 ドル）。L4 より約 38% 高い |
 | 使い終わった後 | アイドル状態が 20 秒続くと自動停止（`infra/modal_cellpose.py` の `SCALEDOWN_SECONDS`）。処理中の要求がある場合、終了時に最大 1,800 秒の猶予を設ける。止まっている間は 0 円 |
 | 1 視野あたり | 実測後に記載 |
 
 **支出の上限（Spend limit）は必ず 0 ドルにする。** 無料枠を超える処理は止まり、請求は出ない。上限に達すると、その月は Cellpose が使えなくなる。
 
-同時実行は L4 コンテナ 1 台・要求 1 件。`target_concurrency=1` で処理中の要求を需要として扱い、停止処理に入った場合も `exit_grace_period=1800` で、クライアントの要求期限まで完了を待てるようにする。この猶予は常時起動の設定ではないが、終了待ち中も稼働分は課金対象。1,800 秒をすべて使った場合、GPU 分は約 0.40 ドルで、CPU・メモリ分は別（[Modal Server の設定](https://modal.com/docs/sdk/py/latest/App#server)）。
+同時に動くのは、GPU 1 枚のコンテナ 1 台と要求 1 件まで。GPU は `gpu=["L4", "A10"]` で指定し、Modal は起動のたびに L4、A10 の順に割り当てを試みる。2 台を同時に起動する設定ではなく、どちらにも空きがなければ待ち続ける（[GPU の候補の指定](https://modal.com/docs/examples/gpu_fallbacks)）。
+
+`target_concurrency=1` で処理中の要求を需要として扱い、停止処理に入った場合も `exit_grace_period=1800` で、クライアントの要求期限まで完了を待てるようにする。この猶予は常時起動の設定ではないが、終了待ち中も稼働分は課金対象。1,800 秒をすべて使った場合、GPU 分は L4 で約 0.40 ドル、A10 で約 0.55 ドルで、CPU・メモリ分は別（[料金](https://modal.com/pricing)、[Modal Server の設定](https://modal.com/docs/sdk/py/latest/App#server)）。
 
 ## 管理者の準備（最初の 1 回）
 
@@ -47,7 +50,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行する（�
 ### 2. Modal のアカウントを作る
 
 1. GitHub アカウントの 2 段階認証を有効にしてから、[Modal](https://modal.com) に GitHub アカウントで登録する。プランは Starter。ほかのメンバーは招待しない。
-2. Settings の Usage / Billing で、Spend limit を 0 ドル、Workspace budget を 30 ドルにする。
+2. Settings の Usage / Billing で、Spend limit を 0 ドル、Workspace budget を 30 ドルにする。この 2 つは Modal の画面でだけ変えられ、デプロイでは変わらない。
 3. Settings の API Tokens でデプロイ用のトークン（`ak-…` と `as-…`）を作る。
 4. Settings の Proxy Auth Tokens で接続用のトークン（`wk-…` と `ws-…`）を作る。研究室の PC は、これで GPU を呼び出す。
 
@@ -92,7 +95,18 @@ uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A
 | `CYTELLECT_MODAL_PROXY_KEY` | 接続用トークンの ID（`wk-…`） |
 | `CYTELLECT_MODAL_PROXY_SECRET` | 接続用トークンの Secret（`ws-…`） |
 
-`scripts/dev.py` は 2 つをピリオドでつないで接続キーにし、上の URL を接続先にする。`python3 scripts/dev.py doctor --live` は、この接続キーで `/health` を呼び、200 が返るかを確かめる。停止中の GPU は起動に約 3 分かかり、起動中と使用後の 20 秒も課金される。試験には公開画像だけを使う。
+`scripts/dev.py` は 2 つをピリオドでつないで接続キーにし、上の URL を接続先にする。`python3 scripts/dev.py doctor --live` は、この接続キーで `/health` を呼び、200 が返るかを確かめる。GPU の空きを待つため、起動にかかる時間は一定ではない。起動中と使用後の 20 秒も課金される。試験には公開画像だけを使う。
+
+### 起動待ちと受入確認
+
+停止中のサーバーへの最初の要求は `503 no upstreams available` を返し、これをきっかけに起動が始まる。コンテナができるまで、要求は保留されない（[Modal Servers](https://modal.com/docs/guide/servers#zero-to-one-scaling)）。`503` だけでは、GPU の割り当て待ち、起動の失敗、予算の上限のどれなのかは分からない。
+
+1. Modal の画面で Containers・Logs・Usage を確かめる。`waiting to be scheduled on a GPU_L4 worker` は L4 の空き待ち。Usage では、無料枠の残りと予算の両方を見る。
+2. 公開画像と解析画面を先に用意し、待つ時間の上限を決める。`/health` を送った回数・時刻（UTC）・HTTP の状態を記録する。GPU の割り当てまで長くかかることがあるため、短い確認だけで起動できないと判断しない。
+3. `/health` が 200 を返したら、すぐに推論を始める。要求がないとアイドル 20 秒で停止するため、前に得た 200 を当てにしない。
+4. 推論は決めた回数だけ送り、失敗も回数に含める。上限の時刻までに 200 が返らなければ、推論は未実行として記録する。推論の自動の再送、予算の引き上げ、承認していない GPU への変更はしない。実際に使われた GPU は、結果の `runtime.gpu` で確かめる。
+
+ログに `Responses 0`・`Done` と、待ち受け中の `KeyboardInterrupt`／`Drained` が並んでいる場合は、要求を受ける前に通常どおり停止したと考えられる。Traceback が出ているだけで起動の失敗と決めず、終了の状態・処理件数・時刻をあわせて見る。GPU の割り当て、推論の成功、画面での採用と測定は、それぞれ別に確かめる。
 
 ## 送ったデータの扱い（Modal）
 
@@ -113,7 +127,11 @@ uv run python scripts/cellpose_remote_check.py --image fixtures/public/bbbc013/A
 - `execution_backend`：クラウドで処理したこと、接続先のホスト名、検出条件で指定されていた処理装置
 - `service`：クラウド側の runner・サーバー・ライブラリ・モデルのハッシュ
 
-GPU では、TF32 を使わない float32 と、毎回同じ結果になる計算方法を使う。それでも GPU と CPU の結果が 1 画素も違わないとは限らない。初回の受入では、公開画像で CPU との一致度を記録する。
+GPU では、TF32 を使わない float32 と、決定的なアルゴリズムを指定する。ただし `warn_only=True` のため、決定的にできない演算は警告を出して続行する。GPU の種類の間や CPU との間で、結果が完全に一致するとは限らない。
+
+L4 と A10 の結果が同等かどうかは、まだ確かめていない（[ロードマップ](roadmap.md)）。確かめるまでは、一つの科学的な比較に、異なる GPU の結果を混ぜない。どの GPU を使ったかは、記録の `gpu` で分かる。
+
+同等性を確かめるときは、登録済みの同じ公開画像・モデル・パラメーター・親核のラベルを固定し、同じ GPU での繰り返しの再現性と、GPU 間の差を分けて記録する。記録するのは、領域を対応づけたマスクの一致度、検出数、分割・結合、面積・輝度の測定値、所要時間。ラベル番号の違いだけを、領域の違いとみなさない。受入基準は結果を見る前に決め、結果に合わせて変えない。これは GPU 間の数値の同等性の確認であり、生物学的な検出精度の評価ではない。
 
 ## 困ったとき
 
@@ -126,7 +144,7 @@ GPU では、TF32 を使わない float32 と、毎回同じ結果になる計�
 | 「クラウドGPUの版がこのCytellectと一致しません」 | Cytellect を更新した後は、同じ版のイメージを手順 1 で公開し、`IMAGE` を差し替えて手順 3 でデプロイし直す |
 | 「クラウドGPUに接続できませんでした。ネットワーク接続を確認して…」 | ネットワークの接続と、手順 4 の URL を確認する |
 | 推論中に `502` が返り、Modal に `Server has been draining for too long` が記録される | 処理中のコンテナが停止している。デプロイ済み設定の `target_concurrency=1` と `exit_grace_period=1800` を確認する。修正の反映には手順 3 の再デプロイが必要。再実行前にログで終了原因を確認し、GPU の要求回数に失敗分も含める |
-| `/health` が 3 分以上 `503 no upstreams available` を返す | コンテナが起動していない。Modal の画面で、アプリのコンテナとログを確認する。GPU（L4）の割り当て待ち、起動の失敗、無料枠の使い切り（Usage）のいずれか。割り当て待ちの場合は、Modal 側で GPU が空くまで待つ |
+| `/health` が数分以上 `503 no upstreams available` を返す | コンテナが動いていない。[起動待ちと受入確認](#起動待ちと受入確認)の手順 1 で、GPU の割り当て待ち、起動の失敗、無料枠や予算の上限を見分ける。`/health` が 200 にならなかった試行は、推論の成否に数えない |
 | サーバーが起動しない（イメージを取得できない） | 手順 1 のパッケージが公開（Public）になっているか確認する |
 
 ## 関連文書

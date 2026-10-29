@@ -48,13 +48,16 @@ CUDA 12.6 build of Torch. Every package shared with `requirements.lock` keeps th
 same version (`requirements-cuda.in`). `infra/Dockerfile.cellpose-gpu` builds the
 image; `.github/workflows/cellpose-gpu-image.yml` publishes it from `main` on the
 owner's instruction. `infra/modal_cellpose.py` runs that image as a Modal Server
-(one L4, 20 s scale-down, proxy-auth required); `.github/workflows/cellpose-modal-deploy.yml`
+(L4 preferred, A10 fallback, at most one container with one GPU, 20 s scale-down,
+proxy-auth required); `.github/workflows/cellpose-modal-deploy.yml`
 deploys it from `main`.
 
-On CUDA the runner uses float32 with TF32 disabled and deterministic algorithms,
-to stay as close as possible to the validated CPU results and to repeat run to run.
-GPU results are not claimed to be bitwise equal to CPU results; the receipt records
-`device`, `precision`, `gpu` and the remote `execution_backend`.
+On CUDA the runner uses float32 with TF32 disabled and requests deterministic
+algorithms with `warn_only=True`; unsupported operations may still run with a warning.
+Results are not claimed to be bitwise equal across GPU types or to CPU results;
+the receipt records `device`, `precision`, `gpu` and the remote `execution_backend`.
+Do not mix GPU types within one scientific comparison until their masks, counts and
+measurements agree on registered public images ([cloud GPU](../../docs/cloud-gpu.ja.md#結果の記録)).
 
 A client configured with `CYTELLECT_CELLPOSE_REMOTE_URL` sends the detection plane,
 the adopted nuclei (nucleolar protocols) and the parameters. The service returns
