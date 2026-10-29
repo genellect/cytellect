@@ -33,7 +33,9 @@ app = modal.App("cytellect-cellpose")
 
 @app.server(
     image=image,
-    gpu="L4",  # One fixed GPU type: results record the device, and types are not mixed.
+    # Prefer L4; allow A10 when scheduling capacity is unavailable. One GPU per
+    # container, with the actual device retained in each inference receipt.
+    gpu=["L4", "A10"],
     cpu=2,
     memory=8192,
     max_containers=1,
