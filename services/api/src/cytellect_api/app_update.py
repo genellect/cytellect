@@ -49,6 +49,9 @@ MAX_JSON_BYTES = 2 * 1024**2
 INSTALLER_TIMEOUT_SECONDS = 3600
 START_TIMEOUT_SECONDS = 300
 EXIT_TIMEOUT_SECONDS = 120
+# The previous launcher was asked to stop; give a slow worker shutdown ample time.
+PREVIOUS_EXIT_SECONDS = 600
+RESTORE_ATTEMPTS = 5
 JOBS_WAIT_SECONDS = 600
 LOCAL_VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)-local\.([0-9]+)")
 SHORTCUT_DESCRIPTION = "Cytellect local analysis and control window"
@@ -57,6 +60,8 @@ ROOT_MARKER = {"product": "cytellect-local", "schema": 1}
 ACTIVE = frozenset({"downloading", "installing", "restarting"})
 # Files in updates/ that are not downloads.
 UPDATE_RECORDS = frozenset({"state.json", "latest.json", "switch.json", "rollback"})
+# Mutating requests refused while the launcher is about to stop for the switch.
+SWITCH_ALLOWED = frozenset({"/v1/app/update", "/v1/local/session"})
 
 
 class UpdateRefused(Exception):
@@ -90,7 +95,7 @@ class Installation:
     def launch(self) -> list[str]:
         """The same command as the stable shortcut that setup writes."""
         pythonw = self.app / ".venv" / "Scripts" / "pythonw.exe"
-        return [str(pythonw), "-B", "-m", "cytellect_api.local", "--fiji", self.fiji,
+        return [str(pythonw), "-B", "-E", "-m", "cytellect_api.local", "--fiji", self.fiji,
                 "--data-dir", str(self.root / "data"), "--web-dir", str(self.app / "apps" / "web" / "out"), "--gui"]
 
     def record(self) -> dict[str, str]:
@@ -275,15 +280,21 @@ class UpdateService:
         self.lock = threading.Lock()
         self.worker: threading.Thread | None = None
         self.memory: dict[str, Any] = {}
+        # Set from the last check for analyses until this launcher stops for the switch.
+        self.switching = False
 
     # Persistent state lives beside, never inside, the research data folder.
     def _state(self) -> dict[str, Any]:
         if self.installation is None:
             return {}
         state = read_json(self.installation.updates / "state.json")
-        if state.get("state") == "restarting" and state.get("version") == self.installation.version:
-            # This is the new version, answering before the relauncher records success.
-            return {**state, "state": "updated"}
+        if state.get("state") in {"restarting", "installed"} and state.get("version") == self.installation.version:
+            # This is the new version: answering before the relauncher records success, or
+            # started later after a deferred switch (installed).
+            state = {**state, "state": "updated", "error": None}
+            with contextlib.suppress(OSError):
+                write_json(self.installation.updates / "state.json", state)
+            return state
         running = self.worker is not None and (self.worker.is_alive() or state.get("state") == "restarting")
         if state.get("state") in ACTIVE and not running:
             # A launcher closed during an update, or a switch never finished; the current version runs.
@@ -403,10 +414,18 @@ class UpdateService:
                 # Installed and verified; the shortcut already opens it, so the next start uses it.
                 self._set_state("installed", version=version, error="update_jobs_running")
                 return
+            # From here new analyses are refused (409), so none can start and then be stopped.
+            self.switching = True
+            if self.busy():
+                self.switching = False
+                self._set_state("installed", version=version, error="update_jobs_running")
+                return
             self._switch(target)
         except UpdateRefused as refused:
+            self.switching = False
             self._set_state("failed", version=version, error=str(refused))
         except Exception:
+            self.switching = False
             self._set_state("failed", version=version, error="update_failed")
         finally:
             # The installer is not needed after it ran; a retry downloads it again.
@@ -434,7 +453,8 @@ class UpdateService:
         self._set_state("restarting", version=target.version)
         python = Path(sys.executable)
         relauncher = python.with_name("pythonw.exe") if python.with_name("pythonw.exe").is_file() else python
-        self.spawn([str(relauncher), "-B", "-m", "cytellect_api.app_update", "relaunch", "--plan", str(plan_path)],
+        flags = ["-B", *(["-E"] if sys.flags.ignore_environment else [])]
+        self.spawn([str(relauncher), *flags, "-m", "cytellect_api.app_update", "relaunch", "--plan", str(plan_path)],
                    self.installation.app)
         stop = self.shutdown()
         if stop is not None:
@@ -526,24 +546,75 @@ def restore_shortcuts(installation: Installation) -> None:
                        timeout=60, check=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def kill_identity(pid: int, created: float) -> None:
+    """Stop a launcher that ignored its stop request (only that exact process and its children)."""
+    import psutil
+
+    with contextlib.suppress(psutil.Error):
+        process = psutil.Process(pid)
+        if abs(process.create_time() - created) <= 0.01:
+            stop_tree(process)
+
+
+def wait_process(process: Any, timeout: float = 30) -> None:
+    """Let a stopped process release its files before they are replaced."""
+    with contextlib.suppress(Exception):
+        process.wait(timeout=timeout)
+
+
 @dataclass
 class Relaunch:
     """Side effects of the switch, replaceable in tests."""
 
-    wait: Callable[[int, float], bool] = wait_for_exit
+    wait: Callable[[int, float], bool] = lambda pid, created: wait_for_exit(pid, created, PREVIOUS_EXIT_SECONDS)
     start: Callable[[list[str], Path], Any] = detach
     healthy: Callable[[int, str, Any], bool] = lambda port, version, process: answers(port, version, process=process)
     stop: Callable[[Any], None] = stop_tree
+    exited: Callable[[Any], None] = wait_process
     shortcuts: Callable[[Installation], None] = restore_shortcuts
     copy: Callable[[Path, Path], None] = database_copy
     alive: Callable[[int, float], bool] = lambda pid, created: process_running(pid, created)
+    kill: Callable[[int, float], None] = kill_identity
+    pause: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.time
+
+
+def pending_restore(root: Path) -> Path:
+    return root / "updates" / "rollback" / "pending.json"
+
+
+def restore_pending_database(data_dir: Path, installation: Installation | None = None) -> bool:
+    """At the previous version's start, before it opens the database: finish a failed restore.
+
+    The relauncher leaves updates/rollback/pending.json when the pre-update database could
+    not be copied back (for example a file lock). Opening the newer database instead would
+    let this version's migrations run on it, so a restore that still fails stops the start.
+    """
+    root = data_dir.resolve().parent
+    marker = pending_restore(root)
+    if not marker.is_file():
+        return False
+    pending = read_json(marker)
+    installation = installation or current_installation()
+    if installation is None or pending.get("version") != installation.version or installation.root != root:
+        return False  # only the version whose database it is restores it
+    snapshot = marker.parent / f"{installation.version}.sqlite"
+    if not snapshot.is_file():
+        marker.unlink(missing_ok=True)
+        return False
+    try:
+        database_copy(snapshot, data_dir / "cytellect.sqlite")
+    except (OSError, sqlite3.Error):
+        raise RuntimeError("update_database_restore_pending") from None
+    snapshot.unlink(missing_ok=True)
+    marker.unlink(missing_ok=True)
+    return True
 
 
 def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
     """Switch to the new version; on any failure, return to the previous one (I7).
 
-    Every failure path restores the previous shortcuts and leaves the previous version
+    Every failure path restores the previous shortcuts and ends with the previous version
     running. The database copy is deleted only after it was restored or is no longer needed.
     """
     effects = effects or Relaunch()
@@ -571,8 +642,11 @@ def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
     copied = False
     try:
         if not effects.wait(pid, created):
-            errors.append("update_previous_still_running")
+            # It was asked to stop and did not within ten minutes: stop it, then start it again.
+            errors.append("update_previous_did_not_exit")
+            effects.kill(pid, created)
         else:
+            pending_restore(root).unlink(missing_ok=True)
             snapshot.unlink(missing_ok=True)
             had_database = database.is_file()
             if had_database:
@@ -590,13 +664,22 @@ def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
     if process is not None:
         with contextlib.suppress(Exception):
             effects.stop(process)
+        effects.exited(process)
     if copied:
-        try:
-            effects.copy(snapshot, database)
-            snapshot.unlink(missing_ok=True)
-        except Exception:
-            # Kept for recovery: updates/rollback/<previous version>.sqlite is the pre-update database.
+        for attempt in range(RESTORE_ATTEMPTS):
+            try:
+                effects.copy(snapshot, database)
+                snapshot.unlink(missing_ok=True)
+                break
+            except Exception:
+                if attempt + 1 < RESTORE_ATTEMPTS:
+                    effects.pause(2)
+        else:
+            # The previous version restores it at its start, before opening the database.
             errors.append("update_database_restore_failed")
+            with contextlib.suppress(OSError):
+                write_json(pending_restore(root), {"schema": "cytellect-update-restore/1",
+                                                   "version": previous.version})
     elif had_database is False and process is not None and database.is_file():
         # There was no database before the switch, so this one holds no research records.
         with contextlib.suppress(OSError):
@@ -606,7 +689,6 @@ def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
     # Recorded before the previous version starts, so that its first answer already reports it.
     result = record("rolled_back", version=target.version, previous=previous.version, error=errors[0],
                     errors=errors)
-    # The previous launcher may still be running (it did not exit): then it is already the previous version.
     if not effects.alive(pid, created):
         with contextlib.suppress(Exception):
             effects.start(previous.launch(), previous.app)
@@ -638,6 +720,18 @@ def register_app_update_routes(api, settings, owner) -> None:
             holder["service"] = UpdateService(current_installation(), port=port, busy=busy,
                                               shutdown=lambda: getattr(api.state, "request_shutdown", None))
         return holder["service"]
+
+    api.state.update_service = service
+
+    @api.middleware("http")
+    async def refuse_work_during_switch(request, call_next):
+        current = holder.get("service")
+        if (current is not None and current.switching and request.method not in {"GET", "HEAD", "OPTIONS"}
+                and request.url.path not in SWITCH_ALLOWED):
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse({"detail": "update_switching"}, status_code=409, headers={"Cache-Control": "no-store"})
+        return await call_next(request)
 
     @api.get("/v1/app/update", include_in_schema=False)
     def update_status(_who: Owner):

@@ -235,10 +235,11 @@ def switch_plan(root: Path) -> Path:
 class Effects:
     """Records the relauncher's side effects; any step can be made to fail."""
 
-    def __init__(self, *, exits=True, healthy=False, fail=(), migrate=None, previous_alive=False):
+    def __init__(self, *, exits=True, healthy=False, fail=(), migrate=None, previous_alive=False, killable=True):
         self.exits, self.is_healthy, self.fail, self.migrate = exits, healthy, set(fail), migrate
-        self.previous_alive = previous_alive
+        self.previous_alive, self.killable = previous_alive, killable
         self.started, self.stopped, self.shortcuts_restored, self.copies = [], [], [], []
+        self.exited, self.killed, self.restores = [], [], 0
 
     def relaunch(self):
         def start(command, cwd):
@@ -251,9 +252,18 @@ class Effects:
 
         def copy(source, target):
             self.copies.append((source.name, target.name))
-            if ("snapshot" in self.fail and len(self.copies) == 1) or ("restore" in self.fail and len(self.copies) == 2):
+            restoring = target.name == "cytellect.sqlite"
+            if restoring:
+                self.restores += 1
+            if (("snapshot" in self.fail and not restoring) or ("restore" in self.fail and restoring)
+                    or ("restore_once" in self.fail and restoring and self.restores == 1)):
                 raise sqlite3.OperationalError("synthetic database lock")
             app_update.database_copy(source, target)
+
+        def kill(pid, created):
+            self.killed.append(pid)
+            if self.killable:
+                self.previous_alive = False
 
         def stop(process):
             self.stopped.append(process)
@@ -267,8 +277,8 @@ class Effects:
 
         return Relaunch(wait=lambda pid, created: self.exits, start=start,
                         healthy=lambda port, version, process: self.is_healthy and version == "0.1.0-local.22",
-                        stop=stop, shortcuts=shortcuts, copy=copy,
-                        alive=lambda pid, created: self.previous_alive)
+                        stop=stop, exited=self.exited.append, shortcuts=shortcuts, copy=copy,
+                        alive=lambda pid, created: self.previous_alive, kill=kill, pause=lambda seconds: None)
 
 
 def state_of(root: Path) -> dict:
@@ -304,7 +314,8 @@ def test_new_version_that_does_not_start_falls_back_to_the_previous_version(tmp_
 
 @pytest.mark.parametrize("fail,error,kept", [
     ({"stop"}, "update_new_version_failed_to_start", False),       # stopping the new version fails
-    ({"restore"}, "update_new_version_failed_to_start", True),     # the database file is locked
+    ({"restore_once"}, "update_new_version_failed_to_start", False),  # a lock that clears on retry
+    ({"restore"}, "update_new_version_failed_to_start", True),     # the database file stays locked
     ({"shortcuts"}, "update_new_version_failed_to_start", False),  # the shortcut cannot be rewritten
     ({"start"}, "update_switch_failed", False),                    # the new version cannot be started
     ({"snapshot"}, "update_database_copy_failed", False),          # no copy, so the new version never runs
@@ -324,20 +335,84 @@ def test_every_failed_switch_restores_shortcuts_and_starts_the_previous_version(
     # A copy that could not be restored stays for recovery; otherwise none is left.
     assert bool(snapshots) is kept
     if kept:
+        # The previous version finishes the restore at its start, before opening the database.
         assert "update_database_restore_failed" in state["errors"] and marker(snapshots[0]) == "before update"
+        assert json.loads((tmp_path / "updates/rollback/pending.json").read_text())["version"] == "0.1.0-local.21"
+        assert effects.restores == app_update.RESTORE_ATTEMPTS
     else:
         assert marker(data) == "before update"
+        assert not (tmp_path / "updates/rollback/pending.json").exists()
+    if effects.stopped:
+        assert effects.exited == effects.stopped  # waited for the stopped version to release its files
     if "snapshot" in fail:
         assert len(effects.started) == 1  # only the previous version started
 
 
-def test_previous_launcher_that_does_not_exit_keeps_running_with_its_shortcuts(tmp_path):
+def test_previous_launcher_that_does_not_exit_is_stopped_and_started_again(tmp_path):
     plan = switch_plan(tmp_path)
     effects = Effects(exits=False, previous_alive=True)
     assert app_update.relaunch(plan, effects.relaunch()) == "rolled_back"
-    assert effects.started == []  # the previous version is still the one running
+    assert effects.killed and len(effects.started) == 1 and "0.1.0-local.21" in effects.started[0]
     assert effects.shortcuts_restored == ["0.1.0-local.21"]
-    assert state_of(tmp_path)["error"] == "update_previous_still_running"
+    assert state_of(tmp_path)["error"] == "update_previous_did_not_exit"
+
+
+def test_a_previous_launcher_that_cannot_be_stopped_is_left_running(tmp_path):
+    plan = switch_plan(tmp_path)
+    effects = Effects(exits=False, previous_alive=True, killable=False)
+    assert app_update.relaunch(plan, effects.relaunch()) == "rolled_back"
+    assert effects.started == []  # it is still the previous version, still running
+    assert effects.shortcuts_restored == ["0.1.0-local.21"]
+
+
+def test_the_previous_version_restores_a_pending_database_before_opening_it(tmp_path):
+    previous = installation(tmp_path, "0.1.0-local.21")
+    data = tmp_path / "data/cytellect.sqlite"
+    database(data, "migrated by the failed version")
+    database(tmp_path / "updates/rollback/0.1.0-local.21.sqlite", "before update")
+    app_update.write_json(tmp_path / "updates/rollback/pending.json",
+                          {"schema": "cytellect-update-restore/1", "version": "0.1.0-local.21"})
+    newer = app_update.read_installation(make_app(tmp_path, "0.1.0-local.22"))
+    assert app_update.restore_pending_database(tmp_path / "data", newer) is False  # not its database
+    assert marker(data) == "migrated by the failed version"
+    assert app_update.restore_pending_database(tmp_path / "data", previous) is True
+    assert marker(data) == "before update"
+    assert not list((tmp_path / "updates/rollback").iterdir())
+    assert app_update.restore_pending_database(tmp_path / "data", previous) is False  # nothing pending
+
+
+def test_a_pending_restore_that_still_fails_stops_the_start(tmp_path, monkeypatch):
+    previous = installation(tmp_path, "0.1.0-local.21")
+    database(tmp_path / "updates/rollback/0.1.0-local.21.sqlite", "before update")
+    app_update.write_json(tmp_path / "updates/rollback/pending.json", {"version": "0.1.0-local.21"})
+
+    def locked(source, target):
+        raise sqlite3.OperationalError("synthetic database lock")
+
+    monkeypatch.setattr(app_update, "database_copy", locked)
+    with pytest.raises(RuntimeError, match="update_database_restore_pending"):
+        app_update.restore_pending_database(tmp_path / "data", previous)
+    assert (tmp_path / "updates/rollback/pending.json").exists()  # kept for the next start
+
+
+def test_new_work_is_refused_while_the_launcher_stops_for_the_switch(tmp_path):
+    client, headers = local_client(tmp_path)
+    holder = {"service": client.app.state.update_service()}
+    holder["service"].switching = True
+    refused = client.post("/v1/workspaces", json={"title": "late"}, headers=headers)
+    assert refused.status_code == 409 and refused.json() == {"detail": "update_switching"}
+    assert client.get("/v1/app/update").status_code == 200
+    holder["service"].switching = False
+    assert client.post("/v1/workspaces", json={"title": "after"}, headers=headers).status_code == 201
+
+
+def test_a_deferred_switch_reports_updated_once_the_new_version_runs(tmp_path):
+    current = installation(tmp_path, "0.1.0-local.22")
+    app_update.write_json(current.updates / "state.json",
+                          {"state": "installed", "version": "0.1.0-local.22", "error": "update_jobs_running"})
+    status = UpdateService(current, fetch=lambda url: []).status()
+    assert status["state"] == "updated" and status["error"] is None
+    assert json.loads((current.updates / "state.json").read_text())["state"] == "updated"
 
 
 def test_running_analyses_block_the_update_and_a_late_one_defers_the_switch(tmp_path):

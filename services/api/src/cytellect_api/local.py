@@ -312,8 +312,10 @@ class WorkerSupervisor:
                    CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds),
                    CYTELLECT_WORKSPACE_RETENTION_MODE=self.settings.workspace_retention_mode)
         parent = psutil.Process()
+        # The worker runs with the launcher's own isolation from PYTHON* variables (-E).
+        flags = [*(["-B"] if sys.dont_write_bytecode else []), *(["-E"] if sys.flags.ignore_environment else [])]
         process = subprocess.Popen(
-            [sys.executable, "-m", "cytellect_api.local_worker", str(parent.pid), str(parent.create_time())],
+            [sys.executable, *flags, "-m", "cytellect_api.local_worker", str(parent.pid), str(parent.create_time())],
             env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
             start_new_session=os.name != "nt",
@@ -510,6 +512,11 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
     redirector = redirector_owner()
     configure_private_tmp(settings)
     with runtime_lock(settings.data_dir), launcher_mutex(), bind_loopback(port) as sock:
+        from .app_update import restore_pending_database
+
+        # After an update that could not restore the previous database, finish it before
+        # this (previous) version opens and migrates the database.
+        restore_pending_database(settings.data_dir)
         app = create_local_app(settings, web_dir, port)
         server = uvicorn.Server(server_config(app, port))
         # A verified in-app update stops this launcher before its successor starts.

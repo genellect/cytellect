@@ -49,7 +49,8 @@ function Get-App([string]$Root, [string]$Expected = $Version) {
 function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$Gui) {
     $marker = Get-App $Root $Expected
     $python = Join-Path $marker.app ('.venv\Scripts\' + $(if ($Gui) { 'pythonw.exe' } else { 'python.exe' }))
-    $arguments = @('-B', '-m', 'cytellect_api.local', '--data-dir', ('"' + $Root + '\data"'),
+    # The same isolation as the shortcut (-E): the user's PYTHON* variables do not apply.
+    $arguments = @('-B', '-E', '-m', 'cytellect_api.local', '--data-dir', ('"' + $Root + '\data"'),
         '--web-dir', ('"' + $marker.app + '\apps\web\out"'), '--fiji', ('"' + $marker.fiji + '"'), '--no-browser')
     if ($Gui) { $arguments += '--gui' }
     $process = Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory $marker.app -WindowStyle Hidden -PassThru
@@ -265,7 +266,8 @@ if ($PreviousZip) {
 }
 if ($UpdateInstaller) {
     # In-app update (I7, T1) against a generated release feed on 127.0.0.1. The test hook in
-    # packaging/windows/update-test is loaded only through PYTHONPATH and is never distributed.
+    # packaging/windows/update-test is copied into one installed version's site-packages as a
+    # .pth import (it loads under -E); it is never part of the ZIP or the installer.
     $feedDirectory = Join-Path $Scratch 'update-feed'
     New-Item -ItemType Directory -Path $feedDirectory | Out-Null
     $feedPort = 8799
@@ -280,8 +282,13 @@ if ($UpdateInstaller) {
     [IO.File]::WriteAllText((Join-Path $feedDirectory 'releases.json'), (ConvertTo-Json -InputObject $feed -Depth 6))
     $server = Start-Process -FilePath $python -PassThru -WindowStyle Hidden -ArgumentList @(
         '-m', 'http.server', "$feedPort", '--bind', '127.0.0.1', '--directory', ('"' + $feedDirectory + '"'))
-    $env:PYTHONPATH = Join-Path $Checkout 'packaging\windows\update-test'
     $env:CYTELLECT_TEST_RELEASES = "$base/releases.json"
+
+    function Install-UpdateHook([string]$Root) {
+        $site = Join-Path (Get-App $Root).app '.venv\Lib\site-packages'
+        Copy-Item -LiteralPath (Join-Path $Checkout 'packaging\windows\update-test\cytellect_ci_update_hook.py') -Destination $site
+        [IO.File]::WriteAllText((Join-Path $site 'cytellect_ci_update_hook.pth'), "import cytellect_ci_update_hook`n")
+    }
 
     function Stop-Root([string]$Root) {
         Get-CimInstance -ClassName Win32_Process | Where-Object {
@@ -329,6 +336,7 @@ if ($UpdateInstaller) {
         Step 'in-app update: download, verify, install beside, switch to the new version'
         $root = Join-Path $Scratch 'update'
         if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the update failed' }
+        Install-UpdateHook $root
         $process = Start-Cytellect $root
         $session = New-Session
         $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Update check"}'
@@ -348,6 +356,7 @@ if ($UpdateInstaller) {
         Step 'in-app update whose new version does not start returns to the previous version'
         $root = Join-Path $Scratch 'rollback'
         if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the rollback failed' }
+        Install-UpdateHook $root
         $env:CYTELLECT_TEST_FAIL_VERSION = $UpdateVersion
         $process = Start-Cytellect $root
         $session = New-Session
@@ -364,7 +373,7 @@ if ($UpdateInstaller) {
         Stop-Root $root
         Invoke-Uninstaller $root @('/DELETEDATA')
     } finally {
-        $env:PYTHONPATH = $null; $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null
+        $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null
         if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
     }
 }

@@ -536,7 +536,8 @@ function Install-Cytellect {
     $data = Get-SafeChild $root 'data'
     [IO.Directory]::CreateDirectory($data) | Out-Null
     $web = Get-SafeChild $app 'apps/web/out'
-    $launchArgs = @('-B', '-m', 'cytellect_api.local', '--fiji', $fiji, '--data-dir', $data, '--web-dir', $web, '--gui')
+    # -E: the user's PYTHONPATH/PYTHONHOME must not change the installed application.
+    $launchArgs = @('-B', '-E', '-m', 'cytellect_api.local', '--fiji', $fiji, '--data-dir', $data, '--web-dir', $web, '--gui')
     if (-not $NoShortcut) {
         Update-SetupStatus 'create_shortcut' 'Cytellectのショートカットを作成しています…'
         $shell = New-Object -ComObject WScript.Shell

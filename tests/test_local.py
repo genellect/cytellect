@@ -151,7 +151,7 @@ def test_worker_bytecode_policy_is_only_overridden_for_no_bytecode_parent(
     assert supervisor.worker_identity == (456, 4.0)
     assert len(launched) == 1
     args, options = launched[0]
-    assert args == [sys.executable, "-m", "cytellect_api.local_worker", "123", "4.0"]
+    assert args == [sys.executable, *(["-B"] if dont_write else []), "-m", "cytellect_api.local_worker", "123", "4.0"]
     assert options["env"].get("PYTHONDONTWRITEBYTECODE") == expected
     assert os.environ.get("PYTHONDONTWRITEBYTECODE") == inherited
 
@@ -474,3 +474,19 @@ def test_windowless_launcher_configures_its_server_without_standard_streams(monk
     assert sys.stdout is not None and sys.stderr is not None
     sys.stdout.close()
     sys.stderr.close()
+
+
+def test_isolated_launcher_starts_its_worker_isolated_too(tmp_path, monkeypatch):
+    """The shortcut runs Python with -E; the worker must not read the user's PYTHON* variables."""
+    launched = []
+    monkeypatch.setattr(local_module.sys, "flags", SimpleNamespace(ignore_environment=True))
+    monkeypatch.setattr(local_module.sys, "dont_write_bytecode", True)
+    monkeypatch.setattr(local_module.psutil, "Process",
+                        lambda pid=None: SimpleNamespace(pid=123 if pid is None else pid, create_time=lambda: 4.0,
+                                                         parents=lambda: []))
+    monkeypatch.setattr(local_module.subprocess, "Popen",
+                        lambda args, **kwargs: launched.append(args) or SimpleNamespace(
+                            pid=456, stdout=io.BytesIO(b"456 4.0\n")))
+    monkeypatch.setattr(local_module, "process_alive", lambda identity: identity == (456, 4.0))
+    WorkerSupervisor(Settings(tmp_path / "private"), lambda: None)._spawn()
+    assert launched == [[sys.executable, "-B", "-E", "-m", "cytellect_api.local_worker", "123", "4.0"]]

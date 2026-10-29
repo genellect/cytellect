@@ -311,10 +311,73 @@ def scan_for_secrets(paths: list[Path]) -> dict[str, int]:
 
 
 LICENSE_NAME = re.compile(r"(?i)^(?:licen[cs]e|copying|notice|authors?)(?:[._-].*)?$")
-# Where the corresponding source of each bundled runtime is published (GPL/LGPL components
-# included). The Fiji archive keeps every jar's own notices; its JDK keeps its legal/ folder.
-FIJI_SOURCES = ("https://github.com/fiji/fiji", "https://github.com/imagej/ImageJ",
-                "https://github.com/ome/bioformats", "https://maven.scijava.org/ (sources of every bundled jar)")
+# Corresponding source, per bundled version: every Maven-built jar names its coordinates in
+# META-INF/maven/*/*/pom.properties, and the SciJava repository (which also mirrors Maven
+# Central) publishes <artifact>-<version>-sources.jar beside it. The JDK's release file names
+# its exact build. Whether a source copy or a written offer must accompany the installer is
+# the owner's decision (docs/oss.md).
+MAVEN_SOURCES = "https://maven.scijava.org/content/groups/public"
+JDK_RELEASE = re.compile(r"(?:^|/)java/[^/]+/[^/]+/release$")
+
+
+def jar_coordinates(data: bytes) -> tuple[str, str, str] | None:
+    import io
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as jar:
+            found = [name for name in jar.namelist()
+                     if name.startswith("META-INF/maven/") and name.endswith("/pom.properties")]
+            if len(found) != 1:
+                return None
+            values = dict(line.split("=", 1) for line in jar.read(found[0]).decode("utf-8", "replace").splitlines()
+                          if "=" in line and not line.startswith("#"))
+    except (zipfile.BadZipFile, OSError):
+        return None
+    group, artifact, version = (values.get(key, "").strip() for key in ("groupId", "artifactId", "version"))
+    return (group, artifact, version) if group and artifact and version else None
+
+
+def jar_source(path: str, data: bytes) -> dict:
+    entry = {"path": path, "sha256": hashlib.sha256(data).hexdigest()}
+    coordinates = jar_coordinates(data)
+    if coordinates:
+        group, artifact, version = coordinates
+        entry.update(group=group, artifact=artifact, version=version,
+                     source=f"{MAVEN_SOURCES}/{group.replace('.', '/')}/{artifact}/{version}/{artifact}-{version}-sources.jar")
+    return entry
+
+
+def jdk_source(release_text: str) -> dict:
+    values = {key: value.strip().strip('"') for key, _, value in
+              (line.partition("=") for line in release_text.splitlines()) if key}
+    runtime = values.get("JAVA_RUNTIME_VERSION") or values.get("JAVA_VERSION", "")
+    build = re.sub(r"-LTS$", "", runtime)
+    major = build.split(".")[0].split("+")[0]
+    sources = [f"https://github.com/openjdk/jdk{major}u/tree/jdk-{build}"] if major.isdigit() and build else []
+    implementor = values.get("IMPLEMENTOR", "")
+    if "Azul" in implementor:
+        sources.append("https://cdn.azul.com/zulu/src/ (source bundle of " + values.get("IMPLEMENTOR_VERSION", "") + ")")
+    return {"implementor": implementor, "version": runtime, "implementor_version": values.get("IMPLEMENTOR_VERSION"),
+            "license": "GPL-2.0 WITH Classpath-exception-2.0 (see legal/ in the bundled JDK)",
+            "source": "; ".join(sources) or "the JDK vendor's source bundle for this exact build"}
+
+
+def fiji_sources(archive: Path, plugins: list[tuple[str, Path]]) -> dict:
+    """Per-jar Maven source coordinates and the JDK build inside the bundled Fiji archive."""
+    jars, jdk = [], None
+    with zipfile.ZipFile(archive) as fiji:
+        for info in fiji.infolist():
+            if info.filename.endswith(".jar"):
+                jars.append(jar_source(info.filename, fiji.read(info)))
+            elif JDK_RELEASE.search(info.filename) and jdk is None:
+                jdk = jdk_source(fiji.read(info).decode("utf-8", "replace"))
+    for label, plugin in plugins:
+        jars.append(jar_source(label, plugin.read_bytes()))
+    return {"jars": jars, "jdk": jdk}
+
+
+# (name, version) of locked wheels reviewed to ship without a license file. None today.
+WHEELS_WITHOUT_LICENSE_FILES: frozenset[tuple[str, str]] = frozenset()
 
 
 def wheel_notice(path: Path, destination: Path) -> dict:
@@ -342,6 +405,11 @@ def wheel_notice(path: Path, destination: Path) -> dict:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(wheel.read(name))
                 files.append(target.relative_to(destination.parent).as_posix())
+    if not files and (metadata["Name"], metadata["Version"]) not in WHEELS_WITHOUT_LICENSE_FILES:
+        # A bundled package must carry its license text; a reviewed exception is listed by version.
+        raise BuildError("wheel_license_text_missing:" + metadata["Name"])
+    if not declared and not classifiers and not files:
+        raise BuildError("wheel_license_unknown:" + metadata["Name"])
     return {"component": metadata["Name"], "version": metadata["Version"],
             "license": declared or ", ".join(classifiers) or "see the package's license files",
             "source": f"https://pypi.org/project/{metadata['Name']}/{metadata['Version']}/", "files": sorted(files)}
@@ -352,6 +420,13 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
     directory = payload / "licenses"
     (directory / "wheels").mkdir(parents=True)
     fiji = json.loads((release / "engines/fiji/runtime.lock.json").read_text(encoding="utf-8"))
+    offline = payload / "offline"
+    archive = next(artifact for artifact in artifacts if artifact.role == "fiji")
+    sources = fiji_sources(offline / "sha256" / archive.sha256,
+                           [(artifact.url.rsplit("/", 1)[-1], offline / "sha256" / artifact.sha256)
+                            for artifact in artifacts if artifact.role == "fiji_plugin"])
+    (directory / "fiji-sources.json").write_text(json.dumps(sources, indent=2) + "\n", encoding="utf-8")
+    pinned = sum(1 for jar in sources["jars"] if jar.get("source"))
     runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
     uv = next(artifact for artifact in artifacts if artifact.role == "uv")
     uv_version = uv.url.split("/download/")[1].split("/")[0]
@@ -360,7 +435,10 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
          "license": "GPL-3.0 for Fiji; every bundled component keeps its own license (Bio-Formats GPL-2.0-or-later; "
                     "the JDK GPL-2.0 WITH Classpath-exception-2.0, see java/*/legal in the installed runtime)",
          "sha256": fiji["fiji"]["windows-x64"]["sha256"], "url": fiji["fiji"]["windows-x64"]["url"],
-         "source": "; ".join(FIJI_SOURCES)},
+         "source": f"licenses/fiji-sources.json: per jar and version, {pinned} of {len(sources['jars'])} jars "
+                   f"with a Maven -sources.jar address ({MAVEN_SOURCES}); the others carry their own notices"},
+        *([{"component": "JDK " + (sources["jdk"]["version"] or "") + " (" + sources["jdk"]["implementor"] + ")",
+            "license": sources["jdk"]["license"], "source": sources["jdk"]["source"]}] if sources["jdk"] else []),
         *({"component": plugin["path"], "license": plugin["license"], "sha256": plugin["sha256"],
            "url": plugin["url"], "source": plugin["source"]} for plugin in fiji["plugins"]),
         {"component": "Python " + runtime["python"]["version"], "license": "PSF-2.0 and bundled component terms",
@@ -371,7 +449,6 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
         {"component": "uv " + uv_version, "license": "Apache-2.0 OR MIT", "sha256": uv.sha256, "url": uv.url,
          "source": f"https://github.com/astral-sh/uv/tree/{uv_version}"},
     ]
-    offline = payload / "offline"
     for wheel in wheels:
         components.append(wheel_notice(offline / wheel["path"], directory / "wheels"))
     lines = ["Cytellect Windows installer: bundled third-party software", "",
@@ -389,7 +466,8 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
     text = ("\n".join(lines) + "\n").encode("utf-8")
     (directory / "THIRD_PARTY_BUNDLED.txt").write_bytes(text)
     (directory / "bundled-components.json").write_text(json.dumps(components, indent=2) + "\n", encoding="utf-8")
-    return {"notices_sha256": hashlib.sha256(text).hexdigest(), "components": components}
+    return {"notices_sha256": hashlib.sha256(text).hexdigest(), "components": components,
+            "fiji_sources": {"jars": len(sources["jars"]), "with_maven_sources": pinned, "jdk": sources["jdk"]}}
 
 
 def numeric_version(version: str) -> str:
@@ -459,7 +537,8 @@ def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc
                "third_party_notices": {"path": "licenses/THIRD_PARTY_BUNDLED.txt",
                                        "sha256": notices["notices_sha256"]},
                "third_party": [{key: item[key] for key in ("component", "version", "license", "source", "sha256")
-                                if item.get(key)} for item in notices["components"]]}
+                                if item.get(key)} for item in notices["components"]],
+               "fiji_sources": notices["fiji_sources"]}
     (output_dir / f"Cytellect-Setup-{version}.json").write_text(json.dumps(receipt, indent=2) + "\n",
                                                                encoding="utf-8")
     return receipt

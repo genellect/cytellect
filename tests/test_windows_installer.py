@@ -214,6 +214,72 @@ def generated_wheel(name="numpy", version="2.5.3", license_text=b"Generated lice
     return buffer.getvalue()
 
 
+def generated_jar(group="sc.fiji", artifact="generated-plugin", version="1.2.3") -> bytes:
+    import io
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as jar:
+        jar.writestr(f"META-INF/maven/{group}/{artifact}/pom.properties",
+                     f"#Generated\ngroupId={group}\nartifactId={artifact}\nversion={version}\n")
+    return buffer.getvalue()
+
+
+def generated_fiji() -> bytes:
+    """A Fiji-shaped archive: one Maven-built jar, one jar without coordinates, a JDK release file."""
+    import io
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as fiji:
+        fiji.writestr("Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar", generated_jar("ome", "formats-gpl", "8.0.0"))
+        fiji.writestr("Fiji.app/jars/legacy.jar", b"not a maven jar")
+        fiji.writestr("Fiji.app/java/win64/zulu21-generated/release",
+                      'IMPLEMENTOR="Azul Systems, Inc."\nIMPLEMENTOR_VERSION="Zulu21.1+2-CA"\n'
+                      'JAVA_RUNTIME_VERSION="21.0.5+11-LTS"\nJAVA_VERSION="21.0.5"\n')
+    return buffer.getvalue()
+
+
+def test_fiji_sources_are_pinned_per_bundled_version(tmp_path):
+    archive = tmp_path / "fiji.zip"
+    archive.write_bytes(generated_fiji())
+    plugin = tmp_path / "plugin"
+    plugin.write_bytes(generated_jar("de.csbdresden", "stardist-imagej", "0.3.0"))
+    sources = builder.fiji_sources(archive, [("StarDist_-0.3.0.jar", plugin)])
+    by_path = {jar["path"]: jar for jar in sources["jars"]}
+    assert by_path["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["source"] == (
+        "https://maven.scijava.org/content/groups/public/ome/formats-gpl/8.0.0/formats-gpl-8.0.0-sources.jar")
+    assert "source" not in by_path["Fiji.app/jars/legacy.jar"]
+    assert by_path["StarDist_-0.3.0.jar"]["version"] == "0.3.0"
+    assert sources["jdk"]["version"] == "21.0.5+11-LTS"
+    assert "https://github.com/openjdk/jdk21u/tree/jdk-21.0.5+11" in sources["jdk"]["source"]
+    assert "Zulu21.1+2-CA" in sources["jdk"]["source"]
+
+
+def test_a_bundled_wheel_without_license_text_stops_the_build(tmp_path):
+    import io
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as wheel:
+        wheel.writestr("bare-1.0.dist-info/METADATA", "Metadata-Version: 2.4\nName: bare\nVersion: 1.0\n")
+    path = tmp_path / "bare-1.0-py3-none-any.whl"
+    path.write_bytes(buffer.getvalue())
+    with pytest.raises(builder.BuildError, match="wheel_license_text_missing"):
+        builder.wheel_notice(path, tmp_path / "licenses/wheels")
+
+
+def test_ci_hooks_and_packaging_never_enter_the_zip_or_the_installer():
+    """packaging/ (installer script, smoke test, update test hook) is build and CI tooling only."""
+    bundle_spec = importlib.util.spec_from_file_location("build_local_bundle", ROOT / "scripts/build_local_bundle.py")
+    assert bundle_spec is not None and bundle_spec.loader is not None
+    bundle = importlib.util.module_from_spec(bundle_spec)
+    bundle_spec.loader.exec_module(bundle)
+    tracked = subprocess.run(["git", "ls-files", "packaging"], cwd=ROOT, capture_output=True, text=True,
+                             check=True).stdout.split()
+    assert "packaging/windows/update-test/cytellect_ci_update_hook.py" in tracked
+    assert not [name for name in tracked if bundle.source_allowed(name)]
+    # The installer payload is the verified ZIP plus offline/ and licenses/; nothing from packaging/.
+    assert "update-test" not in ISS.read_bytes().decode("utf-8-sig")
+
+
 def test_bundled_wheels_contribute_their_license_texts(tmp_path):
     wheel = tmp_path / "numpy-2.5.3-cp314-cp314-win_amd64.whl"
     wheel.write_bytes(generated_wheel())
@@ -226,7 +292,8 @@ def test_bundled_wheels_contribute_their_license_texts(tmp_path):
 def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkeypatch):
     archive = release_zip(tmp_path / "release")
     wheel_bytes = generated_wheel()
-    blobs = {role: b"generated artifact " + role.encode() for role in ("uv", "python", "fiji")}
+    blobs = {role: b"generated artifact " + role.encode() for role in ("uv", "python")}
+    blobs["fiji"] = generated_fiji()
     urls = {"uv": "https://github.com/astral-sh/uv/releases/download/0.12.2/uv-x86_64-pc-windows-msvc.zip",
             "python": "https://www.python.org/ftp/python/3.14.8/python-3.14.8-amd64.zip",
             "fiji": "https://downloads.imagej.net/fiji/archive/generated.zip"}
@@ -265,11 +332,14 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
     # Bundled licenses and corresponding-source addresses ship in the installer and the receipt.
     notices = payload / "licenses/THIRD_PARTY_BUNDLED.txt"
     text = notices.read_text(encoding="utf-8")
-    assert "GPL-3.0" in text and "https://github.com/fiji/fiji" in text and "uv 0.12.2" in text
+    assert "GPL-3.0" in text and "licenses/fiji-sources.json" in text and "uv 0.12.2" in text
     assert receipt["third_party_notices"]["sha256"] == digest(notices.read_bytes())
     sources = {item["component"]: item["source"] for item in receipt["third_party"]}
     assert sources["numpy"] == "https://pypi.org/project/numpy/2.5.3/"
     assert sources["plugins/MorphoLibJ_-1.6.5.jar"] == "https://github.com/ijpb/MorphoLibJ"
+    assert "jdk21u/tree/jdk-21.0.5+11" in sources["JDK 21.0.5+11-LTS (Azul Systems, Inc.)"]
+    assert receipt["fiji_sources"]["with_maven_sources"] == 1 and receipt["fiji_sources"]["jars"] == 2
+    assert json.loads((payload / "licenses/fiji-sources.json").read_text())["jdk"]["implementor"].startswith("Azul")
     with pytest.raises(builder.BuildError, match="installer_exists"):
         builder.build(archive, tmp_path / "out", tmp_path / "work2", tmp_path / "cache", Path("ISCC.exe"), None)
 
