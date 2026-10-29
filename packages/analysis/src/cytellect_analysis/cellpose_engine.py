@@ -1,6 +1,7 @@
 """Pinned, offline Cellpose-SAM candidates; original-coordinate integer labels."""
 from __future__ import annotations
 
+import functools
 import hashlib
 import http.client
 import io
@@ -218,7 +219,24 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-_OPENER = urllib.request.build_opener(_NoRedirect)
+class _LazyOpener:
+    """Builds the no-redirect opener at first use.
+
+    Python 3.14 creates an SSL context when the HTTPS handler is built. Doing that
+    at import time fails in restricted environments (e.g. a Windows child process
+    without its usual variables) that never make a request.
+    """
+
+    def open(self, *args, **kwargs):
+        return _no_redirect_opener().open(*args, **kwargs)
+
+
+@functools.cache
+def _no_redirect_opener() -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(_NoRedirect)
+
+
+_OPENER = _LazyOpener()
 
 
 def _service_error(error: urllib.error.HTTPError) -> str:

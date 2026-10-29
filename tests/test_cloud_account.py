@@ -703,3 +703,18 @@ def test_a_sent_code_lapses_after_ten_minutes(tmp_path, cloud):
     clock[0] += 600
     assert account.view() == {"state": "signed_out", "email": ALLOWED}
     assert account.store.load() == {}
+
+
+def test_importing_the_clients_creates_no_ssl_context():
+    """A restricted child process (e.g. Windows without SystemRoot) cannot build SSL; import must not need it."""
+    import subprocess
+    import sys
+
+    code = ("import ssl\n"
+            "def refuse(*_args, **_kwargs):\n"
+            "    raise ssl.SSLError('ssl context created at import')\n"
+            "ssl.SSLContext.__new__ = refuse\n"
+            "import cytellect_analysis.cellpose_engine, cytellect_api.cloud_account, cytellect_api.proposals\n"
+            "from cytellect_analysis.proposal_validation import validate_draft\n")
+    completed = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120, check=False)
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", "replace")[-400:]

@@ -7,6 +7,7 @@ the service calls the language model and returns a draft validated here.
 Registered-recipe analysis never depends on this route.
 """
 import dataclasses
+import functools
 import hashlib
 import json
 import time
@@ -55,7 +56,24 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-_OPENER = urllib.request.build_opener(_NoRedirect)
+class _LazyOpener:
+    """Builds the no-redirect opener at first use.
+
+    Python 3.14 creates an SSL context when the HTTPS handler is built. Doing that
+    at import time fails in restricted environments (e.g. a Windows child process
+    without its usual variables) that never make a request.
+    """
+
+    def open(self, *args, **kwargs):
+        return _no_redirect_opener().open(*args, **kwargs)
+
+
+@functools.cache
+def _no_redirect_opener() -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(_NoRedirect)
+
+
+_OPENER = _LazyOpener()
 
 
 class ProposalServiceError(Exception):
