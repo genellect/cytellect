@@ -77,10 +77,10 @@ JSON bodies; addresses are trimmed and lowercased. Errors are `{"error": "…"}`
 
 | Route | Result |
 |---|---|
-| `POST /v1/auth/code {email}` | `{"state":"code_sent","retry_after_seconds":60}` for an allowed address (code valid 10 minutes, stored only as a keyed hash); `{"state":"pending_approval"}` otherwise (request recorded, no code sent); `{"state":"revoked"}`. 429 `rate_limited` with `retry_after_seconds` (see [limits](#login-limits)). 503 `mail_unavailable` without a mail sender; 502 `mail_failed` if sending fails |
+| `POST /v1/auth/code {email}` | `{"state":"code_sent","retry_after_seconds":60}` for an allowed address (code valid 10 minutes, stored only as a keyed hash); `{"state":"pending_approval","request_token":"…"}` otherwise (request recorded, no code sent; the token is random, stored only as a hash, valid 14 days and good only for the next route); `{"state":"revoked"}`. 429 `rate_limited` with `retry_after_seconds` (see [limits](#login-limits)). 503 `mail_unavailable` without a mail sender; 502 `mail_failed` if sending fails |
 | `POST /v1/auth/verify {email, code, device_name?}` | `{"device_token","email","expires_at"}`. 400 `code_invalid` with `attempts_left`, `code_expired` (also when no code is active) or `too_many_attempts` (the 5th wrong code voids it). 429 `rate_limited` while the address is locked. `device_name` is accepted but not stored |
 | `GET /v1/auth/status` (Bearer) | `{"state":"allowed","email","limits":{"gpu_seconds_month","proposal_usd_month"},"usage":{"gpu_seconds","proposal_usd"},"resets_at"}`. 401 `auth_required` (missing, unknown, expired or logged-out token); 403 `revoked` |
-| `GET /v1/auth/request?email=…` | `{"state":"pending_approval"\|"allowed"\|"revoked"\|"none"}` without a token, so the PC can show that the request was approved. Rate-limited per IP |
+| `POST /v1/auth/request {request_token}` | `{"state":"pending_approval"\|"allowed"\|"revoked"\|"none"}` for the request the token was issued for, so the PC can show that it was approved without a login. Unknown, malformed or expired tokens return `none`. The address never appears in a URL, and no other address's state can be read. Rate-limited per IP (/64) |
 | `POST /v1/auth/logout` (Bearer) | 204; the token is deleted |
 | `GET /v1/cellpose/health`, `POST /v1/cellpose/` and `POST /v1/cellpose/v1/cellpose` | GPU gateway: the Modal server's routes (`GET /health`, `POST /`, `POST /v1/cellpose`) under the `/v1/cellpose` prefix, so the PC can use `<base>/v1/cellpose` as its Cellpose service URL unchanged |
 | `POST /v1/proposals` | Unchanged request and response; also accepts login tokens (below) |
@@ -153,7 +153,7 @@ window.
 | Admin codes sent to the owner | 5 per hour and 10 per day; 10 admin code requests per hour per IP |
 | Code checks | 30 per hour per IP (admin: 20); 5 wrong guesses void a code |
 | Wrong codes per address | 20 within a day lock that address for 24 hours (device and admin separately). The lock also voids the current code and stops new codes |
-| Access requests | 240 status checks per hour per IP; 20 owner notices per day in total |
+| Access requests | 240 request-state checks per hour per IP; 20 owner notices per day in total |
 
 Rotating IP addresses therefore adds neither codes nor guesses for one address: an
 attacker gets at most 20 wrong guesses per address per day (a one-in-50,000 chance). The limits can be used against a person, without any code: anyone can lock an
@@ -176,7 +176,7 @@ the page.
 **Stored data.** Migration `0004_cloud_access.sql` adds `users` (address, state,
 optional limits, request/notice/approval/revocation times), `login_codes` (keyed
 hash, expiry, attempts), `user_devices` and `admin_sessions` (token hashes and
-times), `approval_links` (hash, expiry, use time), `rate_limits` (keyed hashes of
+times), `approval_links` (hash, expiry, use time), `request_tokens` (hash, address, expiry), `rate_limits` (keyed hashes of
 addresses and IPs with counters and lock times), `gpu_slots` (address and start
 time of a GPU request in flight) and `user_usage` (GPU seconds and proposal cost
 per user and month). Images, goals, prompts, outputs, device names and request

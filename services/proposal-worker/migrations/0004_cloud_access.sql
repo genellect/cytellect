@@ -43,6 +43,13 @@ CREATE TABLE approval_links (
   expires_at INTEGER NOT NULL,
   used_at INTEGER
 );
+-- Lets the requesting PC learn the state of its own access request, without the
+-- address in a URL and without revealing other addresses' states.
+CREATE TABLE request_tokens (
+  hash TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
 -- Keys are keyed hashes of the e-mail address or client IP, never the raw value.
 CREATE TABLE rate_limits (
   key TEXT PRIMARY KEY,

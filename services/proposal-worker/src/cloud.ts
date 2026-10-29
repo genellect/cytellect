@@ -48,6 +48,7 @@ export const AUTH = {
   deviceTouch: HOUR,
   adminSessionTtl: 12 * HOUR,
   approvalTtl: 7 * DAY,
+  requestTokenTtl: 14 * DAY,
   bodyBytes: 4096,
   /** Wrong codes per address and purpose within a day before the address is locked. */
   maxFailures: 20,
@@ -326,7 +327,11 @@ async function authCode(request: Request, ctx: CloudContext, cfg: AuthConfig, or
   }
   // Not allowed: never send a code. Record the request and tell the owner once.
   await notifyOwner(ctx, cfg, await ctx.auth.requestAccess(email, ctx.now), origin);
-  return json(200, { state: "pending_approval" });
+  // Only the holder of this token can later read the request's state.
+  await ctx.auth.pruneRequestTokens(ctx.now);
+  const requestToken = token();
+  await ctx.auth.addRequestToken(await sha256(requestToken), email, ctx.now + AUTH.requestTokenTtl);
+  return json(200, { state: "pending_approval", request_token: requestToken });
 }
 
 async function authVerify(request: Request, ctx: CloudContext, cfg: AuthConfig) {
@@ -356,13 +361,15 @@ async function authStatus(request: Request, ctx: CloudContext) {
   });
 }
 
-async function authRequest(request: Request, url: URL, ctx: CloudContext, cfg: AuthConfig) {
+async function authRequest(request: Request, ctx: CloudContext, cfg: AuthConfig) {
   const blocked = await limited(ctx, cfg, RATE.requestIp, clientIp(request));
   if (blocked) return blocked;
-  const email = normalizeEmail(url.searchParams.get("email"));
-  if (!email) return fail(400, "email_invalid");
-  if (email === cfg.owner) return json(200, { state: "allowed" });
-  return json(200, { state: stateName((await ctx.auth.user(email))?.state) });
+  const value = (await readObject(request, AUTH.bodyBytes))?.request_token;
+  // Unknown, malformed or expired tokens all read as "none": nothing else is revealed.
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value)) return json(200, { state: "none" });
+  const found = await ctx.auth.requestTokenState(await sha256(value), ctx.now);
+  if (!found) return json(200, { state: "none" });
+  return json(200, { state: found.email === cfg.owner ? "allowed" : stateName(found.state ?? undefined) });
 }
 
 async function authLogout(request: Request, ctx: CloudContext) {
@@ -646,7 +653,7 @@ export async function handleCloud(request: Request, ctx: CloudContext): Promise<
     "/v1/auth/code": ["POST", () => authCode(request, ctx, cfg, url.origin)],
     "/v1/auth/verify": ["POST", () => authVerify(request, ctx, cfg)],
     "/v1/auth/status": ["GET", () => authStatus(request, ctx)],
-    "/v1/auth/request": ["GET", () => authRequest(request, url, ctx, cfg)],
+    "/v1/auth/request": ["POST", () => authRequest(request, ctx, cfg)],
     "/v1/auth/logout": ["POST", () => authLogout(request, ctx)],
   };
   const route = routes[path];

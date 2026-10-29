@@ -85,8 +85,16 @@ async function setup(env: Env = BASE_ENV, upstream?: Upstream) {
   const adminChange = async (cookie: string, body: unknown) =>
     send("POST", "/v1/admin/users", body, { cookie, origin: ORIGIN });
   const bearer = (value: string) => ({ authorization: `Bearer ${value}` });
+  const requestState = async (request_token: unknown) =>
+    (await (await send("POST", "/v1/auth/request", { request_token })).json() as { state: string }).state;
+  const requestAccess = async (email: string) => {
+    const body = await (await send("POST", "/v1/auth/code", { email })).json() as { state: string; request_token: string };
+    expect(body.state).toBe("pending_approval");
+    return body.request_token;
+  };
   return {
     db, auth, store, mailer, time, gpuCalls, gpuFetcher, modelFetcher, call, send, login, adminLogin, adminChange, bearer,
+    requestState, requestAccess,
     setEnv: (next: Env) => { currentEnv = next; },
   };
 }
@@ -159,11 +167,18 @@ describe("e-mail code login", () => {
   it("never sends a code to an address the owner has not allowed, and asks the owner once", async () => {
     const t = await setup();
     const stranger = "new.person@example.org";
+    const tokens: string[] = [];
     for (let index = 0; index < 2; index += 1) {
       const response = await t.send("POST", "/v1/auth/code", { email: stranger });
-      expect([response.status, await response.json()]).toEqual([200, { state: "pending_approval" }]);
+      const body = await response.json() as { state: string; request_token: string };
+      expect([response.status, Object.keys(body).sort(), body.state]).toEqual([200, ["request_token", "state"], "pending_approval"]);
+      expect(body.request_token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      tokens.push(body.request_token);
       t.time.now += 61_000;
     }
+    expect(tokens[0]).not.toBe(tokens[1]);
+    const stored = await dump(t.db);
+    for (const value of tokens) expect(stored).not.toContain(value);
     expect(t.mailer.to(stranger)).toEqual([]);
     expect(t.mailer.to(OWNER)).toHaveLength(1);
     expect(t.mailer.to(OWNER)[0].text).toContain(stranger);
@@ -171,14 +186,19 @@ describe("e-mail code login", () => {
     expect((await t.db.prepare("SELECT COUNT(*) AS n FROM login_codes").first())).toEqual({ n: 0 });
     const verify = await t.send("POST", "/v1/auth/verify", { email: stranger, code: "123456" });
     expect([verify.status, await verify.json()]).toEqual([400, { error: "code_expired" }]);
-    const state = await t.send("GET", `/v1/auth/request?email=${encodeURIComponent(stranger)}`);
-    expect(await state.json()).toEqual({ state: "pending_approval" });
-    expect(await (await t.send("GET", "/v1/auth/request?email=nobody%40example.org")).json()).toEqual({ state: "none" });
+    for (const value of tokens) expect(await t.requestState(value)).toBe("pending_approval");
+    // Unknown, malformed and missing tokens reveal nothing.
+    for (const value of ["x".repeat(43), "short", 42, undefined]) expect(await t.requestState(value)).toBe("none");
+    // The address is no longer accepted in the URL.
+    expect((await t.send("GET", `/v1/auth/request?email=${encodeURIComponent(stranger)}`)).status).toBe(405);
+    // Tokens expire after 14 days.
+    t.time.now += 14 * 86_400_000;
+    expect(await t.requestState(tokens[1])).toBe("none");
   });
 
   it("approves through the signed one-time link, notifies the requester and then allows login", async () => {
     const t = await setup();
-    await t.send("POST", "/v1/auth/code", { email: USER });
+    const requestToken = await t.requestAccess(USER);
     const link = new URL(t.mailer.link());
     const page = await t.call(new Request(link));
     expect(page.status).toBe(200);
@@ -188,7 +208,7 @@ describe("e-mail code login", () => {
     expect(html).toContain(USER);
     expect(html).toContain("承認する");
     // Following the link (for example by a mail scanner) does not approve.
-    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "pending_approval" });
+    expect(await t.requestState(requestToken)).toBe("pending_approval");
     const token = link.searchParams.get("t")!;
     const tampered = token.slice(0, -1) + (token.endsWith("0") ? "1" : "0");
     const form = (value: string) => t.call(new Request(`${ORIGIN}/v1/admin/approve`, {
@@ -201,7 +221,7 @@ describe("e-mail code login", () => {
     expect(t.mailer.to(USER).at(-1)?.text).toContain("利用できるようになりました");
     expect((await form(token)).status).toBe(400);
     expect((await t.call(new Request(link))).status).toBe(400);
-    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "allowed" });
+    expect(await t.requestState(requestToken)).toBe("allowed");
     expect(await t.login(USER)).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
 
@@ -212,7 +232,7 @@ describe("e-mail code login", () => {
     t.time.now += 7 * 86_400_000;
     expect((await t.call(new Request(first))).status).toBe(400);
     t.time.now += 61_000;
-    await t.send("POST", "/v1/auth/code", { email: USER });
+    const requestToken = await t.requestAccess(USER);
     const second = new URL(t.mailer.link());
     expect(second.href).not.toBe(first);
     const cookie = await t.adminLogin();
@@ -222,7 +242,7 @@ describe("e-mail code login", () => {
       body: new URLSearchParams({ t: second.searchParams.get("t")! }).toString(),
     }));
     expect(response.status).toBe(409);
-    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "revoked" });
+    expect(await t.requestState(requestToken)).toBe("revoked");
   });
 
   it("expires a device after 90 days unused, extends it on use and logs out", async () => {
@@ -308,7 +328,7 @@ describe("revocation", () => {
     expect(t.gpuFetcher).not.toHaveBeenCalled();
     expect(t.modelFetcher).toHaveBeenCalledTimes(1);
     expect(await (await t.send("POST", "/v1/auth/code", { email: USER })).json()).toEqual({ state: "revoked" });
-    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "revoked" });
+    expect((await t.auth.user(USER))?.state).toBe("revoked");
     // Re-allowing requires a new login: revoked devices stay revoked.
     await t.adminChange(cookie, { email: USER, action: "allow" });
     expect((await t.send("GET", "/v1/auth/status", undefined, t.bearer(first))).status).toBe(401);
@@ -725,5 +745,15 @@ it("reads the approval form body within a bound even without Content-Length", as
     body: new ReadableStream({ start(controller) { controller.enqueue(chunk); controller.close(); } }), duplex: "half",
   } as RequestInit));
   expect(response.status).toBe(400);
-  expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "pending_approval" });
+  expect((await t.auth.user(USER))?.state).toBe("pending");
+});
+
+it("rate-limits request-state checks per IPv6 /64", async () => {
+  const t = await setup();
+  const requestToken = await t.requestAccess(USER);
+  const check = (ip: string) => t.send("POST", "/v1/auth/request", { request_token: requestToken }, { "cf-connecting-ip": ip });
+  for (let index = 0; index < 240; index += 1) expect((await check(`2001:db8:9:9:${index.toString(16)}::1`)).status).toBe(200);
+  const limited = await check("2001:db8:9:9:ffff::2");
+  expect([limited.status, (await limited.json() as { error: string }).error]).toEqual([429, "rate_limited"]);
+  expect((await check("2001:db8:9:a::1")).status).toBe(200);
 });

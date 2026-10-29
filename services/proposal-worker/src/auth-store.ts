@@ -163,6 +163,21 @@ export class D1AuthStore {
     await this.db.prepare("DELETE FROM admin_sessions WHERE hash = ? OR expires_at <= ?").bind(hash, now).run();
   }
 
+  async addRequestToken(hash: string, email: string, expiresAt: number) {
+    await this.db.prepare("INSERT INTO request_tokens (hash, email, expires_at) VALUES (?, ?, ?)").bind(hash, email, expiresAt).run();
+  }
+
+  /** State of the request the token was issued for, or null when unknown or expired. */
+  async requestTokenState(hash: string, now: number) {
+    return this.db.prepare(
+      "SELECT t.email, u.state FROM request_tokens t LEFT JOIN users u ON u.email = t.email WHERE t.hash = ? AND t.expires_at > ?",
+    ).bind(hash, now).first<{ email: string; state: UserState | null }>();
+  }
+
+  async pruneRequestTokens(now: number) {
+    await this.db.prepare("DELETE FROM request_tokens WHERE expires_at <= ?").bind(now).run();
+  }
+
   async addApprovalLink(hash: string, email: string, expiresAt: number) {
     await this.db.prepare("INSERT INTO approval_links (hash, email, expires_at) VALUES (?, ?, ?)").bind(hash, email, expiresAt).run();
   }
