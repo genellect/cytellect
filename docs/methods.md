@@ -384,10 +384,18 @@ provide measurement replay.
 
 The model is a general segmentation model, not a trained nucleolus classifier.
 Applicability remains an image-review question; successful execution and nuclear
-containment do not prove biological identity. CPU inference currently reloads
-the model per image job. CUDA execution and persistent model pooling are not
-implemented. The [adapter record](../engines/cellpose/README.md) documents model,
-dependency and licence provenance. Model and runtime acquisition occurs only in
+containment do not prove biological identity. Local CPU jobs load the model in
+their isolated process; the remote CUDA service reuses the loaded network within
+its process, keyed by model path and device. Both use the official `cpsam_v2`
+weights with Cellpose 4.2.1.1 in the default runtime manifest. Cytellect also
+publishes NCL-specific fine-tuned checkpoints; their identities and adoption
+records are documented in the [model strategy](segmentation-models.ja.md).
+The NCL protocol version identifies preprocessing and refinement separately
+from the model checkpoint. The runner
+accepts a 2D uint8/uint16 plane and uses `do_3D=False`.
+The [adapter record](../engines/cellpose/README.md) documents model,
+dependency and licence provenance; the [model strategy](segmentation-models.ja.md)
+defines the planned volumetric pipeline. Model and runtime acquisition occurs only in
 explicit setup/build, with a reusable cache, never in image jobs.
 
 ### NCL Cellpose detection copy, protocol 4.1.0
