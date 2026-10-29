@@ -68,6 +68,13 @@ describe("cloud account display", () => {
 });
 
 describe("local account requests", () => {
+  it("reads the update route's error field, such as a refusal while analyses run", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CYTELLECT_WEB_MODE", "local");
+    vi.stubGlobal("window", {location: {hostname: "127.0.0.1"}});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: "update_jobs_running"}), {status: 409})));
+    const {accountApi} = await import("./cloud-account");
+    await expect(accountApi.applyUpdate()).rejects.toMatchObject({code: "update_jobs_running", status: 409});
+  });
   it("send the protected header, keep documented error fields and treat a missing update route as none", async () => {
     vi.stubEnv("NEXT_PUBLIC_CYTELLECT_WEB_MODE", "local");
     vi.stubGlobal("window", {location: {hostname: "127.0.0.1"}});
@@ -106,6 +113,8 @@ describe("update banner", () => {
     expect(failed.text).not.toContain("update_failed");
     expect(updateNotice({available: true, state: "rolled_back"})!.text).toBe("元の版で起動しました。あとでもう一度更新してください。");
     expect(updateNotice({available: false, state: "unsupported"})).toBeNull();
+    expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "installed"})!.text)
+      .toBe("更新の準備ができました（0.1.0-local.22）。次に Cytellect を起動したときに新しい版になります。");
     expect(updateNotice({available: false, state: "idle"})).toBeNull();
     expect(updateNotice(null)).toBeNull();
   });
@@ -126,6 +135,10 @@ describe("update banner", () => {
     const result = await followUpdate(get, {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 60_000});
     expect(result).toEqual({available: false, state: "updated"});
     expect(get).toHaveBeenCalledTimes(3);
+    clock = 0;
+    clock = 0;
+    const deferred = await followUpdate(async () => ({available: false, state: "installed"}), {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 60_000});
+    expect(deferred).toEqual({available: false, state: "installed"});
     clock = 0;
     const stuck = await followUpdate(async () => ({available: true, state: "installing"}), {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 5000});
     expect(stuck).toBe("timeout");

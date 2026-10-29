@@ -194,6 +194,22 @@ test("a failed update says so with its code under 詳細, and an unsafe notes li
   expect(mock.calls.filter(call => call === "POST /v1/app/update")).toHaveLength(1);
 });
 
+test("an update waits while analyses run, and an installed version starts at the next launch", async ({page}) => {
+  await page.clock.install();
+  const mock = await mockLocalApi(page, {session: true, firstRun: false, update: {status: 200, body: LATEST},
+    updateStarted: {status: 409, body: {...LATEST, error: "update_jobs_running"}}});
+  await page.goto(origin + "/workspace");
+  await page.getByRole("button", {name: "更新する"}).click();
+  await expect(page.getByText(/^解析が終わってから更新してください。/)).toBeVisible();
+  await expect(page.getByRole("alert").filter({hasText: /更新/})).toHaveCount(0);
+  await expect(page.getByRole("button", {name: "更新する"})).toBeEnabled();
+  mock.updateStarted = {status: 202, body: {...LATEST, state: "installing"}};
+  mock.updateAfter = [{...LATEST, available: false, state: "installed"}];
+  await page.getByRole("button", {name: "更新する"}).click();
+  await page.clock.fastForward(3_100);
+  await expect(page.getByText("更新の準備ができました（0.1.0-local.22）。次に Cytellect を起動したときに新しい版になります。")).toBeVisible();
+});
+
 test("a rollback from the last run is shown once at start", async ({page}) => {
   await mockLocalApi(page, {session: true, firstRun: false,
     update: {status: 200, body: {...LATEST, state: "rolled_back", error: "health_check_failed"}}});

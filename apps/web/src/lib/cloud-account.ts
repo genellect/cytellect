@@ -18,7 +18,7 @@ export type GpuState = {
   state: "idle" | "unconfigured" | "starting" | "ready" | "timeout" | "quota_exceeded" | "revoked" | "rejected" | "auth_required" | "offline" | "disabled" | "failed";
   resets_at?: string; scope?: "user" | "global"; busy?: boolean;
 };
-export type UpdateState = "idle" | "downloading" | "installing" | "restarting" | "updated" | "failed" | "rolled_back" | "unsupported";
+export type UpdateState = "idle" | "downloading" | "installing" | "restarting" | "installed" | "updated" | "failed" | "rolled_back" | "unsupported";
 /** The installer's `/v1/app/update` (GET and the POST that starts it). */
 export type UpdateInfo = {available: boolean; current?: string | null; latest?: string | null; notes_url?: string | null; state?: UpdateState; error?: string | null};
 
@@ -40,7 +40,8 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
   if (!response.ok) {
     let body: Record<string, unknown> = {};
     try {body = await response.json();} catch {}
-    const code = typeof body.detail === "string" ? body.detail : "request_failed";
+    // The local API answers {"detail"}; the installer's update route answers {"error"}.
+    const code = typeof body.detail === "string" ? body.detail : typeof body.error === "string" ? body.error : "request_failed";
     const retry = typeof body.retry_after_seconds === "number" ? body.retry_after_seconds : undefined;
     const left = typeof body.attempts_left === "number" ? body.attempts_left : undefined;
     throw new AccountRequestError(code, response.status, retry, left);
@@ -198,7 +199,10 @@ export function accountNotice(account: Account | null | undefined): Notice | nul
 }
 
 /** States after which an update no longer changes by itself. */
-export const UPDATE_SETTLED: ReadonlySet<string> = new Set(["updated", "failed", "rolled_back", "unsupported", "idle"]);
+export const UPDATE_SETTLED: ReadonlySet<string> = new Set(["installed", "updated", "failed", "rolled_back", "unsupported", "idle"]);
+/** The update route refuses to start while analyses are queued or running (409). */
+export const UPDATE_JOBS_RUNNING = "update_jobs_running";
+export const UPDATE_JOBS_RUNNING_TEXT = "解析が終わってから更新してください。解析の途中では更新を始めません。";
 export const UPDATE_POLL_MS = 3_000;
 /** Downloading and installing a release can take a while; stop following after this and say so. */
 export const UPDATE_FOLLOW_MS = 20 * 60_000;
@@ -237,6 +241,8 @@ export function updateNotice(info: UpdateInfo | null | undefined, following = fa
     case "downloading": case "installing": return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
     case "restarting": return {text: "更新を終えて Cytellect を再起動しています。そのままお待ちください。", tone: "progress"};
     case "updated": return {text: `更新が完了しました${version}。`, tone: "ready"};
+    // Installed, but an analysis that started meanwhile kept the current version running.
+    case "installed": return {text: `更新の準備ができました${version}。次に Cytellect を起動したときに新しい版になります。`, tone: "ready"};
     case "failed": return {text: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
     case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,

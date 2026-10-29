@@ -6,9 +6,9 @@
  */
 import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from "react";
 import {
-  accountApi, accountErrorText, accountLabel, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
+  AccountRequestError, accountApi, accountErrorText, accountLabel, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
   followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
-  UPDATE_SEEN_KEY, UPDATE_SETTLED, UPDATE_TIMEOUT_TEXT,
+  UPDATE_JOBS_RUNNING, UPDATE_JOBS_RUNNING_TEXT, UPDATE_SEEN_KEY, UPDATE_SETTLED, UPDATE_TIMEOUT_TEXT,
   GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
 import styles from "./cloud-account.module.css";
@@ -133,6 +133,7 @@ export function CloudNotices() {
   const [updateTimedOut, setUpdateTimedOut] = useState(false);
   const [updateError, setUpdateError] = useState<unknown>(null);
   const [updateHidden, setUpdateHidden] = useState(false);
+  const [updateWaitsForJobs, setUpdateWaitsForJobs] = useState(false);
   const enabled = cloud !== null;
   useEffect(() => {
     if (!enabled) return;
@@ -170,7 +171,7 @@ export function CloudNotices() {
     catch (error) {setContinueError(error);}
   }
   async function applyUpdate() {
-    setFollowing(true); setUpdateTimedOut(false); setUpdateError(null); setUpdateHidden(false);
+    setFollowing(true); setUpdateTimedOut(false); setUpdateError(null); setUpdateHidden(false); setUpdateWaitsForJobs(false);
     try {
       const started = await accountApi.applyUpdate();
       if (started) setUpdate(started);
@@ -178,11 +179,14 @@ export function CloudNotices() {
         ? started : await followUpdate(accountApi.update);
       if (result === "timeout") setUpdateTimedOut(true); else setUpdate(result);
     } catch (error) {
-      setUpdateError(error);
-      setUpdate(current => current ? {...current, state: "failed"} : current);
+      // Analyses are running: not a failure; the button stays available for later.
+      if (error instanceof AccountRequestError && error.code === UPDATE_JOBS_RUNNING) setUpdateWaitsForJobs(true);
+      else {setUpdateError(error); setUpdate(current => current ? {...current, state: "failed"} : current);}
     } finally {setFollowing(false);}
   }
-  const updateLine = updateTimedOut ? {text: UPDATE_TIMEOUT_TEXT, tone: "problem" as const} : updateNotice(update, following);
+  const offered = updateNotice(update, following);
+  const updateLine = updateTimedOut ? {text: UPDATE_TIMEOUT_TEXT, tone: "problem" as const}
+    : updateWaitsForJobs && offered ? {...offered, text: `${UPDATE_JOBS_RUNNING_TEXT}${offered.text}`} : offered;
   const notesUrl = safeNotesUrl(update?.notes_url);
   const updateDetail = updateLine && "error" in updateLine && updateLine.error ? updateLine.error : errorDetail(updateError);
   return <div className={styles.notices}>
