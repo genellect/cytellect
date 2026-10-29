@@ -102,6 +102,7 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 
 ## 記録
 
+- [Windows 版 0.1.0-local.20 の受入記録](local-release-0.1.0-local.20.md)（英語）
 - [Windows 版 0.1.0-local.19 の受入記録](local-release-0.1.0-local.19.md)（英語）
 - [Windows 版 0.1.0-local.17 の受入記録](local-release-0.1.0-local.17.md)（英語）
 - [下書き](drafts/gfp-nuclear-signal)
