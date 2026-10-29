@@ -545,6 +545,9 @@ jobs:
           path: ${{ runner.temp }}/shard/
           if-no-files-found: error
           retention-days: 1
+          # A re-run of a failed shard must replace that shard's earlier result, or the
+          # aggregate below would combine the stale failure with the new attempts.
+          overwrite: true
   python-windows-314:
     # Keeps the required-check and release-gate name: passes only when every shard passed and
     # the shards together are one full run of the Windows suite.
