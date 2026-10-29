@@ -3,9 +3,11 @@
 No network request, installer or launcher runs: every side effect is a test double,
 and the installation tree is a generated scratch layout without research data.
 """
+import contextlib
 import hashlib
 import io
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -209,16 +211,66 @@ def test_redirects_are_limited_to_github_release_hosts():
 
 
 def database(path: Path, value: str) -> None:
+    # "with connection" only commits; closing() releases the file, which Windows needs
+    # before the file can be removed or replaced.
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection, connection:
         connection.execute("create table if not exists marker (value text)")
         connection.execute("delete from marker")
         connection.execute("insert into marker values (?)", (value,))
 
 
 def marker(path: Path) -> str:
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         return connection.execute("select value from marker").fetchone()[0]
+
+
+@pytest.fixture
+def windows_file_locks(monkeypatch):
+    """Refuse, as Windows does, to remove or replace a file that an SQLite connection still holds.
+
+    On Linux an open file can be unlinked, so an unclosed connection would go unnoticed.
+    """
+    opened: list[tuple[Path, sqlite3.Connection]] = []
+    connect = sqlite3.connect
+
+    def tracked(database, *args, **kwargs):
+        connection = connect(database, *args, **kwargs)
+        opened.append((Path(database).resolve(), connection))
+        return connection
+
+    def held(path) -> bool:
+        target = Path(path).resolve()
+        for name, connection in opened:
+            if name != target:
+                continue
+            try:
+                connection.total_changes
+            except sqlite3.ProgrammingError:
+                continue  # closed
+            return True
+        return False
+
+    def guard(original):
+        def checked(self, *args, **kwargs):
+            if held(self) or (args and isinstance(args[0], (str, os.PathLike)) and held(args[0])):
+                raise PermissionError(32, "The process cannot access the file because it is being used by another process", str(self))
+            return original(self, *args, **kwargs)
+        return checked
+
+    replace = os.replace
+
+    def checked_replace(source, target, *args, **kwargs):
+        if held(source) or held(target):
+            raise PermissionError(32, "The process cannot access the file because it is being used by another process", str(source))
+        return replace(source, target, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", tracked)
+    monkeypatch.setattr(Path, "unlink", guard(Path.unlink))
+    monkeypatch.setattr(Path, "replace", guard(Path.replace))
+    monkeypatch.setattr(Path, "rename", guard(Path.rename))
+    monkeypatch.setattr(os, "replace", checked_replace)
+    return held
 
 
 def switch_plan(root: Path) -> Path:
@@ -285,7 +337,7 @@ def state_of(root: Path) -> dict:
     return json.loads((root / "updates/state.json").read_text())
 
 
-def test_relaunch_success_records_update_and_keeps_no_database_copy(tmp_path):
+def test_relaunch_success_records_update_and_keeps_no_database_copy(tmp_path, windows_file_locks):
     plan = switch_plan(tmp_path)
     database(tmp_path / "data/cytellect.sqlite", "before")
     effects = Effects(healthy=True)
@@ -296,7 +348,7 @@ def test_relaunch_success_records_update_and_keeps_no_database_copy(tmp_path):
     assert state_of(tmp_path)["state"] == "updated" and state_of(tmp_path)["previous"] == "0.1.0-local.21"
 
 
-def test_new_version_that_does_not_start_falls_back_to_the_previous_version(tmp_path):
+def test_new_version_that_does_not_start_falls_back_to_the_previous_version(tmp_path, windows_file_locks):
     plan = switch_plan(tmp_path)
     data = tmp_path / "data/cytellect.sqlite"
     database(data, "before update")
@@ -365,7 +417,7 @@ def test_a_previous_launcher_that_cannot_be_stopped_is_left_running(tmp_path):
     assert effects.shortcuts_restored == ["0.1.0-local.21"]
 
 
-def test_the_previous_version_restores_a_pending_database_before_opening_it(tmp_path):
+def test_the_previous_version_restores_a_pending_database_before_opening_it(tmp_path, windows_file_locks):
     previous = installation(tmp_path, "0.1.0-local.21")
     data = tmp_path / "data/cytellect.sqlite"
     database(data, "migrated by the failed version")

@@ -479,8 +479,17 @@ def test_windowless_launcher_configures_its_server_without_standard_streams(monk
 def test_isolated_launcher_starts_its_worker_isolated_too(tmp_path, monkeypatch):
     """The shortcut runs Python with -E; the worker must not read the user's PYTHON* variables."""
     launched = []
-    monkeypatch.setattr(local_module.sys, "flags", SimpleNamespace(ignore_environment=True))
-    monkeypatch.setattr(local_module.sys, "dont_write_bytecode", True)
+
+    class LauncherSys:
+        """The launcher module's view of sys only: imports and pytest keep the real sys.flags."""
+
+        flags = SimpleNamespace(ignore_environment=True)
+        dont_write_bytecode = True
+
+        def __getattr__(self, name):
+            return getattr(sys, name)
+
+    monkeypatch.setattr(local_module, "sys", LauncherSys())
     monkeypatch.setattr(local_module.psutil, "Process",
                         lambda pid=None: SimpleNamespace(pid=123 if pid is None else pid, create_time=lambda: 4.0,
                                                          parents=lambda: []))
