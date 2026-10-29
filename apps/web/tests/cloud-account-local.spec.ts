@@ -15,6 +15,8 @@ test.use({timezoneId: "Asia/Tokyo"});
 type Account = Record<string, unknown>;
 type Mock = {
   session: boolean; firstRun: boolean; account: Account; update: {status: number; body: unknown};
+  /** GET answers after an update starts (the last one repeats); `null` stands for a dropped connection. */
+  updateAfter?: Array<Record<string, unknown> | null>; updateStarted?: {status: number; body: unknown};
   onCode?: (email: string) => {status: number; body: Account};
   onVerify?: (code: string) => {status: number; body: Account};
   logoutFails?: boolean; accountHeld?: Promise<void>;
@@ -47,6 +49,14 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
     if (path === "/v1/account/logout" && mock.logoutFails) return json(route, 503, {detail: "local_api_unreachable"});
     if (path === "/v1/account/logout") {mock.account = {state: "signed_out"}; return json(route, 200, mock.account);}
     if (path === "/v1/account/gpu") return json(route, 200, {state: "idle"});
+    if (path === "/v1/app/update" && method === "POST") {
+      const reply = mock.updateStarted ?? {status: 202, body: {available: true, state: "downloading"}};
+      return json(route, reply.status, reply.body);
+    }
+    if (path === "/v1/app/update" && mock.updateAfter && mock.calls.includes("POST /v1/app/update")) {
+      const next = mock.updateAfter.length > 1 ? mock.updateAfter.shift()! : mock.updateAfter[0];
+      return next === null ? route.abort("connectionreset") : json(route, 200, next);
+    }
     if (path === "/v1/app/update") return json(route, mock.update.status, mock.update.body);
     if (path === "/v1/workspaces" && method === "GET") return json(route, 200, []);
     return json(route, 404, {detail: "workspace_not_found"});
@@ -150,9 +160,48 @@ test("a used-up GPU allowance names the date it resumes, and an update is offere
   await page.getByRole("button", {name: "ログアウト"}).click();
   await expect(page.getByRole("alert").filter({hasText: "ログアウトできませんでした"})).toBeVisible();
   await expect(page.getByText("更新があります（0.1.0-local.22）。研究データと設定は引き継がれます。")).toBeVisible();
+});
+
+const LATEST = {available: true, current: "0.1.0-local.21", latest: "0.1.0-local.22",
+  notes_url: "https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22", state: "idle", error: null};
+
+test("an update is followed through the restart until it completes", async ({page}) => {
+  await page.clock.install();
+  const mock = await mockLocalApi(page, {session: true, firstRun: false, update: {status: 200, body: LATEST},
+    updateAfter: [{...LATEST, state: "installing"}, null, {...LATEST, available: false, current: "0.1.0-local.22", state: "updated"}]});
+  await page.goto(origin + "/workspace");
+  await expect(page.getByRole("link", {name: "変更内容"})).toHaveAttribute("href", LATEST.notes_url);
   await page.getByRole("button", {name: "更新する"}).click();
+  await expect(page.getByText(/^更新しています。/)).toBeVisible();
   expect(mock.calls).toContain("POST /v1/app/update");
-  await expect(page.getByText("更新しています。")).toBeVisible();
+  for (let step = 0; step < 4; step++) await page.clock.fastForward(3_100);
+  await expect(page.getByText("更新が完了しました（0.1.0-local.22）。")).toBeVisible();
+});
+
+test("a failed update says so with its code under 詳細, and an unsafe notes link is not shown", async ({page}) => {
+  const mock = await mockLocalApi(page, {session: true, firstRun: false,
+    update: {status: 200, body: {...LATEST, notes_url: "https://example.com/notes"}},
+    updateStarted: {status: 202, body: {...LATEST, state: "failed", error: "update_failed"}}});
+  await page.goto(origin + "/workspace");
+  await expect(page.getByText(/更新があります/)).toBeVisible();
+  await expect(page.getByRole("link", {name: "変更内容"})).toHaveCount(0);
+  await page.getByRole("button", {name: "更新する"}).click();
+  const failure = page.getByRole("alert").filter({hasText: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。"});
+  await expect(failure).toBeVisible();
+  await expect(failure).not.toContainText("update_failed", {useInnerText: true});
+  await failure.getByText("詳細").click();
+  await expect(failure.locator("code")).toHaveText("update_failed");
+  expect(mock.calls.filter(call => call === "POST /v1/app/update")).toHaveLength(1);
+});
+
+test("a rollback from the last run is shown once at start", async ({page}) => {
+  await mockLocalApi(page, {session: true, firstRun: false,
+    update: {status: 200, body: {...LATEST, state: "rolled_back", error: "health_check_failed"}}});
+  await page.goto(origin + "/workspace");
+  await expect(page.getByText("元の版で起動しました。あとでもう一度更新してください。")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(/更新があります/)).toBeVisible();
+  await expect(page.getByText("元の版で起動しました。あとでもう一度更新してください。")).toHaveCount(0);
 });
 
 test("an installation without the update route shows no update notice", async ({page}) => {

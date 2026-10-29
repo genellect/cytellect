@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {
   AccountRequestError, accountErrorText, accountLabel, accountNotice, formatDate, gpuNotice, gpuQuotaReached, gpuQuotaText, inferencePhase,
-  pendingNotice, plausibleCode, plausibleEmail, resendWait, usageText,
+  followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
 } from "./cloud-account";
 
 afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules();});
@@ -90,5 +90,44 @@ describe("local account requests", () => {
     const {accountApi} = await import("./cloud-account");
     await expect(accountApi.get()).rejects.toMatchObject({code: "local_host_required"});
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("update banner", () => {
+  it("names each update state and keeps the error code for 詳細", () => {
+    expect(updateNotice({available: true, latest: "0.1.0-local.22", state: "idle"})).toMatchObject({text: "更新があります（0.1.0-local.22）。研究データと設定は引き継がれます。", action: {label: "更新する"}});
+    expect(updateNotice({available: true, state: "idle"}, true)!.text).toContain("更新しています");
+    expect(updateNotice({available: true, state: "downloading"})!.tone).toBe("progress");
+    expect(updateNotice({available: true, state: "restarting"})!.text).toContain("再起動しています");
+    expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "updated"})!.text).toBe("更新が完了しました（0.1.0-local.22）。");
+    const failed = updateNotice({available: true, state: "failed", error: "update_failed"})!;
+    expect(failed.text).toBe("更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。");
+    expect(failed.error).toBe("update_failed");
+    expect(failed.text).not.toContain("update_failed");
+    expect(updateNotice({available: true, state: "rolled_back"})!.text).toBe("元の版で起動しました。あとでもう一度更新してください。");
+    expect(updateNotice({available: false, state: "unsupported"})).toBeNull();
+    expect(updateNotice({available: false, state: "idle"})).toBeNull();
+    expect(updateNotice(null)).toBeNull();
+  });
+  it("links release notes only on this project's GitHub releases", () => {
+    expect(safeNotesUrl("https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22")).toBe("https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22");
+    for (const value of ["https://github.com/genellect/cytellect/releases.evil/x", "http://github.com/genellect/cytellect/releases/x",
+      "javascript:alert(1)", "https://example.com/https://github.com/genellect/cytellect/releases/", null, undefined])
+      expect(safeNotesUrl(value)).toBeNull();
+  });
+  it("follows an update through a restart until it settles, within a time limit", async () => {
+    let clock = 0;
+    const replies: Array<() => Promise<{available: boolean; state: "installing" | "updated"} | null>> = [
+      async () => ({available: true, state: "installing"}),
+      async () => {throw new Error("restarting");},
+      async () => ({available: false, state: "updated"}),
+    ];
+    const get = vi.fn(() => replies.shift()!());
+    const result = await followUpdate(get, {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 60_000});
+    expect(result).toEqual({available: false, state: "updated"});
+    expect(get).toHaveBeenCalledTimes(3);
+    clock = 0;
+    const stuck = await followUpdate(async () => ({available: true, state: "installing"}), {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 5000});
+    expect(stuck).toBe("timeout");
   });
 });

@@ -418,6 +418,9 @@ class CloudAccount:
         if status == 400 and error == "code_expired":
             raise AccountError(400, "account_code_expired")
         if status == 400 and error == "too_many_attempts":
+            # No attempts remain for this code; the view must not offer another.
+            with self.lock:
+                self.store.save({**{k: v for k, v in record.items() if k != "schema"}, "attempts_left": 0})
             raise AccountError(400, "account_code_attempts_exhausted")
         if status == 403 and error == "revoked":
             with self.lock:

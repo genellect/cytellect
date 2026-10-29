@@ -18,7 +18,9 @@ export type GpuState = {
   state: "idle" | "unconfigured" | "starting" | "ready" | "timeout" | "quota_exceeded" | "revoked" | "rejected" | "auth_required" | "offline" | "disabled" | "failed";
   resets_at?: string; scope?: "user" | "global"; busy?: boolean;
 };
-export type UpdateInfo = {available: boolean; latest?: string};
+export type UpdateState = "idle" | "downloading" | "installing" | "restarting" | "updated" | "failed" | "rolled_back" | "unsupported";
+/** The installer's `/v1/app/update` (GET and the POST that starts it). */
+export type UpdateInfo = {available: boolean; current?: string | null; latest?: string | null; notes_url?: string | null; state?: UpdateState; error?: string | null};
 
 export class AccountRequestError extends Error {
   constructor(public code: string, public status: number, public retryAfterSeconds?: number, public attemptsLeft?: number | null) {super(code);}
@@ -60,7 +62,7 @@ export const accountApi = {
     try {return await accountRequest<UpdateInfo>("/v1/app/update");}
     catch (error) {if (error instanceof AccountRequestError && [404, 405].includes(error.status)) return null; throw error;}
   },
-  applyUpdate: () => send<unknown>("/v1/app/update"),
+  applyUpdate: () => send<UpdateInfo>("/v1/app/update"),
 };
 
 /** Japanese date of a reset or request, in the PC's time zone unless one is given (tests). */
@@ -194,6 +196,59 @@ export function accountNotice(account: Account | null | undefined): Notice | nul
   if (account?.state === "expired") return {text: "クラウド機能を使うには、もう一度ログインしてください。", action: {kind: "login", label: "ログイン"}, tone: "info"};
   return null;
 }
+
+/** States after which an update no longer changes by itself. */
+export const UPDATE_SETTLED: ReadonlySet<string> = new Set(["updated", "failed", "rolled_back", "unsupported", "idle"]);
+export const UPDATE_POLL_MS = 3_000;
+/** Downloading and installing a release can take a while; stop following after this and say so. */
+export const UPDATE_FOLLOW_MS = 20 * 60_000;
+const RELEASE_NOTES = "https://github.com/genellect/cytellect/releases/";
+
+/** Release notes link only to this project's GitHub releases. */
+export function safeNotesUrl(value: string | null | undefined): string | null {
+  if (typeof value !== "string" || !value.startsWith(RELEASE_NOTES)) return null;
+  try {return new URL(value).href.startsWith(RELEASE_NOTES) ? value : null;} catch {return null;}
+}
+
+/**
+ * Follow a started update until it settles. The local API restarts on the way, so a failed
+ * request (the connection drops) is waited out; after `limitMs` the result is "timeout".
+ */
+export async function followUpdate(get: () => Promise<UpdateInfo | null>, options: {sleep?: (ms: number) => Promise<void>; now?: () => number; pollMs?: number; limitMs?: number} = {}): Promise<UpdateInfo | "timeout"> {
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+  const now = options.now ?? Date.now;
+  const deadline = now() + (options.limitMs ?? UPDATE_FOLLOW_MS);
+  while (now() < deadline) {
+    await sleep(options.pollMs ?? UPDATE_POLL_MS);
+    try {
+      const info = await get();
+      if (info && UPDATE_SETTLED.has(info.state ?? "idle")) return info;
+    } catch {/* Restarting: the local API is briefly unreachable. */}
+  }
+  return "timeout";
+}
+
+/** The update banner: what is happening and what to press. Null when there is nothing to show. */
+export function updateNotice(info: UpdateInfo | null | undefined, following = false): (Notice & {error?: string}) | null {
+  if (!info) return null;
+  const error = typeof info.error === "string" && info.error ? info.error : undefined;
+  const version = info.latest ? `（${info.latest}）` : "";
+  switch (info.state) {
+    case "downloading": case "installing": return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
+    case "restarting": return {text: "更新を終えて Cytellect を再起動しています。そのままお待ちください。", tone: "progress"};
+    case "updated": return {text: `更新が完了しました${version}。`, tone: "ready"};
+    case "failed": return {text: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
+      ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
+    case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,
+      ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
+    case "unsupported": return null;
+    default:
+      if (following) return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
+      return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新する"}} : null;
+  }
+}
+export const UPDATE_TIMEOUT_TEXT = "更新の完了を確認できませんでした。Cytellect を開き直して、版を確かめてください。";
+export const UPDATE_SEEN_KEY = "cytellect.update.seen";
 
 /** Seconds until 「コードを再送」 is enabled. */
 export const resendWait = (retryAt: number, now: number) => Math.max(0, Math.ceil((retryAt - now) / 1000));

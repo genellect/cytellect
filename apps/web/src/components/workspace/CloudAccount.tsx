@@ -7,7 +7,8 @@
 import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from "react";
 import {
   accountApi, accountErrorText, accountLabel, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
-  normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, usageText,
+  followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
+  UPDATE_SEEN_KEY, UPDATE_SETTLED, UPDATE_TIMEOUT_TEXT,
   GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
 import styles from "./cloud-account.module.css";
@@ -128,12 +129,34 @@ export function CloudNotices() {
   const [collapsed, setCollapsed] = useState(false);
   const [continueError, setContinueError] = useState<unknown>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [updating, setUpdating] = useState<"idle" | "running" | "failed">("idle");
+  const [following, setFollowing] = useState(false);
+  const [updateTimedOut, setUpdateTimedOut] = useState(false);
+  const [updateError, setUpdateError] = useState<unknown>(null);
+  const [updateHidden, setUpdateHidden] = useState(false);
   const enabled = cloud !== null;
   useEffect(() => {
     if (!enabled) return;
     let live = true;
-    void accountApi.update().then(value => {if (live) setUpdate(value);}).catch(() => {});
+    void accountApi.update().then(value => {
+      if (!live || !value) return;
+      // A failed or rolled-back update from the last run is shown once, then remembered.
+      if (value.state === "failed" || value.state === "rolled_back") {
+        const signature = `${value.state}:${value.latest ?? ""}:${value.error ?? ""}`;
+        let seen = false;
+        try {seen = window.localStorage.getItem(UPDATE_SEEN_KEY) === signature; window.localStorage.setItem(UPDATE_SEEN_KEY, signature);} catch {}
+        if (seen) {setUpdate({...value, state: "idle", error: null}); return;}
+      }
+      setUpdate(value);
+      if (value.state && !UPDATE_SETTLED.has(value.state)) {
+        // An update already under way (the page was reopened): keep following it.
+        setFollowing(true);
+        void followUpdate(accountApi.update).then(result => {
+          if (!live) return;
+          setFollowing(false);
+          if (result === "timeout") setUpdateTimedOut(true); else setUpdate(result);
+        });
+      }
+    }).catch(() => {});
     return () => {live = false;};
   }, [enabled]);
   if (!cloud) return null;
@@ -147,9 +170,21 @@ export function CloudNotices() {
     catch (error) {setContinueError(error);}
   }
   async function applyUpdate() {
-    setUpdating("running");
-    try {await accountApi.applyUpdate();} catch {setUpdating("failed");}
+    setFollowing(true); setUpdateTimedOut(false); setUpdateError(null); setUpdateHidden(false);
+    try {
+      const started = await accountApi.applyUpdate();
+      if (started) setUpdate(started);
+      const result = started && UPDATE_SETTLED.has(started.state ?? "") && started.state !== "idle"
+        ? started : await followUpdate(accountApi.update);
+      if (result === "timeout") setUpdateTimedOut(true); else setUpdate(result);
+    } catch (error) {
+      setUpdateError(error);
+      setUpdate(current => current ? {...current, state: "failed"} : current);
+    } finally {setFollowing(false);}
   }
+  const updateLine = updateTimedOut ? {text: UPDATE_TIMEOUT_TEXT, tone: "problem" as const} : updateNotice(update, following);
+  const notesUrl = safeNotesUrl(update?.notes_url);
+  const updateDetail = updateLine && "error" in updateLine && updateLine.error ? updateLine.error : errorDetail(updateError);
   return <div className={styles.notices}>
     {/* The request stays visible at the top; it can be folded to one line, not dismissed. */}
     {pending && (pending.action || !collapsed) && <NoticeLine notice={pending} onAction={() => void continueLogin()}
@@ -162,10 +197,12 @@ export function CloudNotices() {
       <p>{accountErrorText(continueError)}</p><Details error={continueError}/>
     </div>}
     {ended && <NoticeLine notice={ended} onAction={cloud.openLogin}/>}
-    {update?.available && <div className={styles.notice} data-tone="info" role="status">
-      <p>{updating === "running" ? "更新しています。" : updating === "failed" ? "更新できませんでした。今の版のまま使えます。あとでもう一度更新してください。"
-        : `更新があります${update.latest ? `（${update.latest}）` : ""}。研究データと設定は引き継がれます。`}</p>
-      {updating !== "running" && <button className={styles.primary} onClick={() => void applyUpdate()}>{updating === "failed" ? "もう一度更新する" : "更新する"}</button>}
+    {updateLine && !updateHidden && <div className={styles.notice} data-tone={updateLine.tone} role={updateLine.tone === "problem" ? "alert" : "status"}>
+      <p>{updateLine.text}</p>
+      {notesUrl && updateLine.tone === "info" && <a className={styles.quiet} href={notesUrl} target="_blank" rel="noreferrer">変更内容</a>}
+      {"action" in updateLine && updateLine.action && !following && <button className={styles.primary} onClick={() => void applyUpdate()}>{updateLine.action.label}</button>}
+      {updateDetail && <details className={styles.details}><summary>詳細</summary><code>{updateDetail}</code></details>}
+      {(updateLine.tone === "problem" || updateLine.tone === "ready") && <button className={styles.quiet} onClick={() => setUpdateHidden(true)}>閉じる</button>}
     </div>}
     {cloud.intro === "local" && <div className={styles.notice} data-tone="info" role="status">
       <p>公開の練習画像（BBBC013）で、核の検出から図までを試せます。ZIP を展開し、画像をこの画面にドラッグしてください。</p>

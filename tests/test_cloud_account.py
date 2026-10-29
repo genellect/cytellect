@@ -718,3 +718,15 @@ def test_importing_the_clients_creates_no_ssl_context():
             "from cytellect_analysis.proposal_validation import validate_draft\n")
     completed = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120, check=False)
     assert completed.returncode == 0, completed.stderr.decode("utf-8", "replace")[-400:]
+
+
+def test_exhausted_attempts_leave_none_in_the_account_view(tmp_path, cloud):
+    client, _, _ = local(tmp_path)
+    client.post("/v1/account/code", json={"email": ALLOWED}, headers=HEADERS)
+    for left in (4, 3, 2, 1):
+        wrong = client.post("/v1/account/verify", json={"code": "000000"}, headers=HEADERS)
+        assert wrong.json() == {"detail": "account_code_invalid", "attempts_left": left}
+    cloud.verify_reply = (400, {"error": "too_many_attempts"})
+    exhausted = client.post("/v1/account/verify", json={"code": "000000"}, headers=HEADERS)
+    assert exhausted.json() == {"detail": "account_code_attempts_exhausted"}
+    assert client.get("/v1/account").json()["attempts_left"] == 0
