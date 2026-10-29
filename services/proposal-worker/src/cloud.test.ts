@@ -1,0 +1,512 @@
+/** Cloud access routes against real SQLite with every migration (requirements A1–A6, C1–C3, C5). */
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { D1AuthStore } from "./auth-store";
+import { handle, type Env } from "./index";
+import { configuredMailer, MailError, RESEND_ENDPOINT, type MailMessage, type Mailer } from "./mail";
+import { D1Store, type D1Database } from "./store";
+import { sqliteDatabase } from "./test-support";
+
+const ORIGIN = "https://api.example.test";
+const OWNER = "owner@example.org";
+const USER = "researcher@example.org";
+const MODAL = "https://gpu.example.test";
+const MODAL_TOKEN = "wk-test-proxy.ws-test-proxy";
+const DRAFT = {
+  recipe: "nuclear-intensity",
+  channels: [{ token: "dapi", stain: "DAPI", role: "nuclear", reason: "核染色" }],
+  metrics: [{ metric: "area", channel: null, region: "nucleus" }],
+  statistics: { kind: "descriptive", test: null, omnibus: null, association: null, x: null, y: null },
+  additional_analyses: [],
+  figures: [{ kind: "field-distribution", metric: "area", channel: null, region: "nucleus", analysis_index: 0 }],
+  missing_information: [],
+  reference_ids: ["senft-2023"],
+  rationale: "核面積の分布を視野ごとに示す。",
+};
+const CONTEXT = { protocol: "1.1.0", goal: "核面積", channels: [{ token: "dapi", stain: "DAPI", role: "nuclear" }], field_count: 2 };
+const BASE_ENV: Env = {
+  DB: undefined as never, OWNER_EMAIL: " Owner@Example.org ", ADMIN_SIGNING_KEY: "s".repeat(48),
+  MODAL_URL: MODAL, MODAL_PROXY_TOKEN: MODAL_TOKEN, GPU_MONTHLY_SECONDS: "7200",
+  OPENAI_API_KEY: "sk-test", OPENAI_MODEL: "gpt-6.1-sol", ADMIN_TOKEN: "admin-token-0123456789abcdef",
+  MONTHLY_BUDGET_USD: "1", DEVICE_MONTHLY_REQUESTS: "10", PRICE_INPUT_USD_PER_MTOK: "2", PRICE_OUTPUT_USD_PER_MTOK: "10",
+  PRICE_CACHED_INPUT_USD_PER_MTOK: "0.10", PRICE_CACHE_WRITE_USD_PER_MTOK: "2.50",
+};
+
+class FakeMailer implements Mailer {
+  sent: MailMessage[] = [];
+  failing = false;
+  async send(message: MailMessage) {
+    if (this.failing) throw new MailError();
+    this.sent.push(message);
+  }
+  to(address: string) { return this.sent.filter((message) => message.to === address); }
+  code(address: string) { return /(\d{6})/.exec(this.to(address).at(-1)?.text ?? "")?.[1] ?? ""; }
+  link() { return /(https:\/\/\S+\/v1\/admin\/approve\?t=\S+)/.exec(this.to(OWNER).at(-1)?.text ?? "")?.[1] ?? ""; }
+}
+
+type Upstream = (url: string, init: RequestInit) => Promise<Response>;
+
+async function setup(env: Env = BASE_ENV, upstream?: Upstream) {
+  const db = await sqliteDatabase();
+  const auth = new D1AuthStore(db), store = new D1Store(db), mailer = new FakeMailer();
+  const time = { now: Date.UTC(2026, 9, 15, 12), wall: 1_000_000 };
+  const gpuCalls: { url: string; init: RequestInit; body: Uint8Array | null }[] = [];
+  const gpuFetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = init?.body ? new Uint8Array(await new Response(init.body as BodyInit).arrayBuffer()) : null;
+    gpuCalls.push({ url: String(input), init: init!, body });
+    if (upstream) return upstream(String(input), init!);
+    time.wall += 12_300;
+    return new Response(body ? new Uint8Array([...body].reverse()) : "{\"status\":\"ok\"}", {
+      status: 200, headers: { "content-type": body ? "application/octet-stream" : "application/json", "set-cookie": "upstream=1", "x-modal": "private" },
+    });
+  });
+  const modelFetcher = vi.fn(async () => new Response(JSON.stringify({ status: "completed",
+    output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(DRAFT) }] }], usage: { input_tokens: 1000, output_tokens: 200 } })));
+  let currentEnv = env;
+  const call = (request: Request, mailerOverride: Mailer | null = mailer) => handle(request, currentEnv, store, {
+    auth, mailer: mailerOverride, now: () => time.now, clock: () => time.wall, gpuFetcher, fetcher: modelFetcher,
+  });
+  const send = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => call(new Request(`${ORIGIN}${path}`, {
+    method, headers: { "cf-connecting-ip": "192.0.2.1", ...(body === undefined ? {} : { "content-type": "application/json" }), ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }));
+  const login = async (email: string, device_name = "lab-pc") => {
+    expect(await (await send("POST", "/v1/auth/code", { email })).json()).toEqual({ state: "code_sent", retry_after_seconds: 60 });
+    const response = await send("POST", "/v1/auth/verify", { email, code: mailer.code(email), device_name });
+    expect(response.status).toBe(200);
+    return (await response.json() as { device_token: string }).device_token;
+  };
+  const adminLogin = async () => {
+    expect((await send("POST", "/v1/admin/session/code", { email: OWNER })).status).toBe(200);
+    const response = await send("POST", "/v1/admin/session/verify", { email: OWNER, code: mailer.code(OWNER) });
+    expect(response.status).toBe(204);
+    return response.headers.get("set-cookie")!.split(";")[0];
+  };
+  const adminChange = async (cookie: string, body: unknown) =>
+    send("POST", "/v1/admin/users", body, { cookie, origin: ORIGIN });
+  const bearer = (value: string) => ({ authorization: `Bearer ${value}` });
+  return {
+    db, auth, store, mailer, time, gpuCalls, gpuFetcher, modelFetcher, call, send, login, adminLogin, adminChange, bearer,
+    setEnv: (next: Env) => { currentEnv = next; },
+  };
+}
+
+async function dump(db: D1Database) {
+  const tables = ["users", "login_codes", "user_devices", "admin_sessions", "approval_links", "rate_limits", "user_usage",
+    "reservations", "settlements", "proposal_requests", "device_usage", "devices", "invitations"];
+  const rows: Record<string, unknown> = {};
+  for (const table of tables) rows[table] = (await db.prepare(`SELECT * FROM ${table}`).all()).results;
+  return JSON.stringify(rows);
+}
+
+const proposal = (token: string) => new Request(`${ORIGIN}/v1/proposals`, {
+  method: "POST", body: JSON.stringify({ context: CONTEXT }),
+  headers: { "idempotency-key": crypto.randomUUID(), authorization: `Bearer ${token}` },
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("e-mail code login", () => {
+  it("issues a hashed 6-digit code to an allowed address and exchanges it once for a device token", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    const sent = await t.send("POST", "/v1/auth/code", { email: "  Researcher@Example.ORG " });
+    expect([sent.status, await sent.json()]).toEqual([200, { state: "code_sent", retry_after_seconds: 60 }]);
+    const code = t.mailer.code(USER);
+    expect(code).toMatch(/^\d{6}$/);
+    expect(await dump(t.db)).not.toContain(code);
+    const wrong = await t.send("POST", "/v1/auth/verify", { email: USER, code: code === "000000" ? "111111" : "000000" });
+    expect([wrong.status, await wrong.json()]).toEqual([400, { error: "code_invalid", attempts_left: 4 }]);
+    const verified = await t.send("POST", "/v1/auth/verify", { email: USER, code, device_name: "private-lab-pc-name" });
+    expect(verified.status).toBe(200);
+    const body = await verified.json() as { device_token: string; email: string; expires_at: string };
+    expect(body.email).toBe(USER);
+    expect(body.device_token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(body.expires_at).toBe(new Date(t.time.now + 90 * 86_400_000).toISOString());
+    const stored = await dump(t.db);
+    expect(stored).not.toContain(body.device_token);
+    expect(stored).not.toContain("private-lab-pc-name");
+    const again = await t.send("POST", "/v1/auth/verify", { email: USER, code });
+    expect([again.status, await again.json()]).toEqual([400, { error: "code_expired" }]);
+    const status = await t.send("GET", "/v1/auth/status", undefined, t.bearer(body.device_token));
+    expect([status.status, await status.json()]).toEqual([200, {
+      state: "allowed", email: USER, limits: { gpu_seconds_month: 3600, proposal_usd_month: 5 },
+      usage: { gpu_seconds: 0, proposal_usd: 0 }, resets_at: "2026-11-01T00:00:00.000Z",
+    }]);
+  });
+
+  it("enforces the resend interval, the 10-minute expiry and five attempts", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    await t.send("POST", "/v1/auth/code", { email: USER });
+    t.time.now += 30_000;
+    const early = await t.send("POST", "/v1/auth/code", { email: USER });
+    expect([early.status, await early.json()]).toEqual([429, { error: "rate_limited", retry_after_seconds: 30 }]);
+    t.time.now += 10 * 60_000;
+    const expired = await t.send("POST", "/v1/auth/verify", { email: USER, code: t.mailer.code(USER) });
+    expect([expired.status, await expired.json()]).toEqual([400, { error: "code_expired" }]);
+
+    await t.send("POST", "/v1/auth/code", { email: USER });
+    const code = t.mailer.code(USER);
+    const wrong = code === "123456" ? "654321" : "123456";
+    const results = [];
+    for (let index = 0; index < 5; index += 1) results.push(await (await t.send("POST", "/v1/auth/verify", { email: USER, code: wrong })).json());
+    expect(results).toEqual([...[4, 3, 2, 1].map((left) => ({ error: "code_invalid", attempts_left: left })), { error: "too_many_attempts" }]);
+    const voided = await t.send("POST", "/v1/auth/verify", { email: USER, code });
+    expect([voided.status, await voided.json()]).toEqual([400, { error: "too_many_attempts" }]);
+  });
+
+  it("never sends a code to an address the owner has not allowed, and asks the owner once", async () => {
+    const t = await setup();
+    const stranger = "new.person@example.org";
+    for (let index = 0; index < 2; index += 1) {
+      const response = await t.send("POST", "/v1/auth/code", { email: stranger });
+      expect([response.status, await response.json()]).toEqual([200, { state: "pending_approval" }]);
+      t.time.now += 61_000;
+    }
+    expect(t.mailer.to(stranger)).toEqual([]);
+    expect(t.mailer.to(OWNER)).toHaveLength(1);
+    expect(t.mailer.to(OWNER)[0].text).toContain(stranger);
+    expect(t.mailer.link()).toContain(`${ORIGIN}/v1/admin/approve?t=`);
+    expect((await t.db.prepare("SELECT COUNT(*) AS n FROM login_codes").first())).toEqual({ n: 0 });
+    const verify = await t.send("POST", "/v1/auth/verify", { email: stranger, code: "123456" });
+    expect([verify.status, await verify.json()]).toEqual([400, { error: "code_expired" }]);
+    const state = await t.send("GET", `/v1/auth/request?email=${encodeURIComponent(stranger)}`);
+    expect(await state.json()).toEqual({ state: "pending_approval" });
+    expect(await (await t.send("GET", "/v1/auth/request?email=nobody%40example.org")).json()).toEqual({ state: "none" });
+  });
+
+  it("approves through the signed one-time link, notifies the requester and then allows login", async () => {
+    const t = await setup();
+    await t.send("POST", "/v1/auth/code", { email: USER });
+    const link = new URL(t.mailer.link());
+    const page = await t.call(new Request(link));
+    expect(page.status).toBe(200);
+    expect(page.headers.get("content-security-policy")).toContain("default-src 'none'");
+    expect(page.headers.get("referrer-policy")).toBe("no-referrer");
+    const html = await page.text();
+    expect(html).toContain(USER);
+    expect(html).toContain("承認する");
+    // Following the link (for example by a mail scanner) does not approve.
+    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "pending_approval" });
+    const token = link.searchParams.get("t")!;
+    const tampered = token.slice(0, -1) + (token.endsWith("0") ? "1" : "0");
+    const form = (value: string) => t.call(new Request(`${ORIGIN}/v1/admin/approve`, {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ t: value }).toString(),
+    }));
+    expect((await form(tampered)).status).toBe(400);
+    const approved = await form(token);
+    expect(approved.status).toBe(200);
+    expect(await approved.text()).toContain("承認しました");
+    expect(t.mailer.to(USER).at(-1)?.text).toContain("利用できるようになりました");
+    expect((await form(token)).status).toBe(400);
+    expect((await t.call(new Request(link))).status).toBe(400);
+    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "allowed" });
+    expect(await t.login(USER)).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
+  it("expires approval links after seven days and keeps a revoked user from being re-approved by an old link", async () => {
+    const t = await setup();
+    await t.send("POST", "/v1/auth/code", { email: USER });
+    const first = t.mailer.link();
+    t.time.now += 7 * 86_400_000;
+    expect((await t.call(new Request(first))).status).toBe(400);
+    t.time.now += 61_000;
+    await t.send("POST", "/v1/auth/code", { email: USER });
+    const second = new URL(t.mailer.link());
+    expect(second.href).not.toBe(first);
+    const cookie = await t.adminLogin();
+    await t.adminChange(cookie, { email: USER, action: "revoke" });
+    const response = await t.call(new Request(`${ORIGIN}/v1/admin/approve`, {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ t: second.searchParams.get("t")! }).toString(),
+    }));
+    expect(response.status).toBe(409);
+    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "revoked" });
+  });
+
+  it("expires a device after 90 days unused, extends it on use and logs out", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    t.time.now += 80 * 86_400_000;
+    expect((await t.send("GET", "/v1/auth/status", undefined, t.bearer(device))).status).toBe(200);
+    t.time.now += 80 * 86_400_000;
+    expect((await t.send("GET", "/v1/auth/status", undefined, t.bearer(device))).status).toBe(200);
+    t.time.now += 91 * 86_400_000;
+    const expired = await t.send("GET", "/v1/auth/status", undefined, t.bearer(device));
+    expect([expired.status, await expired.json()]).toEqual([401, { error: "auth_required" }]);
+    const fresh = await t.login(USER);
+    expect((await t.send("POST", "/v1/auth/logout", undefined, t.bearer(fresh))).status).toBe(204);
+    expect((await t.send("GET", "/v1/auth/status", undefined, t.bearer(fresh))).status).toBe(401);
+    expect((await t.send("GET", "/v1/auth/status")).status).toBe(401);
+  });
+
+  it("fails closed without a mail sender or when sending fails, and never logs codes", async () => {
+    const t = await setup();
+    const logs = (["log", "info", "warn", "error", "debug"] as const).map((name) => vi.spyOn(console, name));
+    await t.auth.allow(USER, t.time.now);
+    const unconfigured = await t.call(new Request(`${ORIGIN}/v1/auth/code`, { method: "POST", body: JSON.stringify({ email: USER }) }), null);
+    expect([unconfigured.status, await unconfigured.json()]).toEqual([503, { error: "mail_unavailable" }]);
+    t.mailer.failing = true;
+    const failed = await t.send("POST", "/v1/auth/code", { email: USER });
+    expect([failed.status, await failed.json()]).toEqual([502, { error: "mail_failed" }]);
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM login_codes").first()).toEqual({ n: 0 });
+    t.mailer.failing = false;
+    // A failed send does not start the resend interval.
+    expect((await t.send("POST", "/v1/auth/code", { email: USER })).status).toBe(200);
+    for (const spy of logs) expect(spy).not.toHaveBeenCalled();
+    expect(configuredMailer({ MAIL_FROM: "Cytellect <noreply@mail.example.org>" })).toBeNull();
+    expect(configuredMailer({ RESEND_API_KEY: "re_test", MAIL_FROM: "" })).toBeNull();
+  });
+
+  it("rate-limits code requests per IP and per address", async () => {
+    const t = await setup();
+    for (let index = 0; index < 6; index += 1) {
+      expect((await t.send("POST", "/v1/auth/code", { email: USER }, { "cf-connecting-ip": "198.51.100.7" })).status).toBe(200);
+    }
+    const perEmail = await t.send("POST", "/v1/auth/code", { email: USER }, { "cf-connecting-ip": "198.51.100.8" });
+    expect(perEmail.status).toBe(429);
+    expect((await perEmail.json() as { error: string; retry_after_seconds: number })).toMatchObject({ error: "rate_limited" });
+    for (let index = 0; index < 14; index += 1) {
+      await t.send("POST", "/v1/auth/code", { email: `person${index}@example.org` }, { "cf-connecting-ip": "198.51.100.7" });
+    }
+    const perIp = await t.send("POST", "/v1/auth/code", { email: "late@example.org" }, { "cf-connecting-ip": "198.51.100.7" });
+    expect(perIp.status).toBe(429);
+    expect(await dump(t.db)).not.toContain("198.51.100");
+    t.time.now += 3_600_000;
+    expect((await t.send("POST", "/v1/auth/code", { email: "late@example.org" }, { "cf-connecting-ip": "198.51.100.7" })).status).toBe(200);
+  });
+
+  it("closes login without the owner address or signing key", async () => {
+    const t = await setup({ ...BASE_ENV, ADMIN_SIGNING_KEY: "short" });
+    const response = await t.send("POST", "/v1/auth/code", { email: USER });
+    expect([response.status, await response.json()]).toEqual([503, { error: "auth_unavailable" }]);
+    expect((await t.send("POST", "/v1/auth/code", {})).status).toBe(503);
+    expect(t.mailer.sent).toEqual([]);
+  });
+});
+
+describe("revocation", () => {
+  it("immediately blocks status, the GPU gateway and proposals on every device", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    const first = await t.login(USER);
+    t.time.now += 61_000;
+    const second = await t.login(USER);
+    expect((await t.call(proposal(first))).status).toBe(200);
+    const cookie = await t.adminLogin();
+    expect((await t.adminChange(cookie, { email: USER, action: "revoke" })).status).toBe(200);
+    for (const device of [first, second]) {
+      const status = await t.send("GET", "/v1/auth/status", undefined, t.bearer(device));
+      expect([status.status, await status.json()]).toEqual([403, { error: "revoked" }]);
+      const gpu = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+      expect([gpu.status, await gpu.json()]).toEqual([403, { error: "revoked" }]);
+      const denied = await t.call(proposal(device));
+      expect([denied.status, await denied.json()]).toEqual([403, { code: "revoked" }]);
+    }
+    expect(t.gpuFetcher).not.toHaveBeenCalled();
+    expect(t.modelFetcher).toHaveBeenCalledTimes(1);
+    expect(await (await t.send("POST", "/v1/auth/code", { email: USER })).json()).toEqual({ state: "revoked" });
+    expect(await (await t.send("GET", `/v1/auth/request?email=${USER}`)).json()).toEqual({ state: "revoked" });
+    // Re-allowing requires a new login: revoked devices stay revoked.
+    await t.adminChange(cookie, { email: USER, action: "allow" });
+    expect((await t.send("GET", "/v1/auth/status", undefined, t.bearer(first))).status).toBe(401);
+  });
+});
+
+describe("GPU gateway", () => {
+  it("streams the body to Modal with the Worker's key and returns the response unchanged", async () => {
+    const t = await setup();
+    const logs = (["log", "info", "warn", "error", "debug"] as const).map((name) => vi.spyOn(console, name));
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    const payload = new TextEncoder().encode("PRIVATE-PIXELS-0123456789");
+    const response = await t.call(new Request(`${ORIGIN}/v1/cellpose/v1/cellpose`, {
+      method: "POST", body: payload,
+      headers: { ...t.bearer(device), "content-type": "application/octet-stream", accept: "application/octet-stream",
+        "content-length": String(payload.length), "x-cytellect-secret": "client-secret", cookie: "private=1" },
+    }));
+    expect(response.status).toBe(200);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([...payload].reverse()));
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("x-modal")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const [forwarded] = t.gpuCalls;
+    expect(forwarded.url).toBe(`${MODAL}/v1/cellpose`);
+    expect(forwarded.body).toEqual(payload);
+    const headers = new Headers(forwarded.init.headers);
+    expect(headers.get("authorization")).toBe(`Bearer ${MODAL_TOKEN}`);
+    expect(headers.get("content-length")).toBe(String(payload.length));
+    expect(headers.get("content-type")).toBe("application/octet-stream");
+    expect(headers.get("x-cytellect-secret")).toBeNull();
+    expect(headers.get("cookie")).toBeNull();
+    expect(forwarded.init.redirect).toBe("manual");
+    // 12.3 s of wall time counts as 13 GPU seconds.
+    const status = await (await t.send("GET", "/v1/auth/status", undefined, t.bearer(device))).json() as { usage: { gpu_seconds: number } };
+    expect(status.usage.gpu_seconds).toBe(13);
+    const health = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+    expect([health.status, await health.json()]).toEqual([200, { status: "ok" }]);
+    expect(t.gpuCalls[1].url).toBe(`${MODAL}/health`);
+    expect(t.gpuCalls[1].init.method).toBe("GET");
+    const stored = await dump(t.db);
+    expect(stored).not.toContain("PRIVATE-PIXELS");
+    expect(stored).not.toContain(MODAL_TOKEN);
+    for (const spy of logs) expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("passes an upstream 503 through unchanged so the client can retry", async () => {
+    const t = await setup(BASE_ENV, async () => new Response("{\"error\":\"starting\"}", {
+      status: 503, headers: { "content-type": "application/json", "retry-after": "5" },
+    }));
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    const response = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("5");
+    expect(await response.text()).toBe("{\"error\":\"starting\"}");
+  });
+
+  it("requires a user token, a known route and a configured upstream before any GPU call", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    const legacy = await (await t.call(new Request(`${ORIGIN}/v1/admin/invitations`, { method: "POST", headers: t.bearer(BASE_ENV.ADMIN_TOKEN!) }))).json() as { invitation: string };
+    const redeemed = await (await t.call(new Request(`${ORIGIN}/v1/devices`, { method: "POST", body: JSON.stringify(legacy) }))).json() as { device_token: string };
+    expect((await t.send("GET", "/v1/cellpose/health")).status).toBe(401);
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(redeemed.device_token))).status).toBe(401);
+    expect((await t.send("GET", "/v1/cellpose/other", undefined, t.bearer(device))).status).toBe(404);
+    expect((await t.send("GET", "/v1/cellpose/v1/cellpose", undefined, t.bearer(device))).status).toBe(405);
+    const noLength = await t.call(new Request(`${ORIGIN}/v1/cellpose/v1/cellpose`, {
+      method: "POST", headers: t.bearer(device), body: new ReadableStream({ start(c) { c.enqueue(new Uint8Array([1])); c.close(); } }),
+      duplex: "half",
+    } as RequestInit));
+    expect(noLength.status).toBe(411);
+    t.setEnv({ ...BASE_ENV, MODAL_URL: "http://gpu.example.test" });
+    expect(await (await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).json()).toEqual({ error: "gpu_service_disabled" });
+    t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "" });
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(503);
+    expect(t.gpuFetcher).not.toHaveBeenCalled();
+  });
+
+  it("stops at the user's monthly limit and at the global monthly cap", async () => {
+    const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "20" });
+    await t.auth.allow(USER, t.time.now);
+    await t.auth.allow("second@example.org", t.time.now);
+    const device = await t.login(USER);
+    const other = await t.login("second@example.org");
+    const cookie = await t.adminLogin();
+    expect((await t.adminChange(cookie, { email: USER, action: "limits", gpu_seconds_month: 10, proposal_usd_month: null })).status).toBe(200);
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+    const over = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+    expect([over.status, await over.json()]).toEqual([429, { error: "quota_exceeded", resets_at: "2026-11-01T00:00:00.000Z", scope: "user" }]);
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(other))).status).toBe(200);
+    const global = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(other));
+    expect([global.status, await global.json()]).toMatchObject([429, { error: "quota_exceeded", scope: "global" }]);
+    expect(t.gpuFetcher).toHaveBeenCalledTimes(2);
+    // Usage resets with the UTC calendar month.
+    t.time.now = Date.UTC(2026, 10, 1);
+    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+  });
+});
+
+describe("proposals with user-bound tokens", () => {
+  it("accepts the login token, counts cost against the user and enforces the user's limit", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    const response = await t.call(proposal(device));
+    expect(response.status).toBe(200);
+    expect((await response.json() as { draft: unknown }).draft).toEqual(DRAFT);
+    const status = await (await t.send("GET", "/v1/auth/status", undefined, t.bearer(device))).json() as { usage: { proposal_usd: number } };
+    expect(status.usage.proposal_usd).toBeCloseTo((1000 * 2.5 + 200 * 10) / 1e6);
+    const cookie = await t.adminLogin();
+    await t.adminChange(cookie, { email: USER, action: "limits", gpu_seconds_month: null, proposal_usd_month: 0.001 });
+    const limited = await t.call(proposal(device));
+    expect([limited.status, await limited.json()]).toEqual([429, { code: "quota_exceeded", resets_at: "2026-11-01T00:00:00.000Z" }]);
+    expect(t.modelFetcher).toHaveBeenCalledTimes(1);
+    expect(await dump(t.db)).not.toContain("核面積");
+  });
+
+  it("closes the invitation flow and its tokens when the migration flag is off", async () => {
+    const t = await setup();
+    const invited = await (await t.call(new Request(`${ORIGIN}/v1/admin/invitations`, { method: "POST", headers: t.bearer(BASE_ENV.ADMIN_TOKEN!) }))).json() as { invitation: string };
+    const { device_token } = await (await t.call(new Request(`${ORIGIN}/v1/devices`, { method: "POST", body: JSON.stringify(invited) }))).json() as { device_token: string };
+    expect((await t.call(proposal(device_token))).status).toBe(200);
+    t.setEnv({ ...BASE_ENV, LEGACY_INVITATIONS: "false" });
+    expect((await t.call(proposal(device_token))).status).toBe(401);
+    expect((await t.call(new Request(`${ORIGIN}/v1/admin/invitations`, { method: "POST", headers: t.bearer(BASE_ENV.ADMIN_TOKEN!) }))).status).toBe(404);
+  });
+});
+
+describe("admin page", () => {
+  it("serves a script-nonce page and authenticates only the owner address", async () => {
+    const t = await setup();
+    const page = await t.send("GET", "/admin");
+    expect(page.status).toBe(200);
+    const csp = page.headers.get("content-security-policy")!;
+    const nonce = /script-src 'nonce-([^']+)'/.exec(csp)?.[1];
+    expect(await page.text()).toContain(`<script nonce="${nonce}">`);
+    expect((await t.send("GET", "/v1/admin/users")).status).toBe(401);
+    await t.auth.allow(USER, t.time.now);
+    const intruder = await t.send("POST", "/v1/admin/session/code", { email: USER });
+    expect([intruder.status, await intruder.json()]).toEqual([200, { state: "code_sent", retry_after_seconds: 60 }]);
+    expect(t.mailer.to(USER)).toEqual([]);
+    const userCode = await t.send("POST", "/v1/admin/session/verify", { email: USER, code: "123456" });
+    expect(userCode.status).toBe(400);
+    // An installation token is not an admin credential.
+    const device = await t.login(USER);
+    expect((await t.send("GET", "/v1/admin/users", undefined, t.bearer(device))).status).toBe(401);
+    // A device login code cannot open the admin page either.
+    await t.send("POST", "/v1/auth/code", { email: OWNER });
+    expect((await t.send("POST", "/v1/admin/session/verify", { email: OWNER, code: t.mailer.code(OWNER) })).status).toBe(400);
+    t.time.now += 61_000;
+    const cookie = await t.adminLogin();
+    expect(cookie).toMatch(/^__Host-cytellect_admin=[A-Za-z0-9_-]{43}$/);
+    const listing = await t.send("GET", "/v1/admin/users", undefined, { cookie });
+    expect(listing.status).toBe(200);
+    const data = await listing.json() as { owner: string; users: { email: string; state: string; limits: unknown; usage: unknown }[] };
+    expect(data.owner).toBe(OWNER);
+    expect(data.users.find((user) => user.email === USER)).toMatchObject({
+      state: "allowed", limits: { gpu_seconds_month: 3600, proposal_usd_month: 5, custom: false }, usage: { gpu_seconds: 0, proposal_usd: 0 },
+    });
+    const owner = await t.adminChange(cookie, { email: OWNER, action: "revoke" });
+    expect([owner.status, await owner.json()]).toEqual([400, { error: "owner_cannot_be_revoked" }]);
+    // Changing the owner address invalidates existing admin sessions.
+    t.setEnv({ ...BASE_ENV, OWNER_EMAIL: "next-owner@example.org" });
+    expect((await t.send("GET", "/v1/admin/users", undefined, { cookie })).status).toBe(401);
+  });
+
+  it("refuses cross-site and form submissions, pre-registers and logs out", async () => {
+    const t = await setup();
+    const cookie = await t.adminLogin();
+    const crossSite = await t.send("POST", "/v1/admin/users", { email: USER, action: "allow" }, { cookie, origin: "https://attacker.example" });
+    expect(crossSite.status).toBe(403);
+    const form = await t.call(new Request(`${ORIGIN}/v1/admin/users`, {
+      method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: "email=x%40example.org&action=allow",
+    }));
+    expect(form.status).toBe(403);
+    expect(await t.auth.user(USER)).toBeNull();
+    const allowed = await t.adminChange(cookie, { email: " Researcher@Example.org", action: "allow" });
+    expect([allowed.status, await allowed.json()]).toEqual([200, { email: USER, state: "allowed", notified: true }]);
+    expect(t.mailer.to(USER).at(-1)?.subject).toContain("利用できるようになりました");
+    expect((await t.adminChange(cookie, { email: USER, action: "limits", gpu_seconds_month: -1 })).status).toBe(400);
+    expect((await t.adminChange(cookie, { email: "unknown@example.org", action: "limits", gpu_seconds_month: 60 })).status).toBe(404);
+    expect((await t.send("POST", "/v1/admin/session/logout", {}, { cookie, origin: ORIGIN })).status).toBe(204);
+    expect((await t.send("GET", "/v1/admin/users", undefined, { cookie })).status).toBe(401);
+  });
+});
+
+describe("Resend sender", () => {
+  it("posts one message to the Resend API and reduces failures to a fixed error", async () => {
+    const fetcher = vi.fn(async () => new Response("{\"id\":\"x\"}", { status: 200 }));
+    const mailer = configuredMailer({ RESEND_API_KEY: "re_test_key", MAIL_FROM: "Cytellect <noreply@mail.example.org>" }, fetcher)!;
+    await mailer.send({ to: USER, subject: "件名", text: "本文" });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(RESEND_ENDPOINT);
+    expect(new Headers(init.headers).get("authorization")).toBe("Bearer re_test_key");
+    expect(JSON.parse(init.body as string)).toEqual({ from: "Cytellect <noreply@mail.example.org>", to: [USER], subject: "件名", text: "本文" });
+    const failing = configuredMailer({ RESEND_API_KEY: "re_test_key", MAIL_FROM: "noreply@mail.example.org" },
+      vi.fn(async () => new Response("{\"message\":\"private provider detail\"}", { status: 422 })))!;
+    await expect(failing.send({ to: USER, subject: "s", text: "t" })).rejects.toThrow(/^mail_failed$/);
+  });
+});

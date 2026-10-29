@@ -21,6 +21,12 @@ test("disabled configuration is account-bound, secret-free and never overwritten
     assert.equal(config.observability.enabled, false);
     assert.equal(config.account_id, "a".repeat(32));
     assert.equal("OPENAI_API_KEY" in config.vars, false);
+    assert.equal(config.vars.GPU_MONTHLY_SECONDS, "0");
+    assert.equal(config.vars.OWNER_EMAIL, "");
+    assert.equal(config.vars.MAIL_FROM, "");
+    for (const secret of ["RESEND_API_KEY", "ADMIN_SIGNING_KEY", "MODAL_URL", "MODAL_PROXY_TOKEN", "ADMIN_TOKEN"]) {
+      assert.equal(secret in config.vars, false);
+    }
     assert.equal(spawnSync(process.execPath, args).status, 1);
     assert.equal(readFileSync(join(root, "wrangler.disabled.json"), "utf8"), text);
     assert.equal(spawnSync(process.execPath, [script, "invalid", "invalid"]).status, 1);
