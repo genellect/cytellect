@@ -25,7 +25,7 @@ The local API offers `GET /v1/app/update` and `POST /v1/app/update` to the signe
 
 `POST` returns 202 and works in the background. It is refused with 409 `update_jobs_running` while an analysis is queued or running, because the switch stops the worker. It downloads the installer from GitHub's release hosts only, checks the published SHA-256 again immediately before running it, and runs it silently into the same folder. The installer prepares the new version beside the current one and passes all of setup's checks before the shortcuts change. If any of this fails, the current version keeps running (`failed`); the downloaded installer and partial files are removed, and a hung installer is stopped with its children after an hour. If an analysis started while the installer ran and does not finish within ten minutes, the switch waits for the next start instead (`installed`, `update_jobs_running`): the shortcut already opens the new version, which reports `updated` when it starts. From the last check for analyses until the launcher stops, other changing requests are refused with 409 `update_switching`, so no analysis can start and then be stopped. Otherwise the launcher stops and a relauncher, run with the previous version's interpreter, copies `data/cytellect.sqlite` with SQLite's backup API, starts the new version and waits up to five minutes for it to answer `/v1/local/setup` with its own version. If it does not, the relauncher stops it, restores the database copy and the previous shortcuts, and starts the previous version (`rolled_back`, `update_new_version_failed_to_start`). Every failure path still restores the shortcuts and ends with the previous version running. The relauncher waits for the stopped new version to exit and tries the restore five times; if the file stays locked, it writes `updates/rollback/pending.json`, and the previous version restores the copy at its next start, after taking its runtime lock and before opening (and migrating) the database. A start that still cannot restore it stops with the ordinary start failure instead of opening the newer database. A previous launcher that does not exit within ten minutes of its stop request is stopped and started again (`update_previous_did_not_exit`). A copy that could not be restored stays in `updates/rollback/`; otherwise none is kept. Image files are not copied. The trust in a release is described in [data protection](security.md#windows-local-mode).
 
-The workspace banner that calls these routes ("更新があります") and the first-run screen are part of the cloud-account change (genellect/cytellect#156), and the two ship together. The banner shows each `state` above, including `installed`, `failed` and `rolled_back`, and the 409 `update_jobs_running`.
+The workspace banner that calls these routes ("更新があります") and the first-run screen are part of the cloud-account change (genellect/cytellect#156), and the two ship together; [Workspace update banner and cloud sign-in](#workspace-update-banner-and-cloud-sign-in) describes what the banner shows for each state and refusal. The 409 `update_switching` is answered only to other changing requests in the seconds before the launcher stops, and the workspace has no dedicated message for it.
 
 The `windows-installer` job tests the update end to end with two versions built from the same commit: a generated release list on `127.0.0.1` is offered, downloaded, verified, installed and switched to, and a second run whose new version exits at start returns to the previous version with its workspace. The redirection to the local list and the failing start come from `packaging/windows/update-test/cytellect_ci_update_hook.py`, which the test copies with a one-line `.pth` file into the previous version's site-packages. It is not in the ZIP or the installer (a test checks that nothing under `packaging/` is), so a distributed copy always reads GitHub's releases.
 
@@ -201,6 +201,24 @@ and requires a separately accepted release. No OS protection is disabled.
 ## Later hosted execution
 
 Preserve the browser workflow and shared analysis packages. Hosted deployment adds a suitable persistent database, private artifacts, durable dispatch and same-origin/domain routing, with access/retention checks on the actual host. Cloud spend controls must not stop required deletion jobs. See [costs and trade-offs](hosting-costs.ja.md), [deployment](deployment.md) and [remaining gates](roadmap.md).
+
+## Workspace update banner and cloud sign-in
+
+The local workspace (genellect/cytellect#156) shows the in-app update from
+`GET /v1/app/update`. It offers 「更新する」 only when `available` is true. After
+`POST`, it re-reads the state every 3 seconds until the state is `idle`,
+`installed`, `updated`, `failed`, `rolled_back` or `unsupported`, waits through
+the restart's dropped connections, and stops after 20 minutes with a message
+to reopen Cytellect. A settled state that the installer keeps (`updated`,
+`installed`, `failed`, `rolled_back`) is shown once per occurrence, remembered
+in the browser; `installed` is not shown once the running version is the latest.
+The `error` code appears only under 詳細. A 409 `update_jobs_running` says to
+update after the analyses finish and keeps the button; `update_in_progress`
+follows the update already running, `update_not_available` re-reads the offer
+and `update_unsupported` hides the banner. The release-notes link is shown only
+for a page under `https://github.com/genellect/cytellect/releases/tag/`. Cloud
+sign-in for GPU inference and analysis proposals uses `/v1/account/*`; see
+[install-windows.ja.md](install-windows.ja.md) and [cloud-gpu.ja.md](cloud-gpu.ja.md).
 
 ## Workspace entry and Desktop acceptance (2026-10-06)
 
