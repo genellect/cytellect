@@ -11,7 +11,7 @@ if (!/^[a-f0-9]{32}$/i.test(accountId ?? "")
 }
 const config = {
   name: "cytellect-proposal", account_id: accountId, main: "src/index.ts",
-  compatibility_date: "2026-10-01", workers_dev: true,
+  compatibility_date: "2026-10-01", compatibility_flags: ["enable_request_signal"], workers_dev: true,
   d1_databases: [{ binding: "DB", database_name: "cytellect-proposal", database_id: databaseId, migrations_dir: "migrations" }],
   vars: {
     OPENAI_MODEL: "gpt-6.1-sol", MONTHLY_BUDGET_USD: "0", DEVICE_MONTHLY_REQUESTS: "0",

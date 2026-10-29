@@ -4,6 +4,9 @@
 name = "cytellect-proposal"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
+# request.signal aborts on client disconnect: the GPU gateway then releases the
+# user's slot and records the elapsed time at once.
+compatibility_flags = ["enable_request_signal"]
 workers_dev = true
 
 [[d1_databases]]

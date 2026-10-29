@@ -96,18 +96,30 @@ is added to the user's monthly GPU usage. The Modal server runs one container
 that serves one request at a time, so this time also includes waiting behind
 other users' requests and the container's start-up.
 
-Admission is one D1 statement. Each user has at most one request in flight
-(health checks included); another request from the same user gets 503
+An inference request (`POST`) is admitted in one D1 statement. Each user has at
+most one inference in flight; another from the same user gets 503
 `{"error":"gpu_busy","retry_after_seconds":5}` with `Retry-After: 5`, which the
 client retries like a starting GPU. The user must have time left, and the global
-total plus 300 seconds for every other user's request in flight must be below
-`GPU_MONTHLY_SECONDS`. A user can therefore exceed a personal limit by at most the
-one request that started before it was reached, and the global cap is exceeded
-only by requests running longer than 300 seconds. A slot left by a Worker stopped
-mid-request stops blocking after 35 minutes.
+total plus 300 seconds for every inference in flight, the admitted one included,
+must not exceed `GPU_MONTHLY_SECONDS` (so an inference needs at least 300 seconds
+of the global cap left). A user can therefore exceed a personal limit by at most
+the one inference that started before it was reached, and the global cap is
+exceeded only by inferences running longer than 300 seconds.
+
+A health check (`GET /v1/cellpose/health`) takes no slot, so it never blocks or
+waits for the user's inference. It needs user time left and global time left
+after the holds of inferences in flight. It waits at most 25 seconds; during a
+longer cold start it returns 503 `{"error":"gpu_starting","retry_after_seconds":5}`
+and the client asks again. Its elapsed time is counted.
+
+The Worker runs with the `enable_request_signal` compatibility flag, so a client
+that disconnects aborts the upstream call at once: the slot is released and the
+elapsed time recorded. Only a Worker stopped without that signal (for example a
+runtime restart) leaves a slot behind; it stops blocking after 35 minutes, and that
+request's GPU time is not counted.
 
 Errors: 401 `auth_required`, 403 `revoked`, 429
-`{"error":"quota_exceeded","resets_at","scope":"user"|"global"}`, 503 `gpu_busy`,
+`{"error":"quota_exceeded","resets_at","scope":"user"|"global"}`, 503 `gpu_busy` or `gpu_starting`,
 411/413 for a missing or excessive `Content-Length`, 502
 `gpu_upstream_unreachable`/`gpu_upstream_invalid` (a redirect is never followed),
 503 `gpu_service_disabled` unless the secrets and a positive `GPU_MONTHLY_SECONDS`
@@ -130,8 +142,9 @@ proposals with it. Set `LEGACY_INVITATIONS="false"` for a hard stop (or set
 cannot be revoked.
 
 <a id="login-limits"></a>**Login limits.** Counters are keyed hashes of the
-address or the client IP; an IPv6 client counts by its /64 prefix. A window starts
-at its first hit.
+address or the client IP; an IPv6 client counts by its /64 prefix. Each counter is a fixed
+window that starts at its first hit and resets when it ends; it is not a sliding
+window.
 
 | Limit | Value |
 |---|---|
@@ -143,9 +156,11 @@ at its first hit.
 | Access requests | 240 status checks per hour per IP; 20 owner notices per day in total |
 
 Rotating IP addresses therefore adds neither codes nor guesses for one address: an
-attacker gets at most 20 wrong guesses per address per day (a one-in-50,000 chance). Anyone can lock an
-address for a day by guessing wrong; the owner can end an admin lock early by
-rotating `ADMIN_SIGNING_KEY`, which also voids pending codes and approval links.
+attacker gets at most 20 wrong guesses per address per day (a one-in-50,000 chance). The limits can be used against a person, without any code: anyone can lock an
+address for a day by guessing wrong, or use up its daily codes (10 requests for
+the owner's admin login or a researcher's address) so that no code reaches it until
+that window ends, up to about a day. Rotating `ADMIN_SIGNING_KEY` ends every lock and
+counter at once, and also voids pending codes and approval links.
 
 **Owner operations.** The owner opens `/admin`, enters `OWNER_EMAIL` and the code
 sent there (a 12-hour session cookie; codes for other addresses are never sent).

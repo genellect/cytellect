@@ -35,6 +35,8 @@ export interface CloudContext {
   gpuFetcher: typeof fetch;
   /** ExecutionContext.waitUntil when running in Workers. */
   waitUntil?: (promise: Promise<unknown>) => void;
+  /** Health-check deadline; tests shorten it. */
+  healthTimeoutMs?: number;
 }
 
 const SECOND = 1000, MINUTE = 60 * SECOND, HOUR = 60 * MINUTE, DAY = 24 * HOUR;
@@ -70,8 +72,10 @@ export const RATE = {
 } as const satisfies Record<string, readonly [string, number, number]>;
 /** GPU admission: one request in flight per user; a slot older than this is stale. */
 export const GPU_SLOT_STALE_MS = 35 * MINUTE;
-/** Seconds held against the global cap for every other request in flight. */
+/** Seconds held against the global cap for every inference request in flight. */
 export const GPU_GLOBAL_HOLD_SECONDS = 300;
+/** A health check waits at most this long (a cold start then answers 503 gpu_starting). */
+export const GPU_HEALTH_TIMEOUT_MS = 25_000;
 export const DEFAULT_LIMITS = { gpuSeconds: 3600, proposalUsd: 5 };
 export const GPU_PREFIX = "/v1/cellpose";
 /** Modal server routes (engines/cellpose/server.py), mirrored under GPU_PREFIX. */
@@ -407,12 +411,21 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
 
   const period = month(ctx.now);
   const resets = nextMonth(ctx.now);
-  // One request in flight per user, and holds for other users' requests in flight
-  // against the global cap: concurrent requests cannot together overrun either limit.
-  const admitted = await ctx.auth.acquireGpuSlot(user.email, period, ctx.now, ctx.now - GPU_SLOT_STALE_MS,
-    user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS);
+  const staleBefore = ctx.now - GPU_SLOT_STALE_MS;
+  // Inference: one request in flight per user, each holding time against the global
+  // cap, so concurrent requests cannot together overrun either limit. Health checks
+  // take no slot (they must not block inference) and are bounded by a deadline.
+  const health = method === "GET";
+  const admitted = health
+    ? await ctx.auth.gpuQuota(user.email, period, staleBefore, user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS)
+    : await ctx.auth.acquireGpuSlot(user.email, period, ctx.now, staleBefore,
+      user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS);
   if (admitted === "busy") return fail(503, "gpu_busy", { retry_after_seconds: 5 }, { "retry-after": "5" });
   if (admitted !== "ok") return fail(429, "quota_exceeded", { resets_at: resets, scope: admitted });
+  const deadline = health ? AbortSignal.timeout(ctx.healthTimeoutMs ?? GPU_HEALTH_TIMEOUT_MS) : null;
+  // With the enable_request_signal flag, a client disconnect aborts the upstream call
+  // at once, so the slot is released and the elapsed time recorded.
+  const signal = deadline ? AbortSignal.any([request.signal, deadline]) : request.signal;
 
   if (method === "POST") {
     body = request.body;
@@ -428,14 +441,14 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
   const forward = (async () => {
     try {
       return await ctx.gpuFetcher(`${config.base}${route}`, {
-        method, headers, body, redirect: "manual", signal: request.signal,
+        method, headers, body, redirect: "manual", signal,
         ...(body ? { duplex: "half" } : {}),
       } as RequestInit);
     } finally {
       // Usage and slot release run even if the upstream call fails.
       const seconds = Math.max(1, Math.ceil((ctx.clock() - started) / SECOND));
       try { await ctx.auth.addGpuSeconds(user.email, period, seconds); } catch { /* the result is still returned */ }
-      try { await ctx.auth.releaseGpuSlot(user.email, ctx.now); } catch { /* a stale slot expires */ }
+      if (!health) try { await ctx.auth.releaseGpuSlot(user.email, ctx.now); } catch { /* a stale slot expires */ }
     }
   })();
   // Keeps accounting and release alive briefly if the client disconnects.
@@ -444,6 +457,9 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
   try {
     upstream = await forward;
   } catch {
+    if (deadline?.aborted && !request.signal.aborted) {
+      return fail(503, "gpu_starting", { retry_after_seconds: 5 }, { "retry-after": "5" });
+    }
     return fail(502, "gpu_upstream_unreachable");
   }
   if (upstream.status >= 300 && upstream.status < 400) {

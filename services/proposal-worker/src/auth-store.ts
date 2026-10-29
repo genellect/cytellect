@@ -241,7 +241,7 @@ export class D1AuthStore {
   /**
    * Admits one GPU request for the user in one statement: at most one in flight per
    * user (a slot older than `staleBefore` is taken over), remaining user time, and
-   * remaining global time after holding `holdSeconds` for every other request in flight.
+   * global time for `holdSeconds` per request in flight, this one included.
    */
   async acquireGpuSlot(email: string, month: string, now: number, staleBefore: number,
     userLimit: number, globalCap: number, holdSeconds: number): Promise<"ok" | "busy" | "user" | "global"> {
@@ -249,13 +249,26 @@ export class D1AuthStore {
       "INSERT INTO gpu_slots (email, started_at) SELECT ?, ? WHERE "
       + "COALESCE((SELECT gpu_seconds FROM user_usage WHERE email = ? AND month = ?), 0) < ? AND "
       + "COALESCE((SELECT SUM(gpu_seconds) FROM user_usage WHERE month = ?), 0) + "
-      + "? * (SELECT COUNT(*) FROM gpu_slots WHERE email <> ? AND started_at > ?) < ? "
+      + "? * ((SELECT COUNT(*) FROM gpu_slots WHERE email <> ? AND started_at > ?) + 1) <= ? "
       + "ON CONFLICT (email) DO UPDATE SET started_at = excluded.started_at WHERE gpu_slots.started_at <= ?",
     ).bind(email, now, email, month, userLimit, month, holdSeconds, email, staleBefore, globalCap, staleBefore).run();
     if (result.meta.changes === 1) return "ok";
     // Only selects the reason; admission itself was decided atomically above.
     if (await this.db.prepare("SELECT 1 AS ok FROM gpu_slots WHERE email = ? AND started_at > ?").bind(email, staleBefore).first()) return "busy";
     return (await this.usage(email, month)).gpu_seconds >= userLimit ? "user" : "global";
+  }
+
+  /**
+   * Read-only admission for short requests that take no slot (health checks): user
+   * time left, and global time left after `holdSeconds` per request in flight.
+   */
+  async gpuQuota(email: string, month: string, staleBefore: number, userLimit: number, globalCap: number, holdSeconds: number) {
+    if ((await this.usage(email, month)).gpu_seconds >= userLimit) return "user" as const;
+    const row = await this.db.prepare(
+      "SELECT COALESCE((SELECT SUM(gpu_seconds) FROM user_usage WHERE month = ?), 0) + "
+      + "? * (SELECT COUNT(*) FROM gpu_slots WHERE started_at > ?) AS held",
+    ).bind(month, holdSeconds, staleBefore).first<{ held: number }>();
+    return (row?.held ?? Number.MAX_SAFE_INTEGER) < globalCap ? "ok" as const : "global" as const;
   }
 
   async releaseGpuSlot(email: string, startedAt: number) {

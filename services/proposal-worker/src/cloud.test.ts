@@ -591,64 +591,127 @@ describe("brute-force limits", () => {
 });
 
 describe("GPU admission under concurrency", () => {
-  it("lets one request per user run and refuses the rest, so concurrent requests cannot overrun the limit", async () => {
+  const infer = (t: Awaited<ReturnType<typeof setup>>, device: string, signal?: AbortSignal) => {
+    const payload = new Uint8Array([1, 2, 3, 4]);
+    return t.call(new Request(`${ORIGIN}/v1/cellpose/v1/cellpose`, {
+      method: "POST", body: payload, signal,
+      headers: { ...t.bearer(device), "content-type": "application/octet-stream", "content-length": String(payload.length) },
+    }));
+  };
+  const waitForAbort = (init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+  });
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+  it("lets one inference per user run and refuses the rest, so concurrent requests cannot overrun the limit", async () => {
     let open!: () => void;
     const gate = new Promise<void>((resolve) => { open = resolve; });
-    const t = await setup(BASE_ENV, async () => { await gate; return new Response("{\"status\":\"ok\"}", { status: 200 }); });
+    const t = await setup(BASE_ENV, async () => { await gate; return new Response(new Uint8Array([9]), { status: 200 }); });
     await t.auth.allow(USER, t.time.now);
     const device = await t.login(USER);
     await t.auth.addGpuSeconds(USER, "2026-10", 3599);
-    const pending = Array.from({ length: 20 }, () => t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device)));
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    const pending = Array.from({ length: 20 }, () => infer(t, device));
+    await tick();
     t.time.wall += 4_000;
     open();
     const responses = await Promise.all(pending);
-    const statuses = responses.map((response) => response.status).sort();
+    const statuses = responses.map((response) => response.status);
     expect(statuses.filter((status) => status === 200)).toHaveLength(1);
     expect(statuses.filter((status) => status === 503)).toHaveLength(19);
     const busy = responses.find((response) => response.status === 503)!;
     expect(busy.headers.get("retry-after")).toBe("5");
     expect(await busy.json()).toEqual({ error: "gpu_busy", retry_after_seconds: 5 });
     expect(t.gpuFetcher).toHaveBeenCalledTimes(1);
-    const after = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+    const after = await infer(t, device);
     expect([after.status, await after.json()]).toMatchObject([429, { error: "quota_exceeded", scope: "user" }]);
     expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(3603);
   });
 
-  it("holds time for other users' requests in flight against the global cap", async () => {
+  it("holds 300 s per inference in flight, the admitted one included, against the global cap", async () => {
     let open!: () => void;
     const gate = new Promise<void>((resolve) => { open = resolve; });
-    const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "300" }, async () => { await gate; return new Response("{}", { status: 200 }); });
+    const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "400" }, async () => { await gate; return new Response("{}", { status: 200 }); });
     await t.auth.allow(USER, t.time.now);
     await t.auth.allow("second@example.org", t.time.now);
     const first = await t.login(USER);
     const second = await t.login("second@example.org");
-    const running = t.send("GET", "/v1/cellpose/health", undefined, t.bearer(first));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    const refused = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(second));
+    const running = infer(t, first);
+    await tick();
+    // 0 used + 300 (running) + 300 (this one) > 400.
+    const refused = await infer(t, second);
     expect([refused.status, await refused.json()]).toMatchObject([429, { error: "quota_exceeded", scope: "global" }]);
     open();
     expect((await running).status).toBe(200);
-    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(second))).status).toBe(200);
+    expect((await infer(t, second)).status).toBe(200);
     expect(t.gpuFetcher).toHaveBeenCalledTimes(2);
+    // An inference needs room for its own hold: 300 s left of a 300 s cap is enough, less is not.
+    const tight = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "300" });
+    await tight.auth.allow(USER, tight.time.now);
+    const device = await tight.login(USER);
+    expect((await infer(tight, device)).status).toBe(200);
+    expect((await infer(tight, device)).status).toBe(429);
+  });
+
+  it("does not take a slot for health checks and bounds them by a deadline", async () => {
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const t = await setup(BASE_ENV, async (url, init) => {
+      if (url.endsWith("/health")) return waitForAbort(init);
+      await gate;
+      return new Response(new Uint8Array([9]), { status: 200 });
+    });
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    const running = infer(t, device);
+    await tick();
+    // A probe during inference (or a cold start) neither waits for nor blocks the slot.
+    const call = (request: Request) => handle(request, BASE_ENV, t.store, {
+      auth: t.auth, mailer: t.mailer, now: () => t.time.now, clock: () => t.time.wall, gpuFetcher: t.gpuFetcher, healthTimeoutMs: 200,
+    });
+    const probing = call(new Request(`${ORIGIN}/v1/cellpose/health`, { headers: t.bearer(device) }));
+    await tick();
+    t.time.wall += 25_000;
+    const probe = await probing;
+    expect([probe.status, probe.headers.get("retry-after"), await probe.json()]).toEqual([503, "5", { error: "gpu_starting", retry_after_seconds: 5 }]);
+    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(25);
+    open();
+    expect((await running).status).toBe(200);
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 0 });
+  });
+
+  it("aborts the upstream call when the client disconnects and releases the slot at once", async () => {
+    const t = await setup(BASE_ENV, async (_url, init) => waitForAbort(init));
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    const client = new AbortController();
+    const pending = infer(t, device, client.signal);
+    await tick();
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 1 });
+    t.time.wall += 7_000;
+    client.abort();
+    expect((await pending).status).toBe(502);
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 0 });
+    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(7);
+    const forwarded = t.gpuCalls[0].init.signal!;
+    expect(forwarded.aborted).toBe(true);
   });
 
   it("releases the slot when the upstream fails and takes over a stale slot", async () => {
     let failing = true;
     const t = await setup(BASE_ENV, async () => {
       if (failing) throw new TypeError("network");
-      return new Response("{}", { status: 200 });
+      return new Response(new Uint8Array([9]), { status: 200 });
     });
     await t.auth.allow(USER, t.time.now);
     const device = await t.login(USER);
-    expect(await (await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).json()).toEqual({ error: "gpu_upstream_unreachable" });
+    expect(await (await infer(t, device)).json()).toEqual({ error: "gpu_upstream_unreachable" });
     failing = false;
-    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+    expect((await infer(t, device)).status).toBe(200);
     // A Worker stopped mid-request leaves its slot; it stops blocking after 35 minutes.
     await t.db.prepare("INSERT INTO gpu_slots (email, started_at) VALUES (?, ?)").bind(USER, t.time.now - 34 * 60_000).run();
-    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(503);
+    expect((await infer(t, device)).status).toBe(503);
     t.time.now += 2 * 60_000;
-    expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+    expect((await infer(t, device)).status).toBe(200);
   });
 });
 

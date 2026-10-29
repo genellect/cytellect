@@ -66,7 +66,9 @@ Replace the two uppercase IDs with confirmed identifiers, never credentials.
 The generator refuses to overwrite `wrangler.disabled.json`; inspect an existing
 file rather than silently replacing it. Check `account_id`, Worker name, D1 ID,
 `MONTHLY_BUDGET_USD="0"`, `DEVICE_MONTHLY_REQUESTS="0"`, empty tariffs, empty
-`OWNER_EMAIL` and `MAIL_FROM`, `GPU_MONTHLY_SECONDS="0"` and disabled observability. No scheduled jobs, analytics sinks or research-data storage are added.
+`OWNER_EMAIL` and `MAIL_FROM`, `GPU_MONTHLY_SECONDS="0"`,
+`compatibility_flags = ["enable_request_signal"]` (the GPU gateway relies on it to
+release a disconnected client's slot) and disabled observability. No scheduled jobs, analytics sinks or research-data storage are added.
 
 All of `0001_init.sql`, `0002_usage_integrity.sql`,
 `0003_budget_reconciliation.sql` and `0004_cloud_access.sql` must be applied before
@@ -158,9 +160,12 @@ Owner operations, all on `https://<worker origin>/admin`:
   Invitation tokens are not bound to a user and keep working for proposals while
   `LEGACY_INVITATIONS` is on: for a hard stop, deploy `LEGACY_INVITATIONS="false"`
   (or set `revoked_at` on the device record in D1).
-- **Locked out**: 20 wrong codes within a day lock an address for 24 hours (also
-  the owner's admin login). Wait, or rotate `ADMIN_SIGNING_KEY`, which also voids
-  pending codes and approval links.
+- **Locked out**: 20 wrong codes within a day lock an address for 24 hours, and
+  10 code requests use up an address's codes until that day's window ends. Anyone
+  who knows an address can do either, also to the owner's admin login. Wait, or
+  rotate `ADMIN_SIGNING_KEY` (`pnpm cf secret put ADMIN_SIGNING_KEY`), which clears
+  every lock and counter and also voids pending codes and approval links. Device
+  tokens and admin sessions stay valid.
 - **Limits**: set per-user GPU seconds and proposal USD; blank uses the defaults.
 
 Before enabling, check without paid calls: `/v1/auth/code` for an unlisted

@@ -140,6 +140,8 @@ export interface HandleOptions {
   clock?: () => number;
   /** ExecutionContext.waitUntil in Workers. */
   waitUntil?: (promise: Promise<unknown>) => void;
+  /** GPU health-check deadline (tests shorten it). */
+  healthTimeoutMs?: number;
 }
 
 const legacyInvitations = (env: Env) => env.LEGACY_INVITATIONS !== "false";
@@ -151,7 +153,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
   if (isCloudPath(url.pathname)) {
     if (!auth) return json(503, { error: "auth_unavailable" });
     return handleCloud(request, {
-      env, auth, now, clock: options.clock ?? Date.now, waitUntil: options.waitUntil, gpuFetcher: options.gpuFetcher ?? ((input, init) => fetch(input, init)),
+      env, auth, now, clock: options.clock ?? Date.now, waitUntil: options.waitUntil, healthTimeoutMs: options.healthTimeoutMs, gpuFetcher: options.gpuFetcher ?? ((input, init) => fetch(input, init)),
       mailer: "mailer" in options ? options.mailer ?? null : configuredMailer(env),
     });
   }
