@@ -12,7 +12,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
 | 開発環境 | 研究室の PC と同じ構成を Linux で起動し、公開画像で試せる（`scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#ローカル開発)）。共有する開発環境では、登録済みの公開画像だけを受け付けられる（`CYTELLECT_UPLOAD_ALLOWLIST`、[データ保護](security.md#shared-development-environments)）。共有の起動と研究者による評価の計画は[実装計画（案）](drafts/cloud-development/plan.md)にある |
 | CI とマージ | PR では変更したファイルに関係するジョブだけを実行し、最新の `main` を取り込んだ head で成功してからマージする（[CI の構成](ci.md)）。Windows のテスト一式は 4 つに分けて並列に実行する。次の段階は、公開デモのホイールをデプロイの中で作ること（PR の競合をなくす）、`fiji-browser` の分割、必須チェックの 1 つへの集約（`ci-required`） |
-| 核小体検出 | NCL の protocol 4.3.0。親核による条件付けと境界補正を組み合わせる。核小体用に追加学習した `ncl-r1-step0750`・`ncl-r1-step0375` を Hugging Face で公開。[計算仕様](methods.md)、[モデルの構成と受入記録](segmentation-models.ja.md) |
+| 核小体検出 | NCL の protocol 4.3.0（公式の `cpsam_v2` に、親核による条件付けと境界補正を組み合わせる）。核小体用に追加学習した `ncl-r1-step0750`・`ncl-r1-step0375` は Hugging Face で公開済みで、製品にはまだ組み込んでいない。[計算仕様](methods.md)、[モデルの構成と受入記録](segmentation-models.ja.md) |
 
 ## 今後の計画
 
