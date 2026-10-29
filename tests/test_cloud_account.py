@@ -512,6 +512,21 @@ def test_warm_up_says_the_gpu_is_busy_while_it_waits(tmp_path, cloud):
     assert seen == [{"state": "starting", "busy": True}] and account.gpu() == {"state": "ready"}
 
 
+def test_warm_up_keeps_waiting_while_the_gateway_reports_the_gpu_starting(tmp_path, cloud):
+    from cytellect_api import cloud_account
+
+    assert cloud_account.HEALTH_TIMEOUT_SECONDS > 25  # The gateway holds a health request up to 25 s.
+    client, app, _ = local(tmp_path)
+    signed_in(client, cloud)
+    seen: list[dict] = []
+    account = CloudAccount(app.state.cloud_account.store.root, sleep=lambda _seconds: seen.append(account.gpu()))
+    starting = (503, {"error": "gpu_starting", "retry_after_seconds": 5})
+    cloud.health = [starting, starting, (200, {"status": "ok"})]
+    account.start_gpu()
+    account._gpu_thread.join(5)
+    assert seen == [{"state": "starting"}, {"state": "starting"}] and account.gpu() == {"state": "ready"}
+
+
 def test_too_many_codes_or_wrong_codes_wait_up_to_a_day(tmp_path, cloud):
     client, _, _ = local(tmp_path)
     client.post("/v1/account/code", json={"email": ALLOWED}, headers=HEADERS)

@@ -39,6 +39,9 @@ REQUEST_TIMEOUT_SECONDS = 15
 # The GPU starts from zero in about a minute; allocation can take longer.
 WARM_UP_SECONDS = 600
 WARM_UP_REUSE_SECONDS = 60
+# The cloud gateway holds a health request up to 25 s while the GPU starts, then
+# answers 503 gpu_starting; wait longer than that for one answer.
+HEALTH_TIMEOUT_SECONDS = 40
 EMAIL = re.compile(r"[^@\s]{1,64}@[^@\s.][^@\s]{0,251}\.[^@\s.]{2,63}")
 TOKEN = re.compile(r"[A-Za-z0-9._~+/=-]{20,512}")
 CODE = re.compile(r"[0-9]{6}")
@@ -436,7 +439,7 @@ class CloudAccount:
         while True:
             request = urllib.request.Request(url, method="GET", headers={"User-Agent": "Cytellect/0.1", **headers})
             try:
-                with _OPENER.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+                with _OPENER.open(request, timeout=HEALTH_TIMEOUT_SECONDS) as response:
                     response.read(4096)
                 state = {"state": "ready"}
                 break
