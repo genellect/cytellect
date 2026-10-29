@@ -493,6 +493,37 @@ def test_warm_up_reports_a_global_quota_and_a_disabled_service(tmp_path, cloud):
     assert account.gpu() == {"state": "disabled"}
 
 
+def test_a_busy_gpu_is_waited_on_like_a_starting_one(cloud_gpu, tmp_path, monkeypatch):
+    path = account_file(tmp_path / ACCOUNT_FILE, cloud_gpu["url"], token=cloud_gpu["token"])
+    monkeypatch.setenv("CYTELLECT_CLOUD_ACCOUNT_FILE", str(path))
+    cloud_gpu["replies"] = [(503, "gpu_busy"), (503, "gpu_busy")]
+    labels, _ = detect_cellpose(image(), CellposeDetectorSpec(), tmp_path / "attempt")
+    assert int(labels.max()) == 1 and len(cloud_gpu["paths"]) == 3
+
+
+def test_warm_up_says_the_gpu_is_busy_while_it_waits(tmp_path, cloud):
+    client, app, _ = local(tmp_path)
+    signed_in(client, cloud)
+    seen: list[dict] = []
+    account = CloudAccount(app.state.cloud_account.store.root, sleep=lambda _seconds: seen.append(account.gpu()))
+    cloud.health = [(503, {"error": "gpu_busy"}), (200, {"status": "ok"})]
+    account.start_gpu()
+    account._gpu_thread.join(5)
+    assert seen == [{"state": "starting", "busy": True}] and account.gpu() == {"state": "ready"}
+
+
+def test_too_many_codes_or_wrong_codes_wait_up_to_a_day(tmp_path, cloud):
+    client, _, _ = local(tmp_path)
+    client.post("/v1/account/code", json={"email": ALLOWED}, headers=HEADERS)
+    cloud.verify_reply = (429, {"error": "rate_limited", "retry_after_seconds": 20 * 3600})
+    limited = client.post("/v1/account/verify", json={"code": "123456"}, headers=HEADERS)
+    assert limited.status_code == 429 and limited.json() == {"detail": "account_rate_limited", "retry_after_seconds": 72000}
+    cloud.code_reply = (429, {"error": "rate_limited", "retry_after_seconds": 86400})
+    assert client.post("/v1/account/code", json={"email": ALLOWED}, headers=HEADERS).json() == {
+        "detail": "account_rate_limited", "retry_after_seconds": 86400}
+    assert client.get("/v1/workspaces").status_code == 200
+
+
 def test_launcher_names_the_account_file_for_the_worker(tmp_path, monkeypatch):
     captured = {}
 

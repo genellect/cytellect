@@ -342,6 +342,10 @@ class CloudAccount:
                                  "device_token": token, "expires_at": expires})
             return {"state": "allowed", "email": email.strip().lower()}
         error = body.get("error")
+        if status == 429:
+            # Too many wrong codes or sent codes; the wait can be up to a day.
+            retry = _number(body.get("retry_after_seconds"))
+            raise AccountError(429, "account_rate_limited", retry_after_seconds=int(retry) if retry is not None else 60)
         if status == 400 and error == "code_invalid":
             left = body.get("attempts_left")
             left = left if isinstance(left, int) and not isinstance(left, bool) and 0 <= left <= 100 else None
@@ -454,6 +458,10 @@ class CloudAccount:
                 if error.code == 502 and body.get("error") == "gpu_upstream_invalid":
                     state = {"state": "failed"}
                     break
+                # Another detection of this user holds the GPU: keep waiting, and say so.
+                busy = error.code == 503 and body.get("error") == "gpu_busy"
+                with self.lock:
+                    self._gpu = {"state": "starting", "busy": True} if busy else {"state": "starting"}
                 if error.code == 401:
                     state = {"state": "auth_required"}
                     break

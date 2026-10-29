@@ -16,7 +16,7 @@ export type Account = {
 };
 export type GpuState = {
   state: "idle" | "unconfigured" | "starting" | "ready" | "timeout" | "quota_exceeded" | "revoked" | "rejected" | "auth_required" | "offline" | "disabled" | "failed";
-  resets_at?: string; scope?: "user" | "global";
+  resets_at?: string; scope?: "user" | "global"; busy?: boolean;
 };
 export type UpdateInfo = {available: boolean; latest?: string};
 
@@ -131,10 +131,17 @@ const accountMessages: Record<string, string> = {
   local_api_unreachable: "Cytellect に接続できません。起動・停止の画面が開いているか確認してください。",
 };
 
+/** "約 N 秒後"／"約 N 分後"／"約 N 時間後" for a wait of up to a day. */
+export function waitText(seconds: number): string {
+  if (seconds < 120) return `約 ${Math.max(1, Math.ceil(seconds))} 秒後`;
+  if (seconds < 3600) return `約 ${Math.ceil(seconds / 60)} 分後`;
+  return `約 ${Math.ceil(seconds / 3600)} 時間後`;
+}
+
 /** The researcher-facing sentence; the code itself is shown only under 詳細. */
 export function accountErrorText(error: unknown): string {
   if (!(error instanceof AccountRequestError)) return accountMessages.local_api_unreachable;
-  if (error.code === "account_rate_limited") return `送信が続いたため、${error.retryAfterSeconds ?? 60} 秒ほど待ってからもう一度試してください。`;
+  if (error.code === "account_rate_limited") return `しばらくしてからもう一度試してください（${waitText(error.retryAfterSeconds ?? 60)}）。このPCでの解析は続けて使えます。`;
   if (error.code === "account_code_invalid") return error.attemptsLeft === null || error.attemptsLeft === undefined
     ? "コードが一致しません。メールの 6 桁の数字を確かめてください。"
     : `コードが一致しません。あと ${error.attemptsLeft} 回入力できます。`;
@@ -147,7 +154,8 @@ export type Notice = {text: string; action?: {kind: "retry" | "login"; label: st
 /** What the GPU is doing and what to press next. Null when there is nothing to say. */
 export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): Notice | null {
   switch (gpu?.state) {
-    case "starting": return {text: "GPU を起動しています。止まっていた場合は 1〜数分かかります。", tone: "progress"};
+    case "starting": return gpu.busy ? {text: "GPU を準備しています。前の検出が終わると始まります。", tone: "progress"}
+      : {text: "GPU を起動しています。止まっていた場合は 1〜数分かかります。", tone: "progress"};
     case "ready": return {text: "GPU の準備ができました。", tone: "ready"};
     case "timeout": return {text: "GPU の起動が時間内に終わりませんでした。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
     case "quota_exceeded": {
@@ -168,7 +176,8 @@ export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): 
 /** The header's phase while a Cellpose detection runs. */
 export function inferencePhase(gpu: GpuState | null | undefined, running: boolean): string | null {
   if (!running) return null;
-  return gpu?.state === "starting" ? "GPU を起動しています" : "検出しています";
+  if (gpu?.state === "starting") return gpu.busy ? "GPU を準備しています" : "GPU を起動しています";
+  return "検出しています";
 }
 
 /** The top banner while an access request waits for the owner. */

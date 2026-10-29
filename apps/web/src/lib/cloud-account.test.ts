@@ -34,6 +34,8 @@ describe("cloud account display", () => {
     expect(gpuNotice({state: "starting"})!.text).toContain("GPU を起動しています");
     expect(inferencePhase({state: "starting"}, true)).toBe("GPU を起動しています");
     expect(inferencePhase({state: "ready"}, true)).toBe("検出しています");
+    expect(inferencePhase({state: "starting", busy: true}, true)).toBe("GPU を準備しています");
+    expect(gpuNotice({state: "starting", busy: true})!.text).toContain("GPU を準備しています");
     expect(inferencePhase({state: "ready"}, false)).toBeNull();
     expect(gpuNotice({state: "quota_exceeded", resets_at: "2026-11-01T00:00:00Z"}, "UTC")!.text).toContain("11月1日から再び使えます");
     expect(gpuNotice({state: "quota_exceeded", scope: "global"})!.text).toContain("クラウド GPU 全体");
@@ -45,7 +47,9 @@ describe("cloud account display", () => {
   });
   it("keeps error codes out of the sentence", () => {
     expect(accountErrorText(new AccountRequestError("account_code_invalid", 400, undefined, 3))).toBe("コードが一致しません。あと 3 回入力できます。");
-    expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 42))).toContain("42 秒");
+    expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 42))).toContain("約 42 秒後");
+    expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 20 * 3600))).toBe("しばらくしてからもう一度試してください（約 20 時間後）。このPCでの解析は続けて使えます。");
+    expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 600))).toContain("約 10 分後");
     expect(accountErrorText(new AccountRequestError("account_mail_failed", 502))).toBe("メールを送れませんでした。時間をおいてもう一度試してください。");
     expect(accountErrorText(new AccountRequestError("unexpected_code", 500))).not.toContain("unexpected_code");
     expect(accountErrorText(new Error("network"))).toContain("Cytellect に接続できません");
