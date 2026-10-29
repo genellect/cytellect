@@ -154,4 +154,15 @@ StarDist で検出した核を親として、核小体・細胞質を Cellpose-S
 
 ## ライセンス
 
-コードは Apache License 2.0 で OSS として公開している。Fiji、モデルの重み、データセットには、それぞれのライセンスが適用される。
+コードは [Apache License 2.0](LICENSE) で OSS として公開している。第三者のコンポーネントには、それぞれのライセンスが適用される。
+
+| 対象 | ライセンス | 扱い |
+|---|---|---|
+| Fiji | GPL-3.0（Bio-Formats は GPL、MorphoLibJ は LGPL-3.0） | 同梱しない。導入時に公式の配布元から取得し、別プロセスとして実行する |
+| Cellpose の依存（fastremap、fill-voids） | LGPL-3.0 | 改変せずに利用する |
+| 学習済みモデル（StarDist、Cellpose-SAM の `cpsam_v2`） | BSD-3-Clause（StarDist はモデルのリポジトリ、`cpsam_v2` はモデルカードで宣言） | 導入時に公式の配布元から取得し、SHA-256 を照合する |
+| 追加学習した重み | BSD-3-Clause | Cellpose の著作権表示と改変した旨を添えて、[Hugging Face](https://huggingface.co/Genellect/Cytellect) で公開する |
+| 公開画像 | CC0-1.0（BBBC007、BBBC039、JUMP）、CC BY 3.0（BBBC013）、4DN の公開データ利用方針 | 出典を記録する。4DN の原画像は再配布しない |
+| LP の写真、図中のロゴ | Pexels・Unsplash の各ライセンス、各社の商標 | ロゴはソフトウェアの識別にだけ使う |
+
+依存パッケージのライセンスは CI が SBOM として記録する。モデルごとのソフトウェア・重み・学習データの記録は[第三者ソフトウェアと重み](docs/oss.md)にある。
