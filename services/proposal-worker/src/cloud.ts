@@ -178,13 +178,18 @@ async function currentUser(ctx: CloudContext, cfg: AuthConfig, email: string): P
   return ctx.auth.user(email);
 }
 
+/** 429 during the 60-second resend interval, checked before any counter is consumed. */
+async function resendWait(ctx: CloudContext, email: string, purpose: CodePurpose) {
+  const existing = await ctx.auth.code(email, purpose);
+  if (!existing || ctx.now - existing.sent_at >= AUTH.codeResend) return null;
+  return fail(429, "rate_limited", { retry_after_seconds: Math.ceil((existing.sent_at + AUTH.codeResend - ctx.now) / SECOND) });
+}
+
 async function sendCode(ctx: CloudContext, cfg: AuthConfig, email: string, purpose: CodePurpose): Promise<Response | null> {
   const locked = await lockedOut(ctx, cfg, email, purpose);
   if (locked) return locked;
-  const existing = await ctx.auth.code(email, purpose);
-  if (existing && ctx.now - existing.sent_at < AUTH.codeResend) {
-    return fail(429, "rate_limited", { retry_after_seconds: Math.ceil((existing.sent_at + AUTH.codeResend - ctx.now) / SECOND) });
-  }
+  const waiting = await resendWait(ctx, email, purpose);
+  if (waiting) return waiting;
   if (!ctx.mailer) return fail(503, "mail_unavailable");
   // Per recipient, whatever the requesting IP: bounds codes, guesses and mail volume.
   const capped = purpose === "admin"
@@ -316,6 +321,9 @@ const stateName = (state: UserState | undefined) =>
 async function authCode(request: Request, ctx: CloudContext, cfg: AuthConfig, origin: string) {
   const email = normalizeEmail((await readObject(request, AUTH.bodyBytes))?.email);
   if (!email) return fail(400, "email_invalid");
+  // A request during the resend interval is answered without using up the hourly limits.
+  const waiting = await resendWait(ctx, email, "device");
+  if (waiting) return waiting;
   const blocked = await limited(ctx, cfg, RATE.codeIp, clientIp(request)) ?? await limited(ctx, cfg, RATE.codeEmail, email);
   if (blocked) return blocked;
   await ctx.auth.pruneRateLimits(ctx.now - 2 * DAY);
@@ -600,6 +608,8 @@ async function admin(request: Request, url: URL, ctx: CloudContext, cfg: AuthCon
     const body = await readObject(request, AUTH.bodyBytes);
     const email = normalizeEmail(body?.email);
     if (!email) return fail(400, "email_invalid");
+    const waiting = email === cfg.owner ? await resendWait(ctx, email, "admin") : null;
+    if (waiting) return waiting;
     const blocked = await limited(ctx, cfg, RATE.adminIp, clientIp(request));
     if (blocked) return blocked;
     // Same answer for every address; a code is sent to the owner only.

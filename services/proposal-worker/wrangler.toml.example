@@ -3,7 +3,8 @@
 # RESEND_API_KEY / ADMIN_SIGNING_KEY / MODAL_URL / MODAL_PROXY_TOKEN
 name = "cytellect-proposal"
 main = "src/index.ts"
-compatibility_date = "2026-10-01"
+# Not newer than the pinned Wrangler's runtime supports, so `wrangler dev` starts.
+compatibility_date = "2026-09-25"
 # request.signal aborts on client disconnect: the GPU gateway then releases the
 # user's slot and records the elapsed time at once.
 compatibility_flags = ["enable_request_signal"]

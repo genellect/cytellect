@@ -410,7 +410,7 @@ describe("GPU gateway", () => {
   });
 
   it("stops at the user's monthly limit and at the global monthly cap", async () => {
-    const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "20" });
+    const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "320" });
     await t.auth.allow(USER, t.time.now);
     await t.auth.allow("second@example.org", t.time.now);
     const device = await t.login(USER);
@@ -756,4 +756,44 @@ it("rate-limits request-state checks per IPv6 /64", async () => {
   const limited = await check("2001:db8:9:9:ffff::2");
   expect([limited.status, (await limited.json() as { error: string }).error]).toEqual([429, "rate_limited"]);
   expect((await check("2001:db8:9:a::1")).status).toBe(200);
+});
+
+it("answers requests during the resend interval without using up the hourly limits", async () => {
+  const t = await setup();
+  await t.auth.allow(USER, t.time.now);
+  expect((await t.send("POST", "/v1/auth/code", { email: USER })).status).toBe(200);
+  for (let index = 0; index < 10; index += 1) {
+    t.time.now += 5_000;
+    const waiting = await t.send("POST", "/v1/auth/code", { email: USER });
+    expect(waiting.status).toBe(429);
+    expect(await waiting.json()).toMatchObject({ error: "rate_limited" });
+  }
+  t.time.now += 11_000;
+  // Six per hour per address: the ten waiting requests above were not counted.
+  expect((await t.send("POST", "/v1/auth/code", { email: USER })).status).toBe(200);
+  expect(t.mailer.to(USER)).toHaveLength(2);
+  expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { origin: ORIGIN })).status).toBe(200);
+  for (let index = 0; index < 12; index += 1) {
+    expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { origin: ORIGIN })).status).toBe(429);
+  }
+  t.time.now += 61_000;
+  // Ten per hour per IP for admin codes: still available.
+  expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { origin: ORIGIN })).status).toBe(200);
+});
+
+it("refuses a health check with the inference's global 429 when one more inference would not fit", async () => {
+  const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "400" });
+  await t.auth.allow(USER, t.time.now);
+  const device = await t.login(USER);
+  await t.auth.addGpuSeconds("other@example.org", "2026-10", 150);
+  const health = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+  expect([health.status, await health.json()]).toEqual([429, { error: "quota_exceeded", resets_at: "2026-11-01T00:00:00.000Z", scope: "global" }]);
+  const payload = new Uint8Array([1]);
+  const inference = await t.call(new Request(`${ORIGIN}/v1/cellpose/v1/cellpose`, {
+    method: "POST", body: payload, headers: { ...t.bearer(device), "content-length": "1" },
+  }));
+  expect([inference.status, (await inference.json() as { scope: string }).scope]).toEqual([429, "global"]);
+  t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "450" });
+  expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+  expect(t.gpuFetcher).toHaveBeenCalledTimes(1);
 });

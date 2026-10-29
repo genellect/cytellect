@@ -274,16 +274,18 @@ export class D1AuthStore {
   }
 
   /**
-   * Read-only admission for short requests that take no slot (health checks): user
-   * time left, and global time left after `holdSeconds` per request in flight.
+   * Read-only admission for health checks, which take no slot. It applies the
+   * inference rule, so a health check succeeds only when an inference by this user
+   * would also fit: user time left, and global time for `holdSeconds` per other
+   * user's inference in flight plus one more.
    */
   async gpuQuota(email: string, month: string, staleBefore: number, userLimit: number, globalCap: number, holdSeconds: number) {
     if ((await this.usage(email, month)).gpu_seconds >= userLimit) return "user" as const;
     const row = await this.db.prepare(
       "SELECT COALESCE((SELECT SUM(gpu_seconds) FROM user_usage WHERE month = ?), 0) + "
-      + "? * (SELECT COUNT(*) FROM gpu_slots WHERE started_at > ?) AS held",
-    ).bind(month, holdSeconds, staleBefore).first<{ held: number }>();
-    return (row?.held ?? Number.MAX_SAFE_INTEGER) < globalCap ? "ok" as const : "global" as const;
+      + "? * ((SELECT COUNT(*) FROM gpu_slots WHERE email <> ? AND started_at > ?) + 1) AS held",
+    ).bind(month, holdSeconds, email, staleBefore).first<{ held: number }>();
+    return (row?.held ?? Number.MAX_SAFE_INTEGER) <= globalCap ? "ok" as const : "global" as const;
   }
 
   async releaseGpuSlot(email: string, startedAt: number) {
