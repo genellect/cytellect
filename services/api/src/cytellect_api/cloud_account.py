@@ -412,15 +412,13 @@ class CloudAccount:
         if status == 400 and error == "code_invalid":
             left = body.get("attempts_left")
             left = left if isinstance(left, int) and not isinstance(left, bool) and 0 <= left <= 100 else None
-            with self.lock:
-                self.store.save({**{k: v for k, v in record.items() if k != "schema"}, "attempts_left": left})
+            self._record_attempts(record, left)
             raise AccountError(400, "account_code_invalid", attempts_left=left)
         if status == 400 and error == "code_expired":
             raise AccountError(400, "account_code_expired")
         if status == 400 and error == "too_many_attempts":
             # No attempts remain for this code; the view must not offer another.
-            with self.lock:
-                self.store.save({**{k: v for k, v in record.items() if k != "schema"}, "attempts_left": 0})
+            self._record_attempts(record, 0)
             raise AccountError(400, "account_code_attempts_exhausted")
         if status == 403 and error == "revoked":
             with self.lock:
@@ -432,6 +430,18 @@ class CloudAccount:
                                  "requested_at": self.clock()})
             return {"state": "pending_approval", "email": record["email"], "requested_at": self.clock()}
         raise _service_failure(status, body)
+
+    def _record_attempts(self, record: dict, left: int | None) -> None:
+        """Store the remaining attempts only on the same sent code.
+
+        A logout or a new code during the request replaces the record; the late
+        answer about the old code must not bring it back.
+        """
+        with self.lock:
+            current = self.store.load()
+            if (current.get("state") == "code_sent" and current.get("email") == record.get("email")
+                    and current.get("sent_at") == record.get("sent_at")):
+                self.store.save({**{k: v for k, v in current.items() if k != "schema"}, "attempts_left": left})
 
     def logout(self) -> dict:
         record = self.store.load()

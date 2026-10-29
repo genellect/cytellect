@@ -8,7 +8,8 @@ import {createContext, useCallback, useContext, useEffect, useId, useRef, useSta
 import {
   AccountRequestError, accountApi, accountErrorText, accountLabel, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
   followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
-  UPDATE_JOBS_RUNNING, UPDATE_JOBS_RUNNING_TEXT, UPDATE_SEEN_KEY, UPDATE_SETTLED, UPDATE_TIMEOUT_TEXT,
+  UPDATE_IN_PROGRESS, UPDATE_JOBS_RUNNING, UPDATE_JOBS_RUNNING_TEXT, UPDATE_NOT_AVAILABLE, UPDATE_REMEMBERED, UPDATE_SEEN_KEY, UPDATE_SETTLED,
+  UPDATE_TIMEOUT_TEXT, UPDATE_UNSUPPORTED, updateSignature,
   GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
 import styles from "./cloud-account.module.css";
@@ -128,38 +129,6 @@ export function CloudNotices() {
   const cloud = useCloudAccount();
   const [collapsed, setCollapsed] = useState(false);
   const [continueError, setContinueError] = useState<unknown>(null);
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [following, setFollowing] = useState(false);
-  const [updateTimedOut, setUpdateTimedOut] = useState(false);
-  const [updateError, setUpdateError] = useState<unknown>(null);
-  const [updateHidden, setUpdateHidden] = useState(false);
-  const [updateWaitsForJobs, setUpdateWaitsForJobs] = useState(false);
-  const enabled = cloud !== null;
-  useEffect(() => {
-    if (!enabled) return;
-    let live = true;
-    void accountApi.update().then(value => {
-      if (!live || !value) return;
-      // A failed or rolled-back update from the last run is shown once, then remembered.
-      if (value.state === "failed" || value.state === "rolled_back") {
-        const signature = `${value.state}:${value.latest ?? ""}:${value.error ?? ""}`;
-        let seen = false;
-        try {seen = window.localStorage.getItem(UPDATE_SEEN_KEY) === signature; window.localStorage.setItem(UPDATE_SEEN_KEY, signature);} catch {}
-        if (seen) {setUpdate({...value, state: "idle", error: null}); return;}
-      }
-      setUpdate(value);
-      if (value.state && !UPDATE_SETTLED.has(value.state)) {
-        // An update already under way (the page was reopened): keep following it.
-        setFollowing(true);
-        void followUpdate(accountApi.update).then(result => {
-          if (!live) return;
-          setFollowing(false);
-          if (result === "timeout") setUpdateTimedOut(true); else setUpdate(result);
-        });
-      }
-    }).catch(() => {});
-    return () => {live = false;};
-  }, [enabled]);
   if (!cloud) return null;
   const pending = pendingNotice(cloud.account);
   const ended = accountNotice(cloud.account);
@@ -170,25 +139,6 @@ export function CloudNotices() {
     try {cloud.setAccount(await accountApi.sendCode(email)); cloud.openLogin();}
     catch (error) {setContinueError(error);}
   }
-  async function applyUpdate() {
-    setFollowing(true); setUpdateTimedOut(false); setUpdateError(null); setUpdateHidden(false); setUpdateWaitsForJobs(false);
-    try {
-      const started = await accountApi.applyUpdate();
-      if (started) setUpdate(started);
-      const result = started && UPDATE_SETTLED.has(started.state ?? "") && started.state !== "idle"
-        ? started : await followUpdate(accountApi.update);
-      if (result === "timeout") setUpdateTimedOut(true); else setUpdate(result);
-    } catch (error) {
-      // Analyses are running: not a failure; the button stays available for later.
-      if (error instanceof AccountRequestError && error.code === UPDATE_JOBS_RUNNING) setUpdateWaitsForJobs(true);
-      else {setUpdateError(error); setUpdate(current => current ? {...current, state: "failed"} : current);}
-    } finally {setFollowing(false);}
-  }
-  const offered = updateNotice(update, following);
-  const updateLine = updateTimedOut ? {text: UPDATE_TIMEOUT_TEXT, tone: "problem" as const}
-    : updateWaitsForJobs && offered ? {...offered, text: `${UPDATE_JOBS_RUNNING_TEXT}${offered.text}`} : offered;
-  const notesUrl = safeNotesUrl(update?.notes_url);
-  const updateDetail = updateLine && "error" in updateLine && updateLine.error ? updateLine.error : errorDetail(updateError);
   return <div className={styles.notices}>
     {/* The request stays visible at the top; it can be folded to one line, not dismissed. */}
     {pending && (pending.action || !collapsed) && <NoticeLine notice={pending} onAction={() => void continueLogin()}
@@ -201,18 +151,96 @@ export function CloudNotices() {
       <p>{accountErrorText(continueError)}</p><Details error={continueError}/>
     </div>}
     {ended && <NoticeLine notice={ended} onAction={cloud.openLogin}/>}
-    {updateLine && !updateHidden && <div className={styles.notice} data-tone={updateLine.tone} role={updateLine.tone === "problem" ? "alert" : "status"}>
-      <p>{updateLine.text}</p>
-      {notesUrl && updateLine.tone === "info" && <a className={styles.quiet} href={notesUrl} target="_blank" rel="noreferrer">変更内容</a>}
-      {"action" in updateLine && updateLine.action && !following && <button className={styles.primary} onClick={() => void applyUpdate()}>{updateLine.action.label}</button>}
-      {updateDetail && <details className={styles.details}><summary>詳細</summary><code>{updateDetail}</code></details>}
-      {(updateLine.tone === "problem" || updateLine.tone === "ready") && <button className={styles.quiet} onClick={() => setUpdateHidden(true)}>閉じる</button>}
-    </div>}
+    <UpdateBanner/>
     {cloud.intro === "local" && <div className={styles.notice} data-tone="info" role="status">
       <p>公開の練習画像（BBBC013）で、核の検出から図までを試せます。ZIP を展開し、画像をこの画面にドラッグしてください。</p>
       <a className={styles.secondary} href={PRACTICE_IMAGES_URL} rel="noreferrer">練習画像をダウンロード</a>
       <button className={styles.quiet} onClick={cloud.dismissIntro}>閉じる</button>
     </div>}
+  </div>;
+}
+
+/**
+ * 「更新があります」 and the state of an update (#155's /v1/app/update). After 「更新する」 the
+ * banner re-reads the state every 3 s until it settles (at most 20 min); a settled state that
+ * the installer keeps (updated, installed, failed, rolled_back) is shown once.
+ */
+function UpdateBanner() {
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [following, setFollowing] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [hidden, setHidden] = useState(false);
+  const [waitsForJobs, setWaitsForJobs] = useState(false);
+  const run = useRef<AbortController | null>(null);
+  const busy = useRef(false);
+  // A settled state the installer keeps is remembered once it has been shown, wherever it came from.
+  const show = useCallback((value: UpdateInfo | null) => {
+    if (value && UPDATE_REMEMBERED.has(value.state ?? "")) {
+      try {window.localStorage.setItem(UPDATE_SEEN_KEY, updateSignature(value));} catch {}
+    }
+    setUpdate(value);
+  }, []);
+  const live = useRef(true);
+  const follow = useCallback(async () => {
+    run.current?.abort();
+    const controller = new AbortController();
+    run.current = controller;
+    setFollowing(true);
+    const result = await followUpdate(accountApi.update, {signal: controller.signal});
+    if (result === "cancelled" || run.current !== controller || !live.current) return;
+    setFollowing(false);
+    if (result === "timeout") setTimedOut(true); else show(result);
+  }, [show]);
+  useEffect(() => {
+    live.current = true;
+    void accountApi.update().then(value => {
+      if (!live.current || !value) return;
+      if (UPDATE_REMEMBERED.has(value.state ?? "")) {
+        const signature = updateSignature(value);
+        let seen = false;
+        try {seen = window.localStorage.getItem(UPDATE_SEEN_KEY) === signature;} catch {}
+        if (seen) {setUpdate({...value, state: "idle", error: null}); return;}
+      }
+      show(value);
+      // An update already under way (the page was reopened): keep following it.
+      if (value.state && !UPDATE_SETTLED.has(value.state)) void follow();
+    }).catch(() => {});
+    return () => {live.current = false; run.current?.abort();};
+  }, [follow, show]);
+  async function applyUpdate() {
+    if (busy.current) return; // A second press while one is being sent does nothing.
+    busy.current = true;
+    setFollowing(true); setTimedOut(false); setError(null); setHidden(false); setWaitsForJobs(false);
+    try {
+      const started = await accountApi.applyUpdate();
+      if (!live.current) return;
+      if (started) show(started);
+      if (started && UPDATE_SETTLED.has(started.state ?? "") && started.state !== "idle") setFollowing(false);
+      else await follow();
+    } catch (failure) {
+      if (!live.current) return;
+      const code = failure instanceof AccountRequestError ? failure.code : "";
+      if (code === UPDATE_IN_PROGRESS) {await follow(); return;} // Started from another tab: follow that one.
+      setFollowing(false);
+      if (code === UPDATE_JOBS_RUNNING) setWaitsForJobs(true); // Not a failure; the button stays available.
+      else if (code === UPDATE_NOT_AVAILABLE) {try {const current = await accountApi.update(); if (live.current) show(current);} catch {}}
+      else if (code === UPDATE_UNSUPPORTED) setHidden(true);
+      else {setError(failure); setUpdate(current => current ? {...current, state: "failed"} : current);}
+    } finally {busy.current = false;}
+  }
+  const offered = updateNotice(update, following);
+  const line = timedOut ? {text: UPDATE_TIMEOUT_TEXT, tone: "problem" as const}
+    : waitsForJobs && offered ? {...offered, text: `${UPDATE_JOBS_RUNNING_TEXT}${offered.text}`} : offered;
+  if (!line || hidden) return null;
+  const notesUrl = safeNotesUrl(update?.notes_url);
+  const detail = "error" in line && line.error ? line.error : errorDetail(error);
+  return <div className={styles.notice} data-tone={line.tone} role={line.tone === "problem" ? "alert" : "status"}>
+    <p>{line.text}</p>
+    {notesUrl && line.tone === "info" && <a className={styles.quiet} href={notesUrl} target="_blank" rel="noreferrer">変更内容</a>}
+    {"action" in line && line.action && !following && <button className={styles.primary} onClick={() => void applyUpdate()}>{line.action.label}</button>}
+    {detail && <details className={styles.details}><summary>詳細</summary><code>{detail}</code></details>}
+    {(line.tone === "problem" || line.tone === "ready") && <button className={styles.quiet} onClick={() => setHidden(true)}>閉じる</button>}
   </div>;
 }
 
@@ -310,6 +338,10 @@ function LoginDialog() {
     finally {setBusy(false);}
   }
   const wait = resendWait(cloud.resendAt, now);
+  // No attempts left on this code (also after reopening): offer only a new code.
+  const exhausted = (cloud.account?.state === "code_sent" && cloud.account.attempts_left === 0)
+    || (error instanceof AccountRequestError && (error.code === "account_code_attempts_exhausted"
+      || (error.code === "account_code_invalid" && error.attemptsLeft === 0)));
   const approved = step === "pending" && cloud.account?.state === "pending_approval" && !!cloud.account.approved;
   const invalidEmail = error instanceof Error && error.message === "format";
   return <div className={styles.backdrop} onMouseDown={event => {if (event.target === event.currentTarget) cloud.closeLogin();}}>
@@ -324,9 +356,11 @@ function LoginDialog() {
       </form>}
       {step === "code" && <form onSubmit={event => void submitCode(event)}>
         <p role="status">{email} にコードを送りました。</p>
+        {exhausted ? <p>このコードで入力できる回数を使い切りました。「コードを再送」を押して、新しいコードを受け取ってください。</p> : <>
         <label>6 桁のコード<input ref={first} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required/></label>
         <button className={styles.primary} disabled={busy || !plausibleCode(code)}>{busy ? "確認しています" : "ログイン"}</button>
+        </>}
         <p className={styles.small}>届かない場合は、迷惑メールのフォルダーを確認してください。コードの有効期限は 10 分です。</p>
         <div className={styles.row}>
           <button type="button" className={styles.secondary} disabled={busy || wait > 0} onClick={() => void requestCode(email)}>{wait > 0 ? `コードを再送（${wait} 秒後）` : "コードを再送"}</button>

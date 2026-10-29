@@ -730,3 +730,37 @@ def test_exhausted_attempts_leave_none_in_the_account_view(tmp_path, cloud):
     exhausted = client.post("/v1/account/verify", json={"code": "000000"}, headers=HEADERS)
     assert exhausted.json() == {"detail": "account_code_attempts_exhausted"}
     assert client.get("/v1/account").json()["attempts_left"] == 0
+
+
+def test_a_late_wrong_code_answer_does_not_restore_a_replaced_code(tmp_path, cloud, monkeypatch):
+    from cytellect_api import cloud_account
+
+    account = CloudAccount(tmp_path / "private")
+    account.send_code(ALLOWED)
+    original = cloud_account.call_cloud
+
+    def logout_meanwhile(method, url, **options):
+        reply = original(method, url, **options)
+        if url.endswith("/v1/auth/verify"):
+            account.logout()  # The researcher signs out while the code is being checked.
+        return reply
+
+    monkeypatch.setattr(cloud_account, "call_cloud", logout_meanwhile)
+    with pytest.raises(cloud_account.AccountError):
+        account.verify("000000")
+    assert account.store.load() == {}
+
+    monkeypatch.setattr(cloud_account, "call_cloud", original)
+    account.send_code(ALLOWED)
+    first = account.store.load()
+
+    def resend_meanwhile(method, url, **options):
+        reply = original(method, url, **options)
+        if url.endswith("/v1/auth/verify"):
+            account.store.save({**{k: v for k, v in first.items() if k != "schema"}, "sent_at": first["sent_at"] + 1})
+        return reply
+
+    monkeypatch.setattr(cloud_account, "call_cloud", resend_meanwhile)
+    with pytest.raises(cloud_account.AccountError):
+        account.verify("000000")
+    assert "attempts_left" not in account.store.load()

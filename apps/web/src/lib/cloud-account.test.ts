@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {
   AccountRequestError, accountErrorText, accountLabel, accountNotice, formatDate, gpuNotice, gpuQuotaReached, gpuQuotaText, inferencePhase,
-  followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
+  followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, updateSignature, usageText,
 } from "./cloud-account";
 
 afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules();});
@@ -71,9 +71,12 @@ describe("local account requests", () => {
   it("reads the update route's error field, such as a refusal while analyses run", async () => {
     vi.stubEnv("NEXT_PUBLIC_CYTELLECT_WEB_MODE", "local");
     vi.stubGlobal("window", {location: {hostname: "127.0.0.1"}});
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error: "update_jobs_running"}), {status: 409})));
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({detail: "update_jobs_running"}), {status: 409}))
+      .mockResolvedValueOnce(new Response(JSON.stringify({error: "update_in_progress"}), {status: 409})));
     const {accountApi} = await import("./cloud-account");
     await expect(accountApi.applyUpdate()).rejects.toMatchObject({code: "update_jobs_running", status: 409});
+    await expect(accountApi.applyUpdate()).rejects.toMatchObject({code: "update_in_progress", status: 409});
   });
   it("send the protected header, keep documented error fields and treat a missing update route as none", async () => {
     vi.stubEnv("NEXT_PUBLIC_CYTELLECT_WEB_MODE", "local");
@@ -115,12 +118,18 @@ describe("update banner", () => {
     expect(updateNotice({available: false, state: "unsupported"})).toBeNull();
     expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "installed"})!.text)
       .toBe("更新の準備ができました（0.1.0-local.22）。次に Cytellect を起動したときに新しい版になります。");
+    // Once the new version runs, an installed state left in the record says nothing.
+    expect(updateNotice({available: false, current: "0.1.0-local.22", latest: "0.1.0-local.22", state: "installed"})).toBeNull();
+    expect(updateSignature({available: false, current: "a", latest: "b", state: "updated", error: null})).toBe("updated:a:b:");
     expect(updateNotice({available: false, state: "idle"})).toBeNull();
     expect(updateNotice(null)).toBeNull();
   });
   it("links release notes only on this project's GitHub releases", () => {
     expect(safeNotesUrl("https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22")).toBe("https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22");
-    for (const value of ["https://github.com/genellect/cytellect/releases.evil/x", "http://github.com/genellect/cytellect/releases/x",
+    for (const value of ["https://github.com/genellect/cytellect/releases/download/v0.1.0-local.22/Cytellect-Setup.exe",
+      "https://github.com/genellect/cytellect/releases/tag/../download/v1/x.exe",
+      "https://github.com/genellect/cytellect/releases/tag/%2e%2e/download/v1/x.exe",
+      "https://github.com/genellect/cytellect/releases/tag/", "https://github.com/genellect/cytellect/releases/latest","https://github.com/genellect/cytellect/releases.evil/x", "http://github.com/genellect/cytellect/releases/x",
       "javascript:alert(1)", "https://example.com/https://github.com/genellect/cytellect/releases/", null, undefined])
       expect(safeNotesUrl(value)).toBeNull();
   });
@@ -142,5 +151,10 @@ describe("update banner", () => {
     clock = 0;
     const stuck = await followUpdate(async () => ({available: true, state: "installing"}), {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 5000});
     expect(stuck).toBe("timeout");
+    const controller = new AbortController();
+    const poll = vi.fn(async () => ({available: true, state: "installing" as const}));
+    const cancelled = followUpdate(poll, {sleep: async () => {controller.abort();}, pollMs: 1000, limitMs: 60_000, signal: controller.signal});
+    expect(await cancelled).toBe("cancelled");
+    expect(poll).not.toHaveBeenCalled();
   });
 });
