@@ -1,6 +1,6 @@
 # ドキュメント
 
-Cytellect の文書の一覧です。開発に参加する方は、まず「開発メンバーが最初に読む文書」から読んでください。英語で書かれた文書には「（英語）」と付けています。
+Cytellect の文書の一覧。利用者は「利用ガイド」から、開発に参加するメンバーは「開発メンバーが最初に読む文書」から読む。英語で書かれた文書には「（英語）」と付けている。
 
 ## 開発メンバーが最初に読む文書
 
@@ -9,15 +9,23 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 3. [開発の原則](development-principles.md)：人も AI エージェントも守る原則。作業に関係する節を必ず読む
 4. [CI の構成](ci.md)：PR と `main` で実行されるジョブ
 
-## 使う
+## 利用ガイド
 
-- [はじめての画像解析](quickstart.ja.md)
-- [Windows 版のインストールと更新](install-windows.ja.md)
-- [Docker Desktop で使う](docker-desktop.md)
-- [クラウド GPU で Cellpose を動かす](cloud-gpu.ja.md)
-- [CZI を定量用の TIFF に変換する](converting-czi.md)
-- [全視野の品質一覧](region-quality-overview.md)
-- [ローカル版のブラウザ配信](local.md)（英語）
+### 導入する
+
+| 文書 | 対象 | 内容 |
+|---|---|---|
+| [Windows 版のインストールと更新](install-windows.ja.md) | 研究者 | 配布版の導入・起動・更新・アンインストール |
+| [Docker Desktop で使う](docker-desktop.md) | 研究者・研究室の管理者 | ソースから Docker で起動・更新・データ保持 |
+| [クラウド GPU で Cellpose を動かす](cloud-gpu.ja.md) | 研究室の管理者 | Cellpose の推論をクラウド GPU で行う設定 |
+
+### 解析する
+
+| 文書 | 対象 | 内容 |
+|---|---|---|
+| [はじめての画像解析](quickstart.ja.md) | 研究者 | 公開画像を使った、登録から図の保存までの練習 |
+| [CZI をオフラインで定量用の TIFF に変換する](converting-czi.md) | 研究者 | Fiji で CZI を画素値を変えずに TIFF へ変換する |
+| [全視野の品質一覧](region-quality-overview.md) | 研究者 | 保存済みの診断を視野ごとに一覧する画面の読み方 |
 
 ## 計画
 
@@ -34,6 +42,7 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 ## 設計と実装
 
 - [実行環境と API](architecture.md)（英語）
+- [ローカル版のブラウザ配信](local.md)（英語）
 - [公開デモの仕組み](showcase.md)
 - [Web の画面](web.md)（英語）
 - [画面設計の方針](interface-design.md)（英語）
@@ -45,7 +54,7 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 
 ## 科学仕様
 
-計算の正本は[計算仕様](methods.md)（英語）です。
+計算の正本は[計算仕様](methods.md)（英語）。
 
 - [統計と書き出しの仕様](statistics.md)（英語）
 - [統計手法の説明文書](statistical-methods.md)（英語）
@@ -95,4 +104,4 @@ Cytellect の文書の一覧です。開発に参加する方は、まず「開�
 - [Windows 版 0.1.0-local.19 の受入記録](local-release-0.1.0-local.19.md)（英語）
 - [Windows 版 0.1.0-local.17 の受入記録](local-release-0.1.0-local.17.md)（英語）
 - [下書き](drafts/gfp-nuclear-signal)
-- [アーカイブ](archive/README.md)：MVP 期の経緯の記録。現在の作業指示ではありません
+- [アーカイブ](archive/README.md)：MVP 期の経緯の記録。現在の作業指示ではない
