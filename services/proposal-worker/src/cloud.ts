@@ -321,10 +321,13 @@ const stateName = (state: UserState | undefined) =>
 async function authCode(request: Request, ctx: CloudContext, cfg: AuthConfig, origin: string) {
   const email = normalizeEmail((await readObject(request, AUTH.bodyBytes))?.email);
   if (!email) return fail(400, "email_invalid");
-  // A request during the resend interval is answered without using up the hourly limits.
+  // Order: the IP limit counts every request, so the resend answer cannot be probed
+  // for free; a request during the resend interval does not use up the address's limit.
+  const blockedIp = await limited(ctx, cfg, RATE.codeIp, clientIp(request));
+  if (blockedIp) return blockedIp;
   const waiting = await resendWait(ctx, email, "device");
   if (waiting) return waiting;
-  const blocked = await limited(ctx, cfg, RATE.codeIp, clientIp(request)) ?? await limited(ctx, cfg, RATE.codeEmail, email);
+  const blocked = await limited(ctx, cfg, RATE.codeEmail, email);
   if (blocked) return blocked;
   await ctx.auth.pruneRateLimits(ctx.now - 2 * DAY);
   const user = await currentUser(ctx, cfg, email);
@@ -608,11 +611,12 @@ async function admin(request: Request, url: URL, ctx: CloudContext, cfg: AuthCon
     const body = await readObject(request, AUTH.bodyBytes);
     const email = normalizeEmail(body?.email);
     if (!email) return fail(400, "email_invalid");
-    const waiting = email === cfg.owner ? await resendWait(ctx, email, "admin") : null;
-    if (waiting) return waiting;
     const blocked = await limited(ctx, cfg, RATE.adminIp, clientIp(request));
     if (blocked) return blocked;
-    // Same answer for every address; a code is sent to the owner only.
+    // The same answer for every address, except that during the owner's resend
+    // interval the owner's address alone gets 429. A code is sent to the owner only.
+    const waiting = email === cfg.owner ? await resendWait(ctx, email, "admin") : null;
+    if (waiting) return waiting;
     const failed = email === cfg.owner ? await sendCode(ctx, cfg, email, "admin") : null;
     return failed ?? json(200, { state: "code_sent", retry_after_seconds: AUTH.codeResend / SECOND });
   }

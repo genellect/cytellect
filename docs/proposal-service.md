@@ -102,15 +102,18 @@ most one inference in flight; another from the same user gets 503
 client retries like a starting GPU. The user must have time left, and the global
 total plus 300 seconds for every inference in flight, the admitted one included,
 must not exceed `GPU_MONTHLY_SECONDS` (so an inference needs at least 300 seconds
-of the global cap left). A user can therefore exceed a personal limit by at most
-the one inference that started before it was reached, and the global cap is
-exceeded only by inferences running longer than 300 seconds.
+of the global cap left). Inferences therefore exceed a personal limit by at most
+the one that started before it was reached, and the global cap only when they run
+longer than 300 seconds. Health checks (below) hold no time, so many concurrent
+ones, at most 25 seconds each, can add to either overrun.
 
 A health check (`GET /v1/cellpose/health`) takes no slot, so it never blocks or
-waits for the user's inference. It applies the inference rule (user time left, and
-room for one more 300-second hold), so a health check that succeeds means an
-inference would be admitted; otherwise it returns the same 429 with `scope` and
-`resets_at`. It waits at most 25 seconds; during a
+waits for the user's inference. It checks the user and global limits in the same way
+as an inference (user time left, and room for one more 300-second hold) and,
+when they do not fit, returns the same 429 with `scope` and `resets_at`. A
+successful health check does not reserve anything: the user's own inference in
+flight (503 `gpu_busy`) or other requests admitted meanwhile can still refuse the
+next inference. It waits at most 25 seconds; during a
 longer cold start it returns 503 `{"error":"gpu_starting","retry_after_seconds":5}`
 and the client asks again. Its elapsed time is counted.
 
@@ -150,9 +153,9 @@ window.
 
 | Limit | Value |
 |---|---|
-| Code requests (`/v1/auth/code`) | 20 per hour per IP, 6 per hour per address, 60 s between codes (a request during those 60 s gets `retry_after_seconds` and does not count) |
+| Code requests (`/v1/auth/code`) | 20 per hour per IP; 6 per hour per address; 60 s between codes. A request during those 60 s gets `retry_after_seconds`: it counts against the IP but not against the address |
 | Device codes sent | 10 per day per address, whatever the requesting IP |
-| Admin codes sent to the owner | 5 per hour and 10 per day; 10 admin code requests per hour per IP |
+| Admin codes sent to the owner | 5 per hour and 10 per day; 10 admin code requests per hour per IP, counting requests during the owner's 60-second resend interval (those get `retry_after_seconds` and send nothing) |
 | Code checks | 30 per hour per IP (admin: 20); 5 wrong guesses void a code |
 | Wrong codes per address | 20 within a day lock that address for 24 hours (device and admin separately). The lock also voids the current code and stops new codes |
 | Access requests | 240 request-state checks per hour per IP; 20 owner notices per day in total |

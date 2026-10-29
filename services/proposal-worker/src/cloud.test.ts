@@ -758,27 +758,67 @@ it("rate-limits request-state checks per IPv6 /64", async () => {
   expect((await check("2001:db8:9:a::1")).status).toBe(200);
 });
 
-it("answers requests during the resend interval without using up the hourly limits", async () => {
+it("counts requests during the resend interval against the IP but not against the address", async () => {
   const t = await setup();
   await t.auth.allow(USER, t.time.now);
-  expect((await t.send("POST", "/v1/auth/code", { email: USER })).status).toBe(200);
+  let ip = 0;
+  const from = () => ({ "cf-connecting-ip": `203.0.113.${ip++}`, origin: ORIGIN });
+  expect((await t.send("POST", "/v1/auth/code", { email: USER }, from())).status).toBe(200);
   for (let index = 0; index < 10; index += 1) {
     t.time.now += 5_000;
-    const waiting = await t.send("POST", "/v1/auth/code", { email: USER });
+    const waiting = await t.send("POST", "/v1/auth/code", { email: USER }, from());
     expect(waiting.status).toBe(429);
-    expect(await waiting.json()).toMatchObject({ error: "rate_limited" });
+    expect((await waiting.json() as { retry_after_seconds: number }).retry_after_seconds).toBeLessThanOrEqual(60);
   }
-  t.time.now += 11_000;
   // Six per hour per address: the ten waiting requests above were not counted.
-  expect((await t.send("POST", "/v1/auth/code", { email: USER })).status).toBe(200);
-  expect(t.mailer.to(USER)).toHaveLength(2);
-  expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { origin: ORIGIN })).status).toBe(200);
-  for (let index = 0; index < 12; index += 1) {
-    expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { origin: ORIGIN })).status).toBe(429);
+  const sent = [];
+  for (let index = 0; index < 6; index += 1) {
+    t.time.now += 61_000;
+    sent.push((await t.send("POST", "/v1/auth/code", { email: USER }, from())).status);
   }
+  expect(sent).toEqual([200, 200, 200, 200, 200, 429]);
+
+  // From one IP, waiting requests do count: 1 code + 19 waiting use up 20 per hour.
+  const other = "second@example.org";
+  await t.auth.allow(other, t.time.now);
+  const fixed = { "cf-connecting-ip": "198.51.100.77" };
+  expect((await t.send("POST", "/v1/auth/code", { email: other }, fixed)).status).toBe(200);
+  for (let index = 0; index < 19; index += 1) expect((await t.send("POST", "/v1/auth/code", { email: other }, fixed)).status).toBe(429);
   t.time.now += 61_000;
-  // Ten per hour per IP for admin codes: still available.
-  expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, { origin: ORIGIN })).status).toBe(200);
+  const byIp = await t.send("POST", "/v1/auth/code", { email: other }, fixed);
+  expect(byIp.status).toBe(429);
+  expect((await byIp.json() as { retry_after_seconds: number }).retry_after_seconds).toBeGreaterThan(60);
+
+  // Admin: the owner's waiting requests count against the IP (10 per hour); other
+  // addresses get the usual answer meanwhile.
+  const admin = { "cf-connecting-ip": "192.0.2.50", origin: ORIGIN };
+  expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, admin)).status).toBe(200);
+  for (let index = 0; index < 8; index += 1) expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, admin)).status).toBe(429);
+  expect(await (await t.send("POST", "/v1/admin/session/code", { email: USER }, admin)).json()).toEqual({ state: "code_sent", retry_after_seconds: 60 });
+  t.time.now += 61_000;
+  expect((await t.send("POST", "/v1/admin/session/code", { email: OWNER }, admin)).status).toBe(429);
+  expect(t.mailer.to(OWNER)).toHaveLength(1);
+});
+
+it("holds 300 s for each other user's inference in flight when admitting a health check", async () => {
+  // An instant upstream: each health check counts its 1-second minimum.
+  const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "750" }, async () => new Response("{}", { status: 200 }));
+  await t.auth.allow(USER, t.time.now);
+  const device = await t.login(USER);
+  await t.auth.addGpuSeconds("other@example.org", "2026-10", 150);
+  // 150 + 300 × (0 others + 1) = 450 ≤ 750.
+  expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+  // Another user's inference in flight moves the boundary by 300 s: 150 + 1 (above) + 300 × 2 = 751 > 750.
+  await t.db.prepare("INSERT INTO gpu_slots (email, started_at) VALUES (?, ?)").bind("other@example.org", t.time.now).run();
+  const refused = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+  expect([refused.status, (await refused.json() as { scope: string }).scope]).toEqual([429, "global"]);
+  t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "751" });
+  expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+  // The user's own slot is not counted twice: 152 + 300 × (0 others + 1) = 452.
+  await t.db.prepare("DELETE FROM gpu_slots").run();
+  await t.db.prepare("INSERT INTO gpu_slots (email, started_at) VALUES (?, ?)").bind(USER, t.time.now).run();
+  t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "452" });
+  expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
 });
 
 it("refuses a health check with the inference's global 429 when one more inference would not fit", async () => {
