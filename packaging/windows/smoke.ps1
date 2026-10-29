@@ -50,11 +50,20 @@ function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$G
         '--web-dir', ('"' + $marker.app + '\apps\web\out"'), '--fiji', ('"' + $marker.fiji + '"'), '--no-browser')
     if ($Gui) { $arguments += '--gui' }
     $process = Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory $marker.app -WindowStyle Hidden -PassThru
-    for ($attempt = 0; $attempt -lt 180; $attempt++) {
-        if ($process.HasExited) { throw 'launcher exited early' }
-        try { if ((Invoke-WebRequest -UseBasicParsing -Uri "$Origin/v1/local/setup").StatusCode -eq 200) { return $process } }
-        catch { Start-Sleep -Seconds 1 }
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    while ($watch.Elapsed.TotalSeconds -lt 240) {
+        if ($process.HasExited) { throw ('launcher exited early with ' + $process.ExitCode) }
+        try {
+            if ((Invoke-WebRequest -UseBasicParsing -NoProxy -TimeoutSec 5 -Uri "$Origin/v1/local/setup").StatusCode -eq 200) {
+                Write-Host ('launcher answered after {0:N0} s' -f $watch.Elapsed.TotalSeconds)
+                return $process
+            }
+        } catch { Start-Sleep -Seconds 1 }
     }
+    # Fixed facts only: which Python windows are open (an error dialog has the title Cytellect) and the listener.
+    Get-Process -Name python, pythonw -ErrorAction SilentlyContinue |
+        ForEach-Object { Write-Host ('process {0} window "{1}"' -f $_.ProcessName, $_.MainWindowTitle) }
+    Write-Host ('listening on 8765: ' + [bool](Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue))
     throw 'launcher did not answer'
 }
 
@@ -69,7 +78,7 @@ function Stop-Cytellect($Process) {
 
 function New-Session {
     $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-    Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Origin/v1/local/session" -Headers $Headers -WebSession $session | Out-Null
+    Invoke-WebRequest -UseBasicParsing -NoProxy -Method Post -Uri "$Origin/v1/local/session" -Headers $Headers -WebSession $session | Out-Null
     return $session
 }
 
@@ -138,13 +147,19 @@ Step 'no credentials in the installation (T4)'
 & $python -B $builder scan $root
 if ($LASTEXITCODE -ne 0) { throw 'credential-shaped content in the installation' }
 
+Step 'the shortcut launcher window starts and answers'
+# Checked first and reported at the end, so that one failure still yields the later evidence.
+$guiFailure = $null
+try { Stop-Cytellect (Start-Cytellect $root -Gui) } catch { $guiFailure = $_.Exception.Message; Write-Host ('GUI launch failed: ' + $guiFailure) }
+Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 Step 'start, health, session, workspace and update status while offline'
 $env:HTTPS_PROXY = 'http://127.0.0.1:9'
-$process = Start-Cytellect $root -Gui
+$process = Start-Cytellect $root
 try {
     $session = New-Session
-    $created = Invoke-RestMethod -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Installer preservation check"}'
-    $update = Invoke-RestMethod -Uri "$Origin/v1/app/update" -WebSession $session
+    $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Installer preservation check"}'
+    $update = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
     if ($update.current -cne $Version -or $update.available -or $update.state -cne 'idle') { throw 'unexpected update status' }
 
     Step 'uninstall refuses while Cytellect runs'
@@ -152,7 +167,7 @@ try {
 
     Step 'installer re-run while Cytellect runs'
     if ((Invoke-Installer $root -Offline) -ne 0) { throw 're-run while running failed' }
-    if ((Invoke-WebRequest -UseBasicParsing -Uri "$Origin/v1/local/setup").StatusCode -ne 200) { throw 'running copy stopped' }
+    if ((Invoke-WebRequest -UseBasicParsing -NoProxy -Uri "$Origin/v1/local/setup").StatusCode -ne 200) { throw 'running copy stopped' }
 } finally { Stop-Cytellect $process; $env:HTTPS_PROXY = $null }
 
 Step 'idempotent re-run'
@@ -169,7 +184,7 @@ Assert-Shortcuts $root $false
 if ((Invoke-Installer $root -Offline) -ne 0) { throw 'reinstall over kept data failed' }
 $process = Start-Cytellect $root
 try {
-    $kept = Invoke-RestMethod -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
+    $kept = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
     if ($kept.title -cne 'Installer preservation check') { throw 'workspace lost across uninstall and reinstall' }
 } finally { Stop-Cytellect $process }
 
@@ -214,18 +229,19 @@ if ($PreviousZip) {
     if ($LASTEXITCODE -ne 0) { throw 'previous release setup failed' }
     $process = Start-Cytellect $root $previous
     try {
-        $created = Invoke-RestMethod -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession (New-Session) -ContentType 'application/json' -Body '{"title":"Migration check"}'
+        $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession (New-Session) -ContentType 'application/json' -Body '{"title":"Migration check"}'
     } finally { Stop-Cytellect $process }
     if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installer over the previous release failed' }
     Assert-Shortcuts $root $true
     $process = Start-Cytellect $root
     try {
         $session = New-Session
-        $kept = Invoke-RestMethod -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession $session
+        $kept = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession $session
         if ($kept.title -cne 'Migration check') { throw 'workspace lost in migration' }
-        if ((Invoke-RestMethod -Uri "$Origin/v1/local/setup").retention_mode -cne 'manual') { throw 'retention changed in migration' }
-        if ((Invoke-RestMethod -Uri "$Origin/v1/app/update" -WebSession $session).current -cne $Version) { throw 'update status names the wrong version' }
+        if ((Invoke-RestMethod -NoProxy -Uri "$Origin/v1/local/setup").retention_mode -cne 'manual') { throw 'retention changed in migration' }
+        if ((Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session).current -cne $Version) { throw 'update status names the wrong version' }
     } finally { Stop-Cytellect $process }
     Invoke-Uninstaller $root @('/DELETEDATA')
 }
+if ($null -ne $guiFailure) { throw ('the shortcut launcher window did not start: ' + $guiFailure) }
 Write-Host 'installer smoke passed'
