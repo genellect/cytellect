@@ -31,6 +31,7 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 
 - [ロードマップ](roadmap.md)：現在の提供状況と今後の計画
 - [解析機能の概要（2026 年 10 月）](implementation-overview.ja.md)
+- [解析モデルの選定と発展方針](segmentation-models.ja.md)：採用モデル、3D・細胞内構造への展開、SaaS の設計方針
 - [解析基盤の費用と制約](hosting-costs.ja.md)
 - [要件](requirements.md)（英語）
 - [研究者の作業の流れと改善の進め方](research-workflow.md)（英語）

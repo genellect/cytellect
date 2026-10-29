@@ -29,6 +29,93 @@ are separate checks. Published microscopy fixtures have source, stain metadata,
 redistribution basis and hashes in fixtures/public/allowlist.json. Synthetic
 fixtures serve numerical tests. No unpublished research images are distributed.
 
+## Segmentation models and commercial service policy
+
+Cytellect selects models for research-laboratory SaaS, local execution and
+reproducible analysis. Adoption records separate four assets: software, the
+selected checkpoint, its base model, and training/evaluation data. They also
+separate hosted inference, redistribution and fine-tuning. A permissive software
+license supports commercial use under its conditions; it does not assign a
+license to a separately distributed checkpoint or dataset.
+
+The [model strategy](segmentation-models.ja.md) describes the current architecture
+and product expansion. The evidence below was inspected on **2026-10-29**.
+
+### Current Cellpose evidence
+
+| Asset | Evidence | Handling |
+|---|---|---|
+| Cellpose 4.2.1.1 software | The official PyPI wheel contains `cellpose-4.2.1.1.dist-info/licenses/LICENSE`, with the HHMI copyright and three BSD conditions. Wheel SHA-256: `6c5c5159fd459115bee390ffb01d94d5e1006b97c211bf3c1a7b37d5395a1a13`; verified against [PyPI's release metadata](https://pypi.org/pypi/cellpose/4.2.1.1/json) | BSD-3-Clause. Preserve copyright, conditions and disclaimer; observe the non-endorsement condition. The artifact's text takes precedence over a generic package classifier or README badge |
+| Official `cpsam_v2` checkpoint | The [model card at the selected revision](https://huggingface.co/mouseland/cellpose-sam/blob/7c61431b5fbb078f3296754bd15d9f51b320f837/README.md) declares `bsd-3-clause`. The [runtime manifest](../engines/cellpose/runtime.lock.json) pins that revision, file size and SHA-256 | Record the upstream checkpoint declaration separately from the software license. CPU and CUDA use this same checkpoint |
+| Cytellect NCL fine-tunes | [Genellect/Cytellect revision 7670daa1](https://huggingface.co/Genellect/Cytellect/tree/7670daa1edbfcb3d4611c9e053766d91f6125e74) publishes 375- and 750-update weights, JSON provenance, a BSD-3-Clause card, `LICENSE.cellpose` and `NOTICE.md` | Preserve upstream notices and the statement that fine-tuning modified the weights. Bind each checkpoint to its own hash, data permissions and evaluation record |
+| SAM base and inference dependencies | SAM ViT-L is identified by the [Cellpose model documentation](https://cellpose.readthedocs.io/en/latest/models.html); the [CPU](../engines/cellpose/requirements.lock) and [GPU](../engines/cellpose/requirements-cuda.lock) requirements pin the installed packages | Retain the exact installed dependencies' notices, including Segment Anything and PyTorch, with each assembled runtime |
+| Upstream training data | The [Cellpose README at commit a54cb488](https://github.com/MouseLand/cellpose/blob/a54cb48849b7e225a81e8e43dcb042d42427f543/README.md) states that its models were trained on CC-BY-NC data and identifies the annotated dataset as CC-BY-NC | Keep this evidence alongside the checkpoint declaration. Dataset restrictions and the license granted for weights are distinct questions; the SaaS rights review resolves the relationship for the selected artifact |
+| Cytellect training/evaluation data | Public fixtures have an allowlist; laboratory data follows the [team's data rules](team-development.md#6-研究データの扱い) | Record permission for evaluation, training, sharing and publication separately. Access to a research image does not itself authorize training or publication |
+
+`scripts/cellpose_setup.py` verifies the model's size and SHA-256 and the
+runner/dependency lock hashes. Dependencies are installed with required hashes;
+model acquisition occurs during explicit setup/build, before analysis. The
+runtime tests check this fixed identity. These checks bind execution to the
+reviewed artifact; license interpretation belongs in the adoption record.
+
+The local bundle includes `engines/cellpose/LICENSE.cellpose.txt` and the setup
+recipes; it obtains weights during setup. The GPU image contains the runtime,
+weights and engine files. Notices and distribution obligations are therefore
+reviewed against each actual package, including a container image, rather than
+only against the source repository.
+
+### Candidate model licensing
+
+This table guides selection. It does not add these candidates to the deployed
+runtime. Exact release/checkpoint terms are recorded when a candidate is chosen.
+
+| Candidate | Software evidence | Checkpoint and SaaS adoption route |
+|---|---|---|
+| StarDist 3D | [BSD-3-Clause](https://github.com/stardist/stardist/blob/main/LICENSE.txt) | Select a 3D checkpoint or train one on authorized data. The current 2D `dsb2018_heavy_augment` has separate [model-repository BSD-3-Clause evidence](https://github.com/stardist/stardist-models/blob/master/LICENSE.txt); that identity is not a substitute for a 3D model record |
+| microSAM | [MIT](https://github.com/computational-cell-analytics/micro-sam/blob/master/LICENSE) | Select a named LM or EM checkpoint from the [official model catalog](https://computational-cell-analytics.github.io/micro-sam/micro_sam.html), retain that checkpoint's terms and base-model provenance, and record commercial inference/distribution permissions |
+| nnU-Net | [Apache-2.0](https://github.com/MIC-DKFZ/nnUNet/blob/master/LICENSE) | Use as a training framework with rights-controlled datasets. Record the resulting model's terms; separately review any externally supplied weights |
+| CellposeDINO | Cellpose software license plus the [DINOv3 License](https://github.com/facebookresearch/dinov3/blob/main/LICENSE.md) for DINO materials | Review the selected derivative's weight terms together with DINOv3's use, redistribution and attribution conditions. Do not classify the entire stack as BSD solely from Cellpose's software license |
+| CellSAM | [Apache-2.0](https://github.com/vanvalenlab/cellSAM/blob/master/LICENSE) | Its [authenticated model distribution](https://github.com/vanvalenlab/cellSAM/blob/master/cellSAM/_auth.py) supplies separate assets. Capture the access terms and weight license for the chosen version before commercial adoption |
+| Omnipose | [NonCommercial License](https://github.com/kevinjohncutler/omnipose/blob/main/LICENSE) | Commercial SaaS adoption requires commercial rights from University of Washington CoMotion. Keep it outside the default commercial model set until those rights are obtained |
+| Big-FISH spot detection | [BSD-3-Clause](https://github.com/fish-quant/big-fish/blob/master/LICENSE) | Preserve notices for the selected software and dependencies. Treat any separately added segmentation weights as their own assets; the spot-detection path is a method, not a pretrained checkpoint |
+
+### SaaS adoption procedure
+
+1. **Identify the deliverable.** Record version, immutable source URL/revision,
+   SHA-256, model purpose, base checkpoint, dependencies and deployment mode.
+2. **Establish rights for each use.** Record the license text and its retrieval
+   date for software, weights and data; evaluate paid hosted inference,
+   redistribution, modification, fine-tuning and publication separately.
+   Resolve conflicting declarations or unclear grants with the rights holder or
+   qualified counsel, with the question tied to a specific artifact and use.
+3. **Prepare the distribution.** Preserve notices and attribution, and provide
+   source/relinking materials where the included licenses require them. Review
+   network-service conditions where applicable; hosting is not a universal
+   exemption from license obligations.
+4. **Record the decision.** The product owner approves the intended commercial
+   use, citing the evidence and any additional license agreement. Release records
+   bind that decision to the model/runtime hashes. A different checkpoint or
+   distribution mode receives its own review.
+5. **Protect customer data.** In the SaaS design, distinguish service processing
+   from optional training and public model release. Define tenant isolation,
+   retention, deletion, subprocessors and data location in the service terms and
+   data-processing arrangements. Train on customer data only with the necessary
+   permissions for that purpose.
+
+### Model adoption review record
+
+This is the operational record for evidence gaps and follow-up work. README and
+the product strategy describe capabilities and direction; this section and the
+roadmap hold release conditions and review status.
+
+| Item | Verified evidence | Next decision or implementation |
+|---|---|---|
+| Current Cellpose software and weights | Exact wheel license and hash; pinned checkpoint card declares BSD-3-Clause; runtime hashes are enforced | Retain the exact wheel license evidence alongside the release inventory; the manifest's code-license source currently points to upstream `main` |
+| Cellpose commercial SaaS rights | BSD-3-Clause software/weight declarations and upstream CC-BY-NC training-data statement are both recorded | Obtain and record a rights-holder clarification or legal assessment addressing paid inference, checkpoint redistribution and derived fine-tunes. This document does not record completion of that assessment or change the model's declared license |
+| Isolated Cellpose runtimes | CPU/CUDA dependency lockfiles and artifact hashes are fixed | Extend release SBOM/notice collection to the isolated Cellpose environments and checkpoint assets. The current general Python inventory covers its running interpreter, not every isolated runtime |
+| Expansion candidates | Official capability and software-license sources in the tables above | Select exact checkpoints, capture weight/base/data terms, and evaluate on independent experiments before a product adoption decision |
+| Cytellect fine-tunes | NCL checkpoints and their provenance/notice files are publicly available at the fixed revision above | Carry those records into the selected product release and retain the data-use/publication permissions with the owner's release decision; use the same record structure for subsequent fine-tunes |
+
 ## CI evidence and license checks
 
 `scripts/sbom.py` inventories the installed Python environment, the actual Web
