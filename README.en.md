@@ -151,4 +151,15 @@ In Claude Code or Codex cloud environments, register the setup script below in t
 
 ## License
 
-The code is open source under the Apache License 2.0. Fiji, model weights and datasets are subject to their own licenses.
+The code is open source under the [Apache License 2.0](LICENSE). Third-party components are subject to their own licenses.
+
+| Component | License | Handling |
+|---|---|---|
+| Fiji | GPL-3.0 (Bio-Formats: GPL; MorphoLibJ: LGPL-3.0) | Not included in the repository or the Windows distribution. Downloaded from the official source during setup (for Docker, when the image is built) and run as a separate process |
+| Cellpose dependencies (fastremap, fill-voids) | LGPL-3.0 | Used unmodified |
+| Pretrained models (StarDist, Cellpose-SAM `cpsam_v2`) | BSD-3-Clause (declared in the StarDist model repository and the `cpsam_v2` model card) | Downloaded from the official source during setup and verified by SHA-256 |
+| Fine-tuned weights | BSD-3-Clause | Published on [Hugging Face](https://huggingface.co/Genellect/Cytellect) with Cellpose's copyright notice and a statement that the weights were modified |
+| Public images | CC0-1.0 (BBBC007, BBBC039, JUMP), CC BY 3.0 (BBBC013), 4DN public data use policy | Sources are recorded. 4DN original images are not redistributed |
+| Landing-page photos, logos in figures | Pexels and Unsplash licenses; trademarks of their owners | Logos are used only to identify the software |
+
+CI records dependency licenses as an SBOM. Per-model records of software, weights and training data are in [Third-party software and weights](docs/oss.md).
