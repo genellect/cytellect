@@ -433,7 +433,7 @@ end;
 procedure RemoveOwnedShortcut(const Path: String);
 var
   Shell, Link: Variant;
-  Target, Apps: String;
+  Target, Description, Apps: String;
 begin
   if not FileExists(Path) then
     Exit;
@@ -441,9 +441,12 @@ begin
   try
     Shell := CreateOleObject('WScript.Shell');
     Link := Shell.CreateShortcut(Path);
-    Target := Lowercase(Link.TargetPath);
+    // Read the OLE properties into strings before comparing them.
+    Target := Link.TargetPath;
+    Target := Lowercase(Target);
+    Description := Link.Description;
     // Remove only the stable shortcut that this installation created.
-    if (Link.Description = ShortcutDescription) and (Pos(Apps, Target) = 1) then
+    if (Description = ShortcutDescription) and (Pos(Apps, Target) = 1) then
       DeleteFile(Path);
   except
   end;
