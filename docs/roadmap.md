@@ -7,7 +7,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 対象 | 状況 |
 |---|---|
 | 公開サイト | [cytellect.vercel.app](https://cytellect.vercel.app/)。LP、`/demo`、`/plan` で構成する。`/demo` は本番と同じ解析ワークスペースを、登録済みの公開画像でサーバーレスに動かす（[公開デモ](showcase.md)）。画像の追加は Windows 版・Docker 版だけで行い、公開サイトは研究画像を受け付けない。公開サイトの `/workspace` は `/demo` へ転送する。`main` へのマージで自動デプロイ |
-| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU（Modal）で実行できる。2026-10-23 にデプロイし、公開画像で CPU と結果が一致した。2026-10-27 は L4 で protocol 4.0／4.1 が成功し、4.3 は処理中のコンテナ停止で失敗した。需要追跡・終了待ち修正（PR #126）はマージ・再デプロイ済み。2026-10-29 の管理画面では、無料クレジット・使用上限に余裕がある状態で L4 容量待ちを確認。起動後に処理 0 件で通常終了した履歴もある。4.3 の実推論・採用・測定と、終了待ち修正の解消確認は未完了（[クラウド GPU](cloud-gpu.ja.md)） |
+| Windows 版 | [0.1.0-local.19](local-release-0.1.0-local.19.md)。作業データは既定で削除操作まで保持。Cellpose はクラウド GPU（Modal）で実行できる。2026-10-23 にデプロイし、公開画像で CPU と結果が一致した。2026-10-27 は L4 で protocol 4.0／4.1 が成功し、4.3 は処理中のコンテナ停止で失敗した。この停止の修正（PR #126）はマージ・再デプロイ済み。2026-10-28〜29 は、無料枠と予算に余裕がありながら L4 の空き待ちが続いたため、A10 を予備の GPU に加えた（Modal への再デプロイで有効になる）。4.3 の推論・採用・測定と、A10 での推論・L4 との比較は未実施（[クラウド GPU](cloud-gpu.ja.md)） |
 | Docker 版 | [Docker Desktop での利用](docker-desktop.md) |
 | 解析提案（LLM） | 既定で無効。利用者が有効にした場合に限り動作し、月額の利用上限を設定した Worker で提供 |
 | 開発環境 | 研究室の PC と同じ構成を Linux で起動し、公開画像で試せる（`scripts/dev.py serve`、[CONTRIBUTING](../CONTRIBUTING.md#ローカル開発)）。共有する開発環境では、登録済みの公開画像だけを受け付けられる（`CYTELLECT_UPLOAD_ALLOWLIST`、[データ保護](security.md#shared-development-environments)）。共有の起動と研究者による評価の計画は[実装計画（案）](drafts/cloud-development/plan.md)にある |
@@ -15,8 +15,6 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 | 核小体検出 | NCL の protocol 4.3.0（追加学習した Cellpose-SAM と境界補正）。[計算仕様](methods.md) |
 
 ## 今後の計画
-
-Modal の L4 容量待ちへの対応として、[PR #143](https://github.com/genellect/cytellect/pull/143) で L4 優先・A10 予備候補の設定と起動待ちの手順を準備している。最大 1 台・要求 1 件・アイドル 20 秒・終了猶予 1,800 秒、Spend limit $0・Usage limit $30 を維持する。本番へのマージ・再デプロイは別途承認が必要で、A10 の実推論・画面での採用・測定、同一公開画像と親核ラベルによる L4/A10 の再現性・領域・測定値・所要時間の比較は未実施。GPU 種類を記録するだけで結果の同等性を認定しない。
 
 ### 1. 自研究室での実証
 

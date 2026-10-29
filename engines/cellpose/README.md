@@ -56,11 +56,8 @@ On CUDA the runner uses float32 with TF32 disabled and requests deterministic
 algorithms with `warn_only=True`; unsupported operations may still run with a warning.
 Results are not claimed to be bitwise equal across GPU types or to CPU results;
 the receipt records `device`, `precision`, `gpu` and the remote `execution_backend`.
-A10 runtime acceptance and L4/A10 result comparisons remain pending. Before using
-mixed GPU types in a scientific comparison, validate masks, counts and measurements
-on the same registered public images with fixed models, parameters and parent labels.
-The deployment keeps the workspace Spend limit at $0 and Usage limit at $30;
-these are operator-managed settings, not configured by the deployment script.
+Do not mix GPU types within one scientific comparison until their masks, counts and
+measurements agree on registered public images ([cloud GPU](../../docs/cloud-gpu.ja.md#結果の記録)).
 
 A client configured with `CYTELLECT_CELLPOSE_REMOTE_URL` sends the detection plane,
 the adopted nuclei (nucleolar protocols) and the parameters. The service returns
