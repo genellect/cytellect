@@ -25,6 +25,7 @@ def test_each_area_follows_what_its_jobs_build_or_run():
     assert areas_for("packages/analysis/src/cytellect_analysis/statistics.py") == ALL
     assert areas_for("services/api/src/cytellect_api/app.py") == ALL
     assert areas_for("scripts/local_setup.ps1") == {"python", "windows"}
+    assert areas_for("packaging/windows/cytellect.iss") == {"python", "windows"}
     assert areas_for("engines/fiji/runtime.lock.json") == {"python", "fiji", "windows"}
     assert areas_for("infra/Dockerfile.python") == {"python", "fiji"}
     assert areas_for("tests/test_statistics.py") == {"python", "fiji", "windows"}

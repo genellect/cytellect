@@ -396,6 +396,33 @@ class WorkerSupervisor:
             self._stop_process()
 
 
+OPEN_WORKSPACE_LABEL = "作業画面を開く"
+OPENING_STATUS = "作業画面を開いています…"
+# Inno Setup's uninstaller refuses to remove a running installation while this exists.
+LAUNCHER_MUTEX = "CytellectLocalLauncher"
+
+
+def running_status(url: str) -> str:
+    return f"稼働中 · {url}\nブラウザが開かない場合は「{OPEN_WORKSPACE_LABEL}」を押してください。"
+
+
+@contextlib.contextmanager
+def launcher_mutex():
+    """A named mutex that only signals "running" to the Windows uninstaller."""
+    if sys.platform != "win32":
+        yield
+        return
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.CreateMutexW(None, False, LAUNCHER_MUTEX)
+    try:
+        yield
+    finally:
+        if handle:
+            kernel32.CloseHandle(handle)
+
+
 def _gui(server, url: str, run_server, open_browser: bool):
     import tkinter as tk
     from tkinter import ttk
@@ -407,9 +434,9 @@ def _gui(server, url: str, run_server, open_browser: bool):
     window.option_add("*Font", "{Segoe UI} 10")
     body = ttk.Frame(window, padding=(24, 16))
     body.pack(fill="both", expand=True)
-    status = tk.StringVar(value="起動中…")
+    status = tk.StringVar(value="起動の準備中…")
     ttk.Label(body, text="Cytellect", font=("Segoe UI", 18)).pack(anchor="w", pady=(0, 8))
-    ttk.Label(body, textvariable=status).pack(anchor="w")
+    ttk.Label(body, textvariable=status, wraplength=410).pack(anchor="w")
     ttk.Label(body, text="この画面を閉じると、実行中の解析も停止します。", wraplength=410).pack(
         anchor="w", pady=(10, 16))
 
@@ -424,23 +451,32 @@ def _gui(server, url: str, run_server, open_browser: bool):
 
     controls = ttk.Frame(body)
     controls.pack(fill="x")
-    browser_button = ttk.Button(controls, text="ブラウザで開く", command=open_current_browser, state="disabled")
+    browser_button = ttk.Button(controls, text=OPEN_WORKSPACE_LABEL, command=open_current_browser, state="disabled")
     browser_button.pack(side="left")
     ttk.Button(controls, text="停止して閉じる", command=stop).pack(side="right")
     window.protocol("WM_DELETE_WINDOW", stop)
     thread = threading.Thread(target=run_server, daemon=False)
     thread.start()
     opened = False
+    # Ticks (150 ms) to keep "opening" visible before the steady running status.
+    settle = 0
 
     def tick():
-        nonlocal opened
+        nonlocal opened, settle
         running = server.started and not server.should_exit and thread.is_alive()
         browser_button.configure(state="normal" if running else "disabled")
         if running and not opened:
             opened = True
-            status.set("稼働中 · " + url)
             if open_browser:
+                status.set(OPENING_STATUS)
+                settle = 20
                 webbrowser.open(url)
+            else:
+                status.set(running_status(url))
+        elif running and settle:
+            settle -= 1
+            if not settle:
+                status.set(running_status(url))
         if not thread.is_alive():
             window.destroy()
         else:
@@ -459,11 +495,13 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
 
     redirector = redirector_owner()
     configure_private_tmp(settings)
-    with runtime_lock(settings.data_dir), bind_loopback(port) as sock:
+    with runtime_lock(settings.data_dir), launcher_mutex(), bind_loopback(port) as sock:
         app = create_local_app(settings, web_dir, port)
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, access_log=False,
                                                proxy_headers=False, log_level="error",
                                                timeout_graceful_shutdown=5))
+        # A verified in-app update stops this launcher before its successor starts.
+        app.state.request_shutdown = lambda: setattr(server, "should_exit", True)
         supervisor = WorkerSupervisor(settings, lambda: setattr(server, "should_exit", True))
         supervisor.start()
         owner_watch_stopped = threading.Event()
@@ -501,13 +539,16 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
             raise RuntimeError(supervisor.failure)
 
 
-def _report_startup_error(message: str, gui: bool):
+def _report_startup_error(message: str, gui: bool, *, retry: bool = False, information: bool = False) -> bool:
+    """Show a fixed message; True when the researcher chose to start again."""
     if gui and sys.platform == "win32":
         # A broken/missing Tcl installation must not make pythonw fail silently.
         import ctypes
 
-        ctypes.windll.user32.MessageBoxW(None, message, "Cytellect", 0x10)
-    elif gui:
+        # MB_RETRYCANCEL | MB_ICONERROR, MB_ICONINFORMATION or MB_ICONERROR; IDRETRY is 4.
+        style = 0x15 if retry else 0x40 if information else 0x10
+        return ctypes.windll.user32.MessageBoxW(None, message, "Cytellect", style) == 4
+    if gui:
         try:
             from tkinter import messagebox
             messagebox.showerror("Cytellect", message)
@@ -516,16 +557,40 @@ def _report_startup_error(message: str, gui: bool):
                 print(message, file=sys.stderr)
     elif sys.stderr:
         print(message, file=sys.stderr)
+    return False
 
 
-def _gui_failure_message(error: Exception) -> str:
+def already_running(error: Exception) -> bool:
+    return isinstance(error, ValueError) and error.args == ("local_runtime_already_in_use",)
+
+
+def _open_running_workspace(origin: str) -> bool:
+    """When another launcher owns this installation, open its workspace instead (I5)."""
+    import urllib.request
+
+    # Loopback only: a laboratory's system proxy must never see this request.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(origin + "/v1/local/setup", timeout=3) as response:
+            if response.status != 200:
+                return False
+    except (OSError, ValueError):
+        return False
+    return bool(webbrowser.open(origin))
+
+
+def _gui_failure_message(error: Exception, *, opened: bool = False) -> str:
     """Fixed user actions only; never expose exception text or filesystem paths."""
-    if isinstance(error, ValueError) and error.args == ("local_runtime_already_in_use",):
-        return "Cytellectは既に起動しています。開いているCytellectの画面をご利用ください。"
+    if already_running(error):
+        if opened:
+            return "Cytellectは既に起動しています。作業画面をブラウザで開きました。"
+        return "Cytellectは既に起動しています。開いているCytellectの画面で「作業画面を開く」を押してください。"
     if isinstance(error, OSError) and (error.errno == errno.EADDRINUSE
                                      or getattr(error, "winerror", None) == 10048):
-        return "接続先が使用中のため起動できません。起動済みのCytellectを確認し、見当たらない場合はPCの管理者にご相談ください。"
-    return "Cytellectを起動できないか、実行が停止しました。開き直しても続く場合は、セットアップを再実行してください。"
+        return ("接続先（ポート）が使用中のため起動できません。別のソフトがこのポートを使っています。"
+                "「再試行」を押すと、もう一度起動します。続く場合はPCを再起動してください。")
+    return ("Cytellectを起動できないか、実行が停止しました。「再試行」を押すと、もう一度起動します。"
+            "開き直しても続く場合は、インストーラーをもう一度開いてください（データは保たれます）。")
 
 
 def main(argv=None):
@@ -550,15 +615,25 @@ def main(argv=None):
     revision = installed_source_revision()
     if revision:
         os.environ["CYTELLECT_CODE_REVISION"] = revision
-    try:
-        from .local_storage import installed_usage_lock
-        with installed_usage_lock():
-            run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui)
-    except Exception as exc:
-        message = (_gui_failure_message(exc) if args.gui else
-                   "Cytellect could not start or stopped. Check the local port, installation and runtime directory.")
-        _report_startup_error(message, args.gui)
-        raise SystemExit(1) from None
+    from .local_storage import installed_usage_lock
+
+    for attempt in range(3):
+        try:
+            with installed_usage_lock():
+                run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui)
+            return
+        except Exception as exc:
+            if not args.gui:
+                _report_startup_error("Cytellect could not start or stopped. Check the local port, "
+                                      "installation and runtime directory.", False)
+                raise SystemExit(1) from None
+            if already_running(exc):
+                opened = not args.no_browser and _open_running_workspace(settings.app_origin)
+                _report_startup_error(_gui_failure_message(exc, opened=opened), True, information=opened)
+                raise SystemExit(1) from None
+            # Port in use or a failed start: show the reason and offer to start again.
+            if not _report_startup_error(_gui_failure_message(exc), True, retry=attempt < 2):
+                raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

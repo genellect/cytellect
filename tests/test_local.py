@@ -195,7 +195,8 @@ def test_gui_browser_is_disabled_until_ready_and_again_during_stop(monkeypatch, 
         def destroy(self): state["destroyed"] = True
 
         def mainloop(self):
-            button = buttons["ブラウザで開く"]
+            button = buttons["作業画面を開く"]
+            assert statuses[0] == "起動の準備中…"
             assert button.options["state"] == "disabled"
             button.options["command"]()
             assert not calls
@@ -204,9 +205,13 @@ def test_gui_browser_is_disabled_until_ready_and_again_during_stop(monkeypatch, 
             server.started = True
             scheduled.pop(0)()
             assert button.options["state"] == "normal"
-            assert statuses[-1] == "稼働中 · " + ORIGIN
+            ready = local_module.running_status(ORIGIN)
+            assert statuses[-1] == ("作業画面を開いています…" if automatic else ready)
             assert calls == ([ORIGIN] if automatic else [])
-            scheduled.pop(0)()
+            for _ in range(20):
+                scheduled.pop(0)()
+            assert statuses[-1] == ready and ready.startswith("稼働中 · " + ORIGIN)
+            assert "「作業画面を開く」" in ready
             assert calls == ([ORIGIN] if automatic else [])  # No repeated auto-open.
             button.options["command"]()
             assert calls == [ORIGIN] * (2 if automatic else 1)
@@ -240,7 +245,7 @@ def test_gui_browser_is_disabled_until_ready_and_again_during_stop(monkeypatch, 
 
 @pytest.mark.parametrize("failure,expected", [
     (ValueError("local_runtime_already_in_use"), "Cytellectは既に起動しています"),
-    (OSError(errno.EADDRINUSE, "private synthetic path"), "接続先が使用中"),
+    (OSError(errno.EADDRINUSE, "private synthetic path"), "接続先（ポート）が使用中"),
     (PermissionError(errno.EACCES, "private synthetic path"), "開き直しても続く場合"),
     (RuntimeError("private synthetic path"), "開き直しても続く場合"),
 ])
@@ -252,7 +257,8 @@ def test_gui_failures_use_fixed_japanese_categories_without_exception_details(tm
 
     monkeypatch.setattr(local_module, "run_local", fail)
     monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
-    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui: messages.append((text, gui)))
+    monkeypatch.setattr(local_module, "_open_running_workspace", lambda origin: False)
+    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui, **_: messages.append((text, gui)))
     arguments = ["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
                  "--fiji", str(tmp_path)]
     with pytest.raises(SystemExit) as stopped:
@@ -270,7 +276,7 @@ def test_gui_failures_use_fixed_japanese_categories_without_exception_details(tm
 
 def test_gui_invalid_installation_uses_fixed_japanese_message(tmp_path, monkeypatch):
     messages = []
-    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui: messages.append((text, gui)))
+    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui, **_: messages.append((text, gui)))
     with pytest.raises(SystemExit) as stopped:
         local_module.main(["--gui", "--fiji", str(tmp_path / "missing")])
     assert stopped.value.code == 2
@@ -281,7 +287,48 @@ def test_gui_recognizes_windows_port_error_code_without_reading_its_message():
     failure = OSError("synthetic private connection detail")
     setattr(failure, "winerror", 10048)
     message = local_module._gui_failure_message(failure)
-    assert message.startswith("接続先が使用中") and "private" not in message
+    assert message.startswith("接続先（ポート）が使用中") and "private" not in message
+    assert "「再試行」" in message
+
+
+def test_gui_failure_offers_retry_and_starts_again_when_chosen(tmp_path, monkeypatch):
+    """Port-in-use and start failures show the reason and a retry (R: 初回起動)."""
+    attempts, prompts = [], []
+
+    def fail_then_run(*_args, **_kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise OSError(errno.EADDRINUSE, "private synthetic path")
+
+    def report(text, gui, *, retry=False, information=False):
+        prompts.append((retry, information))
+        return retry
+
+    monkeypatch.setattr(local_module, "run_local", fail_then_run)
+    monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
+    monkeypatch.setattr(local_module, "_report_startup_error", report)
+    local_module.main(["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
+                       "--fiji", str(tmp_path), "--gui"])
+    assert len(attempts) == 2 and prompts == [(True, False)]
+
+
+def test_second_launch_opens_the_running_workspace(tmp_path, monkeypatch):
+    """A second launch says that Cytellect is running and opens its workspace (I5)."""
+    shown, opened = [], []
+
+    def busy(*_args, **_kwargs):
+        raise ValueError("local_runtime_already_in_use")
+
+    monkeypatch.setattr(local_module, "run_local", busy)
+    monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
+    monkeypatch.setattr(local_module, "_open_running_workspace", lambda origin: opened.append(origin) or True)
+    monkeypatch.setattr(local_module, "_report_startup_error",
+                        lambda text, gui, **options: shown.append((text, options)) or False)
+    with pytest.raises(SystemExit):
+        local_module.main(["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
+                           "--fiji", str(tmp_path), "--gui"])
+    assert opened == [ORIGIN]
+    assert shown == [("Cytellectは既に起動しています。作業画面をブラウザで開きました。", {"information": True})]
 
 
 def windows_redirector(tmp_path):

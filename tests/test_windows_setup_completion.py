@@ -19,8 +19,8 @@ $env:PSModulePath=(Join-Path $PSHOME 'Modules')+[IO.Path]::PathSeparator+$env:PS
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }
-foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Update-SetupStatus',
-    'ConvertTo-NativeArgument','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote',
+foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Write-SetupMarker','Update-SetupStatus',
+    'Get-VerifiedOffline','Copy-OfflineArtifact','ConvertTo-NativeArgument','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote',
     'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Set-WorkspaceRetention','Install-Cytellect')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
@@ -64,7 +64,10 @@ function Invoke-SetupProcess([string]$Executable,[string[]]$Arguments,[string]$D
         }
         if ($Arguments[1] -ceq 'sync') {
             $expected=@('pip','sync','--require-hashes','--only-binary',':all:','--python',$python,
-                '--no-managed-python','--no-python-downloads','--no-config','engines/python/windows-requirements.txt')
+                '--no-managed-python','--no-python-downloads','--no-config')
+            # The installer's bundled wheels: never an index.
+            if ($OfflineRoot) { $expected += @('--offline','--no-index','--find-links',(Get-SafeChild $OfflineRoot 'wheels')) }
+            $expected += @('engines/python/windows-requirements.txt')
             $script:Pipeline += 'hashed-wheel-sync'
         } elseif ($Arguments[1] -ceq 'check') {
             $expected=@('pip','check','--python',$python,'--no-config')
@@ -85,6 +88,9 @@ function Invoke-SetupProcess([string]$Executable,[string[]]$Arguments,[string]$D
         }
         'scripts/fiji_setup.py' {
             if ($Executable -cne $python) { throw 'wrong_python_interpreter' }
+            $offlineFiji=($Arguments.Count -eq 7 -and $Arguments[5] -ceq '--offline-dir' -and
+                $Arguments[6] -ceq $(if ($OfflineRoot) { Get-SafeChild $OfflineRoot 'sha256' } else { '' }))
+            if ($(if ($OfflineRoot) { -not $offlineFiji } else { $Arguments.Count -ne 5 })) { throw 'unexpected_fiji_source' }
             [IO.Directory]::CreateDirectory($Arguments[2]) | Out-Null
             $script:Pipeline += 'fiji-install'
         }
@@ -140,6 +146,8 @@ $SourceRoot=$env:CYTELLECT_TEST_SOURCE
 $InstallRoot=$env:CYTELLECT_TEST_ROOT
 $Console=$false; $NoShortcut=$false; $VerifyOnly=$false; $WorkspaceRetention='manual'
 $CellposeRemoteUrl=''; $CellposeRemoteToken=''
+$OfflineRoot=$(if ($env:CYTELLECT_TEST_OFFLINE) { $env:CYTELLECT_TEST_OFFLINE } else { '' })
+$StatusFile=''; $ResultFile=''
 $script:StatusLabel=$null; $script:Cancelled=$false; $script:Phase='initial'
 $script:UvVersion='test'; $script:UvSha256='0'*64
 $script:PythonVersion='3.14.8'
@@ -218,8 +226,9 @@ function Assert-PythonRuntimeInventory([string]$Runtime,$Inventory) {
         ("cancel_complete", "cancelled", "complete", True, 4),
     ],
 )
+@pytest.mark.parametrize("offline", [False, True], ids=["online", "installer-offline"])
 def test_late_setup_failure_never_keeps_launch_ready_and_retry_finishes(
-    tmp_path, fault, kind, phase, marker_after_failure, shortcut_saves,
+    tmp_path, fault, kind, phase, marker_after_failure, shortcut_saves, offline,
 ):
     source = tmp_path / "source"
     wheel_path = "wheels/cytellect-0.1.0-py3-none-any.whl"
@@ -243,10 +252,27 @@ def test_late_setup_failure_never_keeps_launch_ready_and_retry_finishes(
     # The child PID is included solely to avoid an existing user's shortcut path.
     manifest["version"] = "0.0.0-test"
     (source / "local-release.json").write_text(json.dumps(manifest), encoding="utf-8")
+    offline_root = tmp_path / "offline"
+    if offline:
+        bundled = b"bundled public artifact\n"
+        bundled_hash = hashlib.sha256(bundled).hexdigest()
+        (offline_root / "sha256").mkdir(parents=True)
+        (offline_root / "wheels").mkdir()
+        (offline_root / "sha256" / bundled_hash).write_bytes(bundled)
+        (offline_root / "offline-manifest.json").write_text(json.dumps({
+            "schema": "cytellect-windows-offline/1", "release_manifest_sha256": "set by the prelude",
+            "files": [{"path": "sha256/" + bundled_hash, "sha256": bundled_hash, "bytes": len(bundled)}]}))
     prelude = r'''
 $manifest=Get-Content -LiteralPath (Join-Path $env:CYTELLECT_TEST_SOURCE 'local-release.json') -Raw | ConvertFrom-Json
 $manifest.version='0.0.0-test.'+$PID
 [IO.File]::WriteAllText((Join-Path $env:CYTELLECT_TEST_SOURCE 'local-release.json'),($manifest | ConvertTo-Json -Depth 5))
+if ($env:CYTELLECT_TEST_OFFLINE) {
+    # Bind the bundled payload to the release manifest as rewritten above.
+    $offlinePath=Join-Path $env:CYTELLECT_TEST_OFFLINE 'offline-manifest.json'
+    $offline=Get-Content -LiteralPath $offlinePath -Raw | ConvertFrom-Json
+    $offline.release_manifest_sha256=(Get-FileHash -LiteralPath (Join-Path $env:CYTELLECT_TEST_SOURCE 'local-release.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText($offlinePath,($offline | ConvertTo-Json -Depth 5))
+}
 '''
     shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     result = subprocess.run(
@@ -256,7 +282,7 @@ $manifest.version='0.0.0-test.'+$PID
         env={**os.environ, "CYTELLECT_TEST_SETUP": str(ROOT / "scripts/local_setup.ps1"),
              "CYTELLECT_TEST_RUNTIME": str(ROOT / "scripts/windows_runtime.ps1"),
              "CYTELLECT_TEST_SOURCE": str(source), "CYTELLECT_TEST_ROOT": str(tmp_path / "installation"),
-             "CYTELLECT_TEST_FAULT": fault},
+             "CYTELLECT_TEST_FAULT": fault, "CYTELLECT_TEST_OFFLINE": str(offline_root) if offline else ""},
         capture_output=True, text=True, encoding="utf-8", errors="strict", check=False, timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -270,11 +296,13 @@ $manifest.version='0.0.0-test.'+$PID
         "retry_python": "3.14.8", "retry_no_bytecode": True, "retry_input_hashes_match": True,
         "retry_retention": "manual",
         "retention_file": '{"schema":"cytellect-local-retention/1","mode":"manual"}',
+        # The retry reuses the verified environment instead of rewriting its launchers.
         "pipeline": ["signed-runtime-venv", "hashed-wheel-sync", "dependency-check", "gui-check",
                      "fiji-install", "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity",
-                     "signed-runtime-venv", "hashed-wheel-sync", "dependency-check", "gui-check",
+                     "hashed-wheel-sync", "dependency-check", "gui-check",
                      "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity"],
-        "runtime_calls": 2, "signed_venv_checks": [True, False, False, False, True, False, False, False],
+        "runtime_calls": 2,
+        "signed_venv_checks": [True, False, False, False, False, True, False, False, False, False],
         "shortcut_saves": shortcut_saves,
     }
 

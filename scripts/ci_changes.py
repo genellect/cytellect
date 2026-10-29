@@ -51,6 +51,8 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("services/worker/*", PY_STACK),
     ("engines/fiji/*", frozenset({"python", "fiji", "windows"})),
     ("engines/python/*", frozenset({"python", "windows"})),
+    # Installer script, preflight and CI smoke; the compiled installer runs on main (windows-installer).
+    ("packaging/*", frozenset({"python", "windows"})),
     ("scripts/windows/*", frozenset({"python", "windows"})),
     ("scripts/lp_film/*", frozenset()),  # offline hero-film authoring; CI never runs it
     ("scripts/*.ps1", frozenset({"python", "windows"})),

@@ -63,6 +63,7 @@ AI による解析設定
 | [`engines/cellpose`](engines/cellpose) | Cellpose-SAM の推論 runner と GPU サーバー。依存とモデルを固定 |
 | [`engines/python`](engines/python) | Windows 版の Python ランタイムの固定 |
 | [`infra`](infra) | Docker（Web・API・ワーカー）、Caddy による TLS、Modal の GPU サーバー |
+| [`packaging/windows`](packaging/windows) | Windows 版のインストーラー（Inno Setup）、導入前の確認、CI での導入試験 |
 | [`scripts`](scripts) | 開発の入口 `dev.py`、セットアップ、配布物と公開デモの構築、検証 |
 | [`tests`](tests) | 数値計算・API・ブラウザ・Windows 導入の試験 |
 | [`fixtures/public`](fixtures/public) | 試験と公開デモに使う公開画像。出典・ライセンス・ハッシュを登録 |

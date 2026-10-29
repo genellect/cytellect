@@ -43,6 +43,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from sqlalchemy import func, select, update
 
 from .analysis_spec import register_analysis_spec_routes
+from .app_update import register_app_update_routes
 from .channel_assignments import register_channel_assignment_routes
 from .common_statistics import register_common_statistics_routes
 from .config import Settings, configure_private_tmp
@@ -1143,6 +1144,7 @@ def create_app(settings: Settings | None = None):
     register_workspace_run_routes(api, store, owner, workspace, touch)
     register_field_link_routes(api, store, owner, workspace, touch)
     register_figure_render_routes(api, store, owner, job_record, queue)
+    register_app_update_routes(api, settings, owner)
     register_region_cohort_routes(api, store, owner, workspace, revision, result_root, queue)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

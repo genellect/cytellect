@@ -21,6 +21,7 @@
 | `fiji-browser` | 実際の Fiji、API とブラウザの連携、本番のコンテナ | `main` だけ |
 | `cellpose-gpu-image` | GPU 推論のイメージが CPU 版と同じラベルを返すこと | `main` だけ |
 | `windows-installed` | 配布 ZIP の新規導入と、前の版からの更新 | `main` だけ |
+| `windows-installer` | インストーラーを作り、ネットワークなしでの無人導入・起動・再実行・中断からの再開・アンインストール・0.1.0-local.20 からの移行を確かめる（`packaging/windows/smoke.ps1`） | `main` と手動実行だけ |
 
 ジョブは並行して走り、PR の待ちは最も長いジョブで決まる。Windows のテスト一式は 1 つのジョブで約 34 分かかっていたため、テストのモジュール単位で 4 つに分けた。分けた結果は `scripts/merge_test_shards.py` が、同じ収集のすべての分割がそろい、合わせて全テストになることを確かめてから 1 回の実行にまとめ、科学的な回帰試験のレシートを作る（[独立した確認](scientific-review.md)）。分け方は、Windows の CI で測ったモジュールごとの所要時間（`tests/shard_weights.json`）で均す。記録にない新しいモジュールは、1 テストあたりの平均で見積もる。偏りが出たら、`scripts/merge_test_shards.py weights` で記録を作り直す。
 
@@ -44,9 +45,9 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 
 ## 配布の条件
 
-Windows 版は、配布する `main` のコミットで次の 7 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。
+Windows 版は、配布する `main` のコミットで次の 8 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。ブランチ保護の必須チェックは、`windows-installer` を除く 7 つのまま。
 
-`python`、`web`、`fiji-browser`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`python-windows-314`
+`python`、`web`、`fiji-browser`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`windows-installer`、`python-windows-314`
 
 `main` で失敗した場合は、次の配布までに修正するか取り消す。
 

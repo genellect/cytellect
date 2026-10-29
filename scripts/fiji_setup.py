@@ -2,6 +2,8 @@
 
 Usage: python scripts/fiji_setup.py /opt/fiji --platform linux-x64
 The destination must not exist. Downloads happen only here, never in a job.
+With --offline-dir, every artifact is copied from that directory, where each file is
+named by its SHA-256 (the Windows installer's bundled copy); nothing is downloaded.
 """
 from __future__ import annotations
 
@@ -54,7 +56,23 @@ def transfer(url: str, target: Path, attempt: int) -> bool:
     return False
 
 
-def download(url: str, target: Path, expected: str) -> None:
+def copy_offline(directory: Path, target: Path, expected: str) -> None:
+    """Copy one bundled artifact named by its digest; a missing or altered copy stops setup."""
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise RuntimeError("offline_artifact_digest_invalid")
+    source = directory / expected
+    if source.is_symlink() or not source.is_file():
+        raise RuntimeError("offline_artifact_missing")
+    shutil.copyfile(source, target)
+    if sha(target) != expected:
+        target.unlink()
+        raise RuntimeError("offline_artifact_hash_mismatch")
+
+
+def download(url: str, target: Path, expected: str, offline: Path | None = None) -> None:
+    if offline is not None:
+        copy_offline(offline, target, expected)
+        return
     # Some proxies end large streaming responses early without a read exception.
     # Always check the complete byte count/hash; resume verified HTTP ranges only.
     for attempt in range(6):
@@ -77,7 +95,12 @@ def main() -> None:
     parser.add_argument("destination", type=Path)
     parser.add_argument("--platform", choices=("linux-x64", "windows-x64"),
                         default="windows-x64" if platform.system() == "Windows" else "linux-x64")
+    parser.add_argument("--offline-dir", type=Path,
+                        help="Directory of bundled artifacts named by SHA-256; disables downloads")
     args = parser.parse_args()
+    offline = args.offline_dir.resolve() if args.offline_dir else None
+    if offline is not None and not offline.is_dir():
+        parser.error("Offline artifact directory is missing")
     repo = Path(__file__).resolve().parents[1]
     destination = args.destination.resolve()
     if destination == repo or repo in destination.parents:
@@ -90,8 +113,8 @@ def main() -> None:
         stage = Path(temporary)
         archive = stage / "distribution.zip"
         item = lock["fiji"][args.platform]
-        print("Downloading pinned Fiji distribution", flush=True)
-        download(item["url"], archive, item["sha256"])
+        print("Copying bundled Fiji distribution" if offline else "Downloading pinned Fiji distribution", flush=True)
+        download(item["url"], archive, item["sha256"], offline)
         unpack = stage / "unpacked"
         unpack.mkdir()
         with zipfile.ZipFile(archive) as bundle:
@@ -129,7 +152,7 @@ def main() -> None:
             for previous in target.parent.glob(stem + "-*.jar"):
                 if re.match(re.escape(stem) + r"-[0-9]", previous.name):
                     previous.unlink()
-            download(plugin["url"], target, plugin["sha256"])
+            download(plugin["url"], target, plugin["sha256"], offline)
         model = lock["model"]
         with zipfile.ZipFile(runtime / model["container"]) as jar:
             if hashlib.sha256(jar.read(model["member"])).hexdigest() != model["sha256"]:

@@ -47,7 +47,7 @@ jobs:
             const checks = await github.paginate(github.rest.checks.listForRef, {
               ...context.repo, ref: context.sha, filter: 'latest', per_page: 100
             });
-            for (const name of ['python', 'web', 'fiji-browser', 'cellpose-gpu-image', 'local-windows', 'windows-installed', 'python-windows-314']) {
+            for (const name of ['python', 'web', 'fiji-browser', 'cellpose-gpu-image', 'local-windows', 'windows-installed', 'windows-installer', 'python-windows-314']) {
               const check = checks.find(c => c.name === name && c.app?.slug === 'github-actions');
               if (check?.conclusion !== 'success') throw new Error(`${name} has not passed on this commit`);
             }
@@ -83,21 +83,39 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
           "CYTELLECT_RELEASE_DIR=$releaseDir" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CYTELLECT_RELEASE_ZIP=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Fresh setup with pinned Python and actual Fiji
+      - name: Restore pinned public downloads (content-addressed, verified again on use)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/installer-cache
+          key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/python/windows-runtime.lock.json', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py') }}
+      - name: Build the per-user installer from the same ZIP
         shell: pwsh
         run: |
-          $source = Join-Path $env:RUNNER_TEMP 'package-source'
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          $cache = Join-Path $env:RUNNER_TEMP 'installer-cache'
+          $inno = Join-Path $env:RUNNER_TEMP 'inno'
+          & $python -B scripts/build_windows_installer.py install-inno --dest $inno --cache $cache
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Inno Setup installation failed' }
+          # Signing is the owner's decision (D4): set CYTELLECT_SIGN_COMMAND from a protected
+          # environment to sign; without it the installer is unsigned and its receipt says so.
+          & $python -B scripts/build_windows_installer.py build --release-zip $env:CYTELLECT_RELEASE_ZIP --output-dir $env:CYTELLECT_RELEASE_DIR --work-dir (Join-Path $env:RUNNER_TEMP 'installer-work') --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python (Get-Command python).Source
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'installer-work') -Recurse -Force
+          "CYTELLECT_RELEASE_INSTALLER=$(Join-Path $env:CYTELLECT_RELEASE_DIR "Cytellect-Setup-$env:RELEASE_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Fresh silent installation without network, with bundled Python and actual Fiji
+        shell: pwsh
+        run: |
           $install = Join-Path $env:RUNNER_TEMP 'installed-cytellect'
-          Expand-Archive -LiteralPath $env:CYTELLECT_RELEASE_ZIP -DestinationPath $source
-          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $install -Console -NoShortcut
-          if ($LASTEXITCODE -ne 0) { throw 'Pinned installation or Fiji verification failed' }
+          $env:HTTP_PROXY = 'http://127.0.0.1:9'; $env:HTTPS_PROXY = 'http://127.0.0.1:9'
+          $process = Start-Process -FilePath $env:CYTELLECT_RELEASE_INSTALLER -PassThru -Wait -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$install`"")
+          if ($process.ExitCode -ne 0) { throw 'Installation or Fiji verification failed' }
           "CYTELLECT_INSTALL_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Repeat setup in the existing private installation
+      - name: Repeat the installer in the existing private installation
         shell: pwsh
         run: |
-          $source = Join-Path $env:RUNNER_TEMP 'package-source'
-          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $env:CYTELLECT_INSTALL_ROOT -Console -NoShortcut
-          if ($LASTEXITCODE -ne 0) { throw 'Repeat installation failed' }
+          $env:HTTP_PROXY = 'http://127.0.0.1:9'; $env:HTTPS_PROXY = 'http://127.0.0.1:9'
+          $process = Start-Process -FilePath $env:CYTELLECT_RELEASE_INSTALLER -PassThru -Wait -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$env:CYTELLECT_INSTALL_ROOT`"")
+          if ($process.ExitCode -ne 0) { throw 'Repeat installation failed' }
       - name: Installed image, planning and registration workflows with numerical replay
         shell: pwsh
         run: |
@@ -229,5 +247,5 @@ jobs:
       - name: Create a draft prerelease for final review
         shell: bash
         run: |
-          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "Source: $GITHUB_SHA" '' 'Per-user installer Cytellect-Setup-'"$RELEASE_VERSION"'.exe (bundled Python, packages and Fiji; see its receipt for signing status) and the setup ZIP. Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
           gh release create "v$RELEASE_VERSION" release/* --verify-tag --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
