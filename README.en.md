@@ -106,9 +106,12 @@ Each run uses its own working directory and child processes. Cancellation or exc
 
 Settings updates are checked against the requester's version and return `409` on conflict. Mask corrections are saved as new versions, and the measurements, statistics and figures that depend on that mask are marked for update.
 
-Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests. See [SECURITY.md](SECURITY.md) for the current security measures and how to report a vulnerability.
+## Security and research data
 
-Images and results that users load are stored in a data area separate from the application code, and the worker manages their retention and deletion ([data protection and operations](docs/security.md)).
+Research images are analysed on the researcher's PC, and only the minimum data each task needs leaves it.
+
+- Security measures and vulnerability reporting: [SECURITY.md](SECURITY.md)
+- Handling research data and credentials in development: [team development rules §6](docs/team-development.md#6-research-data)
 
 ## Distribution
 
