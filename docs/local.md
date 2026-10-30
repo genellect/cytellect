@@ -109,6 +109,7 @@ Change no security setting, and do not unblock or move files.
 
 1. Download `Cytellect-Setup-<version>.exe` in Edge from the release page. Note any
    download warning and its exact wording.
+   Follow the [user guide's integrity check](install-windows.ja.md#2-ダウンロードと確認) against the signed manifest and note whether the built-in `ssh-keygen` accepts `-Y verify`.
 2. Open it from the Downloads folder. Note whether a SmartScreen or Smart App
    Control dialog appears and whether the dialog offers a way to continue.
 3. If it runs: install with one click, time it, and confirm that the browser opens
