@@ -22,6 +22,7 @@
 | `cellpose-gpu-image` | GPU 推論のイメージが CPU 版と同じラベルを返すこと | `main` だけ |
 | `windows-installed` | 配布 ZIP の新規導入と、前の版からの更新 | `main` と手動実行だけ |
 | `windows-installer` | インストーラーの新規導入（ネットワークなし）、再実行、中断からの再開、アンインストール、0.1.0-local.20 からの更新、アプリ内の更新と失敗時の復帰（`packaging/windows/smoke.ps1`） | `main` と手動実行だけ |
+| `CodeQL`（`codeql.yml`） | GitHub Actions、JavaScript・TypeScript、Python の静的解析。結果は Security タブの Code scanning に出る。週 1 回の定期実行もある | 常に |
 
 ジョブは並行して走り、PR の待ちは最も長いジョブで決まる。Windows のテスト一式は 1 つのジョブで約 34 分かかっていたため、テストのモジュール単位で 4 つに分けた。分けた結果は `scripts/merge_test_shards.py` が、同じ収集のすべての分割がそろい、合わせて全テストになることを確かめてから 1 回の実行にまとめ、科学的な回帰試験のレシートを作る（[独立した確認](scientific-review.md)）。分け方は、Windows の CI で測ったモジュールごとの所要時間（`tests/shard_weights.json`）で均す。記録にない新しいモジュールは、1 テストあたりの平均で見積もる。偏りが出たら、`scripts/merge_test_shards.py weights` で記録を作り直す。
 
