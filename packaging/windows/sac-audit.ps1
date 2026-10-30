@@ -94,20 +94,30 @@ function ConvertTo-SafePath([string]$Path) {
         if ($p.StartsWith($anchor.Tail, [StringComparison]::OrdinalIgnoreCase)) {
             $rest = $p.Substring($anchor.Tail.Length)
             # Inno Setup's random extraction folders and the installed app's commit-specific folder.
-            $rest = $rest -replace '(?i)^is-[a-z0-9]+\.tmp\\', 'is-*.tmp\'
+            $rest = $rest -replace '(?i)^is-[a-z0-9]+(-[a-z]+)?\.tmp\\', 'is-*.tmp\'
+            # Random folders of jobs and of Java's native-library loaders become wildcards.
+            $rest = $rest -replace '(?i)\\[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\', '\*\'
+            $rest = $rest -replace '(?i)\\(j|cytellect-install)-[a-z0-9_]+\\', '\$1-*\'
+            $rest = $rest -replace '(?i)(nativelib-loader_|tensorflow_native_libraries-)[0-9-]+', '$1*'
             return $anchor.Label + $rest
         }
     }
     return '<other>\' + ($p -split '\\')[-1]
 }
 
-function Get-Group([string]$SafePath) {
+function Get-Group([string]$SafePath, [string]$Process = '') {
     $p = $SafePath.ToLowerInvariant()
     $leaf = ($p -split '\\')[-1]
     if ($p.StartsWith('<probe>\')) { return 'probe' }
     if ($p -match '^<temp>\\is-\*\.tmp\\' -or $p -match '^<downloads>\\cytellect-setup-' -or $p -match '^<install>\\uninstall\\') { return 'inno-setup' }
-    if ($leaf -match '\.(ps1|psm1|psd1|cmd|bat|vbs|js|wsf)$') { return 'own-scripts' }
-    if ($p -match '\\runtimes\\fiji-' -or $p -match '\\(jdk|jre|java)[^\\]*\\') { return 'jdk-fiji' }
+    # Not shipped by Cytellect: the runner's own tools, or a DLL found on the runner's PATH.
+    if (-not ($p.StartsWith('<install>\') -or $p.StartsWith('<temp>\') -or $p.StartsWith('<downloads>\'))) { return 'runner' }
+    # Cytellect's own setup scripts (unpacked with the app); other vendors' scripts stay in their group.
+    if ($leaf -match '\.(ps1|psm1|psd1|cmd|bat|vbs|js|wsf)$' -and
+        ($p -match '^<install>\\apps\\[^\\]+\\scripts\\' -or $p -match '^<install>\\apps\\[^\\]+\\[^\\]+$')) { return 'own-scripts' }
+    # Fiji and its JDK, including native libraries that Fiji's Java plugins unpack at run time.
+    if ($p -match '\\runtimes\\fiji-' -or $p -match '\\(nativelib-loader_|tensorflow_native_libraries-)' -or
+        $Process -match '(?i)\\runtimes\\fiji-[^\\]+\\.*\\java(w)?\.exe$') { return 'jdk-fiji' }
     if ($p -match '\\runtimes\\python' -or $p -match '\\\.venv\\' -or $p -match '\\site-packages\\' -or $leaf -match '\.pyd$') { return 'python-wheels' }
     return 'other'
 }
@@ -128,9 +138,8 @@ function Get-Field($Fields, [string[]]$Names) {
     return ''
 }
 
-$SigningLevels = @{ '0' = 'not checked'; '1' = 'unsigned'; '2' = 'App Control policy signer'; '3' = 'custom 1'
-    '4' = 'Authenticode'; '5' = 'custom 2'; '6' = 'Store'; '7' = 'antimalware'; '8' = 'Microsoft'; '9' = 'custom 4'
-    '10' = 'custom 5'; '11' = 'dynamic code'; '12' = 'Windows'; '13' = 'Windows PPL'; '14' = 'Windows TCB'; '15' = 'custom 6' }
+# Signing levels and verification errors stay as Code Integrity's numeric codes (Microsoft's
+# event-ID explanations define them).
 
 function Get-Signature([string]$Path) {
     try {
@@ -155,13 +164,12 @@ function Get-AuditRows {
     foreach ($record in $ci | Where-Object Id -ne 3089) {
         $f = Get-EventFields $record
         $file = ConvertTo-SafePath (Get-Field $f @('File Name', 'FileName'))
+        $process = ConvertTo-SafePath (Get-Field $f @('Process Name', 'ProcessName'))
         $requested = Get-Field $f @('Requested Signing Level')
         $validated = Get-Field $f @('Validated Signing Level')
         $rows += [pscustomobject]@{
-            event = $record.Id; policy = Get-Field $f @('PolicyName', 'PolicyID', 'PolicyGUID'); file = $file; group = Get-Group $file
-            process = ConvertTo-SafePath (Get-Field $f @('Process Name', 'ProcessName'))
-            requested = $(if ($SigningLevels.ContainsKey($requested)) { $SigningLevels[$requested] } else { $requested })
-            validated = $(if ($SigningLevels.ContainsKey($validated)) { $SigningLevels[$validated] } else { $validated })
+            event = $record.Id; policy = Get-Field $f @('PolicyName', 'PolicyID', 'PolicyGUID'); file = $file; group = Get-Group $file $process
+            process = $process; requested = $requested; validated = $validated
             ci_signatures = (@($signatures[[string]$record.ActivityId]) -join '; ')
             sha256 = Get-Field $f @('SHA256 Hash') }
     }
@@ -217,7 +225,7 @@ else {
 # ---------------------------------------------------------------- policy 2: the example SAC policy in audit mode with ISG
 Step 'deploy the example Smart App Control policy in audit mode with ISG'
 $example = Join-Path $env:SystemRoot 'schemas\CodeIntegrity\ExamplePolicies\SmartAppControl.xml'
-$facts.policies.isg = [ordered]@{ source = 'ExamplePolicies\SmartAppControl.xml + audit mode'; method = ''; active = $false; options = @() }
+$facts.policies.isg = [ordered]@{ source = 'ExamplePolicies\SmartAppControl.xml + audit mode, unconditional'; method = ''; active = $false; options = @() }
 $isgId = $null
 if (-not (Test-Path -LiteralPath $example)) { Add-Error 'ISG policy' 'SmartAppControl.xml example policy is not on this runner' }
 else {
@@ -226,12 +234,19 @@ else {
         $cipPath = Join-Path $Scratch 'sac-isg-audit.cip'
         Copy-Item -LiteralPath $example -Destination $xmlPath
         # The ConfigCI cmdlets ship with Windows PowerShell. Audit mode (3), unsigned policy (6),
-        # ISG (14) and rebootless update (16); a fresh policy ID so nothing built in is replaced.
+        # ISG (14) and rebootless update (16), without the condition that limits the example to
+        # Smart App Control clients; a fresh policy ID so nothing built in is replaced.
         $configure = @'
 param([string]$Xml, [string]$Cip, [string]$Name)
 $ErrorActionPreference = 'Stop'
 Import-Module ConfigCI
 foreach ($option in 3, 6, 14, 16) { Set-RuleOption -FilePath $Xml -Option $option }
+# The example applies only where Smart App Control runs (a Windows client); make it unconditional.
+[xml]$policy = Get-Content -LiteralPath $Xml -Raw
+foreach ($rule in @($policy.SiPolicy.Rules.Rule)) {
+    if ($rule.Option -eq 'Enabled:Conditional Windows Lockdown Policy') { $null = $policy.SiPolicy.Rules.RemoveChild($rule) }
+}
+$policy.Save($Xml)
 $null = Set-CIPolicyIdInfo -FilePath $Xml -PolicyName $Name -ResetPolicyID
 $null = ConvertFrom-CIPolicy -XmlFilePath $Xml -BinaryFilePath $Cip
 '@
@@ -329,9 +344,11 @@ if (Test-Path -LiteralPath $Root) {
     $extensions = @('.exe', '.dll', '.pyd', '.sys', '.ocx', '.cpl', '.ps1', '.psm1', '.psd1', '.cmd', '.bat', '.vbs', '.js', '.msi')
     foreach ($file in Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.Extension.ToLowerInvariant() -in $extensions }) {
         $safe = ConvertTo-SafePath $file.FullName
-        if ($safe -match '\\node_modules\\|\\apps\\web\\out\\') { continue }   # browser assets, not run by Windows
+        $group = Get-Group $safe
+        # Executable images of every group, and scripts only where Cytellect itself runs them.
+        if ($file.Extension -notin @('.exe', '.dll', '.pyd', '.sys', '.ocx', '.cpl') -and $group -ne 'own-scripts') { continue }
         $sig = Get-Signature $file.FullName
-        $inventory += [pscustomobject]@{ file = $safe; group = Get-Group $safe; status = $sig.status; signer = $sig.signer }
+        $inventory += [pscustomobject]@{ file = $safe; group = $group; status = $sig.status; signer = $sig.signer }
     }
 }
 $signatureOf = @{}
@@ -373,7 +390,7 @@ $facts.probe_policies = @($probeSeen | ForEach-Object { $_.policy } | Sort-Objec
 
 $unique | Export-Csv -LiteralPath (Join-Path $Output 'sac-audit-events.csv') -NoTypeInformation -Encoding utf8
 $inventory | Sort-Object group, file | Export-Csv -LiteralPath (Join-Path $Output 'sac-inventory.csv') -NoTypeInformation -Encoding utf8
-$groups = 'python-wheels', 'jdk-fiji', 'own-scripts', 'inno-setup', 'other'
+$groups = 'python-wheels', 'jdk-fiji', 'own-scripts', 'inno-setup', 'other', 'runner'
 $facts.audited = [ordered]@{}
 foreach ($which in 'no_isg', 'isg') {
     $byPolicy = @($unique | Where-Object { (Test-Policy $_ $which) -and $_.group -ne 'probe' })
