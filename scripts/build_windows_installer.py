@@ -13,6 +13,12 @@ researcher's PC verifies everything and never downloads at installation time.
 Signing (owner decision D4) is a hook: ``--sign-command`` is passed to Inno Setup's
 SignTool, which signs the installer and its uninstaller. Without it the installer is
 unsigned and its receipt records ``"signed": false``.
+
+``--corresponding-source`` (always passed by the release workflow) also writes
+``Cytellect-<version>-gpl-sources.zip`` beside the installer: the exact source of every
+bundled component whose license requires it, pinned by SHA-256 in
+``engines/fiji/corresponding-source.lock.json`` and ``uv.lock``
+(``scripts/corresponding_source.py``). The installer's ``licenses/`` names that asset.
 """
 from __future__ import annotations
 
@@ -311,69 +317,61 @@ def scan_for_secrets(paths: list[Path]) -> dict[str, int]:
 
 
 LICENSE_NAME = re.compile(r"(?i)^(?:licen[cs]e|copying|notice|authors?)(?:[._-].*)?$")
-# Corresponding source, per bundled version: every Maven-built jar names its coordinates in
-# META-INF/maven/*/*/pom.properties, and the SciJava repository (which also mirrors Maven
-# Central) publishes <artifact>-<version>-sources.jar beside it. The JDK's release file names
-# its exact build. By the owner's decision these addresses and the license texts are the
-# whole provision; no source copy or written offer accompanies the installer (docs/oss.md).
-MAVEN_SOURCES = "https://maven.scijava.org/content/groups/public"
-JDK_RELEASE = re.compile(r"(?:^|/)java/[^/]+/[^/]+/release$")
+# Corresponding source (owner decision, 2026-10-30): the exact source of every bundled
+# component whose license requires it is attached to the same release as
+# Cytellect-<version>-gpl-sources.zip; the installer itself does not carry it.
+# scripts/corresponding_source.py derives the obligations from the bundled bytes and
+# engines/fiji/corresponding-source.lock.json pins each source by SHA-256.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import corresponding_source as cs  # noqa: E402
+
+CORRESPONDING_LOCK = "engines/fiji/corresponding-source.lock.json"
+UV_LICENSE = "Apache-2.0 OR MIT"
 
 
-def jar_coordinates(data: bytes) -> tuple[str, str, str] | None:
-    import io
+def bundled_fiji(offline: Path, release: Path, artifacts: list[Artifact]) -> tuple[Path, dict]:
+    """The bundled Fiji archive and the inventory of its jars, binaries, plugins and JDK."""
+    fiji = json.loads((release / "engines/fiji/runtime.lock.json").read_text(encoding="utf-8"))
+    archive = next(artifact for artifact in artifacts if artifact.role == "fiji")
+    path = offline / "sha256" / archive.sha256
+    # pinned_artifacts takes every plugin from the same lock, so this keeps them all.
+    bundled = {artifact.sha256 for artifact in artifacts if artifact.role == "fiji_plugin"}
+    inventory = cs.fiji_inventory(path, [plugin for plugin in fiji["plugins"] if plugin["sha256"] in bundled],
+                                  lambda plugin: (offline / "sha256" / plugin["sha256"]).read_bytes())
+    return path, inventory
 
+
+def collect_corresponding_source(payload: Path, release: Path, artifacts: list[Artifact], wheels: list[dict],
+                                 output_dir: Path, cache: Path, version: str, commit: str) -> dict:
+    """Write the release asset with every required source; fail for any component without one."""
+    offline = payload / "offline"
+    _, inventory = bundled_fiji(offline, release, artifacts)
+    archive = next(artifact for artifact in artifacts if artifact.role == "fiji")
+    lock_path = release / CORRESPONDING_LOCK
+    if not lock_path.is_file():
+        raise BuildError("corresponding_source_lock_missing")
     try:
-        with zipfile.ZipFile(io.BytesIO(data)) as jar:
-            found = [name for name in jar.namelist()
-                     if name.startswith("META-INF/maven/") and name.endswith("/pom.properties")]
-            if len(found) != 1:
-                return None
-            values = dict(line.split("=", 1) for line in jar.read(found[0]).decode("utf-8", "replace").splitlines()
-                          if "=" in line and not line.startswith("#"))
-    except (zipfile.BadZipFile, OSError):
-        return None
-    group, artifact, version = (values.get(key, "").strip() for key in ("groupId", "artifactId", "version"))
-    return (group, artifact, version) if group and artifact and version else None
+        entries = cs.obligations(cs.load_lock(lock_path), inventory, archive.sha256)
+        if not (release / "uv.lock").is_file():
+            raise BuildError("release_uv_lock_missing")
+        uv_lock = (release / "uv.lock").read_text(encoding="utf-8")
+        entries += cs.wheel_obligations([offline / wheel["path"] for wheel in wheels], uv_lock)
+        runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
+        uv = next(artifact for artifact in artifacts if artifact.role == "uv")
+        entries += cs.runtime_obligations(runtime, {"version": uv.url.split("/download/")[1].split("/")[0],
+                                                    "sha256": uv.sha256, "license": UV_LICENSE})
+        cs.require_sources(entries)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
+        def fetch(source: dict) -> Path:
+            return fetch_artifact(Artifact("corresponding_source", source["url"], source["sha256"],
+                                           source.get("bytes")), cache)
 
-def jar_source(path: str, data: bytes) -> dict:
-    entry = {"path": path, "sha256": hashlib.sha256(data).hexdigest()}
-    coordinates = jar_coordinates(data)
-    if coordinates:
-        group, artifact, version = coordinates
-        entry.update(group=group, artifact=artifact, version=version,
-                     source=f"{MAVEN_SOURCES}/{group.replace('.', '/')}/{artifact}/{version}/{artifact}-{version}-sources.jar")
-    return entry
-
-
-def jdk_source(release_text: str) -> dict:
-    values = {key: value.strip().strip('"') for key, _, value in
-              (line.partition("=") for line in release_text.splitlines()) if key}
-    runtime = values.get("JAVA_RUNTIME_VERSION") or values.get("JAVA_VERSION", "")
-    build = re.sub(r"-LTS$", "", runtime)
-    major = build.split(".")[0].split("+")[0]
-    sources = [f"https://github.com/openjdk/jdk{major}u/tree/jdk-{build}"] if major.isdigit() and build else []
-    implementor = values.get("IMPLEMENTOR", "")
-    if "Azul" in implementor:
-        sources.append("https://cdn.azul.com/zulu/src/ (source bundle of " + values.get("IMPLEMENTOR_VERSION", "") + ")")
-    return {"implementor": implementor, "version": runtime, "implementor_version": values.get("IMPLEMENTOR_VERSION"),
-            "license": "GPL-2.0 WITH Classpath-exception-2.0 (see legal/ in the bundled JDK)",
-            "source": "; ".join(sources) or "the JDK vendor's source bundle for this exact build"}
-
-
-def fiji_sources(archive: Path, plugins: list[tuple[str, Path]]) -> dict:
-    """Per-jar Maven source coordinates and the JDK build inside the bundled Fiji archive."""
-    jars, jdk = [], None
-    with zipfile.ZipFile(archive) as fiji:
-        for info in fiji.infolist():
-            if info.filename.endswith(".jar"):
-                jars.append(jar_source(info.filename, fiji.read(info)))
-            elif JDK_RELEASE.search(info.filename) and jdk is None:
-                jdk = jdk_source(fiji.read(info).decode("utf-8", "replace"))
-    for label, plugin in plugins:
-        jars.append(jar_source(label, plugin.read_bytes()))
-    return {"jars": jars, "jdk": jdk}
+        result = cs.write_archive(output_dir / cs.asset_name(version), version, commit, entries, fetch)
+    except cs.SourceError as error:
+        raise BuildError(str(error)) from None
+    result["lock_sha256"] = sha256_file(lock_path)
+    return result
 
 
 # (name, version) of locked wheels reviewed to ship without a license file. None today.
@@ -415,18 +413,34 @@ def wheel_notice(path: Path, destination: Path) -> dict:
             "source": f"https://pypi.org/project/{metadata['Name']}/{metadata['Version']}/", "files": sorted(files)}
 
 
-def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheels: list[dict]) -> dict:
-    """licenses/: what the installer bundles, under which license, and where its source is."""
+def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheels: list[dict],
+                  corresponding: dict | None = None) -> dict:
+    """licenses/: what the installer bundles, under which license, and where its source is.
+
+    ``corresponding`` is the release asset written by collect_corresponding_source; without
+    it (CI builds that are never distributed) the notices say that no source was collected.
+    """
     directory = payload / "licenses"
     (directory / "wheels").mkdir(parents=True)
     fiji = json.loads((release / "engines/fiji/runtime.lock.json").read_text(encoding="utf-8"))
-    offline = payload / "offline"
-    archive = next(artifact for artifact in artifacts if artifact.role == "fiji")
-    sources = fiji_sources(offline / "sha256" / archive.sha256,
-                           [(artifact.url.rsplit("/", 1)[-1], offline / "sha256" / artifact.sha256)
-                            for artifact in artifacts if artifact.role == "fiji_plugin"])
-    (directory / "fiji-sources.json").write_text(json.dumps(sources, indent=2) + "\n", encoding="utf-8")
-    pinned = sum(1 for jar in sources["jars"] if jar.get("source"))
+    _, inventory = bundled_fiji(payload / "offline", release, artifacts)
+    jdk = inventory["jdk"]
+    asset = corresponding["asset"] if corresponding else None
+    by_component = {record["component"]: record for record in corresponding["components"]} if corresponding else {}
+
+    def provided(component: str, upstream: str) -> dict:
+        """Where one component's source is: its member of the release asset, or upstream only."""
+        record = by_component.get(component)
+        if record and record.get("member"):
+            return {"source": f"{asset} (this release): {record['member']}",
+                    "corresponding_source": {"asset": asset, "member": record["member"], "sha256": record["sha256"],
+                                             "url": record["url"]}}
+        if record and record.get("exception"):
+            return {"source": "not attached (listed exception): " + record["exception"]}
+        return {"source": upstream}
+
+    collected = (f"{asset} attached to this release ({len(by_component)} components whose license requires source)"
+                 if corresponding else "not collected in this build, which must not be distributed")
     runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
     uv = next(artifact for artifact in artifacts if artifact.role == "uv")
     uv_version = uv.url.split("/download/")[1].split("/")[0]
@@ -435,39 +449,65 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
          "license": "GPL-3.0 for Fiji; every bundled component keeps its own license (Bio-Formats GPL-2.0-or-later; "
                     "the JDK GPL-2.0 WITH Classpath-exception-2.0, see java/*/legal in the installed runtime)",
          "sha256": fiji["fiji"]["windows-x64"]["sha256"], "url": fiji["fiji"]["windows-x64"]["url"],
-         "source": f"licenses/fiji-sources.json: per jar and version, {pinned} of {len(sources['jars'])} jars "
-                   f"with a Maven -sources.jar address ({MAVEN_SOURCES}); the others carry their own notices"},
-        *([{"component": "JDK " + (sources["jdk"]["version"] or "") + " (" + sources["jdk"]["implementor"] + ")",
-            "license": sources["jdk"]["license"], "source": sources["jdk"]["source"]}] if sources["jdk"] else []),
+         "source": f"Corresponding source of the {len(inventory['files'])} bundled jars and binaries that require it: "
+                   f"{collected}; the others carry their own notices"},
+        *([{"component": "JDK " + jdk["version"] + " (" + jdk["implementor"] + ", " + jdk["implementor_version"] + ")",
+            "license": jdk["license"] + " (see legal/ in the bundled JDK)",
+            **provided(jdk["path"], "not collected in this build")}] if jdk else []),
         *({"component": plugin["path"], "license": plugin["license"], "sha256": plugin["sha256"],
-           "url": plugin["url"], "source": plugin["source"]} for plugin in fiji["plugins"]),
+           "url": plugin["url"], **provided("plugin:" + plugin["path"], plugin["source"])} for plugin in fiji["plugins"]),
         {"component": "Python " + runtime["python"]["version"], "license": "PSF-2.0 and bundled component terms",
          "sha256": runtime["python"]["sha256"], "url": runtime["python"]["url"],
          "source": "https://www.python.org/downloads/source/"},
         *({"component": notice["path"], "license": notice["license"], "source": notice["source_url"]}
           for notice in runtime.get("notices", []) if notice.get("scope") == "scripts"),
-        {"component": "uv " + uv_version, "license": "Apache-2.0 OR MIT", "sha256": uv.sha256, "url": uv.url,
+        {"component": "uv " + uv_version, "license": UV_LICENSE, "sha256": uv.sha256, "url": uv.url,
          "source": f"https://github.com/astral-sh/uv/tree/{uv_version}"},
     ]
     for wheel in wheels:
-        components.append(wheel_notice(offline / wheel["path"], directory / "wheels"))
+        notice = wheel_notice(payload / "offline" / wheel["path"], directory / "wheels")
+        notice.update(provided("wheel:" + PurePosixPath(wheel["path"]).name, notice["source"]))
+        components.append(notice)
+    listed = {jdk["path"] if jdk else None} | {"plugin:" + plugin["path"] for plugin in fiji["plugins"]} | {
+        "wheel:" + PurePosixPath(wheel["path"]).name for wheel in wheels}
+    for record in (corresponding or {}).get("components", []):
+        if record["component"] not in listed:  # each Fiji jar or binary that requires source
+            components.append({"component": record["component"], "version": record.get("coordinates") or "",
+                               "license": "; ".join(record["licenses"]) or "undetermined (treated as requiring source)",
+                               "sha256": record["bundled_sha256"], **provided(record["component"], "")})
     lines = ["Cytellect Windows installer: bundled third-party software", "",
              "Cytellect's own code is licensed under Apache-2.0 (LICENSE). That license does not apply to the",
              "components below; each keeps its own license. The installed copies keep every notice that the",
-             "upstream archives and wheels contain (runtimes/, apps/*/.venv/Lib/site-packages/*.dist-info/).",
-             "Corresponding source is published at the addresses given for each component.", ""]
+             "upstream archives and wheels contain (runtimes/, apps/*/.venv/Lib/site-packages/*.dist-info/).", ""]
+    if corresponding:
+        lines += ["Corresponding source: for every component whose license requires source with the binary",
+                  "(GPL, LGPL, MPL, EPL, CDDL and similar, or whose license could not be determined), the source",
+                  "released for exactly the bundled version is attached to the same release as this installer:",
+                  f"  {asset}  SHA-256 {corresponding['sha256']}",
+                  "Its manifest.json lists each component's bundled SHA-256 and its source's URL and SHA-256.",
+                  "The installer itself does not contain that source.", ""]
+    else:
+        lines += ["Corresponding source was not collected in this build. It must not be distributed.", ""]
     for item in components:
         lines += [f"- {item['component']}" + (f" {item['version']}" if item.get("version") else ""),
                   f"  License: {item['license']}", f"  Source: {item['source']}"]
         if item.get("sha256"):
             lines.append(f"  Bundled file SHA-256: {item['sha256']}")
+        if item.get("corresponding_source"):
+            lines.append(f"  Source file SHA-256: {item['corresponding_source']['sha256']}")
         for name in item.get("files", []):
             lines.append(f"  License text: {name}")
     text = ("\n".join(lines) + "\n").encode("utf-8")
     (directory / "THIRD_PARTY_BUNDLED.txt").write_bytes(text)
     (directory / "bundled-components.json").write_text(json.dumps(components, indent=2) + "\n", encoding="utf-8")
+    summary = None
+    if corresponding:
+        summary = {key: corresponding[key] for key in ("asset", "sha256", "bytes", "lock_sha256")}
+        summary["components"] = len(corresponding["components"])
+        (directory / "corresponding-source.json").write_text(
+            json.dumps({**summary, "files": corresponding["components"]}, indent=2) + "\n", encoding="utf-8")
     return {"notices_sha256": hashlib.sha256(text).hexdigest(), "components": components,
-            "fiji_sources": {"jars": len(sources["jars"]), "with_maven_sources": pinned, "jdk": sources["jdk"]}}
+            "corresponding_source": summary}
 
 
 def numeric_version(version: str) -> str:
@@ -494,11 +534,16 @@ def tree_bytes(root: Path) -> int:
 
 
 def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc: Path,
-          sign_command: str | None, pip_python: Path | None = None) -> dict:
+          sign_command: str | None, pip_python: Path | None = None, corresponding_source: bool = False) -> dict:
+    """Build the installer; with corresponding_source, also the release asset of required sources.
+
+    A release (local-release.yml) always passes corresponding_source. CI builds that only
+    exercise the installer omit it, and their notices say they must not be distributed.
+    """
     manifest = verify_release_zip(release_zip)
     version, commit = manifest["version"], manifest["source_commit"]
     installer = output_dir / f"Cytellect-Setup-{version}.exe"
-    if installer.exists():
+    if installer.exists() or (output_dir / cs.asset_name(version)).exists():
         raise BuildError("installer_exists")  # never replace a built version
     payload = work_dir / "payload"
     release, offline = payload / "release", payload / "offline"
@@ -514,7 +559,9 @@ def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc
     wheels = verify_wheelhouse(requirements, offline / "wheels")
     unique = list({artifact.sha256: artifact for artifact in artifacts}.values())
     write_offline_manifest(offline, (release / "local-release.json").read_bytes(), version, commit, unique, wheels)
-    notices = write_notices(payload, release, unique, wheels)
+    corresponding = (collect_corresponding_source(payload, release, unique, wheels, output_dir, cache, version, commit)
+                     if corresponding_source else None)
+    notices = write_notices(payload, release, unique, wheels, corresponding)
     findings = scan_for_secrets([release, offline / "offline-manifest.json", payload / "licenses"])
     if findings:
         raise BuildError("payload_contains_credentials:" + ",".join(sorted(findings)))
@@ -538,7 +585,7 @@ def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc
                                        "sha256": notices["notices_sha256"]},
                "third_party": [{key: item[key] for key in ("component", "version", "license", "source", "sha256")
                                 if item.get(key)} for item in notices["components"]],
-               "fiji_sources": notices["fiji_sources"]}
+               "corresponding_source": notices["corresponding_source"]}
     (output_dir / f"Cytellect-Setup-{version}.json").write_text(json.dumps(receipt, indent=2) + "\n",
                                                                encoding="utf-8")
     return receipt
@@ -572,7 +619,9 @@ def main() -> None:
                       help="An interpreter with pip, used only to download the locked wheels")
     make.add_argument("--sign-command", default=os.environ.get("CYTELLECT_SIGN_COMMAND") or None,
                       help="Signing command with $f for the file; unsigned when omitted (D4)")
-    inno = commands.add_parser("install-inno")
+    make.add_argument("--corresponding-source", action="store_true",
+                      help="Also write Cytellect-<version>-gpl-sources.zip; required for a release")
+    inno =commands.add_parser("install-inno")
     inno.add_argument("--dest", type=Path, required=True)
     inno.add_argument("--cache", type=Path, required=True)
     scan = commands.add_parser("scan")
@@ -587,7 +636,7 @@ def main() -> None:
                     parser.error("Installer outputs must be outside the checkout")
             print(json.dumps(build(args.release_zip.resolve(), args.output_dir.resolve(), args.work_dir.resolve(),
                                    args.cache.resolve(), args.iscc.resolve(), args.sign_command,
-                                   args.pip_python)))
+                                   args.pip_python, args.corresponding_source)))
         elif args.command == "install-inno":
             print(install_inno(args.dest.resolve(), args.cache.resolve()))
         else:

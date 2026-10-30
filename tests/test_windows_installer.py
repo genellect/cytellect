@@ -40,10 +40,14 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def release_zip(directory: Path, extra=None, corrupt=None) -> Path:
-    """A setup ZIP shaped like build_local_bundle.py output, with the real pins."""
+def release_zip(directory: Path, extra=None, corrupt=None, listed=None) -> Path:
+    """A setup ZIP shaped like build_local_bundle.py output, with the real pins.
+
+    ``listed`` adds members that the release manifest lists; ``extra`` adds unlisted ones.
+    """
     members = {name: (ROOT / name).read_bytes() for name in (
         "scripts/local_setup.ps1", "engines/python/windows-runtime.lock.json", "engines/fiji/runtime.lock.json")}
+    members.update(listed or {})
     members["engines/python/windows-requirements.txt"] = (
         b"numpy==2.5.3 \\\n    --hash=sha256:" + b"1" * 64 + b" \\\n    --hash=sha256:" + b"2" * 64 + b"\n"
         b"    # via cytellect\n"
@@ -214,44 +218,57 @@ def generated_wheel(name="numpy", version="2.5.3", license_text=b"Generated lice
     return buffer.getvalue()
 
 
-def generated_jar(group="sc.fiji", artifact="generated-plugin", version="1.2.3") -> bytes:
+def generated_jar(group="sc.fiji", artifact="generated-plugin", version="1.2.3", licenses=()) -> bytes:
     import io
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as jar:
         jar.writestr(f"META-INF/maven/{group}/{artifact}/pom.properties",
                      f"#Generated\ngroupId={group}\nartifactId={artifact}\nversion={version}\n")
+        if licenses:
+            names = "".join(f"<license><name>{name}</name></license>" for name in licenses)
+            jar.writestr(f"META-INF/maven/{group}/{artifact}/pom.xml", f"<project><licenses>{names}</licenses></project>")
     return buffer.getvalue()
 
 
+GPL_JAR = generated_jar("ome", "formats-gpl", "8.0.0", ["GNU General Public License v2+"])
+BSD_JAR = generated_jar("ome", "formats-bsd", "8.0.0", ["Simplified BSD License"])
+JDK_RELEASE = "Fiji.app/java/win64/zulu21-generated/release"
+
+
 def generated_fiji() -> bytes:
-    """A Fiji-shaped archive: one Maven-built jar, one jar without coordinates, a JDK release file."""
+    """A Fiji-shaped archive: a GPL and a BSD jar, a jar without coordinates, a JDK release file."""
     import io
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as fiji:
-        fiji.writestr("Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar", generated_jar("ome", "formats-gpl", "8.0.0"))
+        fiji.writestr("Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar", GPL_JAR)
+        fiji.writestr("Fiji.app/jars/formats-bsd-8.0.0.jar", BSD_JAR)
         fiji.writestr("Fiji.app/jars/legacy.jar", b"not a maven jar")
-        fiji.writestr("Fiji.app/java/win64/zulu21-generated/release",
-                      'IMPLEMENTOR="Azul Systems, Inc."\nIMPLEMENTOR_VERSION="Zulu21.1+2-CA"\n'
-                      'JAVA_RUNTIME_VERSION="21.0.5+11-LTS"\nJAVA_VERSION="21.0.5"\n')
+        fiji.writestr(JDK_RELEASE, 'IMPLEMENTOR="Azul Systems, Inc."\nIMPLEMENTOR_VERSION="Zulu21.1+2-CA"\n'
+                                   'JAVA_RUNTIME_VERSION="21.0.5+11-LTS"\nJAVA_VERSION="21.0.5"\n')
     return buffer.getvalue()
 
 
-def test_fiji_sources_are_pinned_per_bundled_version(tmp_path):
-    archive = tmp_path / "fiji.zip"
+GENERATED_SOURCES = {"formats-gpl": b"generated formats-gpl source", "jdk": b"generated JDK source"}
+
+
+def generated_lock(directory: Path) -> bytes:
+    """The corresponding-source lock of generated_fiji(), resolved against a fake repository."""
+    cs = builder.cs
+    archive = directory / "lock-fiji.zip"
+    directory.mkdir(parents=True, exist_ok=True)
     archive.write_bytes(generated_fiji())
-    plugin = tmp_path / "plugin"
-    plugin.write_bytes(generated_jar("de.csbdresden", "stardist-imagej", "0.3.0"))
-    sources = builder.fiji_sources(archive, [("StarDist_-0.3.0.jar", plugin)])
-    by_path = {jar["path"]: jar for jar in sources["jars"]}
-    assert by_path["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["source"] == (
-        "https://maven.scijava.org/content/groups/public/ome/formats-gpl/8.0.0/formats-gpl-8.0.0-sources.jar")
-    assert "source" not in by_path["Fiji.app/jars/legacy.jar"]
-    assert by_path["StarDist_-0.3.0.jar"]["version"] == "0.3.0"
-    assert sources["jdk"]["version"] == "21.0.5+11-LTS"
-    assert "https://github.com/openjdk/jdk21u/tree/jdk-21.0.5+11" in sources["jdk"]["source"]
-    assert "Zulu21.1+2-CA" in sources["jdk"]["source"]
+    found = cs.fiji_inventory(archive, [], lambda plugin: b"")
+    coordinates = "ome:formats-gpl:8.0.0"
+    url = f"{cs.MAVEN_REPOSITORIES[0]}/{cs.maven_path(coordinates, '-sources.jar')}"
+    pages = {f"{cs.MAVEN_REPOSITORIES[0]}/{cs.maven_path(coordinates, '.jar.sha1')}":
+             hashlib.sha1(GPL_JAR).hexdigest().encode(), url: GENERATED_SOURCES["formats-gpl"]}  # noqa: S324
+    resolved = cs.resolve(found, cs.Resolver(pages.get))
+    resolved["jdk"]["source"] = {"url": "https://cdn.example.org/generated-jdk-src.zip",
+                                 "sha256": digest(GENERATED_SOURCES["jdk"]), "bytes": len(GENERATED_SOURCES["jdk"])}
+    cs.write_lock(directory / "lock.json", digest(generated_fiji()), found, resolved)
+    return (directory / "lock.json").read_bytes()
 
 
 def test_a_bundled_wheel_without_license_text_stops_the_build(tmp_path):
@@ -289,8 +306,15 @@ def test_bundled_wheels_contribute_their_license_texts(tmp_path):
     assert (tmp_path / "licenses" / notice["files"][0]).read_bytes() == b"Generated license text\n"
 
 
-def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkeypatch):
-    archive = release_zip(tmp_path / "release")
+UV_LOCK = b'version = 1\n[[package]]\nname = "numpy"\nversion = "2.5.3"\n'
+
+
+def prepare_build(tmp_path, monkeypatch, with_lock=True):
+    """Generated pins, downloads and compiler for builder.build; returns the release ZIP."""
+    listed = {"uv.lock": UV_LOCK}
+    if with_lock:
+        listed[builder.CORRESPONDING_LOCK] = generated_lock(tmp_path / "lock")
+    archive = release_zip(tmp_path / "release", listed=listed)
     wheel_bytes = generated_wheel()
     blobs = {role: b"generated artifact " + role.encode() for role in ("uv", "python")}
     blobs["fiji"] = generated_fiji()
@@ -298,11 +322,14 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
             "python": "https://www.python.org/ftp/python/3.14.8/python-3.14.8-amd64.zip",
             "fiji": "https://downloads.imagej.net/fiji/archive/generated.zip"}
     artifacts = [builder.Artifact(role, urls[role], digest(data)) for role, data in blobs.items()]
+    by_digest = {digest(data): data for data in [*blobs.values(), *GENERATED_SOURCES.values()]}
+    fetched = []
 
     def fetch(artifact, cache):
+        fetched.append(artifact)
         cache.mkdir(parents=True, exist_ok=True)
         path = cache / artifact.sha256
-        path.write_bytes(blobs[artifact.role])
+        path.write_bytes(by_digest[artifact.sha256])
         return path
 
     def wheels(requirements, directory, scratch, pip_python):
@@ -319,7 +346,15 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
     monkeypatch.setattr(builder, "locked_requirements",
                         lambda text: {"numpy": ("numpy==2.5.3", {digest(wheel_bytes)})})
     monkeypatch.setattr(builder.subprocess, "run", compile_installer)
-    receipt = builder.build(archive, tmp_path / "out", tmp_path / "work", tmp_path / "cache", Path("ISCC.exe"), None)
+    return archive, fetched
+
+
+def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkeypatch):
+    archive, _ = prepare_build(tmp_path, monkeypatch)
+    # The generated legacy.jar states no license and has no published source: listed as an exception.
+    monkeypatch.setattr(builder.cs, "SOURCE_EXCEPTIONS", {"Fiji.app/jars/legacy.jar": "generated reason"})
+    receipt = builder.build(archive, tmp_path / "out", tmp_path / "work", tmp_path / "cache", Path("ISCC.exe"), None,
+                            corresponding_source=True)
     assert receipt["signed"] is False and receipt["version"] == "0.1.0-local.21"
     assert receipt["bundled"]["wheels"] == 1
     installer = tmp_path / "out/Cytellect-Setup-0.1.0-local.21.exe"
@@ -329,19 +364,64 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
     assert (payload / "release/local-release.json").is_file()
     offline = json.loads((payload / "offline/offline-manifest.json").read_text())
     assert offline["release_manifest_sha256"] == digest((payload / "release/local-release.json").read_bytes())
-    # Bundled licenses and corresponding-source addresses ship in the installer and the receipt.
+    # The corresponding source is a separate release asset; the installer payload holds none of it.
+    asset = tmp_path / "out/Cytellect-0.1.0-local.21-gpl-sources.zip"
+    assert receipt["corresponding_source"]["asset"] == asset.name
+    assert receipt["corresponding_source"]["sha256"] == digest(asset.read_bytes())
+    assert (tmp_path / "out" / (asset.name + ".sha256")).read_text() == f"{digest(asset.read_bytes())}  {asset.name}\n"
+    with zipfile.ZipFile(asset) as sources:
+        manifest = json.loads(sources.read("manifest.json"))
+        members = {record["component"]: record for record in manifest["components"]}
+        assert sources.read(members["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["member"]) == (
+            GENERATED_SOURCES["formats-gpl"])
+        assert sources.read(members[JDK_RELEASE]["member"]) == GENERATED_SOURCES["jdk"]
+    assert members["Fiji.app/jars/legacy.jar"]["exception"] == "generated reason"
+    assert "Fiji.app/jars/formats-bsd-8.0.0.jar" not in members
+    assert not [path for path in payload.rglob("*") if path.is_file() and path.read_bytes() in GENERATED_SOURCES.values()]
+    # licenses/ names the asset and each source's member and hash.
     notices = payload / "licenses/THIRD_PARTY_BUNDLED.txt"
     text = notices.read_text(encoding="utf-8")
-    assert "GPL-3.0" in text and "licenses/fiji-sources.json" in text and "uv 0.12.2" in text
+    assert "GPL-3.0" in text and "uv 0.12.2" in text
+    assert f"{asset.name}  SHA-256 {digest(asset.read_bytes())}" in text
+    assert "must not be distributed" not in text
     assert receipt["third_party_notices"]["sha256"] == digest(notices.read_bytes())
     sources = {item["component"]: item["source"] for item in receipt["third_party"]}
     assert sources["numpy"] == "https://pypi.org/project/numpy/2.5.3/"
-    assert sources["plugins/MorphoLibJ_-1.6.5.jar"] == "https://github.com/ijpb/MorphoLibJ"
-    assert "jdk21u/tree/jdk-21.0.5+11" in sources["JDK 21.0.5+11-LTS (Azul Systems, Inc.)"]
-    assert receipt["fiji_sources"]["with_maven_sources"] == 1 and receipt["fiji_sources"]["jars"] == 2
-    assert json.loads((payload / "licenses/fiji-sources.json").read_text())["jdk"]["implementor"].startswith("Azul")
+    assert sources["plugins/MorphoLibJ_-1.6.5.jar"] == "https://github.com/ijpb/MorphoLibJ"  # not bundled here
+    jdk = next(name for name in sources if name.startswith("JDK 21.0.5+11-LTS (Azul Systems, Inc."))
+    assert sources[jdk] == f"{asset.name} (this release): {members[JDK_RELEASE]['member']}"
+    components = {item["component"]: item for item in json.loads((payload / "licenses/bundled-components.json").read_text())}
+    gpl = components["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]
+    assert gpl["corresponding_source"] == {"asset": asset.name, "sha256": digest(GENERATED_SOURCES["formats-gpl"]),
+                                           "member": members["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["member"],
+                                           "url": members["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["url"]}
+    assert components["Fiji.app/jars/legacy.jar"]["source"] == "not attached (listed exception): generated reason"
+    recorded = json.loads((payload / "licenses/corresponding-source.json").read_text())
+    assert recorded["asset"] == asset.name and recorded["components"] == 3
     with pytest.raises(builder.BuildError, match="installer_exists"):
         builder.build(archive, tmp_path / "out", tmp_path / "work2", tmp_path / "cache", Path("ISCC.exe"), None)
+
+
+def test_a_build_without_corresponding_source_says_it_must_not_be_distributed(tmp_path, monkeypatch):
+    archive, fetched = prepare_build(tmp_path, monkeypatch, with_lock=False)
+    receipt = builder.build(archive, tmp_path / "out", tmp_path / "work", tmp_path / "cache", Path("ISCC.exe"), None)
+    assert receipt["corresponding_source"] is None
+    assert not list((tmp_path / "out").glob("*gpl-sources*"))
+    assert {artifact.role for artifact in fetched} == {"uv", "python", "fiji"}
+    text = (tmp_path / "work/payload/licenses/THIRD_PARTY_BUNDLED.txt").read_text(encoding="utf-8")
+    assert "Corresponding source was not collected in this build. It must not be distributed." in text
+
+
+def test_a_release_build_stops_when_a_required_source_is_unavailable(tmp_path, monkeypatch):
+    archive, _ = prepare_build(tmp_path, monkeypatch)
+    with pytest.raises(builder.BuildError, match="corresponding_source_unavailable:Fiji.app/jars/legacy.jar"):
+        builder.build(archive, tmp_path / "out", tmp_path / "work", tmp_path / "cache", Path("ISCC.exe"), None,
+                      corresponding_source=True)
+    assert not (tmp_path / "out/Cytellect-Setup-0.1.0-local.21.exe").exists()
+    archive, _ = prepare_build(tmp_path / "missing", monkeypatch, with_lock=False)
+    with pytest.raises(builder.BuildError, match="corresponding_source_lock_missing"):
+        builder.build(archive, tmp_path / "missing/out", tmp_path / "missing/work", tmp_path / "cache",
+                      Path("ISCC.exe"), None, corresponding_source=True)
 
 
 def test_fiji_offline_copy_uses_only_the_exact_bundled_bytes(tmp_path):
@@ -378,7 +458,7 @@ def test_installer_is_per_user_without_choices_or_administrator_rights():
     assert f"ShortcutDescription = '{app_update.SHORTCUT_DESCRIPTION}'" in text
     assert app_update.SHORTCUT_DESCRIPTION in SETUP.read_text(encoding="utf-8-sig")
     assert "#ifdef SignToolName" in text  # signing hook (D4), skipped without a certificate
-    # The bundled software's licenses and source addresses are installed with it (docs/oss.md).
+    # The bundled software's licenses, and where its corresponding source is, are installed with it (docs/oss.md).
     assert 'Source: "{#PayloadDir}\\licenses\\*"; DestDir: "{app}\\licenses"' in text
     # A self-help step comes before asking an administrator.
     for line in text.splitlines():

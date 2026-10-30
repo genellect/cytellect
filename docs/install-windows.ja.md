@@ -23,7 +23,7 @@ Windows PC に Cytellect の配布版を導入し、起動・更新・アンイ�
 
 ## 2. ダウンロードと確認
 
-1. [Cytellect のサイト](https://cytellect.app/)の「Cytellectをダウンロード」、またはリリースのページから、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。インストーラーがない版では `Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。
+1. [Cytellect のサイト](https://cytellect.app/)の「Cytellectをダウンロード」、またはリリースのページから、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。インストーラーがない版では `Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。リリースのページにある `Cytellect-<版>-gpl-sources.zip` は、同梱したソフトのうち GPL などのライセンスがソースの提供を求めるもののソース一式で、使うためには保存しなくてよい。
 2. 研究室で求められている場合は、改ざんがないことを確認する。PowerShell で次を実行し、表示された値がリリースのページの `.sha256` ファイルの値と一致することを確かめる。
 
    ```powershell

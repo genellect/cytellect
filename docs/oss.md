@@ -12,11 +12,27 @@ Cytellect 独自のコードは Apache-2.0 で公開している。このライ�
 |---|---|
 | リポジトリ | 導入の手順、ロックファイル、ハッシュの記録だけを置く。第三者の実行環境と学習済みの重みは含めない |
 | Windows 版（セットアップ ZIP） | ソース、ビルド済みの Web、Web の依存のライセンス本文（`THIRD_PARTY_WEB_NOTICES.txt`）、`LICENSE.cellpose.txt`、公開画像の登録簿を含む。Python・パッケージ・Fiji は導入時に公式の配布元から取得し、ハッシュを照合する。Cellpose は PC に導入せず、クラウド GPU で実行する |
-| Windows 版（インストーラー `Cytellect-Setup-<版>.exe`） | ZIP の内容に加え、Python 3.14、lock の依存パッケージ（wheel）、uv、Fiji（JDK とプラグインを含む）の公式の配布物を改変せずに同梱する。`licenses/THIRD_PARTY_BUNDLED.txt` に、各コンポーネントのライセンス、同梱したファイルの SHA-256、対応するソースの入手先（PyPI の各版のページなど）を書き、wheel に入っているライセンス本文を `licenses/wheels/` に置く。Fiji は、同梱したアーカイブとプラグインの各 jar の Maven 座標（`META-INF/maven/*/pom.properties`）から、版を固定した `-sources.jar` の所在（SciJava の Maven リポジトリ）を `licenses/fiji-sources.json` に記録する（座標を持たない jar は、jar 自身の表示に従う）。JDK は、同梱した版（`release` ファイル）の OpenJDK のタグと、配布元（Azul）のソース一式の所在を記録する。これらはインストール先の `licenses/` に入り、ビルドの受領記録（`Cytellect-Setup-<版>.json`）にも一覧とハッシュを記録する。Fiji・JDK・各 jar・Python のライセンス本文は、導入後の `runtimes/` にそのまま残る。オーナーの判断（2026-10-30）により、この形で確定とし、GPL の対応するソースの写しの配置や書面による提供の申し出は行わない |
+| Windows 版（インストーラー `Cytellect-Setup-<版>.exe`） | ZIP の内容に加え、Python 3.14、lock の依存パッケージ（wheel）、uv、Fiji（JDK とプラグインを含む）の公式の配布物を改変せずに同梱する。`licenses/THIRD_PARTY_BUNDLED.txt` と `licenses/bundled-components.json` に、各コンポーネントのライセンス、同梱したファイルの SHA-256、ソースの所在を書き、wheel に入っているライセンス本文を `licenses/wheels/` に置く。ソースの提供が必要なコンポーネントは、同梱した版ちょうどのソースを、同じリリースの資産 `Cytellect-<版>-gpl-sources.zip` に収める（[GPL などの対応するソース](#gpl-などの対応するソース)）。インストーラー自体にソースは入れない。これらはインストール先の `licenses/` に入り、ビルドの受領記録（`Cytellect-Setup-<版>.json`）にも一覧とハッシュを記録する。Fiji・JDK・各 jar・Python のライセンス本文は、導入後の `runtimes/` にそのまま残る |
 | Docker 版 | 利用者の環境でビルドする。計算ワーカーのイメージには、ビルド時に取得した Fiji、Cellpose の実行環境、`cpsam_v2` の重みが入る |
 | GPU イメージ（GHCR） | Cellpose の実行環境、`cpsam_v2` の重み、`engines/cellpose`（`LICENSE.cellpose.txt` を含む） |
 
-イメージや配布物を配る場合は、実際に組み立てた内容に対して著作権・ライセンスの表示を保持する。GPL・LGPL のコンポーネントを含む場合は、それらが求める対応するソースと再リンクの手段を用意する（Windows 版は上の表のとおり）。
+イメージや配布物を配る場合は、実際に組み立てた内容に対して著作権・ライセンスの表示を保持する。GPL・LGPL のコンポーネントを含む場合は、それらが求める対応するソースと再リンクの手段を用意する（Windows 版のインストーラーは次の節のとおり）。
+
+### GPL などの対応するソース
+
+オーナーの判断（2026-10-30）により、Windows 版のインストーラーが同梱するソフトのうち、バイナリと一緒にソースの提供を求めるライセンス（GPLv2・GPLv3・LGPL・AGPL・MPL・EPL・CDDL など）のものは、同梱した版ちょうどのソース一式を、CI がリリースの資産 `Cytellect-<版>-gpl-sources.zip` として添付する。上流の入手先を案内するだけにはせず、書面による提供の申し出の窓口も設けない。人手や外部とのやり取りなしで、リリースごとに完結させるため。
+
+| 段階 | 内容 |
+|---|---|
+| 列挙 | 同梱したバイト列から機械的に決める。手で決め打ちの一覧は作らない。Fiji のアーカイブとプラグインの各 jar は、jar に入っている Maven の POM のライセンス、なければ公開された POM（親をたどる）、なければ jar 自身のライセンス文書による。座標は `pom.properties`、なければ jar の SHA-1 による Maven の検索で決める。JDK の外にある実行ファイルとライブラリも対象にする。JDK は `release` ファイルから版を決める。wheel は、メタデータのライセンスと、同梱するライブラリのライセンス文書の `License:` 行による（SPDX の `OR` は義務のない選択肢を、`WITH GCC-exception` は義務がないものとして扱う）。ライセンスを判定できないものは、ソースが必要なものとして扱う |
+| 固定 | [`engines/fiji/corresponding-source.lock.json`](../engines/fiji/corresponding-source.lock.json) に、同梱する Fiji のすべての jar・実行ファイル・プラグインと JDK について、SHA-256、ライセンスの根拠、ソースの要否、ソースの URL・SHA-256・大きさを記録する。jar のソースは、次の順に最も正確なものを固定する。(1) 同梱した jar と同じバイト列の jar が公開されている場合の、その `-sources.jar`（SciJava の Maven リポジトリ、Maven Central）。(2) jar がビルド元のコミット（`Implementation-Build`）と GitHub のリポジトリを記録している場合の、そのコミットのアーカイブ。(3) jar が自身の `pom.properties` で名乗るリリース版の `-sources.jar`（バイト列は一致しないが版は同じ）。どれによるかは lock の `source.kind` に記録する。Fiji の固定（`runtime.lock.json`）を変えたら `python scripts/corresponding_source.py lock --cache <checkout の外>` で作り直す。wheel のソースは `uv.lock` が固定する sdist を使う |
+| 取得と添付 | リリースのワークフロー（`local-release.yml`）が `build_windows_installer.py build --corresponding-source` を実行する。ビルドは、同梱したバイト列から求めた一覧が lock と一致することを確かめ、各ソースを固定した SHA-256 で照合して取得する（通信の一時的な失敗は再試行する）。ソースが必要なのに固定されたソースがない部品があれば、ビルドを失敗させる。例外は `scripts/corresponding_source.py` の `SOURCE_EXCEPTIONS` に、部品と理由を明記したものだけで、現在は空 |
+| 記載 | インストーラーの `licenses/THIRD_PARTY_BUNDLED.txt`・`bundled-components.json`・`corresponding-source.json` に、資産の名前と SHA-256、各部品の資産の中の場所とソースの SHA-256 を書く。資産の中の `manifest.json` には、同梱したファイルの SHA-256、ライセンスの根拠、ソースの URL と SHA-256 がある |
+| 配布の停止 | 資産がない、またはハッシュが受領記録と一致しない場合、ワークフローは下書きのリリースを作らない。作成後に資産が添付されていない場合は、再アップロードを試み、それでもなければ下書きを削除する |
+
+CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-installer`）はソースを集めない。その `licenses/` には「配布してはならない」と書かれる。
+
+現在の固定（Windows 用 Fiji 2026-09-29 版）では、同梱する 676 個の jar・実行ファイル・プラグインのうち 172 個がソースを必要とし、42 個はライセンスを判定できない。これに JDK を加えた 215 個のうち 173 個のソース（合計約 102 MB）を固定した。残る 42 個はソースを自動で取得できないため、**この状態ではリリースのビルドが止まる**。内訳は、JDK（Azul Zulu 21.0.7。配布元はこの版のソース一式を公開の場所に置いていない）、ソースが必要な 15 個（JavaFX と javacpp の FFmpeg・OpenBLAS・OpenCV の Windows 用ネイティブ部品、`-sources.jar` のない Renjin の R パッケージ、Java 3D、jffi のネイティブ部品、版が SNAPSHOT の `fiji` 本体の jar）、ライセンスを判定できない 25 個。一覧は lock の `summary.without_source` にある。部品ごとの扱い（例外とその理由、別の配布物への置き換えなど）はオーナーが決める（[roadmap](roadmap.md)）。`fiji` 本体の jar は、ビルドしたコミットの GitHub のアーカイブを取得先にできるが、lock を作った環境からは GitHub のアーカイブに接続できなかった。
 
 ### Fiji と核の検出
 
@@ -25,7 +41,7 @@ Cytellect 独自のコードは Apache-2.0 で公開している。このライ�
 | コンポーネント | 用途 | ライセンス |
 |---|---|---|
 | Fiji（2026-09-29 版） | ImageJ の実行基盤 | 複数のライセンス（Fiji 本体は GPL-3.0）。アーカイブと各 jar の表示を保持する |
-| Java 21 | Fiji の実行（Fiji に同梱） | OpenJDK の配布物の表示に従う。Apache-2.0 と表示し直さない |
+| Java 21（Azul Zulu 21.0.7） | Fiji の実行（Fiji に同梱） | GPL-2.0 WITH Classpath-exception-2.0。OpenJDK の配布物の表示に従い、Apache-2.0 と表示し直さない |
 | StarDist 0.3.0 | 核の 2D 分割 | BSD-3-Clause（[ソース](https://github.com/stardist/stardist-imagej/blob/master/LICENSE.txt)） |
 | 学習済みモデル `dsb2018_heavy_augment` | 蛍光核用の重み（StarDist の jar に同梱） | BSD-3-Clause（[モデルのリポジトリ](https://github.com/stardist/stardist-models/blob/master/LICENSE.txt)）。ZIP の SHA-256 を固定 |
 | CSBDeep 0.6.0 | ニューラルネットの実行 | BSD-2-Clause |
@@ -121,11 +137,27 @@ Cytellect's own code is licensed under Apache-2.0. That license does not replace
 |---|---|
 | Repository | Installation recipes, lockfiles and hash records only. No third-party runtimes or pretrained weights |
 | Windows release (setup ZIP) | Source, the built Web assets, Web dependency license texts (`THIRD_PARTY_WEB_NOTICES.txt`), `LICENSE.cellpose.txt` and the public-image register. Python, packages and Fiji are downloaded from official sources during setup and verified by hash. Cellpose is not installed on the PC; it runs on the cloud GPU |
-| Windows installer (`Cytellect-Setup-<version>.exe`) | The ZIP contents plus unmodified official distributions of Python 3.14, the locked Python packages (wheels), uv and Fiji with its JDK and plugins. `licenses/THIRD_PARTY_BUNDLED.txt` lists each component's license, the SHA-256 of the bundled file and where its corresponding source is published (each version's PyPI page and so on); the license texts inside the wheels are placed in `licenses/wheels/`. For Fiji, `licenses/fiji-sources.json` records, from each bundled jar's Maven coordinates (`META-INF/maven/*/pom.properties`), the version-pinned `-sources.jar` address in the SciJava Maven repository (jars without coordinates follow their own notices). For the JDK it records the OpenJDK tag of the bundled build (its `release` file) and the vendor's (Azul's) source bundle. Both are installed under `licenses/` and listed with hashes in the build receipt (`Cytellect-Setup-<version>.json`). The Fiji, JDK, jar and Python license texts stay in the installed `runtimes/`. By the owner's decision (2026-10-30) this is final: no copy of the GPL corresponding source is published with the release and no written offer is added |
+| Windows installer (`Cytellect-Setup-<version>.exe`) | The ZIP contents plus unmodified official distributions of Python 3.14, the locked Python packages (wheels), uv and Fiji with its JDK and plugins. `licenses/THIRD_PARTY_BUNDLED.txt` and `licenses/bundled-components.json` list each component's license, the SHA-256 of the bundled file and where its source is; the license texts inside the wheels are placed in `licenses/wheels/`. For every component whose license requires source, the source of exactly the bundled version is attached to the same release as `Cytellect-<version>-gpl-sources.zip` ([corresponding source](#corresponding-source-for-gpl-and-similar-licenses)); the installer itself carries no source. These files are installed under `licenses/` and listed with hashes in the build receipt (`Cytellect-Setup-<version>.json`). The Fiji, JDK, jar and Python license texts stay in the installed `runtimes/` |
 | Docker release | Built on the user's machine. The worker image contains Fiji, the Cellpose runtime and the `cpsam_v2` weights obtained at build time |
 | GPU image (GHCR) | The Cellpose runtime, the `cpsam_v2` weights and `engines/cellpose` (including `LICENSE.cellpose.txt`) |
 
-When distributing an image or package, retain the copyright and license notices of what was actually assembled, and provide corresponding source and relinking materials where included GPL/LGPL components require them (for the Windows installer, as in the table above).
+When distributing an image or package, retain the copyright and license notices of what was actually assembled, and provide corresponding source and relinking materials where included GPL/LGPL components require them (for the Windows installer, as in the next section).
+
+### Corresponding source for GPL and similar licenses
+
+By the owner's decision (2026-10-30), for every component of the Windows installer whose license requires source with the binary (GPLv2, GPLv3, LGPL, AGPL, MPL, EPL, CDDL and similar), CI attaches the complete source of exactly the bundled version to the release as `Cytellect-<version>-gpl-sources.zip`. Pointing to upstream servers is not relied on, and no written offer is made, so that each release is complete without manual steps or correspondence.
+
+| Stage | What happens |
+|---|---|
+| Enumeration | Derived mechanically from the bundled bytes; there is no hand-written list. Each jar of the Fiji archive and each plugin is classified by the licenses of its embedded Maven POM, else the published POM (following parents), else its own license files. Coordinates come from `pom.properties`, else from a Maven search by the jar's SHA-1. Executables and libraries outside the JDK are included. The JDK is identified by its `release` file. Wheels are classified by their metadata and the `License:` lines of the license files of the libraries they vendor (SPDX `OR` takes the alternative without an obligation; `WITH GCC-exception` carries none). A component whose license cannot be determined is treated as requiring source |
+| Pinning | [`engines/fiji/corresponding-source.lock.json`](../engines/fiji/corresponding-source.lock.json) records, for every jar, executable and plugin of the bundled Fiji and its JDK, the SHA-256, license evidence, obligation and the source's URL, SHA-256 and size. A jar's source is the most exact one available, in this order: (1) the `-sources.jar` (SciJava Maven repository, Maven Central) beside a published jar that is byte-identical to the bundled one; (2) the GitHub archive of the commit the jar records it was built from (`Implementation-Build`); (3) the `-sources.jar` of the release version the jar declares in its own `pom.properties` (same version, not byte-identical). The lock records which in `source.kind`. After a change of the Fiji pins (`runtime.lock.json`), regenerate it with `python scripts/corresponding_source.py lock --cache <outside the checkout>`. Wheel sources are the sdists that `uv.lock` pins |
+| Download and attachment | The release workflow (`local-release.yml`) runs `build_windows_installer.py build --corresponding-source`. The build checks that the obligations derived from the bundled bytes match the lock and downloads each source against its pinned SHA-256, retrying transient failures. A component that requires source without a pinned one fails the build. Exceptions are only those listed, with the component and the reason, in `SOURCE_EXCEPTIONS` of `scripts/corresponding_source.py`; the list is empty |
+| Records | The installer's `licenses/THIRD_PARTY_BUNDLED.txt`, `bundled-components.json` and `corresponding-source.json` name the asset and its SHA-256, and each component's member and source SHA-256. The asset's `manifest.json` lists the bundled file's SHA-256, the license evidence and the source's URL and SHA-256 |
+| Stopping distribution | Without the asset, or when its hash differs from the receipt, the workflow creates no draft release. If the asset is missing from the created draft, it is uploaded again, and otherwise the draft is deleted |
+
+CI builds that only exercise the installer (`windows-installer` in `ci.yml`) collect no source; their `licenses/` say that they must not be distributed.
+
+With the current pins (Windows Fiji archive 2026-09-29), 172 of the 676 bundled jars, executables and plugins require source and 42 have a license that cannot be determined. Of these 214 and the JDK, 173 sources (about 102 MB) are pinned. The remaining 42 have no source that can be fetched automatically, so **the release build currently stops**: the JDK (Azul Zulu 21.0.7, whose vendor does not publish this version's source bundle at a public location), 15 components requiring source (the Windows native parts of JavaFX and of javacpp's FFmpeg, OpenBLAS and OpenCV, Renjin's R packages without a `-sources.jar`, Java 3D, jffi's native part, and the SNAPSHOT `fiji` jar) and 25 with undetermined licenses. The list is `summary.without_source` in the lock. The owner decides each one (an exception with its reason, or a different distribution; [roadmap](roadmap.md)). The `fiji` jar can take the GitHub archive of the commit it was built from, but the environment that generated the lock could not reach GitHub archives.
 
 ### Fiji and nuclear detection
 
@@ -134,7 +166,7 @@ The [Fiji runtime manifest](../engines/fiji/runtime.lock.json) records official 
 | Component | Purpose | License |
 |---|---|---|
 | Fiji (2026-09-29 archive) | ImageJ platform | Multiple licenses (Fiji itself GPL-3.0); preserve the archive's and each jar's notices |
-| Java 21 | Runs Fiji (bundled with Fiji) | OpenJDK distribution notices; do not relabel as Apache-2.0 |
+| Java 21 (Azul Zulu 21.0.7) | Runs Fiji (bundled with Fiji) | GPL-2.0 WITH Classpath-exception-2.0; keep the OpenJDK distribution notices and do not relabel as Apache-2.0 |
 | StarDist 0.3.0 | 2D nuclear segmentation | BSD-3-Clause ([source](https://github.com/stardist/stardist-imagej/blob/master/LICENSE.txt)) |
 | Pretrained model `dsb2018_heavy_augment` | Fluorescent nuclei weights (embedded in the StarDist jar) | BSD-3-Clause ([model repository](https://github.com/stardist/stardist-models/blob/master/LICENSE.txt)); ZIP SHA-256 pinned |
 | CSBDeep 0.6.0 | Neural network execution | BSD-2-Clause |

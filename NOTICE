@@ -8,4 +8,6 @@ The Windows installer (Cytellect-Setup-<version>.exe) bundles unmodified officia
 distributions of Fiji (GPL-3.0, with its JDK and plugins, including the StarDist
 model), Python and the locked
 Python packages; licenses/THIRD_PARTY_BUNDLED.txt in the installation lists each
-component's license and where its corresponding source is published.
+component's license. The complete corresponding source of every bundled component
+whose license requires it (GPL, LGPL and similar), for exactly the bundled version,
+is attached to the same release as Cytellect-<version>-gpl-sources.zip.
