@@ -3,6 +3,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import published from "../src/lib/published-release.json";
+// The published record names its asset; the installer replaces the ZIP steps (src/lib/release.ts).
+const assetFile=published.asset==="installer"?`Cytellect-Setup-${published.version}.exe`:`Cytellect-${published.version}-windows-x64.zip`;
 test("unconfigured public build makes no analysis connection",async({page})=>{
  await page.emulateMedia({reducedMotion:"reduce"});
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");
@@ -12,7 +14,15 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  if(release){
   await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
-  await expect(page.getByText(/Windows 10／11（64ビット）・空き容量 5 GB 以上を推奨/)).toBeVisible();
+  await expect(page.getByText(/Windows 10／11（64ビット）・空き容量 6 GB 以上を推奨/)).toBeVisible();
+  const steps=page.getByRole("list",{name:"はじめかた"});
+  if(/\/Cytellect-Setup-[^/]+\.exe$/.test(release)){
+   await expect(steps.getByText("「インストール」を押す",{exact:true})).toBeVisible();
+   await expect(steps.getByText(/展開/)).toHaveCount(0);
+  }else{
+   await expect(steps.getByText("ダウンロードして、展開する",{exact:true})).toBeVisible();
+   await expect(steps.getByText(/「インストール」/)).toHaveCount(0);
+  }
   await page.getByText("保存先と削除について",{exact:true}).click();
   await expect(page.getByText(/作業は、既定ではワークスペースで削除するまで保持します。/)).toBeVisible();
   await expect(page.getByText(/PCの外へ画像を送るのは、管理者がCellpose用のクラウドGPUを設定した場合/)).toBeVisible();
@@ -42,8 +52,8 @@ test("published Windows asset downloads with the recorded checksum",async({page}
  const pending=page.waitForEvent("download");
  await page.getByRole("link",{name:/Windows版をダウンロード/}).click();
  const download=await pending;
- expect(download.suggestedFilename()).toBe(`Cytellect-${published.version}-windows-x64.zip`);
- const destination=testInfo.outputPath("published-windows.zip");
+ expect(download.suggestedFilename()).toBe(assetFile);
+ const destination=testInfo.outputPath(assetFile);
  await download.saveAs(destination);
  const bytes=fs.readFileSync(destination);
  expect(bytes.length).toBe(published.size_bytes);
