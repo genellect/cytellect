@@ -298,6 +298,45 @@ describe("e-mail code login", () => {
     expect((await t.send("POST", "/v1/auth/code", { email: "late@example.org" }, { "cf-connecting-ip": "198.51.100.7" })).status).toBe(200);
   });
 
+  it("serves the admin page and its APIs only on ADMIN_ORIGIN and links approvals there", async () => {
+    const other = "https://cytellect-proposal.example.workers.dev";
+    const t = await setup({ ...BASE_ENV, ADMIN_ORIGIN: ORIGIN });
+    const at = (origin: string, path: string, init?: RequestInit) => t.call(new Request(`${origin}${path}`, init));
+    const post = (origin: string, path: string, body: unknown) => at(origin, path, {
+      method: "POST", headers: { "content-type": "application/json", origin }, body: JSON.stringify(body),
+    });
+    // Another origin of the same Worker answers 404 for every admin path and sends nothing.
+    expect((await at(other, "/admin")).status).toBe(404);
+    expect((await post(other, "/v1/admin/session/code", { email: OWNER })).status).toBe(404);
+    expect((await post(other, "/v1/admin/session/verify", { email: OWNER, code: "000000" })).status).toBe(404);
+    expect((await at(other, "/v1/admin/users")).status).toBe(404);
+    expect((await at(other, "/v1/admin/approve?t=x")).status).toBe(404);
+    // The legacy invitation route, which index.ts serves, is closed the same way.
+    const invite = (origin: string) => at(origin, "/v1/admin/invitations", { method: "POST", headers: { authorization: `Bearer ${BASE_ENV.ADMIN_TOKEN}` } });
+    expect((await invite(other)).status).toBe(404);
+    expect((await invite(ORIGIN)).status).toBe(201);
+    expect(t.mailer.to(OWNER)).toEqual([]);
+    // Login itself still works on any origin, and an access request made through the
+    // other origin links the owner to the admin origin.
+    const response = await post(other, "/v1/auth/code", { email: USER });
+    expect((await response.json() as { state: string }).state).toBe("pending_approval");
+    expect(t.mailer.link().startsWith(`${ORIGIN}/v1/admin/approve?t=`)).toBe(true);
+    expect(t.mailer.to(OWNER)[0].text).toContain(`${ORIGIN}/admin`);
+    expect(t.mailer.to(OWNER)[0].text).not.toContain(other);
+    // The admin origin itself works as before.
+    expect((await at(ORIGIN, "/admin")).status).toBe(200);
+    expect(await t.adminLogin()).toBeTruthy();
+  });
+
+  it("closes the admin paths when ADMIN_ORIGIN is malformed", async () => {
+    for (const value of ["api.example.test", "http://api.example.test", "https://api.example.test/admin"]) {
+      const t = await setup({ ...BASE_ENV, ADMIN_ORIGIN: value });
+      const response = await t.call(new Request(`${ORIGIN}/admin`));
+      expect([value, response.status, await response.json()]).toEqual([value, 503, { error: "admin_origin_invalid" }]);
+      expect((await t.send("POST", "/v1/auth/code", { email: OWNER })).status).toBe(200);
+    }
+  });
+
   it("closes login without the owner address or signing key", async () => {
     const t = await setup({ ...BASE_ENV, ADMIN_SIGNING_KEY: "short" });
     const response = await t.send("POST", "/v1/auth/code", { email: USER });
