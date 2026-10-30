@@ -106,9 +106,11 @@ Each run uses its own working directory and child processes. Cancellation or exc
 
 Settings updates are checked against the requester's version and return `409` on conflict. Mask corrections are saved as new versions, and the measurements, statistics and figures that depend on that mask are marked for update.
 
-Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests. See [SECURITY.md](SECURITY.md) for the current security measures and how to report a vulnerability.
+## Security and research data
 
-Images and results that users load are stored in a data area separate from the application code, and the worker manages their retention and deletion ([data protection and operations](docs/security.md)).
+Cytellect handles unpublished research data, which is highly confidential, while publishing its code as open source and operating cloud features used by research labs. Its handling of research data and its security are therefore set out explicitly.
+
+Research data is never kept in the cloud, and updates are verified by signature, so a compromise of the cloud services or the repository cannot reach stored research data or users' PCs. The design in detail and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).
 
 ## Distribution
 
