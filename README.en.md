@@ -112,14 +112,15 @@ Cytellect is built to hold unpublished research images, so a compromise cannot r
 
 | Design | How |
 |---|---|
-| [No research data in the cloud](SECURITY.md#research-data) | Analysis runs on the researcher's PC. Cloud GPU receives only the plane to detect, and the AI only the research goal and metadata; the relay never stores the body |
-| [No keys on the PC](SECURITY.md#authentication-and-access-control) | A PC holds a single device token. The Cytellect Worker holds the external service keys and attaches them when relaying. The server keeps tokens and codes only as hashes |
-| [Admin routes verified twice](SECURITY.md#authentication-and-access-control) | The admin page sits behind Cloudflare Access, and the Worker itself verifies the JWT signature, issuer, audience and expiry |
-| [Updates trusted only by signature](SECURITY.md#integrity-of-releases) | The in-app update runs only after verifying an Ed25519-signed manifest, so repository write access alone cannot run code on users' PCs |
-| [Bounded impact of a compromise](SECURITY.md#impact-of-a-compromise) | What a compromised cloud account, Worker or repository can reach is defined |
+| No research data in the cloud | Analysis runs on the researcher's PC. Cloud GPU receives only the plane to detect, and the AI only the research goal and metadata; the relay never stores the body |
+| No keys on the PC | A PC holds a single device token. The Cytellect Worker holds the external service keys and attaches them when relaying. The server keeps tokens and codes only as hashes |
+| Admin routes verified twice | The admin page sits behind Cloudflare Access, and the Worker itself verifies the JWT signature, issuer, audience and expiry |
+| Updates trusted only by signature | The in-app update runs only after verifying an Ed25519-signed manifest, so repository write access alone cannot run code on users' PCs |
+| Bounded impact of a compromise | What a compromised cloud account, Worker or repository can reach is defined |
 
-- Security measures in detail and vulnerability reporting: [SECURITY.md](SECURITY.md)
-- Handling research data and credentials in development: [team development rules §6](docs/team-development.md#6-research-data)
+**What data leaves the PC, how authentication works, what a compromise can reach and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).**
+
+How research data and credentials are handled in development is set out in the [team development rules §6](docs/team-development.md#6-research-data).
 
 ## Distribution
 
