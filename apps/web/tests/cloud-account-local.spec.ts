@@ -15,8 +15,13 @@ test.use({timezoneId: "Asia/Tokyo"});
 type Account = Record<string, unknown>;
 type Mock = {
   session: boolean; firstRun: boolean; account: Account; update: {status: number; body: unknown};
-  /** GET answers after an update starts (the last one repeats); `null` stands for a dropped connection. */
-  updateAfter?: Array<Record<string, unknown> | null>; updateStarted?: {status: number; body: unknown};
+  /**
+   * GET answers after an update starts (the last one repeats); `null` stands for a dropped connection,
+   * "restart" for the launcher stopping, which drops the connection and revokes the local session.
+   */
+  updateAfter?: Array<Record<string, unknown> | null | "restart">; updateStarted?: {status: number; body: unknown};
+  /** The update route answers 401 without a session, as the real local API does. */
+  updateNeedsSession?: boolean; localSessionRefused?: boolean;
   onCode?: (email: string) => {status: number; body: Account};
   onVerify?: (code: string) => {status: number; body: Account};
   logoutFails?: boolean; accountHeld?: Promise<void>;
@@ -33,6 +38,7 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
     if (path === "/v1/session") return mock.session ? json(route, 200, {authenticated: true, mode: "local", retention_mode: "manual", retention_hours: null}) : json(route, 401, {detail: "session_required"});
     if (path === "/v1/local/setup") return json(route, 200, {mode: "local", ready: true, fiji_configured: true, retention_mode: "manual", retention_hours: null});
     if (path === "/v1/local/first-run") return json(route, 200, {first_run: mock.firstRun});
+    if (path === "/v1/local/session" && mock.localSessionRefused) return json(route, 403, {detail: "local_origin_required"});
     if (path === "/v1/local/session") {mock.session = true; return json(route, 200, {authenticated: true, mode: "local", retention_mode: "manual", retention_hours: null});}
     if (path === "/v1/account" && method === "GET") {await mock.accountHeld; return json(route, 200, mock.account);}
     if (path === "/v1/account/code") {
@@ -53,9 +59,11 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
       const reply = mock.updateStarted ?? {status: 202, body: {available: true, state: "downloading"}};
       return json(route, reply.status, reply.body);
     }
+    if (path === "/v1/app/update" && mock.updateNeedsSession && !mock.session) return json(route, 401, {detail: "session_required"});
     if (path === "/v1/app/update" && mock.updateAfter && mock.calls.includes("POST /v1/app/update")) {
       const next = mock.updateAfter.length > 1 ? mock.updateAfter.shift()! : mock.updateAfter[0];
-      return next === null ? route.abort("connectionreset") : json(route, 200, next);
+      if (next === "restart") mock.session = false;
+      return next === null || next === "restart" ? route.abort("connectionreset") : json(route, 200, next);
     }
     if (path === "/v1/app/update") return json(route, mock.update.status, mock.update.body);
     if (path === "/v1/workspaces" && method === "GET") return json(route, 200, []);
@@ -178,6 +186,33 @@ test("an update is followed through the restart until it completes", async ({pag
   await expect(page.getByText("更新が完了しました（0.1.0-local.22）。")).toBeVisible();
 });
 
+test("after the restart revokes the session, the banner opens it again and shows the result", async ({page}) => {
+  await page.clock.install();
+  const mock = await mockLocalApi(page, {session: true, firstRun: false, update: {status: 200, body: LATEST}, updateNeedsSession: true,
+    updateAfter: [{...LATEST, state: "installing"}, "restart", {...LATEST, available: false, current: "0.1.0-local.22", state: "updated"}]});
+  await page.goto(origin + "/workspace");
+  await page.getByRole("button", {name: "更新する"}).click();
+  await expect(page.getByText(/^更新しています。/)).toBeVisible();
+  for (let step = 0; step < 6; step++) await page.clock.fastForward(3_100);
+  await expect(page.getByText("更新が完了しました（0.1.0-local.22）。")).toBeVisible();
+  const after = mock.calls.slice(mock.calls.indexOf("POST /v1/app/update"));
+  expect(after).toContain("POST /v1/local/session");
+  // The workspace keeps working with the new session.
+  await expect(page.getByRole("button", {name: "ログイン", exact: true})).toBeVisible();
+});
+
+test("a session that cannot be opened again after the restart asks to reopen the workspace", async ({page}) => {
+  await page.clock.install();
+  const mock = await mockLocalApi(page, {session: true, firstRun: false, update: {status: 200, body: LATEST}, updateNeedsSession: true,
+    updateAfter: [{...LATEST, state: "installing"}, "restart", {...LATEST, available: false, current: "0.1.0-local.22", state: "updated"}]});
+  await page.goto(origin + "/workspace");
+  mock.localSessionRefused = true;
+  await page.getByRole("button", {name: "更新する"}).click();
+  for (let step = 0; step < 6; step++) await page.clock.fastForward(3_100);
+  await expect(page.getByRole("alert").filter({hasText: "作業画面を開き直してください"})).toBeVisible();
+  await expect(page.getByText(/更新できませんでした/)).toHaveCount(0);
+});
+
 test("a failed update says so with its code under 詳細, and an unsafe notes link is not shown", async ({page}) => {
   const mock = await mockLocalApi(page, {session: true, firstRun: false,
     update: {status: 200, body: {...LATEST, notes_url: "https://example.com/notes"}},
@@ -263,6 +298,16 @@ test("a rollback from the last run is shown once at start", async ({page}) => {
   await page.reload();
   await expect(page.getByText(/更新があります/)).toBeVisible();
   await expect(page.getByText("元の版で起動しました。あとでもう一度更新してください。")).toHaveCount(0);
+});
+
+test("a version without a signing key asks for the new installer instead of updating", async ({page}) => {
+  const mock = await mockLocalApi(page, {session: true, firstRun: false,
+    update: {status: 200, body: {...LATEST, available: false, state: "unsupported", error: "update_signing_key_missing"}}});
+  await page.goto(origin + "/workspace");
+  await expect(page.getByText("新しい版（0.1.0-local.22）があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。")).toBeVisible();
+  await expect(page.getByRole("link", {name: "変更内容"})).toHaveAttribute("href", LATEST.notes_url);
+  await expect(page.getByRole("button", {name: "更新する"})).toHaveCount(0);
+  expect(mock.calls).not.toContain("POST /v1/app/update");
 });
 
 test("an installation without the update route shows no update notice", async ({page}) => {

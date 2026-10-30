@@ -47,7 +47,7 @@ jobs:
             const checks = await github.paginate(github.rest.checks.listForRef, {
               ...context.repo, ref: context.sha, filter: 'latest', per_page: 100
             });
-            for (const name of ['python', 'web', 'fiji-browser', 'cellpose-gpu-image', 'local-windows', 'windows-installed', 'python-windows-314']) {
+            for (const name of ['python', 'web', 'fiji-browser', 'cellpose-gpu-image', 'local-windows', 'windows-installed', 'windows-installer', 'python-windows-314']) {
               const check = checks.find(c => c.name === name && c.app?.slug === 'github-actions');
               if (check?.conclusion !== 'success') throw new Error(`${name} has not passed on this commit`);
             }
@@ -83,21 +83,51 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
           "CYTELLECT_RELEASE_DIR=$releaseDir" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CYTELLECT_RELEASE_ZIP=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Fresh setup with pinned Python and actual Fiji
+      - name: Restore pinned public downloads (content-addressed, verified again on use)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/installer-cache
+          key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/python/windows-runtime.lock.json', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py') }}
+      - name: Build the per-user installer from the same ZIP
+        shell: pwsh
+        run: |
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          $cache = Join-Path $env:RUNNER_TEMP 'installer-cache'
+          $inno = Join-Path $env:RUNNER_TEMP 'inno'
+          & $python -B scripts/build_windows_installer.py install-inno --dest $inno --cache $cache
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Inno Setup installation failed' }
+          # Signing is the owner's decision (D4): set CYTELLECT_SIGN_COMMAND from a protected
+          # environment to sign; without it the installer is unsigned and its receipt says so.
+          & $python -B scripts/build_windows_installer.py build --release-zip $env:CYTELLECT_RELEASE_ZIP --output-dir $env:CYTELLECT_RELEASE_DIR --work-dir (Join-Path $env:RUNNER_TEMP 'installer-work') --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python (Get-Command python).Source
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'installer-work') -Recurse -Force
+          "CYTELLECT_RELEASE_INSTALLER=$(Join-Path $env:CYTELLECT_RELEASE_DIR "Cytellect-Setup-$env:RELEASE_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Fresh silent installation without network, with bundled Python and actual Fiji
+        shell: pwsh
+        run: |
+          $install = Join-Path $env:RUNNER_TEMP 'installed-cytellect'
+          $env:HTTP_PROXY = 'http://127.0.0.1:9'; $env:HTTPS_PROXY = 'http://127.0.0.1:9'
+          $process = Start-Process -FilePath $env:CYTELLECT_RELEASE_INSTALLER -PassThru -Wait -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$install`"")
+          if ($process.ExitCode -ne 0) { throw 'Installation or Fiji verification failed' }
+          "CYTELLECT_INSTALL_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Repeat the installer in the existing private installation
+        shell: pwsh
+        run: |
+          $env:HTTP_PROXY = 'http://127.0.0.1:9'; $env:HTTPS_PROXY = 'http://127.0.0.1:9'
+          $process = Start-Process -FilePath $env:CYTELLECT_RELEASE_INSTALLER -PassThru -Wait -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$env:CYTELLECT_INSTALL_ROOT`"")
+          if ($process.ExitCode -ne 0) { throw 'Repeat installation failed' }
+      - name: The setup ZIP still installs online (the alternative until signing is decided)
         shell: pwsh
         run: |
           $source = Join-Path $env:RUNNER_TEMP 'package-source'
-          $install = Join-Path $env:RUNNER_TEMP 'installed-cytellect'
+          $install = Join-Path $env:RUNNER_TEMP 'installed-from-zip'
           Expand-Archive -LiteralPath $env:CYTELLECT_RELEASE_ZIP -DestinationPath $source
           & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $install -Console -NoShortcut
-          if ($LASTEXITCODE -ne 0) { throw 'Pinned installation or Fiji verification failed' }
-          "CYTELLECT_INSTALL_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Repeat setup in the existing private installation
-        shell: pwsh
-        run: |
-          $source = Join-Path $env:RUNNER_TEMP 'package-source'
-          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $env:CYTELLECT_INSTALL_ROOT -Console -NoShortcut
-          if ($LASTEXITCODE -ne 0) { throw 'Repeat installation failed' }
+          if ($LASTEXITCODE -ne 0) { throw 'ZIP setup with pinned downloads failed' }
+          $completed = @(Get-ChildItem -LiteralPath "$install\apps" -Filter setup-complete.json -Recurse)
+          if ($completed.Count -ne 1) { throw 'Expected exactly one application from the ZIP' }
+          if ((Get-Content -LiteralPath $completed[0].FullName -Raw | ConvertFrom-Json).source_commit -ne $env:GITHUB_SHA) { throw 'ZIP installed revision mismatch' }
+          Remove-Item -LiteralPath $install -Recurse -Force
       - name: Installed image, planning and registration workflows with numerical replay
         shell: pwsh
         run: |
@@ -206,6 +236,9 @@ jobs:
   draft:
     needs: package
     runs-on: ubuntu-latest
+    # The owner approves this job (required reviewer of the release environment); only here is
+    # the update signing key available (docs/release-signing.md).
+    environment: release
     permissions:
       contents: write
     env:
@@ -213,10 +246,41 @@ jobs:
       GH_REPO: ${{ github.repository }}
       RELEASE_VERSION: ${{ inputs.version }}
     steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --no-dev
       - uses: actions/download-artifact@v4
         with:
           name: windows-release
           path: release
+      - name: Sign the update manifest with the owner's key, and check it as the application will
+        shell: bash
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$UPDATE_SIGNING_KEY" ]; then
+            echo "::error::UPDATE_SIGNING_KEY is not set in the release environment; nothing is drafted"
+            exit 1
+          fi
+          uv run --no-sync python scripts/update_manifest.py write --release-dir release --version "$RELEASE_VERSION" --commit "$GITHUB_SHA"
+          key="$RUNNER_TEMP/update-signing-key"
+          trap 'rm -f "$key"' EXIT
+          (umask 077 && printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key")
+          ssh-keygen -q -Y sign -f "$key" -n cytellect-update "release/Cytellect-update-$RELEASE_VERSION.json"
+          rm -f "$key"
+          # Installed copies must accept it: the key built into this commit, or during a key rotation
+          # the one built into the last published release. A secret that matches neither stops here.
+          previous="$RUNNER_TEMP/previous-update-signature.py"
+          : > "$previous"
+          tag="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')"
+          if [ -n "$tag" ]; then
+            git show "$tag:services/api/src/cytellect_api/update_signature.py" > "$previous" 2>/dev/null || : > "$previous"
+          fi
+          uv run --no-sync python scripts/update_manifest.py verify --release-dir release --version "$RELEASE_VERSION" --previous-source "$previous"
       - name: Create the exact source tag without overwriting an existing ref
         uses: actions/github-script@v7
         with:
@@ -229,5 +293,5 @@ jobs:
       - name: Create a draft prerelease for final review
         shell: bash
         run: |
-          printf '%s\n' "Source: $GITHUB_SHA" '' 'Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "Source: $GITHUB_SHA" '' 'Per-user installer Cytellect-Setup-'"$RELEASE_VERSION"'.exe (bundled Python, packages and Fiji; see its receipt for code-signing status), its signed update manifest Cytellect-update-'"$RELEASE_VERSION"'.json (.sig) for the in-app update, and the setup ZIP. Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
           gh release create "v$RELEASE_VERSION" release/* --verify-tag --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"

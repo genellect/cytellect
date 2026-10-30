@@ -41,7 +41,7 @@ def test_local_bootstrap_cookie_only_and_owner_survives_relaunch(tmp_path):
     client, app, settings, web = local(tmp_path)
     before = client.get("/v1/local/setup")
     assert before.json() == {"mode": "local", "ready": True, "fiji_configured": False,
-                             "retention_mode": "ttl", "retention_hours": 24}
+                             "retention_mode": "ttl", "retention_hours": 24, "version": None}
     assert not app.state.store.rows(sessions)  # GET cannot authenticate.
     assert client.get("/v1/workspaces").status_code == 401
     response = client.post("/v1/local/session", headers=HEADERS)
@@ -62,6 +62,21 @@ def test_local_bootstrap_cookie_only_and_owner_survives_relaunch(tmp_path):
     assert "connect-src 'self'" in client.get("/").headers["content-security-policy"]
     assert "form-action 'self'" in client.get("/").headers["content-security-policy"]
 
+
+
+def test_a_session_revoked_at_launcher_stop_is_refused_until_bootstrapped_again(tmp_path):
+    """The tab that started an in-app update keeps a revoked cookie; POST /v1/local/session renews it."""
+    client, app, settings, web = local(tmp_path)
+    client.post("/v1/local/session", headers=HEADERS)
+    created = client.post("/v1/workspaces", json={"title": "synthetic local"}, headers=HEADERS).json()
+    local_module.revoke_local_sessions(app, settings)
+    successor = TestClient(create_local_app(settings, web, 8765), base_url=ORIGIN, client=("127.0.0.1", 45002))
+    successor.cookies.update(client.cookies)  # the same browser, now talking to the new version
+    assert successor.get("/v1/app/update").status_code == 401
+    assert successor.get("/v1/workspaces").status_code == 401
+    assert successor.post("/v1/local/session", headers=HEADERS).status_code == 200
+    assert successor.get("/v1/app/update").status_code == 200
+    assert successor.get("/v1/workspaces").json()[0]["id"] == created["id"]
 
 @pytest.mark.parametrize("headers", [
     {}, {"Origin": ORIGIN}, {"X-Cytellect-Request": "1"},
@@ -151,7 +166,7 @@ def test_worker_bytecode_policy_is_only_overridden_for_no_bytecode_parent(
     assert supervisor.worker_identity == (456, 4.0)
     assert len(launched) == 1
     args, options = launched[0]
-    assert args == [sys.executable, "-m", "cytellect_api.local_worker", "123", "4.0"]
+    assert args == [sys.executable, *(["-B"] if dont_write else []), "-m", "cytellect_api.local_worker", "123", "4.0"]
     assert options["env"].get("PYTHONDONTWRITEBYTECODE") == expected
     assert os.environ.get("PYTHONDONTWRITEBYTECODE") == inherited
 
@@ -195,7 +210,8 @@ def test_gui_browser_is_disabled_until_ready_and_again_during_stop(monkeypatch, 
         def destroy(self): state["destroyed"] = True
 
         def mainloop(self):
-            button = buttons["ブラウザで開く"]
+            button = buttons["作業画面を開く"]
+            assert statuses[0] == "起動の準備中…"
             assert button.options["state"] == "disabled"
             button.options["command"]()
             assert not calls
@@ -204,9 +220,13 @@ def test_gui_browser_is_disabled_until_ready_and_again_during_stop(monkeypatch, 
             server.started = True
             scheduled.pop(0)()
             assert button.options["state"] == "normal"
-            assert statuses[-1] == "稼働中 · " + ORIGIN
+            ready = local_module.running_status(ORIGIN)
+            assert statuses[-1] == ("作業画面を開いています…" if automatic else ready)
             assert calls == ([ORIGIN] if automatic else [])
-            scheduled.pop(0)()
+            for _ in range(20):
+                scheduled.pop(0)()
+            assert statuses[-1] == ready and ready.startswith("稼働中 · " + ORIGIN)
+            assert "「作業画面を開く」" in ready
             assert calls == ([ORIGIN] if automatic else [])  # No repeated auto-open.
             button.options["command"]()
             assert calls == [ORIGIN] * (2 if automatic else 1)
@@ -240,7 +260,7 @@ def test_gui_browser_is_disabled_until_ready_and_again_during_stop(monkeypatch, 
 
 @pytest.mark.parametrize("failure,expected", [
     (ValueError("local_runtime_already_in_use"), "Cytellectは既に起動しています"),
-    (OSError(errno.EADDRINUSE, "private synthetic path"), "接続先が使用中"),
+    (OSError(errno.EADDRINUSE, "private synthetic path"), "接続先（ポート）が使用中"),
     (PermissionError(errno.EACCES, "private synthetic path"), "開き直しても続く場合"),
     (RuntimeError("private synthetic path"), "開き直しても続く場合"),
 ])
@@ -252,7 +272,8 @@ def test_gui_failures_use_fixed_japanese_categories_without_exception_details(tm
 
     monkeypatch.setattr(local_module, "run_local", fail)
     monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
-    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui: messages.append((text, gui)))
+    monkeypatch.setattr(local_module, "_open_running_workspace", lambda origin: False)
+    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui, **_: messages.append((text, gui)))
     arguments = ["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
                  "--fiji", str(tmp_path)]
     with pytest.raises(SystemExit) as stopped:
@@ -270,7 +291,7 @@ def test_gui_failures_use_fixed_japanese_categories_without_exception_details(tm
 
 def test_gui_invalid_installation_uses_fixed_japanese_message(tmp_path, monkeypatch):
     messages = []
-    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui: messages.append((text, gui)))
+    monkeypatch.setattr(local_module, "_report_startup_error", lambda text, gui, **_: messages.append((text, gui)))
     with pytest.raises(SystemExit) as stopped:
         local_module.main(["--gui", "--fiji", str(tmp_path / "missing")])
     assert stopped.value.code == 2
@@ -281,7 +302,48 @@ def test_gui_recognizes_windows_port_error_code_without_reading_its_message():
     failure = OSError("synthetic private connection detail")
     setattr(failure, "winerror", 10048)
     message = local_module._gui_failure_message(failure)
-    assert message.startswith("接続先が使用中") and "private" not in message
+    assert message.startswith("接続先（ポート）が使用中") and "private" not in message
+    assert "「再試行」" in message
+
+
+def test_gui_failure_offers_retry_and_starts_again_when_chosen(tmp_path, monkeypatch):
+    """Port-in-use and start failures show the reason and a retry (R: 初回起動)."""
+    attempts, prompts = [], []
+
+    def fail_then_run(*_args, **_kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise OSError(errno.EADDRINUSE, "private synthetic path")
+
+    def report(text, gui, *, retry=False, information=False):
+        prompts.append((retry, information))
+        return retry
+
+    monkeypatch.setattr(local_module, "run_local", fail_then_run)
+    monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
+    monkeypatch.setattr(local_module, "_report_startup_error", report)
+    local_module.main(["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
+                       "--fiji", str(tmp_path), "--gui"])
+    assert len(attempts) == 2 and prompts == [(True, False)]
+
+
+def test_second_launch_opens_the_running_workspace(tmp_path, monkeypatch):
+    """A second launch says that Cytellect is running and opens its workspace (I5)."""
+    shown, opened = [], []
+
+    def busy(*_args, **_kwargs):
+        raise ValueError("local_runtime_already_in_use")
+
+    monkeypatch.setattr(local_module, "run_local", busy)
+    monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
+    monkeypatch.setattr(local_module, "_open_running_workspace", lambda origin: opened.append(origin) or True)
+    monkeypatch.setattr(local_module, "_report_startup_error",
+                        lambda text, gui, **options: shown.append((text, options)) or False)
+    with pytest.raises(SystemExit):
+        local_module.main(["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
+                           "--fiji", str(tmp_path), "--gui"])
+    assert opened == [ORIGIN]
+    assert shown == [("Cytellectは既に起動しています。作業画面をブラウザで開きました。", {"information": True})]
 
 
 def windows_redirector(tmp_path):
@@ -412,3 +474,43 @@ def test_stop_during_pending_worker_restart_reaps_unadopted_process(tmp_path, mo
             if process.poll() is None:
                 process.kill()
             process.wait(timeout=5)
+
+
+def test_windowless_launcher_configures_its_server_without_standard_streams(monkeypatch):
+    """The shortcut runs pythonw, which has no stdout or stderr; startup must not need them."""
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+
+    async def app(scope, receive, send):
+        pass
+
+    local_module.server_config(app, 8765).load()  # failed with "Unable to configure formatter"
+    local_module._null_missing_streams()
+    assert sys.stdout is not None and sys.stderr is not None
+    sys.stdout.close()
+    sys.stderr.close()
+
+
+def test_isolated_launcher_starts_its_worker_isolated_too(tmp_path, monkeypatch):
+    """The shortcut runs Python with -E; the worker must not read the user's PYTHON* variables."""
+    launched = []
+
+    class LauncherSys:
+        """The launcher module's view of sys only: imports and pytest keep the real sys.flags."""
+
+        flags = SimpleNamespace(ignore_environment=True)
+        dont_write_bytecode = True
+
+        def __getattr__(self, name):
+            return getattr(sys, name)
+
+    monkeypatch.setattr(local_module, "sys", LauncherSys())
+    monkeypatch.setattr(local_module.psutil, "Process",
+                        lambda pid=None: SimpleNamespace(pid=123 if pid is None else pid, create_time=lambda: 4.0,
+                                                         parents=lambda: []))
+    monkeypatch.setattr(local_module.subprocess, "Popen",
+                        lambda args, **kwargs: launched.append(args) or SimpleNamespace(
+                            pid=456, stdout=io.BytesIO(b"456 4.0\n")))
+    monkeypatch.setattr(local_module, "process_alive", lambda identity: identity == (456, 4.0))
+    WorkerSupervisor(Settings(tmp_path / "private"), lambda: None)._spawn()
+    assert launched == [[sys.executable, "-B", "-E", "-m", "cytellect_api.local_worker", "123", "4.0"]]

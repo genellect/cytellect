@@ -63,6 +63,7 @@ AI による解析設定
 | [`engines/cellpose`](engines/cellpose) | Cellpose-SAM の推論 runner と GPU サーバー。依存とモデルを固定 |
 | [`engines/python`](engines/python) | Windows 版の Python ランタイムの固定 |
 | [`infra`](infra) | Docker（Web・API・ワーカー）、Caddy による TLS、Modal の GPU サーバー |
+| [`packaging/windows`](packaging/windows) | Windows 版のインストーラー（Inno Setup）、導入前の確認、CI での導入試験 |
 | [`scripts`](scripts) | 開発の入口 `dev.py`、セットアップ、配布物と公開デモの構築、検証 |
 | [`tests`](tests) | 数値計算・API・ブラウザ・Windows 導入の試験 |
 | [`fixtures/public`](fixtures/public) | 試験と公開デモに使う公開画像。出典・ライセンス・ハッシュを登録 |
@@ -158,7 +159,7 @@ StarDist で検出した核を親として、核小体・細胞質を Cellpose-S
 
 | 対象 | ライセンス | 扱い |
 |---|---|---|
-| Fiji | GPL-3.0（Bio-Formats は GPL、MorphoLibJ は LGPL-3.0） | リポジトリと Windows 版の配布物には含めない。導入時（Docker 版はイメージのビルド時）に公式の配布元から取得し、別プロセスとして実行する |
+| Fiji | GPL-3.0（Bio-Formats は GPL、MorphoLibJ は LGPL-3.0） | リポジトリと Windows 版の ZIP には含めない（導入時、Docker 版はイメージのビルド時に公式の配布元から取得する）。Windows 版のインストーラーは、公式の配布物をそのまま同梱する（Python と依存パッケージも同じ）。同梱物のライセンス本文と対応するソースの入手先は、インストーラーとその受領記録に含める（[第三者のソフトウェア](docs/oss.md)）。どちらも別プロセスとして実行する |
 | Cellpose の依存（fastremap、fill-voids） | LGPL-3.0 | 改変せずに利用する |
 | 学習済みモデル（StarDist、Cellpose-SAM の `cpsam_v2`） | BSD-3-Clause（StarDist はモデルのリポジトリ、`cpsam_v2` はモデルカードで宣言） | 導入時に公式の配布元から取得し、SHA-256 を照合する |
 | 追加学習した重み | BSD-3-Clause | Cellpose の著作権表示と改変した旨を添えて、[Hugging Face](https://huggingface.co/Genellect/Cytellect) で公開する |

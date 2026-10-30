@@ -9,7 +9,12 @@ param(
     # Remote GPU service for Cellpose, from the administrator; blank keeps the saved setting.
     [string]$CellposeRemoteUrl = '',
     [string]$CellposeRemoteToken = '',
-    [ValidateSet('manual', 'ttl')][string]$WorkspaceRetention = 'manual'
+    [ValidateSet('manual', 'ttl')][string]$WorkspaceRetention = 'manual',
+    # The Windows installer's bundled, hash-listed artifacts; setup then never downloads.
+    [string]$OfflineRoot = '',
+    # Installer progress and outcome: fixed ASCII phase and failure codes only, never paths.
+    [string]$StatusFile = '',
+    [string]$ResultFile = ''
 )
 
 Set-StrictMode -Version Latest
@@ -27,6 +32,7 @@ $script:RunningProcess = $null
 $script:Phase = 'verify_release'
 $script:StatusLabel = $null
 $script:LaunchInfo = $null
+$script:Offline = $null
 
 function Get-SafeChild([string]$Root, [string]$Relative) {
     if ([IO.Path]::IsPathRooted($Relative) -or $Relative.Contains(':') -or $Relative.Contains('\') -or
@@ -51,8 +57,14 @@ function Get-SafeChild([string]$Root, [string]$Relative) {
     return $child
 }
 
+function Write-SetupMarker([string]$Path, [string]$Value) {
+    if (-not $Path) { return }
+    try { [IO.File]::WriteAllText($Path, $Value, [Text.Encoding]::ASCII) } catch { }
+}
+
 function Update-SetupStatus([string]$Phase, [string]$Text) {
     $script:Phase = $Phase
+    Write-SetupMarker $StatusFile $Phase
     if ($null -ne $script:StatusLabel) {
         $script:StatusLabel.Text = $Text
         [Windows.Forms.Application]::DoEvents()
@@ -90,6 +102,57 @@ function Get-VerifiedRelease {
         if (-not $seen.Contains($required)) { throw 'release_file_missing' }
     }
     return $manifest
+}
+
+function Get-VerifiedOffline {
+    # Bind the bundled artifacts to this exact release; each file is listed by digest.
+    if (-not $OfflineRoot) { return $null }
+    $manifestPath = Get-SafeChild $OfflineRoot 'offline-manifest.json'
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $releaseDigest = (Get-FileHash -LiteralPath (Get-SafeChild $SourceRoot 'local-release.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($manifest.schema -cne 'cytellect-windows-offline/1' -or $manifest.release_manifest_sha256 -cne $releaseDigest -or
+        @($manifest.files).Count -lt 1) {
+        throw 'invalid_offline_manifest'
+    }
+    $artifacts = @{}
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($entry in $manifest.files) {
+        if ($entry.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $entry.bytes -lt 0 -or -not $seen.Add([string]$entry.path) -or
+            ([string]$entry.path -cnotmatch '^(?:sha256/[a-f0-9]{64}|wheels/[A-Za-z0-9_.+-]+\.whl)$') -or
+            ($entry.path.StartsWith('sha256/') -and $entry.path -cne ('sha256/' + $entry.sha256))) {
+            throw 'invalid_offline_manifest'
+        }
+        $file = Get-SafeChild $OfflineRoot $entry.path
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-Item -LiteralPath $file).Length -ne $entry.bytes -or
+            (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -cne $entry.sha256) {
+            throw 'offline_hash_mismatch'
+        }
+        if ($entry.path.StartsWith('sha256/')) { $artifacts[[string]$entry.sha256] = $file }
+    }
+    # Every bundled file is listed; an unlisted file must not reach the installed environment.
+    foreach ($directory in @('sha256', 'wheels')) {
+        $folder = Get-SafeChild $OfflineRoot $directory
+        if (-not (Test-Path -LiteralPath $folder -PathType Container)) { throw 'invalid_offline_manifest' }
+        foreach ($item in @(Get-ChildItem -LiteralPath $folder -Force)) {
+            if ($item.PSIsContainer -or -not $seen.Contains($directory + '/' + $item.Name)) { throw 'offline_unlisted_file' }
+        }
+    }
+    return @{ artifacts = $artifacts; sha256 = (Get-SafeChild $OfflineRoot 'sha256'); wheels = (Get-SafeChild $OfflineRoot 'wheels') }
+}
+
+function Copy-OfflineArtifact([string]$Sha256, [long]$Bytes, [string]$Target) {
+    # $false means online setup. Offline setup never falls back to a download.
+    if ($null -eq $script:Offline) { return $false }
+    if (-not $script:Offline.artifacts.ContainsKey($Sha256)) { throw 'offline_artifact_missing' }
+    $source = $script:Offline.artifacts[$Sha256]
+    if ($Bytes -ge 0 -and (Get-Item -LiteralPath $source).Length -ne $Bytes) { throw 'offline_hash_mismatch' }
+    if (Test-Path -LiteralPath $Target) { Remove-Item -LiteralPath $Target }
+    [IO.File]::Copy($source, $Target)
+    if ((Get-FileHash -LiteralPath $Target -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Sha256) {
+        Remove-Item -LiteralPath $Target
+        throw 'offline_hash_mismatch'
+    }
+    return $true
 }
 
 function Initialize-PrivateRoot {
@@ -232,8 +295,9 @@ function Get-PinnedUv([string]$Root) {
     $cache = Get-SafeChild $Root 'setup-cache'
     [IO.Directory]::CreateDirectory($cache) | Out-Null
     $archive = Get-SafeChild $cache ('uv-' + $script:UvVersion + '.zip')
-    if (-not (Test-Path -LiteralPath $archive) -or
-        (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $script:UvSha256) {
+    if ((-not (Test-Path -LiteralPath $archive) -or
+        (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $script:UvSha256) -and
+        -not (Copy-OfflineArtifact $script:UvSha256 -1 $archive)) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $client = [Net.WebClient]::new()
         try {
@@ -365,6 +429,7 @@ function Install-Cytellect {
     $script:LaunchInfo = $null
     Update-SetupStatus 'verify_release' '配布ファイルを検証しています…'
     $manifest = Get-VerifiedRelease
+    $script:Offline = Get-VerifiedOffline
     if ($VerifyOnly) { return }
     if (-not [Environment]::Is64BitOperatingSystem -or $env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
         throw 'windows_x64_required'
@@ -416,8 +481,14 @@ function Install-Cytellect {
         PYTHONDONTWRITEBYTECODE = '1'
     }
     Assert-SignedPythonVenv $app $runtime -IfPresent
-    Invoke-SetupProcess (Get-SafeChild $runtime.path 'python.exe') @('-B', '-m', 'venv', '--without-pip',
-        (Get-SafeChild $app '.venv')) $app $environment 180
+    # A complete, verified environment is reused: a re-run while this version is open
+    # must not rewrite the launchers that the running Cytellect is using.
+    $venvComplete = $false
+    try { Assert-SignedPythonVenv $app $runtime; $venvComplete = $true } catch { }
+    if (-not $venvComplete) {
+        Invoke-SetupProcess (Get-SafeChild $runtime.path 'python.exe') @('-B', '-m', 'venv', '--without-pip',
+            (Get-SafeChild $app '.venv')) $app $environment 180
+    }
     Assert-SignedPythonVenv $app $runtime
     $python = Get-SafeChild $app '.venv/Scripts/python.exe'
     $pythonw = Get-SafeChild $app '.venv/Scripts/pythonw.exe'
@@ -434,8 +505,11 @@ function Install-Cytellect {
         }
     }
     Update-SetupStatus 'install_dependencies' '解析ライブラリを準備しています…'
-    Invoke-SetupProcess $uv @('pip', 'sync', '--require-hashes', '--only-binary', ':all:', '--python', $python,
-        '--no-managed-python', '--no-python-downloads', '--no-config', $install.requirements.path) $app $environment -UvProcess
+    $syncArgs = @('pip', 'sync', '--require-hashes', '--only-binary', ':all:', '--python', $python,
+        '--no-managed-python', '--no-python-downloads', '--no-config')
+    # Bundled wheels are hash-listed in the same lock; the installer never contacts an index.
+    if ($null -ne $script:Offline) { $syncArgs += @('--offline', '--no-index', '--find-links', $script:Offline.wheels) }
+    Invoke-SetupProcess $uv ($syncArgs + @($install.requirements.path)) $app $environment -UvProcess
     Assert-SignedPythonVenv $app $runtime
     Invoke-SetupProcess $uv @('pip', 'check', '--python', $python, '--no-config') $app $environment 180 -UvProcess
     Update-SetupStatus 'verify_python_gui' '起動・停止ウィンドウを確認しています…'
@@ -446,7 +520,9 @@ function Install-Cytellect {
     $fijiWasPresent = Test-Path -LiteralPath $fiji
     if (-not (Test-Path -LiteralPath $fiji)) {
         Update-SetupStatus 'install_fiji' 'Fijiを取得・検証しています。初回は数分かかる場合があります…'
-        Invoke-SetupProcess $python @('-B', 'scripts/fiji_setup.py', $fiji, '--platform', 'windows-x64') $app @{}
+        $fijiArgs = @('-B', 'scripts/fiji_setup.py', $fiji, '--platform', 'windows-x64')
+        if ($null -ne $script:Offline) { $fijiArgs += @('--offline-dir', $script:Offline.sha256) }
+        Invoke-SetupProcess $python $fijiArgs $app @{}
     }
     Update-SetupStatus 'verify_fiji' 'Fijiのプラグインとモデルを検証しています…'
     Invoke-SetupProcess $python @('-B', '-c', 'import sys; from cytellect_analysis.engine import runtime_info; runtime_info(sys.argv[1])', $fiji) $app @{} 180
@@ -460,7 +536,8 @@ function Install-Cytellect {
     $data = Get-SafeChild $root 'data'
     [IO.Directory]::CreateDirectory($data) | Out-Null
     $web = Get-SafeChild $app 'apps/web/out'
-    $launchArgs = @('-B', '-m', 'cytellect_api.local', '--fiji', $fiji, '--data-dir', $data, '--web-dir', $web, '--gui')
+    # -E: the user's PYTHONPATH/PYTHONHOME must not change the installed application.
+    $launchArgs = @('-B', '-E', '-m', 'cytellect_api.local', '--fiji', $fiji, '--data-dir', $data, '--web-dir', $web, '--gui')
     if (-not $NoShortcut) {
         Update-SetupStatus 'create_shortcut' 'Cytellectのショートカットを作成しています…'
         $shell = New-Object -ComObject WScript.Shell
@@ -558,13 +635,17 @@ function Install-Cytellect {
 }
 
 if ($Console -or $VerifyOnly) {
-    try { Install-Cytellect; exit 0 } catch {
+    try { Install-Cytellect; Write-SetupMarker $ResultFile 'ok'; exit 0 } catch {
         # Fixed stage and code only; never print arbitrary exceptions or paths.
         $code = Get-SetupFailureCode -Exception $_.Exception
         if ($null -eq $code -and $_.Exception.Message -cin @('cellpose_remote_url_invalid', 'cellpose_remote_token_invalid')) {
             $code = $_.Exception.Message
         }
         $suffix = if ($null -ne $code) { ' (' + $code + ')' } else { '' }
+        # The installer reads our own fixed failure markers only (for example offline_hash_mismatch).
+        $marker = if ($null -ne $code) { $code } elseif ($_.Exception.Message -cmatch '^[a-z0-9_]{3,64}$') {
+            $_.Exception.Message } else { 'setup_failed' }
+        Write-SetupMarker $ResultFile ('failed ' + $script:Phase + ' ' + $marker)
         Write-Host ('Cytellect setup failed: ' + $script:Phase + $suffix)
         exit 1
     }

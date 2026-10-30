@@ -3,4 +3,9 @@ Copyright 2026 Cytellect contributors
 
 Own code: Apache License, Version 2.0.
 Third-party packages, plugins, weights and data retain their own licenses.
-No Fiji or model binaries included.
+The repository and the setup ZIP include no Fiji or model binaries.
+The Windows installer (Cytellect-Setup-<version>.exe) bundles unmodified official
+distributions of Fiji (GPL-3.0, with its JDK and plugins, including the StarDist
+model), Python and the locked
+Python packages; licenses/THIRD_PARTY_BUNDLED.txt in the installation lists each
+component's license and where its corresponding source is published.

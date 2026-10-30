@@ -391,7 +391,7 @@ jobs:
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --dev
       - name: Loopback lifecycle and Windows setup boundaries
-        run: uv run pytest tests/test_local.py tests/test_local_cold_start.py tests/test_process_owner.py tests/test_local_bundle.py tests/test_windows_setup.py tests/test_windows_setup_errors.py tests/test_windows_setup_completion.py tests/test_windows_runtime.py tests/test_windows_runtime_data.py tests/test_windows_runtime_prepare.py tests/test_local_revision.py
+        run: uv run pytest tests/test_local.py tests/test_local_cold_start.py tests/test_process_owner.py tests/test_local_bundle.py tests/test_windows_setup.py tests/test_windows_setup_errors.py tests/test_windows_setup_completion.py tests/test_windows_runtime.py tests/test_windows_runtime_data.py tests/test_windows_runtime_prepare.py tests/test_local_revision.py tests/test_windows_installer.py tests/test_app_update.py
   windows-installed:
     needs: changes
     if: github.event_name != 'pull_request' && needs.changes.outputs.windows == 'true'
@@ -512,6 +512,85 @@ jobs:
             if (-not $status.ready) { throw 'Updated application is not ready' }
             if ($status.retention_mode -ne 'manual') { throw 'Update did not switch to manual workspace retention' }
           } finally { Stop-Installed $process }
+  windows-installer:
+    # Builds Cytellect-Setup-<version>.exe from this commit and installs, starts, re-runs,
+    # interrupts, resumes, migrates, updates in the app (and rolls back) and uninstalls it on
+    # a disposable runner (plan §7.1 T1/T4). Two versions of the same source test the update.
+    # An integration test: main and manual runs only, like windows-installed.
+    needs: changes
+    if: github.event_name != 'pull_request' && needs.changes.outputs.windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI_VERSION: 0.0.0-local.1
+      UPDATE_VERSION: 0.0.0-local.2
+      MIGRATE_VERSION: 0.1.0-local.20
+      MIGRATE_SHA256: bcbefa59857b29c4221603045266b167fb7019311d512f1c475fbaef0608525a
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --group build
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - name: Build the setup ZIPs of two versions from this exact commit
+        shell: pwsh
+        run: |
+          $inputs = Join-Path $env:RUNNER_TEMP 'package-inputs'
+          New-Item -ItemType Directory -Path $inputs | Out-Null
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          $data = Join-Path $inputs 'windows-tcltk-9.0.4-data.zip'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/prepare_windows_runtime_data.ps1 -Python $python -CacheRoot (Join-Path $inputs 'cache') -ScratchRoot (Join-Path $inputs 'extraction') -Output $data
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned runtime data preparation failed' }
+          & $python -B -m hatchling build -t wheel -d (Join-Path $inputs 'wheels')
+          if ($LASTEXITCODE -ne 0) { throw 'Wheel build failed' }
+          $requirements = Join-Path $inputs 'requirements.txt'
+          uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Hashed dependency export failed' }
+          $wheel = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')[0].FullName
+          foreach ($version in @($env:CI_VERSION, $env:UPDATE_VERSION)) {
+            $archive = Join-Path $env:RUNNER_TEMP "zip\Cytellect-$version-windows-x64.zip"
+            & $python -B scripts/build_local_bundle.py --version $version --output $archive --runtime-data $data --wheel $wheel --requirements $requirements
+            if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
+          }
+      - name: Restore pinned public downloads (content-addressed, verified again on use)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/installer-cache
+          key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/python/windows-runtime.lock.json', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py') }}
+      - name: Build the per-user installer with the pinned Inno Setup
+        shell: pwsh
+        run: |
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          $cache = Join-Path $env:RUNNER_TEMP 'installer-cache'
+          $inno = Join-Path $env:RUNNER_TEMP 'inno'
+          & $python -B scripts/build_windows_installer.py install-inno --dest $inno --cache $cache
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Inno Setup installation failed' }
+          $output = Join-Path $env:RUNNER_TEMP 'installer'
+          # The project environment has no pip; the runner's Python downloads the hash-locked wheels.
+          $pip = (Get-Command python).Source
+          foreach ($version in @($env:CI_VERSION, $env:UPDATE_VERSION)) {
+            $work = Join-Path $env:RUNNER_TEMP "installer-work-$version"
+            & $python -B scripts/build_windows_installer.py build --release-zip (Join-Path $env:RUNNER_TEMP "zip\Cytellect-$version-windows-x64.zip") --output-dir $output --work-dir $work --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python $pip
+            if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+            Write-Host ('Installer {0}: {1:N0} MB' -f $version, ((Get-Item -LiteralPath (Join-Path $output "Cytellect-Setup-$version.exe")).Length / 1MB))
+            Remove-Item -LiteralPath $work -Recurse -Force
+          }
+          Get-Content -LiteralPath (Join-Path $output "Cytellect-Setup-$env:CI_VERSION.json") | Select-Object -First 16
+          "CYTELLECT_CI_INSTALLER=$(Join-Path $output "Cytellect-Setup-$env:CI_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CYTELLECT_UPDATE_INSTALLER=$(Join-Path $output "Cytellect-Setup-$env:UPDATE_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Silent install, start, re-run, uninstall, resume, migrate from the published ZIP release and update in the app
+        shell: pwsh
+        run: |
+          $previous = Join-Path $env:RUNNER_TEMP "Cytellect-$env:MIGRATE_VERSION-windows-x64.zip"
+          Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/genellect/cytellect/releases/download/v$env:MIGRATE_VERSION/Cytellect-$env:MIGRATE_VERSION-windows-x64.zip" -OutFile $previous
+          if ((Get-FileHash -LiteralPath $previous -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:MIGRATE_SHA256) { throw 'Previous release hash mismatch' }
+          & ./packaging/windows/smoke.ps1 -Installer $env:CYTELLECT_CI_INSTALLER -Scratch (Join-Path $env:RUNNER_TEMP 'installer-smoke') -Version $env:CI_VERSION -Checkout (Get-Location).Path -PreviousZip $previous -UpdateInstaller $env:CYTELLECT_UPDATE_INSTALLER -UpdateVersion $env:UPDATE_VERSION
   windows-tests:
     needs: changes
     if: needs.changes.outputs.windows == 'true'

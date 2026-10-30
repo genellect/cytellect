@@ -12,14 +12,15 @@ Cytellect 独自のコードは Apache-2.0 で公開している。このライ�
 |---|---|
 | リポジトリ | 導入の手順、ロックファイル、ハッシュの記録だけを置く。第三者の実行環境と学習済みの重みは含めない |
 | Windows 版（セットアップ ZIP） | ソース、ビルド済みの Web、Web の依存のライセンス本文（`THIRD_PARTY_WEB_NOTICES.txt`）、`LICENSE.cellpose.txt`、公開画像の登録簿を含む。Python・パッケージ・Fiji は導入時に公式の配布元から取得し、ハッシュを照合する。Cellpose は PC に導入せず、クラウド GPU で実行する |
+| Windows 版（インストーラー `Cytellect-Setup-<版>.exe`） | ZIP の内容に加え、Python 3.14、lock の依存パッケージ（wheel）、uv、Fiji（JDK とプラグインを含む）の公式の配布物を改変せずに同梱する。`licenses/THIRD_PARTY_BUNDLED.txt` に、各コンポーネントのライセンス、同梱したファイルの SHA-256、対応するソースの入手先（PyPI の各版のページなど）を書き、wheel に入っているライセンス本文を `licenses/wheels/` に置く。Fiji は、同梱したアーカイブとプラグインの各 jar の Maven 座標（`META-INF/maven/*/pom.properties`）から、版を固定した `-sources.jar` の所在（SciJava の Maven リポジトリ）を `licenses/fiji-sources.json` に記録する（座標を持たない jar は、jar 自身の表示に従う）。JDK は、同梱した版（`release` ファイル）の OpenJDK のタグと、配布元（Azul）のソース一式の所在を記録する。これらはインストール先の `licenses/` に入り、ビルドの受領記録（`Cytellect-Setup-<版>.json`）にも一覧とハッシュを記録する。Fiji・JDK・各 jar・Python のライセンス本文は、導入後の `runtimes/` にそのまま残る。オーナーの判断（2026-10-30）により、この形で確定とし、GPL の対応するソースの写しの配置や書面による提供の申し出は行わない |
 | Docker 版 | 利用者の環境でビルドする。計算ワーカーのイメージには、ビルド時に取得した Fiji、Cellpose の実行環境、`cpsam_v2` の重みが入る |
 | GPU イメージ（GHCR） | Cellpose の実行環境、`cpsam_v2` の重み、`engines/cellpose`（`LICENSE.cellpose.txt` を含む） |
 
-イメージや配布物を配る場合は、実際に組み立てた内容に対して著作権・ライセンスの表示を保持する。GPL・LGPL のコンポーネントを含む場合は、それらが求める対応するソースと再リンクの手段を用意する。
+イメージや配布物を配る場合は、実際に組み立てた内容に対して著作権・ライセンスの表示を保持する。GPL・LGPL のコンポーネントを含む場合は、それらが求める対応するソースと再リンクの手段を用意する（Windows 版は上の表のとおり）。
 
 ### Fiji と核の検出
 
-[Fiji の固定記録](../engines/fiji/runtime.lock.json)に、公式の配布元の URL、版、SHA-256、ライセンス識別子、上流のソースを記録している。導入時には、入ったすべての jar と JDK のハッシュの一覧を checkout の外に書き出す。デプロイの記録と一緒に保管する。
+[Fiji の固定記録](../engines/fiji/runtime.lock.json)に、公式の配布元の URL、版、SHA-256、ライセンス識別子、上流のソースを記録している。ZIP 版は導入時に取得し、インストーラーは同じファイルを同梱する。導入時には、入ったすべての jar と JDK のハッシュの一覧を checkout の外に書き出す。デプロイの記録と一緒に保管する。
 
 | コンポーネント | 用途 | ライセンス |
 |---|---|---|
@@ -120,14 +121,15 @@ Cytellect's own code is licensed under Apache-2.0. That license does not replace
 |---|---|
 | Repository | Installation recipes, lockfiles and hash records only. No third-party runtimes or pretrained weights |
 | Windows release (setup ZIP) | Source, the built Web assets, Web dependency license texts (`THIRD_PARTY_WEB_NOTICES.txt`), `LICENSE.cellpose.txt` and the public-image register. Python, packages and Fiji are downloaded from official sources during setup and verified by hash. Cellpose is not installed on the PC; it runs on the cloud GPU |
+| Windows installer (`Cytellect-Setup-<version>.exe`) | The ZIP contents plus unmodified official distributions of Python 3.14, the locked Python packages (wheels), uv and Fiji with its JDK and plugins. `licenses/THIRD_PARTY_BUNDLED.txt` lists each component's license, the SHA-256 of the bundled file and where its corresponding source is published (each version's PyPI page and so on); the license texts inside the wheels are placed in `licenses/wheels/`. For Fiji, `licenses/fiji-sources.json` records, from each bundled jar's Maven coordinates (`META-INF/maven/*/pom.properties`), the version-pinned `-sources.jar` address in the SciJava Maven repository (jars without coordinates follow their own notices). For the JDK it records the OpenJDK tag of the bundled build (its `release` file) and the vendor's (Azul's) source bundle. Both are installed under `licenses/` and listed with hashes in the build receipt (`Cytellect-Setup-<version>.json`). The Fiji, JDK, jar and Python license texts stay in the installed `runtimes/`. By the owner's decision (2026-10-30) this is final: no copy of the GPL corresponding source is published with the release and no written offer is added |
 | Docker release | Built on the user's machine. The worker image contains Fiji, the Cellpose runtime and the `cpsam_v2` weights obtained at build time |
 | GPU image (GHCR) | The Cellpose runtime, the `cpsam_v2` weights and `engines/cellpose` (including `LICENSE.cellpose.txt`) |
 
-When distributing an image or package, retain the copyright and license notices of what was actually assembled, and provide corresponding source and relinking materials where included GPL/LGPL components require them.
+When distributing an image or package, retain the copyright and license notices of what was actually assembled, and provide corresponding source and relinking materials where included GPL/LGPL components require them (for the Windows installer, as in the table above).
 
 ### Fiji and nuclear detection
 
-The [Fiji runtime manifest](../engines/fiji/runtime.lock.json) records official URLs, versions, SHA-256, license identifiers and upstream sources. Setup writes a hash inventory of every installed jar and the JDK outside the checkout; keep it with deployment records.
+The [Fiji runtime manifest](../engines/fiji/runtime.lock.json) records official URLs, versions, SHA-256, license identifiers and upstream sources. The ZIP downloads these files during setup; the installer bundles the same files. Setup writes a hash inventory of every installed jar and the JDK outside the checkout; keep it with deployment records.
 
 | Component | Purpose | License |
 |---|---|---|

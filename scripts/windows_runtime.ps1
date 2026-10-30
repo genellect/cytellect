@@ -32,6 +32,15 @@ function Get-PythonRuntimeArchive([string]$Root, $Specification) {
     $partial = Get-SafeChild $cache ('python-' + $Specification.sha256 + '.partial')
     # A partial transfer has no execution role and belongs to this exact digest.
     if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial }
+    # The installer bundles this exact archive; offline setup copies it and never downloads.
+    $offline = Get-Command -Name 'Copy-OfflineArtifact' -CommandType Function -ErrorAction SilentlyContinue
+    if ($null -ne $offline -and (Copy-OfflineArtifact $Specification.sha256 $Specification.bytes $partial)) {
+        if (-not (Test-RuntimeFile $partial $Specification.bytes $Specification.sha256)) {
+            throw 'python_archive_hash_mismatch'
+        }
+        [IO.File]::Move($partial, $archive)
+        return $archive
+    }
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $client = [Net.WebClient]::new()
     $timer = [Diagnostics.Stopwatch]::StartNew()

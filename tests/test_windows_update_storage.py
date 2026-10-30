@@ -136,4 +136,4 @@ def test_failed_completion_restores_previous_stable_shortcut(tmp_path, monkeypat
     $failurePhase=$script:Phase''')
     monkeypatch.setattr(completion, "HARNESS", harness)
     completion.test_late_setup_failure_never_keeps_launch_ready_and_retry_finishes(
-        tmp_path, fault, fault, "create_shortcut", False, 3 if fault == "shortcut" else 4)
+        tmp_path, fault, fault, "create_shortcut", False, 3 if fault == "shortcut" else 4, False)

@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {
   AccountRequestError, restartGpuAfterSignIn, accountErrorText, accountLabel, accountNotice, formatDate, gpuNotice, gpuQuotaReached, gpuQuotaText, inferencePhase,
-  followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, updateSignature, usageText,
+  followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, updateSignature, usageText, UPDATE_RECONNECT_LIMIT,
 } from "./cloud-account";
 
 afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules();});
@@ -128,6 +128,11 @@ describe("update banner", () => {
     expect(failed.text).not.toContain("update_failed");
     expect(updateNotice({available: true, state: "rolled_back"})!.text).toBe("元の版で起動しました。あとでもう一度更新してください。");
     expect(updateNotice({available: false, state: "unsupported"})).toBeNull();
+    // No built-in signing key: never updated in the app; the newer installer is named instead.
+    const manual = updateNotice({available: false, latest: "0.1.0-local.22", state: "unsupported", error: "update_signing_key_missing"})!;
+    expect(manual.text).toBe("新しい版（0.1.0-local.22）があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。");
+    expect(manual.tone).toBe("info");
+    expect("action" in manual).toBe(false);
     expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "installed"})!.text)
       .toBe("更新の準備ができました（0.1.0-local.22）。次に Cytellect を起動したときに新しい版になります。");
     // Once the new version runs, an installed state left in the record says nothing.
@@ -144,6 +149,42 @@ describe("update banner", () => {
       "https://github.com/genellect/cytellect/releases/tag/", "https://github.com/genellect/cytellect/releases/latest","https://github.com/genellect/cytellect/releases.evil/x", "http://github.com/genellect/cytellect/releases/x",
       "javascript:alert(1)", "https://example.com/https://github.com/genellect/cytellect/releases/", null, undefined])
       expect(safeNotesUrl(value)).toBeNull();
+  });
+  it("opens the session again after the restart's 401 and keeps following", async () => {
+    const tick = {sleep: async () => {}, pollMs: 1000, limitMs: 60_000};
+    const revoked = () => new AccountRequestError("session_required", 401);
+    // The stopped launcher revoked the session: the new version answers 401 until a new one is opened.
+    const replies: Array<() => Promise<{available: boolean; state: "installing" | "updated"}>> = [
+      async () => ({available: true, state: "installing"}),
+      async () => {throw new AccountRequestError("local_api_unreachable", 0);},
+      async () => {throw revoked();},
+      async () => ({available: false, state: "updated"}),
+    ];
+    const reconnect = vi.fn(async () => ({authenticated: true}));
+    expect(await followUpdate(vi.fn(() => replies.shift()!()), {...tick, reconnect})).toEqual({available: false, state: "updated"});
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    // A reconnect that is refused, a 401 that a new session does not clear, or no way to reconnect: reopen.
+    expect(await followUpdate(async () => {throw revoked();}, {...tick, reconnect: async () => {throw new AccountRequestError("local_origin_required", 403);}})).toBe("session_lost");
+    const again = vi.fn(async () => ({authenticated: true}));
+    expect(await followUpdate(async () => {throw revoked();}, {...tick, reconnect: again})).toBe("session_lost");
+    expect(again).toHaveBeenCalledTimes(UPDATE_RECONNECT_LIMIT);
+    expect(await followUpdate(async () => {throw revoked();}, tick)).toBe("session_lost");
+    // A reconnect that finds the API unreachable again is waited out like the restart itself.
+    const flaky = [async () => {throw new AccountRequestError("local_api_unreachable", 0);}, async () => ({authenticated: true})];
+    const answers: Array<() => Promise<{available: boolean; state: "updated"}>> = [async () => {throw revoked();}, async () => {throw revoked();}, async () => ({available: false, state: "updated"})];
+    expect(await followUpdate(() => answers.shift()!(), {...tick, reconnect: () => flaky.shift()!()})).toEqual({available: false, state: "updated"});
+  });
+  it("sends the reconnect to the workspace's local session route", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CYTELLECT_WEB_MODE", "local");
+    vi.stubGlobal("window", {location: {hostname: "127.0.0.1"}});
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({authenticated: true}), {status: 200}));
+    vi.stubGlobal("fetch", fetch);
+    const {accountApi} = await import("./cloud-account");
+    await accountApi.reconnect();
+    const [url, init] = fetch.mock.calls[0];
+    expect(String(url)).toMatch(/\/v1\/local\/session$/);
+    expect(init.method).toBe("POST");
+    expect(new Headers(init.headers).get("X-Cytellect-Request")).toBe("1");
   });
   it("follows an update through a restart until it settles, within a time limit", async () => {
     let clock = 0;
