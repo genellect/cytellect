@@ -108,13 +108,7 @@ Settings updates are checked against the requester's version and return `409` on
 
 ## Security and research data
 
-- Research data: images and measurements stay on the researcher's PC and are never stored in the cloud. Only the plane to detect and, for the AI, the research goal and metadata are sent out
-- Authentication: cloud features are signed in to with a one-time code sent to an allowed address, and the PC holds only a device token. The admin page is verified by both Cloudflare Access and the Worker
-- Distribution: in-app updates run only after verifying an Ed25519-signed manifest
-- Development: research data and credentials never enter code, CI or development AI
-- Vulnerabilities: reported through a private channel, with a reply to reasonable reports within three days
-
-Details are in [SECURITY.md](SECURITY.md); research data and credentials in development are handled under the [team development rules §6](docs/team-development.md#6-research-data).
+Research images and measurements stay on the researcher's PC and are never stored in the cloud. The data sent out, authentication, release verification and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).
 
 ## Distribution
 
