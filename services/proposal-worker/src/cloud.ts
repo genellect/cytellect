@@ -1,18 +1,20 @@
 /**
  * Cloud access for installations: e-mail login codes, owner approval, user-bound
- * device tokens, the owner's admin page and the GPU (Cellpose on Modal) gateway.
+ * device tokens, the owner's admin page (behind Cloudflare Access when configured, see
+ * access.ts) and the GPU (Cellpose on Modal) gateway.
  *
  * Nothing but e-mail addresses, hashes of codes and tokens, request/approval
  * timestamps and usage counters is stored. Request and response bodies of the
  * GPU gateway are streamed through unchanged and never read, stored or logged.
  * Login codes are never logged.
  */
+import { accessConfig, accessEmail, type AccessConfig, type AccessEnv } from "./access";
 import { adminPage, messagePage } from "./admin-page";
 import { D1AuthStore, type CodePurpose, type UserRecord, type UserState } from "./auth-store";
 import { base64url, bearer, boundedText, equal, fromBase64url, hmac, json, month, nextMonth, readObject, sha256, token } from "./http";
 import type { Mailer } from "./mail";
 
-export interface CloudEnv {
+export interface CloudEnv extends AccessEnv {
   OWNER_EMAIL?: string;
   /** When set (e.g. "https://api.example.org"), the admin page and its APIs answer only on
    * this origin, so one access policy in front of it covers every way in, and approval
@@ -41,6 +43,8 @@ export interface CloudContext {
   waitUntil?: (promise: Promise<unknown>) => void;
   /** Health-check deadline; tests shorten it. */
   healthTimeoutMs?: number;
+  /** Fetches the Cloudflare Access signing keys (tests substitute a fake). */
+  accessFetcher?: typeof fetch;
 }
 
 const SECOND = 1000, MINUTE = 60 * SECOND, HOUR = 60 * MINUTE, DAY = 24 * HOUR;
@@ -283,6 +287,24 @@ export function adminOriginRefusal(url: URL, env: CloudEnv): Response | null {
   const only = adminOrigin(env);
   if (only === null) return fail(503, "admin_origin_invalid");
   return only !== undefined && url.origin !== only ? fail(404, "not_found") : null;
+}
+
+/**
+ * Cloudflare Access for the admin paths: undefined when not configured (the e-mail code
+ * login applies), null when half set or malformed. Access also needs ADMIN_ORIGIN, so the
+ * approval links in the owner's mail point to the origin the Access application covers.
+ */
+export function adminAccess(env: CloudEnv): AccessConfig | null | undefined {
+  const access = accessConfig(env);
+  return access && adminOrigin(env) === undefined ? null : access;
+}
+
+/** True when the request carries a verified Access token for the owner's address. */
+export async function accessOwner(request: Request, access: AccessConfig, owner: string | null, fetcher: typeof fetch | undefined, now: number) {
+  if (!owner) return false;
+  const email = await accessEmail(request, access, fetcher ?? ((input, init) => fetch(input, init)), now);
+  // Compared case-insensitively, like every address here; a service token has no e-mail.
+  return normalizeEmail(email) === owner;
 }
 
 async function notifyOwner(ctx: CloudContext, cfg: AuthConfig, user: UserRecord, requestOrigin: string) {
@@ -560,7 +582,9 @@ function sameOriginJson(request: Request, url: URL) {
     && (origin === null || origin === url.origin);
 }
 
-async function adminEmail(request: Request, ctx: CloudContext, cfg: AuthConfig) {
+/** viaAccess: the gate in handleCloud has verified the owner's Cloudflare Access token. */
+async function adminEmail(request: Request, ctx: CloudContext, cfg: AuthConfig, viaAccess: boolean) {
+  if (viaAccess) return cfg.owner;
   const value = cookie(request, ADMIN_COOKIE);
   if (!value || !/^[A-Za-z0-9_-]{43}$/.test(value)) return null;
   const email = await ctx.auth.adminSession(await sha256(value), ctx.now);
@@ -648,11 +672,13 @@ async function approvePage(request: Request, url: URL, ctx: CloudContext, cfg: A
     + (notified ? "申請者にメールで知らせました。" : "申請者へのメールは送れませんでした。直接お知らせください。"));
 }
 
-async function admin(request: Request, url: URL, ctx: CloudContext, cfg: AuthConfig) {
+async function admin(request: Request, url: URL, ctx: CloudContext, cfg: AuthConfig, viaAccess: boolean) {
   const path = url.pathname, method = request.method;
+  // Signing in through Access replaces the e-mail code session entirely, for every method.
+  if (viaAccess && path.startsWith("/v1/admin/session/")) return fail(404, "not_found");
   if (path === "/v1/admin/approve" && (method === "GET" || method === "POST")) return approvePage(request, url, ctx, cfg);
   if (path === "/v1/admin/users" && method === "GET") {
-    return await adminEmail(request, ctx, cfg) ? adminUsers(ctx, cfg) : fail(401, "auth_required");
+    return await adminEmail(request, ctx, cfg, viaAccess) ? adminUsers(ctx, cfg) : fail(401, "auth_required");
   }
   if (method !== "POST") return fail(405, "method_not_allowed");
   if (!sameOriginJson(request, url)) return fail(403, "forbidden");
@@ -690,7 +716,7 @@ async function admin(request: Request, url: URL, ctx: CloudContext, cfg: AuthCon
     return noContent({ "set-cookie": `${ADMIN_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0` });
   }
   if (path === "/v1/admin/users") {
-    return await adminEmail(request, ctx, cfg) ? adminChange(request, ctx, cfg) : fail(401, "auth_required");
+    return await adminEmail(request, ctx, cfg, viaAccess) ? adminChange(request, ctx, cfg) : fail(401, "auth_required");
   }
   return fail(404, "not_found");
 }
@@ -708,12 +734,25 @@ export async function handleCloud(request: Request, ctx: CloudContext): Promise<
   const cfg = authConfig(ctx.env);
   const refused = adminOriginRefusal(url, ctx.env);
   if (refused) return refused;
+  const isAdmin = path === "/admin" || path.startsWith("/v1/admin/");
+  // Every method on every admin path, the approval link included, passes this gate.
+  const access = isAdmin ? adminAccess(ctx.env) : undefined;
+  if (access === null) return fail(503, "access_config_invalid");
+  if (access && cfg) {
+    if (!(await accessOwner(request, access, cfg.owner, ctx.accessFetcher, ctx.now))) {
+      // Pages a browser opens (the admin page and the approval link) answer with a page.
+      return path === "/admin" || path === "/v1/admin/approve"
+        ? messagePage(403, "サインインが必要です", "管理ページと承認のリンクは、オーナーが Cloudflare Access でサインインしたときだけ開けます。")
+        : fail(401, "auth_required");
+    }
+  }
   if (path === "/admin") {
     if (method !== "GET") return fail(405, "method_not_allowed");
-    return cfg ? adminPage() : messagePage(503, "管理ページは準備中です", "オーナーのメールアドレスと署名用の鍵が設定されていません。");
+    return cfg ? adminPage(Boolean(access)) : messagePage(503, "管理ページは準備中です", "オーナーのメールアドレスと署名用の鍵が設定されていません。");
   }
   if (!cfg) return fail(503, "auth_unavailable");
-  if (path.startsWith("/v1/admin/")) return admin(request, url, ctx, cfg);
+  // Reaching here with Access configured means the gate above verified the owner.
+  if (path.startsWith("/v1/admin/")) return admin(request, url, ctx, cfg, Boolean(access));
   const routes: Record<string, [string, () => Promise<Response>]> = {
     "/v1/auth/code": ["POST", () => authCode(request, ctx, cfg, url.origin)],
     "/v1/auth/verify": ["POST", () => authVerify(request, ctx, cfg)],

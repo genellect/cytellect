@@ -12,7 +12,7 @@ import { D1Store, type D1Database, type Store } from "./store";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { D1AuthStore } from "./auth-store";
-import { adminOriginRefusal, handleCloud, isCloudPath, lookupDevice, type CloudEnv } from "./cloud";
+import { accessOwner, adminAccess, adminOriginRefusal, handleCloud, isCloudPath, lookupDevice, normalizeEmail, type CloudEnv } from "./cloud";
 import { bearer, equal, json, month, nextMonth, readObject, sha256, token } from "./http";
 import { configuredMailer, type Mailer } from "./mail";
 
@@ -140,6 +140,8 @@ export interface HandleOptions {
   clock?: () => number;
   /** ExecutionContext.waitUntil in Workers. */
   waitUntil?: (promise: Promise<unknown>) => void;
+  /** Fetches the Cloudflare Access signing keys (tests substitute a fake). */
+  accessFetcher?: typeof fetch;
   /** GPU health-check deadline (tests shorten it). */
   healthTimeoutMs?: number;
 }
@@ -153,13 +155,22 @@ export async function handle(request: Request, env: Env, store: Store, options: 
   if (isCloudPath(url.pathname)) {
     if (!auth) return json(503, { error: "auth_unavailable" });
     return handleCloud(request, {
-      env, auth, now, clock: options.clock ?? Date.now, waitUntil: options.waitUntil, healthTimeoutMs: options.healthTimeoutMs, gpuFetcher: options.gpuFetcher ?? ((input, init) => fetch(input, init)),
+      env, auth, now, clock: options.clock ?? Date.now, waitUntil: options.waitUntil, healthTimeoutMs: options.healthTimeoutMs, accessFetcher: options.accessFetcher, gpuFetcher: options.gpuFetcher ?? ((input, init) => fetch(input, init)),
       mailer: "mailer" in options ? options.mailer ?? null : configuredMailer(env),
     });
   }
   // The legacy invitation route is an admin path too: closed outside ADMIN_ORIGIN.
   const refused = adminOriginRefusal(url, env);
   if (refused) return refused;
+  if (url.pathname === "/v1/admin/invitations") {
+    // With Cloudflare Access configured, this route also needs the owner's Access sign-in
+    // (for every method), in addition to ADMIN_TOKEN.
+    const access = adminAccess(env);
+    if (access === null) return failure(503, "access_config_invalid");
+    if (access && !(await accessOwner(request, access, normalizeEmail(env.OWNER_EMAIL), options.accessFetcher, now))) {
+      return failure(401, "unauthorized");
+    }
+  }
   if (request.method !== "POST") return failure(405, "method_not_allowed");
 
   if ((url.pathname === "/v1/admin/invitations" || url.pathname === "/v1/devices") && !legacyInvitations(env)) {

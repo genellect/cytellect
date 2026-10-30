@@ -37,6 +37,13 @@ OWNER_EMAIL = ""
 # Origin that alone serves /admin and /v1/admin/* (for example "https://api.example.org");
 # other origins such as workers.dev answer 404 there. Empty serves admin on every origin.
 ADMIN_ORIGIN = ""
+# Cloudflare Access for the owner (docs/proposal-deployment.md). With both set (and
+# ADMIN_ORIGIN), the Worker verifies the Access token on every admin path and the
+# e-mail code login for /admin is turned off. Both empty keeps the e-mail code login.
+# Team domain, "<team>.cloudflareaccess.com" (Zero Trust > Settings > Custom pages).
+ACCESS_TEAM_DOMAIN = ""
+# Application Audience (AUD) tag of the admin application (its Overview page).
+ACCESS_AUD = ""
 MAIL_FROM = ""
 GPU_MONTHLY_SECONDS = "0"
 # Per-user monthly defaults; the owner can override each user on /admin.
