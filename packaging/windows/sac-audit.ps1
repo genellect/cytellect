@@ -96,8 +96,8 @@ function ConvertTo-SafePath([string]$Path) {
             # Inno Setup's random extraction folders and the installed app's commit-specific folder.
             $rest = $rest -replace '(?i)^is-[a-z0-9]+(-[a-z]+)?\.tmp\\', 'is-*.tmp\'
             # Random folders of jobs and of Java's native-library loaders become wildcards.
-            $rest = $rest -replace '(?i)\\[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\', '\*\'
-            $rest = $rest -replace '(?i)\\(j|cytellect-install)-[a-z0-9_]+\\', '\$1-*\'
+            $rest = $rest -replace '(?i)\\[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}(?=\\)', '\*'
+            $rest = $rest -replace '(?i)\\(j|cytellect-install)-[a-z0-9_]+(?=\\)', '\$1-*'
             $rest = $rest -replace '(?i)(nativelib-loader_|tensorflow_native_libraries-)[0-9-]+', '$1*'
             return $anchor.Label + $rest
         }
@@ -404,6 +404,13 @@ foreach ($group in $groups) {
     $facts.inventory[$group] = [ordered]@{ files = $items.Count; valid_signature = @($items | Where-Object status -eq 'Valid').Count
         not_signed = @($items | Where-Object status -eq 'NotSigned').Count }
 }
+# Files that only the policy without ISG audits: the runner's cloud reputation lookups allowed them.
+function Get-AuditedFiles([string]$Which) {
+    return @($unique | Where-Object { (Test-Policy $_ $Which) -and $_.group -notin @('probe', 'runner') } |
+        ForEach-Object { $_.file.ToLowerInvariant() } | Sort-Object -Unique)
+}
+$isgFiles = Get-AuditedFiles 'isg'
+$facts.isg_allowed = @(Get-AuditedFiles 'no_isg' | Where-Object { $_ -notin $isgFiles }).Count
 $facts | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Output 'sac-audit.json') -Encoding utf8
 
 # ---------------------------------------------------------------- step summary
@@ -411,6 +418,7 @@ $summary = @('## Smart App Control audit (emulated on the CI runner)', '',
     ('Runner: {0}. Smart App Control itself is not present on Windows Server; Code Integrity enforces the same rules in audit mode.' -f $facts.os), '',
     ('- Microsoft audit policy without ISG (worst case: only files signed by a trusted CA pass): active = **{0}**' -f $facts.policies.no_isg.active),
     ('- Example Smart App Control policy with ISG (cloud reputation): active = **{0}**' -f $facts.policies.isg.active),
+    ('- Shipped files audited without ISG but allowed with ISG (reputation as seen from this runner today): {0}' -f $facts.isg_allowed),
     ('- Unsigned probe executable audited by: {0}' -f $(if ($facts.probe_policies) { $facts.probe_policies -join ', ' } else { 'none' })),
     ('- Use: install exit {0}; nuclei detected {1}; export {2}' -f $facts.use.install_exit, $(if ($facts.use.Contains('nuclei')) { $facts.use.nuclei } else { '-' }), $(if ($facts.use.Contains('export')) { $facts.use.export } else { '-' })),
     ('- Events: ' + (($facts.event_counts.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ', ')), '',

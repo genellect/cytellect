@@ -101,6 +101,34 @@ The installer does not by itself satisfy requirement I1. It is unsigned (D4 belo
 native libraries are not all signed. Whether SmartScreen and Smart App Control allow
 it can only be learned on real laboratory PCs.
 
+#### CI audit of Smart App Control's rules
+
+The `windows-sac-audit` CI job ([CI](ci.md#smart-app-control-の監査)) shows, before anyone tries a laboratory PC,
+which files Smart App Control would block. Windows Server has no Smart App Control, so the job deploys
+equivalent App Control policies in audit mode with `CiTool`: Microsoft's signed
+`SmartAppControlAuditNoISG.bin` (signature rules only) and the built-in example `SmartAppControl.xml` with ISG
+(cloud reputation), made unconditional so that it applies on Server. An unsigned probe executable must be
+audited, or the job fails. It then installs into `%LOCALAPPDATA%\Cytellect`, opens the launcher window and a
+workspace, detects nuclei in BBBC013 A01 with Fiji in the worker, exports, uninstalls, and lists Code
+Integrity events 3076/3077 (and 3033/3034/3089, script events 8028/8029) per file, with paths relative to
+the install root. Findings do not fail the job.
+
+First result (2026-10-30, Windows Server 2025 build 26100, runs 41032300443 and 41036651806): without ISG,
+Code Integrity would block 173 Python extension modules and DLLs from PyPI wheels (numpy, scipy, pandas,
+scikit-image, matplotlib, pydantic-core, Pillow and others), the TensorFlow JNI and TurboJPEG DLLs that
+Fiji's Java plugins unpack at run time, all four Inno Setup executables (the installer, its extracted loader,
+the uninstaller and its temporary copy) and `uv.exe`: 182 entries in all. With ISG, 53 were allowed by
+reputation (pandas, part of scikit-image, TurboJPEG, MarkupSafe, psutil) and 129 remained, including scipy,
+numpy, the TensorFlow JNI DLL, `uv.exe` and every Inno Setup file.
+python.org's runtime (Python Software Foundation), the Azul Zulu JDK and Fiji's launcher are signed and were
+not audited. No script event was recorded; Smart App Control's example policy disables script
+enforcement.
+
+Limits: the list without ISG is a worst case; the ISG list reflects the runner's reputation lookups on that
+day, which change over time and may differ on a Windows 11 client. Smart App Control's evaluation mode
+(which can switch itself off or on), SmartScreen, Mark of the Web on a downloaded installer and a real
+user's dialog are outside this audit. Only the real-machine checklist below decides.
+
 ### Real-machine checklist (stage 0, acceptance E1)
 
 Record each item per PC (Windows edition and build, Smart App Control state from

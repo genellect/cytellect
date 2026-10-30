@@ -52,7 +52,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 |---|---|
 | 非公開データでの検証 | 研究室の実画像による、検出と測定の生物学的な妥当性の確認 |
 | 研究者による評価 | 複数の研究室の研究者による、作業の完了・時間・修正の負担・理解・再利用の評価（[評価タスク](usability-tasks.ja.md)） |
-| Windows 版 | Cellpose は CPU では 1 視野に数十分かかり実用にならないため、推論をクラウド GPU（[設定](cloud-gpu.ja.md)）で行う。実 GPU での所要時間・費用と CPU との一致度の受入、Windows のセットアップ画面からの設定。別の PC で起きた Smart App Control によるブロックへの対応。0.1.0-local.21 の公開後、公開されたインストーラーの SHA-256 を確かめてから、サイトのダウンロードの記録（`apps/web/src/lib/published-release.json`）を `"asset": "installer"` に切り替える（サイトは対応済み。[手順](../apps/web/README.md#windows-release-link)） |
+| Windows 版 | Cellpose は CPU では 1 視野に数十分かかり実用にならないため、推論をクラウド GPU（[設定](cloud-gpu.ja.md)）で行う。実 GPU での所要時間・費用と CPU との一致度の受入、Windows のセットアップ画面からの設定。別の PC で起きた Smart App Control によるブロックへの対応。CI の `windows-sac-audit` が、同じ規則の監査で止められるはずのファイルを一覧にする（2026-10-30 の初回は、ISG なしで 182 件、ISG ありで 129 件。Python のホイールのネイティブ部品、Fiji のプラグインが実行時に展開する DLL、Inno Setup、`uv.exe`。[CI](ci.md#smart-app-control-の監査)、[ローカル配布](local.md#ci-audit-of-smart-app-controls-rules)）。対処（Microsoft Store の MSIX など）は未着手。0.1.0-local.21 の公開後、公開されたインストーラーの SHA-256 を確かめてから、サイトのダウンロードの記録（`apps/web/src/lib/published-release.json`）を `"asset": "installer"` に切り替える（サイトは対応済み。[手順](../apps/web/README.md#windows-release-link)） |
 | ホスト型の解析 | 公開 TLS とドメイン、利用者が不在の間の継続的な削除、運用サーバーの分離。研究画像をクラウドで受け付ける前に満たす |
 | LP | 2026-10-23 にヒーロー映像（培養プレートから始まる実写の版）と本文（具体的な主張と解析例の実画面、「できること」4 つのタブ）をオーナーが承認した。患者へつながる将来性のカードは、既存の深緑の面に、研究から患者への 3 段階を細→太の線でつなぐ案を実装（Vercel プレビューでオーナーが線の版を選択）。PC・スマートフォンの画面でオーナーが判定することが受入条件（[美術方針](lp-art-direction.md#5-世界観と章立て)）。そのほかの残りは、ヒーロー映像の改良（Codex が担当、[美術方針](lp-art-direction.md) §9・§10）、研究室での撮影の可否、核小体の検出の前後比較の画像と研究室の利用者の声を公開してよいかの確認 |
 | 今後の機能 | アカウント、チーム、長期保存、決済 |
