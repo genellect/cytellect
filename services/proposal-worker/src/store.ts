@@ -11,7 +11,11 @@ export interface D1Statement {
   run(): Promise<D1Result>;
   all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
 }
-export interface D1Database { prepare(query: string): D1Statement }
+export interface D1Database {
+  prepare(query: string): D1Statement;
+  /** Runs the statements in one transaction: all or none. */
+  batch(statements: D1Statement[]): Promise<D1Result[]>;
+}
 export interface UsageRecord {
   model: string;
   promptVersion: string;

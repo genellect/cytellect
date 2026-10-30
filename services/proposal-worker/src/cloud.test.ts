@@ -699,21 +699,54 @@ describe("GPU admission under concurrency", () => {
     expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 0 });
   });
 
-  it("aborts the upstream call when the client disconnects and releases the slot at once", async () => {
-    const t = await setup(BASE_ENV, async (_url, init) => waitForAbort(init));
+  it("on client disconnect aborts the upstream call, counts the full hold and keeps the slot until it ends", async () => {
+    let calls = 0;
+    const t = await setup(BASE_ENV, async (_url, init) => {
+      calls += 1;
+      return calls === 1 ? waitForAbort(init) : new Response(new Uint8Array([9]), { status: 200 });
+    });
     await t.auth.allow(USER, t.time.now);
     const device = await t.login(USER);
     const client = new AbortController();
     const pending = infer(t, device, client.signal);
     await tick();
-    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 1 });
     t.time.wall += 7_000;
     client.abort();
     expect((await pending).status).toBe(502);
+    expect(t.gpuCalls[0].init.signal!.aborted).toBe(true);
+    // The Modal server keeps computing: 300 s are counted, not the 7 s until the disconnect.
+    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(300);
+    const start = t.time.now;
+    expect(await t.db.prepare("SELECT started_at, expires_at FROM gpu_slots WHERE email = ?").bind(USER).first())
+      .toEqual({ started_at: start, expires_at: start + 300_000 });
+    t.time.now = start + 299_000;
+    const busy = await infer(t, device);
+    expect([busy.status, (await busy.json() as { error: string }).error]).toEqual([503, "gpu_busy"]);
+    t.time.now = start + 300_000;
+    expect((await infer(t, device)).status).toBe(200);
+    expect(t.gpuFetcher).toHaveBeenCalledTimes(2);
     expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 0 });
-    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(7);
-    const forwarded = t.gpuCalls[0].init.signal!;
-    expect(forwarded.aborted).toBe(true);
+  });
+
+  it("keeps the slot when recording the usage fails, so neither the usage nor the hold is lost", async () => {
+    const t = await setup(BASE_ENV, async () => new Response(new Uint8Array([9]), { status: 200 }));
+    await t.auth.allow(USER, t.time.now);
+    const device = await t.login(USER);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await t.db.prepare("CREATE TRIGGER fail_usage BEFORE INSERT ON user_usage BEGIN SELECT RAISE(ABORT, 'test'); END").run();
+    const response = await infer(t, device);
+    // The finished result is still returned.
+    expect(response.status).toBe(200);
+    expect(errors).toHaveBeenCalledWith("gpu_usage_record_failed");
+    expect(await t.db.prepare("SELECT expires_at FROM gpu_slots WHERE email = ?").bind(USER).first())
+      .toEqual({ expires_at: t.time.now + 35 * 60_000 });
+    const busy = await infer(t, device);
+    expect([busy.status, (await busy.json() as { error: string }).error]).toEqual([503, "gpu_busy"]);
+    await t.db.prepare("DROP TRIGGER fail_usage").run();
+    t.time.now += 35 * 60_000;
+    expect((await infer(t, device)).status).toBe(200);
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 0 });
+    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(1);
   });
 
   it("releases the slot when the upstream fails and takes over a stale slot", async () => {
@@ -728,7 +761,7 @@ describe("GPU admission under concurrency", () => {
     failing = false;
     expect((await infer(t, device)).status).toBe(200);
     // A Worker stopped mid-request leaves its slot; it stops blocking after 35 minutes.
-    await t.db.prepare("INSERT INTO gpu_slots (email, started_at) VALUES (?, ?)").bind(USER, t.time.now - 34 * 60_000).run();
+    await t.db.prepare("INSERT INTO gpu_slots (email, started_at, expires_at) VALUES (?, ?, ?)").bind(USER, t.time.now - 34 * 60_000, t.time.now + 60_000).run();
     expect((await infer(t, device)).status).toBe(503);
     t.time.now += 2 * 60_000;
     expect((await infer(t, device)).status).toBe(200);
@@ -809,14 +842,14 @@ it("holds 300 s for each other user's inference in flight when admitting a healt
   // 150 + 300 × (0 others + 1) = 450 ≤ 750.
   expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
   // Another user's inference in flight moves the boundary by 300 s: 150 + 1 (above) + 300 × 2 = 751 > 750.
-  await t.db.prepare("INSERT INTO gpu_slots (email, started_at) VALUES (?, ?)").bind("other@example.org", t.time.now).run();
+  await t.db.prepare("INSERT INTO gpu_slots (email, started_at, expires_at) VALUES (?, ?, ?)").bind("other@example.org", t.time.now, t.time.now + 2_100_000).run();
   const refused = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
   expect([refused.status, (await refused.json() as { scope: string }).scope]).toEqual([429, "global"]);
   t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "751" });
   expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
   // The user's own slot is not counted twice: 152 + 300 × (0 others + 1) = 452.
   await t.db.prepare("DELETE FROM gpu_slots").run();
-  await t.db.prepare("INSERT INTO gpu_slots (email, started_at) VALUES (?, ?)").bind(USER, t.time.now).run();
+  await t.db.prepare("INSERT INTO gpu_slots (email, started_at, expires_at) VALUES (?, ?, ?)").bind(USER, t.time.now, t.time.now + 2_100_000).run();
   t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "452" });
   expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
 });

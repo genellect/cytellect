@@ -14,10 +14,23 @@ export async function sqliteDatabase(migrations = MIGRATIONS): Promise<D1Databas
   db.exec("PRAGMA foreign_keys = ON");
   for (const name of migrations) db.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
   const statement = (query: string, values: unknown[] = []) => ({
+    query, values,
     bind: (...next: unknown[]) => statement(query, next),
     first: async () => db.prepare(query).get(...values) ?? null,
     run: async () => ({ meta: { changes: Number(db.prepare(query).run(...values).changes) } }),
     all: async () => ({ results: db.prepare(query).all(...values) }),
   });
-  return { prepare: (query: string) => statement(query) } as unknown as D1Database;
+  // D1's batch is one transaction: every statement or none.
+  const batch = async (statements: { query: string; values: unknown[] }[]) => {
+    db.exec("BEGIN");
+    try {
+      const results = statements.map((item) => ({ meta: { changes: Number(db.prepare(item.query).run(...item.values).changes) } }));
+      db.exec("COMMIT");
+      return results;
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  };
+  return { prepare: (query: string) => statement(query), batch } as unknown as D1Database;
 }

@@ -117,9 +117,23 @@ next inference. It waits at most 25 seconds; during a
 longer cold start it returns 503 `{"error":"gpu_starting","retry_after_seconds":5}`
 and the client asks again. Its elapsed time is counted.
 
+When an inference ends with an answer, its elapsed time is added and its slot
+released in one D1 transaction. If that transaction fails, both are kept as they
+were: the slot stays and counts as a hold until it expires 35 minutes after the
+start, and the Worker logs only the fixed text `gpu_usage_record_failed`. The
+answer is still returned.
+
 The Worker runs with the `enable_request_signal` compatibility flag, so a client
-that disconnects aborts the upstream call at once: the slot is released and the
-elapsed time recorded. Only a Worker stopped without that signal (for example a
+that disconnects aborts the upstream call at once. The Modal server still finishes
+an inference it has accepted, so a disconnected inference is counted as 300 seconds
+(or its elapsed time, if longer), and its slot stays until 300 seconds after the
+start (or the disconnect, if later): meanwhile that user's next inference gets
+`gpu_busy`. Sending long inferences and disconnecting therefore cannot use the GPU
+for less than it is charged, unless one inference runs beyond 300 seconds after
+its client left. The Worker does not wait for the upstream answer after a
+disconnect (`waitUntil` allows only 30 seconds); it uses `waitUntil` only to finish
+this accounting step. A health check that ends by a disconnect
+counts its elapsed time. Only a Worker stopped without the signal (for example a
 runtime restart) leaves a slot behind; it stops blocking after 35 minutes, and that
 request's GPU time is not counted.
 
@@ -188,8 +202,8 @@ the page.
 optional limits, request/notice/approval/revocation times), `login_codes` (keyed
 hash, expiry, attempts), `user_devices` and `admin_sessions` (token hashes and
 times), `approval_links` (hash, expiry, use time), `request_tokens` (hash, address, expiry), `rate_limits` (keyed hashes of
-addresses and IPs with counters and lock times), `gpu_slots` (address and start
-time of a GPU request in flight) and `user_usage` (GPU seconds and proposal cost
+addresses and IPs with counters and lock times), `gpu_slots` (address, start
+and expiry time of a GPU request in flight) and `user_usage` (GPU seconds and proposal cost
 per user and month). Images, goals, prompts, outputs, device names and request
 bodies are not stored or logged.
 

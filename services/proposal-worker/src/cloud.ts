@@ -429,14 +429,14 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
 
   const period = month(ctx.now);
   const resets = nextMonth(ctx.now);
-  const staleBefore = ctx.now - GPU_SLOT_STALE_MS;
+
   // Inference: one request in flight per user, each holding time against the global
   // cap, so concurrent requests cannot together overrun either limit. Health checks
   // take no slot (they must not block inference) and are bounded by a deadline.
   const health = method === "GET";
   const admitted = health
-    ? await ctx.auth.gpuQuota(user.email, period, staleBefore, user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS)
-    : await ctx.auth.acquireGpuSlot(user.email, period, ctx.now, staleBefore,
+    ? await ctx.auth.gpuQuota(user.email, period, ctx.now, user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS)
+    : await ctx.auth.acquireGpuSlot(user.email, period, ctx.now, ctx.now + GPU_SLOT_STALE_MS,
       user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS);
   if (admitted === "busy") return fail(503, "gpu_busy", { retry_after_seconds: 5 }, { "retry-after": "5" });
   if (admitted !== "ok") return fail(429, "quota_exceeded", { resets_at: resets, scope: admitted });
@@ -463,10 +463,21 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
         ...(body ? { duplex: "half" } : {}),
       } as RequestInit);
     } finally {
-      // Usage and slot release run even if the upstream call fails.
       const seconds = Math.max(1, Math.ceil((ctx.clock() - started) / SECOND));
-      try { await ctx.auth.addGpuSeconds(user.email, period, seconds); } catch { /* the result is still returned */ }
-      if (!health) try { await ctx.auth.releaseGpuSlot(user.email, ctx.now); } catch { /* a stale slot expires */ }
+      try {
+        if (health) await ctx.auth.addGpuSeconds(user.email, period, seconds);
+        else if (request.signal.aborted) {
+          // The Modal server finishes an accepted inference even after the client
+          // leaves. Count the whole hold and keep the slot (gpu_busy for this user)
+          // until it ends, instead of the shorter time until the disconnect.
+          await ctx.auth.abandonGpuRequest(user.email, period, Math.max(seconds, GPU_GLOBAL_HOLD_SECONDS), ctx.now,
+            ctx.now + Math.max(seconds, GPU_GLOBAL_HOLD_SECONDS) * SECOND);
+        } else await ctx.auth.finishGpuRequest(user.email, period, seconds, ctx.now);
+      } catch {
+        // Usage and release are one transaction: on failure the slot stays and keeps
+        // counting as a hold until it expires. Fixed text only; no request details.
+        console.error("gpu_usage_record_failed");
+      }
     }
   })();
   // Keeps accounting and release alive briefly if the client disconnects.
