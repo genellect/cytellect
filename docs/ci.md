@@ -58,6 +58,8 @@ Windows 版は、配布する `main` のコミットで次の 8 つのジョブ�
 
 下書きのリリースを作る `draft` ジョブは environment `release` で動き、オーナーの承認を待つ。承認されると、アプリ内更新の manifest に secret `UPDATE_SIGNING_KEY` で署名し、アプリに組み込んだ公開鍵で検証してから、タグとリリースを作る。secret がない、または公開鍵と合わない場合は何も作らない（[リリースの署名](release-signing.md)）。
 
+リリースの本文は研究者向けの文で、`scripts/release_notes.py` が [`packaging/windows/release-notes.ja.md`](../packaging/windows/release-notes.ja.md) から作る。その版で何ができるようになったかは、`packaging/windows/release-highlights/<版>.ja.md` に利用者の言葉で書き、配布の前に `main` に入れる。このファイルがない場合、本文には前の版からのコミットの一覧へのリンクが入るので、公開する前に下書きで書き直す。試験の記録は本文に入れず、実行の Summary に出す。
+
 ## 依存パッケージの記録とシークレット走査
 
 シークレット走査は、固定版の gitleaks を検証してから、Git の全履歴と追跡中のファイルを調べる。そのため CI は `fetch-depth: 0` で checkout し、保存するのは件数と規則 ID だけ。

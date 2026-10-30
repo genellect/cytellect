@@ -161,6 +161,10 @@ def test_every_job_that_builds_signs_or_tags_uses_the_resolved_commit():
     assert "sha: process.env.RELEASE_COMMIT" in draft
     assert '--verify-tag --target "$RELEASE_COMMIT"' in draft
     assert '.source_commit "release/Cytellect-Setup-$RELEASE_VERSION.json")" = "$RELEASE_COMMIT"' in draft
+    # The release text names the resolved commit, and a commit without its builder stops before the tag.
+    assert "release_notes.py --release-dir release --version \"$RELEASE_VERSION\" --commit \"$RELEASE_COMMIT\"" in draft
+    assert draft.index("test -f scripts/release_notes.py") < draft.index("sha: process.env.RELEASE_COMMIT")
+    assert "GITHUB_SHA" not in draft
 
 
 def test_release_protections_are_unchanged():

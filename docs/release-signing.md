@@ -50,7 +50,7 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 1. **Actions → Prepare Windows release** を、ブランチ `main` のまま実行する。`version` に新しい版を入れ、`commit` に配布するコミットの SHA（40 文字）を入れる。`commit` を空にすると、実行した時点の `main` の先頭を配布する。
 2. `package` ジョブの後、`draft` ジョブが承認待ちになる。内容を確かめて **Approve** する。
-3. 下書きのリリースに `Cytellect-Setup-<版>.exe`、`Cytellect-update-<版>.json`、`Cytellect-update-<版>.json.sig` があり、説明の `Source:` が指定したコミットであることを確かめてから公開する。
+3. 下書きのリリースに `Cytellect-Setup-<版>.exe`、`Cytellect-update-<版>.json`、`Cytellect-update-<版>.json.sig` があり、本文が研究者向けの文になっている（[CI](ci.md) の配布の節）こと、実行の Summary の `Source:` が指定したコミットであることを確かめてから公開する。
 4. 公開した後、サイトの「Windows版をダウンロード」をインストーラーに切り替える。公開されたインストーラーを取得して SHA-256 を確かめてから、別の PR で `apps/web/src/lib/published-release.json` の `version`、`asset`（`installer`）、`url`、`sha256`、`source_commit`、`size_bytes` を更新する（[手順](../apps/web/README.md#windows-release-link)）。公開前の版を記録しない。
 
 手元で署名を確かめる場合は、公開鍵から `allowed_signers` というファイルを作り（1 行：`cytellect-update ssh-ed25519 AAAA...`）、ダウンロードした 2 つのファイルと同じフォルダーで実行する。
