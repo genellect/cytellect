@@ -50,7 +50,7 @@ Cytellect は、顕微鏡画像の解析から統計、論文用の図までを�
    - この文書と、[CLAUDE.md](CLAUDE.md) などツール固有の指示、対象ディレクトリの指示
    - [README](README.md)：構成と設計の全体像
    - [開発の原則](docs/development-principles.md)：作業に関係する節
-   - 動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[データ保護](docs/security.md)の該当する節
+   - 動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[セキュリティ](SECURITY.md)と[データ保護と運用](docs/security.md)の該当する節
    - LP を編集する場合は、[LP の美術方針](docs/lp-art-direction.md)
 2. `git status` で未コミットの作業を確認し、`git fetch origin main` を実行する。新しいブランチは最新の `origin/main` から作り、名前は `<種類>/<内容>`（`feat`、`fix`、`docs`、`test`、`chore`）とする。継続中のブランチには merge または安全な rebase で `main` を取り込む。他者の変更や未コミットの作業は保持する。
 3. タスクごとの worktree または独立した checkout で作業し、他の人やエージェントが使用中の checkout は編集しない。並行作業では、割り当てられたファイルだけを変更する。
