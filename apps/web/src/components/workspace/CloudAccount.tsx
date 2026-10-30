@@ -359,7 +359,7 @@ function LoginDialog() {
     <section ref={dialog} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={title} onKeyDown={trapFocus}>
       <h2 id={title} ref={heading} tabIndex={-1}>{step === "done" ? "クラウド機能が使えます" : approved ? "承認されました" : step === "pending" ? "承認を待っています" : step === "revoked" ? "利用が停止されています" : "クラウド機能を有効にする"}</h2>
       {step === "email" && <form onSubmit={submitEmail} noValidate>
-        <p>メールアドレスに 6 桁のコードを送ります。パスワードは使いません。初めて使うメールアドレスは、オーナー（Cytellect の運営者）への利用の申請になり、承認されると使えます。</p>
+        <p>メールアドレスに 6 桁のコードを送ります。パスワードは使いません。初めて使うメールアドレスは、Cytellect のオーナーへの利用の申請になり、承認されると使えます。</p>
         <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
           onChange={event => setEmail(event.target.value)} required maxLength={254} placeholder="name@example.ac.jp"/></label>
         <p className={styles.small}>ログインすると、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像（核小体では核の輪郭も）をクラウドの GPU（画像の計算に使う高速な計算機）に送ります。解析提案には画像を送りません。ほかの解析はこれまでどおりこのPCだけで行います。</p>
