@@ -23,21 +23,33 @@ Windows PC に Cytellect の配布版を導入し、起動・更新・アンイ�
 
 ## 2. ダウンロードと確認
 
-1. [Cytellect のサイト](https://cytellect.app/)の「Cytellectをダウンロード」、またはリリースのページから、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。インストーラーがない版では `Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。リリースのページにある `Cytellect-<版>-gpl-sources.zip` は、同梱したソフトのうち GPL などのライセンスがソースの提供を求めるもののソースで、使うためには保存しなくてよい。ソースを添付していない部品は、インストール先の `licenses\THIRD_PARTY_BUNDLED.txt` に上流のソースの所在を記している。
-2. 研究室で求められている場合は、改ざんがないことを確認する。リリースの `.sha256` ファイルはインストーラーと同じ場所に置かれ、一緒に差し替えられるので、それとの一致だけでは確認にならない。オーナーの鍵で署名された記録で確かめる。
-   1. リリースのページから `Cytellect-update-<版>.json` と `Cytellect-update-<版>.json.sig` も、インストーラーと同じ「ダウンロード」フォルダーに保存する。
-   2. 公開鍵は、リリースではなくリポジトリの `main` にある [`update_signature.py`](https://github.com/genellect/cytellect/blob/main/services/api/src/cytellect_api/update_signature.py) の `UPDATE_PUBLIC_KEY` から取る（`ssh-ed25519 AAAA...` で始まる部分）。PowerShell で次を実行する。`<公開鍵>` はその値に置き換える。Windows に標準で入っている OpenSSH の `ssh-keygen` を使う。
+1. [Cytellect のサイト](https://cytellect.app/)の「ダウンロード」で「Windows版をダウンロード」を押し、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。リリースのページから保存してもよい。
+2. 保存したインストーラーを開き、「インストール」を押す（[3.1](#31-インストーラー)）。
 
-      ```powershell
-      cd "$env:USERPROFILE\Downloads"
-      Set-Content allowed_signers 'cytellect-update <公開鍵>' -Encoding ascii
-      cmd /c "ssh-keygen -Y verify -f allowed_signers -I cytellect-update -n cytellect-update -s Cytellect-update-<版>.json.sig < Cytellect-update-<版>.json"
-      (Get-Content Cytellect-update-<版>.json -Raw | ConvertFrom-Json).installer.sha256
-      (Get-FileHash Cytellect-Setup-<版>.exe -Algorithm SHA256).Hash.ToLower()
-      ```
+- インストーラーがない版（0.1.0-local.20 まで）では、`Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。
+- リリースのページにある `Cytellect-<版>-gpl-sources.zip` は、同梱したソフトのうち GPL などのライセンスがソースの提供を求めるもののソースで、使うためには保存しなくてよい。ソースを添付していない部品は、インストール先の `licenses\THIRD_PARTY_BUNDLED.txt` に上流のソースの所在を記している。
 
-   3. `Good "cytellect-update" signature` と表示され、最後の 2 行の値が一致すれば、オーナーが署名した版のインストーラーである。署名が合わない、値が違う、または `ssh-keygen` が `-Y` を受け付けない場合は、開かずにオーナーに連絡する。
-   - `UPDATE_PUBLIC_KEY` が空の時期の版には署名がなく、この確認はできない。
+<details>
+<summary>改ざんがないことの確認：通常は不要（研究室で求められている場合だけ）</summary>
+
+インストーラーを開く前に行う。リリースの `.sha256` ファイルはインストーラーと同じ場所に置かれ、一緒に差し替えられるので、それとの一致だけでは確認にならない。オーナーの鍵で署名された記録で確かめる。
+
+1. リリースのページから `Cytellect-update-<版>.json` と `Cytellect-update-<版>.json.sig` も、インストーラーと同じ「ダウンロード」フォルダーに保存する。
+2. 公開鍵は、リリースではなくリポジトリの `main` にある [`update_signature.py`](https://github.com/genellect/cytellect/blob/main/services/api/src/cytellect_api/update_signature.py) の `UPDATE_PUBLIC_KEY` から取る（`ssh-ed25519 AAAA...` で始まる部分）。PowerShell で次を実行する。`<公開鍵>` はその値に置き換える。Windows に標準で入っている OpenSSH の `ssh-keygen` を使う。
+
+   ```powershell
+   cd "$env:USERPROFILE\Downloads"
+   Set-Content allowed_signers 'cytellect-update <公開鍵>' -Encoding ascii
+   cmd /c "ssh-keygen -Y verify -f allowed_signers -I cytellect-update -n cytellect-update -s Cytellect-update-<版>.json.sig < Cytellect-update-<版>.json"
+   (Get-Content Cytellect-update-<版>.json -Raw | ConvertFrom-Json).installer.sha256
+   (Get-FileHash Cytellect-Setup-<版>.exe -Algorithm SHA256).Hash.ToLower()
+   ```
+
+3. `Good "cytellect-update" signature` と表示され、最後の 2 行の値が一致すれば、オーナーが署名した版のインストーラーである。署名が合わない、値が違う、または `ssh-keygen` が `-Y` を受け付けない場合は、開かずにオーナーに連絡する。
+
+`UPDATE_PUBLIC_KEY` が空の時期の版には署名がなく、この確認はできない。
+
+</details>
 
 ## 3. インストール
 
