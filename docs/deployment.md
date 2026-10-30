@@ -2,7 +2,7 @@
 
 The normal release path is feature branch → pull request → required CI → merge into main → Vercel automatic production deployment. Never use an uncommitted working directory as the production source. A successful merge, Vercel build, hosted browser check, analysis-server acceptance and scientific validation are distinct states.
 
-Vercel project cytellect is connected to genellect/cytellect with apps/web as root, Node 24, pnpm frozen install and pnpm build. The production branch is main. Preview branches are review deployments. Use Git integration rather than copying a local CLI token into CI secrets. The GitHub App is authorized only for this repository.
+Vercel project cytellect is connected to genellect/cytellect with apps/web as root, Node 24, pnpm frozen install and pnpm build. The production branch is main. Preview deployments are built for `feat/**`, `fix/**` and other review branches; `apps/web/vercel.json` turns them off for `claude/**`, `codex/**`, `chore/**`, `docs/**` and `test/**` so agent and documentation branches do not use up the daily deployment limit. Use Git integration rather than copying a local CLI token into CI secrets. The GitHub App is authorized only for this repository.
 
 The initial bootstrap deployed a clean archive of f172afbf4396a8a4fb6be839435af375fc9f03bf via CLI to establish the account/project connection. Vercel assigned that first deployment to production automatically. Record this one-time bootstrap separately; subsequent production publication must follow main. Public URL: https://cytellect.vercel.app/demo . At bootstrap it serves only cleared published microscopy and recorded results. It does not expose a public analysis API or accept private images.
 
