@@ -18,7 +18,9 @@ unsigned and its receipt records ``"signed": false``.
 ``Cytellect-<version>-gpl-sources.zip`` beside the installer: the exact source of every
 bundled component whose license requires it, pinned by SHA-256 in
 ``engines/fiji/corresponding-source.lock.json`` and ``uv.lock``
-(``scripts/corresponding_source.py``). The installer's ``licenses/`` names that asset.
+(``scripts/corresponding_source.py``), except those that
+``engines/fiji/source-exceptions.json`` lists with their upstream source location.
+The installer's ``licenses/`` names that asset and lists those exceptions.
 """
 from __future__ import annotations
 
@@ -321,11 +323,14 @@ LICENSE_NAME = re.compile(r"(?i)^(?:licen[cs]e|copying|notice|authors?)(?:[._-].
 # component whose license requires it is attached to the same release as
 # Cytellect-<version>-gpl-sources.zip; the installer itself does not carry it.
 # scripts/corresponding_source.py derives the obligations from the bundled bytes and
-# engines/fiji/corresponding-source.lock.json pins each source by SHA-256.
+# engines/fiji/corresponding-source.lock.json pins each source by SHA-256. The components
+# listed in engines/fiji/source-exceptions.json are bundled with their upstream source
+# location only (owner decision, 2026-10-30).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import corresponding_source as cs  # noqa: E402
 
 CORRESPONDING_LOCK = "engines/fiji/corresponding-source.lock.json"
+SOURCE_EXCEPTIONS = "engines/fiji/source-exceptions.json"
 UV_LICENSE = "Apache-2.0 OR MIT"
 
 
@@ -343,13 +348,20 @@ def bundled_fiji(offline: Path, release: Path, artifacts: list[Artifact]) -> tup
 
 def collect_corresponding_source(payload: Path, release: Path, artifacts: list[Artifact], wheels: list[dict],
                                  output_dir: Path, cache: Path, version: str, commit: str) -> dict:
-    """Write the release asset with every required source; fail for any component without one."""
+    """Write the release asset with every required source.
+
+    Fails for any component without one that the exceptions do not list for its exact bytes,
+    and for any listed exception that no longer matches such a component.
+    """
     offline = payload / "offline"
     _, inventory = bundled_fiji(offline, release, artifacts)
     archive = next(artifact for artifact in artifacts if artifact.role == "fiji")
     lock_path = release / CORRESPONDING_LOCK
+    exceptions_path = release / SOURCE_EXCEPTIONS
     if not lock_path.is_file():
         raise BuildError("corresponding_source_lock_missing")
+    if not exceptions_path.is_file():
+        raise BuildError("source_exceptions_missing")
     try:
         entries = cs.obligations(cs.load_lock(lock_path), inventory, archive.sha256)
         if not (release / "uv.lock").is_file():
@@ -360,7 +372,8 @@ def collect_corresponding_source(payload: Path, release: Path, artifacts: list[A
         uv = next(artifact for artifact in artifacts if artifact.role == "uv")
         entries += cs.runtime_obligations(runtime, {"version": uv.url.split("/download/")[1].split("/")[0],
                                                     "sha256": uv.sha256, "license": UV_LICENSE})
-        cs.require_sources(entries)
+        cs.require_sources(entries, cs.load_exceptions(exceptions_path))
+        decision = json.loads(exceptions_path.read_text(encoding="utf-8")).get("decision", "")
         output_dir.mkdir(parents=True, exist_ok=True)
 
         def fetch(source: dict) -> Path:
@@ -371,6 +384,8 @@ def collect_corresponding_source(payload: Path, release: Path, artifacts: list[A
     except cs.SourceError as error:
         raise BuildError(str(error)) from None
     result["lock_sha256"] = sha256_file(lock_path)
+    result["exceptions_sha256"] = sha256_file(exceptions_path)
+    result["exceptions_decision"] = decision
     return result
 
 
@@ -436,10 +451,13 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
                     "corresponding_source": {"asset": asset, "member": record["member"], "sha256": record["sha256"],
                                              "url": record["url"]}}
         if record and record.get("exception"):
-            return {"source": "not attached (listed exception): " + record["exception"]}
+            return {"source": cs.describe_exception(record["exception"]),
+                    "upstream_source": record["exception"]["upstream"]}
         return {"source": upstream}
 
-    collected = (f"{asset} attached to this release ({len(by_component)} components whose license requires source)"
+    excepted = [record for record in by_component.values() if record.get("exception")]
+    collected = (f"{asset} attached to this release ({len(by_component) - len(excepted)} components whose license "
+                 f"requires source; {len(excepted)} more are listed below with their upstream source location only)"
                  if corresponding else "not collected in this build, which must not be distributed")
     runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
     uv = next(artifact for artifact in artifacts if artifact.role == "uv")
@@ -485,7 +503,12 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
                   "released for exactly the bundled version is attached to the same release as this installer:",
                   f"  {asset}  SHA-256 {corresponding['sha256']}",
                   "Its manifest.json lists each component's bundled SHA-256 and its source's URL and SHA-256.",
-                  "The installer itself does not contain that source.", ""]
+                  "The installer itself does not contain that source.", "",
+                  f"By the owner's decision of 2026-10-30, {len(excepted)} of these components are bundled without",
+                  "their source in that archive: no source published for exactly the bundled bytes was found,",
+                  "its host could not be reached when the release was built, or the license could not be",
+                  "determined. Their entries below say \"not attached\", with the reason and the upstream source",
+                  "location (tag or version where one is known).", ""]
     else:
         lines += ["Corresponding source was not collected in this build. It must not be distributed.", ""]
     for item in components:
@@ -502,10 +525,17 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
     (directory / "bundled-components.json").write_text(json.dumps(components, indent=2) + "\n", encoding="utf-8")
     summary = None
     if corresponding:
-        summary = {key: corresponding[key] for key in ("asset", "sha256", "bytes", "lock_sha256")}
+        summary = {key: corresponding[key] for key in ("asset", "sha256", "bytes", "lock_sha256", "exceptions_sha256")}
         summary["components"] = len(corresponding["components"])
-        (directory / "corresponding-source.json").write_text(
-            json.dumps({**summary, "files": corresponding["components"]}, indent=2) + "\n", encoding="utf-8")
+        summary["attached"] = len(corresponding["components"]) - len(excepted)
+        summary["not_attached"] = len(excepted)
+        not_attached = [{"component": record["component"], "bundled_sha256": record["bundled_sha256"],
+                         "licenses": record["licenses"] or ["undetermined"], **record["exception"]}
+                        for record in excepted]
+        (directory / "corresponding-source.json").write_text(json.dumps(
+            {**summary, "exceptions_decision": corresponding["exceptions_decision"],
+             "not_attached_components": not_attached,
+             "files": corresponding["components"]}, indent=2) + "\n", encoding="utf-8")
     return {"notices_sha256": hashlib.sha256(text).hexdigest(), "components": components,
             "corresponding_source": summary}
 

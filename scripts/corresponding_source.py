@@ -2,8 +2,10 @@
 
 The installer ships Fiji (with its JDK and plugins), Python and the locked wheels
 unmodified. GPL, LGPL and the other licenses that require source with a binary
-(MPL, EPL, CDDL, ...) are met by attaching the exact source of every such component
-to the same release as ``Cytellect-<version>-gpl-sources.zip``; no written offer is made.
+(MPL, EPL, CDDL, ...) are addressed by attaching the exact source of every such component
+to the same release as ``Cytellect-<version>-gpl-sources.zip``, except the components
+listed in ``engines/fiji/source-exceptions.json``, for which the upstream source location
+is given instead.
 
 Which components carry that obligation is derived from what is bundled, never from a
 hand-written list:
@@ -34,8 +36,12 @@ with its SHA-256, license evidence, obligation and, where needed, the exact sour
 file's URL, SHA-256 and size. The installer build then re-derives the obligations
 from the bundled bytes, refuses a lock that does not describe them, downloads each
 source by its pinned SHA-256 (retried on transient failures) and fails for any
-obligation without source unless it is listed, with its reason, in
-``SOURCE_EXCEPTIONS``. Wheel sources are the sdists that ``uv.lock`` pins.
+obligation without source unless ``engines/fiji/source-exceptions.json`` lists that
+component with the same bundled SHA-256, its reason and its upstream source location.
+By the owner's decision of 2026-10-30 those components are bundled and only their
+upstream location is given. An exception that no longer matches an obligation without
+source also fails the build, so the list cannot drift from what is bundled. Wheel
+sources are the sdists that ``uv.lock`` pins.
 """
 from __future__ import annotations
 
@@ -58,6 +64,10 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_PATH = ROOT / "engines/fiji/corresponding-source.lock.json"
 LOCK_SCHEMA = "cytellect-corresponding-source/1"
+EXCEPTIONS_PATH = ROOT / "engines/fiji/source-exceptions.json"
+EXCEPTIONS_SCHEMA = "cytellect-source-exceptions/1"
+# Why a component that needs source has none attached.
+EXCEPTION_REASONS = frozenset({"no-public-source", "source-host-unreachable", "license-undetermined"})
 ARCHIVE_SCHEMA = "cytellect-gpl-sources/1"
 MAVEN_REPOSITORIES = ("https://maven.scijava.org/content/groups/public", "https://repo1.maven.org/maven2")
 CENTRAL_SHA1_SEARCH = "https://central.sonatype.com/solrsearch/select?q=1:{sha1}&rows=5&wt=json"
@@ -98,9 +108,6 @@ REVIEWED_LICENSES: dict[str, tuple[str, str]] = {
     "Fiji/config/jaunch/jaunch-windows-x64.exe": (
         "Unlicense", "Jaunch launcher; https://github.com/apposed/jaunch (UNLICENSE)"),
 }
-# Components that need source but whose exact source cannot be obtained, each with the
-# owner's reason for distributing anyway. Empty: every obligation must have its source.
-SOURCE_EXCEPTIONS: dict[str, str] = {}
 
 
 class SourceError(Exception):
@@ -697,22 +704,70 @@ def obligations(lock: dict, inventory: dict, fiji_sha256: str) -> list[dict]:
     return needed
 
 
-def require_sources(entries: list[dict], exceptions: dict[str, str] | None = None) -> list[dict]:
-    """Every obligation has a pinned source, or a listed exception with its reason."""
-    exceptions = SOURCE_EXCEPTIONS if exceptions is None else exceptions
-    missing = []
+def load_exceptions(path: Path = EXCEPTIONS_PATH) -> dict[str, dict]:
+    """The components bundled without attached source, by component path.
+
+    Each names the bundled file's SHA-256, a reason from ``EXCEPTION_REASONS``, a detail
+    and at least one https upstream source location.
+    """
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise SourceError("source_exceptions_invalid") from None
+    if document.get("schema") != EXCEPTIONS_SCHEMA or not isinstance(document.get("components"), list):
+        raise SourceError("source_exceptions_invalid")
+    listed: dict[str, dict] = {}
+    for record in document["components"]:
+        component = record.get("component") if isinstance(record, dict) else None
+        if not isinstance(component, str) or component in listed:
+            raise SourceError("source_exceptions_invalid")
+        upstream = record.get("upstream")
+        if (not DIGEST.fullmatch(str(record.get("bundled_sha256", "")))
+                or record.get("reason") not in EXCEPTION_REASONS or not str(record.get("detail", "")).strip()
+                or not isinstance(upstream, list) or not upstream
+                or not all(isinstance(item, dict) and str(item.get("url", "")).startswith("https://")
+                           for item in upstream)):
+            raise SourceError("source_exceptions_invalid:" + component)
+        listed[component] = {"reason": record["reason"], "detail": record["detail"],
+                             "bundled_sha256": record["bundled_sha256"], "upstream": upstream}
+    return listed
+
+
+def require_sources(entries: list[dict], exceptions: dict[str, dict] | None = None) -> list[dict]:
+    """Every obligation has a pinned source, or a listed exception for exactly its bundled bytes.
+
+    An exception that matches no obligation without source (the component is gone, now has a
+    pinned source, or its bytes changed) fails too, so the list stays exactly what is bundled.
+    """
+    exceptions = load_exceptions() if exceptions is None else exceptions
+    missing, used = [], set()
     for entry in entries:
         source = entry.get("source")
         if source:
             if not DIGEST.fullmatch(str(source.get("sha256", ""))) or not str(source.get("url", "")).startswith("https://"):
                 raise SourceError("corresponding_source_pin_invalid:" + entry["path"])
         elif entry["path"] in exceptions:
+            if exceptions[entry["path"]]["bundled_sha256"] != entry["sha256"]:
+                raise SourceError("source_exception_stale:" + entry["path"])
             entry["exception"] = exceptions[entry["path"]]
+            used.add(entry["path"])
         else:
             missing.append(entry["path"])
     if missing:
         raise SourceError("corresponding_source_unavailable:" + ",".join(sorted(missing)))
+    unused = sorted(set(exceptions) - used)
+    if unused:
+        raise SourceError("source_exception_stale:" + ",".join(unused))
     return entries
+
+
+def describe_exception(exception: dict) -> str:
+    """One line for the notices: why no source is attached, and where the upstream source is."""
+    locations = ", ".join(
+        item["url"] + (f" ({item['ref']})" if item.get("ref") else f" (version {item['version']})"
+                       if item.get("version") else "")
+        for item in exception["upstream"])
+    return f"not attached ({exception['reason']}; owner decision of 2026-10-30). Upstream source: {locations}"
 
 
 # --- the release asset ---------------------------------------------------------------------------
@@ -754,7 +809,7 @@ def write_archive(path: Path, version: str, commit: str, entries: list[dict],
                         target.write(chunk)
                 record.update(member=member, sha256=digest, bytes=local.stat().st_size, url=entry["source"]["url"])
             else:
-                record["exception"] = entry.get("exception")
+                record["exception"] = entry["exception"]
             records.append(record)
         manifest = {"schema": ARCHIVE_SCHEMA, "version": version, "source_commit": commit,
                     "installer": f"Cytellect-Setup-{version}.exe", "components": records}
@@ -764,7 +819,12 @@ def write_archive(path: Path, version: str, commit: str, entries: list[dict],
                   "requires its source with the binary (GPL, LGPL, MPL, EPL, CDDL and similar), or its license\n"
                   "could not be determined from what it carries. sources/ holds, for each one, the source that its\n"
                   "publisher released for exactly the bundled version, as downloaded; manifest.json lists the\n"
-                  "bundled file's SHA-256, its license statements, the source's URL and SHA-256.\n")
+                  "bundled file's SHA-256, its license statements, the source's URL and SHA-256.\n\n"
+                  "Components that manifest.json lists with an \"exception\" are bundled, but their source is not\n"
+                  "in this archive (owner decision of 2026-10-30): no source published for exactly the bundled\n"
+                  "bytes was found, its host could not be reached when the release was built, or the license\n"
+                  "could not be determined. For each, \"exception\" gives the reason and the upstream source\n"
+                  "location, with a tag or version where one is known.\n")
         archive.writestr(zipfile.ZipInfo("README.txt", FIXED_TIME), readme)
     with path.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()

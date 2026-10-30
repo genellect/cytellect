@@ -296,21 +296,80 @@ def test_a_lock_cannot_waive_what_a_bundled_jar_declares(tmp_path):
         cs.obligations(lock, found, "f" * 64)
 
 
-def test_an_obligation_without_source_fails_unless_listed_with_a_reason(tmp_path):
+JDK_PATH = "Fiji/java/win64/zulu-generated/release"
+
+
+def exception_for(sha: str, reason: str = "no-public-source") -> dict:
+    return {"reason": reason, "detail": "generated detail", "bundled_sha256": sha,
+            "upstream": [{"url": "https://github.com/openjdk/jdk21u/tree/jdk-21.0.7+6", "ref": "jdk-21.0.7+6"}]}
+
+
+def test_an_obligation_without_source_fails_unless_listed_for_its_exact_bytes(tmp_path):
     found, lock, _ = locked(tmp_path)
+    pinned = cs.obligations(json.loads(json.dumps(lock)), found, "f" * 64)
     lock["jdk"]["source"] = None
     needed = cs.obligations(lock, found, "f" * 64)
-    with pytest.raises(cs.SourceError, match="corresponding_source_unavailable:Fiji/java/win64/zulu-generated/release"):
+    with pytest.raises(cs.SourceError, match="corresponding_source_unavailable:" + JDK_PATH):
         cs.require_sources([dict(entry) for entry in needed], {})
-    excepted = cs.require_sources([dict(entry) for entry in needed],
-                                  {"Fiji/java/win64/zulu-generated/release": "generated reason"})
-    assert next(entry for entry in excepted if entry["kind"] == "jdk")["exception"] == "generated reason"
+    listed = {JDK_PATH: exception_for(lock["jdk"]["sha256"])}
+    excepted = cs.require_sources([dict(entry) for entry in needed], listed)
+    assert next(entry for entry in excepted if entry["kind"] == "jdk")["exception"] == listed[JDK_PATH]
+    # An exception for other bytes at the same path does not cover the bundled file.
+    with pytest.raises(cs.SourceError, match="source_exception_stale:" + JDK_PATH):
+        cs.require_sources([dict(entry) for entry in needed], {JDK_PATH: exception_for("0" * 64)})
+    # An exception that matches no obligation without source fails too, so the list cannot drift.
+    with pytest.raises(cs.SourceError, match="source_exception_stale:Fiji/jars/gone-1.0.jar"):
+        cs.require_sources([dict(entry) for entry in needed],
+                           {**listed, "Fiji/jars/gone-1.0.jar": exception_for("0" * 64)})
+    with pytest.raises(cs.SourceError, match="source_exception_stale:" + JDK_PATH):
+        cs.require_sources(pinned, listed)  # the JDK has a pinned source again
     # An undetermined license counts as an obligation too.
     for entry in lock["files"]:
         if entry["path"] == "Fiji/jars/formats-bsd-8.5.0.jar":
             entry.update(obligation=cs.UNKNOWN, source=None)
-    with pytest.raises(cs.SourceError, match="Fiji/jars/formats-bsd-8.5.0.jar"):
-        cs.require_sources(cs.obligations(lock, found, "f" * 64), {"Fiji/java/win64/zulu-generated/release": "r"})
+    with pytest.raises(cs.SourceError, match="unavailable:Fiji/jars/formats-bsd-8.5.0.jar"):
+        cs.require_sources(cs.obligations(lock, found, "f" * 64), listed)
+
+
+def test_an_exceptions_file_needs_a_reason_a_digest_and_an_upstream_location(tmp_path):
+    record = {"component": JDK_PATH, "bundled_sha256": "a" * 64, "reason": "no-public-source", "detail": "d",
+              "upstream": [{"url": "https://github.com/openjdk/jdk21u/tree/jdk-21.0.7+6"}]}
+    path = tmp_path / "exceptions.json"
+    path.write_text(json.dumps({"schema": cs.EXCEPTIONS_SCHEMA, "components": [record]}))
+    assert cs.load_exceptions(path)[JDK_PATH]["reason"] == "no-public-source"
+    for change in ({"reason": "convenient"}, {"upstream": []}, {"upstream": [{"url": "http://example.org"}]},
+                   {"bundled_sha256": "short"}, {"detail": " "}):
+        path.write_text(json.dumps({"schema": cs.EXCEPTIONS_SCHEMA, "components": [{**record, **change}]}))
+        with pytest.raises(cs.SourceError, match="source_exceptions_invalid"):
+            cs.load_exceptions(path)
+    path.write_text(json.dumps({"schema": cs.EXCEPTIONS_SCHEMA, "components": [record, record]}))
+    with pytest.raises(cs.SourceError, match="source_exceptions_invalid"):
+        cs.load_exceptions(path)
+
+
+def test_the_committed_exceptions_are_exactly_the_locked_obligations_without_source():
+    lock = cs.load_lock()
+    exceptions = cs.load_exceptions()
+    assert set(exceptions) == set(lock["summary"]["without_source"])
+    # The lock's own obligations, as the build takes them, pass with exactly these exceptions.
+    needed = [dict(entry) for entry in lock["files"] if entry["obligation"] != cs.NONE]
+    needed.append({**lock["jdk"], "kind": "jdk"})
+    cs.require_sources(needed, exceptions)
+    by_path = {entry["path"]: entry for entry in needed}
+    for component, exception in exceptions.items():
+        assert exception["bundled_sha256"] == by_path[component]["sha256"]
+        undetermined = by_path[component]["obligation"] == cs.UNKNOWN
+        assert (exception["reason"] == "license-undetermined") == undetermined, component
+    reasons = [exception["reason"] for exception in exceptions.values()]
+    assert {reason: reasons.count(reason) for reason in set(reasons)} == {
+        "no-public-source": 16, "source-host-unreachable": 1, "license-undetermined": 25}
+    # The SNAPSHOT fiji jar points to the archive of the commit it records it was built from.
+    snapshot = by_path["Fiji/jars/fiji-2.18.1-SNAPSHOT.jar"]
+    assert exceptions[snapshot["path"]]["reason"] == "source-host-unreachable"
+    assert exceptions[snapshot["path"]]["upstream"][0]["url"] == (
+        f"https://codeload.github.com/fiji/fiji/tar.gz/{snapshot['build']['commit']}")
+    text = (ROOT / "engines/fiji/source-exceptions.json").read_text().lower()
+    assert "written offer" not in text and "2026-10-30" in text
 
 
 def wheel(name: str, version: str, expression=None, classifier=None, vendored=()) -> bytes:
@@ -384,6 +443,31 @@ def test_the_release_asset_holds_each_source_with_a_manifest(tmp_path):
     blobs[digest(b"jdk source")] = b"altered"
     with pytest.raises(cs.SourceError, match="hash_mismatch"):
         cs.write_archive(tmp_path / "out/second.zip", "0.1.0-local.21", "a" * 40, needed, fetch)
+
+
+def test_an_excepted_component_is_listed_with_its_upstream_location_but_not_attached(tmp_path):
+    found, lock, _ = locked(tmp_path)
+    lock["jdk"]["source"] = None
+    listed = {JDK_PATH: exception_for(lock["jdk"]["sha256"])}
+    needed = cs.require_sources(cs.obligations(lock, found, "f" * 64), listed)
+    blobs = {digest(data): data for data in SOURCES.values()}
+
+    def fetch(source):
+        path = tmp_path / "cache" / source["sha256"]
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(blobs[source["sha256"]])
+        return path
+
+    asset = tmp_path / cs.asset_name("0.1.0-local.21")
+    result = cs.write_archive(asset, "0.1.0-local.21", "a" * 40, needed, fetch)
+    jdk = next(record for record in result["components"] if record["component"] == JDK_PATH)
+    assert "member" not in jdk and jdk["exception"] == listed[JDK_PATH]
+    with zipfile.ZipFile(asset) as archive:
+        assert not [name for name in archive.namelist() if "zulu" in name]
+        assert "upstream source" in archive.read("README.txt").decode()
+    assert cs.describe_exception(listed[JDK_PATH]) == (
+        "not attached (no-public-source; owner decision of 2026-10-30). "
+        "Upstream source: https://github.com/openjdk/jdk21u/tree/jdk-21.0.7+6 (jdk-21.0.7+6)")
 
 
 def test_the_committed_lock_describes_the_pinned_windows_fiji_and_every_plugin():

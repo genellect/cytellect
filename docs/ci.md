@@ -49,7 +49,7 @@ Windows 版は、配布する `main` のコミットで次の 8 つのジョブ�
 
 `python`、`web`、`fiji-browser`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`windows-installer`、`python-windows-314`
 
-加えて、インストーラーが同梱する GPL・LGPL などのソフトの、同梱した版ちょうどのソース（`Cytellect-<版>-gpl-sources.zip`）がそろわなければ、下書きのリリースを作らない。ソースが必要なのに固定されたソースがない部品があればビルドが失敗し、作成後に資産が添付されていなければ下書きを削除する（[GPL などの対応するソース](oss.md#gpl-などの対応するソース)）。
+加えて、インストーラーが同梱する GPL・LGPL などのソフトの、同梱した版ちょうどのソース（`Cytellect-<版>-gpl-sources.zip`）がそろわなければ、下書きのリリースを作らない。ソースが必要なのに固定されたソースがない部品は、例外の一覧（`engines/fiji/source-exceptions.json`）に同じ SHA-256 で載っているものだけを通し、それ以外の部品や、同梱物と合わなくなった例外があればビルドが失敗する。作成後に資産が添付されていなければ下書きを削除する（[GPL などの対応するソース](oss.md#gpl-などの対応するソース)）。
 
 `main` で失敗した場合は、次の配布までに修正するか取り消す。
 

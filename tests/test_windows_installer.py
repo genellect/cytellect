@@ -309,11 +309,24 @@ def test_bundled_wheels_contribute_their_license_texts(tmp_path):
 UV_LOCK = b'version = 1\n[[package]]\nname = "numpy"\nversion = "2.5.3"\n'
 
 
-def prepare_build(tmp_path, monkeypatch, with_lock=True):
+LEGACY_JAR = "Fiji.app/jars/legacy.jar"
+
+
+def legacy_exception(bundled_sha256: str | None = None, component: str = LEGACY_JAR) -> dict:
+    """The generated legacy.jar states no license and has no published source."""
+    return {"component": component, "bundled_sha256": bundled_sha256 or digest(b"not a maven jar"),
+            "reason": "license-undetermined", "detail": "generated detail",
+            "upstream": [{"url": "https://example.org/legacy", "version": "1.0"}]}
+
+
+def prepare_build(tmp_path, monkeypatch, with_lock=True, exceptions=()):
     """Generated pins, downloads and compiler for builder.build; returns the release ZIP."""
     listed = {"uv.lock": UV_LOCK}
     if with_lock:
         listed[builder.CORRESPONDING_LOCK] = generated_lock(tmp_path / "lock")
+        listed[builder.SOURCE_EXCEPTIONS] = json.dumps({
+            "schema": builder.cs.EXCEPTIONS_SCHEMA, "decision": "Owner decision of 2026-10-30: generated.",
+            "components": list(exceptions)}).encode()
     archive = release_zip(tmp_path / "release", listed=listed)
     wheel_bytes = generated_wheel()
     blobs = {role: b"generated artifact " + role.encode() for role in ("uv", "python")}
@@ -350,9 +363,7 @@ def prepare_build(tmp_path, monkeypatch, with_lock=True):
 
 
 def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkeypatch):
-    archive, _ = prepare_build(tmp_path, monkeypatch)
-    # The generated legacy.jar states no license and has no published source: listed as an exception.
-    monkeypatch.setattr(builder.cs, "SOURCE_EXCEPTIONS", {"Fiji.app/jars/legacy.jar": "generated reason"})
+    archive, _ = prepare_build(tmp_path, monkeypatch, exceptions=[legacy_exception()])
     receipt = builder.build(archive, tmp_path / "out", tmp_path / "work", tmp_path / "cache", Path("ISCC.exe"), None,
                             corresponding_source=True)
     assert receipt["signed"] is False and receipt["version"] == "0.1.0-local.21"
@@ -375,7 +386,9 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
         assert sources.read(members["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["member"]) == (
             GENERATED_SOURCES["formats-gpl"])
         assert sources.read(members[JDK_RELEASE]["member"]) == GENERATED_SOURCES["jdk"]
-    assert members["Fiji.app/jars/legacy.jar"]["exception"] == "generated reason"
+    assert "member" not in members[LEGACY_JAR]
+    assert members[LEGACY_JAR]["exception"]["reason"] == "license-undetermined"
+    assert members[LEGACY_JAR]["exception"]["upstream"] == [{"url": "https://example.org/legacy", "version": "1.0"}]
     assert "Fiji.app/jars/formats-bsd-8.0.0.jar" not in members
     assert not [path for path in payload.rglob("*") if path.is_file() and path.read_bytes() in GENERATED_SOURCES.values()]
     # licenses/ names the asset and each source's member and hash.
@@ -395,9 +408,20 @@ def test_build_assembles_a_verified_offline_payload_and_receipt(tmp_path, monkey
     assert gpl["corresponding_source"] == {"asset": asset.name, "sha256": digest(GENERATED_SOURCES["formats-gpl"]),
                                            "member": members["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["member"],
                                            "url": members["Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar"]["url"]}
-    assert components["Fiji.app/jars/legacy.jar"]["source"] == "not attached (listed exception): generated reason"
+    assert components[LEGACY_JAR]["source"] == (
+        "not attached (license-undetermined; owner decision of 2026-10-30). "
+        "Upstream source: https://example.org/legacy (version 1.0)")
+    assert components[LEGACY_JAR]["license"] == "undetermined (treated as requiring source)"
+    assert "1 of these components are bundled without" in text and "https://example.org/legacy" in text
     recorded = json.loads((payload / "licenses/corresponding-source.json").read_text())
     assert recorded["asset"] == asset.name and recorded["components"] == 3
+    assert (recorded["attached"], recorded["not_attached"]) == (2, 1)
+    assert recorded["exceptions_decision"] == "Owner decision of 2026-10-30: generated."
+    assert recorded["not_attached_components"] == [{
+        "component": LEGACY_JAR, "bundled_sha256": digest(b"not a maven jar"), "licenses": ["undetermined"],
+        "reason": "license-undetermined", "detail": "generated detail",
+        "upstream": [{"url": "https://example.org/legacy", "version": "1.0"}]}]
+    assert receipt["corresponding_source"]["not_attached"] == 1
     with pytest.raises(builder.BuildError, match="installer_exists"):
         builder.build(archive, tmp_path / "out", tmp_path / "work2", tmp_path / "cache", Path("ISCC.exe"), None)
 
@@ -418,6 +442,13 @@ def test_a_release_build_stops_when_a_required_source_is_unavailable(tmp_path, m
         builder.build(archive, tmp_path / "out", tmp_path / "work", tmp_path / "cache", Path("ISCC.exe"), None,
                       corresponding_source=True)
     assert not (tmp_path / "out/Cytellect-Setup-0.1.0-local.21.exe").exists()
+    # Drift fails too: an exception for other bytes, or for a component that is not bundled.
+    for index, exceptions in enumerate([[legacy_exception("0" * 64)],
+                                        [legacy_exception(), legacy_exception(component="Fiji.app/jars/gone.jar")]]):
+        archive, _ = prepare_build(tmp_path / f"drift{index}", monkeypatch, exceptions=exceptions)
+        with pytest.raises(builder.BuildError, match="source_exception_stale:Fiji.app/jars/(legacy|gone).jar"):
+            builder.build(archive, tmp_path / f"drift{index}/out", tmp_path / f"drift{index}/work", tmp_path / "cache",
+                          Path("ISCC.exe"), None, corresponding_source=True)
     archive, _ = prepare_build(tmp_path / "missing", monkeypatch, with_lock=False)
     with pytest.raises(builder.BuildError, match="corresponding_source_lock_missing"):
         builder.build(archive, tmp_path / "missing/out", tmp_path / "missing/work", tmp_path / "cache",
