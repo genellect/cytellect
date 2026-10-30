@@ -55,7 +55,7 @@ def test_incomplete_and_escaping_manifest_cannot_claim_commit(tmp_path):
     assert installed_source_revision(tmp_path) is None
 
 
-def normal_wheel_fixture(root, monkeypatch):
+def normal_wheel_fixture(root, monkeypatch, site=".venv/Lib/site-packages"):
     """Byte fixtures only: no wheel build, install or imported fixture code."""
     data = release(root)
     for relative in PACKAGES.values():
@@ -66,7 +66,7 @@ def normal_wheel_fixture(root, monkeypatch):
             data["files"].append({"path": path.relative_to(root).as_posix(), "size": path.stat().st_size,
                                   "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
     (root / "local-release.json").write_text(json.dumps(data), encoding="utf-8")
-    installed = root / ".venv/Lib/site-packages"
+    installed = root / site
     for package, relative in PACKAGES.items():
         shutil.copytree(root / relative, installed / package)
     monkeypatch.setattr(local, "__file__", str(installed / "cytellect_api/local.py"))
@@ -79,6 +79,14 @@ def test_normal_wheel_requires_matching_source_and_all_installed_packages(tmp_pa
     assert installed_source_revision(tmp_path) == "a" * 40
     source = tmp_path / PACKAGES["cytellect_analysis"] / "nested/operation.py"
     source.write_bytes(b"# source modified independently of the installed wheel\n")
+    assert installed_source_revision() is None
+
+
+def test_store_package_python_is_verified_like_the_installer_environment(tmp_path, monkeypatch):
+    # The MSIX edition installs the wheel into python.org's runtime at <package>/python (docs/windows-msix.md).
+    installed = normal_wheel_fixture(tmp_path, monkeypatch, "python/Lib/site-packages")
+    assert installed_source_revision() == "a" * 40
+    (installed / "cytellect_api/nested/operation.py").write_bytes(b"# changed in the installed copy only\n")
     assert installed_source_revision() is None
 
 

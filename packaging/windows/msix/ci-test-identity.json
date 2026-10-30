@@ -1,0 +1,8 @@
+{
+  "schema": "cytellect-msix-identity/1",
+  "partner_center": false,
+  "note": "Only for the windows-msix CI job's test packages, which it signs with a throwaway self-signed certificate whose subject is this publisher (docs/windows-msix.md).",
+  "identity_name": "Cytellect.CITest",
+  "publisher": "CN=Cytellect CI Test Package",
+  "publisher_display_name": "Cytellect (CI test package)"
+}

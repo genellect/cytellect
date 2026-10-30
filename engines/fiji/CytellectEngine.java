@@ -23,7 +23,18 @@ public class CytellectEngine {
         if (!new FileSaver(new ImagePlus("labels",new FloatProcessor(w,h,p))).saveAsTiff(file.toString()))
             throw new IllegalStateException("label_write_failed");
     }
+    /** Bio-Formats' NDPI reader loads TurboJPEG in its constructor, which unpacks a native DLL into the
+     *  temporary folder and loads it from there. Listing the readers (SCIFIO does when the context starts)
+     *  constructs it. The bridge never reads NDPI, so leave it out of this JVM's reader list. */
+    static void skipNativeJpegReader() {
+        try {
+            ClassLoader loader=CytellectEngine.class.getClassLoader();
+            Object readers=Class.forName("loci.formats.ImageReader",true,loader).getMethod("getDefaultReaderClasses").invoke(null);
+            readers.getClass().getMethod("removeClass",Class.class).invoke(readers,Class.forName("loci.formats.in.NDPIReader",false,loader));
+        } catch (ReflectiveOperationException | LinkageError absent) { /* no Bio-Formats on the class path: nothing to skip */ }
+    }
     public static void main(String[] args) {
+        skipNativeJpegReader();
         try { execute(Path.of(args[0])); System.exit(0); }
         catch (Throwable failure) { failure.printStackTrace(); System.exit(2); }
     }

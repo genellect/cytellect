@@ -99,6 +99,30 @@ def _classpath(runtime: Path, compiled: Path) -> str:
     return os.pathsep.join(map(str, [compiled, runtime / "jars/protobuf-java-3.25.8.jar", runtime / "jars/*", runtime / "plugins/*"]))
 
 
+# Native libraries that a packaged Fiji runtime ships already extracted (docs/windows-msix.md).
+# TensorFlow's Java binding loads tensorflow_jni from java.library.path before it would unpack
+# its own copy into the temporary folder, so nothing native is written and then loaded.
+NATIVES_MANIFEST = "natives/natives.json"
+
+
+def _native_library_flags(runtime: Path) -> list[str]:
+    """``-Djava.library.path`` for a runtime with pre-extracted natives; none otherwise."""
+    manifest = runtime / NATIVES_MANIFEST
+    if not manifest.is_file():
+        return []
+    try:
+        listed = json.loads(manifest.read_text(encoding="utf-8"))
+        names = [entry["name"] for entry in listed["files"]]
+    except (OSError, ValueError, KeyError, TypeError):
+        raise EngineUnavailable("fiji_natives_invalid") from None
+    directory = manifest.parent
+    if (listed.get("schema") != "cytellect-fiji-natives/1" or not names
+            or any(not isinstance(name, str) or Path(name).name != name or not (directory / name).is_file()
+                   for name in names)):
+        raise EngineUnavailable("fiji_natives_invalid")
+    return ["-Djava.library.path=" + str(directory)]
+
+
 def _run(command: list[str], directory: Path, timeout: int, env: dict) -> None:
     try:
         completed = subprocess.run(
@@ -146,7 +170,7 @@ def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path 
             "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",
             "-Djava.io.tmpdir=" + str(scratch), "-Duser.home=" + str(scratch),
             "-Dimagej.tensorflow.models.dir=" + str(scratch / "models"),
-            "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error",
+            "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error", *_native_library_flags(runtime),
             "-Xmx2g", "-cp", classpath, "CytellectEngine", str(output / "request.json"),
         ]
         _run(command, output, 1800, env)

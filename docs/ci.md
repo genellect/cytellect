@@ -22,6 +22,8 @@
 | `cellpose-gpu-image` | GPU 推論のイメージが CPU 版と同じラベルを返すこと | `main` だけ |
 | `windows-installed` | 配布 ZIP の新規導入と、前の版からの更新 | `main` と手動実行だけ |
 | `windows-installer` | インストーラーの新規導入（ネットワークなし）、再実行、中断からの再開、アンインストール、0.1.0-local.20 からの更新、アプリ内の更新と失敗時の復帰（`packaging/windows/smoke.ps1`） | `main` と手動実行だけ |
+| `windows-sac-audit` | Smart App Control（SAC）が止めるはずのファイルの一覧（監査だけ。[下記](#smart-app-control-の監査)） | `main` と手動実行だけ。配布の条件ではない |
+| `windows-msix` | Microsoft Store 版（MSIX）の試作。パッケージを作り、使い捨ての自己署名証明書で署名し、SAC の監査の下で導入・核の検出・出力・削除を行い、パッケージの外から読み込まれた実行ファイルを数える（[MSIX の設計](windows-msix.md#ci-の試作windows-msix)） | `main` と手動実行だけ。配布の条件ではない |
 | `CodeQL`（`codeql.yml`） | GitHub Actions、JavaScript・TypeScript、Python の静的解析。結果は Security タブの Code scanning に出る。週 1 回の定期実行もある | 常に |
 
 ジョブは並行して走り、PR の待ちは最も長いジョブで決まる。Windows のテスト一式は 1 つのジョブで約 34 分かかっていたため、テストのモジュール単位で 4 つに分けた。分けた結果は `scripts/merge_test_shards.py` が、同じ収集のすべての分割がそろい、合わせて全テストになることを確かめてから 1 回の実行にまとめ、科学的な回帰試験のレシートを作る（[独立した確認](scientific-review.md)）。分け方は、Windows の CI で測ったモジュールごとの所要時間（`tests/shard_weights.json`）で均す。記録にない新しいモジュールは、1 テストあたりの平均で見積もる。偏りが出たら、`scripts/merge_test_shards.py weights` で記録を作り直す。
@@ -55,6 +57,22 @@ Windows 版は、配布する `main` のコミットで次の 8 つのジョブ�
 `main` で失敗した場合は、次の配布までに修正するか取り消す。
 
 下書きのリリースを作る `draft` ジョブは environment `release` で動き、オーナーの承認を待つ。承認されると、アプリ内更新の manifest に secret `UPDATE_SIGNING_KEY` で署名し、アプリに組み込んだ公開鍵で検証してから、タグとリリースを作る。secret がない、または公開鍵と合わない場合は何も作らない（[リリースの署名](release-signing.md)）。
+
+## Smart App Control の監査
+
+`windows-sac-audit` は、研究室の PC で SAC に止められるファイルを、実機で試す前に CI で洗い出す。SAC は Windows Server にはないため、同じ規則の App Control ポリシーを**監査モード**で入れ、何も止めずに「止めるはずだった」記録（Code Integrity のイベント 3076）を集める（`packaging/windows/sac-audit.ps1`）。
+
+1. ポリシーを 2 つ入れる。Microsoft が配布する SAC の監査ポリシーのうち ISG（クラウドの評判）を使わないもの（`SmartAppControlAuditNoISG.bin`、署名済み、SHA-256 で固定）と、Windows に付属する例 `SmartAppControl.xml` を監査モードにし、SAC のある PC でだけ有効になる条件を外して ISG を有効にしたもの。どちらも `CiTool --update-policy` で入れる。
+2. 署名のない試験用の実行ファイルを作って動かし、3076 に記録されることで、ポリシーが効いていることを確かめる。記録されなければジョブは失敗する。
+3. インストーラーを Downloads から `%LOCALAPPDATA%\Cytellect` へ無音で導入し、ランチャーの画面、作業の作成、BBBC013 A01 の登録、Fiji による核の検出（worker の Python）、品質確認、解析パッケージの出力、アンインストールまで行う。
+4. 3076・3077（と、あれば 3033・3034・3089）とスクリプトの監査（8028・8029）を集め、ファイルごとに 1 行にまとめた一覧と、インストール先にあるすべての実行ファイルの署名の状態を、成果物 `windows-sac-audit` に 14 日残す。パスはインストール先からの相対パスにし、それ以外は `<temp>`・`<downloads>` などの置き換えにする。件数はステップの要約に出す。
+5. 最後にポリシーを外す。
+
+`-Msix` を付けると、インストーラーの代わりに MSIX を同じ手順で導入・使用・削除し、ファイルをパッケージの中と外に分けて数える（`windows-msix`。[MSIX の設計](windows-msix.md)）。
+
+ファイルは、Python とホイール、JDK と Fiji、Cytellect のスクリプト、Inno Setup、その他、ランナー自身のもの（`runner`、配布物ではない）に分ける。見つかっても失敗にしない（判断はオーナーに委ねる）。
+
+限界：ISG を使わない側の一覧は、信頼された認証局の署名がないものをすべて挙げる最悪の場合で、実際の SAC はクラウドの評判で一部を通すことがある。ISG を使う側がランナーで評判を引けているかは、要約の件数で確かめる。SmartScreen、ダウンロードの印（Mark of the Web）、SAC の評価モードからの自動切り替え、Windows 11 のクライアントでの違いはこの監査に含まれない。研究室の実機での確認（[実機の確認項目](local.md#real-machine-checklist-stage-0-acceptance-e1)）の代わりにはならない。
 
 ## 依存パッケージの記録とシークレット走査
 

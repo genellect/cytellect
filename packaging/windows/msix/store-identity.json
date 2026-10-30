@@ -1,0 +1,8 @@
+{
+  "schema": "cytellect-msix-identity/1",
+  "partner_center": false,
+  "note": "The Store package's identity. The owner replaces the three values with Partner Center's Product identity (Package/Identity/Name, Package/Identity/Publisher, Package/Properties/PublisherDisplayName) and sets partner_center to true (docs/windows-msix.md). They are public values, not secrets.",
+  "identity_name": "Cytellect",
+  "publisher": "CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER",
+  "publisher_display_name": "REPLACE WITH PARTNER CENTER PUBLISHER DISPLAY NAME"
+}

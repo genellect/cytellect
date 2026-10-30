@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Microsoft Store (MSIX) edition of Cytellect (docs/windows-msix.md). scripts/build_windows_msix.py
+     fills the placeholder fields from packaging/windows/msix/store-identity.json and the release version. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap10 desktop6 rescap">
+  <Identity Name="{{IDENTITY_NAME}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Cytellect</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>顕微鏡画像の解析から統計、論文用の図までを一つのワークスペースでつなぐ、生命科学研究者のための解析基盤</Description>
+    <!-- Research data, settings and the database live in %LOCALAPPDATA%\Cytellect, shared with the
+         installer edition. Without this, new files there would go to the package's private copy. -->
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+  </Properties>
+  <Dependencies>
+    <!-- 2004 (19041): uap10:Parameters, which gives the entry point its arguments. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="ja-JP" />
+  </Resources>
+  <Applications>
+    <!-- python.org's pythonw.exe inside the package; -B: no bytecode is written, -E: the user's
+         PYTHON* variables do not apply (as the installer's shortcut). -->
+    <Application Id="Cytellect" Executable="python\pythonw.exe" EntryPoint="Windows.FullTrustApplication"
+      uap10:Parameters="-B -E -m cytellect_api.packaged">
+      <uap:VisualElements DisplayName="Cytellect" Description="Cytellect" BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <!-- Cloud sign-in (e-mail and code), cloud GPU and analysis proposals. -->
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+    <!-- Required by desktop6:FileSystemWriteVirtualization; Partner Center asks why. -->
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+</Package>
