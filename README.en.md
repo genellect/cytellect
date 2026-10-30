@@ -155,7 +155,7 @@ The code is open source under the [Apache License 2.0](LICENSE). Third-party com
 
 | Component | License | Handling |
 |---|---|---|
-| Fiji | GPL-3.0 (Bio-Formats: GPL; MorphoLibJ: LGPL-3.0) | Not included in the repository or the Windows distribution. Downloaded from the official source during setup (for Docker, when the image is built) and run as a separate process |
+| Fiji | GPL-3.0 (Bio-Formats: GPL; MorphoLibJ: LGPL-3.0) | Not included in the repository or the Windows setup ZIP; downloaded from the official source during setup (for Docker, when the image is built). The Windows installer bundles the official distribution unmodified (as it does Python and the packages), with the license texts in the installer and its receipt; for each component whose license requires source (GPL, LGPL and similar), the source of exactly the bundled version is attached to the same release as `Cytellect-<version>-gpl-sources.zip`; for the 42 whose source cannot be fetched, only the upstream source location is given ([third-party software](docs/oss.md#corresponding-source-for-gpl-and-similar-licenses)). Run as a separate process |
 | Cellpose dependencies (fastremap, fill-voids) | LGPL-3.0 | Used unmodified |
 | Pretrained models (StarDist, Cellpose-SAM `cpsam_v2`) | BSD-3-Clause (declared in the StarDist model repository and the `cpsam_v2` model card) | Downloaded from the official source during setup and verified by SHA-256 |
 | Fine-tuned weights | BSD-3-Clause | Published on [Hugging Face](https://huggingface.co/Genellect/Cytellect) with Cellpose's copyright notice and a statement that the weights were modified |
