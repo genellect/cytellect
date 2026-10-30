@@ -108,7 +108,9 @@ Settings updates are checked against the requester's version and return `409` on
 
 ## Security and research data
 
-Because research data is never kept in the cloud and updates are verified by signature, a compromise of the cloud services or the repository cannot reach stored research data or users' PCs. The design behind this and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).
+Cytellect handles unpublished research data, which is highly confidential, while publishing its code as open source and operating cloud features used by research labs. Its handling of research data and its security are therefore set out explicitly.
+
+Research data is never kept in the cloud, and updates are verified by signature, so a compromise of the cloud services or the repository cannot reach stored research data or users' PCs. The design in detail and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).
 
 ## Distribution
 
