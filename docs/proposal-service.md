@@ -189,7 +189,11 @@ the owner's admin login or a researcher's address) so that no code reaches it un
 that window ends, up to about a day. Rotating `ADMIN_SIGNING_KEY` ends every lock and
 counter at once, and also voids pending codes and approval links.
 
-**Owner operations.** The owner opens `/admin`, enters `OWNER_EMAIL` and the code
+**Owner operations.** When `ADMIN_ORIGIN` is set, `/admin` and `/v1/admin/*` answer
+only on that origin (404 elsewhere, 503 `admin_origin_invalid` if it is malformed), and
+approval e-mails link there; production also puts Cloudflare Access in front of them
+([deployment](proposal-deployment.md#cloud-access-login-approval-and-gpu-gateway)).
+The owner opens `/admin`, enters `OWNER_EMAIL` and the code
 sent there (a 12-hour session cookie; codes for other addresses are never sent).
 The page lists users with state, monthly usage and limits; it approves requests,
 pre-registers addresses, revokes, and sets per-user limits (blank = default).

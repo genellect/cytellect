@@ -14,6 +14,10 @@ import type { Mailer } from "./mail";
 
 export interface CloudEnv {
   OWNER_EMAIL?: string;
+  /** When set (e.g. "https://api.example.org"), the admin page and its APIs answer only on
+   * this origin, so one access policy in front of it covers every way in, and approval
+   * links point to it. Other origins (such as workers.dev) get 404 for those paths. */
+  ADMIN_ORIGIN?: string;
   ADMIN_SIGNING_KEY?: string;
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
@@ -258,7 +262,21 @@ async function readApprovalToken(cfg: AuthConfig, value: unknown, now: number) {
   return { email, hash: await sha256(value) };
 }
 
-async function notifyOwner(ctx: CloudContext, cfg: AuthConfig, user: UserRecord, origin: string) {
+/** The configured admin origin; undefined when unset, null when set but malformed. */
+function adminOrigin(env: CloudEnv): string | null | undefined {
+  const value = env.ADMIN_ORIGIN?.trim();
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.origin === value.replace(/\/$/, "") ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+async function notifyOwner(ctx: CloudContext, cfg: AuthConfig, user: UserRecord, requestOrigin: string) {
+  const configured = adminOrigin(ctx.env);
+  const origin = configured ?? requestOrigin;
   if (!ctx.mailer || (user.notified_at !== null && ctx.now - user.notified_at < AUTH.approvalTtl)) return;
   // A global daily cap keeps a flood of distinct addresses from flooding the owner;
   // requests are still recorded and listed on the admin page.
@@ -677,6 +695,11 @@ export async function handleCloud(request: Request, ctx: CloudContext): Promise<
   const path = url.pathname, method = request.method;
   if (path === GPU_PREFIX || path.startsWith(`${GPU_PREFIX}/`)) return gateway(request, url, ctx);
   const cfg = authConfig(ctx.env);
+  if (path === "/admin" || path.startsWith("/v1/admin/")) {
+    const only = adminOrigin(ctx.env);
+    if (only === null) return fail(503, "admin_origin_invalid");
+    if (only !== undefined && url.origin !== only) return fail(404, "not_found");
+  }
   if (path === "/admin") {
     if (method !== "GET") return fail(405, "method_not_allowed");
     return cfg ? adminPage() : messagePage(503, "管理ページは準備中です", "オーナーのメールアドレスと署名用の鍵が設定されていません。");

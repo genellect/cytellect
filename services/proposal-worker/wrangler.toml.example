@@ -34,6 +34,9 @@ MAX_OUTPUT_TOKENS = "8000"
 # Cloud access (e-mail login, owner approval, GPU gateway). Empty OWNER_EMAIL or
 # MAIL_FROM keeps login closed; GPU_MONTHLY_SECONDS="0" keeps the GPU gateway closed.
 OWNER_EMAIL = ""
+# Origin that alone serves /admin and /v1/admin/* (for example "https://api.example.org");
+# other origins such as workers.dev answer 404 there. Empty serves admin on every origin.
+ADMIN_ORIGIN = ""
 MAIL_FROM = ""
 GPU_MONTHLY_SECONDS = "0"
 # Per-user monthly defaults; the owner can override each user on /admin.
