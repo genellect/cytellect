@@ -25,7 +25,6 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -224,20 +223,6 @@ class AccountStore:
         self._checked().unlink(missing_ok=True)
 
 
-def _expired(record: dict, now: float) -> bool:
-    value = record.get("expires_at")
-    try:
-        if isinstance(value, int | float):
-            limit = float(value)
-        elif isinstance(value, str) and value:
-            limit = datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-        else:
-            return False
-    except (ValueError, OverflowError):
-        return False
-    return limit <= now
-
-
 # What identifies the record a request started from (see CloudAccount._commit).
 _IDENTITY = ("state", "email", "base_url", "sent_at", "request_token", "device_token")
 
@@ -297,8 +282,8 @@ class CloudAccount:
         now, email = self.clock(), record.get("email")
         token = record.get("device_token")
         if token:
-            if _expired(record, now):
-                return self._end(record, "expired")
+            # The cloud service decides expiry: it extends a device's 90 days at each use,
+            # so the expires_at stored at sign-in is informational only. Only its 401 ends the login.
             try:
                 status, body = call_cloud("GET", self._cloud(record) + "/v1/auth/status", token=token)
             except CloudUnreachable:
@@ -476,7 +461,7 @@ class CloudAccount:
         """The signed-in device's base URL and token, or None."""
         record = self.store.load()
         token = record.get("device_token")
-        if not token or _expired(record, self.clock()):
+        if not token:
             return None
         return self._cloud(record), token
 

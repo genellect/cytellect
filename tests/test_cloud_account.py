@@ -264,11 +264,24 @@ def test_expired_login_asks_to_sign_in_again(tmp_path, cloud):
     cloud.status_reply = (401, {"error": "auth_required"})
     assert client.get("/v1/account").json() == {"state": "expired", "email": ALLOWED}
     assert "device_token" not in json.loads((account_path(settings.data_dir)).read_text())
-    cloud.status_reply = None
-    record = json.loads((account_path(settings.data_dir)).read_text())
-    (account_path(settings.data_dir)).write_text(json.dumps({**record, "state": "allowed", "device_token": "x" * 40,
-                                                              "expires_at": "2000-01-01T00:00:00Z"}))
-    assert client.get("/v1/account").json() == {"state": "expired", "email": ALLOWED}
+
+
+def test_expiry_is_decided_by_the_cloud_not_the_date_stored_at_sign_in(tmp_path, cloud):
+    """The service extends a device's 90 days at each use; day 91 after sign-in is still valid if it says so."""
+    clock = [1_000_000.0]
+    account = CloudAccount(tmp_path / "private", clock=lambda: clock[0])
+    account.send_code(ALLOWED)
+    account.verify("123456")
+    token = next(iter(cloud.tokens))
+    record = account.store.load()
+    account.store.save({**{k: v for k, v in record.items() if k != "schema"}, "expires_at": clock[0] + 90 * 86400})
+    clock[0] += 91 * 86400
+    assert account.credentials() == (cloud.url, token)
+    assert account.view()["state"] == "allowed"
+    assert account.store.load()["device_token"] == token
+    cloud.status_reply = (401, {"error": "auth_required"})
+    assert account.view() == {"state": "expired", "email": ALLOWED}
+    assert account.credentials() is None and "device_token" not in account.store.load()
 
 
 def test_rate_limit_invalid_input_and_service_failures_are_codes_only(tmp_path, cloud):
