@@ -238,6 +238,13 @@ workspace/Fiji configuration status and, only after clicking `解析を開始`, 
 no invitation token, URL credential, localStorage or sessionStorage is used.
 Fiji configured status is not a claim of validated image-analysis accuracy.
 
+`/workspace` first asks `GET /v1/local/session`. It gives the same answer as
+`GET /v1/session`, but as 200 with `authenticated: false` before the start and
+after a relaunch revokes the cookie, instead of a 401 that the browser logs as an
+error; a GET never issues a session. The cloud sign-in routes (`/v1/account*`)
+accept only this PC's own session, not an invitation's, so local browser tests
+open the workspace with `POST /v1/local/session`, as `解析を開始` does.
+
 Onboarding and the upload form state that images are saved locally. The retention
 period is 24 hours after explicit activity. Data that expires while the application
 is closed is deleted on the next launch; browser copy does not imply a background
@@ -250,5 +257,7 @@ No external-origin request or page exception occurred; desktop/mobile onboarding
 had no horizontal overflow. Run this integration with `CYTELLECT_TEST_LOCAL=1`,
 `CYTELLECT_WEB_URL=http://127.0.0.1:8765` and Playwright
 `tests/local-workspace.spec.ts`. It uses the registered BBBC013 public data.
+`tests/local-workspace-start.spec.ts` checks, without images or Fiji, that opening
+`/workspace` and starting it give no 401 and no console error.
 Installer distribution is separate from this browser bundle; the public UI does
 not advertise a download until a concrete release artifact is available.
