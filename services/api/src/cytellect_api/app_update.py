@@ -234,29 +234,36 @@ def file_sha256(path: Path) -> str:
 
 
 def stop_tree(process: Any) -> None:
-    """Stop a started process and every descendant (the installer runs PowerShell, uv, Python).
+    """Stop a process and its whole subtree, never this process or the line that leads to it.
 
-    The relauncher descends from the previous launcher that it may have to stop, and on
-    Windows it runs under the virtual environment's redirector, which takes its child with it
-    (a job object). So this process, its ancestors and its own descendants are never stopped,
-    except the given process itself when it is an ancestor.
+    A target that this process started (the installer, which runs PowerShell, uv and Python;
+    a new version) is stopped with every descendant. A target that is an ancestor (the
+    previous launcher, which started the relauncher) is stopped with its descendants except
+    this process, the ancestors between it and the target (on Windows the virtual
+    environment's redirector, which takes its child with it through a job object) and this
+    process's own descendants. This process itself is never a target.
     """
     import psutil
 
     with contextlib.suppress(psutil.Error, OSError, AttributeError):
-        parent = psutil.Process(process.pid)
+        target = psutil.Process(process.pid)
         me = psutil.Process()
-        spared = {me.pid}
-        for relative in (me.parents, lambda: me.children(recursive=True)):
+        if target.pid == me.pid:
+            return
+        subtree = [*target.children(recursive=True), target]
+        ancestors: set[int] = set()
+        with contextlib.suppress(psutil.Error):
+            ancestors = {item.pid for item in me.parents()}
+        spared = {me.pid} | ancestors
+        if target.pid in ancestors:
+            spared.discard(target.pid)
             with contextlib.suppress(psutil.Error):
-                spared.update(item.pid for item in relative())
-        spared.discard(parent.pid)
-        spared.add(me.pid)
-        for child in [*parent.children(recursive=True), parent]:
-            if child.pid in spared:
+                spared.update(item.pid for item in me.children(recursive=True))
+        for item in subtree:
+            if item.pid in spared:
                 continue
             with contextlib.suppress(psutil.Error):
-                child.kill()
+                item.kill()
 
 
 def run_installer(installer: Path, root: Path) -> int:

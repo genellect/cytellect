@@ -686,7 +686,7 @@ def test_the_ci_update_hook_makes_only_the_named_version_fail_to_start(tmp_path,
 
 
 RELAUNCHER = """
-import json, sys
+import json, subprocess, sys
 from pathlib import Path
 import psutil
 from cytellect_api import app_update
@@ -696,11 +696,15 @@ plan = json.loads(plan_path.read_text(encoding="utf-8"))
 plan.update(wait_pid=pid, wait_created=psutil.Process(pid).create_time())
 app_update.write_json(plan_path, plan)
 seen = {"shortcuts": [], "started": []}
+# A process of the relauncher's own (it descends from the previous launcher too) must survive.
+own = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
 # The previous launcher never exits: the real stop (kill_identity, stop_tree) runs on it.
 outcome = app_update.relaunch(plan_path, app_update.Relaunch(
     wait=lambda pid, created: False, start=lambda command, cwd: seen["started"].append(command[0]),
     shortcuts=lambda item: seen["shortcuts"].append(item.version), pause=lambda seconds: None))
 # Reached only if stopping the previous launcher spared this process (and its ancestors).
+seen["own_child_running"] = own.poll() is None
+own.kill()
 result.write_text(json.dumps({"outcome": outcome, **seen}), encoding="utf-8")
 """
 
@@ -728,12 +732,41 @@ def test_stopping_a_previous_launcher_spares_the_relauncher_that_descends_from_i
         assert result.exists(), "the relauncher was stopped together with the previous launcher"
         seen = json.loads(result.read_text(encoding="utf-8"))
         assert seen["outcome"] == "rolled_back" and seen["shortcuts"] == ["0.1.0-local.21"]
+        assert seen["own_child_running"] is True
         assert len(seen["started"]) == 1 and "0.1.0-local.21" in seen["started"][0]  # the previous version again
         assert state_of(tmp_path)["error"] == "update_previous_did_not_exit"
         assert launcher.wait(timeout=10) != 0  # the previous launcher itself was stopped
     finally:
         if launcher.poll() is None:
             launcher.kill()
+
+
+def test_stopping_a_started_process_stops_its_grandchildren_too(tmp_path):
+    """A hung installer runs PowerShell, uv and Python: the whole subtree that this process started stops."""
+    import subprocess
+    import sys
+    import time
+
+    import psutil
+
+    marker = tmp_path / "grandchild.pid"
+    child = subprocess.Popen([sys.executable, "-c", (
+        "import subprocess, sys, time\n"
+        "grandchild = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+        f"open({str(marker)!r}, 'w').write(str(grandchild.pid))\n"
+        "time.sleep(120)\n")])
+    try:
+        deadline = time.monotonic() + 30
+        while not (marker.exists() and marker.read_text()) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        grandchild = psutil.Process(int(marker.read_text()))
+        app_update.stop_tree(child)
+        assert child.wait(timeout=10) != 0
+        gone, alive = psutil.wait_procs([grandchild], timeout=10)
+        assert alive == [] and gone
+    finally:
+        if child.poll() is None:
+            child.kill()
 
 
 def test_stop_tree_never_stops_this_process():
