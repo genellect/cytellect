@@ -165,4 +165,4 @@ uv run python scripts/verify_docker_regions.py --docker docker --container cytel
 - [はじめての画像解析](quickstart.ja.md)：公開画像を使った操作の練習
 - [Windows 版のインストールと更新](install-windows.ja.md)：配布版を使う場合の手順
 - [ローカル版のブラウザ配信](local.md)（英語）：作業画面の入口と解析提案の中継の詳細
-- [セキュリティ](security.md)：Docker Desktop の所有者接続と手動保持の設計
+- [データ保護と運用](security.md)（英語）：Docker Desktop の所有者接続と手動保持の設計
