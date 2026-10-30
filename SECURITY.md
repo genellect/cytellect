@@ -57,7 +57,7 @@ LLM の出力はコードとして実行しない。決められた項目と値�
 
 ## 対象範囲
 
-このリポジトリのコード、Windows 版、Docker 版、`cytellect.app`、Cytellect Worker を対象とする。同梱する Fiji や Cellpose などの部品そのものの脆弱性は、それぞれの開発元に報告してほしい。
+このリポジトリのコード、Windows 版、Docker 版、`cytellect.app`、Cytellect Worker を対象とする。同梱する第三者の部品（Fiji、Cellpose など）そのものの脆弱性は対象外とし、各開発元の窓口が扱う。
 
 ## 脆弱性の報告
 
@@ -108,7 +108,7 @@ Cytellect analyses researchers' unpublished microscopy images on the researcher'
 
 ### Supported versions and scope
 
-Security fixes go to the latest Windows release and to `main` (`cytellect.app` and the cloud features); earlier Windows releases move to the latest one through the in-app update. The scope is this repository's code, the Windows and Docker releases, `cytellect.app` and the Cytellect Worker. Report vulnerabilities in bundled components such as Fiji or Cellpose to their maintainers.
+Security fixes go to the latest Windows release and to `main` (`cytellect.app` and the cloud features); earlier Windows releases move to the latest one through the in-app update. The scope is this repository's code, the Windows and Docker releases, `cytellect.app` and the Cytellect Worker. Vulnerabilities in bundled third-party components such as Fiji or Cellpose are out of scope and handled by their maintainers.
 
 ### Reporting a vulnerability
 
