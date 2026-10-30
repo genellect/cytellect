@@ -51,6 +51,8 @@ Windows 版は、配布する `main` のコミットで次の 8 つのジョブ�
 
 `main` で失敗した場合は、次の配布までに修正するか取り消す。
 
+下書きのリリースを作る `draft` ジョブは environment `release` で動き、オーナーの承認を待つ。承認されると、アプリ内更新の manifest に secret `UPDATE_SIGNING_KEY` で署名し、アプリに組み込んだ公開鍵で検証してから、タグとリリースを作る。secret がない、または公開鍵と合わない場合は何も作らない（[リリースの署名](release-signing.md)）。
+
 ## 依存パッケージの記録とシークレット走査
 
 シークレット走査は、固定版の gitleaks を検証してから、Git の全履歴と追跡中のファイルを調べる。そのため CI は `fetch-depth: 0` で checkout し、保存するのは件数と規則 ID だけ。

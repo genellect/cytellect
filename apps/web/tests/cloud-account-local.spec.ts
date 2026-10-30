@@ -300,6 +300,16 @@ test("a rollback from the last run is shown once at start", async ({page}) => {
   await expect(page.getByText("元の版で起動しました。あとでもう一度更新してください。")).toHaveCount(0);
 });
 
+test("a version without a signing key asks for the new installer instead of updating", async ({page}) => {
+  const mock = await mockLocalApi(page, {session: true, firstRun: false,
+    update: {status: 200, body: {...LATEST, available: false, state: "unsupported", error: "update_signing_key_missing"}}});
+  await page.goto(origin + "/workspace");
+  await expect(page.getByText("新しい版（0.1.0-local.22）があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。")).toBeVisible();
+  await expect(page.getByRole("link", {name: "変更内容"})).toHaveAttribute("href", LATEST.notes_url);
+  await expect(page.getByRole("button", {name: "更新する"})).toHaveCount(0);
+  expect(mock.calls).not.toContain("POST /v1/app/update");
+});
+
 test("an installation without the update route shows no update notice", async ({page}) => {
   const mock = await mockLocalApi(page, {session: true, firstRun: false});
   await page.goto(origin + "/workspace");

@@ -216,6 +216,8 @@ export const UPDATE_JOBS_RUNNING = "update_jobs_running";
 export const UPDATE_IN_PROGRESS = "update_in_progress";
 export const UPDATE_NOT_AVAILABLE = "update_not_available";
 export const UPDATE_UNSUPPORTED = "update_unsupported";
+/** GET /v1/app/update: a newer release exists, but this version has no key to verify it with. */
+export const UPDATE_SIGNING_KEY_MISSING = "update_signing_key_missing";
 /** Settled states the installer keeps until the next update; each is shown once per occurrence. */
 export const UPDATE_REMEMBERED: ReadonlySet<string> = new Set(["updated", "installed", "failed", "rolled_back"]);
 
@@ -296,7 +298,9 @@ export function updateNotice(info: UpdateInfo | null | undefined, following = fa
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
     case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
-    case "unsupported": return null;
+    // This version has no key to verify a release with: the newer one is installed with its installer.
+    case "unsupported": return info.error === UPDATE_SIGNING_KEY_MISSING
+      ? {text: `新しい版${version}があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。`, tone: "info"} : null;
     default:
       if (following) return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
       return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新する"}} : null;

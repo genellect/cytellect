@@ -128,6 +128,11 @@ describe("update banner", () => {
     expect(failed.text).not.toContain("update_failed");
     expect(updateNotice({available: true, state: "rolled_back"})!.text).toBe("元の版で起動しました。あとでもう一度更新してください。");
     expect(updateNotice({available: false, state: "unsupported"})).toBeNull();
+    // No built-in signing key: never updated in the app; the newer installer is named instead.
+    const manual = updateNotice({available: false, latest: "0.1.0-local.22", state: "unsupported", error: "update_signing_key_missing"})!;
+    expect(manual.text).toBe("新しい版（0.1.0-local.22）があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。");
+    expect(manual.tone).toBe("info");
+    expect("action" in manual).toBe(false);
     expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "installed"})!.text)
       .toBe("更新の準備ができました（0.1.0-local.22）。次に Cytellect を起動したときに新しい版になります。");
     // Once the new version runs, an installed state left in the record says nothing.

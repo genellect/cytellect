@@ -2,16 +2,17 @@
 
 ``GET /v1/app/update`` reports ``current``, ``latest``, ``available`` and ``notes_url``,
 plus the update ``state`` and a fixed ``error`` code. ``POST /v1/app/update`` starts an
-update: it downloads the release's ``Cytellect-Setup-<version>.exe``, checks the SHA-256
-published with the release, and runs that installer silently into the same folder. The
-installer prepares the new version beside the current one and verifies it before the
-shortcuts change. Only then does this launcher stop and a small relauncher start the new
-version. If the new version does not answer, the relauncher restores the database copy
-taken before the switch, the previous shortcuts and the previous version.
+update: it first downloads the release's signed manifest and checks its signature against
+the public key built into this version (update_signature.py), then downloads
+``Cytellect-Setup-<version>.exe``, requires the SHA-256 and size that the signed manifest
+states, and runs that installer silently into the same folder. The installer prepares the
+new version beside the current one and verifies it before the shortcuts change. Only then
+does this launcher stop and a small relauncher start the new version. If the new version
+does not answer, the relauncher restores the database copy taken before the switch, the
+previous shortcuts and the previous version.
 
-Trust: the published ``.sha256`` and GitHub's asset digest come from the same release, so
-they detect corruption and a wrong file, not a compromised release. The trust anchor is
-write access to genellect/cytellect and its release workflow token (docs/security.md).
+Trust: the owner's signing key, not the release's ``.sha256`` or GitHub's asset digest
+(docs/security.md). Without a built-in public key the in-app update is unsupported.
 
 The only network request is to GitHub's public release list of genellect/cytellect and
 the release's own files. No research data, file names or identifiers are sent. The
@@ -37,6 +38,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 
+from . import update_signature
+from .update_signature import SignatureInvalid
+
 REPOSITORY = "genellect/cytellect"
 RELEASES_URL = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=30"
 NOTES_PREFIX = f"https://github.com/{REPOSITORY}/releases/"
@@ -52,6 +56,7 @@ EXIT_TIMEOUT_SECONDS = 120
 # The previous launcher was asked to stop; give a slow worker shutdown ample time.
 PREVIOUS_EXIT_SECONDS = 600
 RESTORE_ATTEMPTS = 5
+LATEST_SCHEMA = "cytellect-update-latest/2"
 JOBS_WAIT_SECONDS = 600
 LOCAL_VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)-local\.([0-9]+)")
 SHORTCUT_DESCRIPTION = "Cytellect local analysis and control window"
@@ -168,7 +173,12 @@ def fetch_json(url: str) -> Any:
 
 
 def latest_release(releases: Any) -> dict[str, Any] | None:
-    """The newest published local release that carries an installer and its checksum."""
+    """The newest published local release that carries an installer.
+
+    Its signed manifest and signature are looked up too; a release without them is still
+    offered, and the update then stops with ``update_signature_missing`` before any download
+    of the installer.
+    """
     best: dict[str, Any] | None = None
     if not isinstance(releases, list):
         return None
@@ -180,9 +190,10 @@ def latest_release(releases: Any) -> dict[str, Any] | None:
         if version_key(version) is None:
             continue
         assets = {asset.get("name"): asset for asset in release.get("assets", []) if isinstance(asset, dict)}
-        installer = assets.get(f"Cytellect-Setup-{version}.exe")
-        checksum = assets.get(f"Cytellect-Setup-{version}.exe.sha256")
-        if not installer or not checksum:
+        installer = assets.get(update_signature.installer_name(version))
+        manifest = assets.get(update_signature.manifest_name(version))
+        signature = assets.get(update_signature.manifest_name(version) + ".sig")
+        if not installer:
             continue
         notes = release.get("html_url")
         # The banner links here: only this repository's own release pages.
@@ -190,10 +201,16 @@ def latest_release(releases: Any) -> dict[str, Any] | None:
         candidate = {"version": version, "notes_url": notes,
                      "installer_url": installer.get("browser_download_url"),
                      "installer_bytes": installer.get("size"), "installer_digest": installer.get("digest"),
-                     "checksum_url": checksum.get("browser_download_url")}
+                     "manifest_url": manifest.get("browser_download_url") if manifest else None,
+                     "signature_url": signature.get("browser_download_url") if signature else None}
         if best is None or newer(version, best["version"]):
             best = candidate
     return best
+
+
+def signing_key_configured() -> bool:
+    """A public key is built in (read at each call, so a test hook can supply one)."""
+    return bool(update_signature.UPDATE_PUBLIC_KEY.strip())
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
@@ -335,14 +352,17 @@ class UpdateService:
         cache_path = self.installation.updates / "latest.json"
         cached = self.memory or read_json(cache_path)
         age = now - float(cached.get("checked", 0) or 0)
+        # A record from an older version lacks the signed manifest's address: check again.
+        if cached.get("schema") != LATEST_SCHEMA:
+            cached = {}
         if cached and age < (CHECK_SECONDS if cached.get("ok") else RETRY_CHECK_SECONDS):
             return cached.get("release")
         try:
             release = latest_release(self.fetch(RELEASES_URL))
-            cached = {"checked": now, "ok": True, "release": release}
+            cached = {"schema": LATEST_SCHEMA, "checked": now, "ok": True, "release": release}
         except Exception:
             # Offline: keep the last successful answer for display, retry later.
-            cached = {"checked": now, "ok": False, "release": cached.get("release")}
+            cached = {"schema": LATEST_SCHEMA, "checked": now, "ok": False, "release": cached.get("release")}
         self.memory = cached
         with contextlib.suppress(OSError):
             write_json(cache_path, cached)
@@ -357,12 +377,20 @@ class UpdateService:
         latest = release["version"] if release else None
         available = newer(latest, current)
         state = self._state()
-        return {"current": current, "latest": latest, "available": available,
-                "notes_url": release.get("notes_url") if release else None,
+        notes = release.get("notes_url") if release else None
+        if not signing_key_configured():
+            # No key to check a release with: never update in the app. The result of an earlier
+            # update stays visible; otherwise a newer release asks for its installer instead.
+            if state.get("state") in {"updated", "installed", "failed", "rolled_back"}:
+                return {"current": current, "latest": latest, "available": False, "notes_url": notes,
+                        "state": state["state"], "error": state.get("error")}
+            return {"current": current, "latest": latest, "available": False, "notes_url": notes,
+                    "state": "unsupported", "error": "update_signing_key_missing" if available else None}
+        return {"current": current, "latest": latest, "available": available, "notes_url": notes,
                 "state": state.get("state", "idle"), "error": state.get("error")}
 
     def start(self) -> dict[str, Any]:
-        if self.installation is None:
+        if self.installation is None or not signing_key_configured():
             raise UpdateRefused("update_unsupported")
         with self.lock:
             if self.worker is not None and self.worker.is_alive():
@@ -383,29 +411,39 @@ class UpdateService:
                 self.worker.run()
         return self.status()
 
-    def _expected_digest(self, release: dict[str, Any]) -> str:
-        with self.opener(release["checksum_url"], 30) as response:
-            words = response.read(4096).decode("ascii").split()
-        if len(words) < 1 or not re.fullmatch(r"[0-9a-f]{64}", words[0]):
-            raise UpdateRefused("update_checksum_invalid")
-        digest = release.get("installer_digest")
-        # GitHub's own asset digest, when present, must agree with the published file.
-        if digest and digest != f"sha256:{words[0]}":
-            raise UpdateRefused("update_checksum_mismatch")
-        return words[0]
+    def _small(self, url: Any, limit: int) -> bytes:
+        if not isinstance(url, str):
+            raise SignatureInvalid("update_signature_missing")
+        with self.opener(url, 30) as response:
+            data = response.read(limit + 1)
+        if len(data) > limit:
+            raise SignatureInvalid("update_manifest_invalid")
+        return data
 
-    def _download(self, release: dict[str, Any], target: Path, expected: str) -> None:
+    def _verified_installer(self, release: dict[str, Any]) -> dict[str, Any]:
+        """The signed manifest's installer for this release; nothing is downloaded before this."""
+        manifest = self._small(release.get("manifest_url"), update_signature.MAX_MANIFEST_BYTES)
+        signature = self._small(release.get("signature_url"), update_signature.MAX_SIGNATURE_BYTES)
+        installer = update_signature.verified_installer(manifest, signature, release["version"])
+        # GitHub's listing is not trusted; it may only disagree by refusing the update.
+        listed = release.get("installer_bytes")
+        digest = release.get("installer_digest")
+        if (listed not in (None, installer["bytes"])) or (digest and digest != f"sha256:{installer['sha256']}"):
+            raise UpdateRefused("update_installer_hash_mismatch")
+        return installer
+
+    def _download(self, release: dict[str, Any], target: Path, expected: dict[str, Any]) -> None:
         partial = target.with_name(target.name + ".partial")
         hasher, received = hashlib.sha256(), 0
         try:
             with self.opener(release["installer_url"], 60) as response, partial.open("wb") as stream:
                 while chunk := response.read(1024 * 1024):
                     received += len(chunk)
-                    if received > MAX_INSTALLER_BYTES:
-                        raise UpdateRefused("update_installer_too_large")
+                    if received > min(MAX_INSTALLER_BYTES, expected["bytes"]):
+                        raise UpdateRefused("update_installer_hash_mismatch")
                     hasher.update(chunk)
                     stream.write(chunk)
-            if hasher.hexdigest() != expected or (release.get("installer_bytes") not in (None, received)):
+            if hasher.hexdigest() != expected["sha256"] or received != expected["bytes"]:
                 raise UpdateRefused("update_installer_hash_mismatch")
             os.replace(partial, target)
         finally:
@@ -418,11 +456,11 @@ class UpdateService:
         try:
             folder.mkdir(parents=True, exist_ok=True)
             installer = folder / f"Cytellect-Setup-{version}.exe"
-            expected = self._expected_digest(release)
+            expected = self._verified_installer(release)
             self._download(release, installer, expected)
             self._set_state("installing", version=version)
             # Verify again immediately before execution; the file is in the user's own folder.
-            if file_sha256(installer) != expected:
+            if file_sha256(installer) != expected["sha256"]:
                 raise UpdateRefused("update_installer_hash_mismatch")
             code = self.installer(installer, self.installation.root)
             if code != 0:
@@ -442,7 +480,7 @@ class UpdateService:
                 self._set_state("installed", version=version, error="update_jobs_running")
                 return
             self._switch(target)
-        except UpdateRefused as refused:
+        except (UpdateRefused, SignatureInvalid) as refused:
             self.switching = False
             self._set_state("failed", version=version, error=str(refused))
         except Exception:

@@ -12,7 +12,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from cytellect_api import app_update
+from cytellect_api import app_update, update_signature
 from cytellect_api.app import create_app
 from cytellect_api.app_update import Installation, Relaunch, UpdateRefused, UpdateService
 from cytellect_api.config import Settings
@@ -20,6 +20,33 @@ from fastapi.testclient import TestClient
 
 INSTALLER = b"generated installer bytes for the update test\n"
 DIGEST = hashlib.sha256(INSTALLER).hexdigest()
+UPDATE_TEST = Path(__file__).resolve().parents[1] / "packaging/windows/update-test"
+
+
+def _signer():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sshsig_test_signer", UPDATE_TEST / "sshsig_test_signer.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# A key made for this test run only; no private key is stored in the repository.
+SIGNER = _signer()
+KEY, PUBLIC = SIGNER.generate()
+
+
+def manifest_for(version="0.1.0-local.22", body=INSTALLER):
+    return update_signature.write_manifest(version, hashlib.sha256(body).hexdigest(), len(body), "a" * 40,
+                                           "2026-10-30T00:00:00Z")
+
+
+@pytest.fixture(autouse=True)
+def signing_key(monkeypatch):
+    """The built-in public key is the test run's key, as the owner's would be in a release."""
+    monkeypatch.setattr(update_signature, "UPDATE_PUBLIC_KEY", PUBLIC)
 
 
 def make_app(root: Path, version: str) -> Path:
@@ -39,28 +66,34 @@ def installation(tmp_path: Path, version="0.1.0-local.21") -> Installation:
     return item
 
 
-def release(version, *, draft=False, installer=True, checksum=True, digest=None, size=None):
+def release(version, *, draft=False, installer=True, signed=True, digest=None, size=None):
     assets = []
+    download = f"https://github.com/genellect/cytellect/releases/download/v{version}/"
     if installer:
         assets.append({"name": f"Cytellect-Setup-{version}.exe", "size": size,
-                       "browser_download_url": f"https://github.com/genellect/cytellect/releases/download/v{version}/x.exe",
+                       "browser_download_url": download + f"Cytellect-Setup-{version}.exe",
                        **({"digest": digest} if digest else {})})
-    if checksum:
-        assets.append({"name": f"Cytellect-Setup-{version}.exe.sha256",
-                       "browser_download_url": f"https://github.com/genellect/cytellect/releases/download/v{version}/x.sha256"})
+    if signed:
+        for name in (f"Cytellect-update-{version}.json", f"Cytellect-update-{version}.json.sig"):
+            assets.append({"name": name, "browser_download_url": download + name})
     return {"tag_name": f"v{version}", "draft": draft, "html_url": f"https://github.com/genellect/cytellect/releases/tag/v{version}",
             "assets": assets}
 
 
 class Opener:
-    """Serves the checksum and installer bodies that a release would publish."""
+    """Serves the signed manifest, its signature and the installer that a release would publish."""
 
-    def __init__(self, body=INSTALLER, checksum=None):
-        self.body, self.checksum, self.urls = body, checksum or f"{DIGEST}  Cytellect-Setup.exe\n", []
+    def __init__(self, body=INSTALLER, manifest=None, signature=None):
+        self.body = body
+        self.manifest = manifest if manifest is not None else manifest_for()
+        self.signature = signature if signature is not None else SIGNER.sign(KEY, self.manifest)
+        self.urls = []
 
     def __call__(self, url, timeout):
         self.urls.append(url)
-        return io.BytesIO(self.checksum.encode() if url.endswith(".sha256") else self.body)
+        if url.endswith(".json.sig"):
+            return io.BytesIO(self.signature)
+        return io.BytesIO(self.manifest if url.endswith(".json") else self.body)
 
 
 def service(tmp_path, releases, *, opener=None, installer=lambda path, root: 0, spawned=None, stops=None,
@@ -73,8 +106,8 @@ def service(tmp_path, releases, *, opener=None, installer=lambda path, root: 0, 
                          sleep=lambda seconds: None, background=False)
 
 
-def test_newest_published_local_release_with_installer_and_checksum_is_chosen():
-    releases = [release("0.1.0-local.23", draft=True), release("0.1.0-local.22", checksum=False),
+def test_newest_published_local_release_with_an_installer_is_chosen():
+    releases = [release("0.1.0-local.23", draft=True), release("0.1.0-local.22", installer=False),
                 release("0.1.0-local.9"), release("0.1.0-local.21"), {"tag_name": "v1.0.0", "assets": []},
                 "not a release"]
     latest = app_update.latest_release(releases)
@@ -132,25 +165,66 @@ def test_development_and_hosted_copies_report_unsupported(tmp_path):
     assert app_update.current_installation(tmp_path / "a/b/c/d/e/module.py") is None
 
 
-@pytest.mark.parametrize("opener,code", [
-    (Opener(body=b"tampered installer"), "update_installer_hash_mismatch"),
-    (Opener(checksum="not-a-digest\n"), "update_checksum_invalid"),
+OTHER_KEY, _ = SIGNER.generate()
+SIGNED = manifest_for()
+
+
+@pytest.mark.parametrize("opener,code,downloaded", [
+    (Opener(body=b"tampered installer"), "update_installer_hash_mismatch", True),
+    # The signed manifest names another installer than the one served.
+    (Opener(manifest=manifest_for(body=b"another installer")), "update_installer_hash_mismatch", True),
+    (Opener(manifest=SIGNED.replace(DIGEST.encode(), b"0" * 64), signature=SIGNER.sign(KEY, SIGNED)),
+     "update_signature_invalid", False),
+    (Opener(signature=SIGNER.sign(OTHER_KEY, SIGNED)), "update_signature_wrong_key", False),
+    (Opener(signature=SIGNER.sign(KEY, SIGNED, namespace="file")), "update_signature_wrong_namespace", False),
+    (Opener(signature=SIGNER.sign(KEY, SIGNED, algorithm="sha256")), "update_signature_invalid", False),
+    (Opener(signature=b"not a signature"), "update_signature_invalid", False),
+    (Opener(manifest=manifest_for("0.1.0-local.23")), "update_manifest_version_mismatch", False),
+    (Opener(manifest=b"[]", signature=SIGNER.sign(KEY, b"[]")), "update_manifest_invalid", False),
 ])
-def test_unverified_download_never_runs_the_installer(tmp_path, opener, code):
+def test_unverified_download_never_runs_the_installer(tmp_path, opener, code, downloaded):
     ran = []
     updater = service(tmp_path, [release("0.1.0-local.22")], opener=opener,
                       installer=lambda path, root: ran.append(path) or 0)
     updater.start()
     assert ran == []
     assert updater.status()["state"] == "failed" and updater.status()["error"] == code
+    # The signature is checked before the installer is requested at all.
+    assert any(url.endswith(".exe") for url in opener.urls) is downloaded
 
 
-def test_release_digest_must_agree_with_the_published_checksum(tmp_path):
-    ran = []
-    updater = service(tmp_path, [release("0.1.0-local.22", digest="sha256:" + "0" * 64)],
+def test_a_release_without_a_signed_manifest_is_not_installed(tmp_path):
+    opener, ran = Opener(), []
+    updater = service(tmp_path, [release("0.1.0-local.22", signed=False)], opener=opener,
                       installer=lambda path, root: ran.append(path) or 0)
+    assert updater.status()["available"] is True
     updater.start()
-    assert ran == [] and updater.status()["error"] == "update_checksum_mismatch"
+    assert ran == [] and opener.urls == [] and updater.status()["error"] == "update_signature_missing"
+
+
+def test_github_listing_that_disagrees_with_the_signed_manifest_stops_the_update(tmp_path):
+    for listed in ({"digest": "sha256:" + "0" * 64}, {"size": len(INSTALLER) + 1}):
+        ran = []
+        updater = service(tmp_path / str(len(listed)) / next(iter(listed)), [release("0.1.0-local.22", **listed)],
+                          installer=lambda path, root: ran.append(path) or 0)
+        updater.start()
+        assert ran == [] and updater.status()["error"] == "update_installer_hash_mismatch"
+
+
+def test_without_a_built_in_key_the_update_asks_for_the_new_installer(tmp_path, monkeypatch):
+    monkeypatch.setattr(update_signature, "UPDATE_PUBLIC_KEY", "")
+    updater = service(tmp_path, [release("0.1.0-local.22")])
+    assert updater.status() == {"current": "0.1.0-local.21", "latest": "0.1.0-local.22", "available": False,
+                                "notes_url": "https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22",
+                                "state": "unsupported", "error": "update_signing_key_missing"}
+    with pytest.raises(UpdateRefused, match="update_unsupported"):
+        updater.start()
+    # Nothing newer: nothing to say.
+    assert service(tmp_path / "same", [release("0.1.0-local.21")]).status()["error"] is None
+    # The result of an earlier update stays visible (the new version after an update).
+    app_update.write_json(tmp_path / "updates/state.json", {"state": "rolled_back", "version": "0.1.0-local.22",
+                                                            "error": "update_new_version_failed_to_start"})
+    assert updater.status()["state"] == "rolled_back"
 
 
 def test_failed_installer_keeps_the_current_version_running(tmp_path):
@@ -180,6 +254,8 @@ def test_verified_installation_switches_through_the_relauncher(tmp_path):
     assert spawned and spawned[0][-5:-2] == ["-m", "cytellect_api.app_update", "relaunch"]
     plan = json.loads((tmp_path / "updates/switch.json").read_text())
     assert plan["previous"]["version"] == "0.1.0-local.21" and plan["target"]["version"] == "0.1.0-local.22"
+    assert [url.rsplit("/", 1)[1] for url in updater.opener.urls] == [  # type: ignore[attr-defined]
+        "Cytellect-update-0.1.0-local.22.json", "Cytellect-update-0.1.0-local.22.json.sig", "Cytellect-Setup-0.1.0-local.22.exe"]
     with pytest.raises(UpdateRefused, match="update_not_available"):
         service(tmp_path / "other", []).start()
 

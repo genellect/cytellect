@@ -280,15 +280,22 @@ if ($UpdateInstaller) {
     $base = "http://127.0.0.1:$feedPort"
     $name = "Cytellect-Setup-$UpdateVersion.exe"
     Copy-Item -LiteralPath $UpdateInstaller -Destination (Join-Path $feedDirectory $name)
-    Copy-Item -LiteralPath ($UpdateInstaller + '.sha256') -Destination (Join-Path $feedDirectory ($name + '.sha256'))
+    # The signed manifest, as the release workflow publishes it, but signed with a key made for
+    # this run; only the CI hook (never a distributed copy) lets the installed version trust it.
+    $manifest = "Cytellect-update-$UpdateVersion.json"
+    $commit = (& git -C $Checkout rev-parse HEAD).Trim()
+    & $python -B (Join-Path $Checkout 'packaging\windows\update-test\sshsig_test_signer.py') --installer $UpdateInstaller --version $UpdateVersion --commit $commit --output-dir $feedDirectory
+    if ($LASTEXITCODE -ne 0) { throw 'signing the generated release failed' }
     $feed = @(@{ tag_name = "v$UpdateVersion"; draft = $false
         html_url = "https://github.com/genellect/cytellect/releases/tag/v$UpdateVersion"
         assets = @(@{ name = $name; size = (Get-Item -LiteralPath $UpdateInstaller).Length; browser_download_url = "$base/$name" },
-                   @{ name = "$name.sha256"; browser_download_url = "$base/$name.sha256" }) })
+                   @{ name = $manifest; browser_download_url = "$base/$manifest" },
+                   @{ name = "$manifest.sig"; browser_download_url = "$base/$manifest.sig" }) })
     [IO.File]::WriteAllText((Join-Path $feedDirectory 'releases.json'), (ConvertTo-Json -InputObject $feed -Depth 6))
     $server = Start-Process -FilePath $python -PassThru -WindowStyle Hidden -ArgumentList @(
         '-m', 'http.server', "$feedPort", '--bind', '127.0.0.1', '--directory', ('"' + $feedDirectory + '"'))
     $env:CYTELLECT_TEST_RELEASES = "$base/releases.json"
+    $env:CYTELLECT_TEST_UPDATE_KEY = [IO.File]::ReadAllText((Join-Path $feedDirectory 'update-test-key.pub')).Trim()
 
     function Install-UpdateHook([string]$Root) {
         $site = Join-Path (Get-App $Root).app '.venv\Lib\site-packages'
@@ -392,7 +399,7 @@ if ($UpdateInstaller) {
         Stop-Root $root
         Invoke-Uninstaller $root @('/DELETEDATA')
     } finally {
-        $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null
+        $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null; $env:CYTELLECT_TEST_UPDATE_KEY = $null
         Use-Port 8765
         if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
     }
