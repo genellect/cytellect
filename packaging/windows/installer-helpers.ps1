@@ -115,19 +115,67 @@ function Invoke-Uninstaller([string]$Root, [string[]]$Extra = @(), [switch]$Expe
 }
 
 # ---- MSIX edition (docs/windows-msix.md)
+# The Appx cmdlets run in Windows PowerShell, where they are native; results come back as plain objects.
+function Invoke-Appx([scriptblock]$Block, [object[]]$Arguments) {
+    $result = & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command $Block -args $Arguments
+    if ($LASTEXITCODE -ne 0 -or $null -eq $result) { throw 'Windows PowerShell could not run the Appx command' }
+    $result = @($result)[-1]
+    if (-not $result.ok) { throw ('Appx: ' + $result.error) }
+    return $result
+}
+
+$DescribePackage = {
+    param($Name)
+    $p = Get-AppxPackage -Name $Name
+    if ($null -eq $p) { return [pscustomobject]@{ ok = $false; error = 'the package is not registered' } }
+    [pscustomobject]@{ ok = $true; Name = $p.Name; PackageFullName = $p.PackageFullName; PackageFamilyName = $p.PackageFamilyName
+        InstallLocation = $p.InstallLocation; Version = [string]$p.Version; SignatureKind = [string]$p.SignatureKind }
+}
+
 function Install-CytellectPackage([string]$Path, [string]$Name) {
     $watch = [Diagnostics.Stopwatch]::StartNew()
-    Add-AppxPackage -Path $Path -ForceApplicationShutdown
-    $package = Get-AppxPackage -Name $Name
-    if ($null -eq $package -or @($package).Count -ne 1) { throw 'the MSIX package is not registered after installation' }
+    $null = Invoke-Appx {
+        param($Path)
+        try { Add-AppxPackage -Path $Path -ForceApplicationShutdown -ErrorAction Stop; [pscustomobject]@{ ok = $true } }
+        catch { [pscustomobject]@{ ok = $false; error = $_.Exception.Message } }
+    } @($Path)
+    $package = Invoke-Appx $DescribePackage @($Name)
     Write-Host ('package installed after {0:N0} s' -f $watch.Elapsed.TotalSeconds)
     return $package
 }
 
+$ActivationSource = @'
+using System;
+using System.Runtime.InteropServices;
+namespace CytellectCi {
+    [ComImport, Guid("2e941141-7f97-4756-ba1d-9decde894a3d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IApplicationActivationManager {
+        void ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string appUserModelId,
+            [MarshalAs(UnmanagedType.LPWStr)] string arguments, int options, out uint processId);
+    }
+    [ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")] class ApplicationActivationManager { }
+    public static class Activation {
+        public static uint Activate(string appUserModelId) {
+            uint id;
+            ((IApplicationActivationManager)new ApplicationActivationManager()).ActivateApplication(appUserModelId, null, 0, out id);
+            return id;
+        }
+    }
+}
+'@
+
 function Start-CytellectPackage($Package) {
-    # The Start menu entry, as the Store's Open button and a researcher start it.
+    # The package's Start menu entry, activated as the Start menu and the Store's Open button do
+    # (IApplicationActivationManager, the shell's activation API), with no extra arguments.
     $existing = @(Get-Process -Name pythonw -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-    Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList ('shell:AppsFolder\' + $Package.PackageFamilyName + '!Cytellect')
+    $application = $Package.PackageFamilyName + '!Cytellect'
+    try {
+        if (-not ('CytellectCi.Activation' -as [type])) { Add-Type -TypeDefinition $ActivationSource -Language CSharp }
+        Write-Host ('activated process {0}' -f [CytellectCi.Activation]::Activate($application))
+    } catch {
+        Write-Host ('activation API unavailable (' + $_.Exception.GetType().Name + '); opening shell:AppsFolder instead')
+        Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList ('shell:AppsFolder\' + $application)
+    }
     $inside = $Package.InstallLocation.TrimEnd('\') + '\'
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt 240) {
@@ -148,6 +196,12 @@ function Start-CytellectPackage($Package) {
 }
 
 function Uninstall-CytellectPackage($Package) {
-    Remove-AppxPackage -Package $Package.PackageFullName
-    if (Get-AppxPackage -Name $Package.Name) { throw 'the MSIX package is still registered after removal' }
+    $null = Invoke-Appx {
+        param($FullName, $Name)
+        try {
+            Remove-AppxPackage -Package $FullName -ErrorAction Stop
+            if (Get-AppxPackage -Name $Name) { throw 'the package is still registered after removal' }
+            [pscustomobject]@{ ok = $true }
+        } catch { [pscustomobject]@{ ok = $false; error = $_.Exception.Message } }
+    } @($Package.PackageFullName, $Package.Name)
 }

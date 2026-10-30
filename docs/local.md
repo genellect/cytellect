@@ -158,7 +158,10 @@ Distribution (D4, owner decision 2026-10-30): stage 0 uses the unsigned installe
 records how SmartScreen and Smart App Control treat it. If Smart App Control blocks it,
 free distribution through the Microsoft Store is tried first; a paid code-signing
 certificate is compared only if that is not enough. Passing CI on GitHub's runner is not
-this evidence.
+this evidence. The Store (MSIX) edition, whose package holds python.org's Python with every
+locked wheel, Fiji with its JDK and pre-extracted native libraries and the workspace, shares
+`%LOCALAPPDATA%\Cytellect` with this installer and is designed and prototyped in
+[the MSIX design](windows-msix.md) (CI job `windows-msix`); it is not distributed.
 
 ## What stays the same
 

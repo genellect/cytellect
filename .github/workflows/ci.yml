@@ -718,7 +718,7 @@ jobs:
           $output = Join-Path $env:RUNNER_TEMP 'msix'
           $work = Join-Path $env:RUNNER_TEMP 'msix-work'
           # The project environment has no pip; the runner's Python downloads the hash-locked wheels.
-          & .venv/Scripts/python.exe -B scripts/build_windows_msix.py build --release-zip $env:CYTELLECT_CI_ZIP --staged-install $env:CYTELLECT_STAGED --work-dir $work --output-dir $output --makeappx $sdk.FullName --pip-python (Get-Command python).Source
+          & .venv/Scripts/python.exe -B scripts/build_windows_msix.py build --release-zip $env:CYTELLECT_CI_ZIP --staged-install $env:CYTELLECT_STAGED --work-dir $work --output-dir $output --makeappx $sdk.FullName --identity packaging/windows/msix/ci-test-identity.json --pip-python (Get-Command python).Source
           if ($LASTEXITCODE -ne 0) { throw 'MSIX build failed' }
           Remove-Item -LiteralPath $work, $env:CYTELLECT_STAGED, (Join-Path $env:RUNNER_TEMP 'msix-source') -Recurse -Force
           $msix = Join-Path $output "Cytellect-$env:CI_VERSION-x64.msix"
@@ -728,7 +728,7 @@ jobs:
       - name: Sign it with a throwaway self-signed test certificate made in this job (never a real key)
         shell: pwsh
         run: |
-          $identity = Get-Content -LiteralPath packaging/windows/msix/store-identity.json -Raw | ConvertFrom-Json
+          $identity = Get-Content -LiteralPath packaging/windows/msix/ci-test-identity.json -Raw | ConvertFrom-Json
           if ($identity.partner_center) { throw 'CI signs only placeholder test identities' }
           $certificate = New-SelfSignedCertificate -Type Custom -Subject $identity.publisher -KeyUsage DigitalSignature `
             -FriendlyName 'Cytellect CI throwaway MSIX test' -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(2) `

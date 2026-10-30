@@ -140,11 +140,14 @@ def verify_launchers(python: Path, release: Path) -> None:
             raise BuildError("python_launcher_hash_mismatch")
 
 
-def bundled_pip(python: Path) -> Path:
-    wheels = sorted((python / "Lib/ensurepip/_bundled").glob("pip-*-py3-none-any.whl"))
-    if len(wheels) != 1:
-        raise BuildError("bundled_pip_missing")
-    return wheels[0]
+def runtime_pip(python: Path) -> str:
+    """python.org's archive ships pip in site-packages; nothing else may be there before the install."""
+    site = python / "Lib/site-packages"
+    names = sorted(path.name for path in site.iterdir()) if site.is_dir() else []
+    info = [name for name in names if re.fullmatch(r"pip-[0-9.]+\.dist-info", name)]
+    if len(info) != 1 or set(names) - {"README.txt", "pip", info[0]}:
+        raise BuildError("staged_python_not_clean")
+    return info[0].removesuffix(".dist-info")
 
 
 def clean_environment(**extra: str) -> dict[str, str]:
@@ -168,15 +171,15 @@ def run(command: list[str], code: str, *, cwd: Path, env: dict[str, str], timeou
 
 
 def install_wheels(layout: Path, wheels: Path) -> dict:
-    """python.org's pip, from the wheel that ships with this runtime, installs every locked wheel.
+    """python.org's pip, as shipped with this runtime, installs every locked wheel.
 
     pip writes console-script launchers (unsigned PE files) next to the interpreter; the package
     starts everything with ``python -m``, so they are removed and listed in the receipt.
     """
     python = layout / "python"
     before = {path.relative_to(python).as_posix() for path in python.rglob("*") if path.is_file()}
-    pip = bundled_pip(python)
-    environment = clean_environment(PYTHONPATH=str(pip))
+    pip = runtime_pip(python)
+    environment = clean_environment()
     base = [str(python / "python.exe"), "-B", "-s", "-m", "pip", "--disable-pip-version-check", "--isolated"]
     run([*base, "install", "--no-index", "--find-links", str(wheels), "--require-hashes", "--only-binary=:all:",
          "--no-deps", "--no-compile", "--no-warn-script-location", "-r", "engines/python/windows-requirements.txt"],
@@ -200,7 +203,7 @@ def install_wheels(layout: Path, wheels: Path) -> dict:
     scripts = python / "Scripts"
     if scripts.is_dir() and not any(scripts.iterdir()):
         scripts.rmdir()
-    return {"pip": pip.name, "removed_launchers": removed, "other_files_outside_site_packages": kept}
+    return {"pip": pip, "removed_launchers": removed, "other_files_outside_site_packages": kept}
 
 
 def extract_natives(fiji: Path, release: Path) -> dict:
@@ -297,9 +300,7 @@ def build(release_zip: Path, staged: Path, work_dir: Path, output_dir: Path, ide
     python, fiji, marker = staged_runtime(staged, manifest)
     shutil.copytree(python, layout / "python")
     verify_launchers(layout / "python", layout)
-    site = layout / "python/Lib/site-packages"
-    if not site.is_dir() or [path.name for path in site.iterdir()] not in ([], ["README.txt"]):
-        raise BuildError("staged_python_not_clean")
+    runtime_pip(layout / "python")
     shutil.copytree(fiji, layout / "fiji")
     requirements = (layout / "engines/python/windows-requirements.txt").read_text(encoding="utf-8")
     wheels = work_dir / "wheels"

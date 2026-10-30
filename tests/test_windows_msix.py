@@ -31,8 +31,11 @@ def test_store_version_rejects_what_it_cannot_order(version):
         msix.msix_version(version)
 
 
+CI_IDENTITY = ROOT / "packaging/windows/msix/ci-test-identity.json"
+
+
 def manifest(identity=None, version="0.1.0-local.21"):
-    identity = identity or msix.load_identity(msix.IDENTITY)
+    identity = identity or msix.load_identity(CI_IDENTITY)
     return ElementTree.fromstring(msix.render_manifest(msix.TEMPLATE.read_text(encoding="utf-8"), identity, version))
 
 
@@ -68,7 +71,10 @@ def test_manifest_escapes_partner_center_values_and_rejects_invalid_identity():
 
 
 def test_identity_placeholders_are_marked_as_not_from_partner_center(tmp_path):
+    # The Store identity waits for the owner's Partner Center values; CI signs only its own test identity.
     assert msix.load_identity(msix.IDENTITY)["partner_center"] is False
+    assert msix.load_identity(CI_IDENTITY)["partner_center"] is False
+    assert msix.load_identity(CI_IDENTITY)["identity_name"] != msix.load_identity(msix.IDENTITY)["identity_name"]
     bad = tmp_path / "identity.json"
     bad.write_text(json.dumps({"schema": "cytellect-msix-identity/1", "identity_name": "x", "publisher": "O=x",
                                "publisher_display_name": "x"}))
@@ -237,3 +243,14 @@ def test_entry_point_reports_an_unowned_folder_without_starting(tmp_path, monkey
     with pytest.raises(SystemExit):
         packaged.main([])
     assert reported == [packaged.NOT_OWNED]
+
+
+def test_only_python_orgs_own_pip_may_be_in_site_packages_before_the_install(tmp_path):
+    site = tmp_path / "Lib/site-packages"
+    (site / "pip").mkdir(parents=True)
+    (site / "pip-26.2.1.dist-info").mkdir()
+    (site / "README.txt").write_text("python.org")
+    assert msix.runtime_pip(tmp_path) == "pip-26.2.1"
+    (site / "numpy").mkdir()
+    with pytest.raises(BuildError, match="staged_python_not_clean"):
+        msix.runtime_pip(tmp_path)
