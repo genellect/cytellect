@@ -347,7 +347,7 @@ jobs:
             if curl --fail --silent http://127.0.0.1:8765/v1/local/setup >/dev/null; then break; fi
             sleep 1
           done
-          pnpm --filter @cytellect/web exec playwright test tests/local-workspace.spec.ts
+          pnpm --filter @cytellect/web exec playwright test tests/local-workspace.spec.ts tests/local-workspace-start.spec.ts
   cellpose-gpu-image:
     needs: changes
     if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'

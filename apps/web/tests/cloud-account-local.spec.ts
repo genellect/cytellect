@@ -38,6 +38,8 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
     if (path === "/v1/session") return mock.session ? json(route, 200, {authenticated: true, mode: "local", retention_mode: "manual", retention_hours: null}) : json(route, 401, {detail: "session_required"});
     if (path === "/v1/local/setup") return json(route, 200, {mode: "local", ready: true, fiji_configured: true, retention_mode: "manual", retention_hours: null});
     if (path === "/v1/local/first-run") return json(route, 200, {first_run: mock.firstRun});
+    // The opening check answers "not yet" with 200, as the real local API does (never a 401).
+    if (path === "/v1/local/session" && method === "GET") return json(route, 200, {authenticated: mock.session, mode: "local", retention_mode: "manual", retention_hours: null});
     if (path === "/v1/local/session" && mock.localSessionRefused) return json(route, 403, {detail: "local_origin_required"});
     if (path === "/v1/local/session") {mock.session = true; return json(route, 200, {authenticated: true, mode: "local", retention_mode: "manual", retention_hours: null});}
     if (path === "/v1/account" && method === "GET") {await mock.accountHeld; return json(route, 200, mock.account);}
@@ -74,14 +76,20 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
 
 test("first launch offers this PC or the cloud features, and local analysis needs no sign-in", async ({page}) => {
   const mock = await mockLocalApi(page);
+  const unauthorized: string[] = [];
+  page.on("response", response => {if (response.status() === 401) unauthorized.push(new URL(response.url()).pathname);});
   await page.goto(origin + "/workspace");
   await expect(page.getByRole("heading", {name: "インストールが完了しました"})).toBeVisible();
+  // The opening check is the local route, which says "not yet" without a 401 (a browser console error).
+  expect(mock.calls).toContain("GET /v1/local/session");
+  expect(mock.calls).not.toContain("GET /v1/session");
   await expect(page.getByRole("button", {name: /クラウド機能を有効にする/})).toBeVisible();
   await page.getByRole("button", {name: /このPCで解析を始める/}).click();
   await expect(page.getByText(/公開の練習画像（BBBC013）/)).toBeVisible();
   await expect(page.getByRole("link", {name: "練習画像をダウンロード"})).toHaveAttribute("href", /Cytellect-BBBC013-practice-v1\.zip$/);
   await expect(page.getByRole("button", {name: "ログイン", exact: true})).toBeVisible();
   expect(mock.calls).not.toContain("POST /v1/account/code");
+  expect(unauthorized).toEqual([]);
   // The choice is remembered: the next start shows the usual start screen.
   mock.session = false;
   await page.reload();
