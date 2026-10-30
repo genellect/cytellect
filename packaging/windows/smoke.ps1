@@ -182,7 +182,12 @@ try {
     $session = New-Session
     $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Installer preservation check"}'
     $update = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
-    if ($update.current -cne $Version -or $update.available -or $update.state -cne 'idle') { throw 'unexpected update status' }
+    # The distributed copy has no signing key built in yet (docs/release-signing.md): it never
+    # updates in the app. Offline nothing newer is known, so there is nothing to ask for either.
+    if ($update.current -cne $Version -or $update.available -or $update.state -cne 'unsupported' -or $update.error) {
+        throw ('unexpected update status ' + $update.state + ' ' + $update.error)
+    }
+    Write-Host 'update status without a signing key, offline: unsupported'
 
     Step 'uninstall refuses while Cytellect runs'
     Invoke-Uninstaller $root -ExpectRefusal
@@ -338,6 +343,25 @@ if ($UpdateInstaller) {
         throw "update did not reach $State"
     }
 
+    function Get-RefusalCode([scriptblock]$Request) {
+        try { & $Request | Out-Null; return 'accepted' }
+        catch {
+            $detail = $null
+            if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                try { $detail = ($_.ErrorDetails.Message | ConvertFrom-Json).detail } catch { }
+            }
+            return ('{0} {1}' -f [int]$_.Exception.Response.StatusCode, $detail)
+        }
+    }
+
+    function Assert-TestKey($Status, [string]$Stage) {
+        # Only the CI hook makes the installed copy trust this run's key; a distributed copy cannot.
+        if (-not $Status.available -or $Status.latest -cne $UpdateVersion -or $Status.state -cne 'idle' -or $Status.error) {
+            throw ('{0}: the test signing key is not in effect ({1} {2})' -f $Stage, $Status.state, $Status.error)
+        }
+        Write-Host ('{0}: the test signing key is in effect; {1} is offered' -f $Stage, $UpdateVersion)
+    }
+
     function Assert-ShortcutVersion([string]$Root, [string]$Expected) {
         $link = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Cytellect.lnk'))
         if (-not $link.TargetPath.StartsWith((Join-Path $Root "apps\$Expected-"), [StringComparison]::OrdinalIgnoreCase)) {
@@ -346,15 +370,31 @@ if ($UpdateInstaller) {
     }
 
     try {
-        Step 'in-app update: download, verify, install beside, switch to the new version'
+        Step 'without a built-in signing key, a newer release asks for its installer'
         $root = Join-Path $Scratch 'update'
         if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the update failed' }
         Install-UpdateHook $root
+        # The hook points this copy at the generated release list but, without the test key,
+        # the copy keeps the empty built-in key, as distributed.
+        $testKey = $env:CYTELLECT_TEST_UPDATE_KEY
+        $env:CYTELLECT_TEST_UPDATE_KEY = $null
+        $process = Start-Cytellect $root
+        try {
+            $session = New-Session
+            $manual = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
+            if ($manual.available -or $manual.latest -cne $UpdateVersion -or $manual.state -cne 'unsupported' -or $manual.error -cne 'update_signing_key_missing') {
+                throw ('a copy without a signing key reported ' + $manual.state + ' ' + $manual.error)
+            }
+            $refusal = Get-RefusalCode { Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session }
+            if ($refusal -cne '409 update_unsupported') { throw ('a copy without a signing key answered the update with ' + $refusal) }
+            Write-Host ('without a signing key: {0} is named for its installer (update_signing_key_missing); the update is refused (409 update_unsupported)' -f $UpdateVersion)
+        } finally { Stop-Cytellect $process; $env:CYTELLECT_TEST_UPDATE_KEY = $testKey }
+
+        Step 'in-app update: verify the signed manifest, download, install beside, switch to the new version'
         $process = Start-Cytellect $root
         $session = New-Session
         $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Update check"}'
-        $offer = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
-        if (-not $offer.available -or $offer.latest -cne $UpdateVersion) { throw 'the generated release was not offered' }
+        Assert-TestKey (Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session) 'in-app update'
         $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
         $null = Wait-UpdateState $UpdateVersion 'updated'
         # The tab that started the update keeps its cookie, which the stopped launcher revoked.
@@ -367,7 +407,7 @@ if ($UpdateInstaller) {
         Invoke-WebRequest -UseBasicParsing -NoProxy -Method Post -Uri "$Origin/v1/local/session" -Headers $Headers -WebSession $session | Out-Null
         $resumed = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
         if ($resumed.state -cne 'updated' -or $resumed.current -cne $UpdateVersion) { throw 'the reopened session does not see the completed update' }
-        $kept =Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
+        $kept = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
         if ($kept.title -cne 'Update check') { throw 'workspace lost in the in-app update' }
         Assert-ShortcutVersion $root $UpdateVersion
         if (@(Get-ChildItem -LiteralPath (Join-Path $root 'updates') -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue).Count) {
@@ -387,6 +427,7 @@ if ($UpdateInstaller) {
         $process = Start-Cytellect $root
         $session = New-Session
         $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Rollback check"}'
+        Assert-TestKey (Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session) 'rollback'
         $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
         $status = Wait-UpdateState $Version 'rolled_back'
         if ($status.error -cne 'update_new_version_failed_to_start') { throw ('unexpected rollback reason ' + $status.error) }
