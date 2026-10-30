@@ -1,8 +1,13 @@
 # Copy to wrangler.toml, then fill in the D1 database ID created by the operator.
-# Secrets (never commit): wrangler secret put OPENAI_API_KEY / ADMIN_TOKEN
+# Secrets (never commit): wrangler secret put OPENAI_API_KEY / ADMIN_TOKEN /
+# RESEND_API_KEY / ADMIN_SIGNING_KEY / MODAL_URL / MODAL_PROXY_TOKEN
 name = "cytellect-proposal"
 main = "src/index.ts"
-compatibility_date = "2026-10-01"
+# Not newer than the pinned Wrangler's runtime supports, so `wrangler dev` starts.
+compatibility_date = "2026-09-25"
+# request.signal aborts on client disconnect: the GPU gateway then releases the
+# user's slot and records the elapsed time at once.
+compatibility_flags = ["enable_request_signal"]
 workers_dev = true
 
 [[d1_databases]]
@@ -26,6 +31,16 @@ REASONING_EFFORT = "medium"
 LOW_EFFORT_EVALUATED = "false"
 # Includes reasoning and visible JSON; validate this ceiling with public-only evaluation.
 MAX_OUTPUT_TOKENS = "8000"
+# Cloud access (e-mail login, owner approval, GPU gateway). Empty OWNER_EMAIL or
+# MAIL_FROM keeps login closed; GPU_MONTHLY_SECONDS="0" keeps the GPU gateway closed.
+OWNER_EMAIL = ""
+MAIL_FROM = ""
+GPU_MONTHLY_SECONDS = "0"
+# Per-user monthly defaults; the owner can override each user on /admin.
+USER_GPU_SECONDS_MONTH = "3600"
+USER_PROPOSAL_USD_MONTH = "5"
+# "false" closes /v1/admin/invitations, /v1/devices and invitation tokens after migration.
+LEGACY_INVITATIONS = "true"
 
 [observability]
 enabled = false

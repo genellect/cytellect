@@ -9,8 +9,13 @@ export interface D1Statement {
   bind(...values: unknown[]): D1Statement;
   first<T = Record<string, unknown>>(): Promise<T | null>;
   run(): Promise<D1Result>;
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
 }
-export interface D1Database { prepare(query: string): D1Statement }
+export interface D1Database {
+  prepare(query: string): D1Statement;
+  /** Runs the statements in one transaction: all or none. */
+  batch(statements: D1Statement[]): Promise<D1Result[]>;
+}
 export interface UsageRecord {
   model: string;
   promptVersion: string;
@@ -35,6 +40,13 @@ export interface Store {
    * keeps counting at its worst case, so the budget is never exceeded by lost settlements.
    */
   reserve(id: string, month: string, amountUsd: number, budgetUsd: number, now: number): Promise<boolean>;
+  /**
+   * Like reserve, but the hold must also fit the user's monthly proposal limit
+   * (settled user cost plus the user's outstanding reservations). Settlement then
+   * adds the accounted cost to that user's monthly usage.
+   */
+  reserveForUser(id: string, month: string, amountUsd: number, budgetUsd: number, now: number,
+    email: string, userLimitUsd: number): Promise<"ok" | "budget" | "user">;
   /** Worst-case cost still held by reservations that were never settled. */
   unsettled(month: string): Promise<number>;
   /** Global hold persists across months until operator reconciliation. */
@@ -89,6 +101,22 @@ export class D1Store implements Store {
     return result.meta.changes === 1;
   }
 
+  async reserveForUser(id: string, month: string, amountUsd: number, budgetUsd: number, now: number, email: string, userLimitUsd: number) {
+    const userHeld = "COALESCE((SELECT proposal_usd FROM user_usage WHERE email = ? AND month = ?), 0) + "
+      + "COALESCE((SELECT SUM(amount_usd) FROM reservations WHERE user_email = ? AND month = ?), 0) + ? <= ?";
+    const result = await this.db.prepare(
+      "INSERT INTO reservations (id, month, amount_usd, created_at, user_email) SELECT ?, ?, ?, ?, ? WHERE "
+      + "NOT EXISTS (SELECT 1 FROM budget_incidents WHERE resolved_at IS NULL) AND "
+      + "COALESCE((SELECT spent_usd FROM usage_months WHERE month = ?), 0) + "
+      + "COALESCE((SELECT SUM(amount_usd) FROM reservations WHERE month = ?), 0) + ? <= ? AND " + userHeld,
+    ).bind(id, month, amountUsd, now, email, month, month, amountUsd, budgetUsd, email, month, email, month, amountUsd, userLimitUsd).run();
+    if (result.meta.changes === 1) return "ok" as const;
+    // Only selects the error code; admission itself was decided atomically above.
+    const fits = await this.db.prepare(`SELECT 1 AS ok WHERE ${userHeld}`)
+      .bind(email, month, email, month, amountUsd, userLimitUsd).first();
+    return fits ? "budget" as const : "user" as const;
+  }
+
   async unsettled(month: string) {
     const row = await this.db.prepare("SELECT COALESCE(SUM(amount_usd), 0) AS held FROM reservations WHERE month = ?")
       .bind(month).first<{ held: number }>();
@@ -103,8 +131,8 @@ export class D1Store implements Store {
     // One insertion + migration trigger atomically adds usage and removes the hold.
     // Repeated settlement or a failure after a successful commit cannot double count.
     await this.db.prepare(
-      "INSERT OR IGNORE INTO settlements (id, month, spent_usd, model, prompt_version, input_tokens, cached_input_tokens, output_tokens, calls, ceiling_exceeded) "
-      + "SELECT id, month, ?, ?, ?, ?, ?, ?, ?, ? FROM reservations WHERE id = ? AND month = ?",
+      "INSERT OR IGNORE INTO settlements (id, month, spent_usd, model, prompt_version, input_tokens, cached_input_tokens, output_tokens, calls, ceiling_exceeded, user_email) "
+      + "SELECT id, month, ?, ?, ?, ?, ?, ?, ?, ?, user_email FROM reservations WHERE id = ? AND month = ?",
     ).bind(spentUsd, usage?.model ?? null, usage?.promptVersion ?? null, usage?.inputTokens ?? null,
       usage?.cachedInputTokens ?? null, usage?.outputTokens ?? null, usage?.calls ?? null, Number(ceilingExceeded), id, month).run();
   }
@@ -116,7 +144,8 @@ export class MemoryStore implements Store {
   devices = new Map<string, { revoked: boolean }>();
   requests = new Map<string, number>();
   spent = new Map<string, number>();
-  reservations = new Map<string, { month: string; amount: number; createdAt: number }>();
+  reservations = new Map<string, { month: string; amount: number; createdAt: number; user?: string }>();
+  userSpent = new Map<string, number>();
   claimedRequests = new Set<string>();
   usage = new Map<string, UsageRecord>();
   blocked = false;
@@ -155,6 +184,15 @@ export class MemoryStore implements Store {
     return true;
   }
 
+  async reserveForUser(id: string, month: string, amountUsd: number, budgetUsd: number, now: number, email: string, userLimitUsd: number) {
+    const userHeld = [...this.reservations.values()].filter((item) => item.month === month && item.user === email)
+      .reduce((sum, item) => sum + item.amount, 0);
+    if ((this.userSpent.get(`${email}:${month}`) ?? 0) + userHeld + amountUsd > userLimitUsd) return "user" as const;
+    if (!(await this.reserve(id, month, amountUsd, budgetUsd, now))) return "budget" as const;
+    this.reservations.get(id)!.user = email;
+    return "ok" as const;
+  }
+
   async unsettled(month: string) {
     return [...this.reservations.values()].filter((item) => item.month === month).reduce((sum, item) => sum + item.amount, 0);
   }
@@ -167,6 +205,7 @@ export class MemoryStore implements Store {
     if (ceilingExceeded || spentUsd > reservation.amount) this.blocked = true;
     if (usage) this.usage.set(id, usage);
     this.spent.set(month, (this.spent.get(month) ?? 0) + spentUsd);
+    if (reservation.user) this.userSpent.set(`${reservation.user}:${month}`, (this.userSpent.get(`${reservation.user}:${month}`) ?? 0) + spentUsd);
     this.reservations.delete(id);
   }
 }
