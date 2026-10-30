@@ -17,8 +17,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6F1E0A2C-4C1B-4E57-9B2D-3C7A1F0E9D21}_is1'
-$Origin = 'http://127.0.0.1:8765'
-$Headers = @{ Origin = $Origin; 'X-Cytellect-Request' = '1' }
+# The launcher's port (8765 unless --port is given); Use-Port switches every request to another.
+function Use-Port([int]$Port) {
+    $script:Port = $Port
+    $script:Origin = "http://127.0.0.1:$Port"
+    $script:Headers = @{ Origin = $script:Origin; 'X-Cytellect-Request' = '1' }
+}
+Use-Port 8765
 $Description = 'Cytellect local analysis and control window'
 New-Item -ItemType Directory -Path $Scratch -Force | Out-Null
 
@@ -53,6 +58,7 @@ function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$G
     $arguments = @('-B', '-E', '-m', 'cytellect_api.local', '--data-dir', ('"' + $Root + '\data"'),
         '--web-dir', ('"' + $marker.app + '\apps\web\out"'), '--fiji', ('"' + $marker.fiji + '"'), '--no-browser')
     if ($Gui) { $arguments += '--gui' }
+    if ($script:Port -ne 8765) { $arguments += @('--port', "$script:Port") }
     $process = Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory $marker.app -WindowStyle Hidden -PassThru
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt 240) {
@@ -67,7 +73,7 @@ function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$G
     # Fixed facts only: which Python windows are open (an error dialog has the title Cytellect) and the listener.
     Get-Process -Name python, pythonw -ErrorAction SilentlyContinue |
         ForEach-Object { Write-Host ('process {0} window "{1}"' -f $_.ProcessName, $_.MainWindowTitle) }
-    Write-Host ('listening on 8765: ' + [bool](Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue))
+    Write-Host ("listening on ${script:Port}: " + [bool](Get-NetTCPConnection -LocalPort $script:Port -State Listen -ErrorAction SilentlyContinue))
     # The launcher's dialogs carry fixed texts only (no paths); read them through UI Automation.
     $probe = @'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -86,7 +92,7 @@ foreach ($window in [Windows.Automation.AutomationElement]::RootElement.FindAll(
 function Stop-Cytellect($Process) {
     if (-not $Process.HasExited) { Stop-Process -Id $Process.Id }
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
-        if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { return }
+        if (-not (Get-NetTCPConnection -LocalPort $script:Port -State Listen -ErrorAction SilentlyContinue)) { return }
         Start-Sleep -Milliseconds 500
     }
     throw 'launcher kept listening after stop'
@@ -296,7 +302,7 @@ if ($UpdateInstaller) {
             $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase) } |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
         for ($attempt = 0; $attempt -lt 60; $attempt++) {
-            if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { return }
+            if (-not (Get-NetTCPConnection -LocalPort $script:Port -State Listen -ErrorAction SilentlyContinue)) { return }
             Start-Sleep -Milliseconds 500
         }
         throw 'launcher kept listening after stop'
@@ -363,7 +369,10 @@ if ($UpdateInstaller) {
         Stop-Root $root
         Invoke-Uninstaller $root @('/DELETEDATA')
 
-        Step 'in-app update whose new version does not start returns to the previous version'
+        Step 'in-app update whose new version does not start returns to the previous version (port 8791)'
+        # Started with --port, the relauncher must start both versions on that port, or the
+        # health check and the open tab would not reach them.
+        Use-Port 8791
         $root = Join-Path $Scratch 'rollback'
         if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the rollback failed' }
         Install-UpdateHook $root
@@ -384,6 +393,7 @@ if ($UpdateInstaller) {
         Invoke-Uninstaller $root @('/DELETEDATA')
     } finally {
         $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null
+        Use-Port 8765
         if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
     }
 }

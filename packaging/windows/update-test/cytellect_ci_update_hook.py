@@ -33,8 +33,8 @@ if _source or _fail:
     if _fail:
         _launch = _update.Installation.launch
 
-        def _failing_launch(self):
-            command = _launch(self)
+        def _failing_launch(self, *args, **kwargs):
+            command = _launch(self, *args, **kwargs)
             return [command[0], "-E", "-c", "raise SystemExit(3)"] if self.version == _fail else command
 
         _update.Installation.launch = _failing_launch

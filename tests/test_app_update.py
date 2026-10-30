@@ -273,12 +273,12 @@ def windows_file_locks(monkeypatch):
     return held
 
 
-def switch_plan(root: Path) -> Path:
+def switch_plan(root: Path, port: int = 8765) -> Path:
     previous = installation(root, "0.1.0-local.21")
     target = app_update.read_installation(make_app(root, "0.1.0-local.22"))
     assert target is not None
     plan = root / "updates/switch.json"
-    app_update.write_json(plan, {"schema": "cytellect-update-switch/1", "root": str(root), "port": 8765,
+    app_update.write_json(plan, {"schema": "cytellect-update-switch/1", "root": str(root), "port": port,
                                  "wait_pid": 1, "wait_created": 1.0,
                                  "previous": previous.record(), "target": target.record()})
     return plan
@@ -292,10 +292,12 @@ class Effects:
         self.previous_alive, self.killable = previous_alive, killable
         self.started, self.stopped, self.shortcuts_restored, self.copies = [], [], [], []
         self.exited, self.killed, self.restores = [], [], 0
+        self.commands, self.checked_ports = [], []
 
     def relaunch(self):
         def start(command, cwd):
             self.started.append(command[0])
+            self.commands.append(command)
             if "start" in self.fail and len(self.started) == 1:
                 raise OSError("synthetic start failure")
             if "0.1.0-local.22" in command[0] and self.migrate:
@@ -328,7 +330,8 @@ class Effects:
                 raise OSError("synthetic shortcut failure")
 
         return Relaunch(wait=lambda pid, created: self.exits, start=start,
-                        healthy=lambda port, version, process: self.is_healthy and version == "0.1.0-local.22",
+                        healthy=lambda port, version, process: (self.checked_ports.append(port) or self.is_healthy)
+                        and version == "0.1.0-local.22",
                         stop=stop, exited=self.exited.append, shortcuts=shortcuts, copy=copy,
                         alive=lambda pid, created: self.previous_alive, kill=kill, pause=lambda seconds: None)
 
@@ -346,6 +349,29 @@ def test_relaunch_success_records_update_and_keeps_no_database_copy(tmp_path, wi
     assert effects.stopped == [] and effects.shortcuts_restored == []
     assert not list((tmp_path / "updates/rollback").glob("*.sqlite"))
     assert state_of(tmp_path)["state"] == "updated" and state_of(tmp_path)["previous"] == "0.1.0-local.21"
+
+
+def test_the_new_and_the_previous_version_start_on_the_launcher_port(tmp_path):
+    """Started with --port, both the switch and the return use that port; the shortcut keeps 8765."""
+    plan = switch_plan(tmp_path, port=8791)
+    effects = Effects()
+    assert app_update.relaunch(plan, effects.relaunch()) == "rolled_back"
+    assert effects.checked_ports == [8791]
+    assert [command[-2:] for command in effects.commands] == [["--port", "8791"], ["--port", "8791"]]
+    assert "0.1.0-local.22" in effects.commands[0][0] and "0.1.0-local.21" in effects.commands[1][0]
+    previous = app_update.read_installation(tmp_path / "apps" / f"0.1.0-local.21-{'a' * 12}")
+    assert previous is not None and "--port" not in previous.launch()  # the shortcut's command
+    plan = switch_plan(tmp_path / "updated", port=8792)
+    effects = Effects(healthy=True)
+    assert app_update.relaunch(plan, effects.relaunch()) == "updated"
+    assert effects.checked_ports == [8792] and effects.commands[0][-2:] == ["--port", "8792"]
+
+
+def test_a_plan_with_an_impossible_port_is_refused(tmp_path):
+    plan = switch_plan(tmp_path, port=0)
+    effects = Effects(healthy=True)
+    assert app_update.relaunch(plan, effects.relaunch()) == "failed"
+    assert effects.commands == [] and state_of(tmp_path)["error"] == "update_switch_invalid"
 
 
 def test_new_version_that_does_not_start_falls_back_to_the_previous_version(tmp_path, windows_file_locks):
@@ -579,4 +605,5 @@ def test_the_ci_update_hook_makes_only_the_named_version_fail_to_start(tmp_path,
     spec.loader.exec_module(importlib.util.module_from_spec(spec))
     failing = installation(tmp_path / "new", "0.1.0-local.22")
     assert failing.launch()[1:] == ["-E", "-c", "raise SystemExit(3)"]
+    assert failing.launch(8791)[1:] == ["-E", "-c", "raise SystemExit(3)"]  # the relauncher passes its port
     assert installation(tmp_path / "old").launch()[1:5] == ["-B", "-E", "-m", "cytellect_api.local"]

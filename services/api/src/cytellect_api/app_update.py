@@ -92,11 +92,17 @@ class Installation:
     def updates(self) -> Path:
         return self.root / "updates"
 
-    def launch(self) -> list[str]:
-        """The same command as the stable shortcut that setup writes."""
+    def launch(self, port: int | None = None) -> list[str]:
+        """The same command as the stable shortcut that setup writes (its default port, 8765).
+
+        The relauncher passes the port the updated launcher listened on, so that both the new
+        version and a return to the previous one answer where the health check and the open
+        tab expect them.
+        """
         pythonw = self.app / ".venv" / "Scripts" / "pythonw.exe"
-        return [str(pythonw), "-B", "-E", "-m", "cytellect_api.local", "--fiji", self.fiji,
-                "--data-dir", str(self.root / "data"), "--web-dir", str(self.app / "apps" / "web" / "out"), "--gui"]
+        command = [str(pythonw), "-B", "-E", "-m", "cytellect_api.local", "--fiji", self.fiji,
+                   "--data-dir", str(self.root / "data"), "--web-dir", str(self.app / "apps" / "web" / "out"), "--gui"]
+        return command if port is None else [*command, "--port", str(port)]
 
     def record(self) -> dict[str, str]:
         return {"app": str(self.app), "fiji": self.fiji, "version": self.version}
@@ -636,6 +642,9 @@ def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
     database = root / "data" / "cytellect.sqlite"
     snapshot = root / "updates" / "rollback" / f"{previous.version}.sqlite"
     pid, created = int(plan["wait_pid"]), float(plan["wait_created"])
+    port = int(plan["port"])
+    if not 1 <= port <= 65535:
+        return record("failed", error="update_switch_invalid")
     errors: list[str] = []
     process: Any = None
     had_database = False
@@ -652,8 +661,8 @@ def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
             if had_database:
                 effects.copy(database, snapshot)
                 copied = True
-            process = effects.start(target.launch(), target.app)
-            if effects.healthy(int(plan["port"]), target.version, process):
+            process = effects.start(target.launch(port), target.app)
+            if effects.healthy(port, target.version, process):
                 # The copy holds research records; keep none once the new version runs.
                 snapshot.unlink(missing_ok=True)
                 return record("updated", version=target.version, previous=previous.version)
@@ -691,7 +700,7 @@ def relaunch(plan_path: Path, effects: Relaunch | None = None) -> str:
                     errors=errors)
     if not effects.alive(pid, created):
         with contextlib.suppress(Exception):
-            effects.start(previous.launch(), previous.app)
+            effects.start(previous.launch(port), previous.app)
     return result
 
 
