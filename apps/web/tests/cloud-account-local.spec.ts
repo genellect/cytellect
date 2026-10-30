@@ -143,12 +143,12 @@ test("an unapproved address waits at the top and switches to continuing the logi
   await dialog.getByRole("button", {name: "コードを送る"}).click();
   await expect(dialog.getByText(/オーナーに利用を申請しました/)).toBeVisible();
   await expect(dialog.getByRole("heading", {name: "承認を待っています"})).toBeFocused();
-  await dialog.getByRole("button", {name: "ローカルの解析を続ける"}).click();
+  await dialog.getByRole("button", {name: "このPCでの解析を続ける"}).click();
   // Focus returns to the header control that opened the dialog.
   await expect(page.getByRole("button", {name: "承認待ち"})).toBeFocused();
   await expect(page.getByText(/^承認待ち（.*に申請）/)).toBeVisible();
   // The request can be folded to one line but stays at the top.
-  await page.getByRole("button", {name: "ローカルの解析を続ける"}).click();
+  await page.getByRole("button", {name: "このPCでの解析を続ける"}).click();
   await expect(page.getByText("承認待ち。このPCでの解析は使えます。")).toBeVisible();
   await page.getByRole("button", {name: "承認待ち"}).click();
   await expect(page.getByRole("dialog").getByRole("heading", {name: "承認を待っています"})).toBeVisible();
@@ -229,7 +229,7 @@ test("a failed update says so with its code under 詳細, and an unsafe notes li
   await expect(page.getByText(/更新があります/)).toBeVisible();
   await expect(page.getByRole("link", {name: "変更内容"})).toHaveCount(0);
   await page.getByRole("button", {name: "更新する"}).click();
-  const failure = page.getByRole("alert").filter({hasText: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。"});
+  const failure = page.getByRole("alert").filter({hasText: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。続く場合は、cytellect.app から"});
   await expect(failure).toBeVisible();
   await expect(failure).not.toContainText("update_failed", {useInnerText: true});
   await failure.getByText("詳細").click();
@@ -312,7 +312,7 @@ test("a version without a signing key asks for the new installer instead of upda
   const mock = await mockLocalApi(page, {session: true, firstRun: false,
     update: {status: 200, body: {...LATEST, available: false, state: "unsupported", error: "update_signing_key_missing"}}});
   await page.goto(origin + "/workspace");
-  await expect(page.getByText("新しい版（0.1.0-local.22）があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。")).toBeVisible();
+  await expect(page.getByText("新しい版（0.1.0-local.22）があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。研究データと設定は引き継がれます。")).toBeVisible();
   await expect(page.getByRole("link", {name: "変更内容"})).toHaveAttribute("href", LATEST.notes_url);
   await expect(page.getByRole("button", {name: "更新する"})).toHaveCount(0);
   expect(mock.calls).not.toContain("POST /v1/app/update");

@@ -39,7 +39,12 @@ describe("cloud account display", () => {
     expect(inferencePhase({state: "ready"}, false)).toBeNull();
     expect(gpuNotice({state: "quota_exceeded", resets_at: "2026-11-01T00:00:00Z"}, "UTC")!.text).toContain("11月1日から再び使えます");
     expect(gpuNotice({state: "quota_exceeded", scope: "global"})!.text).toContain("クラウド GPU 全体");
-    expect(gpuNotice({state: "offline"})!.action?.label).toBe("ネットワークを確認してもう一度試す");
+    expect(gpuNotice({state: "offline"})!.action?.label).toBe("もう一度試す");
+    // A blocked university network: name the host the network administrator has to allow.
+    expect(gpuNotice({state: "offline"})!.text).toContain("api.cytellect.app への接続の許可");
+    expect(gpuNotice({state: "timeout"})!.text).toContain("「もう一度試す」を押すと、もう一度起動します");
+    expect(gpuNotice({state: "failed"})!.text).toContain("このPCでの解析は使えます");
+    expect(gpuNotice({state: "unconfigured"})!.text).toContain("GPU（画像の計算に使う高速な計算機）");
     expect(gpuNotice({state: "timeout"})!.action?.kind).toBe("retry");
     expect(gpuNotice({state: "auth_required"})!.action?.kind).toBe("login");
     expect(gpuNotice({state: "unconfigured"})!.action?.kind).toBe("login");
@@ -53,6 +58,8 @@ describe("cloud account display", () => {
     expect(accountErrorText(new AccountRequestError("account_mail_failed", 502))).toBe("メールを送れませんでした。時間をおいてもう一度試してください。");
     expect(accountErrorText(new AccountRequestError("unexpected_code", 500))).not.toContain("unexpected_code");
     expect(accountErrorText(new Error("network"))).toContain("Cytellect に接続できません");
+    expect(accountErrorText(new Error("network"))).toContain("デスクトップの「Cytellect」をもう一度開いてください");
+    expect(accountErrorText(new AccountRequestError("account_cloud_unreachable", 502))).toContain("api.cytellect.app への接続の許可");
   });
   it("checks inputs and counts down the resend button", () => {
     expect(plausibleEmail(" Researcher@Example.org ")).toBe(true);
@@ -123,14 +130,14 @@ describe("update banner", () => {
     expect(updateNotice({available: true, state: "restarting"})!.text).toContain("再起動しています");
     expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "updated"})!.text).toBe("更新が完了しました（0.1.0-local.22）。");
     const failed = updateNotice({available: true, state: "failed", error: "update_failed"})!;
-    expect(failed.text).toBe("更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。");
+    expect(failed.text).toBe("更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。続く場合は、cytellect.app から新しい版のインストーラーをダウンロードして開いても更新できます（研究データと設定は引き継がれます）。");
     expect(failed.error).toBe("update_failed");
     expect(failed.text).not.toContain("update_failed");
     expect(updateNotice({available: true, state: "rolled_back"})!.text).toBe("元の版で起動しました。あとでもう一度更新してください。");
     expect(updateNotice({available: false, state: "unsupported"})).toBeNull();
     // No built-in signing key: never updated in the app; the newer installer is named instead.
     const manual = updateNotice({available: false, latest: "0.1.0-local.22", state: "unsupported", error: "update_signing_key_missing"})!;
-    expect(manual.text).toBe("新しい版（0.1.0-local.22）があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。");
+    expect(manual.text).toBe("新しい版（0.1.0-local.22）があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。研究データと設定は引き継がれます。");
     expect(manual.tone).toBe("info");
     expect("action" in manual).toBe(false);
     expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "installed"})!.text)
