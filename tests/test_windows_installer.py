@@ -236,18 +236,35 @@ BSD_JAR = generated_jar("ome", "formats-bsd", "8.0.0", ["Simplified BSD License"
 JDK_RELEASE = "Fiji.app/java/win64/zulu21-generated/release"
 
 
-def generated_fiji() -> bytes:
-    """A Fiji-shaped archive: a GPL and a BSD jar, a jar without coordinates, a JDK release file."""
+def generated_fiji(extra: dict[str, bytes] | None = None) -> bytes:
+    """A Fiji-shaped archive: a GPL and a BSD jar, a jar without coordinates, a JDK release file.
+
+    Byte-identical on every call: the lock pins this archive's SHA-256, and the build compares
+    it with another call's bytes. writestr with a bare name would stamp the current time, which
+    differs whenever two calls straddle a two-second boundary.
+    """
     import io
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as fiji:
-        fiji.writestr("Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar", GPL_JAR)
-        fiji.writestr("Fiji.app/jars/formats-bsd-8.0.0.jar", BSD_JAR)
-        fiji.writestr("Fiji.app/jars/legacy.jar", b"not a maven jar")
-        fiji.writestr(JDK_RELEASE, 'IMPLEMENTOR="Azul Systems, Inc."\nIMPLEMENTOR_VERSION="Zulu21.1+2-CA"\n'
-                                   'JAVA_RUNTIME_VERSION="21.0.5+11-LTS"\nJAVA_VERSION="21.0.5"\n')
+        for name, data in (("Fiji.app/jars/bio-formats/formats-gpl-8.0.0.jar", GPL_JAR),
+                           ("Fiji.app/jars/formats-bsd-8.0.0.jar", BSD_JAR),
+                           ("Fiji.app/jars/legacy.jar", b"not a maven jar"),
+                           (JDK_RELEASE, b'IMPLEMENTOR="Azul Systems, Inc."\nIMPLEMENTOR_VERSION="Zulu21.1+2-CA"\n'
+                                         b'JAVA_RUNTIME_VERSION="21.0.5+11-LTS"\nJAVA_VERSION="21.0.5"\n'),
+                           *(extra or {}).items()):
+            fiji.writestr(zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0)), data)
     return buffer.getvalue()
+
+
+def test_the_generated_fiji_does_not_depend_on_the_clock(monkeypatch):
+    """The lock and the bundle each take generated_fiji(); a clock tick between them must not differ."""
+    import time
+
+    first = generated_fiji()
+    clock = iter(range(1_800_000_000, 1_800_001_000, 10))
+    monkeypatch.setattr(time, "time", lambda: next(clock))
+    assert generated_fiji() == first
 
 
 GENERATED_SOURCES = {"formats-gpl": b"generated formats-gpl source", "jdk": b"generated JDK source"}
@@ -319,8 +336,11 @@ def legacy_exception(bundled_sha256: str | None = None, component: str = LEGACY_
             "upstream": [{"url": "https://example.org/legacy", "version": "1.0"}]}
 
 
-def prepare_build(tmp_path, monkeypatch, with_lock=True, exceptions=()):
-    """Generated pins, downloads and compiler for builder.build; returns the release ZIP."""
+def prepare_build(tmp_path, monkeypatch, with_lock=True, exceptions=(), bundled_extra=None):
+    """Generated pins, downloads and compiler for builder.build; returns the release ZIP.
+
+    ``bundled_extra`` adds files to the bundled Fiji archive only, not to the one the lock describes.
+    """
     listed = {"uv.lock": UV_LOCK}
     if with_lock:
         listed[builder.CORRESPONDING_LOCK] = generated_lock(tmp_path / "lock")
@@ -330,7 +350,7 @@ def prepare_build(tmp_path, monkeypatch, with_lock=True, exceptions=()):
     archive = release_zip(tmp_path / "release", listed=listed)
     wheel_bytes = generated_wheel()
     blobs = {role: b"generated artifact " + role.encode() for role in ("uv", "python")}
-    blobs["fiji"] = generated_fiji()
+    blobs["fiji"] = generated_fiji(bundled_extra)
     urls = {"uv": "https://github.com/astral-sh/uv/releases/download/0.12.2/uv-x86_64-pc-windows-msvc.zip",
             "python": "https://www.python.org/ftp/python/3.14.8/python-3.14.8-amd64.zip",
             "fiji": "https://downloads.imagej.net/fiji/archive/generated.zip"}
@@ -449,6 +469,14 @@ def test_a_release_build_stops_when_a_required_source_is_unavailable(tmp_path, m
         with pytest.raises(builder.BuildError, match="source_exception_stale:Fiji.app/jars/(legacy|gone).jar"):
             builder.build(archive, tmp_path / f"drift{index}/out", tmp_path / f"drift{index}/work", tmp_path / "cache",
                           Path("ISCC.exe"), None, corresponding_source=True)
+    # A bundled component in neither the lock nor the exceptions stops the build, even with the
+    # known exception listed.
+    archive, _ = prepare_build(tmp_path / "unlisted", monkeypatch, exceptions=[legacy_exception()],
+                               bundled_extra={"Fiji.app/jars/unlisted-1.0.jar": b"not in the lock"})
+    with pytest.raises(builder.BuildError, match="corresponding_source_lock_stale"):
+        builder.build(archive, tmp_path / "unlisted/out", tmp_path / "unlisted/work", tmp_path / "cache",
+                      Path("ISCC.exe"), None, corresponding_source=True)
+    assert not (tmp_path / "unlisted/out/Cytellect-Setup-0.1.0-local.21.exe").exists()
     archive, _ = prepare_build(tmp_path / "missing", monkeypatch, with_lock=False)
     with pytest.raises(builder.BuildError, match="corresponding_source_lock_missing"):
         builder.build(archive, tmp_path / "missing/out", tmp_path / "missing/work", tmp_path / "cache",
