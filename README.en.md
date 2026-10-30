@@ -108,19 +108,13 @@ Settings updates are checked against the requester's version and return `409` on
 
 ## Security and research data
 
-Research data stays on the lab's PC; only the data listed for each runtime in the architecture section leaves it.
+- Research data: images and measurements stay on the researcher's PC and are never stored in the cloud. Only the plane to detect and, for the AI, the research goal and metadata are sent out
+- Authentication: cloud features are signed in to with a one-time code sent to an allowed address, and the PC holds only a device token. The admin page is verified by both Cloudflare Access and the Worker
+- Distribution: in-app updates run only after verifying an Ed25519-signed manifest
+- Development: research data and credentials never enter code, CI or development AI
+- Vulnerabilities: reported through a private channel, with a reply to reasonable reports within three days
 
-| Mechanism | Prevents |
-|---|---|
-| The calculation worker runs without network, as non-root, on a read-only root | Data leaving through analysis processes |
-| The local API listens on `127.0.0.1` and verifies Host, Origin and CSRF | Requests from other sites or the LAN |
-| The API checks resource ownership on every read; cookies are `HttpOnly` and `SameSite=Strict` | Reading another user's workspace |
-| A PC holds only a device token; the OpenAI and Modal keys stay in the proposal-worker | Extracting keys from the distribution or the PC |
-| The proposal-worker verifies the Cloudflare Access JWT itself on admin routes | Unauthorised access to the admin page |
-| In-app updates run only after verifying an Ed25519-signed manifest | Distribution of a tampered update |
-| Shared development environments accept only registered public images, and CI scans the full Git history for secrets | Research data or secrets entering the repository |
-
-The policy, the data sent out in detail, the impact of a compromise and how to report a vulnerability are in [SECURITY.md](SECURITY.md); research data and credentials in development are handled under the [team development rules §6](docs/team-development.md#6-research-data).
+Details are in [SECURITY.md](SECURITY.md); research data and credentials in development are handled under the [team development rules §6](docs/team-development.md#6-research-data).
 
 ## Distribution
 
