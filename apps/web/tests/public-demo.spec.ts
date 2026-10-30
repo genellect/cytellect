@@ -33,7 +33,7 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   // Free and cloud are told apart; the cloud is adopted through the contact form.
   await expect(page.locator("#download").getByRole("link",{name:/研究室で導入を相談/}).first()).toHaveAttribute("href","https://compass-official.pages.dev/contact/");
   await page.getByText("画像はPCの外に出ますか？",{exact:true}).click();
-  await expect(page.getByText(/送るのは検出に使う画像だけで、クラウドには残りません。/)).toBeVisible();
+  await expect(page.getByText(/検出に使う画像だけを送り、クラウドには残しません。/)).toBeVisible();
  }else{
   await expect(page.locator("#download").getByRole("link",{name:"デモを体験する",exact:true})).toBeVisible();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);

@@ -89,6 +89,18 @@ test("download click uses a fixed event without sending the asset URL", async ({
   expect(JSON.stringify(events)).not.toContain("releases/download");
 });
 
+test("a plain download click is measured and still opens the next-steps guide", async ({page, baseURL}) => {
+  await isolatedSite(page, baseURL!);
+  // The release file itself is replaced by a tiny attachment so the test never fetches the installer.
+  await page.route("https://github.com/**", route => route.fulfill({ body: "x", headers: { "content-disposition": "attachment; filename=test.bin" } }));
+  await page.goto(origin + "/");
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
+  await page.locator('#download a[data-lp-event="download"]').click();
+  await expect(page.getByRole("dialog", { name: "ダウンロードを始めました" })).toBeVisible();
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"download_click"');
+  await expect(page).toHaveURL(`${origin}/`);
+});
+
 test("the lab cloud, questions and the install guide send fixed events; the guide is measured as its own page", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!);
   await page.goto(origin + "/");

@@ -56,7 +56,7 @@ export function InstallGuide() {
 
       <section aria-labelledby="cloud-title">
         <h2 id="cloud-title">GPU推論とLLMも使うなら</h2>
-        <p>Windows版だけで、核のセグメンテーションから統計、論文の図まで使えます。核小体や細胞のGPUでの検出と、LLMによる解析の設定は、研究室のクラウドで加わります。料金は応相談、大学内での試験導入は基本無料です。</p>
+        <p>Windows版だけで、核のセグメンテーションから統計、論文の図まで使えます。GPU推論による核小体や細胞の検出と、LLMによる解析の設定は、研究室のクラウドで加わります。料金は応相談、大学内での試験導入は基本無料です。</p>
         <a className={lp.secondary} data-lp-event="consult" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">研究室で導入を相談 <Out /></a>
       </section>
 

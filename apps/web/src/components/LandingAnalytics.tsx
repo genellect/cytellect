@@ -58,7 +58,8 @@ export function LandingAnalytics({ page }: { page: MeasuredPage }) {
         && (url.origin !== location.origin || url.pathname !== location.pathname);
       if (navigating) {
         event.preventDefault();
-        event.stopPropagation();
+        // The download link keeps its own handler (the guide shown after it); others must not route twice.
+        if (id !== "download") event.stopPropagation();
         const finish = () => {
           if (!pending.delete(serial)) return;
           location.assign(anchor.href);
