@@ -22,7 +22,7 @@ from typing import Any
 
 # The owner's public key: the single line of the .pub file that ssh-keygen wrote
 # ("ssh-ed25519 AAAA... comment"). Replacing it is a release decision (docs/release-signing.md).
-UPDATE_PUBLIC_KEY = ""
+UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKocg34zCZzyroJ93ELi0k02Hud++1pCaC2zVAjYA1Bs cytellect-update"
 
 NAMESPACE = "cytellect-update"
 MANIFEST_SCHEMA = "cytellect-update-manifest/1"

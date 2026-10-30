@@ -24,6 +24,10 @@ function Use-Port([int]$Port) {
     $script:Headers = @{ Origin = $script:Origin; 'X-Cytellect-Request' = '1' }
 }
 Use-Port 8765
+# Whether this source has the owner's update key built in (docs/release-signing.md). The
+# installed copy is built from the same checkout, so its update status follows from it.
+$KeySource = Get-Content -LiteralPath (Join-Path $Checkout 'services\api\src\cytellect_api\update_signature.py') -Raw
+$BuiltInKey = $KeySource -match '(?m)^UPDATE_PUBLIC_KEY = "ssh-ed25519 [^"]+"\r?$'
 $Description = 'Cytellect local analysis and control window'
 New-Item -ItemType Directory -Path $Scratch -Force | Out-Null
 
@@ -182,12 +186,13 @@ try {
     $session = New-Session
     $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Installer preservation check"}'
     $update = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
-    # The distributed copy has no signing key built in yet (docs/release-signing.md): it never
-    # updates in the app. Offline nothing newer is known, so there is nothing to ask for either.
-    if ($update.current -cne $Version -or $update.available -or $update.state -cne 'unsupported' -or $update.error) {
+    # Offline nothing newer is known. With the owner's key built in the copy is ready to update
+    # (idle); without one it never updates in the app (unsupported, docs/release-signing.md).
+    $expected = if ($BuiltInKey) { 'idle' } else { 'unsupported' }
+    if ($update.current -cne $Version -or $update.available -or $update.state -cne $expected -or $update.error) {
         throw ('unexpected update status ' + $update.state + ' ' + $update.error)
     }
-    Write-Host 'update status without a signing key, offline: unsupported'
+    Write-Host ('update status offline: {0} (signing key built in: {1})' -f $expected, $BuiltInKey)
 
     Step 'uninstall refuses while Cytellect runs'
     Invoke-Uninstaller $root -ExpectRefusal
@@ -370,25 +375,48 @@ if ($UpdateInstaller) {
     }
 
     try {
-        Step 'without a built-in signing key, a newer release asks for its installer'
         $root = Join-Path $Scratch 'update'
         if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the update failed' }
         Install-UpdateHook $root
         # The hook points this copy at the generated release list but, without the test key,
-        # the copy keeps the empty built-in key, as distributed.
+        # the copy keeps its built-in key, as distributed.
         $testKey = $env:CYTELLECT_TEST_UPDATE_KEY
         $env:CYTELLECT_TEST_UPDATE_KEY = $null
         $process = Start-Cytellect $root
         try {
             $session = New-Session
             $manual = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
-            if ($manual.available -or $manual.latest -cne $UpdateVersion -or $manual.state -cne 'unsupported' -or $manual.error -cne 'update_signing_key_missing') {
-                throw ('a copy without a signing key reported ' + $manual.state + ' ' + $manual.error)
+            if ($BuiltInKey) {
+                Step 'with the owner''s key built in, a release signed by another key runs nothing'
+                if (-not $manual.available -or $manual.latest -cne $UpdateVersion -or $manual.state -cne 'idle' -or $manual.error) {
+                    throw ('a copy with the owner''s key reported ' + $manual.state + ' ' + $manual.error)
+                }
+                $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
+                $watch = [Diagnostics.Stopwatch]::StartNew()
+                do {
+                    Start-Sleep -Seconds 2
+                    $refused = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
+                } while ($refused.state -cne 'failed' -and $watch.Elapsed.TotalSeconds -lt 300)
+                if ($refused.state -cne 'failed' -or $refused.error -cne 'update_signature_wrong_key' -or $refused.current -cne $Version) {
+                    throw ('a release signed by another key was not refused: ' + $refused.state + ' ' + $refused.error)
+                }
+                if (@(Get-ChildItem -LiteralPath (Join-Path $root 'updates') -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue).Count) {
+                    throw 'an installer was downloaded for a release signed by another key'
+                }
+                Assert-ShortcutVersion $root $Version
+                Write-Host ('with the owner''s key: {0}, signed by another key, is refused (update_signature_wrong_key) before any download' -f $UpdateVersion)
+            } else {
+                Step 'without a built-in signing key, a newer release asks for its installer'
+                if ($manual.available -or $manual.latest -cne $UpdateVersion -or $manual.state -cne 'unsupported' -or $manual.error -cne 'update_signing_key_missing') {
+                    throw ('a copy without a signing key reported ' + $manual.state + ' ' + $manual.error)
+                }
+                $refusal = Get-RefusalCode { Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session }
+                if ($refusal -cne '409 update_unsupported') { throw ('a copy without a signing key answered the update with ' + $refusal) }
+                Write-Host ('without a signing key: {0} is named for its installer (update_signing_key_missing); the update is refused (409 update_unsupported)' -f $UpdateVersion)
             }
-            $refusal = Get-RefusalCode { Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session }
-            if ($refusal -cne '409 update_unsupported') { throw ('a copy without a signing key answered the update with ' + $refusal) }
-            Write-Host ('without a signing key: {0} is named for its installer (update_signing_key_missing); the update is refused (409 update_unsupported)' -f $UpdateVersion)
         } finally { Stop-Cytellect $process; $env:CYTELLECT_TEST_UPDATE_KEY = $testKey }
+        # The refused update stays visible as failed; the signed update below starts from idle.
+        if ($BuiltInKey) { Remove-Item -LiteralPath (Join-Path $root 'updates\state.json') -Force -ErrorAction SilentlyContinue }
 
         Step 'in-app update: verify the signed manifest, download, install beside, switch to the new version'
         $process = Start-Cytellect $root

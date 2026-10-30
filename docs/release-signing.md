@@ -37,6 +37,15 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 この変更を含む版から、アプリ内で更新できるようになる。それより前の版（公開鍵が空の版）を使っている研究者は、その版をインストーラーで導入する。
 
+現在の鍵（2026-10-30 に登録、0.1.0-local.21 から組み込み）：
+
+| 項目 | 値 |
+|---|---|
+| 公開鍵 | `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKocg34zCZzyroJ93ELi0k02Hud++1pCaC2zVAjYA1Bs cytellect-update` |
+| 指紋（`ssh-keygen -lf`） | `SHA256:e+/Hqvnc6NQjwkai0f8FTLXC6i+EcvnBv/V0gQ5A7YU` |
+
+組み込んだ鍵は `update_signature.py` が正本で、この表はその写し。鍵を交換したら両方を同じ PR で更新する。
+
 ## 4. 配布する
 
 1. **Actions → Prepare Windows release** を `main` で実行する。
