@@ -591,6 +591,73 @@ jobs:
           Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/genellect/cytellect/releases/download/v$env:MIGRATE_VERSION/Cytellect-$env:MIGRATE_VERSION-windows-x64.zip" -OutFile $previous
           if ((Get-FileHash -LiteralPath $previous -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:MIGRATE_SHA256) { throw 'Previous release hash mismatch' }
           & ./packaging/windows/smoke.ps1 -Installer $env:CYTELLECT_CI_INSTALLER -Scratch (Join-Path $env:RUNNER_TEMP 'installer-smoke') -Version $env:CI_VERSION -Checkout (Get-Location).Path -PreviousZip $previous -UpdateInstaller $env:CYTELLECT_UPDATE_INSTALLER -UpdateVersion $env:UPDATE_VERSION
+  windows-sac-audit:
+    # Which installed files Smart App Control would block (docs/ci.md): App Control audit policies
+    # equivalent to Smart App Control, then install, detect nuclei with Fiji, export and uninstall.
+    # Informational: not a release gate, and findings do not fail it. Main and manual runs only.
+    needs: changes
+    if: github.event_name != 'pull_request' && needs.changes.outputs.windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI_VERSION: 0.0.0-local.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --group build
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - name: Restore pinned public downloads saved by windows-installer (verified again on use)
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/installer-cache
+          key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/python/windows-runtime.lock.json', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py') }}
+      - name: Build the setup ZIP and the per-user installer from this exact commit
+        shell: pwsh
+        run: |
+          $inputs = Join-Path $env:RUNNER_TEMP 'package-inputs'
+          New-Item -ItemType Directory -Path $inputs | Out-Null
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          $data = Join-Path $inputs 'windows-tcltk-9.0.4-data.zip'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/prepare_windows_runtime_data.ps1 -Python $python -CacheRoot (Join-Path $inputs 'cache') -ScratchRoot (Join-Path $inputs 'extraction') -Output $data
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned runtime data preparation failed' }
+          & $python -B -m hatchling build -t wheel -d (Join-Path $inputs 'wheels')
+          if ($LASTEXITCODE -ne 0) { throw 'Wheel build failed' }
+          $requirements = Join-Path $inputs 'requirements.txt'
+          uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Hashed dependency export failed' }
+          $wheel = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')[0].FullName
+          $archive = Join-Path $env:RUNNER_TEMP "zip\Cytellect-$env:CI_VERSION-windows-x64.zip"
+          & $python -B scripts/build_local_bundle.py --version $env:CI_VERSION --output $archive --runtime-data $data --wheel $wheel --requirements $requirements
+          if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
+          $cache = Join-Path $env:RUNNER_TEMP 'installer-cache'
+          $inno = Join-Path $env:RUNNER_TEMP 'inno'
+          & $python -B scripts/build_windows_installer.py install-inno --dest $inno --cache $cache
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Inno Setup installation failed' }
+          $output = Join-Path $env:RUNNER_TEMP 'installer'
+          $work = Join-Path $env:RUNNER_TEMP 'installer-work'
+          # The project environment has no pip; the runner's Python downloads the hash-locked wheels.
+          & $python -B scripts/build_windows_installer.py build --release-zip $archive --output-dir $output --work-dir $work --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python (Get-Command python).Source
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          Remove-Item -LiteralPath $work -Recurse -Force
+          "CYTELLECT_CI_INSTALLER=$(Join-Path $output "Cytellect-Setup-$env:CI_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Audit installation and a short use under Smart App Control's rules (audit mode)
+        shell: pwsh
+        run: ./packaging/windows/sac-audit.ps1 -Installer $env:CYTELLECT_CI_INSTALLER -Version $env:CI_VERSION -Checkout (Get-Location).Path -Output (Join-Path $env:RUNNER_TEMP 'sac-audit-report')
+      - name: Retain the de-duplicated file list (placeholders instead of user and runner paths)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-sac-audit
+          path: ${{ runner.temp }}/sac-audit-report/
+          if-no-files-found: warn
+          retention-days: 14
   windows-tests:
     needs: changes
     if: needs.changes.outputs.windows == 'true'
