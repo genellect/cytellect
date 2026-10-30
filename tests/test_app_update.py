@@ -12,7 +12,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from cytellect_api import app_update
+from cytellect_api import app_update, update_signature
 from cytellect_api.app import create_app
 from cytellect_api.app_update import Installation, Relaunch, UpdateRefused, UpdateService
 from cytellect_api.config import Settings
@@ -20,6 +20,33 @@ from fastapi.testclient import TestClient
 
 INSTALLER = b"generated installer bytes for the update test\n"
 DIGEST = hashlib.sha256(INSTALLER).hexdigest()
+UPDATE_TEST = Path(__file__).resolve().parents[1] / "packaging/windows/update-test"
+
+
+def _signer():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sshsig_test_signer", UPDATE_TEST / "sshsig_test_signer.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# A key made for this test run only; no private key is stored in the repository.
+SIGNER = _signer()
+KEY, PUBLIC = SIGNER.generate()
+
+
+def manifest_for(version="0.1.0-local.22", body=INSTALLER):
+    return update_signature.write_manifest(version, hashlib.sha256(body).hexdigest(), len(body), "a" * 40,
+                                           "2026-10-30T00:00:00Z")
+
+
+@pytest.fixture(autouse=True)
+def signing_key(monkeypatch):
+    """The built-in public key is the test run's key, as the owner's would be in a release."""
+    monkeypatch.setattr(update_signature, "UPDATE_PUBLIC_KEY", PUBLIC)
 
 
 def make_app(root: Path, version: str) -> Path:
@@ -39,28 +66,34 @@ def installation(tmp_path: Path, version="0.1.0-local.21") -> Installation:
     return item
 
 
-def release(version, *, draft=False, installer=True, checksum=True, digest=None, size=None):
+def release(version, *, draft=False, installer=True, signed=True, digest=None, size=None):
     assets = []
+    download = f"https://github.com/genellect/cytellect/releases/download/v{version}/"
     if installer:
         assets.append({"name": f"Cytellect-Setup-{version}.exe", "size": size,
-                       "browser_download_url": f"https://github.com/genellect/cytellect/releases/download/v{version}/x.exe",
+                       "browser_download_url": download + f"Cytellect-Setup-{version}.exe",
                        **({"digest": digest} if digest else {})})
-    if checksum:
-        assets.append({"name": f"Cytellect-Setup-{version}.exe.sha256",
-                       "browser_download_url": f"https://github.com/genellect/cytellect/releases/download/v{version}/x.sha256"})
+    if signed:
+        for name in (f"Cytellect-update-{version}.json", f"Cytellect-update-{version}.json.sig"):
+            assets.append({"name": name, "browser_download_url": download + name})
     return {"tag_name": f"v{version}", "draft": draft, "html_url": f"https://github.com/genellect/cytellect/releases/tag/v{version}",
             "assets": assets}
 
 
 class Opener:
-    """Serves the checksum and installer bodies that a release would publish."""
+    """Serves the signed manifest, its signature and the installer that a release would publish."""
 
-    def __init__(self, body=INSTALLER, checksum=None):
-        self.body, self.checksum, self.urls = body, checksum or f"{DIGEST}  Cytellect-Setup.exe\n", []
+    def __init__(self, body=INSTALLER, manifest=None, signature=None):
+        self.body = body
+        self.manifest = manifest if manifest is not None else manifest_for()
+        self.signature = signature if signature is not None else SIGNER.sign(KEY, self.manifest)
+        self.urls = []
 
     def __call__(self, url, timeout):
         self.urls.append(url)
-        return io.BytesIO(self.checksum.encode() if url.endswith(".sha256") else self.body)
+        if url.endswith(".json.sig"):
+            return io.BytesIO(self.signature)
+        return io.BytesIO(self.manifest if url.endswith(".json") else self.body)
 
 
 def service(tmp_path, releases, *, opener=None, installer=lambda path, root: 0, spawned=None, stops=None,
@@ -73,8 +106,8 @@ def service(tmp_path, releases, *, opener=None, installer=lambda path, root: 0, 
                          sleep=lambda seconds: None, background=False)
 
 
-def test_newest_published_local_release_with_installer_and_checksum_is_chosen():
-    releases = [release("0.1.0-local.23", draft=True), release("0.1.0-local.22", checksum=False),
+def test_newest_published_local_release_with_an_installer_is_chosen():
+    releases = [release("0.1.0-local.23", draft=True), release("0.1.0-local.22", installer=False),
                 release("0.1.0-local.9"), release("0.1.0-local.21"), {"tag_name": "v1.0.0", "assets": []},
                 "not a release"]
     latest = app_update.latest_release(releases)
@@ -132,25 +165,66 @@ def test_development_and_hosted_copies_report_unsupported(tmp_path):
     assert app_update.current_installation(tmp_path / "a/b/c/d/e/module.py") is None
 
 
-@pytest.mark.parametrize("opener,code", [
-    (Opener(body=b"tampered installer"), "update_installer_hash_mismatch"),
-    (Opener(checksum="not-a-digest\n"), "update_checksum_invalid"),
+OTHER_KEY, _ = SIGNER.generate()
+SIGNED = manifest_for()
+
+
+@pytest.mark.parametrize("opener,code,downloaded", [
+    (Opener(body=b"tampered installer"), "update_installer_hash_mismatch", True),
+    # The signed manifest names another installer than the one served.
+    (Opener(manifest=manifest_for(body=b"another installer")), "update_installer_hash_mismatch", True),
+    (Opener(manifest=SIGNED.replace(DIGEST.encode(), b"0" * 64), signature=SIGNER.sign(KEY, SIGNED)),
+     "update_signature_invalid", False),
+    (Opener(signature=SIGNER.sign(OTHER_KEY, SIGNED)), "update_signature_wrong_key", False),
+    (Opener(signature=SIGNER.sign(KEY, SIGNED, namespace="file")), "update_signature_wrong_namespace", False),
+    (Opener(signature=SIGNER.sign(KEY, SIGNED, algorithm="sha256")), "update_signature_invalid", False),
+    (Opener(signature=b"not a signature"), "update_signature_invalid", False),
+    (Opener(manifest=manifest_for("0.1.0-local.23")), "update_manifest_version_mismatch", False),
+    (Opener(manifest=b"[]", signature=SIGNER.sign(KEY, b"[]")), "update_manifest_invalid", False),
 ])
-def test_unverified_download_never_runs_the_installer(tmp_path, opener, code):
+def test_unverified_download_never_runs_the_installer(tmp_path, opener, code, downloaded):
     ran = []
     updater = service(tmp_path, [release("0.1.0-local.22")], opener=opener,
                       installer=lambda path, root: ran.append(path) or 0)
     updater.start()
     assert ran == []
     assert updater.status()["state"] == "failed" and updater.status()["error"] == code
+    # The signature is checked before the installer is requested at all.
+    assert any(url.endswith(".exe") for url in opener.urls) is downloaded
 
 
-def test_release_digest_must_agree_with_the_published_checksum(tmp_path):
-    ran = []
-    updater = service(tmp_path, [release("0.1.0-local.22", digest="sha256:" + "0" * 64)],
+def test_a_release_without_a_signed_manifest_is_not_installed(tmp_path):
+    opener, ran = Opener(), []
+    updater = service(tmp_path, [release("0.1.0-local.22", signed=False)], opener=opener,
                       installer=lambda path, root: ran.append(path) or 0)
+    assert updater.status()["available"] is True
     updater.start()
-    assert ran == [] and updater.status()["error"] == "update_checksum_mismatch"
+    assert ran == [] and opener.urls == [] and updater.status()["error"] == "update_signature_missing"
+
+
+def test_github_listing_that_disagrees_with_the_signed_manifest_stops_the_update(tmp_path):
+    for listed in ({"digest": "sha256:" + "0" * 64}, {"size": len(INSTALLER) + 1}):
+        ran = []
+        updater = service(tmp_path / str(len(listed)) / next(iter(listed)), [release("0.1.0-local.22", **listed)],
+                          installer=lambda path, root: ran.append(path) or 0)
+        updater.start()
+        assert ran == [] and updater.status()["error"] == "update_installer_hash_mismatch"
+
+
+def test_without_a_built_in_key_the_update_asks_for_the_new_installer(tmp_path, monkeypatch):
+    monkeypatch.setattr(update_signature, "UPDATE_PUBLIC_KEY", "")
+    updater = service(tmp_path, [release("0.1.0-local.22")])
+    assert updater.status() == {"current": "0.1.0-local.21", "latest": "0.1.0-local.22", "available": False,
+                                "notes_url": "https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22",
+                                "state": "unsupported", "error": "update_signing_key_missing"}
+    with pytest.raises(UpdateRefused, match="update_unsupported"):
+        updater.start()
+    # Nothing newer: nothing to say.
+    assert service(tmp_path / "same", [release("0.1.0-local.21")]).status()["error"] is None
+    # The result of an earlier update stays visible (the new version after an update).
+    app_update.write_json(tmp_path / "updates/state.json", {"state": "rolled_back", "version": "0.1.0-local.22",
+                                                            "error": "update_new_version_failed_to_start"})
+    assert updater.status()["state"] == "rolled_back"
 
 
 def test_failed_installer_keeps_the_current_version_running(tmp_path):
@@ -180,6 +254,8 @@ def test_verified_installation_switches_through_the_relauncher(tmp_path):
     assert spawned and spawned[0][-5:-2] == ["-m", "cytellect_api.app_update", "relaunch"]
     plan = json.loads((tmp_path / "updates/switch.json").read_text())
     assert plan["previous"]["version"] == "0.1.0-local.21" and plan["target"]["version"] == "0.1.0-local.22"
+    assert [url.rsplit("/", 1)[1] for url in updater.opener.urls] == [  # type: ignore[attr-defined]
+        "Cytellect-update-0.1.0-local.22.json", "Cytellect-update-0.1.0-local.22.json.sig", "Cytellect-Setup-0.1.0-local.22.exe"]
     with pytest.raises(UpdateRefused, match="update_not_available"):
         service(tmp_path / "other", []).start()
 
@@ -273,12 +349,12 @@ def windows_file_locks(monkeypatch):
     return held
 
 
-def switch_plan(root: Path) -> Path:
+def switch_plan(root: Path, port: int = 8765) -> Path:
     previous = installation(root, "0.1.0-local.21")
     target = app_update.read_installation(make_app(root, "0.1.0-local.22"))
     assert target is not None
     plan = root / "updates/switch.json"
-    app_update.write_json(plan, {"schema": "cytellect-update-switch/1", "root": str(root), "port": 8765,
+    app_update.write_json(plan, {"schema": "cytellect-update-switch/1", "root": str(root), "port": port,
                                  "wait_pid": 1, "wait_created": 1.0,
                                  "previous": previous.record(), "target": target.record()})
     return plan
@@ -292,10 +368,12 @@ class Effects:
         self.previous_alive, self.killable = previous_alive, killable
         self.started, self.stopped, self.shortcuts_restored, self.copies = [], [], [], []
         self.exited, self.killed, self.restores = [], [], 0
+        self.commands, self.checked_ports = [], []
 
     def relaunch(self):
         def start(command, cwd):
             self.started.append(command[0])
+            self.commands.append(command)
             if "start" in self.fail and len(self.started) == 1:
                 raise OSError("synthetic start failure")
             if "0.1.0-local.22" in command[0] and self.migrate:
@@ -328,7 +406,8 @@ class Effects:
                 raise OSError("synthetic shortcut failure")
 
         return Relaunch(wait=lambda pid, created: self.exits, start=start,
-                        healthy=lambda port, version, process: self.is_healthy and version == "0.1.0-local.22",
+                        healthy=lambda port, version, process: (self.checked_ports.append(port) or self.is_healthy)
+                        and version == "0.1.0-local.22",
                         stop=stop, exited=self.exited.append, shortcuts=shortcuts, copy=copy,
                         alive=lambda pid, created: self.previous_alive, kill=kill, pause=lambda seconds: None)
 
@@ -346,6 +425,29 @@ def test_relaunch_success_records_update_and_keeps_no_database_copy(tmp_path, wi
     assert effects.stopped == [] and effects.shortcuts_restored == []
     assert not list((tmp_path / "updates/rollback").glob("*.sqlite"))
     assert state_of(tmp_path)["state"] == "updated" and state_of(tmp_path)["previous"] == "0.1.0-local.21"
+
+
+def test_the_new_and_the_previous_version_start_on_the_launcher_port(tmp_path):
+    """Started with --port, both the switch and the return use that port; the shortcut keeps 8765."""
+    plan = switch_plan(tmp_path, port=8791)
+    effects = Effects()
+    assert app_update.relaunch(plan, effects.relaunch()) == "rolled_back"
+    assert effects.checked_ports == [8791]
+    assert [command[-2:] for command in effects.commands] == [["--port", "8791"], ["--port", "8791"]]
+    assert "0.1.0-local.22" in effects.commands[0][0] and "0.1.0-local.21" in effects.commands[1][0]
+    previous = app_update.read_installation(tmp_path / "apps" / f"0.1.0-local.21-{'a' * 12}")
+    assert previous is not None and "--port" not in previous.launch()  # the shortcut's command
+    plan = switch_plan(tmp_path / "updated", port=8792)
+    effects = Effects(healthy=True)
+    assert app_update.relaunch(plan, effects.relaunch()) == "updated"
+    assert effects.checked_ports == [8792] and effects.commands[0][-2:] == ["--port", "8792"]
+
+
+def test_a_plan_with_an_impossible_port_is_refused(tmp_path):
+    plan = switch_plan(tmp_path, port=0)
+    effects = Effects(healthy=True)
+    assert app_update.relaunch(plan, effects.relaunch()) == "failed"
+    assert effects.commands == [] and state_of(tmp_path)["error"] == "update_switch_invalid"
 
 
 def test_new_version_that_does_not_start_falls_back_to_the_previous_version(tmp_path, windows_file_locks):
@@ -579,4 +681,98 @@ def test_the_ci_update_hook_makes_only_the_named_version_fail_to_start(tmp_path,
     spec.loader.exec_module(importlib.util.module_from_spec(spec))
     failing = installation(tmp_path / "new", "0.1.0-local.22")
     assert failing.launch()[1:] == ["-E", "-c", "raise SystemExit(3)"]
+    assert failing.launch(8791)[1:] == ["-E", "-c", "raise SystemExit(3)"]  # the relauncher passes its port
     assert installation(tmp_path / "old").launch()[1:5] == ["-B", "-E", "-m", "cytellect_api.local"]
+
+
+RELAUNCHER = """
+import json, subprocess, sys
+from pathlib import Path
+import psutil
+from cytellect_api import app_update
+
+pid, plan_path, result = int(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+plan.update(wait_pid=pid, wait_created=psutil.Process(pid).create_time())
+app_update.write_json(plan_path, plan)
+seen = {"shortcuts": [], "started": []}
+# A process of the relauncher's own (it descends from the previous launcher too) must survive.
+own = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+# The previous launcher never exits: the real stop (kill_identity, stop_tree) runs on it.
+outcome = app_update.relaunch(plan_path, app_update.Relaunch(
+    wait=lambda pid, created: False, start=lambda command, cwd: seen["started"].append(command[0]),
+    shortcuts=lambda item: seen["shortcuts"].append(item.version), pause=lambda seconds: None))
+# Reached only if stopping the previous launcher spared this process (and its ancestors).
+seen["own_child_running"] = own.poll() is None
+own.kill()
+result.write_text(json.dumps({"outcome": outcome, **seen}), encoding="utf-8")
+"""
+
+
+def test_stopping_a_previous_launcher_spares_the_relauncher_that_descends_from_it(tmp_path):
+    """The relauncher is started by the launcher it may have to stop; it must go on to restore."""
+    import subprocess
+    import sys
+    import time
+
+    plan = switch_plan(tmp_path)
+    script, result = tmp_path / "relauncher.py", tmp_path / "result.json"
+    script.write_text(RELAUNCHER, encoding="utf-8")
+    # A stand-in for the previous launcher: it starts the relauncher (in its own session, as
+    # detach does) and then ignores every request to stop until it is killed.
+    launcher = subprocess.Popen([sys.executable, "-c", (
+        "import os, subprocess, sys, time\n"
+        f"subprocess.Popen([sys.executable, {str(script)!r}, str(os.getpid()), {str(plan)!r}, {str(result)!r}], "
+        "start_new_session=os.name != 'nt')\n"
+        "time.sleep(120)\n")])
+    try:
+        deadline = time.monotonic() + 60
+        while not result.exists() and time.monotonic() < deadline:
+            time.sleep(0.2)
+        assert result.exists(), "the relauncher was stopped together with the previous launcher"
+        seen = json.loads(result.read_text(encoding="utf-8"))
+        assert seen["outcome"] == "rolled_back" and seen["shortcuts"] == ["0.1.0-local.21"]
+        assert seen["own_child_running"] is True
+        assert len(seen["started"]) == 1 and "0.1.0-local.21" in seen["started"][0]  # the previous version again
+        assert state_of(tmp_path)["error"] == "update_previous_did_not_exit"
+        assert launcher.wait(timeout=10) != 0  # the previous launcher itself was stopped
+    finally:
+        if launcher.poll() is None:
+            launcher.kill()
+
+
+def test_stopping_a_started_process_stops_its_grandchildren_too(tmp_path):
+    """A hung installer runs PowerShell, uv and Python: the whole subtree that this process started stops."""
+    import subprocess
+    import sys
+    import time
+
+    import psutil
+
+    marker = tmp_path / "grandchild.pid"
+    child = subprocess.Popen([sys.executable, "-c", (
+        "import subprocess, sys, time\n"
+        "grandchild = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+        f"open({str(marker)!r}, 'w').write(str(grandchild.pid))\n"
+        "time.sleep(120)\n")])
+    try:
+        deadline = time.monotonic() + 30
+        while not (marker.exists() and marker.read_text()) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        grandchild = psutil.Process(int(marker.read_text()))
+        app_update.stop_tree(child)
+        assert child.wait(timeout=10) != 0
+        gone, alive = psutil.wait_procs([grandchild], timeout=10)
+        assert alive == [] and gone
+    finally:
+        if child.poll() is None:
+            child.kill()
+
+
+def test_stop_tree_never_stops_this_process():
+    import psutil
+
+    class Me:
+        pid = psutil.Process().pid
+
+    app_update.stop_tree(Me())  # stopping this very process is refused; the test goes on

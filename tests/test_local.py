@@ -63,6 +63,21 @@ def test_local_bootstrap_cookie_only_and_owner_survives_relaunch(tmp_path):
     assert "form-action 'self'" in client.get("/").headers["content-security-policy"]
 
 
+
+def test_a_session_revoked_at_launcher_stop_is_refused_until_bootstrapped_again(tmp_path):
+    """The tab that started an in-app update keeps a revoked cookie; POST /v1/local/session renews it."""
+    client, app, settings, web = local(tmp_path)
+    client.post("/v1/local/session", headers=HEADERS)
+    created = client.post("/v1/workspaces", json={"title": "synthetic local"}, headers=HEADERS).json()
+    local_module.revoke_local_sessions(app, settings)
+    successor = TestClient(create_local_app(settings, web, 8765), base_url=ORIGIN, client=("127.0.0.1", 45002))
+    successor.cookies.update(client.cookies)  # the same browser, now talking to the new version
+    assert successor.get("/v1/app/update").status_code == 401
+    assert successor.get("/v1/workspaces").status_code == 401
+    assert successor.post("/v1/local/session", headers=HEADERS).status_code == 200
+    assert successor.get("/v1/app/update").status_code == 200
+    assert successor.get("/v1/workspaces").json()[0]["id"] == created["id"]
+
 @pytest.mark.parametrize("headers", [
     {}, {"Origin": ORIGIN}, {"X-Cytellect-Request": "1"},
     {**HEADERS, "Origin": "https://attacker.example"},

@@ -64,6 +64,8 @@ export const accountApi = {
     catch (error) {if (error instanceof AccountRequestError && [404, 405].includes(error.status)) return null; throw error;}
   },
   applyUpdate: () => send<UpdateInfo>("/v1/app/update"),
+  /** The same-origin local session that the workspace opens with (WorkspaceAccess). */
+  reconnect: () => send<{authenticated: boolean}>("/v1/local/session"),
 };
 
 /** Japanese date of a reset or request, in the PC's time zone unless one is given (tests). */
@@ -214,6 +216,8 @@ export const UPDATE_JOBS_RUNNING = "update_jobs_running";
 export const UPDATE_IN_PROGRESS = "update_in_progress";
 export const UPDATE_NOT_AVAILABLE = "update_not_available";
 export const UPDATE_UNSUPPORTED = "update_unsupported";
+/** GET /v1/app/update: a newer release exists, but this version has no key to verify it with. */
+export const UPDATE_SIGNING_KEY_MISSING = "update_signing_key_missing";
 /** Settled states the installer keeps until the next update; each is shown once per occurrence. */
 export const UPDATE_REMEMBERED: ReadonlySet<string> = new Set(["updated", "installed", "failed", "rolled_back"]);
 
@@ -239,23 +243,42 @@ export function safeNotesUrl(value: string | null | undefined): string | null {
   } catch {return null;}
 }
 
+/** Sign-ins again after a 401 while following, before the banner asks to reopen the workspace. */
+export const UPDATE_RECONNECT_LIMIT = 3;
+export const UPDATE_SESSION_LOST_TEXT = "更新の状態を確かめられませんでした。作業画面を開き直してください。";
+
 /**
  * Follow a started update until it settles. The local API restarts on the way, so a failed
  * request (the connection drops) is waited out; after `limitMs` the result is "timeout".
+ * The stopping launcher revokes the local sessions, so the new version answers 401: the
+ * session is opened again with `reconnect` (as the workspace opens it) and following goes on.
+ * A 401 that a new session does not resolve, or a refused reconnect, is "session_lost".
  */
-export async function followUpdate(get: () => Promise<UpdateInfo | null>, options: {sleep?: (ms: number) => Promise<void>; now?: () => number; pollMs?: number; limitMs?: number; signal?: AbortSignal} = {}): Promise<UpdateInfo | "timeout" | "cancelled"> {
+export async function followUpdate(get: () => Promise<UpdateInfo | null>, options: {sleep?: (ms: number) => Promise<void>; now?: () => number; pollMs?: number; limitMs?: number; signal?: AbortSignal; reconnect?: () => Promise<unknown>} = {}): Promise<UpdateInfo | "timeout" | "cancelled" | "session_lost"> {
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const now = options.now ?? Date.now;
   const deadline = now() + (options.limitMs ?? UPDATE_FOLLOW_MS);
+  let reconnects = 0;
   while (now() < deadline) {
     await sleep(options.pollMs ?? UPDATE_POLL_MS);
     // The banner stops following when it unmounts or starts following again.
     if (options.signal?.aborted) return "cancelled";
-    try {
-      const info = await get();
+    let info: UpdateInfo | null;
+    try {info = await get();}
+    catch (error) {
+      if (!(error instanceof AccountRequestError && error.status === 401)) continue; // Restarting: briefly unreachable.
+      if (!options.reconnect || reconnects >= UPDATE_RECONNECT_LIMIT) return "session_lost";
+      reconnects += 1;
+      try {await options.reconnect();}
+      catch (failure) {
+        // Unreachable again: keep waiting. An answer that refuses the session ends following.
+        if (!(failure instanceof AccountRequestError && failure.status === 0)) return "session_lost";
+      }
       if (options.signal?.aborted) return "cancelled";
-      if (info && UPDATE_SETTLED.has(info.state ?? "idle")) return info;
-    } catch {/* Restarting: the local API is briefly unreachable. */}
+      continue;
+    }
+    if (options.signal?.aborted) return "cancelled";
+    if (info && UPDATE_SETTLED.has(info.state ?? "idle")) return info;
   }
   return "timeout";
 }
@@ -275,7 +298,9 @@ export function updateNotice(info: UpdateInfo | null | undefined, following = fa
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
     case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
-    case "unsupported": return null;
+    // This version has no key to verify a release with: the newer one is installed with its installer.
+    case "unsupported": return info.error === UPDATE_SIGNING_KEY_MISSING
+      ? {text: `新しい版${version}があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。`, tone: "info"} : null;
     default:
       if (following) return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
       return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新する"}} : null;

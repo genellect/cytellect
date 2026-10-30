@@ -530,6 +530,17 @@ def server_config(app, port: int):
                           log_level="error", use_colors=False, timeout_graceful_shutdown=5)
 
 
+def revoke_local_sessions(app, settings: Settings) -> None:
+    """Sessions stop granting access across launcher shutdown (also an in-app update's switch).
+
+    A later same-origin bootstrap (POST /v1/local/session) resumes the stable local owner's
+    work; the workspace's update banner does that when the new version answers 401.
+    """
+    with app.state.store.transaction() as conn:
+        conn.execute(update(sessions).where(sessions.c.owner == _local_owner(settings.data_dir))
+                     .values(revoked=True))
+
+
 def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_browser=True, gui=False):
     import uvicorn
 
@@ -573,11 +584,7 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
         finally:
             owner_watch_stopped.set()
             supervisor.stop()
-            # Sessions stop granting access across launcher shutdown. A later
-            # same-origin bootstrap resumes the stable local owner's work.
-            with app.state.store.transaction() as conn:
-                conn.execute(update(sessions).where(sessions.c.owner == _local_owner(settings.data_dir))
-                             .values(revoked=True))
+            revoke_local_sessions(app, settings)
         if supervisor.failure:
             raise RuntimeError(supervisor.failure)
 

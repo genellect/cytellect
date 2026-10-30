@@ -17,8 +17,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6F1E0A2C-4C1B-4E57-9B2D-3C7A1F0E9D21}_is1'
-$Origin = 'http://127.0.0.1:8765'
-$Headers = @{ Origin = $Origin; 'X-Cytellect-Request' = '1' }
+# The launcher's port (8765 unless --port is given); Use-Port switches every request to another.
+function Use-Port([int]$Port) {
+    $script:Port = $Port
+    $script:Origin = "http://127.0.0.1:$Port"
+    $script:Headers = @{ Origin = $script:Origin; 'X-Cytellect-Request' = '1' }
+}
+Use-Port 8765
 $Description = 'Cytellect local analysis and control window'
 New-Item -ItemType Directory -Path $Scratch -Force | Out-Null
 
@@ -53,6 +58,7 @@ function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$G
     $arguments = @('-B', '-E', '-m', 'cytellect_api.local', '--data-dir', ('"' + $Root + '\data"'),
         '--web-dir', ('"' + $marker.app + '\apps\web\out"'), '--fiji', ('"' + $marker.fiji + '"'), '--no-browser')
     if ($Gui) { $arguments += '--gui' }
+    if ($script:Port -ne 8765) { $arguments += @('--port', "$script:Port") }
     $process = Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory $marker.app -WindowStyle Hidden -PassThru
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt 240) {
@@ -67,7 +73,7 @@ function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$G
     # Fixed facts only: which Python windows are open (an error dialog has the title Cytellect) and the listener.
     Get-Process -Name python, pythonw -ErrorAction SilentlyContinue |
         ForEach-Object { Write-Host ('process {0} window "{1}"' -f $_.ProcessName, $_.MainWindowTitle) }
-    Write-Host ('listening on 8765: ' + [bool](Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue))
+    Write-Host ("listening on ${script:Port}: " + [bool](Get-NetTCPConnection -LocalPort $script:Port -State Listen -ErrorAction SilentlyContinue))
     # The launcher's dialogs carry fixed texts only (no paths); read them through UI Automation.
     $probe = @'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -86,7 +92,7 @@ foreach ($window in [Windows.Automation.AutomationElement]::RootElement.FindAll(
 function Stop-Cytellect($Process) {
     if (-not $Process.HasExited) { Stop-Process -Id $Process.Id }
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
-        if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { return }
+        if (-not (Get-NetTCPConnection -LocalPort $script:Port -State Listen -ErrorAction SilentlyContinue)) { return }
         Start-Sleep -Milliseconds 500
     }
     throw 'launcher kept listening after stop'
@@ -176,7 +182,12 @@ try {
     $session = New-Session
     $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Installer preservation check"}'
     $update = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
-    if ($update.current -cne $Version -or $update.available -or $update.state -cne 'idle') { throw 'unexpected update status' }
+    # The distributed copy has no signing key built in yet (docs/release-signing.md): it never
+    # updates in the app. Offline nothing newer is known, so there is nothing to ask for either.
+    if ($update.current -cne $Version -or $update.available -or $update.state -cne 'unsupported' -or $update.error) {
+        throw ('unexpected update status ' + $update.state + ' ' + $update.error)
+    }
+    Write-Host 'update status without a signing key, offline: unsupported'
 
     Step 'uninstall refuses while Cytellect runs'
     Invoke-Uninstaller $root -ExpectRefusal
@@ -274,15 +285,22 @@ if ($UpdateInstaller) {
     $base = "http://127.0.0.1:$feedPort"
     $name = "Cytellect-Setup-$UpdateVersion.exe"
     Copy-Item -LiteralPath $UpdateInstaller -Destination (Join-Path $feedDirectory $name)
-    Copy-Item -LiteralPath ($UpdateInstaller + '.sha256') -Destination (Join-Path $feedDirectory ($name + '.sha256'))
+    # The signed manifest, as the release workflow publishes it, but signed with a key made for
+    # this run; only the CI hook (never a distributed copy) lets the installed version trust it.
+    $manifest = "Cytellect-update-$UpdateVersion.json"
+    $commit = (& git -C $Checkout rev-parse HEAD).Trim()
+    & $python -B (Join-Path $Checkout 'packaging\windows\update-test\sshsig_test_signer.py') --installer $UpdateInstaller --version $UpdateVersion --commit $commit --output-dir $feedDirectory
+    if ($LASTEXITCODE -ne 0) { throw 'signing the generated release failed' }
     $feed = @(@{ tag_name = "v$UpdateVersion"; draft = $false
         html_url = "https://github.com/genellect/cytellect/releases/tag/v$UpdateVersion"
         assets = @(@{ name = $name; size = (Get-Item -LiteralPath $UpdateInstaller).Length; browser_download_url = "$base/$name" },
-                   @{ name = "$name.sha256"; browser_download_url = "$base/$name.sha256" }) })
+                   @{ name = $manifest; browser_download_url = "$base/$manifest" },
+                   @{ name = "$manifest.sig"; browser_download_url = "$base/$manifest.sig" }) })
     [IO.File]::WriteAllText((Join-Path $feedDirectory 'releases.json'), (ConvertTo-Json -InputObject $feed -Depth 6))
     $server = Start-Process -FilePath $python -PassThru -WindowStyle Hidden -ArgumentList @(
         '-m', 'http.server', "$feedPort", '--bind', '127.0.0.1', '--directory', ('"' + $feedDirectory + '"'))
     $env:CYTELLECT_TEST_RELEASES = "$base/releases.json"
+    $env:CYTELLECT_TEST_UPDATE_KEY = [IO.File]::ReadAllText((Join-Path $feedDirectory 'update-test-key.pub')).Trim()
 
     function Install-UpdateHook([string]$Root) {
         $site = Join-Path (Get-App $Root).app '.venv\Lib\site-packages'
@@ -296,7 +314,7 @@ if ($UpdateInstaller) {
             $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase) } |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
         for ($attempt = 0; $attempt -lt 60; $attempt++) {
-            if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { return }
+            if (-not (Get-NetTCPConnection -LocalPort $script:Port -State Listen -ErrorAction SilentlyContinue)) { return }
             Start-Sleep -Milliseconds 500
         }
         throw 'launcher kept listening after stop'
@@ -325,6 +343,25 @@ if ($UpdateInstaller) {
         throw "update did not reach $State"
     }
 
+    function Get-RefusalCode([scriptblock]$Request) {
+        try { & $Request | Out-Null; return 'accepted' }
+        catch {
+            $detail = $null
+            if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                try { $detail = ($_.ErrorDetails.Message | ConvertFrom-Json).detail } catch { }
+            }
+            return ('{0} {1}' -f [int]$_.Exception.Response.StatusCode, $detail)
+        }
+    }
+
+    function Assert-TestKey($Status, [string]$Stage) {
+        # Only the CI hook makes the installed copy trust this run's key; a distributed copy cannot.
+        if (-not $Status.available -or $Status.latest -cne $UpdateVersion -or $Status.state -cne 'idle' -or $Status.error) {
+            throw ('{0}: the test signing key is not in effect ({1} {2})' -f $Stage, $Status.state, $Status.error)
+        }
+        Write-Host ('{0}: the test signing key is in effect; {1} is offered' -f $Stage, $UpdateVersion)
+    }
+
     function Assert-ShortcutVersion([string]$Root, [string]$Expected) {
         $link = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Cytellect.lnk'))
         if (-not $link.TargetPath.StartsWith((Join-Path $Root "apps\$Expected-"), [StringComparison]::OrdinalIgnoreCase)) {
@@ -333,17 +370,43 @@ if ($UpdateInstaller) {
     }
 
     try {
-        Step 'in-app update: download, verify, install beside, switch to the new version'
+        Step 'without a built-in signing key, a newer release asks for its installer'
         $root = Join-Path $Scratch 'update'
         if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the update failed' }
         Install-UpdateHook $root
+        # The hook points this copy at the generated release list but, without the test key,
+        # the copy keeps the empty built-in key, as distributed.
+        $testKey = $env:CYTELLECT_TEST_UPDATE_KEY
+        $env:CYTELLECT_TEST_UPDATE_KEY = $null
+        $process = Start-Cytellect $root
+        try {
+            $session = New-Session
+            $manual = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
+            if ($manual.available -or $manual.latest -cne $UpdateVersion -or $manual.state -cne 'unsupported' -or $manual.error -cne 'update_signing_key_missing') {
+                throw ('a copy without a signing key reported ' + $manual.state + ' ' + $manual.error)
+            }
+            $refusal = Get-RefusalCode { Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session }
+            if ($refusal -cne '409 update_unsupported') { throw ('a copy without a signing key answered the update with ' + $refusal) }
+            Write-Host ('without a signing key: {0} is named for its installer (update_signing_key_missing); the update is refused (409 update_unsupported)' -f $UpdateVersion)
+        } finally { Stop-Cytellect $process; $env:CYTELLECT_TEST_UPDATE_KEY = $testKey }
+
+        Step 'in-app update: verify the signed manifest, download, install beside, switch to the new version'
         $process = Start-Cytellect $root
         $session = New-Session
         $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Update check"}'
-        $offer = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
-        if (-not $offer.available -or $offer.latest -cne $UpdateVersion) { throw 'the generated release was not offered' }
+        Assert-TestKey (Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session) 'in-app update'
         $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
         $null = Wait-UpdateState $UpdateVersion 'updated'
+        # The tab that started the update keeps its cookie, which the stopped launcher revoked.
+        # The new version refuses it with 401 until the local session is opened again, as the
+        # workspace's update banner does (followUpdate in apps/web/src/lib/cloud-account.ts).
+        $refused = 'answered'
+        try { $null = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session }
+        catch { $refused = [int]$_.Exception.Response.StatusCode }
+        if ($refused -ne 401) { throw "the revoked session was not refused with 401 ($refused)" }
+        Invoke-WebRequest -UseBasicParsing -NoProxy -Method Post -Uri "$Origin/v1/local/session" -Headers $Headers -WebSession $session | Out-Null
+        $resumed = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
+        if ($resumed.state -cne 'updated' -or $resumed.current -cne $UpdateVersion) { throw 'the reopened session does not see the completed update' }
         $kept = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
         if ($kept.title -cne 'Update check') { throw 'workspace lost in the in-app update' }
         Assert-ShortcutVersion $root $UpdateVersion
@@ -353,7 +416,10 @@ if ($UpdateInstaller) {
         Stop-Root $root
         Invoke-Uninstaller $root @('/DELETEDATA')
 
-        Step 'in-app update whose new version does not start returns to the previous version'
+        Step 'in-app update whose new version does not start returns to the previous version (port 8791)'
+        # Started with --port, the relauncher must start both versions on that port, or the
+        # health check and the open tab would not reach them.
+        Use-Port 8791
         $root = Join-Path $Scratch 'rollback'
         if ((Invoke-Installer $root -Offline) -ne 0) { throw 'installation for the rollback failed' }
         Install-UpdateHook $root
@@ -361,6 +427,7 @@ if ($UpdateInstaller) {
         $process = Start-Cytellect $root
         $session = New-Session
         $created = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Rollback check"}'
+        Assert-TestKey (Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session) 'rollback'
         $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
         $status = Wait-UpdateState $Version 'rolled_back'
         if ($status.error -cne 'update_new_version_failed_to_start') { throw ('unexpected rollback reason ' + $status.error) }
@@ -373,7 +440,8 @@ if ($UpdateInstaller) {
         Stop-Root $root
         Invoke-Uninstaller $root @('/DELETEDATA')
     } finally {
-        $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null
+        $env:CYTELLECT_TEST_RELEASES = $null; $env:CYTELLECT_TEST_FAIL_VERSION = $null; $env:CYTELLECT_TEST_UPDATE_KEY = $null
+        Use-Port 8765
         if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
     }
 }
