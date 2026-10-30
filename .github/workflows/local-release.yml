@@ -87,8 +87,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/installer-cache
-          key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/python/windows-runtime.lock.json', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py') }}
-      - name: Build the per-user installer from the same ZIP
+          key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/fiji/corresponding-source.lock.json', 'engines/fiji/source-exceptions.json', 'engines/python/windows-runtime.lock.json', 'uv.lock', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py', 'scripts/corresponding_source.py') }}
+      - name: Build the per-user installer and its corresponding-source asset from the same ZIP
         shell: pwsh
         run: |
           $python = (Resolve-Path '.venv/Scripts/python.exe').Path
@@ -98,10 +98,26 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Pinned Inno Setup installation failed' }
           # Signing is the owner's decision (D4): set CYTELLECT_SIGN_COMMAND from a protected
           # environment to sign; without it the installer is unsigned and its receipt says so.
-          & $python -B scripts/build_windows_installer.py build --release-zip $env:CYTELLECT_RELEASE_ZIP --output-dir $env:CYTELLECT_RELEASE_DIR --work-dir (Join-Path $env:RUNNER_TEMP 'installer-work') --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python (Get-Command python).Source
-          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          & $python -B scripts/build_windows_installer.py build --release-zip $env:CYTELLECT_RELEASE_ZIP --output-dir $env:CYTELLECT_RELEASE_DIR --work-dir (Join-Path $env:RUNNER_TEMP 'installer-work') --cache $cache --iscc (Join-Path $inno 'ISCC.exe') --pip-python (Get-Command python).Source --corresponding-source
+          # A component whose license requires source and has none pinned stops the build here.
+          if ($LASTEXITCODE -ne 0) { throw 'Installer or corresponding-source build failed' }
           Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'installer-work') -Recurse -Force
           "CYTELLECT_RELEASE_INSTALLER=$(Join-Path $env:CYTELLECT_RELEASE_DIR "Cytellect-Setup-$env:RELEASE_VERSION.exe")" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Require the corresponding source of the bundled GPL software beside the installer
+        shell: pwsh
+        run: |
+          # Owner decision (2026-10-30): the exact source of every bundled component whose license
+          # requires it is attached to the same release; without it nothing is distributed. The
+          # components in engines/fiji/source-exceptions.json are listed with their upstream source only.
+          $asset = Join-Path $env:CYTELLECT_RELEASE_DIR "Cytellect-$env:RELEASE_VERSION-gpl-sources.zip"
+          $receipt = Get-Content -LiteralPath (Join-Path $env:CYTELLECT_RELEASE_DIR "Cytellect-Setup-$env:RELEASE_VERSION.json") -Raw | ConvertFrom-Json
+          if (-not (Test-Path -LiteralPath $asset -PathType Leaf)) { throw 'Corresponding-source asset missing' }
+          $digest = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          $recorded = (Get-Content -LiteralPath "$asset.sha256" -Raw).Split(' ')[0]
+          if ($receipt.corresponding_source.asset -ne (Split-Path $asset -Leaf) -or $receipt.corresponding_source.sha256 -ne $digest -or $recorded -ne $digest) {
+            throw 'Corresponding-source asset does not match the installer receipt'
+          }
+          Write-Output "Corresponding source: $($receipt.corresponding_source.attached) attached, $($receipt.corresponding_source.not_attached) listed with their upstream source only, $((Get-Item -LiteralPath $asset).Length) bytes"
       - name: Fresh silent installation without network, with bundled Python and actual Fiji
         shell: pwsh
         run: |
@@ -256,6 +272,11 @@ jobs:
         with:
           name: windows-release
           path: release
+      - name: Require the corresponding-source asset and its checksum before drafting
+        shell: bash
+        run: |
+          test -f "release/Cytellect-$RELEASE_VERSION-gpl-sources.zip"
+          (cd release && sha256sum --check --strict "Cytellect-$RELEASE_VERSION-gpl-sources.zip.sha256")
       - name: Sign the update manifest with the owner's key, and check it as the application will
         shell: bash
         env:
@@ -293,5 +314,23 @@ jobs:
       - name: Create a draft prerelease for final review
         shell: bash
         run: |
-          printf '%s\n' "Source: $GITHUB_SHA" '' 'Per-user installer Cytellect-Setup-'"$RELEASE_VERSION"'.exe (bundled Python, packages and Fiji; see its receipt for code-signing status), its signed update manifest Cytellect-update-'"$RELEASE_VERSION"'.json (.sig) for the in-app update, and the setup ZIP. Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "Source: $GITHUB_SHA" '' 'Per-user installer Cytellect-Setup-'"$RELEASE_VERSION"'.exe (bundled Python, packages and Fiji; see its receipt for code-signing status), its signed update manifest Cytellect-update-'"$RELEASE_VERSION"'.json (.sig) for the in-app update, the setup ZIP, and Cytellect-'"$RELEASE_VERSION"'-gpl-sources.zip with the exact source of the bundled components whose license requires it (GPL, LGPL and similar); the components without an attached source are listed with their upstream source location in the installer under licenses/ and in docs/oss.md. Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' > "$RUNNER_TEMP/release-notes.md"
           gh release create "v$RELEASE_VERSION" release/* --verify-tag --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+      - name: Stop distribution unless the corresponding source is attached
+        shell: bash
+        run: |
+          asset="Cytellect-$RELEASE_VERSION-gpl-sources.zip"
+          expected="$(stat -c %s "release/$asset" 2>/dev/null || echo missing)"
+          attached() { gh release view "v$RELEASE_VERSION" --json assets --jq ".assets[] | select(.name == \"$asset\") | .size"; }
+          for attempt in 1 2 3; do
+            [ "$expected" != missing ] && [ "$(attached)" = "$expected" ] && break
+            # A transient upload failure: upload the asset again.
+            [ "$expected" != missing ] && gh release upload "v$RELEASE_VERSION" "release/$asset" --clobber || true
+            sleep $((attempt * 20))
+          done
+          if [ "$expected" = missing ] || [ "$(attached)" != "$expected" ]; then
+            # The draft must never be published without the source of the GPL software it carries.
+            gh release delete "v$RELEASE_VERSION" --yes
+            echo "Corresponding-source asset not attached; the draft release was deleted" >&2
+            exit 1
+          fi

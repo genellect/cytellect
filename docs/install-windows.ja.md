@@ -23,7 +23,7 @@ Windows PC に Cytellect の配布版を導入し、起動・更新・アンイ�
 
 ## 2. ダウンロードと確認
 
-1. [Cytellect のサイト](https://cytellect.app/)の「Cytellectをダウンロード」、またはリリースのページから、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。インストーラーがない版では `Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。
+1. [Cytellect のサイト](https://cytellect.app/)の「Cytellectをダウンロード」、またはリリースのページから、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。インストーラーがない版では `Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。リリースのページにある `Cytellect-<版>-gpl-sources.zip` は、同梱したソフトのうち GPL などのライセンスがソースの提供を求めるもののソースで、使うためには保存しなくてよい。ソースを添付していない部品は、インストール先の `licenses\THIRD_PARTY_BUNDLED.txt` に上流のソースの所在を記している。
 2. 研究室で求められている場合は、改ざんがないことを確認する。リリースの `.sha256` ファイルはインストーラーと同じ場所に置かれ、一緒に差し替えられるので、それとの一致だけでは確認にならない。オーナーの鍵で署名された記録で確かめる。
    1. リリースのページから `Cytellect-update-<版>.json` と `Cytellect-update-<版>.json.sig` も、インストーラーと同じ「ダウンロード」フォルダーに保存する。
    2. 公開鍵は、リリースではなくリポジトリの `main` にある [`update_signature.py`](https://github.com/genellect/cytellect/blob/main/services/api/src/cytellect_api/update_signature.py) の `UPDATE_PUBLIC_KEY` から取る（`ssh-ed25519 AAAA...` で始まる部分）。PowerShell で次を実行する。`<公開鍵>` はその値に置き換える。Windows に標準で入っている OpenSSH の `ssh-keygen` を使う。
