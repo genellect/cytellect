@@ -28,7 +28,8 @@ def test_the_text_carries_the_signed_values_and_the_written_changes(tmp_path):
     assert written
     assert text.startswith("## Cytellect 0.1.0-local.21\n")
     assert "約 1.08 GB" in text
-    assert "Cytellect-Setup-0.1.0-local.21.exe" in text
+    # The text links this version's installer, not the site, which may point at another version.
+    assert f"{release_notes.REPOSITORY}/releases/download/v0.1.0-local.21/Cytellect-Setup-0.1.0-local.21.exe" in text
     assert (ROOT / "packaging/windows/release-highlights/0.1.0-local.21.ja.md").read_text(encoding="utf-8").strip() in text
     assert "{" not in text
 

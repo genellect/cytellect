@@ -6,8 +6,8 @@
 
 ### はじめ方
 
-1. <https://cytellect.app/> の「Windows版をダウンロード」を押します。
-2. ダウンロードしたファイル `Cytellect-Setup-{version}.exe`（約 {size_gb} GB）を開き、「インストール」を押します。5〜10 分ほどで終わり、作業画面が開きます。
+1. [Cytellect-Setup-{version}.exe](https://github.com/genellect/cytellect/releases/download/v{version}/Cytellect-Setup-{version}.exe)（約 {size_gb} GB）をダウンロードします。この版のインストーラーです。最新の版は <https://cytellect.app/> の「Windows版をダウンロード」からも取得できます。
+2. ダウンロードしたファイルを開き、「インストール」を押します。5〜10 分ほどで終わり、作業画面が開きます。
 3. 核や細胞の自動検出、解析の提案を使うときは、作業画面でメールアドレスを入力し、メールに届いた 6 桁のコードを入れます。ログインできるのは、事前に登録したメールアドレスだけです。登録は Cytellect の担当者にご依頼ください。
 
 すでに Cytellect を使っている場合は、作業画面に出る案内から更新できます。これまでの作業と設定はそのまま残ります。
