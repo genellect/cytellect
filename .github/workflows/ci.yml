@@ -6,9 +6,13 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# A release requires every check on the exact main commit it ships (local-release.yml), so a run
+# on main is never cancelled or replaced: each one gets its own group (a later merge would
+# otherwise cancel it, or replace it while it waits). Pull requests and manual runs on other
+# branches keep one group per ref, and a newer run cancels the superseded one.
 concurrency:
-  group: verify-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.ref == 'refs/heads/main' && format('verify-main-{0}', github.run_id) || format('verify-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   changes:
     runs-on: ubuntu-latest

@@ -7,6 +7,8 @@
 | PR | 変更したファイルに関係するジョブ（統合試験を除く） | マージの条件。最新の `main` を取り込んだ head で成功してからマージする |
 | `main` | すべてのジョブ（統合試験を含む） | 配布の根拠。失敗したら次の PR より先に直す |
 
+`main` の実行は、後のマージで取り消さない。実行ごとに別の concurrency group にするため、次のマージの実行が待っている実行を置き換えることもなく、複数の実行が並行して走る。こうして `main` のどのコミットにも完全な結果が残り、マージが続いても、CI が通った前のコミットを配布できる（[配布の条件](#配布の条件)）。PR と、`main` 以外のブランチでの手動実行は、同じ PR・ブランチの新しい実行が古い実行を取り消す。
+
 手元では `python3 scripts/dev.py check` で、PR の `python` と `web` のジョブと同じ検査を実行できる（[CONTRIBUTING](../CONTRIBUTING.md)）。マージの手順は[チーム開発ルール](team-development.md)の「開発の流れ」にある。
 
 ## ジョブ
@@ -46,7 +48,7 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 
 ## 配布の条件
 
-Windows 版は、配布する `main` のコミットで次の 8 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。ブランチ保護の必須チェックは、`windows-installer` を除く 7 つのまま。
+Windows 版は、配布する `main` のコミットで次の 8 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。配布するコミットは、実行した時点の `main` の先頭か、入力 `commit` で指定したその祖先で、成功の確認・ビルド・署名・タグはすべてそのコミットに対して行う（[配布する](release-signing.md#4-配布する)）。ブランチ保護の必須チェックは、`windows-installer` を除く 7 つのまま。
 
 `python`、`web`、`fiji-browser`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`windows-installer`、`python-windows-314`
 

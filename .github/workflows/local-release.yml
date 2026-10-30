@@ -6,30 +6,34 @@ on:
         description: "Unique prerelease version, for example 0.1.0-local.2"
         required: true
         type: string
+      commit:
+        description: "Full 40-character SHA of the main commit to release; empty releases the current main head"
+        required: false
+        type: string
+        default: ""
 permissions:
   contents: read
 concurrency:
   group: windows-release
   cancel-in-progress: false
 jobs:
-  package:
+  # The released source is resolved once, here, and every later job builds, tests, signs and tags
+  # exactly that commit (docs/release-signing.md). The workflow itself always runs from main.
+  source:
     if: github.ref == 'refs/heads/main'
-    runs-on: windows-latest
-    # The two-group comparison of 120 public JUMP images through installed Fiji adds up to an hour.
-    timeout-minutes: 150
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       checks: read
+    outputs:
+      commit: ${{ steps.resolve.outputs.commit }}
     env:
       RELEASE_VERSION: ${{ inputs.version }}
-      NEXT_TELEMETRY_DISABLED: "1"
-      PYTHONDONTWRITEBYTECODE: "1"
-      CYTELLECT_TEST_LOCAL: "1"
-      CYTELLECT_WEB_URL: http://127.0.0.1:8765
-      CYTELLECT_TEST_API_ORIGIN: http://127.0.0.1:8765
+      REQUESTED_COMMIT: ${{ inputs.commit }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Require successful checks on this exact main commit
+      - name: Resolve the released main commit and require successful checks on it
+        id: resolve
         uses: actions/github-script@v7
         with:
           script: |
@@ -44,13 +48,60 @@ jobs:
               try { await lookup(); throw new Error('Release version already exists'); }
               catch (error) { if (error.status !== 404) throw error; }
             }
+            // Empty: the main head this run was dispatched from. Otherwise a full lowercase SHA that
+            // is that head or one of its ancestors; a branch, tag, short or unmerged SHA is refused.
+            const requested = process.env.REQUESTED_COMMIT;
+            const commit = requested === '' ? context.sha : requested;
+            if (!/^[0-9a-f]{40}$/.test(commit)) {
+              throw new Error('Expected the full 40-character lowercase SHA of a main commit');
+            }
+            let comparison;
+            try {
+              ({data: comparison} = await github.rest.repos.compareCommitsWithBasehead({
+                ...context.repo, basehead: `${commit}...${context.sha}`, per_page: 1
+              }));
+            } catch (error) {
+              if (error.status === 404) throw new Error('The requested commit does not exist in this repository');
+              throw error;
+            }
+            if (!['identical', 'ahead'].includes(comparison.status) || comparison.behind_by !== 0
+                || comparison.merge_base_commit?.sha !== commit) {
+              throw new Error('The requested commit is not on main');
+            }
             const checks = await github.paginate(github.rest.checks.listForRef, {
-              ...context.repo, ref: context.sha, filter: 'latest', per_page: 100
+              ...context.repo, ref: commit, filter: 'latest', per_page: 100
             });
             for (const name of ['python', 'web', 'fiji-browser', 'cellpose-gpu-image', 'local-windows', 'windows-installed', 'windows-installer', 'python-windows-314']) {
               const check = checks.find(c => c.name === name && c.app?.slug === 'github-actions');
-              if (check?.conclusion !== 'success') throw new Error(`${name} has not passed on this commit`);
+              if (check?.conclusion !== 'success') throw new Error(`${name} has not passed on ${commit}`);
             }
+            core.info(`Releasing ${commit} (main head at dispatch: ${context.sha})`);
+            core.setOutput('commit', commit);
+  package:
+    needs: source
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    # The two-group comparison of 120 public JUMP images through installed Fiji adds up to an hour.
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
+      NEXT_TELEMETRY_DISABLED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      CYTELLECT_TEST_LOCAL: "1"
+      CYTELLECT_WEB_URL: http://127.0.0.1:8765
+      CYTELLECT_TEST_API_ORIGIN: http://127.0.0.1:8765
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ needs.source.outputs.commit }}"}
+      - name: Build only the resolved commit
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_COMMIT -cnotmatch '^[0-9a-f]{40}$' -or (git rev-parse HEAD) -cne $env:RELEASE_COMMIT) {
+            throw 'The checkout is not the resolved release commit'
+          }
       - uses: actions/setup-node@v4
         with: {node-version: "24"}
       - uses: actions/setup-python@v5
@@ -142,7 +193,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'ZIP setup with pinned downloads failed' }
           $completed = @(Get-ChildItem -LiteralPath "$install\apps" -Filter setup-complete.json -Recurse)
           if ($completed.Count -ne 1) { throw 'Expected exactly one application from the ZIP' }
-          if ((Get-Content -LiteralPath $completed[0].FullName -Raw | ConvertFrom-Json).source_commit -ne $env:GITHUB_SHA) { throw 'ZIP installed revision mismatch' }
+          if ((Get-Content -LiteralPath $completed[0].FullName -Raw | ConvertFrom-Json).source_commit -ne $env:RELEASE_COMMIT) { throw 'ZIP installed revision mismatch' }
           Remove-Item -LiteralPath $install -Recurse -Force
       - name: Installed image, planning and registration workflows with numerical replay
         shell: pwsh
@@ -150,7 +201,7 @@ jobs:
           $completed = @(Get-ChildItem -LiteralPath "$env:CYTELLECT_INSTALL_ROOT\apps" -Filter setup-complete.json -Recurse)
           if ($completed.Count -ne 1) { throw 'Expected exactly one installed application' }
           $setup = Get-Content -LiteralPath $completed[0].FullName -Raw | ConvertFrom-Json
-          if ($setup.source_commit -ne $env:GITHUB_SHA) { throw 'Installed revision mismatch' }
+          if ($setup.source_commit -ne $env:RELEASE_COMMIT) { throw 'Installed revision mismatch' }
           # The browser cases accept either retention mode, so the shipped default is asserted here.
           if ($setup.workspace_retention -ne 'manual') { throw 'Fresh setup did not choose manual workspace retention' }
           $python = Join-Path $setup.app '.venv\Scripts\python.exe'
@@ -185,7 +236,7 @@ jobs:
           $env:CYTELLECT_JUMP_PLK1_INPUTS = $jump
           $env:CYTELLECT_JUMP_PLK1_OUTPUT = Join-Path $env:RUNNER_TEMP 'jump-evidence'
           $receipt = @{
-            schema = 'cytellect-installed-release-acceptance/1'; source_commit = $env:GITHUB_SHA
+            schema = 'cytellect-installed-release-acceptance/1'; source_commit = $env:RELEASE_COMMIT
             version = $env:RELEASE_VERSION; archive_sha256 = (Get-FileHash -LiteralPath $env:CYTELLECT_RELEASE_ZIP).Hash.ToLowerInvariant()
             harness_sha256 = (Get-FileHash -LiteralPath 'scripts/verify_installed_regions.py').Hash.ToLowerInvariant()
             browser = @{ passed = $false; expected_cases = 27 }
@@ -216,10 +267,10 @@ jobs:
                 skipped_cases = $browser.stats.skipped; flaky_cases = $browser.stats.flaky }
             }
             if (-not $receipt.browser.passed) { throw 'Installed browser verification failed or incomplete' }
-            & $python -B scripts/verify_installed_regions.py --app $setup.app --expected-source $env:GITHUB_SHA --origin $env:CYTELLECT_WEB_URL --output (Join-Path $acceptance 'generated-regions')
+            & $python -B scripts/verify_installed_regions.py --app $setup.app --expected-source $env:RELEASE_COMMIT --origin $env:CYTELLECT_WEB_URL --output (Join-Path $acceptance 'generated-regions')
             if ($LASTEXITCODE -ne 0) { throw 'Installed independent numerical or replay verification failed' }
             $numerical = Get-Content -LiteralPath (Join-Path $acceptance 'generated-regions/receipt.json') -Raw | ConvertFrom-Json
-            $receipt.numerical_replay_passed = ($numerical.passed -eq $true -and $numerical.identity.source_commit -eq $env:GITHUB_SHA -and $numerical.harness_sha256 -eq $receipt.harness_sha256)
+            $receipt.numerical_replay_passed = ($numerical.passed -eq $true -and $numerical.identity.source_commit -eq $env:RELEASE_COMMIT -and $numerical.harness_sha256 -eq $receipt.harness_sha256)
             if (-not $receipt.numerical_replay_passed) { throw 'Installed numerical receipt identity mismatch' }
           } finally {
             if (-not $launcher.HasExited) { Stop-Process -Id $launcher.Id }
@@ -250,7 +301,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   draft:
-    needs: package
+    needs: [source, package]
     runs-on: ubuntu-latest
     # The owner approves this job (required reviewer of the release environment); only here is
     # the update signing key available (docs/release-signing.md).
@@ -261,9 +312,19 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
+        with: {fetch-depth: 0, ref: "${{ needs.source.outputs.commit }}"}
+      - name: Sign and tag only the resolved commit, and only while it is on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::No resolved release commit" >&2; exit 1; }
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          git merge-base --is-ancestor "$RELEASE_COMMIT" refs/remotes/origin/main
+          # The release text is built from this checkout; an older commit would stop after the tag is made.
+          test -f scripts/release_notes.py || { echo "::error::The release commit predates scripts/release_notes.py" >&2; exit 1; }
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
@@ -276,6 +337,8 @@ jobs:
         shell: bash
         run: |
           test -f "release/Cytellect-$RELEASE_VERSION-gpl-sources.zip"
+          # The installer the package job built and tested must describe the commit signed and tagged here.
+          test "$(jq -r .source_commit "release/Cytellect-Setup-$RELEASE_VERSION.json")" = "$RELEASE_COMMIT"
           (cd release && sha256sum --check --strict "Cytellect-$RELEASE_VERSION-gpl-sources.zip.sha256")
       - name: Sign the update manifest with the owner's key, and check it as the application will
         shell: bash
@@ -287,7 +350,7 @@ jobs:
             echo "::error::UPDATE_SIGNING_KEY is not set in the release environment; nothing is drafted"
             exit 1
           fi
-          uv run --no-sync python scripts/update_manifest.py write --release-dir release --version "$RELEASE_VERSION" --commit "$GITHUB_SHA"
+          uv run --no-sync python scripts/update_manifest.py write --release-dir release --version "$RELEASE_VERSION" --commit "$RELEASE_COMMIT"
           key="$RUNNER_TEMP/update-signing-key"
           trap 'rm -f "$key"' EXIT
           (umask 077 && printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key")
@@ -309,17 +372,17 @@ jobs:
             await github.rest.git.createRef({
               ...context.repo,
               ref: `refs/tags/v${process.env.RELEASE_VERSION}`,
-              sha: context.sha
+              sha: process.env.RELEASE_COMMIT
             });
       - name: Create a draft prerelease for final review
         shell: bash
         run: |
           # The release text is for researchers (packaging/windows/release-notes.ja.md); the test record
           # goes to the run summary for the owner's review.
-          printf '%s\n' '## Verification' '' "Source: $GITHUB_SHA" '' 'Per-user installer Cytellect-Setup-'"$RELEASE_VERSION"'.exe (bundled Python, packages and Fiji; see its receipt for code-signing status), its signed update manifest Cytellect-update-'"$RELEASE_VERSION"'.json (.sig) for the in-app update, the setup ZIP, and Cytellect-'"$RELEASE_VERSION"'-gpl-sources.zip with the exact source of the bundled components whose license requires it (GPL, LGPL and similar); the components without an attached source are listed with their upstream source location in the installer under licenses/ and in docs/oss.md. Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' '## Verification' '' "Source: $RELEASE_COMMIT" '' 'Per-user installer Cytellect-Setup-'"$RELEASE_VERSION"'.exe (bundled Python, packages and Fiji; see its receipt for code-signing status), its signed update manifest Cytellect-update-'"$RELEASE_VERSION"'.json (.sig) for the in-app update, the setup ZIP, and Cytellect-'"$RELEASE_VERSION"'-gpl-sources.zip with the exact source of the bundled components whose license requires it (GPL, LGPL and similar); the components without an attached source are listed with their upstream source location in the installer under licenses/ and in docs/oss.md. Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' >> "$GITHUB_STEP_SUMMARY"
           previous="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')"
-          uv run --no-sync python scripts/release_notes.py --release-dir release --version "$RELEASE_VERSION" --commit "$GITHUB_SHA" --previous-tag "$previous" --out "$RUNNER_TEMP/release-notes.md" | tee -a "$GITHUB_STEP_SUMMARY"
-          gh release create "v$RELEASE_VERSION" release/* --verify-tag --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+          uv run --no-sync python scripts/release_notes.py --release-dir release --version "$RELEASE_VERSION" --commit "$RELEASE_COMMIT" --previous-tag "$previous" --out "$RUNNER_TEMP/release-notes.md" | tee -a "$GITHUB_STEP_SUMMARY"
+          gh release create "v$RELEASE_VERSION" release/* --verify-tag --target "$RELEASE_COMMIT" --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
       - name: Stop distribution unless the corresponding source is attached
         shell: bash
         run: |
