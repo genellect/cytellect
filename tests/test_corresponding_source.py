@@ -403,6 +403,22 @@ def test_the_committed_lock_describes_the_pinned_windows_fiji_and_every_plugin()
     assert lock["jdk"]["obligation"] == cs.SOURCE
 
 
+def test_the_jdk_source_is_the_vendors_archive_for_the_exact_build():
+    temurin = {"implementor": "Eclipse Adoptium", "version": "21.0.7+6-LTS", "implementor_version": "Temurin-21.0.7+6"}
+    base = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.7%2B6"
+    name = "OpenJDK21U-jdk-sources_21.0.7_6.tar.gz"
+    source = b"generated JDK source"
+    pages = {f"{base}/{name}.sha256.txt": f"{digest(source)}  {name}\n".encode(), f"{base}/{name}": source}
+    assert cs.resolve_jdk(temurin, resolver(pages)) == {"url": f"{base}/{name}", "sha256": digest(source),
+                                                        "bytes": len(source)}
+    pages[f"{base}/{name}.sha256.txt"] = b"0" * 64  # a download that differs from the vendor's checksum
+    assert cs.resolve_jdk(temurin, resolver(pages)) is None
+    azul = cs.jdk_identity(RELEASE)
+    lookups = resolver({})
+    assert cs.resolve_jdk(azul, lookups) is None  # not published at a public location
+    assert lookups.requested == ["https://cdn.azul.com/zulu/src/zsrc21.42.19-jdk21.0.7.zip"]
+
+
 def test_the_python_runtime_and_uv_are_classified_from_their_pins():
     runtime = json.loads((ROOT / "engines/python/windows-runtime.lock.json").read_text())
     uv = {"version": "0.12.2", "sha256": "a" * 64, "license": "Apache-2.0 OR MIT"}
