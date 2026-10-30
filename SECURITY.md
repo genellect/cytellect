@@ -17,7 +17,7 @@ Cytellect は、研究者の未発表の顕微鏡画像を研究者の PC で解
 - ファイル名、パス、実験条件、他のチャネル、測定値は送らない。
 - 測定と統計は PC で行い、原画像の画素値は変えない。
 - 外部との通信はすべて TLS で暗号化する。PC 上のデータと資格情報は OS の利用者だけが読める場所に置き、保存時の暗号化は OS の機能（BitLocker など）に委ねる。
-- 作業データは最後の操作から 24 時間で失効して削除する。研究者自身の PC では手動での保持も選べる。
+- 作業データは、Windows 版では利用者が削除するまで保持する（24 時間で自動削除する設定も選べる）。Docker 版では最後の操作から 24 時間で失効して削除し、研究者自身の PC に限って手動での保持も選べる。
 - Cytellect のクラウドが保存するのは、メールアドレス、承認の状態、月ごとの利用量だけである。
 
 ### 侵害されたときの影響範囲
@@ -26,13 +26,13 @@ Cytellect は、研究者の未発表の顕微鏡画像を研究者の PC で解
 |---|---|---|
 | 研究者のクラウドのアカウント | その利用者の GPU と解析提案の利用枠 | 研究データ（クラウドにない） |
 | Cytellect Worker | 侵害の間に中継される検出用のプレーンと、解析提案のメタデータ | 保存された研究データ、アプリの更新（署名鍵は別に置く） |
-| GitHub のリポジトリ | ソースコード | 導入済みの PC（更新には管理者の署名が要る） |
+| リポジトリへの書き込み権限 | ブランチと PR | `main` への反映（管理者のマージが要る）、導入済みの PC（更新には管理者の署名が要る） |
 
 ### 認証とアクセス制御
 
 - 研究者：メールに届く 6 桁のコードでログインする。コードは管理者が許可したアドレスにだけ送り、5 回の誤りで無効、同じアドレスで 1 日 20 回の誤りで 24 時間ロックする。回数はアドレスごとに数えるので、IP を変えても試行は増えない。
 - 資格情報：ログインした PC が持つのは 256 bit のデバイストークン 1 つだけで、OpenAI と Modal の鍵は Cytellect Worker だけが持つ。サーバーはトークンを SHA-256、コードを鍵付きの HMAC-SHA256 でしか保存せず、IP アドレスは保存しない。管理者がアドレスを失効させると、その利用者のすべての端末が次の要求から拒否される。
-- 管理者：Google と GitHub のアカウントはパスキーと認証アプリを必須にしている。管理画面は Cloudflare Access の Google ログインの背後に置き、Worker も JWT の署名（RS256 に固定）、発行者、対象、有効期限、管理者のアドレスを自分で検証する。管理の経路は決めたオリジンでしか応答せず、`workers.dev` のような別の入口からは、有効なトークンがあっても入れない。新しい利用者は、署名した 1 回限りのリンクで承認し、リンクを開いただけでは承認されない。
+- 管理者：運用に使うクラウドのアカウントは、すべてパスワードに加えて 2 段階認証かパスキーを必須にしている。管理画面は Cloudflare Access の Google ログインの背後に置き、Worker も JWT の署名（RS256 に固定）、発行者、対象、有効期限、管理者のアドレスを自分で検証する。管理の経路は決めたオリジンでしか応答せず、`workers.dev` のような別の入口からは、有効なトークンがあっても入れない。新しい利用者は、署名した 1 回限りのリンクで承認し、リンクを開いただけでは承認されない。
 - PC 上の画面：ローカルのサーバーは `127.0.0.1` だけで待ち受け、要求ごとに Host、Origin、Fetch Metadata、CSRF のヘッダーを照合して、他のサイトや DNS リバインディングからの操作を拒む。読み出しのたびに所有者を確かめ、他人のワークスペースは存在も返さない。
 - 解析の実行環境：Docker 版の解析ワーカーは、ネットワークのない、非 root で読み取り専用のコンテナで動く。
 
@@ -97,11 +97,11 @@ Cytellect analyses researchers' unpublished microscopy images on the researcher'
 | Resend | The e-mail address that receives sign-in codes | — |
 
 - File names, paths, conditions, other channels and measurements are never sent. Measurements and statistics run on the PC, and original pixel values are never changed.
-- All external traffic is encrypted with TLS. Data and credentials on the PC sit where only the OS user can read them; encryption at rest is left to the OS (BitLocker and similar). Work data expires 24 hours after the last action. The Cytellect cloud stores only e-mail addresses, approval states and monthly usage.
-- Blast radius: a compromised cloud account reaches only that user's GPU and proposal quota; a compromised Worker reaches only the detection planes and proposal metadata relayed during the compromise, never stored research data or updates; a compromised GitHub repository cannot reach installed PCs, because updates require the maintainer's signature.
+- All external traffic is encrypted with TLS. Data and credentials on the PC sit where only the OS user can read them; encryption at rest is left to the OS (BitLocker and similar). Work data is kept until the user deletes it in the Windows release (24-hour automatic deletion is optional) and expires 24 hours after the last action in the Docker release, where manual retention is available only on the researcher's own PC. The Cytellect cloud stores only e-mail addresses, approval states and monthly usage.
+- Blast radius: a compromised cloud account reaches only that user's GPU and proposal quota; a compromised Worker reaches only the detection planes and proposal metadata relayed during the compromise, never stored research data or updates; write access to the repository reaches branches and pull requests, but not `main` (the maintainer merges) or installed PCs (updates require the maintainer's signature).
 - Researchers sign in with a six-digit e-mailed code, sent only to allowed addresses. Five wrong guesses void a code, and 20 per address per day lock the address for 24 hours, so rotating IPs adds no attempts.
 - A signed-in PC holds a single 256-bit device token; only the Worker holds the OpenAI and Modal keys. The server stores tokens as SHA-256 and codes as keyed HMAC-SHA256, never IP addresses. Revoking an address stops all its devices at the next request.
-- The maintainer's Google and GitHub accounts require passkeys and an authenticator app. The admin page sits behind Cloudflare Access with Google sign-in, and the Worker itself verifies the JWT (RS256 only, issuer, audience, expiry, address). Admin routes answer only on the designated origin; other entry points such as `workers.dev` are refused even with a valid token.
+- Every cloud account used for operations requires two-factor authentication or a passkey in addition to its password. The admin page sits behind Cloudflare Access with Google sign-in, and the Worker itself verifies the JWT (RS256 only, issuer, audience, expiry, address). Admin routes answer only on the designated origin; other entry points such as `workers.dev` are refused even with a valid token.
 - The local server listens only on `127.0.0.1` and checks Host, Origin, Fetch Metadata and CSRF headers on every request; every read checks ownership. The Docker analysis worker runs without network, as non-root, on a read-only root.
 - LLM output is never executed as code. It is validated on the PC as structured settings with fixed fields and values, and output containing URLs or code-like text is rejected. Measurements and statistics use the shared implementation whatever the proposal says.
 - The in-app update verifies an Ed25519-signed manifest against the built-in public key and runs the installer only when its SHA-256 and size match. The signing key exists only with the maintainer and in an approval-gated release environment. `GITHUB_TOKEN` is read-only by default, dependencies are pinned by lockfiles and hashes, and a hash-verified gitleaks scans the full Git history.
