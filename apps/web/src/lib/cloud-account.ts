@@ -235,7 +235,13 @@ export const UPDATE_FOLLOW_MS = 20 * 60_000;
 const RELEASE_NOTES = "https://github.com/genellect/cytellect/releases/tag/";
 
 /** The way forward when the in-app update cannot finish (for example, github.com is blocked): the installer. */
-export const UPDATE_BY_INSTALLER_TEXT = "続く場合は、cytellect.app から新しい版のインストーラーをダウンロードして開いても更新できます（研究データと設定は引き継がれます）。";
+/**
+ * A refused signature, manifest or installer hash can mean a replaced release asset. The banner
+ * then never points to a manual download of that release, which nothing would verify before it runs.
+ */
+export const isUpdateVerificationError = (error: string | undefined) =>
+  !!error && (error.startsWith("update_signature_") || error.startsWith("update_manifest_") || error === "update_installer_hash_mismatch");
+export const UPDATE_VERIFICATION_TEXT = "更新を止めました。新しい版のファイルが正しいことを確かめられなかったためです。今の版のまま使えます。別の方法で新しい版を入れずに、Cytellect のオーナーにお知らせください。";
 /** Release notes link only to a release page of this project (never a download), after normalizing the URL. */
 export function safeNotesUrl(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -296,7 +302,7 @@ export function updateNotice(info: UpdateInfo | null | undefined, following = fa
     case "updated": return {text: `更新が完了しました${version}。`, tone: "ready"};
     // Installed, but an analysis that started meanwhile kept the current version running.
     case "installed": if (info.current && info.current === info.latest) return null; return {text: `更新の準備ができました${version}。次に Cytellect を起動したときに新しい版になります。`, tone: "ready"};
-    case "failed": return {text: `更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。${UPDATE_BY_INSTALLER_TEXT}`, tone: "problem", error,
+    case "failed": return {text: isUpdateVerificationError(error) ? UPDATE_VERIFICATION_TEXT : "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
     case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};

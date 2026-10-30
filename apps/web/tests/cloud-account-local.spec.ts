@@ -229,8 +229,10 @@ test("a failed update says so with its code under 詳細, and an unsafe notes li
   await expect(page.getByText(/更新があります/)).toBeVisible();
   await expect(page.getByRole("link", {name: "変更内容"})).toHaveCount(0);
   await page.getByRole("button", {name: "更新する"}).click();
-  const failure = page.getByRole("alert").filter({hasText: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。続く場合は、cytellect.app から"});
+  const failure = page.getByRole("alert").filter({hasText: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。"});
   await expect(failure).toBeVisible();
+  // The banner never sends the researcher to download a release by hand.
+  await expect(failure).not.toContainText("インストーラー");
   await expect(failure).not.toContainText("update_failed", {useInnerText: true});
   await failure.getByText("詳細").click();
   await expect(failure.locator("code")).toHaveText("update_failed");

@@ -130,7 +130,13 @@ describe("update banner", () => {
     expect(updateNotice({available: true, state: "restarting"})!.text).toContain("再起動しています");
     expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "updated"})!.text).toBe("更新が完了しました（0.1.0-local.22）。");
     const failed = updateNotice({available: true, state: "failed", error: "update_failed"})!;
-    expect(failed.text).toBe("更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。続く場合は、cytellect.app から新しい版のインストーラーをダウンロードして開いても更新できます（研究データと設定は引き継がれます）。");
+    expect(failed.text).toBe("更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。");
+    // A refused signature, manifest or installer hash may mean a replaced release: no manual download is offered.
+    for (const refused of ["update_signature_invalid", "update_signature_wrong_key", "update_manifest_version_mismatch", "update_installer_hash_mismatch"]) {
+      const notice = updateNotice({available: true, state: "failed", error: refused})!;
+      expect(notice.text).toBe("更新を止めました。新しい版のファイルが正しいことを確かめられなかったためです。今の版のまま使えます。別の方法で新しい版を入れずに、Cytellect のオーナーにお知らせください。");
+      expect(notice.text).not.toContain("インストーラー");
+    }
     expect(failed.error).toBe("update_failed");
     expect(failed.text).not.toContain("update_failed");
     expect(updateNotice({available: true, state: "rolled_back"})!.text).toBe("元の版で起動しました。あとでもう一度更新してください。");
