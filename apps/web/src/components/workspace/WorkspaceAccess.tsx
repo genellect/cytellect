@@ -30,7 +30,9 @@ export default function WorkspaceAccess({children}: {children: ReactNode}) {
   useEffect(() => {
     if (!API_CONFIGURED) return;
     let current = true;
-    void request<Session>("/v1/session").then(session => {
+    // The local build asks its own route, which answers "not yet" with 200 instead of a 401
+    // that the browser would log as an error on every first visit and relaunch.
+    void request<Session>(LOCAL_MODE ? "/v1/local/session" : "/v1/session").then(session => {
       if (current) setState(session.authenticated ? "ready" : "login");
     }).catch(value => {
       if (!current) return;

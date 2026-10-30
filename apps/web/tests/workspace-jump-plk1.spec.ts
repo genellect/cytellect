@@ -42,8 +42,21 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   // The list goes on standard input: as an argument it would exceed the Windows command-line limit.
   execFileSync(python, ["-B", "-I", "-c", "import sys,json,hashlib\nfrom pathlib import Path\nroot=Path(sys.argv[1])\nfor item in json.load(sys.stdin):\n assert hashlib.sha256((root/item['name']).read_bytes()).hexdigest()==item['sha256'],item['name']", inputs!], {input: JSON.stringify(used)});
 
-  const token = execFileSync(python, ["-B", "-c", "import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl')).invite(3600))"], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
-  expect((await page.request.post(`${api}/v1/invitations/redeem`, {headers: {Origin: origin, "X-Cytellect-Request": "1"}, data: {token}})).ok()).toBeTruthy();
+  // The workspace this run starts in. The installed app's own session (the PC's owner) already holds
+  // the earlier cases' workspaces, so this run opens a new, empty one instead of the newest.
+  let entry = "/workspace";
+  if (process.env.CYTELLECT_TEST_LOCAL === "1") {
+    // The installed app opens the PC's own session, as its 「解析を開始」 does. An invitation would be
+    // another owner, which the local cloud-account routes (/v1/account) refuse with 401.
+    const headers = {Origin: origin, "X-Cytellect-Request": "1"};
+    expect((await page.request.post(`${api}/v1/local/session`, {headers})).ok()).toBeTruthy();
+    const created = await page.request.post(`${api}/v1/workspaces`, {headers, data: {title: "Goals C1 public JUMP"}});
+    expect(created.ok()).toBeTruthy();
+    entry = `/workspace?id=${encodeURIComponent(((await created.json()) as {id: string}).id)}`;
+  } else {
+    const token = execFileSync(python, ["-B", "-c", "import os;from pathlib import Path;from cytellect_api.db import Store;print(Store(Path(os.environ['CYTELLECT_TEST_DATA_DIR']),workspace_retention_mode=('manual' if (Path(os.environ['CYTELLECT_TEST_DATA_DIR'])/'.manual-workspace-retention').exists() else 'ttl')).invite(3600))"], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "ignore"]}).trim();
+    expect((await page.request.post(`${api}/v1/invitations/redeem`, {headers: {Origin: origin, "X-Cytellect-Request": "1"}, data: {token}})).ok()).toBeTruthy();
+  }
 
   const consoleErrors: string[] = [], pageErrors: string[] = [], dialogs: string[] = [];
   page.on("console", message => {if (message.type() === "error") consoleErrors.push(message.text());});
@@ -55,7 +68,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const noAlerts = async () => expect(await page.getByRole("main").getByRole("alert").allTextContents()).toEqual([]);
 
   // E-01: the first screen offers one or two screens, each with a short description.
-  await page.goto("/workspace");
+  await page.goto(entry);
   const choice = page.getByRole("region", {name: "解析の形を選ぶ"});
   await expect(choice.getByRole("heading", {name: "解析の形を選ぶ", level: 1})).toBeVisible();
   await expect(choice.getByRole("button", {name: /^1 画面/})).toBeEnabled();

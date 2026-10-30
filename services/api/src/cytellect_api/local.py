@@ -175,6 +175,16 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
         return {"mode": "local", "ready": True, "fiji_configured": bool(settings.fiji_executable),
                 **settings.retention_policy, "version": version}
 
+    @app.get("/v1/local/session", response_model=SessionView)
+    def probe(request: Request):
+        # The workspace's opening check: the same answer as GET /v1/session, but 200 with
+        # authenticated false instead of a 401, so a first visit or a relaunch (which revokes
+        # the cookie) logs no browser error. A GET never mints a session.
+        token = request.cookies.get(settings.cookie_name)
+        current = store.one(sessions, digest=digest(token)) if token else None
+        authenticated = bool(current and not current["revoked"] and current["expires"] > time.time())
+        return {"authenticated": authenticated, "mode": "local", **settings.retention_policy, "demo": settings.demo}
+
     @app.post("/v1/local/session", response_model=SessionView)
     def bootstrap(request: Request, response: Response):
         # The existing API middleware also requires exact Origin and the custom

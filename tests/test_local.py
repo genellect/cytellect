@@ -78,6 +78,34 @@ def test_a_session_revoked_at_launcher_stop_is_refused_until_bootstrapped_again(
     assert successor.get("/v1/app/update").status_code == 200
     assert successor.get("/v1/workspaces").json()[0]["id"] == created["id"]
 
+
+def test_the_opening_session_check_answers_200_and_never_mints_a_session(tmp_path):
+    """GET /v1/local/session is the workspace's first request; a 401 there would be a console error."""
+    client, app, settings, web = local(tmp_path)
+    probe = client.get("/v1/local/session")
+    assert probe.status_code == 200
+    assert probe.json() == {"authenticated": False, "mode": "local", "retention_mode": "ttl",
+                            "retention_hours": 24, "demo": False}
+    assert not app.state.store.rows(sessions) and not client.cookies
+    client.post("/v1/local/session", headers=HEADERS)
+    assert client.get("/v1/local/session").json()["authenticated"] is True
+    local_module.revoke_local_sessions(app, settings)  # a relaunch
+    assert client.get("/v1/local/session").json()["authenticated"] is False
+    remote = TestClient(app, base_url=ORIGIN, client=("192.0.2.1", 1000))
+    assert remote.get("/v1/local/session").status_code == 403
+
+
+def test_an_invitation_session_is_not_the_pc_owner_for_the_cloud_account(tmp_path):
+    """Why local acceptance opens the PC's own session: an invitation is another owner, and the
+    cloud-account routes, which use this PC's device sign-in, answer it with 401."""
+    client, app, _, _ = local(tmp_path)
+    token = app.state.store.invite(3600)
+    assert client.post("/v1/invitations/redeem", json={"token": token}, headers=HEADERS).status_code == 200
+    assert client.get("/v1/local/session").json()["authenticated"] is True  # the same answer as GET /v1/session
+    assert client.get("/v1/account").status_code == 401
+    client.post("/v1/local/session", headers=HEADERS)
+    assert client.get("/v1/account").status_code == 200
+
 @pytest.mark.parametrize("headers", [
     {}, {"Origin": ORIGIN}, {"X-Cytellect-Request": "1"},
     {**HEADERS, "Origin": "https://attacker.example"},
