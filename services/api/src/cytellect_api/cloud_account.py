@@ -238,6 +238,19 @@ def _expired(record: dict, now: float) -> bool:
     return limit <= now
 
 
+# What identifies the record a request started from (see CloudAccount._commit).
+_IDENTITY = ("state", "email", "base_url", "sent_at", "request_token", "device_token")
+
+
+def _identity(record: dict) -> tuple:
+    return tuple(record.get(key) for key in _IDENTITY)
+
+
+def _current_view(record: dict) -> dict:
+    """What the browser is told when another tab changed the account meanwhile."""
+    return {"state": "signed_out"} if not record else {"state": record.get("state", "signed_out"), "email": record.get("email")}
+
+
 def _number(value: Any) -> float | None:
     return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
 
@@ -312,17 +325,15 @@ class CloudAccount:
             if status == 200 and body.get("state") == "revoked":
                 return self._end(record, "revoked")
             if status == 200 and body.get("state") == "none":
-                self.store.clear()
-                return {"state": "signed_out"}
+                changed = self._commit(record, None)
+                return {"state": "signed_out"} if changed is None else _current_view(changed)
             return pending
         if record["state"] == "code_sent":
             sent = _number(record.get("sent_at"))
             if sent is None or now - sent > CODE_LIFETIME_SECONDS:
                 # The code has expired on the service; offer the address again.
-                with self.lock:
-                    if self.store.load() == record:
-                        self.store.clear()
-                return {"state": "signed_out", "email": email}
+                changed = self._commit(record, None)
+                return {"state": "signed_out", "email": email} if changed is None else _current_view(changed)
             retry = max(0, int(round(float(record.get("retry_at", 0)) - now)))
             view = {"state": "code_sent", "email": email, "retry_after_seconds": retry}
             if isinstance(record.get("attempts_left"), int):
@@ -330,20 +341,29 @@ class CloudAccount:
             return view
         return {"state": record["state"], "email": email}
 
-    def _end(self, record: dict, state: str) -> dict:
-        """Drop the token on expiry or revocation; keep the address so sign-in can resume.
+    def _commit(self, started: dict, replacement: dict | None) -> dict | None:
+        """Write (or, with None, delete) the account record only if it is still ``started``.
 
-        Compare-and-set: a late answer about an older token (or request) must not
-        overwrite a newer sign-in made meanwhile.
+        Every change made after waiting for the cloud service goes through here. Under
+        the lock the stored record is read again and compared with the record the
+        request started from (`_IDENTITY`: state, address, service, sent code, access
+        request and device token). If another tab signed in, out or sent another code
+        meanwhile, nothing is written and the current record is returned instead.
         """
         with self.lock:
             current = self.store.load()
-            if (current.get("device_token") != record.get("device_token")
-                    or current.get("request_token") != record.get("request_token")
-                    or current.get("state") != record.get("state")):
-                return {"state": current.get("state", "signed_out"), "email": current.get("email")}
-            self.store.save({"state": state, "email": record.get("email"), "base_url": record["base_url"]})
-        return {"state": state, "email": record.get("email")}
+            if _identity(current) != _identity(started):
+                return current
+            if replacement is None:
+                self.store.clear()
+            else:
+                self.store.save(replacement)
+        return None
+
+    def _end(self, record: dict, state: str) -> dict:
+        """Drop the token on expiry or revocation; keep the address so sign-in can resume."""
+        changed = self._commit(record, {"state": state, "email": record.get("email"), "base_url": record["base_url"]})
+        return {"state": state, "email": record.get("email")} if changed is None else _current_view(changed)
 
     def send_code(self, email: str) -> dict:
         email = normalized_email(email)
@@ -360,27 +380,27 @@ class CloudAccount:
             retry = _number(body.get("retry_after_seconds"))
             raise AccountError(429, "account_rate_limited", retry_after_seconds=int(retry) if retry is not None else 60)
         state = body.get("state") if status == 200 else None
-        with self.lock:
-            if state == "code_sent":
-                retry = _number(body.get("retry_after_seconds"))
-                wait = int(retry) if retry is not None and 0 <= retry <= 3600 else 60
-                self.store.save({"state": "code_sent", "email": email, "base_url": base,
-                                 "sent_at": now, "retry_at": now + wait})
-                return {"state": "code_sent", "email": email, "retry_after_seconds": wait}
-            if state == "pending_approval":
-                requested = record.get("requested_at") if record.get("email") == email else None
-                request = body.get("request_token")
-                pending: dict[str, Any] = {"state": "pending_approval", "email": email, "base_url": base,
-                                           "requested_at": requested or now}
-                if isinstance(request, str) and REQUEST_TOKEN.fullmatch(request):
-                    pending["request_token"] = request
-                elif record.get("email") == email and record.get("request_token"):
-                    pending["request_token"] = record["request_token"]
-                self.store.save(pending)
-                return {"state": "pending_approval", "email": email, "requested_at": requested or now}
-            if state == "revoked":
-                self.store.save({"state": "revoked", "email": email, "base_url": base})
-                return {"state": "revoked", "email": email}
+        if state == "code_sent":
+            retry = _number(body.get("retry_after_seconds"))
+            wait = int(retry) if retry is not None and 0 <= retry <= 3600 else 60
+            changed = self._commit(record, {"state": "code_sent", "email": email, "base_url": base,
+                                            "sent_at": now, "retry_at": now + wait})
+            return {"state": "code_sent", "email": email, "retry_after_seconds": wait} if changed is None else _current_view(changed)
+        if state == "pending_approval":
+            requested = record.get("requested_at") if record.get("email") == email else None
+            request = body.get("request_token")
+            pending: dict[str, Any] = {"state": "pending_approval", "email": email, "base_url": base,
+                                       "requested_at": requested or now}
+            if isinstance(request, str) and REQUEST_TOKEN.fullmatch(request):
+                pending["request_token"] = request
+            elif record.get("email") == email and record.get("request_token"):
+                pending["request_token"] = record["request_token"]
+            changed = self._commit(record, pending)
+            return ({"state": "pending_approval", "email": email, "requested_at": requested or now}
+                    if changed is None else _current_view(changed))
+        if state == "revoked":
+            changed = self._commit(record, {"state": "revoked", "email": email, "base_url": base})
+            return {"state": "revoked", "email": email} if changed is None else _current_view(changed)
         raise _service_failure(status, body)
 
     def verify(self, code: str) -> dict:
@@ -400,16 +420,11 @@ class CloudAccount:
         if isinstance(token, str) and TOKEN.fullmatch(token):
             email = str(body["email"] if isinstance(body.get("email"), str) else record["email"])
             expires = body.get("expires_at") if isinstance(body.get("expires_at"), str | int | float) else None
-            with self.lock:
-                # Save only onto the code this request checked: a logout or another sign-in
-                # meanwhile must not be replaced by this late answer.
-                current = self.store.load()
-                if not self._same_code(current, record):
-                    return ({"state": "signed_out"} if not current
-                            else {"state": current.get("state", "signed_out"), "email": current.get("email")})
-                self.store.save({"state": "allowed", "email": email.strip().lower(), "base_url": base,
-                                 "device_token": token, "expires_at": expires})
-            return {"state": "allowed", "email": email.strip().lower()}
+            # Save only onto the code this request checked: a logout or another sign-in
+            # meanwhile must not be replaced by this late answer.
+            changed = self._commit(record, {"state": "allowed", "email": email.strip().lower(), "base_url": base,
+                                            "device_token": token, "expires_at": expires})
+            return {"state": "allowed", "email": email.strip().lower()} if changed is None else _current_view(changed)
         error = body.get("error")
         if status == 429:
             # Too many wrong codes or sent codes; the wait can be up to a day.
@@ -427,14 +442,14 @@ class CloudAccount:
             self._record_attempts(record, 0)
             raise AccountError(400, "account_code_attempts_exhausted")
         if status == 403 and error == "revoked":
-            with self.lock:
-                self.store.save({"state": "revoked", "email": record["email"], "base_url": base})
-            return {"state": "revoked", "email": record["email"]}
+            changed = self._commit(record, {"state": "revoked", "email": record["email"], "base_url": base})
+            return {"state": "revoked", "email": record["email"]} if changed is None else _current_view(changed)
         if status == 403 and error == "pending_approval":
-            with self.lock:
-                self.store.save({"state": "pending_approval", "email": record["email"], "base_url": base,
-                                 "requested_at": self.clock()})
-            return {"state": "pending_approval", "email": record["email"], "requested_at": self.clock()}
+            now = self.clock()
+            changed = self._commit(record, {"state": "pending_approval", "email": record["email"], "base_url": base,
+                                            "requested_at": now})
+            return ({"state": "pending_approval", "email": record["email"], "requested_at": now}
+                    if changed is None else _current_view(changed))
         raise _service_failure(status, body)
 
     def _record_attempts(self, record: dict, left: int | None) -> None:
@@ -443,16 +458,7 @@ class CloudAccount:
         A logout or a new code during the request replaces the record; the late
         answer about the old code must not bring it back.
         """
-        with self.lock:
-            current = self.store.load()
-            if self._same_code(current, record):
-                self.store.save({**{k: v for k, v in current.items() if k != "schema"}, "attempts_left": left})
-
-    @staticmethod
-    def _same_code(current: dict, record: dict) -> bool:
-        """The stored record is still the sent code that a verification started from."""
-        return (current.get("state") == "code_sent" and current.get("email") == record.get("email")
-                and current.get("sent_at") == record.get("sent_at"))
+        self._commit(record, {**{k: v for k, v in record.items() if k != "schema"}, "attempts_left": left})
 
     def logout(self) -> dict:
         record = self.store.load()
@@ -463,9 +469,8 @@ class CloudAccount:
             except CloudUnreachable:
                 # The token is forgotten here either way; it expires on the service.
                 pass
-        with self.lock:
-            self.store.clear()
-        return {"state": "signed_out"}
+        changed = self._commit(record, None)
+        return {"state": "signed_out"} if changed is None else _current_view(changed)
 
     def credentials(self) -> tuple[str, str] | None:
         """The signed-in device's base URL and token, or None."""

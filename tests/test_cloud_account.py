@@ -794,3 +794,78 @@ def test_a_late_successful_verification_does_not_undo_a_logout_or_another_sign_i
     else:
         assert result == {"state": "code_sent", "email": "second@example.org"}
         assert stored["email"] == "second@example.org" and stored["state"] == "code_sent"
+
+
+NEWER = {"state": "allowed", "email": "second@example.org", "device_token": "dev_" + "n" * 40}
+
+
+def _started(account, cloud, path):
+    """Put the account in the state each path starts from; returns (operation, url suffix)."""
+    store = account.store
+    if path in ("status_expired", "status_revoked", "logout"):
+        store.save({"state": "allowed", "email": ALLOWED, "base_url": cloud.url, "device_token": "dev_" + "o" * 40})
+        cloud.tokens["dev_" + "o" * 40] = ALLOWED
+        if path == "status_expired":
+            cloud.status_reply = (401, {"error": "auth_required"})
+        if path == "status_revoked":
+            cloud.status_reply = (403, {"error": "revoked"})
+        return (account.logout, "/v1/auth/logout") if path == "logout" else (account.view, "/v1/auth/status")
+    if path in ("request_none", "request_revoked"):
+        store.save({"state": "pending_approval", "email": UNAPPROVED, "base_url": cloud.url,
+                    "requested_at": 1.0, "request_token": "req_" + "r" * 20})
+        if path == "request_revoked":
+            cloud.requests_by_token["req_" + "r" * 20] = UNAPPROVED
+            cloud.revoked.add(UNAPPROVED)
+        return account.view, "/v1/auth/request"
+    if path == "send_code":
+        return (lambda: account.send_code(ALLOWED)), "/v1/auth/code"
+    account.send_code(ALLOWED)
+    cloud.verify_reply = {"verify_success": None, "verify_attempts": (400, {"error": "code_invalid", "attempts_left": 2}),
+                          "verify_exhausted": (400, {"error": "too_many_attempts"}),
+                          "verify_revoked": (403, {"error": "revoked"}),
+                          "verify_pending": (403, {"error": "pending_approval"})}[path]
+
+    def verify():
+        try:
+            return account.verify("123456")
+        except Exception:
+            return None
+    return verify, "/v1/auth/verify"
+
+
+@pytest.mark.parametrize("path", ["status_expired", "status_revoked", "request_none", "request_revoked", "send_code",
+                                  "verify_success", "verify_attempts", "verify_exhausted", "verify_revoked",
+                                  "verify_pending", "logout"])
+def test_no_late_cloud_answer_overwrites_a_change_made_meanwhile(tmp_path, cloud, monkeypatch, path):
+    """Another tab signs in with another address while this request waits for the cloud."""
+    from cytellect_api import cloud_account
+
+    account = CloudAccount(tmp_path / "private")
+    operation, suffix = _started(account, cloud, path)
+    original = cloud_account.call_cloud
+    newer = {**NEWER, "base_url": cloud.url}
+
+    def meanwhile(method, url, **options):
+        reply = original(method, url, **options)
+        if urlsplit(url).path == suffix:
+            account.store.save(newer)
+        return reply
+
+    monkeypatch.setattr(cloud_account, "call_cloud", meanwhile)
+    result = operation()
+    stored = account.store.load()
+    assert {key: stored.get(key) for key in newer} == newer, path
+    assert account.credentials() == (cloud.url, NEWER["device_token"])
+    if isinstance(result, dict):
+        assert result.get("state") in {"allowed", None} and NEWER["device_token"] not in json.dumps(result)
+
+
+def test_a_lapsed_code_is_cleared_only_if_it_is_still_the_stored_one(tmp_path, cloud):
+    clock = [1000.0]
+    account = CloudAccount(tmp_path / "private", clock=lambda: clock[0])
+    account.send_code(ALLOWED)
+    lapsed = account.store.load()
+    clock[0] += 700
+    account.store.save({**NEWER, "base_url": cloud.url})
+    assert account._commit(lapsed, None) == account.store.load()
+    assert account.store.load()["device_token"] == NEWER["device_token"]
