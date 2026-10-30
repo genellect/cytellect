@@ -607,3 +607,63 @@ def test_the_ci_update_hook_makes_only_the_named_version_fail_to_start(tmp_path,
     assert failing.launch()[1:] == ["-E", "-c", "raise SystemExit(3)"]
     assert failing.launch(8791)[1:] == ["-E", "-c", "raise SystemExit(3)"]  # the relauncher passes its port
     assert installation(tmp_path / "old").launch()[1:5] == ["-B", "-E", "-m", "cytellect_api.local"]
+
+
+RELAUNCHER = """
+import json, sys
+from pathlib import Path
+import psutil
+from cytellect_api import app_update
+
+pid, plan_path, result = int(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+plan.update(wait_pid=pid, wait_created=psutil.Process(pid).create_time())
+app_update.write_json(plan_path, plan)
+seen = {"shortcuts": [], "started": []}
+# The previous launcher never exits: the real stop (kill_identity, stop_tree) runs on it.
+outcome = app_update.relaunch(plan_path, app_update.Relaunch(
+    wait=lambda pid, created: False, start=lambda command, cwd: seen["started"].append(command[0]),
+    shortcuts=lambda item: seen["shortcuts"].append(item.version), pause=lambda seconds: None))
+# Reached only if stopping the previous launcher spared this process (and its ancestors).
+result.write_text(json.dumps({"outcome": outcome, **seen}), encoding="utf-8")
+"""
+
+
+def test_stopping_a_previous_launcher_spares_the_relauncher_that_descends_from_it(tmp_path):
+    """The relauncher is started by the launcher it may have to stop; it must go on to restore."""
+    import subprocess
+    import sys
+    import time
+
+    plan = switch_plan(tmp_path)
+    script, result = tmp_path / "relauncher.py", tmp_path / "result.json"
+    script.write_text(RELAUNCHER, encoding="utf-8")
+    # A stand-in for the previous launcher: it starts the relauncher (in its own session, as
+    # detach does) and then ignores every request to stop until it is killed.
+    launcher = subprocess.Popen([sys.executable, "-c", (
+        "import os, subprocess, sys, time\n"
+        f"subprocess.Popen([sys.executable, {str(script)!r}, str(os.getpid()), {str(plan)!r}, {str(result)!r}], "
+        "start_new_session=os.name != 'nt')\n"
+        "time.sleep(120)\n")])
+    try:
+        deadline = time.monotonic() + 60
+        while not result.exists() and time.monotonic() < deadline:
+            time.sleep(0.2)
+        assert result.exists(), "the relauncher was stopped together with the previous launcher"
+        seen = json.loads(result.read_text(encoding="utf-8"))
+        assert seen["outcome"] == "rolled_back" and seen["shortcuts"] == ["0.1.0-local.21"]
+        assert len(seen["started"]) == 1 and "0.1.0-local.21" in seen["started"][0]  # the previous version again
+        assert state_of(tmp_path)["error"] == "update_previous_did_not_exit"
+        assert launcher.wait(timeout=10) != 0  # the previous launcher itself was stopped
+    finally:
+        if launcher.poll() is None:
+            launcher.kill()
+
+
+def test_stop_tree_never_stops_this_process():
+    import psutil
+
+    class Me:
+        pid = psutil.Process().pid
+
+    app_update.stop_tree(Me())  # stopping this very process is refused; the test goes on

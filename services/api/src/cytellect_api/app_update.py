@@ -217,12 +217,27 @@ def file_sha256(path: Path) -> str:
 
 
 def stop_tree(process: Any) -> None:
-    """Stop a started process and every descendant (the installer runs PowerShell, uv, Python)."""
+    """Stop a started process and every descendant (the installer runs PowerShell, uv, Python).
+
+    The relauncher descends from the previous launcher that it may have to stop, and on
+    Windows it runs under the virtual environment's redirector, which takes its child with it
+    (a job object). So this process, its ancestors and its own descendants are never stopped,
+    except the given process itself when it is an ancestor.
+    """
     import psutil
 
     with contextlib.suppress(psutil.Error, OSError, AttributeError):
         parent = psutil.Process(process.pid)
+        me = psutil.Process()
+        spared = {me.pid}
+        for relative in (me.parents, lambda: me.children(recursive=True)):
+            with contextlib.suppress(psutil.Error):
+                spared.update(item.pid for item in relative())
+        spared.discard(parent.pid)
+        spared.add(me.pid)
         for child in [*parent.children(recursive=True), parent]:
+            if child.pid in spared:
+                continue
             with contextlib.suppress(psutil.Error):
                 child.kill()
 
@@ -493,10 +508,12 @@ def wait_for_exit(pid: int, created: float, timeout: float = EXIT_TIMEOUT_SECOND
 
 
 def process_running(pid: int, created: float) -> bool:
+    """That exact process still runs (an exited one that its parent has not reaped does not)."""
     import psutil
 
     try:
-        return abs(psutil.Process(pid).create_time() - created) <= 0.01
+        process = psutil.Process(pid)
+        return abs(process.create_time() - created) <= 0.01 and process.status() != psutil.STATUS_ZOMBIE
     except psutil.Error:
         return False
 
@@ -552,14 +569,21 @@ def restore_shortcuts(installation: Installation) -> None:
                        timeout=60, check=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
-def kill_identity(pid: int, created: float) -> None:
-    """Stop a launcher that ignored its stop request (only that exact process and its children)."""
+def kill_identity(pid: int, created: float, timeout: float = 10) -> None:
+    """Stop a launcher that ignored its stop request (only that exact process and its children).
+
+    It waits for the launcher to exit, so the check that follows does not see it still running
+    and leave the previous version unstarted.
+    """
     import psutil
 
     with contextlib.suppress(psutil.Error):
         process = psutil.Process(pid)
         if abs(process.create_time() - created) <= 0.01:
             stop_tree(process)
+            deadline = time.monotonic() + timeout
+            while process_running(pid, created) and time.monotonic() < deadline:
+                time.sleep(0.1)
 
 
 def wait_process(process: Any, timeout: float = 30) -> None:
