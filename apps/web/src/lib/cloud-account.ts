@@ -5,7 +5,7 @@
  * token and calls the cloud service. Nothing here ever sees the token. Local analysis never
  * depends on these calls.
  */
-import {API, LOCAL_MODE} from "./api";
+import {API, CLOUD_NETWORK_HINT, LOCAL_MODE, LOCAL_UNREACHABLE_TEXT} from "./api";
 
 export type AccountState = "signed_out" | "code_sent" | "pending_approval" | "allowed" | "revoked" | "expired" | "offline";
 export type Allowance = {gpu_seconds_month: number | null; proposal_usd_month: number | null};
@@ -122,18 +122,18 @@ export function usageText(account: Account): string {
 
 const accountMessages: Record<string, string> = {
   account_email_invalid: "メールアドレスの形式を確認してください。",
-  account_cloud_unreachable: "クラウドに接続できません。ネットワークを確認してもう一度試してください。",
+  account_cloud_unreachable: `クラウドに接続できません。もう一度試してください。${CLOUD_NETWORK_HINT}このPCでの解析は使えます。`,
   account_cloud_failed: "クラウドで処理できませんでした。時間をおいてもう一度試してください。",
   account_mail_failed: "メールを送れませんでした。時間をおいてもう一度試してください。",
   account_cloud_unavailable: "クラウドのログインが一時的に使えません。時間をおいてもう一度試してください。このPCでの解析は使えます。",
-  account_cloud_misconfigured: "クラウドの接続先の設定が正しくありません。Cytellect をインストールし直してください。",
+  account_cloud_misconfigured: "クラウドの接続先の設定が正しくありません。インストーラーをもう一度開いてください。研究データは保たれます。",
   account_code_expired: "コードの有効期限が切れました。「コードを再送」を押して、新しいコードを受け取ってください。",
   account_code_attempts_exhausted: "入力できる回数を超えました。「コードを再送」を押して、新しいコードを受け取ってください。",
   account_code_format_invalid: "メールに書かれた 6 桁の数字を入力してください。",
   account_code_not_requested: "コードの受け取りからやり直してください。",
   account_already_signed_in: "すでにログインしています。",
   session_required: "作業画面の接続が切れました。画面を開き直してください。",
-  local_api_unreachable: "Cytellect に接続できません。起動・停止の画面が開いているか確認してください。",
+  local_api_unreachable: LOCAL_UNREACHABLE_TEXT,
 };
 
 /** "約 N 秒後"／"約 N 分後"／"約 N 時間後" for a wait of up to a day. */
@@ -162,7 +162,7 @@ export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): 
     case "starting": return gpu.busy ? {text: "GPU を準備しています。前の検出が終わると始まります。", tone: "progress"}
       : {text: "GPU を起動しています。止まっていた場合は 1〜2 分かかります（起動を待つ時間も利用時間に数えます）。", tone: "progress"};
     case "ready": return {text: "GPU の準備ができました。", tone: "ready"};
-    case "timeout": return {text: "GPU の起動が 2 分以内に終わりませんでした。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
+    case "timeout": return {text: "GPU の起動が 2 分以内に終わりませんでした。GPU が混み合っていると時間がかかります。「もう一度試す」を押すと、もう一度起動します。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
     case "quota_exceeded": {
       const date = formatDate(gpu.resets_at, timeZone);
       const whose = gpu.scope === "global" ? "クラウド GPU 全体の今月の利用上限" : "今月の GPU の利用上限";
@@ -171,9 +171,9 @@ export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): 
     case "revoked": return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。", tone: "problem"};
     case "auth_required": return {text: "ログインの有効期限が切れました。もう一度ログインしてください。", action: {kind: "login", label: "ログイン"}, tone: "problem"};
     case "disabled": return {text: "クラウド GPU は現在停止しています。時間をおいてもう一度試してください。このPCでの解析は使えます。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
-    case "rejected": case "failed": return {text: "GPU に接続できませんでした。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
-    case "offline": return {text: "クラウドに接続できません。", action: {kind: "retry", label: "ネットワークを確認してもう一度試す"}, tone: "problem"};
-    case "unconfigured": return {text: "Cellpose の検出は GPU で行います。使うには、クラウド機能を有効にしてください。", action: {kind: "login", label: "ログイン"}, tone: "info"};
+    case "rejected": case "failed": return {text: "GPU に接続できませんでした。少し待ってから「もう一度試す」を押してください。このPCでの解析は使えます。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
+    case "offline": return {text: `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は使えます。`, action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
+    case "unconfigured": return {text: "Cellpose の検出は、クラウドの GPU（画像の計算に使う高速な計算機）で行います。使うには、クラウド機能を有効にしてください。", action: {kind: "login", label: "ログイン"}, tone: "info"};
     default: return null;
   }
 }
@@ -234,6 +234,14 @@ export const UPDATE_POLL_MS = 3_000;
 export const UPDATE_FOLLOW_MS = 20 * 60_000;
 const RELEASE_NOTES = "https://github.com/genellect/cytellect/releases/tag/";
 
+/** The way forward when the in-app update cannot finish (for example, github.com is blocked): the installer. */
+/**
+ * A refused signature, manifest or installer hash can mean a replaced release asset. The banner
+ * then never points to a manual download of that release, which nothing would verify before it runs.
+ */
+export const isUpdateVerificationError = (error: string | undefined) =>
+  !!error && (error.startsWith("update_signature_") || error.startsWith("update_manifest_") || error === "update_installer_hash_mismatch");
+export const UPDATE_VERIFICATION_TEXT = "更新を止めました。新しい版のファイルが正しいことを確かめられなかったためです。今の版のまま使えます。別の方法で新しい版を入れずに、Cytellect のオーナーにお知らせください。";
 /** Release notes link only to a release page of this project (never a download), after normalizing the URL. */
 export function safeNotesUrl(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -294,19 +302,19 @@ export function updateNotice(info: UpdateInfo | null | undefined, following = fa
     case "updated": return {text: `更新が完了しました${version}。`, tone: "ready"};
     // Installed, but an analysis that started meanwhile kept the current version running.
     case "installed": if (info.current && info.current === info.latest) return null; return {text: `更新の準備ができました${version}。次に Cytellect を起動したときに新しい版になります。`, tone: "ready"};
-    case "failed": return {text: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
+    case "failed": return {text: isUpdateVerificationError(error) ? UPDATE_VERIFICATION_TEXT : "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
     case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
     // This version has no key to verify a release with: the newer one is installed with its installer.
     case "unsupported": return info.error === UPDATE_SIGNING_KEY_MISSING
-      ? {text: `新しい版${version}があります。新しい版のインストーラーを開いてください。研究データと設定は引き継がれます。`, tone: "info"} : null;
+      ? {text: `新しい版${version}があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。研究データと設定は引き継がれます。`, tone: "info"} : null;
     default:
       if (following) return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
       return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新する"}} : null;
   }
 }
-export const UPDATE_TIMEOUT_TEXT = "更新の完了を確認できませんでした。Cytellect を開き直して、版を確かめてください。";
+export const UPDATE_TIMEOUT_TEXT = "更新の完了を確認できませんでした。ブラウザでこのページを再読み込みすると、更新の状態を表示します。";
 export const UPDATE_SEEN_KEY = "cytellect.update.seen";
 
 /** Seconds until 「コードを再送」 is enabled. */

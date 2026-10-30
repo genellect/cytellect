@@ -7,7 +7,7 @@ Windows 版のアプリ内更新は、オーナーの Ed25519 鍵で署名され
 - リリースごとに `Cytellect-update-<版>.json`（版、インストーラーのファイル名・SHA-256・大きさ、ソースのコミット、発行時刻）と、その署名 `Cytellect-update-<版>.json.sig` を添付する。
 - 署名は `.github/workflows/local-release.yml` の `draft` ジョブが行う。このジョブは environment `release` で動き、オーナーが承認するまで始まらない。secret `UPDATE_SIGNING_KEY` で `ssh-keygen -Y sign -n cytellect-update` を実行し、アプリと同じ検証（`scripts/update_manifest.py verify`）で確かめてから、タグと下書きのリリースを作る。secret がない場合や、組み込んだ公開鍵と合わない場合は、何も作らずに止まる。
 - インストール済みのアプリは、組み込んだ公開鍵（`services/api/src/cytellect_api/update_signature.py` の `UPDATE_PUBLIC_KEY`）で署名を確かめ、manifest の版と、インストーラーの SHA-256 と大きさが一致したときだけ実行する。リリースの `.sha256` と GitHub の digest は信頼の起点にしない。
-- 公開鍵が空の版は、アプリ内で更新しない。新しい版があれば「新しい版のインストーラーを開いてください」と表示する。
+- 公開鍵が空の版は、アプリ内で更新しない。新しい版があれば「cytellect.app から新しい版のインストーラーをダウンロードして開いてください」と表示する。
 - 秘密鍵はリポジトリ・Issue・PR・チャット・CI のログに置かない。CI と試験は、実行のたびに生成する試験用の鍵を使う。
 
 ## 1. 鍵を作る（初回）

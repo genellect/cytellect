@@ -6,6 +6,10 @@ export const API_CONFIGURED = LOCAL_MODE || !!API;
 export const LOOPBACK_API = (() => {try {return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(API).hostname);} catch {return false;}})();
 /** The public build without an analysis API hosts the serverless demo (/demo). */
 export const PUBLIC_SHOWCASE = !API_CONFIGURED;
+/** Local mode: the launcher (the small 「Cytellect」 window) is closed or stopped; say how to start it again. */
+export const LOCAL_UNREACHABLE_TEXT = "Cytellect に接続できません。小さな「Cytellect」の画面が閉じていたら、デスクトップの「Cytellect」をもう一度開いてください。";
+/** Local mode: the PC reaches no cloud service. University networks often restrict it; name the host to allow. */
+export const CLOUD_NETWORK_HINT = "大学や研究室のネットワークでは、接続が制限されていることがあります。続く場合は、ネットワークの管理者に api.cytellect.app への接続の許可を依頼してください。";
 export class ApiError extends Error { constructor(public code: string, public status: number) { super(code); } }
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  const showcase = !API_CONFIGURED && showcaseActive();
@@ -223,10 +227,10 @@ const messages:Record<string,string> = {
  cellpose_gpu_unavailable:"この実行環境ではGPUを使用できません。CPUを選択してください。",
  cellpose_remote_url_invalid:"クラウドGPUの接続先の設定が正しくありません。管理者に設定の確認を依頼してください。",
  cellpose_remote_rejected:LOCAL_MODE?"クラウドGPUが利用を認めませんでした。右上のアカウントでログインの状態を確認してください（期限切れなら、もう一度ログインします）。管理者から受け取った接続キーを使っている場合は、管理者に確認を依頼してください。":"クラウドGPUに接続できませんでした（接続キーが無効です）。管理者に接続キーの確認を依頼してください。",
- cellpose_remote_unreachable:"クラウドGPUに接続できませんでした。ネットワークを確認して、もう一度試してください。",
+ cellpose_remote_unreachable:LOCAL_MODE?`クラウドGPUに接続できませんでした。もう一度実行してください。${CLOUD_NETWORK_HINT}`:"クラウドGPUに接続できませんでした。ネットワークを確認して、もう一度試してください。",
  cellpose_remote_unavailable:"クラウドGPUの起動が時間内に終わりませんでした。数分おいて、もう一度実行してください。",
- cellpose_remote_failed:"クラウドGPUでの処理に失敗しました。もう一度実行し、続く場合は管理者に連絡してください。",
- cellpose_remote_output_invalid:"クラウドGPUから正しい結果を受け取れませんでした。もう一度実行し、続く場合は管理者に連絡してください。",
+ cellpose_remote_failed:`クラウドGPUでの処理に失敗しました。もう一度実行し、続く場合は${LOCAL_MODE?"オーナーにお問い合わせください。このPCでの解析は続けて使えます":"管理者に連絡してください"}。`,
+ cellpose_remote_output_invalid:`クラウドGPUから正しい結果を受け取れませんでした。もう一度実行し、続く場合は${LOCAL_MODE?"オーナーにお問い合わせください。このPCでの解析は続けて使えます":"管理者に連絡してください"}。`,
  cellpose_remote_version_mismatch:"クラウドGPUの版がこのCytellectと一致しません。管理者にクラウドGPUの更新を依頼してください。",
  cellpose_remote_disabled:"クラウド GPU は現在停止しています。時間をおいてもう一度実行してください。このPCでの解析は使えます。",
  cellpose_remote_quota_exceeded:"今月の GPU の利用上限に達しました。再開の日は右上のアカウントで確認できます。それまでも、このPCでの解析は使えます。",
@@ -244,12 +248,12 @@ const messages:Record<string,string> = {
  japanese_font_not_installed:"図に使用できる通常の太さの日本語フォントが見つかりません。フォント環境を確認してください。",
  sans_serif_font_not_installed:"図に使用できる通常の太さのフォントが見つかりません。フォント環境を確認してください。",
  figure_font_glyphs_unavailable:"選択した書体では図中の一部の文字を表示できません。図の言語・ラベルとフォント環境を確認してください。",
- local_host_required:"ローカル版はランチャーから開いたワークスペースで使用してください。",
+ local_host_required:"デスクトップの「Cytellect」から開いた作業画面で使ってください。",
  fiji_detection_capacity_exceeded:"この画像は現在の自動検出の上限を超えています（1辺2048 px、270万画素）。原画像は変更されていません。",
  recipe_required_channels_missing:"このレシピに必要なチャンネルが不足しています。NCL解析には核染色とNCL、GFP解析には核染色とGFPが必要です。",
  outcome_cannot_be_its_own_gfp_covariate:"GFPを目的変数と説明変数の両方に指定できません。独立実験単位での比較を選択してください。",
  invitation_invalid:"招待コードが無効、期限切れ、または使用済みです。",
- session_required:LOCAL_MODE ? "セッションが失効しました。ワークスペースを開き直してください。" : "セッションが失効しました。新しい招待で接続してください。",
+ session_required:LOCAL_MODE ? "作業画面の接続が切れました。ブラウザでこのページを再読み込みしてください。" : "セッションが失効しました。新しい招待で接続してください。",
  too_many_attempts:"試行が多いため、1分後にお試しください。",
  confirm_background_for_every_field:"すべての視野で背景ROIを描いて確認してください。",
  demo_accepts_synthetic_only:"この環境では実画像の解析を実行できません。",
@@ -266,8 +270,8 @@ const messages:Record<string,string> = {
  workspace_limit:"作業の容量または視野数の上限を超えています。",
  invalid_analysis_input:"入力内容や領域の重なりを確認してください。",
  workspace_not_found:"作業の保存期限が切れたか、アクセス権がありません。",
- fiji_not_configured:"Fiji解析環境が見つかりません。解析環境のセットアップを確認してください。",
+ fiji_not_configured:LOCAL_MODE?"Fiji（検出に使う解析ソフト）が見つかりません。インストーラーをもう一度開いてください。研究データは保たれます。":"Fiji解析環境が見つかりません。解析環境のセットアップを確認してください。",
 };
 const providerHttpMessage = (code:string) => /^proposal_provider_http_[45]\d{2}$/.test(code) ? `OpenAIがHTTP ${code.slice(-3)}を返しました。管理者がサービス設定と接続状態を確認してください。` : undefined;
 export const errorCodeMessage = (code:string):string => messages[code] || providerHttpMessage(code) || code;
-export function errorMessage(error:unknown) { return error instanceof ApiError ? (messages[error.code] || providerHttpMessage(error.code) || `処理できませんでした（${error.code}）。入力条件を確認してください。`) : "APIに接続できません。解析サーバーの起動と接続先を確認してください。"; }
+export function errorMessage(error:unknown) { return error instanceof ApiError ? (messages[error.code] || providerHttpMessage(error.code) || `処理できませんでした（${error.code}）。入力条件を確認してください。`) : LOCAL_MODE ? LOCAL_UNREACHABLE_TEXT : "APIに接続できません。解析サーバーの起動と接続先を確認してください。"; }

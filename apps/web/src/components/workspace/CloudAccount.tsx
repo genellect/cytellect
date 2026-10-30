@@ -12,6 +12,7 @@ import {
   UPDATE_SESSION_LOST_TEXT, UPDATE_TIMEOUT_TEXT, UPDATE_UNSUPPORTED, updateSignature,
   GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
+import {CLOUD_NETWORK_HINT} from "@/lib/api";
 import styles from "./cloud-account.module.css";
 
 export const PRACTICE_IMAGES_URL = "https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-BBBC013-practice-v1.zip";
@@ -119,7 +120,7 @@ export function AccountIndicator() {
       <summary><span>{label}</span>{detail && <small>{detail}</small>}</summary>
       <div className={styles.accountPanel}>
         <p className={styles.accountEmail}>{account.email}</p>
-        <p>{account.state === "allowed" ? "GPU による検出と解析提案が使えます。" : "クラウドに接続できません。ネットワークを確認してください。このPCでの解析は使えます。"}</p>
+        <p>{account.state === "allowed" ? "GPU による検出と解析提案が使えます。" : `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は使えます。`}</p>
         {gpuQuotaReached(account) && <p role="status">{gpuQuotaText(account)}</p>}
         {usage && <p className={styles.small}>今月の利用：{usage}{resets ? `（${resets}にリセット）` : ""}</p>}
         <p className={styles.small}>{GPU_TIME_NOTE}</p>
@@ -151,7 +152,7 @@ export function CloudNotices() {
   return <div className={styles.notices}>
     {/* The request stays visible at the top; it can be folded to one line, not dismissed. */}
     {pending && (pending.action || !collapsed) && <NoticeLine notice={pending} onAction={() => void continueLogin()}
-      onClose={pending.action ? undefined : () => setCollapsed(true)} closeLabel="ローカルの解析を続ける"/>}
+      onClose={pending.action ? undefined : () => setCollapsed(true)} closeLabel="このPCでの解析を続ける"/>}
     {pending && !pending.action && collapsed && <div className={styles.notice} data-tone="info" role="status">
       <p>承認待ち。このPCでの解析は使えます。</p>
       <button className={styles.quiet} onClick={() => setCollapsed(false)}>詳しく</button>
@@ -358,10 +359,10 @@ function LoginDialog() {
     <section ref={dialog} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={title} onKeyDown={trapFocus}>
       <h2 id={title} ref={heading} tabIndex={-1}>{step === "done" ? "クラウド機能が使えます" : approved ? "承認されました" : step === "pending" ? "承認を待っています" : step === "revoked" ? "利用が停止されています" : "クラウド機能を有効にする"}</h2>
       {step === "email" && <form onSubmit={submitEmail} noValidate>
-        <p>オーナーが許可したメールアドレスに、6 桁のコードを送ります。パスワードは使いません。</p>
+        <p>メールアドレスに 6 桁のコードを送ります。パスワードは使いません。初めて使うメールアドレスは、Cytellect のオーナーへの利用の申請になり、承認されると使えます。</p>
         <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
           onChange={event => setEmail(event.target.value)} required maxLength={254} placeholder="name@example.ac.jp"/></label>
-        <p className={styles.small}>ログインすると、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像（核小体では核の輪郭も）をクラウドの GPU に送ります。解析提案には画像を送りません。ほかの解析はこれまでどおりこのPCだけで行います。</p>
+        <p className={styles.small}>ログインすると、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像（核小体では核の輪郭も）をクラウドの GPU（画像の計算に使う高速な計算機）に送ります。解析提案には画像を送りません。ほかの解析はこれまでどおりこのPCだけで行います。</p>
         <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信しています" : "コードを送る"}</button>
       </form>}
       {step === "code" && <form onSubmit={event => void submitCode(event)}>
@@ -392,7 +393,7 @@ function LoginDialog() {
       {error !== null && <div role="alert" className={styles.error}><p>{invalidEmail ? "メールアドレスの形式を確認してください。" : accountErrorText(error)}</p><Details error={error}/></div>}
       <div className={styles.footer}>
         {step === "done" ? <button className={styles.primary} onClick={cloud.closeLogin}>作業に戻る</button>
-          : <button className={styles.quiet} onClick={cloud.closeLogin}>ローカルの解析を続ける</button>}
+          : <button className={styles.quiet} onClick={cloud.closeLogin}>このPCでの解析を続ける</button>}
       </div>
     </section>
   </div>;
@@ -408,7 +409,7 @@ export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string;
         <b>このPCで解析を始める</b><span>公開の練習画像で、核の検出から図までを試せます。ログインは不要です。</span>
       </button>
       <button className={styles.choice} disabled={busy} onClick={() => onChoose("cloud")}>
-        <b>クラウド機能を有効にする</b><span>メールアドレスでログインし、GPU による核小体・細胞の検出と、解析提案を使えるようにします。</span>
+        <b>クラウド機能を有効にする</b><span>メールアドレスでログインし、クラウドの GPU（高速な計算機）による核小体・細胞の検出と、解析提案（AI による解析の設定の提案）を使えるようにします。</span>
       </button>
     </div>
     {error && <p role="alert" className={styles.error}>{error}</p>}
