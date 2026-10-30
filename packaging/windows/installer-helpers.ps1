@@ -1,5 +1,6 @@
 # Shared steps of the installer CI scripts (smoke.ps1, sac-audit.ps1): run the compiled
-# installer silently, start the installed launcher, open a local session and uninstall.
+# installer silently, start the installed launcher, open a local session and uninstall, and the
+# same for the MSIX edition (docs/windows-msix.md): install, start from the Start menu entry, remove.
 # Dot-source it from a script that defines $Installer and $Version; it prints fixed texts only.
 $UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6F1E0A2C-4C1B-4E57-9B2D-3C7A1F0E9D21}_is1'
 # The launcher's port (8765 unless --port is given); Use-Port switches every request to another.
@@ -53,6 +54,11 @@ function Start-Cytellect([string]$Root, [string]$Expected = $Version, [switch]$G
             }
         } catch { Start-Sleep -Seconds 1 }
     }
+    Show-LauncherState
+    throw 'launcher did not answer'
+}
+
+function Show-LauncherState {
     # Fixed facts only: which Python windows are open (an error dialog has the title Cytellect) and the listener.
     Get-Process -Name python, pythonw -ErrorAction SilentlyContinue |
         ForEach-Object { Write-Host ('process {0} window "{1}"' -f $_.ProcessName, $_.MainWindowTitle) }
@@ -69,7 +75,6 @@ foreach ($window in [Windows.Automation.AutomationElement]::RootElement.FindAll(
 }
 '@
     & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command $probe | ForEach-Object { Write-Host $_ }
-    throw 'launcher did not answer'
 }
 
 function Stop-Cytellect($Process) {
@@ -107,4 +112,42 @@ function Invoke-Uninstaller([string]$Root, [string[]]$Extra = @(), [switch]$Expe
         if (-not (Test-Path -LiteralPath (Join-Path $Root 'apps')) -and -not (Test-Path -LiteralPath (Join-Path $Root 'uninstall'))) { return }
         Start-Sleep -Milliseconds 500
     }
+}
+
+# ---- MSIX edition (docs/windows-msix.md)
+function Install-CytellectPackage([string]$Path, [string]$Name) {
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    Add-AppxPackage -Path $Path -ForceApplicationShutdown
+    $package = Get-AppxPackage -Name $Name
+    if ($null -eq $package -or @($package).Count -ne 1) { throw 'the MSIX package is not registered after installation' }
+    Write-Host ('package installed after {0:N0} s' -f $watch.Elapsed.TotalSeconds)
+    return $package
+}
+
+function Start-CytellectPackage($Package) {
+    # The Start menu entry, as the Store's Open button and a researcher start it.
+    $existing = @(Get-Process -Name pythonw -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList ('shell:AppsFolder\' + $Package.PackageFamilyName + '!Cytellect')
+    $inside = $Package.InstallLocation.TrimEnd('\') + '\'
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    while ($watch.Elapsed.TotalSeconds -lt 240) {
+        # The launcher is the first packaged pythonw; its worker runs the same interpreter.
+        $launcher = @(Get-Process -Name pythonw -ErrorAction SilentlyContinue | Where-Object {
+            $_.Id -notin $existing -and $_.Path -and $_.Path.StartsWith($inside, [StringComparison]::OrdinalIgnoreCase) } |
+            Sort-Object StartTime | Select-Object -First 1)
+        try {
+            if ($launcher.Count -eq 1 -and (Invoke-WebRequest -UseBasicParsing -NoProxy -TimeoutSec 5 -Uri "$Origin/v1/local/setup").StatusCode -eq 200) {
+                Write-Host ('packaged launcher answered after {0:N0} s' -f $watch.Elapsed.TotalSeconds)
+                return $launcher[0]
+            }
+        } catch { }
+        Start-Sleep -Seconds 1
+    }
+    Show-LauncherState
+    throw 'the packaged launcher did not answer'
+}
+
+function Uninstall-CytellectPackage($Package) {
+    Remove-AppxPackage -Package $Package.PackageFullName
+    if (Get-AppxPackage -Name $Package.Name) { throw 'the MSIX package is still registered after removal' }
 }

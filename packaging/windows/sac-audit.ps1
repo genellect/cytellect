@@ -1,12 +1,17 @@
-# Smart App Control audit of the compiled installer on a disposable Windows runner (docs/ci.md).
-# Deploys App Control audit policies equivalent to Smart App Control, installs and uses Cytellect
-# (launcher window, workspace, nucleus detection with Fiji in the worker, export, uninstall), then
-# lists every file that Code Integrity would have blocked. Only paths relative to the install root
-# (or a fixed placeholder such as <temp>) leave the runner; no user or research path is written.
-# Findings never fail the script; an audit policy that cannot be shown to be active does.
+# Smart App Control audit of the compiled installer, or of the MSIX package (-Msix, docs/windows-msix.md),
+# on a disposable Windows runner (docs/ci.md). Deploys App Control audit policies equivalent to Smart App
+# Control, installs and uses Cytellect (launcher window, workspace, nucleus detection with Fiji in the
+# worker, export, uninstall), then lists every file that Code Integrity would have blocked. Only paths
+# relative to the install root or the package (or a fixed placeholder such as <temp>) leave the runner;
+# no user or research path is written. Findings never fail the script; an audit policy that cannot be
+# shown to be active does, and so does an MSIX that cannot be installed or used.
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$Installer,
+    [string]$Installer,
+    # The MSIX edition: the package, the public part of its throwaway test certificate and its identity name.
+    [string]$Msix,
+    [string]$Certificate,
+    [string]$PackageName,
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$Checkout,
     [Parameter(Mandatory)][string]$Output,
@@ -20,6 +25,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'installer-helpers.ps1')
 
+$Mode = if ($Msix) { 'msix' } else { 'installer' }
+if (($Mode -eq 'msix') -eq [bool]$Installer -or ($Mode -eq 'msix' -and -not ($Certificate -and $PackageName))) {
+    throw 'pass -Installer, or -Msix with -Certificate and -PackageName'
+}
 $CiLog = 'Microsoft-Windows-CodeIntegrity/Operational'
 $ScriptLog = 'Microsoft-Windows-AppLocker/MSI and Script'
 # Microsoft's signed policy: the Smart App Control rules in audit mode, without cloud reputation.
@@ -30,7 +39,7 @@ $ProbeDir = Join-Path $env:LOCALAPPDATA 'CytellectSacProbe'
 $Downloads = Join-Path $env:USERPROFILE 'Downloads'
 $CiTool = Join-Path $env:SystemRoot 'System32\CiTool.exe'
 New-Item -ItemType Directory -Path $Scratch, $Output -Force | Out-Null
-$facts = [ordered]@{ version = $Version; policies = [ordered]@{}; use = [ordered]@{}; errors = @() }
+$facts = [ordered]@{ version = $Version; edition = $Mode; policies = [ordered]@{}; use = [ordered]@{}; errors = @() }
 
 function Add-Error([string]$Stage, [string]$Message) {
     # Messages are fixed texts or Windows error codes; strip any drive path just in case.
@@ -67,8 +76,11 @@ function Get-Prop($Object, [string]$Name) {
 # ---- Path normalization: fixed placeholders instead of user, runner or temporary paths ----
 function Get-Tail([string]$Path) { return (($Path -replace '^\\\\\?\\', '') -replace '^[A-Za-z]:', '').TrimEnd('\') + '\' }
 $Anchors = @()
-function Add-Anchor([string]$Path, [string]$Label) {
-    if ($Path) { $script:Anchors += @{ Tail = Get-Tail $Path; Label = $Label } }
+function Add-Anchor([string]$Path, [string]$Label, [switch]$First) {
+    if (-not $Path) { return }
+    $anchor = @{ Tail = Get-Tail $Path; Label = $Label }
+    # The package folder is under Program Files: it must be matched before <program-files>.
+    if ($First) { $script:Anchors = @($anchor) + $script:Anchors } else { $script:Anchors += $anchor }
 }
 Add-Anchor $Root '<install>\'
 Add-Anchor $ProbeDir '<probe>\'
@@ -109,9 +121,16 @@ function Get-Group([string]$SafePath, [string]$Process = '') {
     $p = $SafePath.ToLowerInvariant()
     $leaf = ($p -split '\\')[-1]
     if ($p.StartsWith('<probe>\')) { return 'probe' }
+    # Inside the MSIX package (read-only, covered by the package signature).
+    if ($p.StartsWith('<package>\')) {
+        if ($p -match '^<package>\\fiji\\') { return 'jdk-fiji' }
+        if ($p -match '^<package>\\python\\') { return 'python-wheels' }
+        return 'other'
+    }
     if ($p -match '^<temp>\\is-\*\.tmp\\' -or $p -match '^<downloads>\\cytellect-setup-' -or $p -match '^<install>\\uninstall\\') { return 'inno-setup' }
     # Not shipped by Cytellect: the runner's own tools, or a DLL found on the runner's PATH.
-    if (-not ($p.StartsWith('<install>\') -or $p.StartsWith('<temp>\') -or $p.StartsWith('<downloads>\'))) { return 'runner' }
+    if (-not ($p.StartsWith('<install>\') -or $p.StartsWith('<temp>\') -or $p.StartsWith('<downloads>\') -or
+        $p.StartsWith('<package-private>\'))) { return 'runner' }
     # Cytellect's own setup scripts (unpacked with the app); other vendors' scripts stay in their group.
     if ($leaf -match '\.(ps1|psm1|psd1|cmd|bat|vbs|js|wsf)$' -and
         ($p -match '^<install>\\apps\\[^\\]+\\scripts\\' -or $p -match '^<install>\\apps\\[^\\]+\\[^\\]+$')) { return 'own-scripts' }
@@ -120,6 +139,13 @@ function Get-Group([string]$SafePath, [string]$Process = '') {
         $Process -match '(?i)\\runtimes\\fiji-[^\\]+\\.*\\java(w)?\.exe$') { return 'jdk-fiji' }
     if ($p -match '\\runtimes\\python' -or $p -match '\\\.venv\\' -or $p -match '\\site-packages\\' -or $leaf -match '\.pyd$') { return 'python-wheels' }
     return 'other'
+}
+
+# Where a file is: inside the MSIX package, outside it (what the Store's signature cannot cover), or the runner's own.
+function Get-Place([string]$SafePath, [string]$Group) {
+    if ($Group -in @('probe', 'runner')) { return $Group }
+    if ($SafePath.StartsWith('<package>\', [StringComparison]::OrdinalIgnoreCase)) { return 'package' }
+    return 'outside'
 }
 
 function Get-EventFields($Record) {
@@ -288,61 +314,97 @@ $facts.probe_signature = (Get-Signature $probe).status
 Start-Sleep -Seconds 5
 
 # ---------------------------------------------------------------- install and use, as a researcher would
-Step 'silent per-user installation into %LOCALAPPDATA%\Cytellect from the Downloads folder'
-if (Test-Path -LiteralPath $Root) { throw 'the default installation folder already exists on this runner' }
-New-Item -ItemType Directory -Path $Downloads -Force | Out-Null
-$downloaded = Join-Path $Downloads (Split-Path -Leaf $Installer)
-Copy-Item -LiteralPath $Installer -Destination $downloaded -Force
-$Installer = $downloaded
-$facts.use.install_exit = Invoke-Installer $Root -Offline
-$failure = $null
-try {
-    if ($facts.use.install_exit -ne 0) { throw 'installation failed' }
-    Step 'the shortcut launcher window starts'
-    Stop-Cytellect (Start-Cytellect $Root -Gui)
-    Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    $facts.use.gui = 'started'
-
-    Step 'workspace, BBBC013 A01 upload, nucleus detection with Fiji in the worker, review and export'
-    $process = Start-Cytellect $Root
-    try {
-        $session = New-Session
-        $workspace = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Smart App Control audit"}'
-        $fixtures = Join-Path $Checkout 'fixtures\public\bbbc013'
-        $metadata = '{"condition":"BBBC013 A01","experimental_unit":"public-plate","sample":"A01","acquisition_date":"public-acquisition"}'
-        $field = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces/$($workspace.id)/fields" -Headers $Headers -WebSession $session -Form @{
-            metadata = $metadata; dapi = Get-Item -LiteralPath (Join-Path $fixtures 'A01-dapi.tif'); gfp = Get-Item -LiteralPath (Join-Path $fixtures 'A01-gfp.tif') }
-        $null = Invoke-WebRequest -UseBasicParsing -NoProxy -Uri "$Origin/v1/fields/$($field.id)/preview" -WebSession $session
-        $body = @{ recipe = @{ id = 'gfp-nuclear-2d' }; backgrounds = @{ $field.id = @{ polygon = @(@(1, 1), @(4, 1), @(4, 4), @(1, 4)); confirmed = $true } } } | ConvertTo-Json -Depth 6
-        $trial = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces/$($workspace.id)/analyses" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body $body
-        function Wait-CytellectJob([string]$Id) {
-            $watch = [Diagnostics.Stopwatch]::StartNew()
-            while ($watch.Elapsed.TotalSeconds -lt 900) {
-                $job = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/jobs/$Id" -WebSession $session
-                if ($job.state -eq 'succeeded') { Write-Host ('job {0} succeeded after {1:N0} s' -f $job.kind, $watch.Elapsed.TotalSeconds); return }
-                if ($job.state -in @('failed', 'cancelled')) { throw ('job ' + $job.kind + ' ' + $job.state + ' ' + $job.error) }
-                Start-Sleep -Seconds 3
-            }
-            throw 'job did not finish'
+function Invoke-ShortUse {
+    # Workspace, BBBC013 A01 upload, nucleus detection with Fiji in the worker, review and export.
+    $session = New-Session
+    $workspace = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Smart App Control audit"}'
+    $fixtures = Join-Path $Checkout 'fixtures\public\bbbc013'
+    $metadata = '{"condition":"BBBC013 A01","experimental_unit":"public-plate","sample":"A01","acquisition_date":"public-acquisition"}'
+    $field = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces/$($workspace.id)/fields" -Headers $Headers -WebSession $session -Form @{
+        metadata = $metadata; dapi = Get-Item -LiteralPath (Join-Path $fixtures 'A01-dapi.tif'); gfp = Get-Item -LiteralPath (Join-Path $fixtures 'A01-gfp.tif') }
+    $null = Invoke-WebRequest -UseBasicParsing -NoProxy -Uri "$Origin/v1/fields/$($field.id)/preview" -WebSession $session
+    $body = @{ recipe = @{ id = 'gfp-nuclear-2d' }; backgrounds = @{ $field.id = @{ polygon = @(@(1, 1), @(4, 1), @(4, 4), @(1, 4)); confirmed = $true } } } | ConvertTo-Json -Depth 6
+    $trial = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces/$($workspace.id)/analyses" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body $body
+    function Wait-CytellectJob([string]$Id) {
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        while ($watch.Elapsed.TotalSeconds -lt 900) {
+            $job = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/jobs/$Id" -WebSession $session
+            if ($job.state -eq 'succeeded') { Write-Host ('job {0} succeeded after {1:N0} s' -f $job.kind, $watch.Elapsed.TotalSeconds); return }
+            if ($job.state -in @('failed', 'cancelled')) { throw ('job ' + $job.kind + ' ' + $job.state + ' ' + $job.error) }
+            Start-Sleep -Seconds 3
         }
-        Wait-CytellectJob $trial.job_id
-        $report = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/revisions/$($trial.revision_id)/measurements" -WebSession $session
-        $facts.use.nuclei = @($report.cells).Count
-        Write-Host ('detected nuclei: {0}' -f $facts.use.nuclei)
-        if ($facts.use.nuclei -lt 100) { throw 'nucleus detection found fewer than 100 nuclei' }
-        $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/revisions/$($trial.revision_id)/review" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{}'
-        $exported = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/revisions/$($trial.revision_id)/export" -Headers $Headers -WebSession $session
-        Wait-CytellectJob $exported.job_id
-        $facts.use.export = 'succeeded'
-    } finally { Stop-Cytellect $process }
-} catch { $failure = $_.Exception.Message; Add-Error 'use' $failure }
+        throw 'job did not finish'
+    }
+    Wait-CytellectJob $trial.job_id
+    $report = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/revisions/$($trial.revision_id)/measurements" -WebSession $session
+    $facts.use.nuclei = @($report.cells).Count
+    Write-Host ('detected nuclei: {0}' -f $facts.use.nuclei)
+    if ($facts.use.nuclei -lt 100) { throw 'nucleus detection found fewer than 100 nuclei' }
+    $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/revisions/$($trial.revision_id)/review" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{}'
+    $exported = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/revisions/$($trial.revision_id)/export" -Headers $Headers -WebSession $session
+    Wait-CytellectJob $exported.job_id
+    $facts.use.export = 'succeeded'
+}
+
+$failure = $null
+$package = $null
+$downloaded = $null
+if ($Mode -eq 'installer') {
+    Step 'silent per-user installation into %LOCALAPPDATA%\Cytellect from the Downloads folder'
+    if (Test-Path -LiteralPath $Root) { throw 'the default installation folder already exists on this runner' }
+    New-Item -ItemType Directory -Path $Downloads -Force | Out-Null
+    $downloaded = Join-Path $Downloads (Split-Path -Leaf $Installer)
+    Copy-Item -LiteralPath $Installer -Destination $downloaded -Force
+    $Installer = $downloaded
+    $facts.use.install_exit = Invoke-Installer $Root -Offline
+    try {
+        if ($facts.use.install_exit -ne 0) { throw 'installation failed' }
+        Step 'the shortcut launcher window starts'
+        Stop-Cytellect (Start-Cytellect $Root -Gui)
+        Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        $facts.use.gui = 'started'
+
+        Step 'workspace, BBBC013 A01 upload, nucleus detection with Fiji in the worker, review and export'
+        $process = Start-Cytellect $Root
+        try { Invoke-ShortUse } finally { Stop-Cytellect $process }
+    } catch { $failure = $_.Exception.Message; Add-Error 'use' $failure }
+} else {
+    Step 'trust the throwaway test certificate, then install the MSIX from the Downloads folder'
+    if (Test-Path -LiteralPath $Root) { throw 'the default data folder already exists on this runner' }
+    # A self-signed test package installs only when its certificate is trusted; a Store package needs nothing.
+    $testCertificate = Import-Certificate -FilePath $Certificate -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+    New-Item -ItemType Directory -Path $Downloads -Force | Out-Null
+    $downloaded = Join-Path $Downloads (Split-Path -Leaf $Msix)
+    Copy-Item -LiteralPath $Msix -Destination $downloaded -Force
+    try {
+        $package = Install-CytellectPackage $downloaded $PackageName
+        $facts.use.install = 'succeeded'
+        Add-Anchor $package.InstallLocation '<package>\' -First
+        Add-Anchor (Join-Path $env:LOCALAPPDATA ('Packages\' + $package.PackageFamilyName)) '<package-private>\' -First
+        $facts.package = [ordered]@{ name = $package.Name; version = [string]$package.Version; signature_kind = [string]$package.SignatureKind }
+        Step 'start from the Start menu entry (shell:AppsFolder), as the Store''s Open button does'
+        $process = Start-CytellectPackage $package
+        $facts.use.gui = 'started'
+        Step 'workspace, BBBC013 A01 upload, nucleus detection with Fiji in the worker, review and export'
+        try { Invoke-ShortUse } finally { Stop-Cytellect $process }
+        Step 'the workspace data is in %LOCALAPPDATA%\Cytellect itself, not in the package''s private copy'
+        $facts.use.data_in_shared_folder = Test-Path -LiteralPath (Join-Path $Root 'data\cytellect.sqlite')
+        $private = Join-Path $env:LOCALAPPDATA ('Packages\' + $package.PackageFamilyName + '\LocalCache\Local\Cytellect')
+        $facts.use.virtualized_copy = Test-Path -LiteralPath $private
+        if (-not $facts.use.data_in_shared_folder -or $facts.use.virtualized_copy) { throw 'the workspace data was virtualized' }
+    } catch {
+        if (-not $facts.use.Contains('install')) { $facts.use.install = 'failed' }
+        $failure = $_.Exception.Message; Add-Error 'use' $failure
+    }
+}
 
 # ---------------------------------------------------------------- signatures and static inventory before uninstall
 Step 'signature status of every executable file under the install root'
 $inventory = @()
-if (Test-Path -LiteralPath $Root) {
+$inventoryRoot = if ($Mode -eq 'msix') { if ($package) { $package.InstallLocation } else { $null } } else { $Root }
+if ($inventoryRoot -and (Test-Path -LiteralPath $inventoryRoot)) {
     $extensions = @('.exe', '.dll', '.pyd', '.sys', '.ocx', '.cpl', '.ps1', '.psm1', '.psd1', '.cmd', '.bat', '.vbs', '.js', '.msi')
-    foreach ($file in Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.Extension.ToLowerInvariant() -in $extensions }) {
+    foreach ($file in Get-ChildItem -LiteralPath $inventoryRoot -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.Extension.ToLowerInvariant() -in $extensions }) {
         $safe = ConvertTo-SafePath $file.FullName
         $group = Get-Group $safe
         # Executable images of every group, and scripts only where Cytellect itself runs them.
@@ -351,17 +413,54 @@ if (Test-Path -LiteralPath $Root) {
         $inventory += [pscustomobject]@{ file = $safe; group = $group; status = $sig.status; signer = $sig.signer }
     }
 }
+# Portable Executable images by content (any name) that the run left outside the package: the shared data
+# folder and the package's private per-user folder. For the MSIX edition this must stay empty.
+function Test-PortableExecutable([string]$Path) {
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        try {
+            $header = New-Object byte[] 64
+            if ($stream.Read($header, 0, 64) -lt 64 -or $header[0] -ne 0x4d -or $header[1] -ne 0x5a) { return $false }
+            $stream.Position = [BitConverter]::ToInt32($header, 60)
+            $signature = New-Object byte[] 4
+            return $stream.Read($signature, 0, 4) -eq 4 -and [Text.Encoding]::ASCII.GetString($signature) -eq "PE`0`0"
+        } finally { $stream.Dispose() }
+    } catch { return $false }
+}
+$written = @()
+if ($Mode -eq 'msix') {
+    $outsideRoots = @($Root)
+    if ($package) { $outsideRoots += (Join-Path $env:LOCALAPPDATA ('Packages\' + $package.PackageFamilyName)) }
+    foreach ($outsideRoot in $outsideRoots | Where-Object { Test-Path -LiteralPath $_ }) {
+        foreach ($file in Get-ChildItem -LiteralPath $outsideRoot -Recurse -File -Force -ErrorAction SilentlyContinue) {
+            if (Test-PortableExecutable $file.FullName) { $written += (ConvertTo-SafePath $file.FullName) }
+        }
+    }
+    $facts.outside_written = $written.Count
+}
 $signatureOf = @{}
 foreach ($item in $inventory) { $signatureOf[$item.file.ToLowerInvariant()] = $item }
-foreach ($leftover in @($probe, $downloaded)) {
+foreach ($leftover in @($probe, $downloaded) | Where-Object { $_ }) {
     $sig = Get-Signature $leftover
     $signatureOf[(ConvertTo-SafePath $leftover).ToLowerInvariant()] = [pscustomobject]@{ status = $sig.status; signer = $sig.signer }
 }
 # Inno Setup's extracted loader and helpers are gone after the run; this one stays for the record.
 
-Step 'uninstall (Inno Setup uninstaller)'
-try { if (Test-Path -LiteralPath (Join-Path $Root 'uninstall\unins000.exe')) { Invoke-Uninstaller $Root @('/DELETEDATA') } }
-catch { Add-Error 'uninstall' $_.Exception.Message }
+if ($Mode -eq 'installer') {
+    Step 'uninstall (Inno Setup uninstaller)'
+    try { if (Test-Path -LiteralPath (Join-Path $Root 'uninstall\unins000.exe')) { Invoke-Uninstaller $Root @('/DELETEDATA') } }
+    catch { Add-Error 'uninstall' $_.Exception.Message }
+} else {
+    Step 'remove the MSIX package; the research data stays in %LOCALAPPDATA%\Cytellect'
+    try {
+        if ($package) {
+            Uninstall-CytellectPackage $package
+            $facts.use.uninstall = 'succeeded'
+            $facts.use.data_after_uninstall = Test-Path -LiteralPath (Join-Path $Root 'data\cytellect.sqlite')
+        }
+    } catch { $facts.use.uninstall = 'failed'; Add-Error 'uninstall' $_.Exception.Message }
+    if ($testCertificate) { Remove-Item -LiteralPath ('Cert:\LocalMachine\TrustedPeople\' + $testCertificate.Thumbprint) -ErrorAction SilentlyContinue }
+}
 Start-Sleep -Seconds 5
 
 # ---------------------------------------------------------------- collect, de-duplicate, report
@@ -373,7 +472,7 @@ $facts.event_counts['3089'] = @(Get-WinEvent -FilterHashtable @{ LogName = $CiLo
 $unique = @($rows | Group-Object { '{0}|{1}|{2}' -f $_.event, $_.policy, $_.file.ToLowerInvariant() } | ForEach-Object {
     $first = $_.Group[0]
     $sig = $signatureOf[$first.file.ToLowerInvariant()]
-    [pscustomobject]@{ event = $first.event; policy = $first.policy; group = $first.group; file = $first.file
+    [pscustomobject]@{ event = $first.event; policy = $first.policy; group = $first.group; place = (Get-Place $first.file $first.group); file = $first.file
         count = $_.Count; signature = $(if ($sig) { $sig.status } else { 'not on disk after the run' })
         signer = $(if ($sig) { $sig.signer } else { '' }); validated_level = $first.validated; requested_level = $first.requested
         ci_signatures = $first.ci_signatures; process = $first.process; sha256 = $first.sha256 } } | Sort-Object group, file, policy)
@@ -411,6 +510,17 @@ function Get-AuditedFiles([string]$Which) {
 }
 $isgFiles = Get-AuditedFiles 'isg'
 $facts.isg_allowed = @(Get-AuditedFiles 'no_isg' | Where-Object { $_ -notin $isgFiles }).Count
+if ($Mode -eq 'msix') {
+    # What the Store's signature cannot cover: executable files loaded from outside the package.
+    $facts.outside_loaded = [ordered]@{}
+    $facts.package_audited = [ordered]@{}
+    foreach ($which in 'no_isg', 'isg') {
+        $facts.outside_loaded[$which] = @($unique | Where-Object { (Test-Policy $_ $which) -and $_.place -eq 'outside' } |
+            ForEach-Object { $_.file.ToLowerInvariant() } | Sort-Object -Unique).Count
+        $facts.package_audited[$which] = @($unique | Where-Object { (Test-Policy $_ $which) -and $_.place -eq 'package' } |
+            ForEach-Object { $_.file.ToLowerInvariant() } | Sort-Object -Unique).Count
+    }
+}
 $facts | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Output 'sac-audit.json') -Encoding utf8
 
 # ---------------------------------------------------------------- step summary
@@ -420,12 +530,28 @@ $summary = @('## Smart App Control audit (emulated on the CI runner)', '',
     ('- Example Smart App Control policy with ISG (cloud reputation): active = **{0}**' -f $facts.policies.isg.active),
     ('- Shipped files audited without ISG but allowed with ISG (reputation as seen from this runner today): {0}' -f $facts.isg_allowed),
     ('- Unsigned probe executable audited by: {0}' -f $(if ($facts.probe_policies) { $facts.probe_policies -join ', ' } else { 'none' })),
-    ('- Use: install exit {0}; nuclei detected {1}; export {2}' -f $facts.use.install_exit, $(if ($facts.use.Contains('nuclei')) { $facts.use.nuclei } else { '-' }), $(if ($facts.use.Contains('export')) { $facts.use.export } else { '-' })),
+    ('- Use: install {0}; nuclei detected {1}; export {2}' -f $(if ($Mode -eq 'msix') { $facts.use.install } else { 'exit ' + $facts.use.install_exit }), $(if ($facts.use.Contains('nuclei')) { $facts.use.nuclei } else { '-' }), $(if ($facts.use.Contains('export')) { $facts.use.export } else { '-' })),
     ('- Events: ' + (($facts.event_counts.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ', ')), '',
     '| Group | Audited without ISG | Audited with ISG | Executable files installed | Validly signed | Not signed |', '|---|---:|---:|---:|---:|---:|')
 foreach ($group in $groups) {
     $summary += ('| {0} | {1} | {2} | {3} | {4} | {5} |' -f $group, $facts.audited.no_isg[$group], $facts.audited.isg[$group],
         $facts.inventory[$group].files, $facts.inventory[$group].valid_signature, $facts.inventory[$group].not_signed)
+}
+if ($Mode -eq 'msix') {
+    $summary += @('', '### MSIX edition', '',
+        ('- Package: {0} {1}, signature kind {2} (a throwaway self-signed test certificate made in this job)' -f $PackageName,
+            $(if ($facts.Contains('package')) { $facts.package.version } else { '-' }), $(if ($facts.Contains('package')) { $facts.package.signature_kind } else { '-' })),
+        ('- Started from the Start menu entry: {0}; data in %LOCALAPPDATA%\Cytellect: {1}; virtualized copy: {2}; removed: {3}; data kept after removal: {4}' -f
+            $(if ($facts.use.Contains('gui')) { $facts.use.gui } else { '-' }), $(if ($facts.use.Contains('data_in_shared_folder')) { $facts.use.data_in_shared_folder } else { '-' }),
+            $(if ($facts.use.Contains('virtualized_copy')) { $facts.use.virtualized_copy } else { '-' }), $(if ($facts.use.Contains('uninstall')) { $facts.use.uninstall } else { '-' }),
+            $(if ($facts.use.Contains('data_after_uninstall')) { $facts.use.data_after_uninstall } else { '-' })),
+        ('- **Executable files loaded from outside the package (must be 0): without ISG {0}, with ISG {1}**' -f $facts.outside_loaded.no_isg, $facts.outside_loaded.isg),
+        ('- Executable files the run wrote outside the package (data folder and the package''s private folder; must be 0): {0}' -f $facts.outside_written),
+        ('- Files inside the package audited: without ISG {0}, with ISG {1}. This test package is self-signed, so Code Integrity does not trust its content. Smart App Control trusts the content of a Store-signed package; these are expected to pass only after Store signing, which this job cannot show.' -f $facts.package_audited.no_isg, $facts.package_audited.isg))
+    foreach ($row in @($unique | Where-Object { $_.place -eq 'outside' -and $_.group -ne 'probe' } | Select-Object -First 20)) {
+        $summary += ('- outside the package: `{0}` ({1}, event {2})' -f $row.file, $row.policy, $row.event)
+    }
+    foreach ($file in @($written | Select-Object -First 20)) { $summary += ('- written outside the package: `{0}`' -f $file) }
 }
 $summary += @('', 'Examples (without ISG):', '')
 foreach ($group in $groups) {
@@ -449,7 +575,7 @@ if (Test-Path -LiteralPath 'S:\EFI\Microsoft\Boot\CiPolicies\Active') {
     & mountvol.exe S: /D | Out-Null
 }
 $null = Invoke-CiTool @('--refresh')
-Remove-Item -LiteralPath $ProbeDir, $downloaded -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (@($ProbeDir, $downloaded) | Where-Object { $_ }) -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not ($facts.policies.no_isg.active -or $facts.policies.isg.active)) { throw 'no audit policy was shown to be active: the unsigned probe was not audited' }
 if ($failure) { throw ('the installed application could not be used: ' + $failure) }

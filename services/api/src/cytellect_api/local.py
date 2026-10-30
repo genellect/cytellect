@@ -40,7 +40,10 @@ def installed_source_revision(root: Path | None = None) -> str | None:
     # cannot turn wheel verification into source-only manifest inspection.
     execution_file = Path(__file__).absolute()
     root = root or execution_file.parents[4]
-    site_packages = root / ".venv/Lib/site-packages"
+    # The installer's virtual environment, or the Store edition's packaged Python (docs/windows-msix.md).
+    candidates = [root / ".venv/Lib/site-packages", root / "python/Lib/site-packages"]
+    site_packages = next((path for path in candidates
+                          if execution_file == (path / "cytellect_api/local.py").absolute()), candidates[0])
     wheel_execution = execution_file == (site_packages / "cytellect_api/local.py").absolute()
     manifest = root / "local-release.json"
     if not manifest.is_file():

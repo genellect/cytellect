@@ -1,0 +1,8 @@
+{
+  "schema": "cytellect-msix-identity/1",
+  "partner_center": false,
+  "note": "Placeholders for CI test packages. Before a Store submission the owner replaces the three values with Partner Center's Product identity (Package/Identity/Name, Package/Identity/Publisher, Package/Properties/PublisherDisplayName) and sets partner_center to true (docs/windows-msix.md).",
+  "identity_name": "Cytellect.Preview",
+  "publisher": "CN=Cytellect CI Test Package",
+  "publisher_display_name": "Cytellect (CI test package)"
+}
