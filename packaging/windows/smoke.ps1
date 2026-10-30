@@ -344,7 +344,17 @@ if ($UpdateInstaller) {
         if (-not $offer.available -or $offer.latest -cne $UpdateVersion) { throw 'the generated release was not offered' }
         $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
         $null = Wait-UpdateState $UpdateVersion 'updated'
-        $kept = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
+        # The tab that started the update keeps its cookie, which the stopped launcher revoked.
+        # The new version refuses it with 401 until the local session is opened again, as the
+        # workspace's update banner does (followUpdate in apps/web/src/lib/cloud-account.ts).
+        $refused = 'answered'
+        try { $null = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session }
+        catch { $refused = [int]$_.Exception.Response.StatusCode }
+        if ($refused -ne 401) { throw "the revoked session was not refused with 401 ($refused)" }
+        Invoke-WebRequest -UseBasicParsing -NoProxy -Method Post -Uri "$Origin/v1/local/session" -Headers $Headers -WebSession $session | Out-Null
+        $resumed = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
+        if ($resumed.state -cne 'updated' -or $resumed.current -cne $UpdateVersion) { throw 'the reopened session does not see the completed update' }
+        $kept =Invoke-RestMethod -NoProxy -Uri "$Origin/v1/workspaces/$($created.id)" -Headers $Headers -WebSession (New-Session)
         if ($kept.title -cne 'Update check') { throw 'workspace lost in the in-app update' }
         Assert-ShortcutVersion $root $UpdateVersion
         if (@(Get-ChildItem -LiteralPath (Join-Path $root 'updates') -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue).Count) {

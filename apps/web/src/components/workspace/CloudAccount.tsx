@@ -9,7 +9,7 @@ import {
   AccountRequestError, accountApi, accountErrorText, accountLabel, restartGpuAfterSignIn, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
   followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
   UPDATE_IN_PROGRESS, UPDATE_JOBS_RUNNING, UPDATE_JOBS_RUNNING_TEXT, UPDATE_NOT_AVAILABLE, UPDATE_REMEMBERED, UPDATE_SEEN_KEY, UPDATE_SETTLED,
-  UPDATE_TIMEOUT_TEXT, UPDATE_UNSUPPORTED, updateSignature,
+  UPDATE_SESSION_LOST_TEXT, UPDATE_TIMEOUT_TEXT, UPDATE_UNSUPPORTED, updateSignature,
   GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
 import styles from "./cloud-account.module.css";
@@ -177,7 +177,8 @@ export function CloudNotices() {
 function UpdateBanner() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [following, setFollowing] = useState(false);
-  const [timedOut, setTimedOut] = useState(false);
+  // Following ended without a settled state: it ran out of time, or the session could not be opened again.
+  const [ended, setEnded] = useState<"timeout" | "session_lost" | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [hidden, setHidden] = useState(false);
   const [waitsForJobs, setWaitsForJobs] = useState(false);
@@ -195,11 +196,11 @@ function UpdateBanner() {
     run.current?.abort();
     const controller = new AbortController();
     run.current = controller;
-    setFollowing(true);
-    const result = await followUpdate(accountApi.update, {signal: controller.signal});
+    setFollowing(true); setEnded(null);
+    const result = await followUpdate(accountApi.update, {signal: controller.signal, reconnect: accountApi.reconnect});
     if (result === "cancelled" || run.current !== controller || !live.current) return;
     setFollowing(false);
-    if (result === "timeout") setTimedOut(true); else show(result);
+    if (result === "timeout" || result === "session_lost") setEnded(result); else show(result);
   }, [show]);
   useEffect(() => {
     live.current = true;
@@ -220,7 +221,7 @@ function UpdateBanner() {
   async function applyUpdate() {
     if (busy.current) return; // A second press while one is being sent does nothing.
     busy.current = true;
-    setFollowing(true); setTimedOut(false); setError(null); setHidden(false); setWaitsForJobs(false);
+    setFollowing(true); setEnded(null); setError(null); setHidden(false); setWaitsForJobs(false);
     try {
       const started = await accountApi.applyUpdate();
       if (!live.current) return;
@@ -239,7 +240,7 @@ function UpdateBanner() {
     } finally {busy.current = false;}
   }
   const offered = updateNotice(update, following);
-  const line = timedOut ? {text: UPDATE_TIMEOUT_TEXT, tone: "problem" as const}
+  const line = ended ? {text: ended === "timeout" ? UPDATE_TIMEOUT_TEXT : UPDATE_SESSION_LOST_TEXT, tone: "problem" as const}
     : waitsForJobs && offered ? {...offered, text: `${UPDATE_JOBS_RUNNING_TEXT}${offered.text}`} : offered;
   if (!line || hidden) return null;
   const notesUrl = safeNotesUrl(update?.notes_url);

@@ -27,7 +27,7 @@ The local API offers `GET /v1/app/update` and `POST /v1/app/update` to the signe
 
 The workspace banner that calls these routes ("更新があります") and the first-run screen are part of the cloud-account change (genellect/cytellect#156), and the two ship together; [Workspace update banner and cloud sign-in](#workspace-update-banner-and-cloud-sign-in) describes what the banner shows for each state and refusal. The 409 `update_switching` is answered only to other changing requests in the seconds before the launcher stops, and the workspace has no dedicated message for it.
 
-The `windows-installer` job tests the update end to end with two versions built from the same commit: a generated release list on `127.0.0.1` is offered, downloaded, verified, installed and switched to, and a second run whose new version exits at start returns to the previous version with its workspace. The redirection to the local list and the failing start come from `packaging/windows/update-test/cytellect_ci_update_hook.py`, which the test copies with a one-line `.pth` file into the previous version's site-packages. It is not in the ZIP or the installer (a test checks that nothing under `packaging/` is), so a distributed copy always reads GitHub's releases.
+The `windows-installer` job tests the update end to end with two versions built from the same commit: a generated release list on `127.0.0.1` is offered, downloaded, verified, installed and switched to, and a second run whose new version exits at start returns to the previous version with its workspace. The redirection to the local list and the failing start come from `packaging/windows/update-test/cytellect_ci_update_hook.py`, which the test copies with a one-line `.pth` file into the previous version's site-packages. It is not in the ZIP or the installer (a test checks that nothing under `packaging/` is), so a distributed copy always reads GitHub's releases. After the switch, the job also checks that the starting tab's revoked cookie is refused with 401 and that `POST /v1/local/session` renews it; it drives no browser, so the banner's recovery itself is tested in `apps/web/tests/cloud-account-local.spec.ts`.
 
 The shortcut, the relauncher's commands and the worker run Python with `-E`, so a researcher's own `PYTHONPATH`, `PYTHONHOME` or other `PYTHON*` variables cannot change the installed application. Cytellect needs none of them; bytecode is disabled with `-B` and the worker inherits both flags.
 
@@ -211,7 +211,12 @@ The local workspace (genellect/cytellect#156) shows the in-app update from
 `POST`, it re-reads the state every 3 seconds until the state is `idle`,
 `installed`, `updated`, `failed`, `rolled_back` or `unsupported`, waits through
 the restart's dropped connections, and stops after 20 minutes with a message
-to reopen Cytellect. A settled state that the installer keeps (`updated`,
+to reopen Cytellect. The stopping launcher revokes the local sessions, so the new
+version answers that tab with 401: the banner opens the session again with
+`POST /v1/local/session`, as the workspace does when it opens, and goes on reading
+the state (at most three times). If the session cannot be opened again, it asks to
+reopen the workspace (「作業画面を開き直してください」) instead of waiting out the
+20 minutes. A settled state that the installer keeps (`updated`,
 `installed`, `failed`, `rolled_back`) is shown once per occurrence, remembered
 in the browser; `installed` is not shown once the running version is the latest.
 The `error` code appears only under 詳細. A 409 `update_jobs_running` says to
