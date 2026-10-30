@@ -1,53 +1,67 @@
 # セキュリティポリシー
 
-設計原則は、データ最小化、最小権限、多層防御（前段に頼らず各層で検証）、フェイルクローズ、署名による信頼の起点の 5 つ。
+## 対象とする版
 
-## 対策
-
-| 領域 | 実装 |
+| 版 | セキュリティ修正 |
 |---|---|
-| データ最小化 | 解析はローカルで行う。クラウド推論に送るのは検出対象の 1 プレーンと検出条件だけで、ファイル名・パス・他チャネルは送らない。中継は本文を読まず、保存もログもしない。LLM による解析提案はオプトインで、研究の目的とメタデータだけを `store: false` で送る |
-| 利用者の認証 | メールの OTP（6 桁、10 分、HMAC-SHA256 で保存）。5 回の誤りでコードを無効化し、アドレス単位で 1 日 20 回の誤りで 24 時間ロックアウトする（IP を変えても試行は増えず、/64 単位のレート制限も併用）。認証後は 256 bit のデバイストークン（SHA-256 で保存、90 日の非使用で失効、サーバー側で即時失効） |
-| 管理者の認証 | Cloudflare Access（Google SSO）の背後に置き、オリジン（Worker）でも JWT を独立に検証する。RS256 に固定（alg confusion を防ぐ）、`iss`・`aud`・`exp`・`nbf`・メールを照合し、JWKS は 10 分キャッシュ、未知の `kid` での再取得は 30 秒に 1 回まで。管理経路は指定のオリジンだけで応答し、`workers.dev` などの迂回経路は有効なトークンでも拒否する |
-| 承認フロー | HMAC 署名の 1 回限りのリンク（7 日）。GET では承認せず、POST で確定するので、メールのリンクスキャナーでは承認されない |
-| 秘密の管理 | 認証情報の仲介。クライアントは第三者の API キーを持たず、Worker が付与して転送する。トークンとコードは保存時にハッシュ化し、ログに残さない。IP はレート制限用の鍵付きハッシュとしてだけ扱う |
-| ローカル API | ループバック限定。Host・Origin・Fetch Metadata・CSRF ヘッダーを検証し、DNS リバインディングとクロスサイトの要求を拒否する。セッションは HttpOnly・SameSite=Strict の cookie |
-| 認可 | 全オブジェクトでセッションの所有者を検証し、他人のリソースは存在も返さない（IDOR 対策） |
-| 更新の完全性 | Ed25519 で署名した manifest を、アプリに組み込んだ公開鍵で検証し、インストーラーの SHA-256 とサイズを照合してから実行する。リリース資産のハッシュは信頼の根拠にしない。署名鍵は承認制の GitHub Environment に隔離しており、リポジトリへの書き込み権限だけでは利用者の PC でコードを実行できない |
-| 実行環境の隔離 | 解析ワーカーは非 root・`network_mode: none`・読み取り専用ルート・`cap_drop: ALL`・`no-new-privileges` のコンテナで動く。プロセスの監視はリースで相互に確認し、確認できなければ停止して結果を公開しない |
-| Web | 厳格な CSP（`frame-ancestors 'none'`、`object-src 'none'`）、`no-store`、`nosniff`、`no-referrer`。計測タグは分離した文書に閉じ込め、解析画面には読み込まない |
-| サプライチェーン | 依存はロックファイルで、外部の成果物は SHA-256 で固定する。秘密の走査はハッシュを検証した gitleaks で Git の全履歴に行う。`GITHUB_TOKEN` は既定で読み取り専用。Dependabot alerts、`pip-audit`、CycloneDX の SBOM |
-
-各項目の仕様は[データ保護と運用](docs/security.md)にある。
-
-## 既知の制約
-
-- Windows のインストーラーには Authenticode の署名がない。最初の導入では、署名付きの manifest で手動で確認できる（[手順](docs/install-windows.ja.md#2-ダウンロードと確認)）。
-- Windows 版は単一利用者のモデルで、同じ OS アカウントのプロセスを信頼の内側に置く。外向きの通信は OS のファイアウォールでは制限しない。
-- ログインの応答から、アドレスの状態（許可・承認待ち・失効）が分かる。
+| Windows 版の最新のリリース | ✅ |
+| `main`（`cytellect.app` とクラウド機能） | ✅ |
+| それより前の Windows 版 | ❌ アプリ内の更新で最新版に移る |
 
 ## 脆弱性の報告
 
-[非公開の報告フォーム](https://github.com/genellect/cytellect/security/advisories/new)から報告してほしい。公開の Issue には書かないこと。合理的な報告には 3 日以内に返信する。
+[非公開の報告フォーム](https://github.com/genellect/cytellect/security/advisories/new)から報告してほしい。Issue などの公開の場には書かないこと。合理的な報告には 3 日以内に返信し、修正版の配布後に [Security Advisories](https://github.com/genellect/cytellect/security/advisories) で公表する。再現には合成データか公開データを使い、研究データや認証情報を含めないこと。
+
+## セキュリティの水準
+
+| 対象 | 基準 | 現在の水準 |
+|---|---|---|
+| 研究データ | — | 解析は研究者の PC で行う。外部に出るのは、クラウド GPU に送る検出用の 1 プレーンと、オプトインの解析提案に送る目的とメタデータだけ。中継は本文を保存もログもしない |
+| 研究者のログイン | NIST SP 800-63B（2025） | メールのワンタイムコードによる単要素の認証。同書は電子メールを帯域外認証に認めていないため、AAL1 の認証器には当たらない。試行の制限（コードごとに 5 回、アドレスごとに 1 日 20 回）は、同書の上限（連続 100 回）より厳しい |
+| 管理者のログイン | NIST SP 800-63B（2025） | Cloudflare Access 経由の Google SSO。Worker でも JWT（RS256 に固定、`iss`・`aud`・`exp`・アドレス）を独立に検証し、Access を迂回する経路を閉じている。認証の強さは Google アカウントの設定による |
+| 配布物 | SLSA v1.0 Build | L0（来歴の証明はない）。アプリ内の更新は Ed25519 で署名した manifest を検証してから実行し、署名鍵は承認制の GitHub Environment に隔離している |
+| 解析の実行環境（Docker 版） | — | 非 root、`network_mode: none`、読み取り専用のルート、`cap_drop: ALL`、`no-new-privileges` |
+
+仕様の詳細は[データ保護と運用](docs/security.md)にある。
+
+## 脆弱性として扱わないもの
+
+次は設計上の前提か既知の制約で、脆弱性としては受け付けない。
+
+- **同じ OS アカウントの権限を持つ者による操作。** Windows 版は単一利用者のアプリで、ローカルのサーバーは `127.0.0.1` で待ち受ける。同じ OS アカウントで動くプロセスは信頼の内側にある。
+- **ログインの応答から、アドレスの状態（許可・承認待ち・失効）が分かること。** PC が状態に合った画面を出すための設計で、IP ごとの回数の制限で列挙を抑えている。
+- **誤ったコードを繰り返し入力して、他人のアドレスを最長 1 日ロックできること。** 総当たりを防ぐロックの副作用で、運用者は鍵の交換で解除できる。
+- **Windows のインストーラーに Authenticode の署名がないこと。** 最初の導入は、署名付きの manifest で確認できる（[手順](docs/install-windows.ja.md#2-ダウンロードと確認)）。
+- **Docker Desktop の所有者モードを、ループバック以外に公開した場合の問題。** このモードはループバックでの利用を前提にしており、公開は誤った設定にあたる。
+- **解析提案の要求が、OpenAI の不正利用の監視のために保持されること。** 提供元のデータ方針による。
 
 ## English
 
-Design principles: data minimisation, least privilege, defence in depth (every layer verifies on its own), fail-closed, and signatures as the root of trust.
+### Supported versions
 
-| Area | Implementation |
-|---|---|
-| Data minimisation | Analysis runs locally. Cloud inference receives only the one detection plane and its parameters, never file names, paths or other channels; the relay neither reads, stores nor logs the body. The LLM analysis proposal is opt-in and sends only the research goal and metadata, with `store: false` |
-| User authentication | E-mail OTP (6 digits, 10 minutes, stored as HMAC-SHA256). Five wrong guesses void a code; 20 per address per day lock the address for 24 hours, so rotating IPs adds no attempts (/64 rate limits apply as well). Then a 256-bit device token (stored as SHA-256, expires after 90 days unused, revocable server-side at once) |
-| Admin authentication | Behind Cloudflare Access (Google SSO), with independent JWT verification at the origin Worker: RS256 only (no algorithm confusion), `iss`, `aud`, `exp`, `nbf` and e-mail checked, JWKS cached for 10 minutes and refetched for an unknown `kid` at most every 30 seconds. Admin routes answer only on the designated origin; bypass routes such as `workers.dev` are refused even with a valid token |
-| Approval flow | HMAC-signed single-use links (7 days). GET never approves; a POST confirms, so mail link scanners cannot approve |
-| Secrets | Credential brokering: clients hold no third-party API keys; the Worker attaches them and forwards. Tokens and codes are hashed at rest and never logged; IPs exist only as keyed hashes for rate limiting |
-| Local API | Loopback only. Host, Origin, Fetch Metadata and CSRF headers are verified, rejecting DNS rebinding and cross-site requests. HttpOnly, SameSite=Strict session cookies |
-| Authorisation | Ownership is checked on every object; other users' resources are not even acknowledged (IDOR protection) |
-| Update integrity | An Ed25519-signed manifest is verified against the public key built into the app, and the installer's SHA-256 and size are matched before it runs. Release-asset hashes are not trusted. The signing key is isolated in an approval-gated GitHub Environment, so repository write access alone cannot run code on users' PCs |
-| Isolation | The analysis worker runs non-root with `network_mode: none`, a read-only root, `cap_drop: ALL` and `no-new-privileges`. Supervision uses mutually checked leases and stops without publishing results when it cannot verify them |
-| Web | Strict CSP (`frame-ancestors 'none'`, `object-src 'none'`), `no-store`, `nosniff`, `no-referrer`; analytics confined to a separate document and never loaded in the analysis workspace |
-| Supply chain | Dependencies pinned by lockfiles and external artifacts by SHA-256; full-history secret scanning with a hash-verified gitleaks; read-only `GITHUB_TOKEN` by default; Dependabot alerts, `pip-audit` and a CycloneDX SBOM |
+Security fixes go to the latest Windows release and to `main` (`cytellect.app` and the cloud features). Earlier Windows releases move to the latest one through the in-app update.
 
-Known limitations: the Windows installer has no Authenticode signature (a first installation can be checked against the signed manifest); the Windows app follows a single-user model that trusts processes of the same OS account and does not restrict outbound traffic with the OS firewall; the login response reveals an address's state.
+### Reporting a vulnerability
 
-Report vulnerabilities through the [private reporting form](https://github.com/genellect/cytellect/security/advisories/new), not in public issues. We reply to reasonable reports within three days. Specifications are in [Data protection and operations](docs/security.md).
+Report through the [private reporting form](https://github.com/genellect/cytellect/security/advisories/new), not in public issues. We reply to reasonable reports within three days and publish an advisory under [Security Advisories](https://github.com/genellect/cytellect/security/advisories) after the fix is released. Reproduce with synthetic or public data only, without research data or credentials.
+
+### Security level
+
+| Scope | Standard | Current level |
+|---|---|---|
+| Research data | — | Analysis runs on the researcher's PC. Only one detection plane leaves it for cloud GPU inference, and only the goal and metadata for the opt-in analysis proposal; the relay neither stores nor logs bodies |
+| Researcher sign-in | NIST SP 800-63B (2025) | Single-factor e-mail one-time code. The standard does not allow e-mail for out-of-band authentication, so this is not an AAL1 authenticator. Throttling (5 attempts per code, 20 per address per day) is stricter than the standard's limit of 100 consecutive failures |
+| Admin sign-in | NIST SP 800-63B (2025) | Google SSO through Cloudflare Access, with independent JWT verification at the Worker (RS256 only; `iss`, `aud`, `exp` and address) that closes routes bypassing Access. Strength depends on the Google account's settings |
+| Distribution | SLSA v1.0 Build | L0 (no provenance). The in-app update runs only after verifying an Ed25519-signed manifest, and the signing key is isolated in an approval-gated GitHub Environment |
+| Analysis runtime (Docker) | — | Non-root, `network_mode: none`, read-only root, `cap_drop: ALL`, `no-new-privileges` |
+
+Specifications are in [Data protection and operations](docs/security.md).
+
+### Not treated as vulnerabilities
+
+- Actions by anyone with the same OS account's privileges: the Windows app is single-user and listens on `127.0.0.1`; processes of that account are trusted.
+- The sign-in response revealing an address's state (allowed, pending, revoked): a design choice so the PC shows the matching screen, with per-IP limits against enumeration.
+- Locking someone else's address for up to a day with wrong codes: the side effect of the brute-force lockout, which operators can clear by rotating the key.
+- The Windows installer lacking an Authenticode signature: a first installation can be checked against the signed manifest.
+- Exposing the Docker Desktop owner mode beyond loopback: a misconfiguration.
+- OpenAI retaining analysis-proposal requests for abuse monitoring: the provider's data policy.
