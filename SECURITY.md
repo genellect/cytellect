@@ -1,54 +1,53 @@
 # セキュリティポリシー
 
-Cytellect は、研究者の未発表の顕微鏡画像を扱う。画像は研究者の手元で解析し、クラウドを使う機能でも、外に出すのは処理に必要な最小限に限る。
+設計原則は、データ最小化、最小権限、多層防御（前段に頼らず各層で検証）、フェイルクローズ、署名による信頼の起点の 5 つ。
 
-## 方針
+## 対策
 
-- 研究データは研究者の管理下に置く。外部に送る機能は利用者が有効にしたときだけ動き、送る内容は機能ごとに決めておく。
-- 鍵は、それを使う場所にだけ置く。研究者の PC は外部サービスの鍵を持たず、サーバーはトークンとコードをハッシュでしか持たない。
-- 信頼は検証で決める。認証は手前の防御に頼らず各層で確かめ、配布物は署名で確かめる。
-- 確かめられないときは止める。設定の不備や障害で、処理や要求を通すことはしない。
+| 領域 | 実装 |
+|---|---|
+| データ最小化 | 解析はローカルで行う。クラウド推論に送るのは検出対象の 1 プレーンと検出条件だけで、ファイル名・パス・他チャネルは送らない。中継は本文を読まず、保存もログもしない。LLM による解析提案はオプトインで、研究の目的とメタデータだけを `store: false` で送る |
+| 利用者の認証 | メールの OTP（6 桁、10 分、HMAC-SHA256 で保存）。5 回の誤りでコードを無効化し、アドレス単位で 1 日 20 回の誤りで 24 時間ロックアウトする（IP を変えても試行は増えず、/64 単位のレート制限も併用）。認証後は 256 bit のデバイストークン（SHA-256 で保存、90 日の非使用で失効、サーバー側で即時失効） |
+| 管理者の認証 | Cloudflare Access（Google SSO）の背後に置き、オリジン（Worker）でも JWT を独立に検証する。RS256 に固定（alg confusion を防ぐ）、`iss`・`aud`・`exp`・`nbf`・メールを照合し、JWKS は 10 分キャッシュ、未知の `kid` での再取得は 30 秒に 1 回まで。管理経路は指定のオリジンだけで応答し、`workers.dev` などの迂回経路は有効なトークンでも拒否する |
+| 承認フロー | HMAC 署名の 1 回限りのリンク（7 日）。GET では承認せず、POST で確定するので、メールのリンクスキャナーでは承認されない |
+| 秘密の管理 | 認証情報の仲介。クライアントは第三者の API キーを持たず、Worker が付与して転送する。トークンとコードは保存時にハッシュ化し、ログに残さない。IP はレート制限用の鍵付きハッシュとしてだけ扱う |
+| ローカル API | ループバック限定。Host・Origin・Fetch Metadata・CSRF ヘッダーを検証し、DNS リバインディングとクロスサイトの要求を拒否する。セッションは HttpOnly・SameSite=Strict の cookie |
+| 認可 | 全オブジェクトでセッションの所有者を検証し、他人のリソースは存在も返さない（IDOR 対策） |
+| 更新の完全性 | Ed25519 で署名した manifest を、アプリに組み込んだ公開鍵で検証し、インストーラーの SHA-256 とサイズを照合してから実行する。リリース資産のハッシュは信頼の根拠にしない。署名鍵は承認制の GitHub Environment に隔離しており、リポジトリへの書き込み権限だけでは利用者の PC でコードを実行できない |
+| 実行環境の隔離 | 解析ワーカーは非 root・`network_mode: none`・読み取り専用ルート・`cap_drop: ALL`・`no-new-privileges` のコンテナで動く。プロセスの監視はリースで相互に確認し、確認できなければ停止して結果を公開しない |
+| Web | 厳格な CSP（`frame-ancestors 'none'`、`object-src 'none'`）、`no-store`、`nosniff`、`no-referrer`。計測タグは分離した文書に閉じ込め、解析画面には読み込まない |
+| サプライチェーン | 依存はロックファイルで、外部の成果物は SHA-256 で固定する。秘密の走査はハッシュを検証した gitleaks で Git の全履歴に行う。`GITHUB_TOKEN` は既定で読み取り専用。Dependabot alerts、`pip-audit`、CycloneDX の SBOM |
 
-## 現行の対策
+各項目の仕様は[データ保護と運用](docs/security.md)にある。
 
-### 研究データ
+## 既知の制約
 
-画像、マスク、測定表、図は、研究者の PC（または研究室のサーバー）の非公開のディレクトリに置く。外に送るのは次の場合だけである。
-
-| 機能 | 送るもの | 送らないもの |
-|---|---|---|
-| クラウド GPU での細胞検出 | 検出に使う 1 平面と検出の条件 | ファイル名、ワークスペース名、実験条件、パス、他のチャネル |
-| AI による解析提案（既定で無効） | 研究の目的と、チャネル名や寸法などのメタデータ | パス、マスク、測定表、文書 |
-| ログイン | メールアドレス | — |
-
-推論の中継は本文を読まず、保存も記録もしない。測定と統計は PC で行い、原画像の画素値は変えない。作業データは最後の操作から 24 時間で失効して削除される。研究者自身の PC では、手動での保持も選べる。
-
-### 認証
-
-| 利用者 | 認証の方法 | 守り |
-|---|---|---|
-| 研究者（クラウド機能） | メールに届く 6 桁のコードでログインし、PC にデバイストークンを 1 つ受け取る | コードは許可したアドレスにだけ送る。5 回の誤りで無効、1 日 20 回の誤りでアドレスごとロックするため、IP を変えても試行は増えず、1 日に当たる確率は 5 万分の 1。トークンは発行元にだけ送り、90 日使わなければ失効する。管理者が失効させると、全端末が次の要求から拒否される |
-| 管理者 | Cloudflare Access の Google ログイン | Worker 自身が、アクセストークンの RS256 の署名、発行者、対象、期限、管理者のアドレスを検証する。別の入口（`workers.dev` など）は、正しいトークンがあっても閉じている |
-| PC 上の画面 | `127.0.0.1` だけで待ち受けるローカルのサーバー | 要求ごとに Host、Origin、Fetch Metadata、CSRF のヘッダーを照合し、他のサイトや DNS リバインディングからの操作を拒む。他人のワークスペースは存在も分からない |
-
-トークンは 32 バイトの乱数で作り、SHA-256 のハッシュだけを保存する。ログインコードは鍵付きの HMAC で保存するため、データベースが漏れても総当たりできない。IP アドレスは保存しない。新しい利用者の承認は、署名した 1 回限りのリンクで行い、リンクを開いただけでは承認されない。
-
-### 更新
-
-Windows 版のアプリ内更新は、管理者の Ed25519 鍵で署名された manifest を検証し、インストーラーのハッシュが一致したときだけ実行する。署名鍵は、管理者の手元と、管理者の承認なしには動かないリリースの環境にだけ置いている。リポジトリへの書き込み権限を奪われても、利用者の PC で更新を実行させることはできない。最初の導入でも、同じ manifest でダウンロードしたファイルを確かめられる（[手順](docs/install-windows.ja.md#2-ダウンロードと確認)）。
-
-### 実行環境
-
-解析エンジンは、ネットワークのない、読み取り専用で権限のないコンテナで動く（Docker 版）。親子のプロセスが互いの状態を確かめられなくなったときは、計算を止めて結果を公開しない。
-
-各対策の詳細は[データ保護と運用](docs/security.md)にある。
+- Windows のインストーラーには Authenticode の署名がない。最初の導入では、署名付きの manifest で手動で確認できる（[手順](docs/install-windows.ja.md#2-ダウンロードと確認)）。
+- Windows 版は単一利用者のモデルで、同じ OS アカウントのプロセスを信頼の内側に置く。外向きの通信は OS のファイアウォールでは制限しない。
+- ログインの応答から、アドレスの状態（許可・承認待ち・失効）が分かる。
 
 ## 脆弱性の報告
 
-脆弱性は、Issue などの公開の場ではなく、[非公開の報告フォーム](https://github.com/genellect/cytellect/security/advisories/new)で知らせてほしい。対象の版、再現手順、想定される影響を、合成データか公開データで示してもらえると助かる。合理的な報告には 3 日以内に返信する。
+[非公開の報告フォーム](https://github.com/genellect/cytellect/security/advisories/new)から報告してほしい。公開の Issue には書かないこと。合理的な報告には 3 日以内に返信する。
 
 ## English
 
-Cytellect handles researchers' unpublished microscopy images. Images are analysed on the researcher's own PC; the cloud features send only the minimum each task needs (one detection plane and its parameters for cloud GPU detection; the research goal and metadata for the optional AI analysis proposal), never file names or paths. A PC holds a single device token from an e-mailed six-digit code and no external service keys; the server stores tokens and codes only as hashes, and per-address limits keep a code from being guessed. The admin page sits behind Cloudflare Access, and the Worker verifies the access token's signature, issuer, audience, expiry and address itself. In-app updates run only after a manifest signed with the maintainer's Ed25519 key is verified, so repository write access alone cannot run code on users' PCs. Details are in [Data protection and operations](docs/security.md).
+Design principles: data minimisation, least privilege, defence in depth (every layer verifies on its own), fail-closed, and signatures as the root of trust.
 
-Report vulnerabilities through the [private reporting form](https://github.com/genellect/cytellect/security/advisories/new), not in public issues. We reply to reasonable reports within three days.
+| Area | Implementation |
+|---|---|
+| Data minimisation | Analysis runs locally. Cloud inference receives only the one detection plane and its parameters, never file names, paths or other channels; the relay neither reads, stores nor logs the body. The LLM analysis proposal is opt-in and sends only the research goal and metadata, with `store: false` |
+| User authentication | E-mail OTP (6 digits, 10 minutes, stored as HMAC-SHA256). Five wrong guesses void a code; 20 per address per day lock the address for 24 hours, so rotating IPs adds no attempts (/64 rate limits apply as well). Then a 256-bit device token (stored as SHA-256, expires after 90 days unused, revocable server-side at once) |
+| Admin authentication | Behind Cloudflare Access (Google SSO), with independent JWT verification at the origin Worker: RS256 only (no algorithm confusion), `iss`, `aud`, `exp`, `nbf` and e-mail checked, JWKS cached for 10 minutes and refetched for an unknown `kid` at most every 30 seconds. Admin routes answer only on the designated origin; bypass routes such as `workers.dev` are refused even with a valid token |
+| Approval flow | HMAC-signed single-use links (7 days). GET never approves; a POST confirms, so mail link scanners cannot approve |
+| Secrets | Credential brokering: clients hold no third-party API keys; the Worker attaches them and forwards. Tokens and codes are hashed at rest and never logged; IPs exist only as keyed hashes for rate limiting |
+| Local API | Loopback only. Host, Origin, Fetch Metadata and CSRF headers are verified, rejecting DNS rebinding and cross-site requests. HttpOnly, SameSite=Strict session cookies |
+| Authorisation | Ownership is checked on every object; other users' resources are not even acknowledged (IDOR protection) |
+| Update integrity | An Ed25519-signed manifest is verified against the public key built into the app, and the installer's SHA-256 and size are matched before it runs. Release-asset hashes are not trusted. The signing key is isolated in an approval-gated GitHub Environment, so repository write access alone cannot run code on users' PCs |
+| Isolation | The analysis worker runs non-root with `network_mode: none`, a read-only root, `cap_drop: ALL` and `no-new-privileges`. Supervision uses mutually checked leases and stops without publishing results when it cannot verify them |
+| Web | Strict CSP (`frame-ancestors 'none'`, `object-src 'none'`), `no-store`, `nosniff`, `no-referrer`; analytics confined to a separate document and never loaded in the analysis workspace |
+| Supply chain | Dependencies pinned by lockfiles and external artifacts by SHA-256; full-history secret scanning with a hash-verified gitleaks; read-only `GITHUB_TOKEN` by default; Dependabot alerts, `pip-audit` and a CycloneDX SBOM |
+
+Known limitations: the Windows installer has no Authenticode signature (a first installation can be checked against the signed manifest); the Windows app follows a single-user model that trusts processes of the same OS account and does not restrict outbound traffic with the OS firewall; the login response reveals an address's state.
+
+Report vulnerabilities through the [private reporting form](https://github.com/genellect/cytellect/security/advisories/new), not in public issues. We reply to reasonable reports within three days. Specifications are in [Data protection and operations](docs/security.md).
