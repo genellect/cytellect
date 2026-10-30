@@ -108,19 +108,9 @@ Settings updates are checked against the requester's version and return `409` on
 
 ## Security and research data
 
-Cytellect is built to hold unpublished research images, so a compromise cannot reach stored research data.
+Research images and measurements stay on the researcher's PC and are never stored in the cloud. Cloud GPU detection and the AI analysis proposal receive only the plane to detect and the research goal and metadata. Cloud features are signed in to with a one-time code sent to an allowed address. In-app updates run only after their signature is verified.
 
-| Design | How |
-|---|---|
-| No research data in the cloud | Analysis runs on the researcher's PC. Cloud GPU receives only the plane to detect, and the AI only the research goal and metadata; the relay never stores the body |
-| No keys on the PC | A PC holds a single device token. The Cytellect Worker holds the external service keys and attaches them when relaying. The server keeps tokens and codes only as hashes |
-| Admin routes verified twice | The admin page sits behind Cloudflare Access, and the Worker itself verifies the JWT signature, issuer, audience and expiry |
-| Updates trusted only by signature | The in-app update runs only after verifying an Ed25519-signed manifest, so repository write access alone cannot run code on users' PCs |
-| Bounded impact of a compromise | What a compromised cloud account, Worker or repository can reach is defined |
-
-**What data leaves the PC, how authentication works, what a compromise can reach and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).**
-
-How research data and credentials are handled in development is set out in the [team development rules §6](docs/team-development.md#6-research-data).
+[SECURITY.md](SECURITY.md) lists the data sent out of the PC, authentication and access control, the impact of a compromise, supported versions and how to report a vulnerability. Research data and credentials in development are handled under the [team development rules §6](docs/team-development.md#6-research-data).
 
 ## Distribution
 
