@@ -16,6 +16,9 @@ export function siteUrl(explicit: string | undefined, vercelProduction: string |
 }
 export const SITE_URL=siteUrl(process.env.CYTELLECT_SITE_URL,process.env.VERCEL_PROJECT_PRODUCTION_URL,OWN_COMPUTER);
 
+/** Questions and lab adoption go to the owner's existing contact form (a separate site and repository). */
+export const CONTACT_URL="https://compass-official.pages.dev/contact/";
+
 /** How an indexed page appears when its link is shared. The image is the landing page's registered hero poster. */
 export function sharePreview(site: string, path: string, title: string, description: string): Pick<Metadata, "openGraph" | "twitter"> {
  if(!site) return {};

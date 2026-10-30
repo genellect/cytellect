@@ -14,18 +14,26 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  if(release){
   await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
-  await expect(page.getByText(/Windows 10／11（64ビット）・空き容量 6 GB 以上を推奨/)).toBeVisible();
-  const steps=page.getByRole("list",{name:"はじめかた"});
+  await expect(page.locator("#download").getByText(/Windows 10／11（64ビット）/)).toBeVisible();
+  // The LP shows no install steps; they appear only after the download starts, then live on /download.
+  const download=page.locator("#download").getByRole("link",{name:/Windows版をダウンロード/});
+  await expect(page.getByRole("dialog",{name:"ダウンロードを始めました"})).toHaveCount(0);
+  await download.evaluate(a=>a.addEventListener("click",e=>e.preventDefault()));
+  await download.click();
+  const next=page.getByRole("dialog",{name:"ダウンロードを始めました"});
   if(/\/Cytellect-Setup-[^/]+\.exe$/.test(release)){
-   await expect(steps.getByText("「インストール」を押す",{exact:true})).toBeVisible();
-   await expect(steps.getByText(/展開/)).toHaveCount(0);
+   await expect(next.getByText(/「インストール」を押す/)).toBeVisible();
+   await expect(next.getByText(/展開/)).toHaveCount(0);
   }else{
-   await expect(steps.getByText("ダウンロードして、展開する",{exact:true})).toBeVisible();
-   await expect(steps.getByText(/「インストール」/)).toHaveCount(0);
+   await expect(next.getByText("ダウンロードしたZIPを展開する",{exact:true})).toBeVisible();
+   await expect(next.getByText(/「インストール」/)).toHaveCount(0);
   }
-  await page.getByText("保存先と削除について",{exact:true}).click();
-  await expect(page.getByText(/作業は、既定ではワークスペースで削除するまで保持します。/)).toBeVisible();
-  await expect(page.getByText(/PCの外へ画像を送るのは、管理者がCellpose用のクラウドGPUを設定した場合/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(next).toHaveCount(0);
+  // Free and cloud are told apart; the cloud is adopted through the contact form.
+  await expect(page.locator("#download").getByRole("link",{name:/研究室で導入を相談/}).first()).toHaveAttribute("href","https://compass-official.pages.dev/contact/");
+  await page.getByText("画像はPCの外に出ますか？",{exact:true}).click();
+  await expect(page.getByText(/検出に使う画像だけを送り、クラウドには残しません。/)).toBeVisible();
  }else{
   await expect(page.locator("#download").getByRole("link",{name:"デモを体験する",exact:true})).toBeVisible();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
@@ -58,4 +66,24 @@ test("published Windows asset downloads with the recorded checksum",async({page}
  const bytes=fs.readFileSync(destination);
  expect(bytes.length).toBe(published.size_bytes);
  expect(createHash("sha256").update(bytes).digest("hex")).toBe(published.sha256);
+});
+test("the install guide page shows what happens before and after the download",async({page})=>{
+ test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");
+ const release=process.env.CYTELLECT_EXPECT_RELEASE_URL??published.url;
+ test.skip(!release,"No published release");
+ await page.goto("/download");
+ await expect(page.getByRole("heading",{level:1,name:"Windows版のインストール"})).toBeVisible();
+ await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
+ await expect(page.getByRole("heading",{name:"インストールで起きること"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"うまくいかないとき"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"やめるとき"})).toBeVisible();
+ // The guide is a page of its own: the download here does not open the LP's popover.
+ const download=page.getByRole("link",{name:/Windows版をダウンロード/});
+ await download.evaluate(a=>a.addEventListener("click",e=>e.preventDefault()));
+ await download.click();
+ await expect(page.getByRole("dialog")).toHaveCount(0);
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:900});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+ }
 });

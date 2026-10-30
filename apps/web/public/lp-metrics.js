@@ -6,7 +6,7 @@
   if (location.origin !== origin || location.search || location.hash || window.parent === window
     || navigator.doNotTrack === "1" || navigator.globalPrivacyControl) return;
   // Fixed page identities; the private analysis workspace and every other route are absent.
-  const pages = { "/": "Cytellect", "/demo": "Cytellect — Example analysis", "/plan": "Cytellect — Analysis planning" };
+  const pages = { "/": "Cytellect", "/demo": "Cytellect — Example analysis", "/plan": "Cytellect — Analysis planning", "/download": "Cytellect — Windows installation" };
   let path = "";
   try {
     path = parent.location.pathname;
@@ -20,6 +20,7 @@
     workspace: "workspace_click",
     demo_experiment: "demo_step_click", demo_image: "demo_step_click", demo_statistics: "demo_step_click", demo_figure: "demo_step_click",
     demo_download: "demo_download_click", demo_guide: "demo_guide_click",
+    consult: "consult_click", contact: "contact_click", install_guide: "install_guide_click",
   };
   window.dataLayer = [];
   function gtag() { window.dataLayer.push(arguments); }
