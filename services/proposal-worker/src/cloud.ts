@@ -274,6 +274,17 @@ function adminOrigin(env: CloudEnv): string | null | undefined {
   }
 }
 
+/**
+ * Refuses every admin path (the admin page, /v1/admin/* and the legacy invitation
+ * route) outside ADMIN_ORIGIN; null lets the request through.
+ */
+export function adminOriginRefusal(url: URL, env: CloudEnv): Response | null {
+  if (url.pathname !== "/admin" && !url.pathname.startsWith("/v1/admin/")) return null;
+  const only = adminOrigin(env);
+  if (only === null) return fail(503, "admin_origin_invalid");
+  return only !== undefined && url.origin !== only ? fail(404, "not_found") : null;
+}
+
 async function notifyOwner(ctx: CloudContext, cfg: AuthConfig, user: UserRecord, requestOrigin: string) {
   const configured = adminOrigin(ctx.env);
   const origin = configured ?? requestOrigin;
@@ -695,11 +706,8 @@ export async function handleCloud(request: Request, ctx: CloudContext): Promise<
   const path = url.pathname, method = request.method;
   if (path === GPU_PREFIX || path.startsWith(`${GPU_PREFIX}/`)) return gateway(request, url, ctx);
   const cfg = authConfig(ctx.env);
-  if (path === "/admin" || path.startsWith("/v1/admin/")) {
-    const only = adminOrigin(ctx.env);
-    if (only === null) return fail(503, "admin_origin_invalid");
-    if (only !== undefined && url.origin !== only) return fail(404, "not_found");
-  }
+  const refused = adminOriginRefusal(url, ctx.env);
+  if (refused) return refused;
   if (path === "/admin") {
     if (method !== "GET") return fail(405, "method_not_allowed");
     return cfg ? adminPage() : messagePage(503, "管理ページは準備中です", "オーナーのメールアドレスと署名用の鍵が設定されていません。");

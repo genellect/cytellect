@@ -12,7 +12,7 @@ import { D1Store, type D1Database, type Store } from "./store";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { D1AuthStore } from "./auth-store";
-import { handleCloud, isCloudPath, lookupDevice, type CloudEnv } from "./cloud";
+import { adminOriginRefusal, handleCloud, isCloudPath, lookupDevice, type CloudEnv } from "./cloud";
 import { bearer, equal, json, month, nextMonth, readObject, sha256, token } from "./http";
 import { configuredMailer, type Mailer } from "./mail";
 
@@ -157,6 +157,9 @@ export async function handle(request: Request, env: Env, store: Store, options: 
       mailer: "mailer" in options ? options.mailer ?? null : configuredMailer(env),
     });
   }
+  // The legacy invitation route is an admin path too: closed outside ADMIN_ORIGIN.
+  const refused = adminOriginRefusal(url, env);
+  if (refused) return refused;
   if (request.method !== "POST") return failure(405, "method_not_allowed");
 
   if ((url.pathname === "/v1/admin/invitations" || url.pathname === "/v1/devices") && !legacyInvitations(env)) {

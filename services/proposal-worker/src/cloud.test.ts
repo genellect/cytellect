@@ -311,6 +311,10 @@ describe("e-mail code login", () => {
     expect((await post(other, "/v1/admin/session/verify", { email: OWNER, code: "000000" })).status).toBe(404);
     expect((await at(other, "/v1/admin/users")).status).toBe(404);
     expect((await at(other, "/v1/admin/approve?t=x")).status).toBe(404);
+    // The legacy invitation route, which index.ts serves, is closed the same way.
+    const invite = (origin: string) => at(origin, "/v1/admin/invitations", { method: "POST", headers: { authorization: `Bearer ${BASE_ENV.ADMIN_TOKEN}` } });
+    expect((await invite(other)).status).toBe(404);
+    expect((await invite(ORIGIN)).status).toBe(201);
     expect(t.mailer.to(OWNER)).toEqual([]);
     // Login itself still works on any origin, and an access request made through the
     // other origin links the owner to the admin origin.

@@ -135,7 +135,7 @@ Modal's own spend limit stays in place as the outer bound.
 | Name | Kind | Purpose |
 |---|---|---|
 | `OWNER_EMAIL` | variable | The only address that can open `/admin`; always allowed |
-| `ADMIN_ORIGIN` | variable | The only origin that serves `/admin` and `/v1/admin/*` (production: `https://api.cytellect.app`); other origins of the Worker, such as `workers.dev`, answer 404 there and approval links point to this origin. Empty serves them on every origin |
+| `ADMIN_ORIGIN` | variable | The only origin that serves `/admin` and `/v1/admin/*`, including the legacy `/v1/admin/invitations` (production: `https://api.cytellect.app`); other origins of the Worker, such as `workers.dev`, answer 404 there and approval links point to this origin. Empty serves them on every origin |
 | `ADMIN_SIGNING_KEY` | secret | At least 32 random characters. Keys the hashes of login codes and rate-limit entries and signs approval links. Rotating it voids pending codes, links, rate-limit counters and address locks, not device tokens |
 | `RESEND_API_KEY` | secret | Resend API key. Without it, code requests fail with `mail_unavailable`; nothing is sent |
 | `MAIL_FROM` | variable | Sender, for example `Cytellect <noreply@…>` on a domain verified in Resend (SPF/DKIM) |
@@ -155,7 +155,9 @@ in front of `/admin` and `/v1/admin/*` on the `ADMIN_ORIGIN` host, allowing only
 owner's identity, so that guessing a code or reading the owner's mail is not enough to
 operate the page. Because `ADMIN_ORIGIN` makes every other origin answer 404 for those
 paths, one Access application on that host covers every way in. The researcher routes
-(`/v1/auth/*`, `/v1/cellpose/*`, `/v1/proposals`) stay outside Access. Owner steps:
+(`/v1/auth/*`, `/v1/cellpose/*`, `/v1/proposals`, `/v1/devices`) stay outside Access. Issuing a
+legacy invitation with `ADMIN_TOKEN` then also has to pass Access; new researchers use
+e-mail login instead. Owner steps:
 
 1. Cloudflare dashboard → **Zero Trust**. On first use, choose a team name and the Free plan.
 2. **Settings → Authentication → Login methods**: keep **One-time PIN**, or add **Google**
