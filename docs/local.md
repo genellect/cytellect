@@ -121,7 +121,9 @@ the uninstaller and its temporary copy) and `uv.exe`: 182 entries in all. With I
 reputation (pandas, part of scikit-image, TurboJPEG, MarkupSafe, psutil) and 129 remained, including scipy,
 numpy, the TensorFlow JNI DLL, `uv.exe` and every Inno Setup file.
 python.org's runtime (Python Software Foundation), the Azul Zulu JDK and Fiji's launcher are signed and were
-not audited. No script event was recorded; Smart App Control's example policy disables script
+not audited. The bridge now leaves Bio-Formats' NDPI reader, which unpacks TurboJPEG, out of its reader list
+([MSIX design](windows-msix.md#実行時に展開されるネイティブコード)); the audit of that source (run 41047140933) no longer lists
+TurboJPEG and detected the same 350 nuclei. No script event was recorded; Smart App Control's example policy disables script
 enforcement.
 
 Limits: the list without ISG is a worst case; the ISG list reflects the runner's reputation lookups on that
