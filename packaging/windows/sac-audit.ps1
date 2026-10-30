@@ -75,7 +75,7 @@ Add-Anchor $ProbeDir '<probe>\'
 Add-Anchor $Downloads '<downloads>\'
 Add-Anchor ([IO.Path]::GetTempPath()) '<temp>\'
 Add-Anchor (Join-Path $env:LOCALAPPDATA 'Temp') '<temp>\'
-# The 8.3 and the long form of the temporary folder (C:\Users\RUNNER~1\...), as Code Integrity may report either.
+# The 8.3 short and the long form of %TEMP%, as Code Integrity may report either.
 try {
     $fso = New-Object -ComObject Scripting.FileSystemObject
     $folder = $fso.GetFolder([IO.Path]::GetTempPath())
