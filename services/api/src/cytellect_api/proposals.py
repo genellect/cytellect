@@ -171,9 +171,9 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
 class ProposalDraftRequest(BaseModel):
     """The only researcher input: an optional goal in their own words.
 
-    `transmission_confirmed` records that the researcher has seen what is sent
-    and enabled it (L03). The UI asks once and remembers; without it nothing
-    leaves the PC.
+    `transmission_confirmed` records that the researcher sent this instruction to
+    the AI (L03); the workspace sets it on that action. Without it nothing leaves
+    the PC.
     """
     model_config = ConfigDict(extra="forbid")
     goal: Annotated[str, Field(max_length=2000)] = ""
