@@ -672,7 +672,7 @@ describe("GPU admission under concurrency", () => {
     expect((await infer(tight, device)).status).toBe(429);
   });
 
-  it("does not take a slot for health checks and bounds them by a deadline", async () => {
+  it("answers a health check at once while the user's request is in flight, and bounds it by a deadline", async () => {
     let open!: () => void;
     const gate = new Promise<void>((resolve) => { open = resolve; });
     const t = await setup(BASE_ENV, async (url, init) => {
@@ -682,20 +682,62 @@ describe("GPU admission under concurrency", () => {
     });
     await t.auth.allow(USER, t.time.now);
     const device = await t.login(USER);
-    const running = infer(t, device);
-    await tick();
-    // A probe during inference (or a cold start) neither waits for nor blocks the slot.
     const call = (request: Request) => handle(request, BASE_ENV, t.store, {
       auth: t.auth, mailer: t.mailer, now: () => t.time.now, clock: () => t.time.wall, gpuFetcher: t.gpuFetcher, healthTimeoutMs: 200,
     });
-    const probing = call(new Request(`${ORIGIN}/v1/cellpose/health`, { headers: t.bearer(device) }));
+    const health = () => call(new Request(`${ORIGIN}/v1/cellpose/health`, { headers: t.bearer(device) }));
+    // During the user's inference: 503 gpu_busy, nothing sent upstream.
+    const running = infer(t, device);
     await tick();
+    const duringInference = await health();
+    expect([duringInference.status, duringInference.headers.get("retry-after"), await duringInference.json()])
+      .toEqual([503, "5", { error: "gpu_busy", retry_after_seconds: 5 }]);
+    expect(t.gpuFetcher).toHaveBeenCalledTimes(1);
+    open();
+    expect((await running).status).toBe(200);
+    // During the user's own health check: 503 gpu_starting at once; the probe itself
+    // ends at its deadline with the same answer and counts its time.
+    const probing = health();
+    await tick();
+    const second = await health();
+    expect([second.status, await second.json()]).toEqual([503, { error: "gpu_starting", retry_after_seconds: 5 }]);
     t.time.wall += 25_000;
     const probe = await probing;
     expect([probe.status, probe.headers.get("retry-after"), await probe.json()]).toEqual([503, "5", { error: "gpu_starting", retry_after_seconds: 5 }]);
-    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(25);
+    expect(t.gpuFetcher).toHaveBeenCalledTimes(2);
+    expect((await t.auth.usage(USER, "2026-10")).gpu_seconds).toBe(26);
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 0 });
+  });
+
+  it("sends only one of many concurrent health checks per user upstream and holds 30 s for each against the global cap", async () => {
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const t = await setup({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "400" }, async () => { await gate; return new Response("{}", { status: 200 }); });
+    const emails = Array.from({ length: 6 }, (_, index) => `user${index}@example.org`);
+    const devices: string[] = [];
+    for (const email of emails) {
+      await t.auth.allow(email, t.time.now);
+      devices.push(await t.login(email));
+    }
+    const probe = (device: string) => t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
+    // 305 at once from one user: one reaches the upstream.
+    const same = Array.from({ length: 305 }, () => probe(devices[0]));
+    await tick();
+    // Other users: admitted while 300 s still fit after the 30-s holds in flight
+    // (0, 30, 60, 90 ≤ 100), then 429 global.
+    const others = [];
+    for (const device of devices.slice(1)) { others.push(probe(device)); await tick(); }
+    t.time.wall += 2_000;
     open();
-    expect((await running).status).toBe(200);
+    const sameResults = await Promise.all(same);
+    expect(sameResults.filter((response) => response.status === 200)).toHaveLength(1);
+    expect(sameResults.filter((response) => response.status === 503)).toHaveLength(304);
+    expect(await sameResults.find((response) => response.status === 503)!.json()).toEqual({ error: "gpu_starting", retry_after_seconds: 5 });
+    const otherStatuses = (await Promise.all(others)).map((response) => response.status);
+    expect(otherStatuses).toEqual([200, 200, 200, 429, 429]);
+    expect(t.gpuFetcher).toHaveBeenCalledTimes(4);
+    const total = (await t.db.prepare("SELECT SUM(gpu_seconds) AS seconds FROM user_usage").first<{ seconds: number }>())!.seconds;
+    expect(total).toBeLessThanOrEqual(400);
     expect(await t.db.prepare("SELECT COUNT(*) AS n FROM gpu_slots").first()).toEqual({ n: 0 });
   });
 
@@ -761,7 +803,7 @@ describe("GPU admission under concurrency", () => {
     failing = false;
     expect((await infer(t, device)).status).toBe(200);
     // A Worker stopped mid-request leaves its slot; it stops blocking after 35 minutes.
-    await t.db.prepare("INSERT INTO gpu_slots (email, started_at, expires_at) VALUES (?, ?, ?)").bind(USER, t.time.now - 34 * 60_000, t.time.now + 60_000).run();
+    await t.db.prepare("INSERT INTO gpu_slots (email, kind, hold_seconds, started_at, expires_at) VALUES (?, 'inference', 300, ?, ?)").bind(USER, t.time.now - 34 * 60_000, t.time.now + 60_000).run();
     expect((await infer(t, device)).status).toBe(503);
     t.time.now += 2 * 60_000;
     expect((await infer(t, device)).status).toBe(200);
@@ -842,16 +884,21 @@ it("holds 300 s for each other user's inference in flight when admitting a healt
   // 150 + 300 × (0 others + 1) = 450 ≤ 750.
   expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
   // Another user's inference in flight moves the boundary by 300 s: 150 + 1 (above) + 300 × 2 = 751 > 750.
-  await t.db.prepare("INSERT INTO gpu_slots (email, started_at, expires_at) VALUES (?, ?, ?)").bind("other@example.org", t.time.now, t.time.now + 2_100_000).run();
+  await t.db.prepare("INSERT INTO gpu_slots (email, kind, hold_seconds, started_at, expires_at) VALUES (?, 'inference', 300, ?, ?)").bind("other@example.org", t.time.now, t.time.now + 2_100_000).run();
   const refused = await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device));
   expect([refused.status, (await refused.json() as { scope: string }).scope]).toEqual([429, "global"]);
   t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "751" });
   expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
-  // The user's own slot is not counted twice: 152 + 300 × (0 others + 1) = 452.
-  await t.db.prepare("DELETE FROM gpu_slots").run();
-  await t.db.prepare("INSERT INTO gpu_slots (email, started_at, expires_at) VALUES (?, ?, ?)").bind(USER, t.time.now, t.time.now + 2_100_000).run();
-  t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "452" });
+  // A health check holds only 30 s: another user's health check in flight moves the
+  // boundary by 30 s, not 300 s: 152 + 30 + 300 = 482.
+  await t.db.prepare("UPDATE gpu_slots SET kind = 'health', hold_seconds = 30").run();
+  t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "481" });
+  expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(429);
+  t.setEnv({ ...BASE_ENV, GPU_MONTHLY_SECONDS: "482" });
   expect((await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).status).toBe(200);
+  // The user's own inference in flight: the health check is answered at once.
+  await t.db.prepare("INSERT INTO gpu_slots (email, kind, hold_seconds, started_at, expires_at) VALUES (?, 'inference', 300, ?, ?)").bind(USER, t.time.now, t.time.now + 2_100_000).run();
+  expect(await (await t.send("GET", "/v1/cellpose/health", undefined, t.bearer(device))).json()).toEqual({ error: "gpu_busy", retry_after_seconds: 5 });
 });
 
 it("refuses a health check with the inference's global 429 when one more inference would not fit", async () => {

@@ -96,31 +96,33 @@ is added to the user's monthly GPU usage. The Modal server runs one container
 that serves one request at a time, so this time also includes waiting behind
 other users' requests and the container's start-up.
 
-An inference request (`POST`) is admitted in one D1 statement. Each user has at
-most one inference in flight; another from the same user gets 503
-`{"error":"gpu_busy","retry_after_seconds":5}` with `Retry-After: 5`, which the
-client retries like a starting GPU. The user must have time left, and the global
-total plus 300 seconds for every inference in flight, the admitted one included,
-must not exceed `GPU_MONTHLY_SECONDS` (so an inference needs at least 300 seconds
-of the global cap left). Inferences therefore exceed a personal limit by at most
-the one that started before it was reached, and the global cap only when they run
-longer than 300 seconds. Health checks (below) hold no time, so many concurrent
-ones, at most 25 seconds each, can add to either overrun.
+Every GPU request, an inference (`POST`) or a health check (`GET /v1/cellpose/health`),
+is admitted in one D1 statement and takes the user's single slot, so each user has
+at most one GPU request in flight. A request while the user's slot is taken is
+answered at once, without the upstream, with `Retry-After: 5`, which the client
+retries like a starting GPU:
 
-A health check (`GET /v1/cellpose/health`) takes no slot, so it never blocks or
-waits for the user's inference. It checks the user and global limits in the same way
-as an inference (user time left, and room for one more 300-second hold) and,
-when they do not fit, returns the same 429 with `scope` and `resets_at`. A
-successful health check does not reserve anything: the user's own inference in
-flight (503 `gpu_busy`) or other requests admitted meanwhile can still refuse the
-next inference. It waits at most 25 seconds; during a
+| The user's request in flight | Answer to another request of the same user |
+|---|---|
+| An inference | 503 `{"error":"gpu_busy","retry_after_seconds":5}` |
+| A health check | 503 `{"error":"gpu_starting","retry_after_seconds":5}` |
+
+Admission needs user time left, and room for one inference (300 seconds) after the
+global total and the holds of every other request in flight; otherwise both kinds
+get the same 429 with `scope` and `resets_at`. An admitted inference then holds
+300 seconds, a health check 30 seconds (its 25-second deadline plus rounding; its
+counted time is capped at 30 seconds). So an inference needs at least 300 seconds
+of the global cap left; a personal limit is exceeded by at most the one request
+that started before it was reached; and the global cap only by an inference that
+runs longer than 300 seconds. A health check waits at most 25 seconds; during a
 longer cold start it returns 503 `{"error":"gpu_starting","retry_after_seconds":5}`
-and the client asks again. Its elapsed time is counted.
+and the client asks again. Its slot is released when it ends, or expires after
+60 seconds.
 
-When an inference ends with an answer, its elapsed time is added and its slot
-released in one D1 transaction. If that transaction fails, both are kept as they
-were: the slot stays and counts as a hold until it expires 35 minutes after the
-start, and the Worker logs only the fixed text `gpu_usage_record_failed`. The
+When a request ends (an inference with an answer, or any health check), its elapsed
+time is added and its slot released in one D1 transaction. If that transaction fails, both are kept as they
+were: the slot stays and counts as a hold until it expires (35 minutes after the start
+for an inference, 60 seconds for a health check), and the Worker logs only the fixed text `gpu_usage_record_failed`. The
 answer is still returned.
 
 The Worker runs with the `enable_request_signal` compatibility flag, so a client
@@ -202,8 +204,8 @@ the page.
 optional limits, request/notice/approval/revocation times), `login_codes` (keyed
 hash, expiry, attempts), `user_devices` and `admin_sessions` (token hashes and
 times), `approval_links` (hash, expiry, use time), `request_tokens` (hash, address, expiry), `rate_limits` (keyed hashes of
-addresses and IPs with counters and lock times), `gpu_slots` (address, start
-and expiry time of a GPU request in flight) and `user_usage` (GPU seconds and proposal cost
+addresses and IPs with counters and lock times), `gpu_slots` (address, kind,
+held seconds, start and expiry time of a GPU request in flight) and `user_usage` (GPU seconds and proposal cost
 per user and month). Images, goals, prompts, outputs, device names and request
 bodies are not stored or logged.
 

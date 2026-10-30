@@ -254,39 +254,28 @@ export class D1AuthStore {
   }
 
   /**
-   * Admits one GPU request for the user in one statement: at most one in flight per
-   * user (an expired slot is taken over), remaining user time, and global time for
-   * `holdSeconds` per request in flight, this one included.
+   * Admits one GPU request for the user in one statement: at most one request of
+   * either kind in flight per user (an expired slot is taken over), remaining user
+   * time, and room for `admitSeconds` after the holds of every other request in
+   * flight. The slot then holds `holdSeconds` itself.
    */
-  async acquireGpuSlot(email: string, month: string, now: number, expiresAt: number,
-    userLimit: number, globalCap: number, holdSeconds: number): Promise<"ok" | "busy" | "user" | "global"> {
+  async acquireGpuSlot(email: string, month: string, now: number, expiresAt: number, kind: "inference" | "health",
+    holdSeconds: number, admitSeconds: number, userLimit: number, globalCap: number)
+    : Promise<"ok" | "busy_inference" | "busy_health" | "user" | "global"> {
     const result = await this.db.prepare(
-      "INSERT INTO gpu_slots (email, started_at, expires_at) SELECT ?, ?, ? WHERE "
+      "INSERT INTO gpu_slots (email, kind, hold_seconds, started_at, expires_at) SELECT ?, ?, ?, ?, ? WHERE "
       + "COALESCE((SELECT gpu_seconds FROM user_usage WHERE email = ? AND month = ?), 0) < ? AND "
       + "COALESCE((SELECT SUM(gpu_seconds) FROM user_usage WHERE month = ?), 0) + "
-      + "? * ((SELECT COUNT(*) FROM gpu_slots WHERE email <> ? AND expires_at > ?) + 1) <= ? "
-      + "ON CONFLICT (email) DO UPDATE SET started_at = excluded.started_at, expires_at = excluded.expires_at "
-      + "WHERE gpu_slots.expires_at <= ?",
-    ).bind(email, now, expiresAt, email, month, userLimit, month, holdSeconds, email, now, globalCap, now).run();
+      + "COALESCE((SELECT SUM(hold_seconds) FROM gpu_slots WHERE email <> ? AND expires_at > ?), 0) + ? <= ? "
+      + "ON CONFLICT (email) DO UPDATE SET kind = excluded.kind, hold_seconds = excluded.hold_seconds, "
+      + "started_at = excluded.started_at, expires_at = excluded.expires_at WHERE gpu_slots.expires_at <= ?",
+    ).bind(email, kind, holdSeconds, now, expiresAt, email, month, userLimit, month, email, now, admitSeconds, globalCap, now).run();
     if (result.meta.changes === 1) return "ok";
     // Only selects the reason; admission itself was decided atomically above.
-    if (await this.db.prepare("SELECT 1 AS ok FROM gpu_slots WHERE email = ? AND expires_at > ?").bind(email, now).first()) return "busy";
+    const active = await this.db.prepare("SELECT kind FROM gpu_slots WHERE email = ? AND expires_at > ?")
+      .bind(email, now).first<{ kind: "inference" | "health" }>();
+    if (active) return active.kind === "health" ? "busy_health" : "busy_inference";
     return (await this.usage(email, month)).gpu_seconds >= userLimit ? "user" : "global";
-  }
-
-  /**
-   * Read-only admission for health checks, which take no slot. It applies the
-   * inference rule, so a health check succeeds only when an inference by this user
-   * would also fit: user time left, and global time for `holdSeconds` per other
-   * user's inference in flight plus one more.
-   */
-  async gpuQuota(email: string, month: string, now: number, userLimit: number, globalCap: number, holdSeconds: number) {
-    if ((await this.usage(email, month)).gpu_seconds >= userLimit) return "user" as const;
-    const row = await this.db.prepare(
-      "SELECT COALESCE((SELECT SUM(gpu_seconds) FROM user_usage WHERE month = ?), 0) + "
-      + "? * ((SELECT COUNT(*) FROM gpu_slots WHERE email <> ? AND expires_at > ?) + 1) AS held",
-    ).bind(month, holdSeconds, email, now).first<{ held: number }>();
-    return (row?.held ?? Number.MAX_SAFE_INTEGER) <= globalCap ? "ok" as const : "global" as const;
   }
 
   private gpuSeconds(email: string, month: string, seconds: number) {

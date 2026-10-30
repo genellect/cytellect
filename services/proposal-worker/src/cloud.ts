@@ -77,6 +77,10 @@ export const GPU_SLOT_STALE_MS = 35 * MINUTE;
 export const GPU_GLOBAL_HOLD_SECONDS = 300;
 /** A health check waits at most this long (a cold start then answers 503 gpu_starting). */
 export const GPU_HEALTH_TIMEOUT_MS = 25_000;
+/** Held against the global cap by a health check in flight: its deadline plus rounding. */
+export const GPU_HEALTH_HOLD_SECONDS = 30;
+/** A health check's slot expires soon after its deadline, even if never released. */
+export const GPU_HEALTH_SLOT_MS = 60_000;
 export const DEFAULT_LIMITS = { gpuSeconds: 3600, proposalUsd: 5 };
 export const GPU_PREFIX = "/v1/cellpose";
 /** Modal server routes (engines/cellpose/server.py), mirrored under GPU_PREFIX. */
@@ -430,15 +434,20 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
   const period = month(ctx.now);
   const resets = nextMonth(ctx.now);
 
-  // Inference: one request in flight per user, each holding time against the global
-  // cap, so concurrent requests cannot together overrun either limit. Health checks
-  // take no slot (they must not block inference) and are bounded by a deadline.
+  // One GPU request in flight per user, each holding time against the global cap, so
+  // concurrent requests cannot together overrun either limit. Health checks are also
+  // bounded by a deadline.
   const health = method === "GET";
-  const admitted = health
-    ? await ctx.auth.gpuQuota(user.email, period, ctx.now, user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS)
-    : await ctx.auth.acquireGpuSlot(user.email, period, ctx.now, ctx.now + GPU_SLOT_STALE_MS,
-      user.limits.gpu_seconds_month, config.cap, GPU_GLOBAL_HOLD_SECONDS);
-  if (admitted === "busy") return fail(503, "gpu_busy", { retry_after_seconds: 5 }, { "retry-after": "5" });
+  // Both kinds take the user's single slot. Admission needs room for one inference
+  // (300 s) in both cases, so a health check is refused exactly when an inference
+  // would be; a health check then holds only its own 30 s.
+  const admitted = await ctx.auth.acquireGpuSlot(user.email, period, ctx.now,
+    ctx.now + (health ? GPU_HEALTH_SLOT_MS : GPU_SLOT_STALE_MS), health ? "health" : "inference",
+    health ? GPU_HEALTH_HOLD_SECONDS : GPU_GLOBAL_HOLD_SECONDS, GPU_GLOBAL_HOLD_SECONDS,
+    user.limits.gpu_seconds_month, config.cap);
+  // Another request of this user is in flight: answer at once without the upstream.
+  if (admitted === "busy_health") return fail(503, "gpu_starting", { retry_after_seconds: 5 }, { "retry-after": "5" });
+  if (admitted === "busy_inference") return fail(503, "gpu_busy", { retry_after_seconds: 5 }, { "retry-after": "5" });
   if (admitted !== "ok") return fail(429, "quota_exceeded", { resets_at: resets, scope: admitted });
   const deadline = health ? AbortSignal.timeout(ctx.healthTimeoutMs ?? GPU_HEALTH_TIMEOUT_MS) : null;
   // With the enable_request_signal flag, a client disconnect aborts the upstream call
@@ -465,7 +474,7 @@ async function gateway(request: Request, url: URL, ctx: CloudContext) {
     } finally {
       const seconds = Math.max(1, Math.ceil((ctx.clock() - started) / SECOND));
       try {
-        if (health) await ctx.auth.addGpuSeconds(user.email, period, seconds);
+        if (health) await ctx.auth.finishGpuRequest(user.email, period, Math.min(seconds, GPU_HEALTH_HOLD_SECONDS), ctx.now);
         else if (request.signal.aborted) {
           // The Modal server finishes an accepted inference even after the client
           // leaves. Count the whole hold and keep the slot (gpu_busy for this user)

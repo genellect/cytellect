@@ -63,10 +63,12 @@ CREATE TABLE user_usage (
   proposal_usd REAL NOT NULL DEFAULT 0 CHECK (proposal_usd >= 0),
   PRIMARY KEY (email, month)
 );
--- At most one GPU request in flight per user; holds only its start and expiry.
--- A slot counts while expires_at is in the future.
+-- At most one GPU request (inference or health check) in flight per user. A slot
+-- holds `hold_seconds` against the global cap while expires_at is in the future.
 CREATE TABLE gpu_slots (
   email TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('inference', 'health')),
+  hold_seconds INTEGER NOT NULL CHECK (hold_seconds > 0),
   started_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 );
