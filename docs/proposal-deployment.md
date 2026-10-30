@@ -134,7 +134,10 @@ Modal's own spend limit stays in place as the outer bound.
 
 | Name | Kind | Purpose |
 |---|---|---|
-| `OWNER_EMAIL` | variable | The only address that can open `/admin`; always allowed |
+| `OWNER_EMAIL` | variable | The only address that can open `/admin` (through Cloudflare Access, or with the e-mail code while Access is not configured); always allowed |
+| `ADMIN_ORIGIN` | variable | The only origin that serves `/admin` and `/v1/admin/*`, including the legacy `/v1/admin/invitations` (production: `https://api.cytellect.app`); other origins of the Worker, such as `workers.dev`, answer 404 there and approval links point to this origin. Empty serves them on every origin; required when the Access values below are set |
+| `ACCESS_TEAM_DOMAIN` | variable | Cloudflare Access team domain, `<team>.cloudflareaccess.com`. Set together with `ACCESS_AUD` and `ADMIN_ORIGIN`: the Worker then verifies the owner's Access token on every admin path and turns off the e-mail code login for `/admin`. Both empty keeps the e-mail code login |
+| `ACCESS_AUD` | variable | Application Audience (AUD) tag of the Access application for the admin paths (`<AUD tag>`) |
 | `ADMIN_SIGNING_KEY` | secret | At least 32 random characters. Keys the hashes of login codes and rate-limit entries and signs approval links. Rotating it voids pending codes, links, rate-limit counters and address locks, not device tokens |
 | `RESEND_API_KEY` | secret | Resend API key. Without it, code requests fail with `mail_unavailable`; nothing is sent |
 | `MAIL_FROM` | variable | Sender, for example `Cytellect <noreply@…>` on a domain verified in Resend (SPF/DKIM) |
@@ -149,11 +152,72 @@ return JSON 503 `auth_unavailable` and `/admin` returns an HTML 503 page. Enter 
 CLI's protected prompt, never as arguments or in tracked files. The global
 proposal budget remains `MONTHLY_BUDGET_USD`.
 
-Owner operations, all on `https://<worker origin>/admin`:
+<a id="owner-sign-in-through-cloudflare-access"></a>**Owner sign-in through Cloudflare Access.**
+The owner signs in to the admin page with Google through Cloudflare Access (Zero Trust,
+free plan). The Worker does not rely on Access sitting in front of it: when
+`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set, it accepts `/admin`, every `/v1/admin/*`
+route (the approval link included) and the legacy `/v1/admin/invitations` only with a
+`Cf-Access-Jwt-Assertion` token that it verifies itself:
 
-- **Sign in** with `OWNER_EMAIL` and the 6-digit code sent there.
-- **Approve** a request from the e-mail link (one button on the opened page) or
-  with **承認** on the page. The requester receives an e-mail.
+- RS256 signature by a key published at `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`
+  (cached for 10 minutes; an unknown key id refetches the keys, at most every 30 seconds);
+- issuer `https://<team>.cloudflareaccess.com` and the application's AUD tag in `aud`;
+- expiry and not-before, with 60 seconds' allowance for clock difference;
+- an `email` claim equal to `OWNER_EMAIL`, ignoring case. Service tokens carry no
+  e-mail and are refused.
+
+A request that reaches the Worker without passing Access (through `workers.dev`,
+another route, or a path the application does not cover) therefore has no valid token
+and is refused: HTML 403 for `/admin` and the approval link, JSON 401 `auth_required`
+for the admin APIs, 401 `unauthorized` for invitations. `ADMIN_ORIGIN` still answers 404
+on every other origin before any token is read. Access needs `ADMIN_ORIGIN`, so that the
+approval links in the owner's mail point to the host the application covers. Only one
+of the two Access values, a malformed value, or Access without `ADMIN_ORIGIN` closes every
+admin path with 503 `access_config_invalid`; the researcher routes keep working.
+
+With Access configured, the e-mail code login for the admin page is off (the owner
+does not enter a code after Google): `/v1/admin/session/*` answers 404, admin session
+cookies issued earlier no longer open anything, and **ログアウト** ends the Access
+session (`/cdn-cgi/access/logout`). While both Access values are empty, the e-mail
+code login works exactly as before. The researcher routes (`/v1/auth/*`,
+`/v1/cellpose/*`, `/v1/proposals`, `/v1/devices`) stay outside Access. Issuing a legacy
+invitation then needs the owner's Access sign-in as well as `ADMIN_TOKEN`; new
+researchers use e-mail login instead. Signing in for researchers (Google, Microsoft,
+passkeys) is a separate, later design and does not use this application.
+
+Owner steps (in the Cloudflare dashboard; only the owner changes these settings):
+
+1. **Zero Trust**. On first use, choose a team name and the Free plan. The team domain
+   is `<team>.cloudflareaccess.com`; it is shown under **Settings → Custom pages**
+   (Team domain).
+2. **Settings → Authentication → Login methods → Add new → Google**. Create an OAuth
+   client in Google Cloud Console with the redirect URL Cloudflare shows
+   (`https://<team>.cloudflareaccess.com/cdn-cgi/access/callback`), enter its client ID
+   and secret, and use **Test**.
+3. **Access → Applications → Add an application → Self-hosted**. Name `Cytellect admin`;
+   destinations `api.cytellect.app` with path `admin` and `api.cytellect.app` with path
+   `v1/admin/*`; login method Google only; session duration 24 hours.
+4. Policy: **Allow**, include **Emails** = the owner's address. Optionally, where the
+   dashboard offers it, also require Cloudflare's independent MFA, so that a second
+   factor such as Windows Hello (a passkey) or a security key is asked after Google,
+   whatever the Google account's own settings. Save.
+5. Open the application's **Overview** and copy the **Application Audience (AUD) tag**.
+6. Set `ACCESS_TEAM_DOMAIN = "<team>.cloudflareaccess.com"`, `ACCESS_AUD = "<AUD tag>"`
+   and `ADMIN_ORIGIN = "https://api.cytellect.app"` in the operator's `wrangler.toml`
+   (not in tracked files or records) and deploy, which is the owner's decision.
+7. In a private window, `https://api.cytellect.app/admin` must show the Google sign-in
+   first, then the Cytellect page without a code form; `https://api.cytellect.app/v1/auth/status`
+   must still answer JSON without any sign-in; the `workers.dev` address of the Worker
+   must answer 404 for `/admin`.
+
+To go back to the e-mail code login, empty both Access values and deploy.
+
+Owner operations, all on `https://<ADMIN_ORIGIN>/admin`:
+
+- **Sign in** with Google through Cloudflare Access as `OWNER_EMAIL`. While Access is
+  not configured, sign in instead with `OWNER_EMAIL` and the 6-digit code sent there.
+- **Approve** a request from the e-mail link (one button on the opened page; with
+  Access, the link passes the same sign-in) or with **承認** on the page. The requester receives an e-mail.
 - **Pre-register** an address with **許可する**; that person can log in at once.
 - **Revoke** with **取り消す**. Every device that logged in with that address stops
   at its next GPU or proposal request. Re-allowing requires a new login.
@@ -162,7 +226,8 @@ Owner operations, all on `https://<worker origin>/admin`:
   (or set `revoked_at` on the device record in D1).
 - **Locked out**: 20 wrong codes within a day lock an address for 24 hours, and
   10 code requests use up an address's codes until that day's window ends. Anyone
-  who knows an address can do either, also to the owner's admin login. Wait, or
+  who knows an address can do either, also to the owner's admin login while Access is
+  not configured (with Access, the owner's sign-in uses no code). Wait, or
   rotate `ADMIN_SIGNING_KEY` (`pnpm cf secret put ADMIN_SIGNING_KEY`), which clears
   every lock and counter and also voids pending codes and approval links. Device
   tokens and admin sessions stay valid.

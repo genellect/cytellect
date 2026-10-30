@@ -50,6 +50,7 @@ async function change(body, done) {
 }
 async function load() {
   const result = await api("/v1/admin/users");
+  if (result.status === 401 && ACCESS) { say("Cloudflare Access のサインインを確かめられませんでした。ページを開き直してください。", true); return; }
   if (result.status === 401) { $("login").hidden = false; $("dashboard").hidden = true; return; }
   if (result.status !== 200) { say(explain(result), true); return; }
   const data = result.data;
@@ -105,7 +106,10 @@ $("allow").addEventListener("submit", (event) => {
   change({ email, action: "allow" }, (d) => email + " を許可しました。" + (d.notified ? "メールで知らせました。" : ""));
   $("new-email").value = "";
 });
-$("logout").addEventListener("click", async () => { await api("/v1/admin/session/logout", {}); say("ログアウトしました。"); await load(); });
+$("logout").addEventListener("click", async () => {
+  if (ACCESS) { location.href = "/cdn-cgi/access/logout"; return; }
+  await api("/v1/admin/session/logout", {}); say("ログアウトしました。"); await load();
+});
 load();`;
 
 function securityHeaders(nonce: string, script: boolean): Record<string, string> {
@@ -125,7 +129,8 @@ function htmlDocument(title: string, body: string, nonceValue: string, script = 
     + `<body><main>${body}</main>${script ? `<script nonce="${nonceValue}">${script}</script>` : ""}</body></html>`;
 }
 
-export function adminPage(): Response {
+/** With access, the owner signed in through Cloudflare Access: no code form, and logout ends the Access session. */
+export function adminPage(access = false): Response {
   const value = nonce();
   const body = `<h1>Cytellect 管理</h1><p class="muted">クラウド機能（GPU 推論と解析提案）の利用者を管理します。</p>
 <section id="login" class="panel" hidden><h2>オーナーのログイン</h2>
@@ -139,7 +144,7 @@ export function adminPage(): Response {
 <div class="scroll"><table><thead><tr><th>メールアドレス</th><th>状態</th><th>GPU（今月）</th><th>解析提案（今月）</th><th>申請日時</th><th>上限（秒・USD）</th><th>操作</th></tr></thead><tbody id="users"></tbody></table></div>
 <p id="empty" class="muted" hidden>まだ利用者はいません。</p></div></section>
 <p id="status" class="status" role="status" aria-live="polite"></p>`;
-  return new Response(htmlDocument("Cytellect 管理", body, value, SCRIPT), { status: 200, headers: securityHeaders(value, true) });
+  return new Response(htmlDocument("Cytellect 管理", body, value, `const ACCESS = ${access ? "true" : "false"};\n${SCRIPT}`), { status: 200, headers: securityHeaders(value, true) });
 }
 
 export function messagePage(status: number, title: string, text: string, form?: { action: string; token: string; label: string }): Response {

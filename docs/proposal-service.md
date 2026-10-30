@@ -171,7 +171,7 @@ window.
 |---|---|
 | Code requests (`/v1/auth/code`) | 20 per hour per IP; 6 per hour per address; 60 s between codes. A request during those 60 s gets `retry_after_seconds`: it counts against the IP but not against the address |
 | Device codes sent | 10 per day per address, whatever the requesting IP |
-| Admin codes sent to the owner | 5 per hour and 10 per day; 10 admin code requests per hour per IP, counting requests during the owner's 60-second resend interval (those get `retry_after_seconds` and send nothing) |
+| Admin codes sent to the owner (only while Cloudflare Access is not configured) | 5 per hour and 10 per day; 10 admin code requests per hour per IP, counting requests during the owner's 60-second resend interval (those get `retry_after_seconds` and send nothing) |
 | Code checks | 30 per hour per IP (admin: 20); 5 wrong guesses void a code |
 | Wrong codes per address | 20 within a day lock that address for 24 hours (device and admin separately). The lock also voids the current code and stops new codes |
 | Access requests | 240 request-state checks per hour per IP; 20 owner notices per day in total |
@@ -185,12 +185,23 @@ addresses per hour per IP (/64) and 6 requests per hour per address
 Rotating IP addresses therefore adds neither codes nor guesses for one address: an
 attacker gets at most 20 wrong guesses per address per day (a one-in-50,000 chance). The limits can be used against a person, without any code: anyone can lock an
 address for a day by guessing wrong, or use up its daily codes (10 requests for
-the owner's admin login or a researcher's address) so that no code reaches it until
+the owner's admin login without Cloudflare Access, or for a researcher's address) so that no code reaches it until
 that window ends, up to about a day. Rotating `ADMIN_SIGNING_KEY` ends every lock and
 counter at once, and also voids pending codes and approval links.
 
-**Owner operations.** The owner opens `/admin`, enters `OWNER_EMAIL` and the code
-sent there (a 12-hour session cookie; codes for other addresses are never sent).
+**Owner operations.** When `ADMIN_ORIGIN` is set, `/admin` and `/v1/admin/*` answer
+only on that origin (404 elsewhere, 503 `admin_origin_invalid` if it is malformed), and
+approval e-mails link there. When `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set
+(production), the owner signs in with Google through Cloudflare Access, and the Worker
+itself verifies the `Cf-Access-Jwt-Assertion` token on every admin path, the approval
+link and the legacy invitation route included: signature, issuer, audience, expiry and
+the owner's address. Without a valid token those paths are refused, however the request
+reached the Worker; the e-mail code login for `/admin` is then off and
+`/v1/admin/session/*` answers 404. A half-set or malformed Access configuration, or
+Access without `ADMIN_ORIGIN`, answers 503 `access_config_invalid` there
+([deployment](proposal-deployment.md#owner-sign-in-through-cloudflare-access)).
+While Access is not configured, the owner opens `/admin`, enters `OWNER_EMAIL` and the
+code sent there (a 12-hour session cookie; codes for other addresses are never sent).
 The page lists users with state, monthly usage and limits; it approves requests,
 pre-registers addresses, revokes, and sets per-user limits (blank = default).
 An approval e-mail links to `GET /v1/admin/approve?t=…`: a signed (HMAC with
@@ -203,7 +214,7 @@ the page.
 **Stored data.** Migration `0004_cloud_access.sql` adds `users` (address, state,
 optional limits, request/notice/approval/revocation times), `login_codes` (keyed
 hash, expiry, attempts), `user_devices` and `admin_sessions` (token hashes and
-times), `approval_links` (hash, expiry, use time), `request_tokens` (hash, address, expiry), `rate_limits` (keyed hashes of
+times; admin sessions only from the e-mail code login), `approval_links` (hash, expiry, use time), `request_tokens` (hash, address, expiry), `rate_limits` (keyed hashes of
 addresses and IPs with counters and lock times), `gpu_slots` (address, kind,
 held seconds, start and expiry time of a GPU request in flight) and `user_usage` (GPU seconds and proposal cost
 per user and month). Images, goals, prompts, outputs, device names and request
@@ -290,6 +301,7 @@ Ask only what cannot be derived, only when it is needed, once for the whole set,
 ## Status and limits
 
 - Implemented and tested locally: contract, validation, durable local route, Worker logic, offline public-case checks and actual D1 SQL via SQLite. Live Sol evaluation and remote Worker/D1 checks remain release gates.
+- The owner's Cloudflare Access sign-in is tested with RSA keys generated in the test and a fake certs endpoint; sign-in through a real Access application and Google remains unverified.
 - Cloud access (login, approval, admin page, quotas, GPU gateway) is tested with fake mail and a fake Modal server. Delivery through Resend, forwarding of an actual ~5 MB Cellpose request to Modal, and the PC's login screen remain unverified.
 - The workspace connects explicit AI requests to validated processing settings and a representative-field trial. Preview transmission and device-token registration from the application remain separate work; the configured local service currently sends metadata and the bounded continuation described below.
 - Draft reuse is persisted privately across restarts. Only an executed recipe produces a scientific revision; reading a stored draft does not restart analysis.
