@@ -1,6 +1,7 @@
 """Pinned, offline Cellpose-SAM candidates; original-coordinate integer labels."""
 from __future__ import annotations
 
+import functools
 import hashlib
 import http.client
 import io
@@ -141,17 +142,64 @@ REMOTE_REQUEST_TIMEOUT_SECONDS = 1800
 REMOTE_RESPONSE_LIMIT = 512 * 1024 * 1024
 
 
-def remote_endpoint() -> str | None:
-    """Configured GPU inference service; https only, except a loopback test service."""
-    url = os.environ.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip()
-    if not url:
-        return None
+CLOUD_ACCOUNT_SCHEMA = "cytellect-cloud-account/1"
+
+
+def _service_url(url: str) -> str:
     parts = urlsplit(url)
     loopback = parts.hostname in {"127.0.0.1", "localhost", "::1"}
     if (parts.scheme not in {"https", "http"} or (parts.scheme == "http" and not loopback) or not parts.hostname
             or parts.username or parts.password or parts.query or parts.fragment):
         raise ValueError("cellpose_remote_url_invalid")
     return url.rstrip("/")
+
+
+def remote_endpoint() -> str | None:
+    """Explicitly configured GPU inference service; https only, except a loopback test service."""
+    url = os.environ.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip()
+    return _service_url(url) if url else None
+
+
+def _cloud_account() -> tuple[str, str] | None:
+    """The signed-in Windows installation's cloud service and device token.
+
+    The local launcher names the account file; it is read at each use so signing
+    in or out takes effect without restarting the worker. The token goes only to
+    the base URL that issued it, under its ``/v1/cellpose`` routes.
+    """
+    configured = os.environ.get("CYTELLECT_CLOUD_ACCOUNT_FILE", "")
+    if not configured:
+        return None
+    path = Path(configured)
+    try:
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 16_384:
+            return None
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(value, dict) or value.get("schema") != CLOUD_ACCOUNT_SCHEMA or value.get("state") != "allowed":
+        return None
+    token, base = value.get("device_token"), value.get("base_url")
+    if (not isinstance(token, str) or not isinstance(base, str)
+            or not 20 <= len(token) <= 512 or any(c.isspace() or not c.isascii() for c in token)):
+        return None
+    return _service_url(base) + "/v1/cellpose", token
+
+
+def remote_target() -> tuple[str, dict[str, str]] | None:
+    """Explicit CYTELLECT_CELLPOSE_REMOTE_* settings first, then the signed-in cloud account."""
+    url = remote_endpoint()
+    if url is not None:
+        headers = {}
+        if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN"):
+            headers["Authorization"] = "Bearer " + os.environ["CYTELLECT_CELLPOSE_REMOTE_TOKEN"]
+        if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_SECRET"):
+            headers["X-Cytellect-Secret"] = os.environ["CYTELLECT_CELLPOSE_REMOTE_SECRET"]
+        return url, headers
+    account = _cloud_account()
+    if account is not None:
+        return account[0], {"Authorization": "Bearer " + account[1]}
+    return None
 
 
 def _remote_status(assets: Path) -> dict:
@@ -164,14 +212,57 @@ def _remote_status(assets: Path) -> dict:
             "packages": gpu["packages"], "python": "3.12", "runtime_downloads": False}
 
 
-def _remote_error(error: urllib.error.HTTPError) -> str:
-    if error.code in (401, 403):
-        return "cellpose_remote_rejected"
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect would resend the image and the Authorization header to another URL; refuse it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+class _LazyOpener:
+    """Builds the no-redirect opener at first use.
+
+    Python 3.14 creates an SSL context when the HTTPS handler is built. Doing that
+    at import time fails in restricted environments (e.g. a Windows child process
+    without its usual variables) that never make a request.
+    """
+
+    def open(self, *args, **kwargs):
+        return _no_redirect_opener().open(*args, **kwargs)
+
+
+@functools.cache
+def _no_redirect_opener() -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(_NoRedirect)
+
+
+_OPENER = _LazyOpener()
+
+
+def _service_error(error: urllib.error.HTTPError) -> str:
+    """The JSON ``error`` code of a failed response, or ''."""
     try:
         code = json.loads(error.read(4096).decode("utf-8")).get("error", "")
     except (OSError, ValueError, AttributeError):
-        code = ""
-    return code if isinstance(code, str) and code.startswith("cellpose_") and len(code) < 80 else "cellpose_remote_failed"
+        return ""
+    return code if isinstance(code, str) else ""
+
+
+def _remote_error(status: int, code: str) -> str:
+    """A final failure as a fixed code; the cloud gateway's states get their own codes."""
+    if 300 <= status < 400:
+        return "cellpose_remote_failed"
+    if status == 403 and code == "revoked":
+        return "cellpose_remote_revoked"
+    if status == 401 and code == "auth_required":
+        return "cellpose_remote_auth_required"
+    if status in (401, 403):
+        return "cellpose_remote_rejected"
+    if status == 429 and code == "quota_exceeded":
+        return "cellpose_remote_quota_exceeded"
+    if status == 503 and code == "gpu_service_disabled":
+        return "cellpose_remote_disabled"
+    return code if code.startswith("cellpose_") and len(code) < 80 else "cellpose_remote_failed"
 
 
 def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: CellposeParameters) -> tuple[np.ndarray, dict]:
@@ -180,9 +271,10 @@ def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: Ce
     Binding to nuclei, refinement and measurement stay local. The service must
     report the runner, model and package lock this release expects.
     """
-    url = remote_endpoint()
-    if url is None:
+    target = remote_target()
+    if target is None:
         raise ValueError("cellpose_remote_url_invalid")
+    url, credentials = target
     assets = _assets()
     lock = json.loads((assets / "runtime.lock.json").read_text(encoding="utf-8"))
     gpu = json.loads((assets / "gpu.lock.json").read_text(encoding="utf-8"))
@@ -198,23 +290,24 @@ def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: Ce
         np.savez_compressed(stream, request=np.frombuffer(request, dtype=np.uint8), image=image, parent=parent)
     headers = {"Content-Type": "application/octet-stream", "Accept": "application/octet-stream",
                # Hugging Face holds the request while a scaled-to-zero endpoint starts.
-               "X-Scale-Up-Timeout": str(REMOTE_WAIT_SECONDS)}
-    if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN"):
-        headers["Authorization"] = "Bearer " + os.environ["CYTELLECT_CELLPOSE_REMOTE_TOKEN"]
-    if os.environ.get("CYTELLECT_CELLPOSE_REMOTE_SECRET"):
-        headers["X-Cytellect-Secret"] = os.environ["CYTELLECT_CELLPOSE_REMOTE_SECRET"]
+               "X-Scale-Up-Timeout": str(REMOTE_WAIT_SECONDS), **credentials}
     deadline, delay = time.monotonic() + REMOTE_WAIT_SECONDS, 5.0
     while True:
         try:
             outgoing = urllib.request.Request(url + "/v1/cellpose", data=stream.getvalue(), headers=headers, method="POST")
-            with urllib.request.urlopen(outgoing, timeout=REMOTE_REQUEST_TIMEOUT_SECONDS) as response:
+            with _OPENER.open(outgoing, timeout=REMOTE_REQUEST_TIMEOUT_SECONDS) as response:
                 content = response.read(REMOTE_RESPONSE_LIMIT + 1)
             break
         except urllib.error.HTTPError as error:
-            # 502-504 while the endpoint starts or restarts; anything else is final.
-            if error.code not in (502, 503, 504) or time.monotonic() + delay > deadline:
-                raise ValueError(_remote_error(error) if error.code not in (502, 503, 504)
-                                 else "cellpose_remote_unavailable") from None
+            # 502-504 while the endpoint starts or restarts (also gpu_starting/gpu_busy);
+            # anything else is final. A disabled service or invalid upstream does not
+            # recover by waiting. Redirects are refused (see _OPENER) and are final.
+            code = _service_error(error)
+            starting = error.code in (502, 503, 504) and code not in ("gpu_service_disabled", "gpu_upstream_invalid")
+            if not starting:
+                raise ValueError(_remote_error(error.code, code)) from None
+            if time.monotonic() + delay > deadline:
+                raise ValueError("cellpose_remote_unavailable") from None
         except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError):
             if time.monotonic() + delay > deadline:
                 raise ValueError("cellpose_remote_unreachable") from None
@@ -247,7 +340,7 @@ def _remote_inference(image: np.ndarray, parent: np.ndarray | None, detector: Ce
 def runtime_status() -> dict:
     """Sanitized capability probe, without loading Torch or making requests."""
     try:
-        if remote_endpoint():
+        if remote_target():
             return _remote_status(_assets())
         assets = _assets()
         lock = json.loads((assets / "runtime.lock.json").read_text(encoding="utf-8"))

@@ -141,6 +141,34 @@ and requires a separately accepted release. No OS protection is disabled.
 
 Preserve the browser workflow and shared analysis packages. Hosted deployment adds a suitable persistent database, private artifacts, durable dispatch and same-origin/domain routing, with access/retention checks on the actual host. Cloud spend controls must not stop required deletion jobs. See [costs and trade-offs](hosting-costs.ja.md), [deployment](deployment.md) and [remaining gates](roadmap.md).
 
+## Workspace update banner and cloud sign-in
+
+The local workspace (genellect/cytellect#156) shows the in-app update from
+`GET /v1/app/update`. It offers 「更新する」 only when `available` is true. After
+`POST`, it re-reads the state every 3 seconds until the state is `idle`,
+`installed`, `updated`, `failed`, `rolled_back` or `unsupported`, waits through
+the restart's dropped connections, and stops after 20 minutes with a message
+to reopen Cytellect. A settled state that the installer keeps (`updated`,
+`installed`, `failed`, `rolled_back`) is shown once per occurrence, remembered
+in the browser; `installed` is not shown once the running version is the latest.
+The `error` code appears only under 詳細. A 409 `update_jobs_running` says to
+update after the analyses finish and keeps the button; `update_in_progress`
+follows the update already running, `update_not_available` re-reads the offer
+and `update_unsupported` hides the banner. The release-notes link is shown only
+for a page under `https://github.com/genellect/cytellect/releases/tag/`. Cloud
+sign-in for GPU inference and analysis proposals uses `/v1/account/*`; see
+[install-windows.ja.md](install-windows.ja.md) and [cloud-gpu.ja.md](cloud-gpu.ja.md).
+
+Every change to `settings/cloud-account.json` made after waiting for the cloud
+service is a compare-and-set (`CloudAccount._commit`): under one lock the record
+is read again and written or deleted only if its state, address, service,
+`sent_at`, `request_token` and device token still equal the record the request
+started from. This covers the status check (expiry, revocation), the access
+request check (`none`, revocation), sending a code, every verification outcome
+(sign-in, remaining attempts, revocation, pending approval), a lapsed code and
+the deletion after logout. A request that another tab overtook leaves the newer
+record and reports it.
+
 ## Workspace entry and Desktop acceptance (2026-10-06)
 
 In local mode and with a loopback API, `/workspace` opens the single analysis
