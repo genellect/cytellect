@@ -8,7 +8,7 @@ The accepted [0.1.0-local.20 release](https://github.com/genellect/cytellect/rel
 
 Source after 0.1.0-local.20 builds two deliverables from the same accepted ZIP: the per-user installer `Cytellect-Setup-<version>.exe` (stage 1, requirements I1–I8 of the Windows access plan under owner review) and the setup ZIP, which stays available until the owner retires it. No released version contains the installer yet.
 
-1. Download `Cytellect-Setup-<version>.exe` and open it. It installs for the current user only (`PrivilegesRequired=lowest`) into `%LOCALAPPDATA%\Cytellect`; there is no administrator prompt, command, extraction or destination choice. Whether Windows warns before it runs depends on signing and reputation (owner decision D4, [application control](#windows-application-control)).
+1. Download `Cytellect-Setup-<version>.exe` and open it. It installs for the current user only (`PrivilegesRequired=lowest`) into `%LOCALAPPDATA%\Cytellect`; there is no administrator prompt, command, extraction or destination choice. Whether Windows warns before it runs depends on signing and reputation ([application control](#windows-application-control), D4 below).
 2. Before changing anything, the installer checks Windows 10 1809 or later / Windows 11 on x64, at least 8 GB of memory (7 GiB as reported after hardware reservations) and free space (4 GB plus the unpacked payload for a first installation, 1.5 GB plus the payload for an update that reuses Fiji and Python). A failed check shows the reason and the next action in Japanese and exits without changes. A destination that holds files without Cytellect's ownership marker is also refused unchanged.
 3. The installer unpacks its payload to its temporary folder and runs the same `local_setup.ps1` in offline mode. Python 3.14, the hash-locked wheels, uv and Fiji with its plugins are bundled; setup copies them only after checking each file against `offline/offline-manifest.json`, which is bound to the release manifest. Nothing is downloaded on the PC; a missing or altered file stops setup (`offline_artifact_missing`, `offline_hash_mismatch`). Cellpose is not installed on the PC; an existing cloud GPU setting is kept ([cloud GPU](cloud-gpu.ja.md)).
 4. On success the workspace opens in the browser, and Desktop and Start menu shortcuts named **Cytellect** exist. The launcher window shows 「起動の準備中」 and then 「作業画面を開いています」, and its 「作業画面を開く」 button reopens the browser. A port in use or a failed start shows the reason with 「再試行」. Opening Cytellect while it already runs opens the running workspace instead of a second copy (I5).
@@ -94,10 +94,10 @@ to review the distribution under the laboratory's software policy. A signed,
 policy-compatible Windows distribution is not currently provided. These events
 identify a policy rejection, not a finding of malware or its cloud-reputation
 cause.
+SmartScreen's 「Windows によって PC が保護されました」 is different: the user guide says to press 「詳細情報」 and then 「実行」, which allows this one run and changes no security setting (owner decision, 2026-10-30). Smart App Control offers no such choice; the guide asks users to contact the owner, and stage 0 records it.
 See [Microsoft's policy and event-log definitions](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/test-your-app-with-smart-app-control#checking-event-logs).
 
-The installer does not by itself satisfy requirement I1. It is unsigned unless the
-owner provides a certificate (D4), and it still installs third-party wheels whose
+The installer does not by itself satisfy requirement I1. It is unsigned (D4 below), and it still installs third-party wheels whose
 native libraries are not all signed. Whether SmartScreen and Smart App Control allow
 it can only be learned on real laboratory PCs.
 
@@ -125,9 +125,11 @@ Change no security setting, and do not unblock or move files.
 8. Uninstall from Settings → Apps, choose to keep data, and confirm that `data/`
    remains under `%LOCALAPPDATA%\Cytellect`.
 
-Compare the signed, unsigned and Microsoft Store candidates on the same PCs before
-the owner chooses the distribution (D4). Passing CI on GitHub's runner is not this
-evidence.
+Distribution (D4, owner decision 2026-10-30): stage 0 uses the unsigned installer and
+records how SmartScreen and Smart App Control treat it. If Smart App Control blocks it,
+free distribution through the Microsoft Store is tried first; a paid code-signing
+certificate is compared only if that is not enough. Passing CI on GitHub's runner is not
+this evidence.
 
 ## What stays the same
 
@@ -175,7 +177,7 @@ python scripts/build_windows_installer.py build --release-zip /outside/Cytellect
 
 The builder accepts the ZIP only when its `.sha256` file and every manifest entry match, reads the uv, Python and Fiji pins from the release itself, downloads them into a content-addressed cache and keeps only copies whose digest matches. `pip download --require-hashes` fetches the CPython 3.14 Windows wheels of the locked requirements; the builder then requires exactly one Windows-compatible wheel per requirement, with a hash listed in the lock. It scans the payload for OpenAI keys, Modal tokens, GitHub tokens, private keys and setting files that hold credentials, reporting rule counts only, and refuses a payload above 1.9 GiB. Inno Setup 6.7.4 is installed for the current user from its pinned SHA-256. The outputs are the installer, its `.sha256` file and a receipt (`Cytellect-Setup-<version>.json`) with the source, both checksums, the bundled counts and `signed`.
 
-Code signing is a hook pending the owner's decision (D4). `--sign-command "<signing command with $f>"` (or `CYTELLECT_SIGN_COMMAND`) is passed to Inno Setup's `SignTool`, which signs the installer and its uninstaller; without it nothing is signed and the receipt records `"signed": false`. No certificate or secret exists in this repository or its workflows.
+Code signing is a hook; stage 0 is unsigned (D4, [checklist](#real-machine-checklist-stage-0-acceptance-e1)). `--sign-command "<signing command with $f>"` (or `CYTELLECT_SIGN_COMMAND`) is passed to Inno Setup's `SignTool`, which signs the installer and its uninstaller; without it nothing is signed and the receipt records `"signed": false`. No certificate or secret exists in this repository or its workflows.
 
 Installation tests use an isolated directory under the task's scratch workspace. They must not overwrite a user's existing software, data or shortcuts. The `windows-installer` CI job (`packaging/windows/smoke.ps1`; on `main` and manual runs, like `windows-installed`) builds the installer and, with a dead proxy so that any download would fail, checks: refusal of a foreign destination without changes, a fresh silent installation with shortcuts and the Windows Apps entry, no credential-shaped content in the installed folder, start, session, workspace and an offline update status, uninstall refusal while running, re-runs while running and after stopping, uninstall that keeps data and a reinstall that keeps the workspace, uninstall with data deletion, an installation killed at the dependency stage that the next run completes, and migration of a published 0.1.0-local.20 ZIP installation with its workspace. It does not show a dialog to a person, so the Japanese messages, the browser opening and SmartScreen behavior remain real-machine checks. Acceptance includes an actual pinned-Fiji run, a browser upload/edit/export flow, hostile-origin denial, shutdown, restart and expiry. The release report records commit, archive checksum, platform, passed checks and known limitations. Publishing a ZIP is not evidence that installation succeeded.
 

@@ -314,8 +314,8 @@ LICENSE_NAME = re.compile(r"(?i)^(?:licen[cs]e|copying|notice|authors?)(?:[._-].
 # Corresponding source, per bundled version: every Maven-built jar names its coordinates in
 # META-INF/maven/*/*/pom.properties, and the SciJava repository (which also mirrors Maven
 # Central) publishes <artifact>-<version>-sources.jar beside it. The JDK's release file names
-# its exact build. Whether a source copy or a written offer must accompany the installer is
-# the owner's decision (docs/oss.md).
+# its exact build. By the owner's decision these addresses and the license texts are the
+# whole provision; no source copy or written offer accompanies the installer (docs/oss.md).
 MAVEN_SOURCES = "https://maven.scijava.org/content/groups/public"
 JDK_RELEASE = re.compile(r"(?:^|/)java/[^/]+/[^/]+/release$")
 
