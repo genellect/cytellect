@@ -1,17 +1,22 @@
 /**
- * Cytellect proposal service (Cloudflare Workers + D1).
+ * Cytellect proposal service and cloud gateway (Cloudflare Workers + D1).
  *
- * Holds the operator's OpenAI key as a secret, authenticates installations by
- * invitation-issued device tokens, reserves budget before every model call and
- * returns an unvalidated draft that the local API validates. Request bodies,
+ * Holds the operator's OpenAI and Modal keys as secrets, authenticates
+ * installations by user-bound device tokens from the e-mail login (or, during
+ * migration, invitation-issued tokens), reserves budget before every model call
+ * and returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
 import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
 import contract from "./contract.json";
-import { boundedJson, matchesSchema } from "./schema";
+import { matchesSchema } from "./schema";
+import { D1AuthStore } from "./auth-store";
+import { handleCloud, isCloudPath, lookupDevice, type CloudEnv } from "./cloud";
+import { bearer, equal, json, month, nextMonth, readObject, sha256, token } from "./http";
+import { configuredMailer, type Mailer } from "./mail";
 
-export interface Env {
+export interface Env extends CloudEnv {
   DB: D1Database;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
@@ -25,6 +30,8 @@ export interface Env {
   LOW_EFFORT_EVALUATED?: string;
   PRICE_CACHED_INPUT_USD_PER_MTOK?: string;
   PRICE_CACHE_WRITE_USD_PER_MTOK?: string;
+  /** "false" closes the invitation flow and its device tokens after migration. */
+  LEGACY_INVITATIONS?: string;
 }
 
 export const LIMITS = {
@@ -46,12 +53,6 @@ interface Config {
   reasoningEffort: ReasoningEffort;
   priceCachedIn: number;
   priceCacheWrite: number;
-}
-
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status, headers: { "content-type": "application/json", "cache-control": "no-store" },
-  });
 }
 
 const failure = (status: number, code: string) => json(status, { code });
@@ -85,38 +86,7 @@ export function readConfig(env: Env): Config | null {
   };
 }
 
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function token(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-}
-
-function bearer(request: Request): string | null {
-  const match = /^Bearer ([A-Za-z0-9_-]{20,200})$/.exec(request.headers.get("authorization") ?? "");
-  return match ? match[1] : null;
-}
-
-function equal(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let difference = 0;
-  for (let index = 0; index < a.length; index += 1) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
-  return difference === 0;
-}
-
-async function readJson(request: Request): Promise<Record<string, unknown> | null> {
-  const length = Number(request.headers.get("content-length") ?? "0");
-  if (length > LIMITS.bodyBytes) return null;
-  try {
-    const value = await boundedJson(request.body, LIMITS.bodyBytes);
-    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-  } catch {
-    return null;
-  }
-}
+const readJson = (request: Request) => readObject(request, LIMITS.bodyBytes);
 
 /** Shape limits before any billable call; semantic validation stays in the local API. */
 export function checkRequest(body: Record<string, unknown>): { context: Record<string, unknown>; previews: Preview[] } | null {
@@ -157,12 +127,41 @@ export function worstCaseUsd(config: Config, context: unknown, previews: Preview
   return perCall * 2;
 }
 
-const month = (now: number) => new Date(now).toISOString().slice(0, 7);
+export interface HandleOptions {
+  fetcher?: typeof fetch;
+  now?: () => number;
+  /** Account store; defaults to D1 when the binding is present. */
+  auth?: D1AuthStore;
+  /** Mail sender; defaults to Resend when configured. null forces "not configured". */
+  mailer?: Mailer | null;
+  /** Upstream for the GPU gateway (tests substitute a fake Modal server). */
+  gpuFetcher?: typeof fetch;
+  /** Wall clock for GPU elapsed time. */
+  clock?: () => number;
+  /** ExecutionContext.waitUntil in Workers. */
+  waitUntil?: (promise: Promise<unknown>) => void;
+  /** GPU health-check deadline (tests shorten it). */
+  healthTimeoutMs?: number;
+}
 
-export async function handle(request: Request, env: Env, store: Store, options: { fetcher?: typeof fetch; now?: () => number } = {}): Promise<Response> {
+const legacyInvitations = (env: Env) => env.LEGACY_INVITATIONS !== "false";
+
+export async function handle(request: Request, env: Env, store: Store, options: HandleOptions = {}): Promise<Response> {
   const now = options.now?.() ?? Date.now();
   const url = new URL(request.url);
+  const auth = options.auth ?? (env.DB ? new D1AuthStore(env.DB) : undefined);
+  if (isCloudPath(url.pathname)) {
+    if (!auth) return json(503, { error: "auth_unavailable" });
+    return handleCloud(request, {
+      env, auth, now, clock: options.clock ?? Date.now, waitUntil: options.waitUntil, healthTimeoutMs: options.healthTimeoutMs, gpuFetcher: options.gpuFetcher ?? ((input, init) => fetch(input, init)),
+      mailer: "mailer" in options ? options.mailer ?? null : configuredMailer(env),
+    });
+  }
   if (request.method !== "POST") return failure(405, "method_not_allowed");
+
+  if ((url.pathname === "/v1/admin/invitations" || url.pathname === "/v1/devices") && !legacyInvitations(env)) {
+    return failure(404, "not_found");
+  }
 
   if (url.pathname === "/v1/admin/invitations") {
     const presented = bearer(request);
@@ -185,7 +184,13 @@ export async function handle(request: Request, env: Env, store: Store, options: 
   if (url.pathname === "/v1/proposals") {
     const presented = bearer(request);
     const deviceHash = presented ? await sha256(presented) : null;
-    if (!deviceHash || !(await store.deviceActive(deviceHash))) return failure(401, "unauthorized");
+    if (!deviceHash) return failure(401, "unauthorized");
+    // User-bound tokens from the e-mail login first; invitation tokens only during migration.
+    const user = auth ? await lookupDevice(auth, env, deviceHash, now) : { kind: "none" as const };
+    if (user.kind === "revoked") return failure(403, "revoked");
+    if (user.kind === "expired" || (user.kind === "none" && !(legacyInvitations(env) && await store.deviceActive(deviceHash)))) {
+      return failure(401, "unauthorized");
+    }
     const config = readConfig(env);
     if (!config) return failure(503, "proposal_service_disabled");
     if (await store.budgetBlocked()) return failure(503, "budget_reconciliation_required");
@@ -203,7 +208,11 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     if (!(await store.countDeviceRequest(deviceHash, period, config.deviceRequests))) return failure(429, "device_quota_exhausted");
     const reservation = crypto.randomUUID();
     const amount = worstCaseUsd(modelConfig, checked.context, checked.previews);
-    if (!(await store.reserve(reservation, period, amount, config.budget, now))) return failure(429, "monthly_budget_exhausted");
+    if (user.kind === "ok") {
+      const admitted = await store.reserveForUser(reservation, period, amount, config.budget, now, user.email, user.limits.proposal_usd_month);
+      if (admitted === "user") return json(429, { code: "quota_exceeded", resets_at: nextMonth(now) });
+      if (admitted === "budget") return failure(429, "monthly_budget_exhausted");
+    } else if (!(await store.reserve(reservation, period, amount, config.budget, now))) return failure(429, "monthly_budget_exhausted");
     try {
       const result = await draftProposal({ ...modelConfig, fetcher: options.fetcher, beforeCall: async () => {
         if (await store.budgetBlocked()) throw new ModelError("budget_reconciliation_required");
@@ -243,7 +252,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
 }
 
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
-    return handle(request, env, new D1Store(env.DB));
+  fetch(request: Request, env: Env, context?: { waitUntil(promise: Promise<unknown>): void }): Promise<Response> {
+    return handle(request, env, new D1Store(env.DB), { waitUntil: context ? (promise) => context.waitUntil(promise) : undefined });
   },
 };

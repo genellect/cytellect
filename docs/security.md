@@ -10,7 +10,7 @@ Browser uploads go directly to the analysis API. Disable Vercel image optimizati
 
 ## Analysis proposal service
 
-The optional proposal service is off by default ([design](workspace-redesign.md#analysis-proposal-service-llm)). When the user enables it (each request carries `transmission_confirmed: true`, refused otherwise), the local API sends the stated goal and normalized metadata (channel names, dtype, dimensions, field/group counts, known pairing) to the Cytellect proposal service, which calls the OpenAI API with `store: false`. Representative previews (≤6, downscaled) are sent only after the user separately enables image transmission. Absolute paths, unneeded filenames, documents, masks and measurement tables are never sent. `store: false` does not mean zero retention: the provider may retain requests for abuse monitoring under its API data policy. The service stores invitation/device rights and usage counters only; it does not log prompt bodies or images. The operator key exists only as a service secret. Developer tools, CI and public repositories still never receive private research content.
+The optional proposal service is off by default ([design](workspace-redesign.md#analysis-proposal-service-llm)). When the user enables it (each request carries `transmission_confirmed: true`, refused otherwise), the local API sends the stated goal and normalized metadata (channel names, dtype, dimensions, field/group counts, known pairing) to the Cytellect proposal service, which calls the OpenAI API with `store: false`. Representative previews (≤6, downscaled) are sent only after the user separately enables image transmission. Absolute paths, unneeded filenames, documents, masks and measurement tables are never sent. `store: false` does not mean zero retention: the provider may retain requests for abuse monitoring under its API data policy. The service stores access rights and usage counters only: invitation and device token hashes, and for the e-mail login the address, hashes of login codes and tokens, request/approval/revocation times, keyed hashes of rate-limit keys (IP addresses are not stored) and per-user monthly GPU seconds and proposal cost ([cloud access](proposal-service.md#cloud-access-e-mail-login-approval-and-gpu-gateway)). It does not log prompt bodies, images, codes or tokens. Login codes are sent by e-mail through Resend, which therefore receives the address and the code. Accepted risk: the login request answers with the address's state (allowed, waiting for approval or revoked) because the PC shows the matching screen, so anyone can learn the state of an address they know; rate limits per IP (/64) and per address keep this from scaling into enumeration ([login limits](proposal-service.md#login-limits)). The operator keys exist only as service secrets. Developer tools, CI and public repositories still never receive private research content.
 
 ## Remote Cellpose inference
 
@@ -26,6 +26,14 @@ titles, conditions, paths and other channels are not sent. Binding to nuclei,
 refinement, measurement and statistics remain local.
 
 The PoC deployment (`infra/modal_cellpose.py`) is a Modal Server: per Modal, Server request and response payloads are proxied to the container and not stored, unlike Web Functions, whose inputs are kept up to 7 days. It uses no Volume or memory snapshot, requires a Modal proxy-auth token, runs at most one single-GPU container (L4 preferred, A10 as fallback) and is deployed only from `main` by a workflow whose deploy token is a repository secret. The workspace spend limit is set to zero in the Modal dashboard; deployment cannot change it. The GPU choice does not change the endpoint or token scope. The main residual risk is takeover of the Modal account or deploy token, which could replace the server with one that records inputs; the account uses GitHub sign-in with two-factor authentication and no other members.
+
+With the e-mail login, the installation does not hold a Modal token: it sends the
+same request to the Cytellect Worker (`/v1/cellpose/*`) with its device token, and
+the Worker adds the Modal proxy-auth token and forwards it. The detection plane,
+labels and parameters therefore pass through Cloudflare in transit. The Worker
+streams request and response bodies without reading, storing or logging them,
+keeps Workers observability off, and records only the user's address, the start
+time of the request in flight and the elapsed seconds.
 
 The URL must be https (loopback http only for tests), without credentials, query or
 fragment in it. The access token travels in the Authorization header and never
