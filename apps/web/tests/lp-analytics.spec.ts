@@ -89,6 +89,26 @@ test("download click uses a fixed event without sending the asset URL", async ({
   expect(JSON.stringify(events)).not.toContain("releases/download");
 });
 
+test("the lab cloud, questions and the install guide send fixed events; the guide is measured as its own page", async ({page, baseURL}) => {
+  await isolatedSite(page, baseURL!);
+  await page.goto(origin + "/");
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
+  // The contact form opens in a new tab; the LP stays and records the choice.
+  for (const id of ["consult", "contact"]) {
+    await page.locator(`#download [data-lp-event="${id}"]`).first().evaluate((anchor: HTMLAnchorElement) => {
+      anchor.addEventListener("click", event => event.preventDefault());
+      anchor.dispatchEvent(new MouseEvent("click", { bubbles:true }));
+    });
+    await expect.poll(async () => JSON.stringify(await commands(page))).toContain(`"${id}_click"`);
+  }
+  expect(JSON.stringify(await commands(page))).not.toContain("compass-official");
+  await page.locator('#download a[data-lp-event="install_guide"]').first().click();
+  await expect(page).toHaveURL(`${origin}/download`);
+  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
+  const guide = (await commands(page)).find(row => row[0] === "config")?.[2] as Record<string, unknown>;
+  expect(guide).toMatchObject({ page_location: `${origin}/download`, page_title: "Cytellect — Windows installation" });
+});
+
 test("the analysis workspace and other routes, standalone frame, localhost and privacy opt-out never load Google", async ({page, baseURL}) => {
   const tags = await isolatedSite(page, baseURL!);
   for (const path of ["/workspace", "/legacy", "/product", "/lp-metrics.html"]) {
@@ -123,9 +143,9 @@ test("the LP and the analysis screen are separate, and /product moves to the LP"
   await isolatedSite(page, baseURL!);
   await page.goto(origin + "/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("publication-ready");
-  await page.locator("#launch summary").click();
-  await page.getByRole("link", { name: "解析画面を開く" }).click();
-  await expect(page).toHaveURL(`${origin}/workspace`);
+  // The LP no longer links to the analysis screen; an installation opens its own.
+  await expect(page.locator('a[href="/workspace"]')).toHaveCount(0);
+  await page.goto(origin + "/workspace");
   await expect(page.locator('iframe[src="/lp-metrics.html"]')).toHaveCount(0);
 });
 
@@ -138,8 +158,9 @@ test("installed-user guidance is visible without contacting a local service", as
   await page.getByRole("navigation", { name:"メインナビゲーション" }).getByRole("link", {name:"ダウンロード"}).click();
   await page.locator("#launch").scrollIntoViewIfNeeded();
   await expect(page.locator("#launch")).toBeInViewport();
-  await expect(page.locator("#launch")).toContainText("ブラウザで開く");
-  await expect(page.locator("#launch")).toContainText("再ダウンロード・再インストールは不要です。");
+  await page.locator("#launch summary").click();
+  await expect(page.locator("#launch")).toContainText("「作業画面を開く」");
+  await expect(page.locator("#launch")).toContainText("デスクトップの「Cytellect」から開けます。");
   expect(localRequests).toEqual([]);
 });
 

@@ -60,7 +60,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(nav.getByRole("link",{name:"About the Developer",exact:true})).toHaveAttribute("href","https://yuto-matsui.com/");
  await page.keyboard.press("Escape");await expect(toggle).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await toggle.click();await nav.getByRole("link",{name:"ガイド",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","false");
- await expect(page.getByRole("navigation",{name:"使い方と解析方法",exact:true})).toBeInViewport();
+ await expect(page.getByRole("heading",{name:"よくある質問",exact:true})).toBeInViewport();
  const images=page.locator('main img[src^="/marketing/"]').filter({visible:true});
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
  await page.getByRole("link",{name:"図を拡大",exact:true}).click();await expect(page).toHaveURL(/lp-figure\.svg$/);await page.goBack();await expect(hero.getByRole("heading",{level:1})).toBeVisible();

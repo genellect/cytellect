@@ -140,30 +140,66 @@
 .invite .primary:hover{background:#fff}
 .inviteMark{position:absolute;z-index:-1;left:clamp(20px,4vw,72px);bottom:clamp(-60px,-4vw,-24px);font-size:clamp(80px,13vw,210px);font-weight:650;letter-spacing:-.06em;line-height:1;color:#f5f5f20f;white-space:nowrap;pointer-events:none}
 /* Reference: a short install pitch for beginners, then guides and questions. */
-.reference{padding-top:clamp(56px,6vw,96px)}
-.setup{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:clamp(28px,4vw,72px);align-items:center;padding:clamp(28px,3.4vw,52px);border-radius:var(--radius);background:#fbfbf9;border:1px solid #17262118}
-.setup .display{font-size:var(--t-h3);line-height:1.42}
-.setupLead{margin:14px 0 24px;font-size:clamp(16px,1.2vw,18px);line-height:1.8}
-.setup .meta{margin:12px 0 0;font-size:13px;color:var(--muted)}
-.setupSteps{display:grid;gap:8px;margin:0;padding:0;list-style:none;counter-reset:setup}
-.setupSteps li{position:relative;display:grid;gap:2px;padding:16px 18px 16px 64px;border-radius:var(--radius);background:#fff;border:1px solid #17262114;counter-increment:setup}
-.setupSteps li::before{content:counter(setup);position:absolute;left:18px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#172621;color:#f5f5f2;font-size:14px;font-weight:600}
-.setupSteps b{font-size:17px;font-weight:600;line-height:1.6}
-.setupSteps span{font-size:14px;line-height:1.7;color:#2b3d36}
-.more{display:grid;gap:8px;margin-top:clamp(28px,3vw,40px)}
-.more nav{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 28px;font-size:15px}
-.more nav>span{font-size:13px;font-weight:600;color:var(--muted)}
-.more nav a{padding:6px 0}
-.moreDetails{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 24px;align-items:start}
-.moreDetails details{border-top:1px solid var(--rule)}
-.moreDetails summary{display:flex;justify-content:space-between;gap:12px;padding:14px 0;font-size:15px;cursor:pointer;list-style:none}
-.moreDetails summary::-webkit-details-marker{display:none}
-.moreDetails summary::after{content:"+";color:var(--muted)}
-.moreDetails details[open] summary::after{content:"−"}
-.moreDetails details>:not(summary){margin:0 0 14px;font-size:14px;line-height:1.8}
-.moreDetails details>a{display:inline-flex;gap:12px;text-decoration:underline}
-.moreDetails .button{min-height:auto;margin:0 0 14px;padding:4px 0;font-size:14px}
 .demoBar{display:none}
+/* Download: one offer. Start free on this PC; the lab cloud adds GPU inference and LLMs. Install steps live on /download. */
+.offer,.faq,.guideMain{word-break:auto-phrase}
+.offer{border-radius:var(--radius);border:1px solid #17262118;background:#fbfbf9;overflow:visible}
+.offerBase{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:clamp(24px,4vw,72px);align-items:end;padding:clamp(28px,3.6vw,56px)}
+.offerBase .display{font-size:var(--t-h3);line-height:1.42}
+.offerLead{margin:14px 0 0;font-size:clamp(16px,1.2vw,18px);line-height:1.8}
+.offerAction{justify-self:end;display:grid;justify-items:start}
+.offerAction .meta{margin:14px 0 0;font-size:13px;line-height:1.9;color:var(--muted)}
+.offerAction .meta a{color:var(--fg);text-decoration:underline!important}
+.offerCloud{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px clamp(24px,4vw,72px);align-items:center;padding:clamp(22px,2.6vw,36px) clamp(28px,3.6vw,56px);border-top:1px solid #17262114;border-radius:0 0 var(--radius) var(--radius);background:#e5ece7}
+.offerCloud h3{position:relative;margin:0;padding-left:30px;font-size:18px;font-weight:600;line-height:1.6}
+.offerCloud h3::before{content:"+";position:absolute;left:0;top:.18em;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#e7b8a4;color:#172621;font-size:15px;font-weight:600;line-height:1}
+.offerCloud p{max-width:58ch;margin:6px 0 0 30px;font-size:15px;line-height:1.85;color:#2b3d36}
+.secondary{display:inline-flex;align-items:center;justify-content:space-between;gap:28px;min-height:52px;padding:14px 22px;border:1px solid #172621;border-radius:4px;background:transparent;color:#172621!important;font-size:15px;font-weight:550;line-height:1.4;white-space:nowrap}
+.secondary:hover{background:#17262110;text-decoration:none!important}
+.secondary>span{font-size:18px}
+.downloadStart{position:relative;display:inline-block}
+.nextSteps{position:absolute;z-index:5;left:0;top:calc(100% + 14px);width:min(420px,calc(100vw - 2 * var(--gutter)));padding:20px 22px 16px;border-radius:var(--radius);background:#172621;color:#f5f5f2;box-shadow:0 18px 40px #17262133}
+.nextSteps::before{content:"";position:absolute;left:28px;top:-7px;width:14px;height:14px;background:#172621;transform:rotate(45deg)}
+.offerAction .nextSteps{left:auto;right:0}.offerAction .nextSteps::before{left:auto;right:28px}
+.nextStepsTitle{margin:0 0 10px;font-size:15px;font-weight:600;outline:none}
+.nextSteps ol{margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:14px;line-height:1.7}
+.nextStepsActions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px;padding-top:12px;border-top:1px solid #f5f5f22e;font-size:14px}
+.nextStepsActions a{text-decoration:underline!important}
+.nextStepsActions button{padding:6px 0;border:0;background:none;color:inherit;cursor:pointer;opacity:.8}
+.nextStepsActions button:hover{opacity:1}
+.faq{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:0 clamp(28px,4vw,72px);margin-top:clamp(56px,6vw,96px)}
+.faqTitle{margin:0;font-size:var(--t-h3);font-weight:500;line-height:1.42}
+.faqList{border-bottom:1px solid var(--rule)}
+.faqList details{border-top:1px solid var(--rule)}
+.faqList summary{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 0;font-size:16px;cursor:pointer;list-style:none}
+.faqList summary::-webkit-details-marker{display:none}
+.faqList summary::after{content:"+";color:var(--muted)}
+.faqList details[open] summary::after{content:"−"}
+.faqList details>:not(summary){max-width:62ch;margin:0 0 18px;font-size:15px;line-height:1.85}
+.faqList details>a{display:inline-flex;gap:10px;text-decoration:underline!important}
+.faqContact{grid-column:2;margin:20px 0 0;font-size:14px;color:var(--muted)}
+.faqContact a{color:var(--fg);text-decoration:underline!important}
+/* /download: the installation guide, a quiet document page in the LP's colours. */
+.guidePage{min-height:100vh}
+.guideHeader{display:flex;align-items:center;justify-content:space-between;gap:24px;width:min(100% - 2 * var(--gutter),880px);margin:0 auto;padding:28px 0;font-size:14px}
+.guideMain{width:min(100% - 2 * var(--gutter),880px);margin:0 auto;padding:clamp(24px,4vw,56px) 0 96px}
+.guideMain h1{margin:0;font-size:var(--t-h2);font-weight:500;line-height:1.3;letter-spacing:-.02em}
+.guideLead{margin:14px 0 28px;font-size:18px}
+.guideMain .meta{margin:14px 0 0;font-size:13px;color:var(--muted)}
+.guideMain section{margin-top:clamp(48px,5vw,72px)}
+.guideMain h2{margin:0 0 18px;font-size:var(--t-h3);font-weight:500;line-height:1.42}
+.guideMain section>p{max-width:62ch;margin:0;line-height:1.85}
+.guideMain section>.secondary{margin-top:22px}
+.guideSteps{display:grid;gap:0;margin:0;padding:0;list-style:none;counter-reset:step;border-top:1px solid var(--rule)}
+.guideSteps li{position:relative;display:grid;gap:4px;padding:20px 0 20px 56px;border-bottom:1px solid var(--rule);counter-increment:step}
+.guideSteps li::before{content:counter(step);position:absolute;left:0;top:20px;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#172621;color:#f5f5f2;font-size:14px;font-weight:600}
+.guideSteps b{font-size:17px;font-weight:600;line-height:1.6}
+.guideSteps span{font-size:15px;line-height:1.8;color:#2b3d36}
+.guideList{margin:0;border-top:1px solid var(--rule)}
+.guideList dt{padding-top:18px;font-weight:600}
+.guideList dd{margin:4px 0 0;padding-bottom:18px;border-bottom:1px solid var(--rule);line-height:1.8}
+.guideList a,.guideMore a{text-decoration:underline!important}
+.guideMore{display:flex;flex-wrap:wrap;gap:12px 32px;margin:clamp(48px,5vw,72px) 0 0;font-size:14px}
 .download{padding-bottom:96px}
 .download .actions{display:flex;align-items:center;flex-wrap:wrap;gap:20px 40px;margin-top:40px}
 .download .actions .button{margin-top:0}
@@ -249,8 +285,9 @@
   .path::before{top:6px;bottom:calc(var(--node) / 2 + 4px);left:calc(var(--node) / 2 - 9px);right:auto;width:18px;height:auto;background:linear-gradient(180deg,#7fc3a540,#7fc3a5 55%,#e7b8a4);clip-path:polygon(47% 0,53% 0,100% 100%,0 100%)}
   .path li{text-align:left}.path li::before{left:calc(-44px + var(--node) / 2);top:.75em}
   .invite{padding:56px 12px 0}.inviteInner{padding:36px 22px 84px}.inviteTitle{font-size:clamp(26px,7.4vw,32px)}
-  .setup{grid-template-columns:1fr;padding:24px 18px}
-  .moreDetails{grid-template-columns:1fr}.more nav{gap:4px 20px}
+  .offerBase{grid-template-columns:1fr;gap:28px;padding:28px 20px}.offerAction{justify-self:stretch}.offerAction .nextSteps{left:0;right:auto;width:100%}.offerAction .nextSteps::before{left:28px;right:auto}.offerAction .downloadStart,.offerAction .primary{width:100%}.offerCloud{grid-template-columns:1fr;padding:24px 20px 26px}.offerCloud p{margin-left:0}.offerCloud .secondary{width:100%}
+  .faq{grid-template-columns:1fr;gap:20px}.faqContact{grid-column:1}
+  .guideHeader,.guideMain{width:calc(100% - 2 * var(--gutter))}.guideMain .downloadStart,.guideMain .primary{width:100%}.guideSteps li{padding-left:48px}
   .footer{padding-bottom:104px}
   .demoBar{position:fixed;z-index:40;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));display:block;transform:translateY(calc(100% + 32px));transition:transform .35s cubic-bezier(.22,.7,.12,1)}
   .demoBar[data-shown="true"]{transform:none}
