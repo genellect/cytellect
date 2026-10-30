@@ -108,7 +108,7 @@ Settings updates are checked against the requester's version and return `409` on
 
 ## Security and research data
 
-Research images and measurements stay on the researcher's PC and are never stored in the cloud. The data sent out, authentication, release verification and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).
+Because research data is never kept in the cloud and updates are verified by signature, a compromise of the cloud services or the repository cannot reach stored research data or users' PCs. The design behind this and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).
 
 ## Distribution
 
