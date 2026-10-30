@@ -401,6 +401,12 @@ class CloudAccount:
             email = str(body["email"] if isinstance(body.get("email"), str) else record["email"])
             expires = body.get("expires_at") if isinstance(body.get("expires_at"), str | int | float) else None
             with self.lock:
+                # Save only onto the code this request checked: a logout or another sign-in
+                # meanwhile must not be replaced by this late answer.
+                current = self.store.load()
+                if not self._same_code(current, record):
+                    return ({"state": "signed_out"} if not current
+                            else {"state": current.get("state", "signed_out"), "email": current.get("email")})
                 self.store.save({"state": "allowed", "email": email.strip().lower(), "base_url": base,
                                  "device_token": token, "expires_at": expires})
             return {"state": "allowed", "email": email.strip().lower()}
@@ -439,9 +445,14 @@ class CloudAccount:
         """
         with self.lock:
             current = self.store.load()
-            if (current.get("state") == "code_sent" and current.get("email") == record.get("email")
-                    and current.get("sent_at") == record.get("sent_at")):
+            if self._same_code(current, record):
                 self.store.save({**{k: v for k, v in current.items() if k != "schema"}, "attempts_left": left})
+
+    @staticmethod
+    def _same_code(current: dict, record: dict) -> bool:
+        """The stored record is still the sent code that a verification started from."""
+        return (current.get("state") == "code_sent" and current.get("email") == record.get("email")
+                and current.get("sent_at") == record.get("sent_at"))
 
     def logout(self) -> dict:
         record = self.store.load()

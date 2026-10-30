@@ -176,6 +176,15 @@ export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): 
   }
 }
 
+/**
+ * Restart the GPU by itself only when a sign-in actually happened (not allowed → allowed) and
+ * the GPU was waiting for one. A refreshed account that stays allowed changes nothing, so an
+ * invalid explicit GPU key (which takes precedence over the account) does not loop.
+ */
+export function restartGpuAfterSignIn(wasAllowed: boolean | null, allowed: boolean, gpu: GpuState["state"] | undefined): boolean {
+  return wasAllowed === false && allowed && (gpu === "unconfigured" || gpu === "auth_required");
+}
+
 /** The header's phase while a Cellpose detection runs. */
 export function inferencePhase(gpu: GpuState | null | undefined, running: boolean): string | null {
   if (!running) return null;

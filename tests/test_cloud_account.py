@@ -764,3 +764,33 @@ def test_a_late_wrong_code_answer_does_not_restore_a_replaced_code(tmp_path, clo
     with pytest.raises(cloud_account.AccountError):
         account.verify("000000")
     assert "attempts_left" not in account.store.load()
+
+
+@pytest.mark.parametrize("meanwhile", ["logout", "another_address"])
+def test_a_late_successful_verification_does_not_undo_a_logout_or_another_sign_in(tmp_path, cloud, monkeypatch, meanwhile):
+    from cytellect_api import cloud_account
+
+    cloud.allowed.add("second@example.org")
+    account = CloudAccount(tmp_path / "private")
+    account.send_code(ALLOWED)
+    original = cloud_account.call_cloud
+
+    def change_meanwhile(method, url, **options):
+        if url.endswith("/v1/auth/verify"):
+            # Another tab signs out, or starts with another address, before this answer arrives.
+            if meanwhile == "logout":
+                account.logout()
+            else:
+                monkeypatch.setattr(cloud_account, "call_cloud", original)
+                account.send_code("second@example.org")
+        return original(method, url, **options)
+
+    monkeypatch.setattr(cloud_account, "call_cloud", change_meanwhile)
+    result = account.verify("123456")
+    stored = account.store.load()
+    assert "device_token" not in stored and account.credentials() is None
+    if meanwhile == "logout":
+        assert result == {"state": "signed_out"} and stored == {}
+    else:
+        assert result == {"state": "code_sent", "email": "second@example.org"}
+        assert stored["email"] == "second@example.org" and stored["state"] == "code_sent"

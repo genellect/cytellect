@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {
-  AccountRequestError, accountErrorText, accountLabel, accountNotice, formatDate, gpuNotice, gpuQuotaReached, gpuQuotaText, inferencePhase,
+  AccountRequestError, restartGpuAfterSignIn, accountErrorText, accountLabel, accountNotice, formatDate, gpuNotice, gpuQuotaReached, gpuQuotaText, inferencePhase,
   followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, updateSignature, usageText,
 } from "./cloud-account";
 
@@ -100,6 +100,18 @@ describe("local account requests", () => {
     const {accountApi} = await import("./cloud-account");
     await expect(accountApi.get()).rejects.toMatchObject({code: "local_host_required"});
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("automatic GPU start after sign-in", () => {
+  it("restarts only on an actual sign-in that the GPU was waiting for", () => {
+    expect(restartGpuAfterSignIn(false, true, "unconfigured")).toBe(true);
+    expect(restartGpuAfterSignIn(false, true, "auth_required")).toBe(true);
+    // An explicit GPU key that is rejected while the account stays allowed: no loop.
+    expect(restartGpuAfterSignIn(true, true, "auth_required")).toBe(false);
+    expect(restartGpuAfterSignIn(null, true, "auth_required")).toBe(false);
+    expect(restartGpuAfterSignIn(false, true, "ready")).toBe(false);
+    expect(restartGpuAfterSignIn(false, false, "unconfigured")).toBe(false);
   });
 });
 
