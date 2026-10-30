@@ -222,6 +222,16 @@ for a page under `https://github.com/genellect/cytellect/releases/tag/`. Cloud
 sign-in for GPU inference and analysis proposals uses `/v1/account/*`; see
 [install-windows.ja.md](install-windows.ja.md) and [cloud-gpu.ja.md](cloud-gpu.ja.md).
 
+Every change to `settings/cloud-account.json` made after waiting for the cloud
+service is a compare-and-set (`CloudAccount._commit`): under one lock the record
+is read again and written or deleted only if its state, address, service,
+`sent_at`, `request_token` and device token still equal the record the request
+started from. This covers the status check (expiry, revocation), the access
+request check (`none`, revocation), sending a code, every verification outcome
+(sign-in, remaining attempts, revocation, pending approval), a lapsed code and
+the deletion after logout. A request that another tab overtook leaves the newer
+record and reports it.
+
 ## Workspace entry and Desktop acceptance (2026-10-06)
 
 In local mode and with a loopback API, `/workspace` opens the single analysis

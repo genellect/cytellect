@@ -1,25 +1,9 @@
-/** D1Store against real SQLite (node:sqlite) with the committed migration. */
+/** D1Store against real SQLite (node:sqlite) with the committed migrations. */
 import { describe, expect, it } from "vitest";
-import { D1Store, type D1Database } from "./store";
+import { D1Store } from "./store";
+import { sqliteDatabase } from "./test-support";
 
-// Untyped dynamic imports: the Worker's own type set excludes Node APIs.
-const sqliteModule = "node:sqlite";
-const fsModule = "node:fs";
-
-async function database(): Promise<D1Database> {
-  const { DatabaseSync } = await import(sqliteModule);
-  const { readFileSync } = await import(fsModule);
-  const db = new DatabaseSync(":memory:");
-  db.exec(readFileSync(new URL("../migrations/0001_init.sql", import.meta.url), "utf8"));
-  db.exec(readFileSync(new URL("../migrations/0002_usage_integrity.sql", import.meta.url), "utf8"));
-  db.exec(readFileSync(new URL("../migrations/0003_budget_reconciliation.sql", import.meta.url), "utf8"));
-  const statement = (query: string, values: unknown[] = []) => ({
-    bind: (...next: unknown[]) => statement(query, next),
-    first: async () => db.prepare(query).get(...values) ?? null,
-    run: async () => ({ meta: { changes: Number(db.prepare(query).run(...values).changes) } }),
-  });
-  return { prepare: (query: string) => statement(query) } as unknown as D1Database;
-}
+const database = () => sqliteDatabase();
 
 describe("D1Store SQL", () => {
   it("atomically records overspending, preserves competing holds and blocks every month", async () => {
@@ -134,5 +118,21 @@ describe("D1Store SQL", () => {
     await store.settle("c", "2026-10", 0.5);
     expect(await store.reserve("e", "2026-10", 0.25, 1, 3)).toBe(true);
     expect(await store.reserve("f", "2026-11", 0.9, 1, 4)).toBe(true);
+  });
+
+  it("admits a user-bound hold only within both the global budget and the user's limit", async () => {
+    const db = await database(), store = new D1Store(db);
+    expect(await store.reserveForUser("u1", "2026-10", 0.6, 5, 0, "a@example.org", 1)).toBe("ok");
+    expect(await store.reserveForUser("u2", "2026-10", 0.6, 5, 1, "a@example.org", 1)).toBe("user");
+    expect(await store.reserveForUser("u3", "2026-10", 0.6, 5, 2, "b@example.org", 1)).toBe("ok");
+    expect(await store.reserveForUser("u4", "2026-10", 4, 5, 3, "c@example.org", 10)).toBe("budget");
+    await store.settle("u1", "2026-10", 0.25);
+    expect(await db.prepare("SELECT proposal_usd FROM user_usage WHERE email = 'a@example.org'").first()).toEqual({ proposal_usd: 0.25 });
+    expect(await store.reserveForUser("u5", "2026-10", 0.7, 5, 4, "a@example.org", 1)).toBe("ok");
+    expect(await store.reserveForUser("u6", "2026-11", 0.9, 5, 5, "a@example.org", 1)).toBe("ok");
+    // Invitation-era reservations carry no user and never touch per-user usage.
+    await store.reserve("legacy", "2026-10", 0.1, 5, 6);
+    await store.settle("legacy", "2026-10", 0.1);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM user_usage").first()).toEqual({ n: 1 });
   });
 });

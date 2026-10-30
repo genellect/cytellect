@@ -11,19 +11,22 @@ if (!/^[a-f0-9]{32}$/i.test(accountId ?? "")
 }
 const config = {
   name: "cytellect-proposal", account_id: accountId, main: "src/index.ts",
-  compatibility_date: "2026-10-01", workers_dev: true,
+  compatibility_date: "2026-09-25", compatibility_flags: ["enable_request_signal"], workers_dev: true,
   d1_databases: [{ binding: "DB", database_name: "cytellect-proposal", database_id: databaseId, migrations_dir: "migrations" }],
   vars: {
     OPENAI_MODEL: "gpt-6.1-sol", MONTHLY_BUDGET_USD: "0", DEVICE_MONTHLY_REQUESTS: "0",
     PRICE_INPUT_USD_PER_MTOK: "", PRICE_OUTPUT_USD_PER_MTOK: "",
     PRICE_CACHED_INPUT_USD_PER_MTOK: "", PRICE_CACHE_WRITE_USD_PER_MTOK: "",
     REASONING_EFFORT: "medium", LOW_EFFORT_EVALUATED: "false", MAX_OUTPUT_TOKENS: "8000",
+    // Cloud access stays closed: no owner address or sender, and a zero GPU cap.
+    OWNER_EMAIL: "", MAIL_FROM: "", GPU_MONTHLY_SECONDS: "0",
+    USER_GPU_SECONDS_MONTH: "3600", USER_PROPOSAL_USD_MONTH: "5", LEGACY_INVITATIONS: "true",
   },
   observability: { enabled: false },
 };
 try {
   writeFileSync(fileURLToPath(new URL("../wrangler.disabled.json", import.meta.url)), `${JSON.stringify(config, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-  console.info("Created wrangler.disabled.json; provider budget and device quota are zero. No remote changes made.");
+  console.info("Created wrangler.disabled.json; provider budget, device quota and GPU cap are zero. No remote changes made.");
 } catch {
   console.error("Configuration not created; check permissions or review the existing file. Existing configuration was not overwritten.");
   process.exitCode = 1;

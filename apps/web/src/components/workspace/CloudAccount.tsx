@@ -6,7 +6,7 @@
  */
 import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from "react";
 import {
-  AccountRequestError, accountApi, accountErrorText, accountLabel, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
+  AccountRequestError, accountApi, accountErrorText, accountLabel, restartGpuAfterSignIn, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
   followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
   UPDATE_IN_PROGRESS, UPDATE_JOBS_RUNNING, UPDATE_JOBS_RUNNING_TEXT, UPDATE_NOT_AVAILABLE, UPDATE_REMEMBERED, UPDATE_SEEN_KEY, UPDATE_SETTLED,
   UPDATE_TIMEOUT_TEXT, UPDATE_UNSUPPORTED, updateSignature,
@@ -63,10 +63,19 @@ export function CloudAccountProvider({children, intro: initialIntro = null}: {ch
   }, [gpu?.state]);
   // The GPU check learns of an ended login before the account view does.
   useEffect(() => {if (gpu?.state === "auth_required" || gpu?.state === "revoked") void refresh();}, [gpu?.state, refresh]);
-  // After signing in, a Cellpose choice that waited for the login starts the GPU.
-  const allowed = account?.state === "allowed";
-  const gpuState = gpu?.state;
-  useEffect(() => {if (allowed && (gpuState === "unconfigured" || gpuState === "auth_required")) startGpu();}, [allowed, gpuState, startGpu]);
+  // After an actual sign-in, a Cellpose choice that waited for the login starts the GPU.
+  // Otherwise only the researcher's 「もう一度試す」 starts it again.
+  const allowed = account === null ? null : account.state === "allowed";
+  const gpuState = useRef<GpuState["state"] | undefined>(undefined);
+  const currentGpu = gpu?.state;
+  useEffect(() => {gpuState.current = currentGpu;}, [currentGpu]);
+  const wasAllowed = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (allowed === null) return;
+    const before = wasAllowed.current;
+    wasAllowed.current = allowed;
+    if (restartGpuAfterSignIn(before, allowed, gpuState.current)) startGpu();
+  }, [allowed, startGpu]);
   const value: CloudContext = {
     account, checking, setAccount, refresh, resendAt, loginOpen,
     openLogin: () => {opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setLoginOpen(true);},

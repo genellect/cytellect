@@ -65,11 +65,21 @@ pnpm cf d1 migrations list cytellect-proposal --remote --config wrangler.disable
 Replace the two uppercase IDs with confirmed identifiers, never credentials.
 The generator refuses to overwrite `wrangler.disabled.json`; inspect an existing
 file rather than silently replacing it. Check `account_id`, Worker name, D1 ID,
-`MONTHLY_BUDGET_USD="0"`, `DEVICE_MONTHLY_REQUESTS="0"`, empty tariffs and disabled
-observability. No scheduled jobs, analytics sinks or research-data storage are added.
+`MONTHLY_BUDGET_USD="0"`, `DEVICE_MONTHLY_REQUESTS="0"`, empty tariffs, empty
+`OWNER_EMAIL` and `MAIL_FROM`, `GPU_MONTHLY_SECONDS="0"`,
+`compatibility_flags = ["enable_request_signal"]` (the GPU gateway relies on it to
+release a disconnected client's slot) and disabled observability. No scheduled jobs, analytics sinks or research-data storage are added.
 
-All of `0001_init.sql`, `0002_usage_integrity.sql` and
-`0003_budget_reconciliation.sql` must be applied before enabling calls. On an existing
+All of `0001_init.sql`, `0002_usage_integrity.sql`,
+`0003_budget_reconciliation.sql` and `0004_cloud_access.sql` must be applied before
+enabling calls. Apply `0004` **before** deploying code that includes cloud access:
+that code looks up login tokens and records the user on every reservation and
+settlement. Deployed first, every `/v1/proposals` request fails with HTTP 500
+(`no such table: user_devices`) for every installation, including invitation
+tokens, until the migration is applied. Immediately before `pnpm cf deploy`, run
+`pnpm cf d1 migrations list cytellect-proposal --remote --config wrangler.disabled.json`
+and deploy only when it reports no unapplied migration. Code without cloud access
+keeps working on a database with `0004`. On an existing
 database, retain a private D1 export before migration (`d1 export --remote` with
 an output path outside the checkout). It contains access/usage records; do not
 publish it. Never clear reservations to make a budget check pass.
@@ -112,6 +122,56 @@ Verify migrations and compare aggregate `COUNT(*)` values for `reservations`,
 `settlements` and `proposal_requests` before/after: this probe must not add any.
 Do not select or print individual device/invitation hashes. Keep deployment ID,
 commit, migration names and sanitized probe results in the release record.
+
+## Cloud access (login, approval and GPU gateway)
+
+Provisional owner decisions (2026-10-29, pending approval of the Windows access
+plan): Resend sends mail; per-user monthly defaults are GPU 3,600 seconds and
+proposals USD 5; device logins expire after 90 days unused. The routes and stored
+data are described in [proposal service](proposal-service.md#cloud-access-e-mail-login-approval-and-gpu-gateway).
+Resend and Modal are external services: enabling them is the owner's decision, and
+Modal's own spend limit stays in place as the outer bound.
+
+| Name | Kind | Purpose |
+|---|---|---|
+| `OWNER_EMAIL` | variable | The only address that can open `/admin`; always allowed |
+| `ADMIN_SIGNING_KEY` | secret | At least 32 random characters. Keys the hashes of login codes and rate-limit entries and signs approval links. Rotating it voids pending codes, links, rate-limit counters and address locks, not device tokens |
+| `RESEND_API_KEY` | secret | Resend API key. Without it, code requests fail with `mail_unavailable`; nothing is sent |
+| `MAIL_FROM` | variable | Sender, for example `Cytellect <noreply@…>` on a domain verified in Resend (SPF/DKIM) |
+| `MODAL_URL` | secret | HTTPS origin of the Modal Cellpose server |
+| `MODAL_PROXY_TOKEN` | secret | Modal proxy-auth token, ID and secret joined by `.` ([cloud GPU](cloud-gpu.ja.md)) |
+| `GPU_MONTHLY_SECONDS` | variable | Global monthly GPU seconds; `0` or empty closes the gateway |
+| `USER_GPU_SECONDS_MONTH`, `USER_PROPOSAL_USD_MONTH` | variables | Per-user monthly defaults (3600 and 5 when empty). A malformed value means 0 |
+| `LEGACY_INVITATIONS` | variable | `"false"` closes `/v1/admin/invitations`, `/v1/devices` and invitation tokens after installations have moved to login |
+
+Until `OWNER_EMAIL` and `ADMIN_SIGNING_KEY` are set, the login and admin APIs
+return JSON 503 `auth_unavailable` and `/admin` returns an HTML 503 page. Enter secrets with `pnpm cf secret put NAME` at the
+CLI's protected prompt, never as arguments or in tracked files. The global
+proposal budget remains `MONTHLY_BUDGET_USD`.
+
+Owner operations, all on `https://<worker origin>/admin`:
+
+- **Sign in** with `OWNER_EMAIL` and the 6-digit code sent there.
+- **Approve** a request from the e-mail link (one button on the opened page) or
+  with **承認** on the page. The requester receives an e-mail.
+- **Pre-register** an address with **許可する**; that person can log in at once.
+- **Revoke** with **取り消す**. Every device that logged in with that address stops
+  at its next GPU or proposal request. Re-allowing requires a new login.
+  Invitation tokens are not bound to a user and keep working for proposals while
+  `LEGACY_INVITATIONS` is on: for a hard stop, deploy `LEGACY_INVITATIONS="false"`
+  (or set `revoked_at` on the device record in D1).
+- **Locked out**: 20 wrong codes within a day lock an address for 24 hours, and
+  10 code requests use up an address's codes until that day's window ends. Anyone
+  who knows an address can do either, also to the owner's admin login. Wait, or
+  rotate `ADMIN_SIGNING_KEY` (`pnpm cf secret put ADMIN_SIGNING_KEY`), which clears
+  every lock and counter and also voids pending codes and approval links. Device
+  tokens and admin sessions stay valid.
+- **Limits**: set per-user GPU seconds and proposal USD; blank uses the defaults.
+
+Before enabling, check without paid calls: `/v1/auth/code` for an unlisted
+address returns `pending_approval` and e-mails only the owner; the owner can sign
+in to `/admin`; `GET /v1/cellpose/health` without a token returns 401. A health
+call with a token starts a GPU container and counts as GPU time.
 
 ## Rollback and enablement gates
 
