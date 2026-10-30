@@ -184,10 +184,10 @@ Methods and input/mask identities.
   proposals therefore never include that model; it stays an explicit
   specialist recipe until its clustering is corrected under a new statistics
   version.
-- **Proposal images are opt-in.** Recipe choice normally follows from stain
-  names, channel layout and the stated goal. Requests send normalized metadata
-  by default; up to six downscaled representative previews are sent only after
-  the researcher enables image transmission in the workspace settings.
+- **Proposals send no images.** Recipe choice follows from stain names, channel
+  layout and the stated goal. Requests send the goal and normalized metadata
+  only; requirement L03 caps any future image transmission at six downscaled
+  previews after the researcher enables it.
 - **Segmentation validity is a separate gate.** Execution success on public
   images and same-mask ImageJ agreement are not detection accuracy. D04
   annotated evaluation remains required before claiming nuclear, nucleolar or
