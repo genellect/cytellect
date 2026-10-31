@@ -165,3 +165,7 @@ The code is open source under the [Apache License 2.0](LICENSE). Third-party com
 | Landing-page photos, logos in figures | Pexels and Unsplash licenses; trademarks of their owners | Logos are used only to identify the software |
 
 CI records dependency licenses as an SBOM. Per-model records of software, weights and training data are in [Third-party software and weights](docs/oss.md).
+
+## Developer
+
+Cytellect is developed primarily by Yuto Matsui ([@genellect](https://github.com/genellect)). The developer works as a systems engineer and is also involved in molecular biology research. The developer's background is available on the [portfolio](https://yuto-matsui.com/).
