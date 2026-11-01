@@ -29,7 +29,10 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 - 作業を始める前と PR を出す前に `git fetch origin main` を実行し、最新の `main` を取り込む。取り込み後は、影響する検証をやり直す。
 - 他のメンバーのブランチには、本人の了承なく push しない。
 - 並行作業では、タスクごとに `git worktree` または別の checkout を使う。他の人やエージェントが使用中の checkout は編集しない。
-- マージ済みのブランチは削除する。
+- マージ済みのブランチは削除する。オーナーはリポジトリ設定の **Automatically delete head branches** を有効にしておき、マージと同時に削除されるようにする。
+- マージせずに閉じた PR のブランチも削除する。コミットは PR に残り、PR の画面からブランチを復元できる。残したい案は Issue に記録する。
+- PR のないブランチは残さない。作業を共有するときは Draft PR を出す。
+- 配布した版はタグと GitHub Releases で示し、版ごとのブランチは作らない。タグとリリースは配布の workflow が `main` のコミットに作る（[配布する](release-signing.md#4-配布する)）。
 
 ### 4. レビュー
 
@@ -111,7 +114,10 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 - Run `git fetch origin main` and integrate current `main` before starting work and before opening a PR. Rerun affected checks after integrating.
 - Do not push to another member's branch without their agreement.
 - For parallel work, use a separate `git worktree` or checkout per task. Do not edit a checkout that another person or agent is using.
-- Delete branches after they are merged.
+- Delete branches after they are merged. The owner keeps the repository setting **Automatically delete head branches** enabled so that merging deletes the branch.
+- Also delete the branch of a PR closed without merging. Its commits stay with the PR, and the branch can be restored from the PR page. Record any idea worth keeping in an issue.
+- Do not keep branches without a PR. Open a draft PR to share work in progress.
+- Mark released versions with tags and GitHub Releases, not per-version branches. The release workflow creates the tag and release on a `main` commit ([Release](release-signing.md#4-配布する)).
 
 ### 4. Review
 
