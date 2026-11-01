@@ -23,7 +23,10 @@ jobs:
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        shell: bash
         run: |
+          set -euo pipefail
+          modal token info
           modal deploy infra/modal_cellpose.py | tee deploy.log
           grep -o 'https://[A-Za-z0-9.-]*\.modal\.run' deploy.log | sort -u | sed 's/^/Server: /' >> "$GITHUB_STEP_SUMMARY"
       - name: Prepare the public-image acceptance runtime
