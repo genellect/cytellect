@@ -52,7 +52,7 @@ Cytellect は、顕微鏡画像の解析から統計、論文用の図までを�
    - [開発の原則](docs/development-principles.md)：作業に関係する節
    - 動作を変える場合は、[要件](docs/requirements.md)・[計算仕様](docs/methods.md)・[セキュリティ](SECURITY.md)と[データ保護と運用](docs/security.md)の該当する節
    - LP を編集する場合は、[LP の美術方針](docs/lp-art-direction.md)
-2. `git status` で未コミットの作業を確認し、`git fetch origin main` を実行する。新しいブランチは最新の `origin/main` から作り、名前は `<種類>/<内容>`（`feat`、`fix`、`docs`、`test`、`chore`）とする。継続中のブランチには merge または安全な rebase で `main` を取り込む。他者の変更や未コミットの作業は保持する。
+2. `git status` で未コミットの作業を確認し、`git fetch origin main` を実行する。新しいブランチは最新の `origin/main` から作り、名前は[チーム開発ルール](docs/team-development.md#2-開発の流れ)の手順 2 に従う。継続中のブランチには merge または安全な rebase で `main` を取り込む。他者の変更や未コミットの作業は保持する。
 3. タスクごとの worktree または独立した checkout で作業し、他の人やエージェントが使用中の checkout は編集しない。並行作業では、割り当てられたファイルだけを変更する。
 4. 1 つの目的に絞って変更し、関連する仕様・テスト・文書を同じ PR で更新する。無関係な修正は混ぜない。
 5. 不具合の原因の特定と修正の方針は、開発の原則の「[問題への対処](docs/development-principles.md#問題への対処)」に従う。

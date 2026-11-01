@@ -17,7 +17,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 ### 2. 開発の流れ
 
 1. **タスクを決める。** 目的と完了条件を Issue またはタスクの依頼に書く。
-2. **ブランチを作る。** 最新の `origin/main` から作る。名前は `<種類>/<内容>` とし、種類は `feat`、`fix`、`docs`、`test`、`chore` のいずれか（例: `fix/nucleolus-boundary`）。エージェントのツールが付ける接頭辞（`claude/`、`codex/`）も使える。
+2. **ブランチを作る。** 最新の `origin/main` から作る。名前は `<種類>/<内容>` とする（例: `fix/nucleolus-boundary`）。種類は `feat`、`fix`、`docs`、`test`、`chore`、`ci` のいずれかで、内容は英小文字とハイフンで短く書く。日付や非公開の研究対象は名前に入れない。`release/`、`feature/`、`review/` と、種類のない名前は使わない。エージェントのツールがブランチ名を自動で決める場合に限り、その接頭辞（`claude/`、`codex/`）のままでよい。
 3. **変更する。** 1 つの PR では 1 つの目的だけを扱う。仕様・テスト・文書は、コードと同じ PR で更新する。
 4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)のすべての項目を書く。作業途中の共有には Draft PR を使う。
 5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしない。PR の CI は、変更したファイルに関係する検査だけを実行する。Fiji・Cellpose の画像・Windows の導入の統合試験は `main` への取り込み後に実行し、Windows 版の配布は、配布するコミットでこれらすべての成功を確認してから行う（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消す。
@@ -102,7 +102,7 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 ### 2. Workflow
 
 1. **Define the task.** State the purpose and completion criteria in an issue or task request.
-2. **Create a branch** from the latest `origin/main`, named `<type>/<summary>`, where type is `feat`, `fix`, `docs`, `test` or `chore` (for example `fix/nucleolus-boundary`). Prefixes added by agent tools (`claude/`, `codex/`) are also acceptable.
+2. **Create a branch** from the latest `origin/main`, named `<type>/<summary>` (for example `fix/nucleolus-boundary`). The type is one of `feat`, `fix`, `docs`, `test`, `chore` or `ci`, and the summary is short, in lowercase English words joined by hyphens. Do not put dates or unpublished research targets in the name. Do not use `release/`, `feature/`, `review/` or names without a type. Only when an agent tool chooses the branch name itself may its prefix (`claude/`, `codex/`) remain.
 3. **Make the change.** Keep each PR to one purpose. Update specifications, tests and documentation in the same PR as the code.
 4. **Open a PR** and fill in every section of the [PR template](../.github/pull_request_template.md) (Japanese). Use a draft PR to share work in progress.
 5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run after merge on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
