@@ -401,8 +401,8 @@ function CellposeSettings({runtime:r,field,target,disabled,onChanged}:{runtime:R
     {target==="nucleoli"&&settings.engine==="cellpose-sam-ncl-parent"&&settings.protocol_version==="4.3.0"&&<>
     <label>核小体の検出モデル<select value={settings.model} onChange={event=>{const model=event.target.value;if(model==="cpsam_v2"||model==="ncl-r1-step0375"||model==="ncl-r1-step0750"){r.selectNclModel(field,model);onChanged();}}}>
       <option value="cpsam_v2">Cellpose-SAM（標準）</option>
-      <option value="ncl-r1-step0375">Cytellect 核小体モデル R1 / 375</option>
-      <option value="ncl-r1-step0750">Cytellect 核小体モデル R1 / 750</option>
+      <option value="ncl-r1-step0375">Cytellect R1 / 375</option>
+      <option value="ncl-r1-step0750">Cytellect R1 / 750</option>
     </select></label>
     {settings.model!=="cpsam_v2"&&<p>核小体の輪郭で追加学習したモデルです。選択したモデルは解析条件とともに保存されます。</p>}
     </>}
