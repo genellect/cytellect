@@ -30,16 +30,17 @@ from cytellect_analysis.region_contracts import NuclearDetectorSpec
 ROOT = Path(__file__).resolve().parents[1]
 URL = "https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct"
 BASELINE_REF = "v0.1.0-local.21"
+BASELINE_COMMIT = "3090c044fe642b989d51c1c6acca1f4778ae3ea8"
 
 
 def baseline_client(folder: Path):
     folder.mkdir()
     for name in ("runtime.lock.json", "gpu.lock.json", "runner.py", "requirements.lock", "requirements-cuda.lock"):
         (folder / name).write_bytes(subprocess.check_output(
-            ["git", "show", f"{BASELINE_REF}:engines/cellpose/{name}"], cwd=ROOT))
+            ["git", "show", f"{BASELINE_COMMIT}:engines/cellpose/{name}"], cwd=ROOT))
     source = folder / "cellpose_engine.py"
     source.write_bytes(subprocess.check_output(
-        ["git", "show", f"{BASELINE_REF}:packages/analysis/src/cytellect_analysis/cellpose_engine.py"], cwd=ROOT))
+        ["git", "show", f"{BASELINE_COMMIT}:packages/analysis/src/cytellect_analysis/cellpose_engine.py"], cwd=ROOT))
     spec = importlib.util.spec_from_file_location("cytellect_analysis.release_21_cellpose_engine", source)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -121,6 +122,7 @@ def verify(scratch: Path, receipt_path: Path):
             assert runtime["model_identity"]["id"] == model
             assert runtime["service"]["runner_sha256"] == lock["runner_sha256"]
         record = {"client": BASELINE_REF if client is old else "current", "model": model,
+                  "baseline_source_commit": BASELINE_COMMIT if client is old else None,
                   "model_sha256": sha, "runner_sha256": runtime["service"]["runner_sha256"],
                   "model_load": runtime.get("model_load", "pinned_cellpose_loader"), "gpu": runtime["gpu"],
                   "seconds": round(time.monotonic() - started, 2),
@@ -135,21 +137,41 @@ def verify(scratch: Path, receipt_path: Path):
             "complete": len(records) == 4}, indent=2))
 
 
+def client_environment(relay_url: str) -> dict[str, str]:
+    # Only the current, reviewed relay process receives Modal's API credentials.
+    # The immutable baseline client runs in a child without these variables.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("MODAL_")}
+    environment["CYTELLECT_CELLPOSE_REMOTE_URL"] = relay_url
+    environment.pop("CYTELLECT_CELLPOSE_REMOTE_TOKEN", None)
+    environment.pop("CYTELLECT_CELLPOSE_REMOTE_SECRET", None)
+    environment.pop("XDG_CACHE_HOME", None)
+    return environment
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("--client-only", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--scratch", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.client_only:
+        if args.scratch is None or any(key.startswith("MODAL_") for key in os.environ):
+            parser.error("client verification requires scratch space and no Modal credentials")
+        verify(args.scratch, args.receipt)
+        return
     with tempfile.TemporaryDirectory(prefix="cytellect-modal-check-") as temporary:
         scratch = Path(temporary)
+        client_scratch = scratch / "client"
+        client_scratch.mkdir()
         os.environ["XDG_CACHE_HOME"] = str(scratch / "private-auth-cache")
         server = ThreadingHTTPServer(("127.0.0.1", 0), relay_handler(scratch))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        os.environ["CYTELLECT_CELLPOSE_REMOTE_URL"] = f"http://127.0.0.1:{server.server_port}"
-        os.environ.pop("CYTELLECT_CELLPOSE_REMOTE_TOKEN", None)
-        os.environ.pop("CYTELLECT_CELLPOSE_REMOTE_SECRET", None)
+        environment = client_environment(f"http://127.0.0.1:{server.server_port}")
         try:
-            verify(scratch, args.receipt)
+            subprocess.run([sys.executable, str(Path(__file__).resolve()), "--client-only",
+                            "--scratch", str(client_scratch), "--receipt", str(args.receipt.resolve())],
+                           env=environment, check=True)
         finally:
             server.shutdown()
             server.server_close()

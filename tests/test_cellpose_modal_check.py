@@ -49,3 +49,27 @@ def test_relay_preserves_status_and_body_without_forwarding_credentials(checker,
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+def test_baseline_uses_the_immutable_published_source(checker, monkeypatch, tmp_path):
+    refs = []
+    def show(args, **kwargs):
+        refs.append(args[-1])
+        if args[-1].endswith("cellpose_engine.py"):
+            return b""  # import plumbing only; no detector or scientific output
+        return b"{}"
+    monkeypatch.setattr(checker.subprocess, "check_output", show)
+    checker.baseline_client(tmp_path / "baseline")
+    assert len(refs) == 6
+    assert all(ref.startswith("3090c044fe642b989d51c1c6acca1f4778ae3ea8:") for ref in refs)
+    assert all(checker.BASELINE_REF not in ref for ref in refs)
+
+
+def test_baseline_child_does_not_receive_modal_credentials(checker, monkeypatch):
+    for key in ("MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "MODAL_PROFILE", "CYTELLECT_CELLPOSE_REMOTE_TOKEN",
+                "CYTELLECT_CELLPOSE_REMOTE_SECRET", "XDG_CACHE_HOME"):
+        monkeypatch.setenv(key, "must-not-inherit")
+    environment = checker.client_environment("http://127.0.0.1:1234")
+    assert not any(key.startswith("MODAL_") for key in environment)
+    assert "must-not-inherit" not in environment.values()
+    assert environment["CYTELLECT_CELLPOSE_REMOTE_URL"] == "http://127.0.0.1:1234"
