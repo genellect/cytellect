@@ -34,6 +34,28 @@ def verify_assets(lock: dict):
                 raise RuntimeError("cellpose_adapter_integrity_failed")
 
 
+def selected_model(lock: dict, parameters: dict) -> dict:
+    model_id = parameters.get("model", "cpsam_v2")
+    if model_id == "cpsam_v2":
+        model = lock["model"]
+    elif model_id in ("ncl-r1-step0375", "ncl-r1-step0750"):
+        if parameters.get("engine") != "cellpose-sam-ncl-parent" or parameters.get("protocol_version") != "4.3.0":
+            raise RuntimeError("cellpose_model_protocol_mismatch")
+        model = lock.get("ncl_candidates", {}).get(model_id)
+        expected_sha = {
+            "ncl-r1-step0375": "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+            "ncl-r1-step0750": "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099",
+        }[model_id]
+        if (not isinstance(model, dict) or model.get("id") != model_id or model.get("size") != 1233577155
+                or model.get("sha256") != expected_sha):
+            raise RuntimeError("cellpose_model_identity_mismatch")
+    else:
+        raise RuntimeError("cellpose_model_identity_mismatch")
+    if parameters.get("model_sha256") != model["sha256"]:
+        raise RuntimeError("cellpose_model_identity_mismatch")
+    return model
+
+
 def prepare_detection_input(image, parameters: dict):
     """Detection-copy transform; never receive or modify the adopted nuclei."""
     if parameters["engine"] == "cellpose-sam" and parameters["protocol_version"] == "4.0.0":
@@ -191,7 +213,17 @@ def runtime_lock() -> dict:
     return json.loads(Path(__file__).with_name(name).read_text(encoding="utf-8"))
 
 
-def prepare_runtime(model_path: Path) -> dict:
+def verify_model(model_path: Path, model: dict):
+    if not model_path.is_file():
+        raise RuntimeError("cellpose_model_missing")
+    if model_path.stat().st_size != model["size"]:
+        raise RuntimeError("cellpose_model_integrity_failed")
+    with model_path.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != model["sha256"]:
+            raise RuntimeError("cellpose_model_integrity_failed")
+
+
+def prepare_runtime(model_path: Path, parameters: dict | None = None) -> dict:
     """Verify the pinned packages and model once, then forbid network access."""
     lock = runtime_lock()
     verify_assets(lock)
@@ -200,14 +232,8 @@ def prepare_runtime(model_path: Path) -> dict:
     versions = {name: importlib.metadata.version(name) for name in lock["packages"]}
     if versions != lock["packages"]:
         raise RuntimeError("cellpose_runtime_version_mismatch")
-    model = lock["model"]
-    if not model_path.is_file():
-        raise RuntimeError("cellpose_model_missing")
-    if model_path.stat().st_size != model["size"]:
-        raise RuntimeError("cellpose_model_integrity_failed")
-    with model_path.open("rb") as stream:
-        if hashlib.file_digest(stream, "sha256").hexdigest() != model["sha256"]:
-            raise RuntimeError("cellpose_model_integrity_failed")
+    model = lock["model"] if parameters is None else selected_model(lock, parameters)
+    verify_model(model_path, model)
     # CELLPOSE_LOCAL_MODELS_PATH must exist before importing Cellpose. Explicit
     # local paths and two network guards prevent its model fallback downloader.
     os.environ["CELLPOSE_LOCAL_MODELS_PATH"] = str(model_path.parent)
@@ -227,13 +253,20 @@ def prepare_runtime(model_path: Path) -> dict:
 _NETWORK: dict = {}
 
 
-def load_network(model_path: Path, device: str):
+def load_network(model_path: Path, device: str, model: dict):
     """Keep one loaded network per model and device, so a service loads it once."""
     import torch
     from cellpose import models
 
     key = (str(model_path), device)
     if _NETWORK.get("key") != key:
+        # Release the previous network before allocating the selected weights.
+        import gc
+
+        _NETWORK.clear()
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         if device == "cuda":
             # Full float32 without TF32 and deterministic kernels, to stay as close
             # as possible to the validated CPU results and reproducible run to run.
@@ -244,7 +277,10 @@ def load_network(model_path: Path, device: str):
             torch.use_deterministic_algorithms(True, warn_only=True)
         network = models.CellposeModel(pretrained_model=str(model_path), device=torch.device(device),
                                        gpu=device == "cuda", use_bfloat16=False)
-        _NETWORK.clear()
+        if model["id"] != "cpsam_v2":
+            state = torch.load(model_path, map_location="cpu", weights_only=True)
+            network.net.load_state_dict(state, strict=True)
+            del state
         _NETWORK.update(key=key, network=network)
     return _NETWORK["network"]
 
@@ -263,8 +299,10 @@ def infer(parameters: dict, image, nuclei, model_path: Path, versions: dict):
         raise RuntimeError("cellpose_gpu_unavailable")
     device = "cuda" if has_cuda and selection != "cpu" else "cpu"
     torch.set_num_threads(min(8, max(1, os.cpu_count() or 1)))
-    network = load_network(model_path, device)
-    execution = {"device": device, "precision": "float32"}
+    model = selected_model(runtime_lock(), p)
+    network = load_network(model_path, device, model)
+    execution = {"device": device, "precision": "float32", "model_identity": model,
+                 "model_load": "strict_state_dict" if model["id"] != "cpsam_v2" else "pinned_cellpose_loader"}
     if device == "cuda":
         execution.update(tf32=False, deterministic_algorithms=True, gpu=torch.cuda.get_device_name(0))
     if p["engine"] == "cellpose-sam-ncl-parent" and p["protocol_version"] in ("4.2.0", "4.2.1", "4.3.0"):
@@ -305,7 +343,7 @@ def infer(parameters: dict, image, nuclei, model_path: Path, versions: dict):
 def run(request_path: Path) -> dict:
     request = json.loads(request_path.read_text(encoding="utf-8"))
     model_path = Path(request["model_path"])
-    versions = prepare_runtime(model_path)
+    versions = prepare_runtime(model_path, request["parameters"])
     import numpy as np
 
     p = request["parameters"]

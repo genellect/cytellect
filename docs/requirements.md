@@ -147,3 +147,10 @@ No automatic mode reversal, cleanup under capacity pressure, or deletion of
 original research data is authorized by this feature. Lab delivery still needs
 fixed application/model identities, private whole-data backup/rollback and
 fresh real-input acceptance. Measurement and statistical definitions are unchanged.
+
+
+T21: The researcher can select the published Cytellect nucleolar checkpoints
+`ncl-r1-step0375` and `ncl-r1-step0750` for NCL parent-conditioned protocol 4.3.0.
+Save the exact model/SHA pair with the recipe and provenance, retain the standard
+model for existing recipes, and prohibit silent fallback or AI model replacement.
+The GPU service preserves the pinned baseline runner for installed clients.

@@ -80,6 +80,8 @@ def main():
     parser.add_argument("--python", default=sys.executable, help="Python 3.12 interpreter, already installed")
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--model-only", action="store_true")
+    parser.add_argument("--model", choices=("cpsam_v2", "ncl-r1-step0375", "ncl-r1-step0750"), default="cpsam_v2")
+    parser.add_argument("--all-models", action="store_true", help="Provision every registered checkpoint at build time")
     parser.add_argument("--runtime-only", action="store_true",
                         help="Docker build: provision fixed packages/model independently of the job adapter")
     parser.add_argument("--variant", choices=("cpu", "cuda"), default="cpu",
@@ -110,7 +112,14 @@ def main():
         raise RuntimeError("cellpose_adapter_integrity_failed")
     if digest(requirements) != lock["requirements_sha256"]:
         raise RuntimeError("cellpose_package_lock_integrity_failed")
-    model = provision_model(cache, lock["model"])
+    profiles = {lock["model"]["id"]: lock["model"], **lock.get("ncl_candidates", {})}
+    selected = list(profiles) if args.all_models else [args.model]
+    for model_id in selected:
+        if model_id not in profiles:
+            raise RuntimeError("cellpose_model_identity_mismatch")
+        provision_model(cache, profiles[model_id])
+    artifact = profiles[args.model]
+    model = cache / artifact["id"]
     if args.model_only:
         print("Pinned Cellpose model verified", flush=True)
         return
@@ -138,7 +147,8 @@ def main():
         if json.loads(installed.stdout) != lock["packages"]:
             raise RuntimeError("cellpose_runtime_version_mismatch")
     receipt = {"schema": lock["schema"], "python": lock["python"], "packages": lock["packages"],
-               "model_sha256": lock["model"]["sha256"], "model_size": model.stat().st_size,
+               "model_sha256": artifact["sha256"], "model_size": model.stat().st_size,
+               "models": {name: profiles[name]["sha256"] for name in selected},
                "requirements_sha256": lock["requirements_sha256"]}
     if not args.runtime_only:
         receipt["runner_sha256"] = lock["runner_sha256"]

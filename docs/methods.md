@@ -718,3 +718,21 @@ ledger as missing instead of being removed (`compartment_review.py`).
   and the warning. Descriptive exports keep the ledger in `figure-data.json`.
   Export replay and the in-browser runtime recompute the same ledger from the saved
   review record.
+
+
+### Selecting a fine-tuned nucleolar checkpoint
+
+Parent-conditioned protocol 4.3.0 accepts `cpsam_v2`, `ncl-r1-step0375` and
+`ncl-r1-step0750` with the exact model/SHA pairs in the runtime manifests.
+Model selection changes the weights; it does not change input pixels, parent
+nuclei, preprocessing, nuclear-scale rejection, signal-support refinement or
+measurement arithmetic. The selected ID, SHA-256, model metadata and actual
+runner hash accompany the result. Saved recipes retain their selection and
+the standard model remains the default. AI proposals preserve manual selection.
+
+Local CPU execution verifies the selected file before loading. The GPU image
+contains all checkpoints; the server verifies them before accepting requests.
+For the standard model, the server retains the exact previously deployed runner
+to serve installed clients. New clients accept that pinned runner only for
+`cpsam_v2`; fine-tuned models require the current runner identity. See the
+[adapter record](../engines/cellpose/README.md#cytellect-nucleolar-checkpoints).
