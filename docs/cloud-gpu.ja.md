@@ -181,3 +181,23 @@ GPU イメージには 3 つの重みをビルド時に取得し、固定 revisi
 runner をそのまま使い、そのハッシュを返す。追加学習モデルには新しい runner を使う。
 どちらも同じコンテナ内で 1 要求ずつ処理し、モデルを切り替えると前のネットワークを解放する。
 モデルの追加で GPU 台数・利用上限・外部送信する情報は増やさない。
+
+### 公開イメージの固定（2026-11-01）
+
+モデル選択を追加した [PR #184](https://github.com/genellect/cytellect/pull/184) の
+`0dccdf73975605f22509012ea81acc9f0f981438` から、
+[GPU イメージの公開 run 41315810570](https://github.com/genellect/cytellect/actions/runs/41315810570) で
+次のイメージを公開した。`infra/modal_cellpose.py` はこの digest を参照する。
+
+```text
+ghcr.io/genellect/cytellect-cellpose-gpu@sha256:beaf5218535e20e18fda78cad406bf2c0fc6273bf5afaf6ae401f006ced306c5
+```
+
+標準モデルと R1 / 375・R1 / 750 の重みを含む。Modal への反映と公開画像での実行確認は、
+この固定をマージしてから行う。公開済みという記録だけで、GPU での実行成功とはしない。
+
+配備後の確認は GitHub に登録済みの Modal API 認証を `modal curl` で使う。
+旧版クライアントのコードは、0.1.0-local.21 の公開済みソースコミット
+`3090c044fe642b989d51c1c6acca1f4778ae3ea8` に固定し、可変タグから実行しない。
+旧版コードを読む子プロセスには Modal の認証環境変数を渡さず、認証を扱う処理は
+現在のレビュー済みの中継プロセスだけで行う。
