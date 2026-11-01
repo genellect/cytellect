@@ -168,3 +168,15 @@ Stop all writers before changing installation policy; no live mixed-mode operati
 or automatic manual-to-TTL conversion is supported. No timestamps are rewritten.
 Private backups, capacity monitoring and manual deletion remain the lab's
 responsibility; automatic age cleanup is not a storage-pressure fallback.
+
+
+## Model-version compatibility
+
+The GPU image includes only public, revision-pinned model weights and code.
+Each fine-tuned checkpoint is verified against its fixed size and SHA-256 before
+loading with `weights_only=True` and strict state-dict keys. Request parameters
+cannot specify URLs, filesystem paths or arbitrary model identities.
+The exact previous baseline runner is copied from its digest-pinned public image
+and verified before serving installed clients. Fine-tuned requests cannot use
+that compatibility identity. The single-container and single-request limits,
+authentication, request-memory-only handling and network payload remain unchanged.

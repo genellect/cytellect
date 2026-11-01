@@ -31,15 +31,22 @@ class FakeRunner:
     def __init__(self, lock_name="gpu.lock.json"):
         self.lock = json.loads((ASSETS / lock_name).read_text(encoding="utf-8"))
         self.calls = []
+        self._NETWORK = {}
 
     def prepare_runtime(self, _model_path):
         return dict(self.lock["packages"])
+
+    def verify_model(self, path, profile):
+        assert path.name == profile["id"]
+
+    def selected_model(self, lock, parameters):
+        return engine.model_profile(lock, parameters["model"])
 
     def runtime_lock(self):
         return self.lock
 
     def infer(self, parameters, image, nuclei, _model_path, versions):
-        self.calls.append({"parameters": parameters, "shape": image.shape, "parent": nuclei is not None})
+        self.calls.append({"parameters": parameters, "shape": image.shape, "parent": nuclei is not None, "model": _model_path.name})
         labels = (image > 100).astype(np.uint32)
         return labels, {"status": "succeeded", "runtime_packages": versions, "device": "cuda", "precision": "float32",
                         "normalization": {"constant_signal": False}, "preprocessing": {"algorithm": "none"},
@@ -47,14 +54,19 @@ class FakeRunner:
 
 
 @pytest.fixture
-def service(monkeypatch):
+def service(monkeypatch, tmp_path):
     server_module = load_server()
     runner = FakeRunner()
     monkeypatch.setattr(server_module, "load_runner", lambda: runner)
     state = SimpleNamespace(module=server_module, runner=runner, unavailable=0, secret=None)
+    model_cache = tmp_path / "models"
+    model_cache.mkdir()
+    for name in runner.lock["ncl_candidates"]:
+        (model_cache / name).write_bytes(b"routing contract only; not model weights")
 
     def start(secret=None, unavailable=0, identity=None):
-        service = server_module.Service(Path("/model/cpsam_v2"), require_gpu=False)
+        service = server_module.Service(model_cache / "cpsam_v2", require_gpu=False)
+        state.service = service
         if identity:
             service.identity.update(identity)
         base = server_module.handler_for(service, secret)
@@ -193,3 +205,50 @@ def test_gpu_lock_matches_the_cpu_runtime_except_the_torch_build():
     cpu_pins = {pin for pin in pins("requirements.lock") if pin.split("==")[0] in shared - {"torch", "torchvision"}}
     gpu_pins = {pin for pin in pins("requirements-cuda.lock") if pin.split("==")[0] in shared - {"torch", "torchvision"}}
     assert cpu_pins == gpu_pins
+
+
+@pytest.mark.parametrize("model_id", list(engine.NCL_MODEL_HASHES))
+def test_remote_selected_weights_keep_identity_and_reject_baseline_runner(service, tmp_path, model_id):
+    """Transport contract on a registered public image; fake runner is not accuracy evidence."""
+    import tifffile
+
+    state = service.start()
+    public = tifffile.imread(ASSETS.parents[1] / "fixtures/public/bbbc013/A01-dapi.tif")[:24, :32]
+    parameters = engine.NclParentCellposeDetectorSpec(model=model_id, model_sha256=engine.NCL_MODEL_HASHES[model_id])
+    _, receipt = engine._remote_inference(public, np.ones(public.shape, np.uint32), parameters)
+    assert state.runner.calls[-1]["model"] == model_id
+    assert receipt["model_identity"]["id"] == model_id
+    assert receipt["service"]["model_sha256"] == parameters.model_sha256
+    state.service.identity["runner_sha256"] = state.runner.lock["baseline_runner_sha256"]
+    with pytest.raises(ValueError, match="cellpose_remote_version_mismatch"):
+        engine._remote_inference(public, np.ones(public.shape, np.uint32), parameters)
+
+
+def test_missing_selected_model_never_falls_back(service):
+    state = service.start()
+    model_id = engine.NCL_750_MODEL_ID
+    state.service.models.remove(model_id)
+    parameters = engine.NclParentCellposeDetectorSpec(model=model_id, model_sha256=engine.NCL_750_MODEL_SHA256)
+    with pytest.raises(ValueError, match="cellpose_model_missing"):
+        engine._remote_inference(image(), np.ones(image().shape, np.uint32), parameters)
+    assert not state.runner.calls
+
+
+def test_baseline_client_compatibility_and_network_release(service, monkeypatch):
+    state = service.start()
+    legacy = FakeRunner()
+    legacy.lock = {**legacy.lock, "runner_sha256": legacy.lock["baseline_runner_sha256"]}
+    state.service.legacy_runner = legacy
+    state.runner._NETWORK["network"] = object()
+    _, receipt = engine._remote_inference(image(), None, CellposeDetectorSpec())
+    assert receipt["service"]["runner_sha256"] == legacy.lock["runner_sha256"]
+    assert receipt["service"]["model_sha256"] == engine.MODEL_SHA256
+    assert not state.runner._NETWORK
+    assert legacy.calls[-1]["model"] == "cpsam_v2"
+    # Replay the previous release's strict identity rule against the actual receipt.
+    assert receipt["service"]["runner_sha256"] == "98db8e818ec4a547d87078d1c634f81a99c0c9d911de50a8dcde229bf0442201"
+    legacy._NETWORK["network"] = object()
+    selected = engine.NclParentCellposeDetectorSpec(model=engine.NCL_750_MODEL_ID, model_sha256=engine.NCL_750_MODEL_SHA256)
+    engine._remote_inference(image(), np.ones(image().shape, np.uint32), selected)
+    assert not legacy._NETWORK
+    assert state.runner.calls[-1]["model"] == engine.NCL_750_MODEL_ID

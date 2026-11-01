@@ -34,9 +34,9 @@ def digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def load_runner():
+def load_runner(assets: Path = ASSETS):
     # Loaded by path: the isolated interpreter does not add this directory to sys.path.
-    spec = importlib.util.spec_from_file_location("cytellect_cellpose_runner", ASSETS / "runner.py")
+    spec = importlib.util.spec_from_file_location("cytellect_cellpose_runner", assets / "runner.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -76,6 +76,20 @@ class Service:
         lock = self.runner.runtime_lock()
         self.identity = {"runner_sha256": digest(ASSETS / "runner.py"), "server_sha256": digest(Path(__file__)),
                          "requirements_sha256": lock["requirements_sha256"], "model_sha256": lock["model"]["sha256"]}
+        self.models = {lock["model"]["id"]}
+        for profile in lock.get("ncl_candidates", {}).values():
+            candidate_path = model_path.parent / profile["id"]
+            if candidate_path.is_file():
+                self.runner.verify_model(candidate_path, profile)
+                self.models.add(profile["id"])
+        self.legacy_runner = None
+        legacy_assets = ASSETS / "baseline"
+        if legacy_assets.is_dir():
+            if digest(legacy_assets / "runner.py") != lock["baseline_runner_sha256"]:
+                raise RuntimeError("cellpose_adapter_integrity_failed")
+            self.legacy_runner = load_runner(legacy_assets)
+            self.legacy_runner.prepare_runtime(model_path)
+        self.active_runner = self.runner
         self.guard = threading.Lock()
 
     def infer(self, body: bytes) -> bytes:
@@ -98,9 +112,24 @@ class Service:
         parameters = request["parameters"]
         if self.require_gpu and parameters.get("compute_device") == "cpu":
             raise InputError("cellpose_remote_gpu_required")
+        profile = self.runner.selected_model(self.runner.runtime_lock(), parameters)
+        if profile["id"] not in self.models:
+            raise RuntimeError("cellpose_model_missing")
+        selected_path = self.model_path if profile["id"] == "cpsam_v2" else self.model_path.parent / profile["id"]
+        active = self.legacy_runner if profile["id"] == "cpsam_v2" and self.legacy_runner else self.runner
         with self.guard:
-            labels, receipt = self.runner.infer(parameters, image, parent, self.model_path, self.versions)
-        receipt["service"] = self.identity
+            if active is not self.active_runner:
+                import gc
+
+                self.active_runner._NETWORK.clear()
+                gc.collect()
+                self.active_runner = active
+            labels, receipt = active.infer(parameters, image, parent, selected_path, self.versions)
+        identity = {**self.identity, "model_sha256": profile["sha256"]}
+        if active is self.legacy_runner:
+            identity["runner_sha256"] = active.runtime_lock()["runner_sha256"]
+        receipt["service"] = identity
+        receipt["model_identity"] = profile
         return write_archive(labels=labels.astype(np.uint32),
                              receipt=np.frombuffer(json.dumps(receipt).encode("utf-8"), dtype=np.uint8))
 
