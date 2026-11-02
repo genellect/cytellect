@@ -22,10 +22,12 @@ export function DownloadStart({ url, installer, guide = true }: { url: string; i
     {open && <div className={lp.nextSteps} role="dialog" aria-modal="false" aria-labelledby={title}>
       <p id={title} ref={heading} tabIndex={-1} className={lp.nextStepsTitle}>ダウンロードを始めました</p>
       {installer ? <ol>
+        <li>ブラウザのダウンロード一覧（Ctrl+J）で完了を待つ。警告が出たら「保存」または「保持」を選ぶ</li>
         <li>ダウンロードしたファイルを開く</li>
         <li>「PCが保護されました」と出たら、「詳細情報」→「実行」</li>
         <li>「インストール」を押すと、5〜10分で使い始められます</li>
       </ol> : <ol>
+        <li>ブラウザのダウンロード一覧（Ctrl+J）で完了を待つ。警告が出たら「保存」または「保持」を選ぶ</li>
         <li>ダウンロードしたZIPを展開する</li>
         <li>「Cytellect Setup」を開く</li>
         <li>「セットアップ」を押し、終わったら「開く」</li>

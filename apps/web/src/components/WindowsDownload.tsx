@@ -12,6 +12,7 @@ export default function WindowsDownload({url}:{url:string}){
   {installer?<>
    <p className={styles.small}>インストーラー{published&&`・${releaseSize(published.size_bytes)}`}・Windows 10／11（64ビット）・管理者権限は不要です。</p>
    <ol className={styles.setupSteps}>
+    <li><b>保存</b><span>ブラウザのダウンロード一覧（Ctrl+J）で完了を待ちます。警告が出たら「保存」または「保持」を選ぶと、.crdownloadから.exeになります。</span></li>
     <li><b>開く</b><span>ダウンロードしたCytellect-Setupを開きます。</span></li>
     <li><b>インストール</b><span>「インストール」を押します。約5〜10分で終わり、解析画面がブラウザで開きます。</span></li>
     <li><b>ログイン</b><span>メールに届くコードでログインすると、GPUでの検出も使えます。</span></li>

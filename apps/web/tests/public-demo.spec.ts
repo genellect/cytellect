@@ -23,6 +23,8 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   const next=page.getByRole("dialog",{name:"ダウンロードを始めました"});
   if(/\/Cytellect-Setup-[^/]+\.exe$/.test(release)){
    await expect(next.getByText(/「インストール」を押す/)).toBeVisible();
+   // A held download stays .crdownload until it is kept from the browser's download list.
+   await expect(next.getByText(/ダウンロード一覧（Ctrl\+J）/)).toBeVisible();
    await expect(next.getByText(/展開/)).toHaveCount(0);
   }else{
    await expect(next.getByText("ダウンロードしたZIPを展開する",{exact:true})).toBeVisible();
@@ -76,6 +78,7 @@ test("the install guide page shows what happens before and after the download",a
  await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
  await expect(page.getByRole("heading",{name:"インストールで起きること"})).toBeVisible();
  await expect(page.getByRole("heading",{name:"うまくいかないとき"})).toBeVisible();
+ await expect(page.getByText("ファイルが「.crdownload」のまま変わらない",{exact:true})).toBeVisible();
  await expect(page.getByRole("heading",{name:"やめるとき"})).toBeVisible();
  // The guide is a page of its own: the download here does not open the LP's popover.
  const download=page.getByRole("link",{name:/Windows版をダウンロード/});

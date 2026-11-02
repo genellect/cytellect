@@ -26,6 +26,7 @@ export function InstallGuide() {
       {INSTALLER ? <section aria-labelledby="flow-title">
         <h2 id="flow-title">インストールで起きること</h2>
         <ol className={lp.guideSteps}>
+          <li><b>ダウンロードの完了を待つ</b><span>約1 GBあり、終わるまではファイル名の末尾が「.crdownload」です。ブラウザが「一般的にダウンロードされていません」などの警告で止めた場合は、ダウンロード一覧（Ctrl+J）で「保存」または「保持」を選ぶと「.exe」になります。</span></li>
           <li><b>ダウンロードしたファイルを開く</b><span>「Cytellect-Setup{PUBLISHED_RELEASE ? `-${PUBLISHED_RELEASE.version}` : ""}.exe」{size && `（${size}）`}です。</span></li>
           <li><b>「PCが保護されました」と出たら、「詳細情報」→「実行」</b><span>開発版にはまだ署名がないため表示されます。この1回だけ実行を許可する操作で、PCの設定は変わりません。</span></li>
           <li><b>「インストール」を押す</b><span>PCが条件を満たしているかを確かめてから、解析に必要なものをすべて入れます。インストール中は、インターネットにつながりません。</span></li>
@@ -43,6 +44,7 @@ export function InstallGuide() {
       <section aria-labelledby="trouble-title">
         <h2 id="trouble-title">うまくいかないとき</h2>
         <dl className={lp.guideList}>
+          <dt>ファイルが「.crdownload」のまま変わらない</dt><dd>ブラウザがダウンロードを保留しています。ファイル名を変えたり、そのまま開いたりはしません。ブラウザのダウンロード一覧（Ctrl+J）を開き、警告が出ていれば「保存」または「保持」を選びます（Edgeでは「…」から）。止まっていれば「再開」を、消えていればもう一度ダウンロードします。大学や会社のPCで保存できない場合は、PCの管理者にご相談ください。</dd>
           <dt>「Smart App Control」と表示されて止まった</dt><dd>画面からは許可できません。設定は変えずに、<a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a>ください。</dd>
           <dt>空き容量が足りないと表示された</dt><dd>空きを作ってから、同じファイルをもう一度開きます。</dd>
           <dt>途中で閉じた・電源が切れた</dt><dd>同じファイルをもう一度開くと、続きから再開します。</dd>
