@@ -16,6 +16,7 @@ import tifffile
 from skimage.transform import resize
 
 from .contracts import Recipe
+from .engine_diagnostics import NativeCheckFailure, current_policy, pinned_java_environment, run_native_check
 from .masks import validate_labels
 from .measurement import normalize_nucleolar_states
 from .region_contracts import NuclearDetectorSpec
@@ -33,6 +34,7 @@ MAX_NUCLEAR_INPUT_SIDE = 4096
 
 class EngineUnavailable(RuntimeError):
     """The pinned engine cannot safely execute the requested operation."""
+    diagnostic: dict[str, object] | None = None
 
 
 def nuclear_detection_shape(shape: tuple[int, int], *, detection_max_side: int | None = None) -> tuple[int, int]:
@@ -100,6 +102,21 @@ def _classpath(runtime: Path, compiled: Path) -> str:
 
 
 def _run(command: list[str], directory: Path, timeout: int, env: dict) -> None:
+    policy = current_policy()
+    if policy is not None:
+        policy.record({"operation": "compile_bridge" if Path(command[0]).stem.lower() == "javac" else "run_engine",
+                       "state": "running", "timeout_seconds": timeout})
+        try:
+            event = run_native_check(command, directory, timeout, env)
+        except NativeCheckFailure as error:
+            error.event["state"] = "failed"
+            policy.record(error.event)
+            failure = EngineUnavailable(str(error))
+            failure.diagnostic = error.event
+            raise failure from error
+        event["state"] = "passed"
+        policy.record(event)
+        return
     try:
         completed = subprocess.run(
             command, cwd=directory, env=env, check=False,
@@ -136,11 +153,13 @@ def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path 
     assets = _assets()
     with _private_java_scratch(output, scratch_root) as scratch:
         classpath = _classpath(runtime, compiled)
-        env = os.environ.copy()
+        env = pinned_java_environment(os.environ.copy())
         env.update({"CUDA_VISIBLE_DEVICES": "-1", "TF_CPP_MIN_LOG_LEVEL": "3", "OMP_NUM_THREADS": "1"})
         javac = java.with_name("javac.exe" if os.name == "nt" else "javac")
+        policy = current_policy()
         _run([str(javac), "-encoding", "UTF-8", "-cp", classpath, "-d", str(compiled),
-              str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output, 120, env)
+              str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output,
+             policy.compile_seconds if policy is not None else 120, env)
         command = [
             str(java), "--add-opens=java.base/java.lang=ALL-UNNAMED", "-Djava.awt.headless=true",
             "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",
@@ -149,7 +168,7 @@ def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path 
             "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error",
             "-Xmx2g", "-cp", classpath, "CytellectEngine", str(output / "request.json"),
         ]
-        _run(command, output, 1800, env)
+        _run(command, output, policy.execution_seconds if policy is not None else 1800, env)
     return assets
 
 

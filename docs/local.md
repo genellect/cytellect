@@ -275,6 +275,29 @@ Public-data/browser acceptance and Windows archive acceptance are recorded again
 the exact release commit. These checks do not establish private-image validity,
 Windows application-control compatibility on every device, or human usability.
 
+### Failed installation recovery
+
+The offline installation check uses the registered public BBBC013v1 A01 DRAQ
+image and a minimal exact arithmetic array. It checks runtime execution, not
+biological accuracy. Compilation has 120 seconds and execution 300 seconds;
+only transient native failures receive one retry. The parent budget is the
+same two attempts plus 60 seconds (900 seconds), rather than a shorter deadline.
+The fixed Java runtime ignores inherited Java option variables.
+
+`logs/setup-check-latest.json` records each attempt, native exit code, duration
+and fixed error hints, including an initial failure when the retry succeeds.
+`setup-check-last-failure.json` retains the most recent failed check, and
+`setup-latest.json` records the setup phase and cleanup result. These bounded
+reports contain no native output, command arguments or research paths.
+
+Setup journals its own new app and runtimes under `setup-cache/a-<id>` while
+holding `setup.lock`. A failed attempt removes its owned incomplete app and
+unreferenced new runtimes; an interrupted attempt is recovered on the next run.
+Unknown folders, existing apps, in-use files, redirected paths, data and settings
+are preserved. A small ownership journal remains when cleanup is deferred.
+The Inno temporary payload is released before showing the finished/failure page.
+Rerun the same installer; another download is unnecessary.
+
 ### Optional lab retention policy
 
 Windows setup asks how to keep workspaces. The default choice keeps them until

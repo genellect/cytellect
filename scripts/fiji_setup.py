@@ -93,6 +93,7 @@ def download(url: str, target: Path, expected: str, offline: Path | None = None)
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path)
+    parser.add_argument("--scratch-root", type=Path, help="Installer-owned temporary directory")
     parser.add_argument("--platform", choices=("linux-x64", "windows-x64"),
                         default="windows-x64" if platform.system() == "Windows" else "linux-x64")
     parser.add_argument("--offline-dir", type=Path,
@@ -109,7 +110,9 @@ def main() -> None:
         parser.error("Destination exists; choose a new directory (existing installations are never modified)")
     lock = json.loads((repo / "engines/fiji/runtime.lock.json").read_text())
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="cytellect-fiji-", dir=destination.parent) as temporary:
+    scratch = args.scratch_root.resolve() if args.scratch_root else destination.parent
+    scratch.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="cytellect-fiji-", dir=scratch) as temporary:
         stage = Path(temporary)
         archive = stage / "distribution.zip"
         item = lock["fiji"][args.platform]

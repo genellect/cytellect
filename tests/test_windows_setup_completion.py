@@ -21,7 +21,9 @@ $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETU
 if ($errors.Count) { throw 'parse_failed' }
 foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Write-SetupMarker','Update-SetupStatus',
     'Get-VerifiedOffline','Copy-OfflineArtifact','ConvertTo-NativeArgument','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote',
-    'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Set-WorkspaceRetention','Install-Cytellect')) {
+    'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Set-WorkspaceRetention','Get-SetupFailureCode',
+    'Write-SetupAttempt','Test-SetupAttempt','New-SetupAttempt','Register-SetupRuntime','Remove-SetupTree',
+    'Test-SetupRuntimeReferenced','Close-SetupAttempt','Read-SetupAttempts','Install-Cytellect')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
     Invoke-Expression $function.Extent.Text
@@ -88,9 +90,10 @@ function Invoke-SetupProcess([string]$Executable,[string[]]$Arguments,[string]$D
         }
         'scripts/fiji_setup.py' {
             if ($Executable -cne $python) { throw 'wrong_python_interpreter' }
-            $offlineFiji=($Arguments.Count -eq 7 -and $Arguments[5] -ceq '--offline-dir' -and
-                $Arguments[6] -ceq $(if ($OfflineRoot) { Get-SafeChild $OfflineRoot 'sha256' } else { '' }))
-            if ($(if ($OfflineRoot) { -not $offlineFiji } else { $Arguments.Count -ne 5 })) { throw 'unexpected_fiji_source' }
+            $offlineFiji=($Arguments.Count -eq 9 -and $Arguments[7] -ceq '--offline-dir' -and
+                $Arguments[8] -ceq $(if ($OfflineRoot) { Get-SafeChild $OfflineRoot 'sha256' } else { '' }))
+            if ($Arguments[5] -cne '--scratch-root' -or
+                $(if ($OfflineRoot) { -not $offlineFiji } else { $Arguments.Count -ne 7 })) { throw 'unexpected_fiji_source' }
             [IO.Directory]::CreateDirectory($Arguments[2]) | Out-Null
             $script:Pipeline += 'fiji-install'
         }
@@ -112,6 +115,10 @@ function Invoke-SetupProcess([string]$Executable,[string[]]$Arguments,[string]$D
             } elseif ($Arguments[2] -ceq 'cytellect_analysis.install_check') {
                 if ($Executable -cne $python) { throw 'wrong_python_interpreter' }
                 $script:Pipeline += 'analysis-check'
+                if ($TimeoutSeconds -ne 900 -or $Arguments[9] -cne '--attempts' -or $Arguments[10] -cne '2' -or
+                    $Arguments[11] -cne '--compile-seconds' -or $Arguments[12] -cne '120' -or
+                    $Arguments[13] -cne '--execution-seconds' -or $Arguments[14] -cne '300') { throw 'check_budget_mismatch' }
+                [IO.File]::WriteAllText($Arguments[8], '{"schema":"cytellect-installation-check/2","status":"passed","maximum_seconds":900}')
                 if ($script:Fault -eq 'completion_write') {
                     [IO.Directory]::CreateDirectory((Join-Path $Directory 'setup-complete.json')) | Out-Null
                 }
@@ -149,7 +156,7 @@ $CellposeRemoteUrl=''; $CellposeRemoteToken=''
 $OfflineRoot=$(if ($env:CYTELLECT_TEST_OFFLINE) { $env:CYTELLECT_TEST_OFFLINE } else { '' })
 $StatusFile=''; $ResultFile=''
 $script:StatusLabel=$null; $script:Cancelled=$false; $script:Phase='initial'
-$script:UvVersion='test'; $script:UvSha256='0'*64
+$script:UvVersion='0.12.2'; $script:UvSha256='0'*64
 $script:PythonVersion='3.14.8'
 $script:ProcessCalls=0; $script:ShortcutSaves=0; $script:Fault=$env:CYTELLECT_TEST_FAULT
 $script:Pipeline=@(); $script:RuntimeCalls=0; $script:SignedVenvChecks=@()
@@ -298,10 +305,12 @@ if ($env:CYTELLECT_TEST_OFFLINE) {
         "retry_python": "3.14.8", "retry_no_bytecode": True, "retry_input_hashes_match": True,
         "retry_retention": "manual",
         "retention_file": '{"schema":"cytellect-local-retention/1","mode":"manual"}',
-        # The retry reuses the verified environment instead of rewriting its launchers.
+        # Failed, uncommitted new apps/runtimes are removed; completed apps are reused.
         "pipeline": ["signed-runtime-venv", "hashed-wheel-sync", "dependency-check", "gui-check",
                      "fiji-install", "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity",
+                     *([] if fault == 'cancel_complete' else ['signed-runtime-venv']),
                      "hashed-wheel-sync", "dependency-check", "gui-check",
+                     *([] if fault == 'cancel_complete' else ['fiji-install']),
                      "fiji-runtime-check", "analysis-check", "post-analysis-runtime-integrity"],
         "runtime_calls": 2,
         "signed_venv_checks": [True, False, False, False, False, True, False, False, False, False],
