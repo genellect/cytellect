@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -43,6 +44,53 @@ class NativeCheckFailure(RuntimeError):
     def __init__(self, code: str, event: dict[str, Any]):
         super().__init__(code)
         self.event = event
+        self.diagnostic = event
+
+
+def cleanup_owned_temporary(cleanup: Callable[[], None]) -> None:
+    """Retry only Windows sharing violations, after the owned Java process exited."""
+    started = time.monotonic()
+    attempts = 0
+    native_error = None
+    while True:
+        attempts += 1
+        try:
+            cleanup()
+            break
+        except OSError as error:
+            native_error = getattr(error, "winerror", None) or error.errno
+            remaining = 10 - (time.monotonic() - started)
+            if getattr(error, "winerror", None) in {32, 33} and remaining > 0:
+                time.sleep(min(0.25 * attempts, 1, remaining))
+                continue
+            event = {"operation": "cleanup_scratch", "state": "failed", "attempts": attempts,
+                     "timeout_seconds": 10, "elapsed_seconds": round(time.monotonic() - started, 3),
+                     "native_error_code": native_error, "native_hint": "file_in_use" if native_error in {32, 33} else None,
+                     "error_code": "fiji_temporary_cleanup_failed"}
+            if (policy := current_policy()) is not None:
+                policy.record(event)
+            raise NativeCheckFailure("fiji_temporary_cleanup_failed", event) from None
+    if attempts > 1 and (policy := current_policy()) is not None:
+        policy.record({"operation": "cleanup_scratch", "state": "passed", "attempts": attempts,
+                       "timeout_seconds": 10, "elapsed_seconds": round(time.monotonic() - started, 3),
+                       "native_error_code": native_error, "error_code": None})
+
+
+@contextmanager
+def owned_temporary_directory(*, prefix: str, directory: Path) -> Iterator[Path]:
+    temporary = tempfile.TemporaryDirectory(prefix=prefix, dir=directory)
+    try:
+        yield Path(temporary.name)
+    except BaseException:
+        # Preserve the first execution failure if cleanup also fails. Its separate
+        # fixed event remains in the installer report, and setup owns the parent.
+        try:
+            cleanup_owned_temporary(temporary.cleanup)
+        except NativeCheckFailure:
+            pass
+        raise
+    else:
+        cleanup_owned_temporary(temporary.cleanup)
 
 
 def native_hint(output: bytes) -> str | None:

@@ -16,7 +16,7 @@ import numpy as np
 import tifffile
 
 from .engine import detect_nuclei
-from .engine_diagnostics import installation_execution_policy
+from .engine_diagnostics import installation_execution_policy, owned_temporary_directory
 from .measurement import region_values
 from .region_contracts import NuclearDetectorSpec
 
@@ -29,6 +29,7 @@ ERROR_CODES = frozenset({
     "fiji_temporary_path_too_long", "windows_application_control_blocked", "installation_fixture_invalid",
     "installation_detection_check_failed", "installation_pixels_changed", "installation_arithmetic_check_failed",
     "installation_file_access_failed", "installation_check_failed", "installation_report_write_failed",
+    "fiji_temporary_cleanup_failed",
 })
 
 
@@ -41,10 +42,10 @@ def verify_installation(fiji: str, scratch: Path) -> dict:
             or hashlib.sha256(image.tobytes()).hexdigest() != FIXTURE_PIXEL_SHA256):
         raise RuntimeError("installation_fixture_invalid")
     original = image.copy()
-    with tempfile.TemporaryDirectory(prefix="cytellect-install-", dir=scratch) as temporary:
-        deep_output = Path(temporary) / ("a" * 36) / "output" / ("b" * 36) / "engine"
+    with owned_temporary_directory(prefix="cytellect-install-", directory=scratch) as temporary:
+        deep_output = temporary / ("a" * 36) / "output" / ("b" * 36) / "engine"
         nuclei, info = detect_nuclei(image, NuclearDetectorSpec(), deep_output, fiji,
-                                    scratch_root=Path(temporary))
+                                    scratch_root=temporary)
         count = len(np.unique(nuclei)) - 1
         if nuclei.shape != image.shape or not np.issubdtype(nuclei.dtype, np.integer) or count < 1:
             raise RuntimeError("installation_detection_check_failed")
@@ -122,7 +123,9 @@ def run_check(fiji: str, scratch: Path, result: Path, *, attempts: int = 2, comp
 
         def record(event: dict[str, Any]) -> None:
             attempt["events"].append(event)
-            publish("check_analysis_compile" if event["operation"] == "compile_bridge" else "check_analysis_engine")
+            phases = {"compile_bridge": "check_analysis_compile", "run_engine": "check_analysis_engine",
+                      "cleanup_scratch": "check_analysis_cleanup"}
+            publish(phases[event["operation"]])
 
         try:
             with installation_execution_policy(compile_seconds, execution_seconds, record):

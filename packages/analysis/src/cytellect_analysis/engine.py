@@ -6,7 +6,6 @@ import json
 import math
 import os
 import subprocess
-import tempfile
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -16,7 +15,13 @@ import tifffile
 from skimage.transform import resize
 
 from .contracts import Recipe
-from .engine_diagnostics import NativeCheckFailure, current_policy, pinned_java_environment, run_native_check
+from .engine_diagnostics import (
+    NativeCheckFailure,
+    current_policy,
+    owned_temporary_directory,
+    pinned_java_environment,
+    run_native_check,
+)
 from .masks import validate_labels
 from .measurement import normalize_nucleolar_states
 from .region_contracts import NuclearDetectorSpec
@@ -142,8 +147,13 @@ def _private_java_scratch(output: Path, scratch_root: Path | None):
     if os.name == "nt" and len(str(base) + longest_suffix) > 240:
         raise EngineUnavailable("fiji_temporary_path_too_long")
     base.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="j-", dir=base) as temporary:
-        yield Path(temporary)
+    try:
+        with owned_temporary_directory(prefix="j-", directory=base) as temporary:
+            yield temporary
+    except NativeCheckFailure as error:
+        failure = EngineUnavailable(str(error))
+        failure.diagnostic = error.event
+        raise failure from None
 
 
 def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path | None) -> Path:

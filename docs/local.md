@@ -290,6 +290,13 @@ and fixed error hints, including an initial failure when the retry succeeds.
 `setup-latest.json` records the setup phase and cleanup result. These bounded
 reports contain no native output, command arguments or research paths.
 
+After Java exits, a Windows sharing violation (32/33) while deleting its own
+temporary files is retried for at most 10 seconds per directory. This covers
+the reproduced `tensorflow_jni.dll` cleanup failure without rerunning detection.
+Persistent locks are recorded as `fiji_temporary_cleanup_failed`; the first
+execution error is retained if cleanup also fails. Two nested temporary directories
+per attempt remain within the parent's 60-second cleanup/reporting allowance.
+
 Setup journals its own new app and runtimes under `setup-cache/a-<id>` while
 holding `setup.lock`. A failed attempt removes its owned incomplete app and
 unreferenced new runtimes; an interrupted attempt is recovered on the next run.
