@@ -70,10 +70,10 @@ foreach ($version in @('0.1.0-local.1','0.1.0-local.2','0.1.0-local.3')) {
         $failed=$false
         try { Install-Cytellect } catch { $failed=$true }
         $prior=Get-Content -LiteralPath (Join-Path $InstallRoot 'setup-storage.json') -Raw | ConvertFrom-Json
+        $failedApp=Get-SafeChild $InstallRoot ('apps/'+$version+'-'+('a'*12))
         $failedSetupPreserved=($failed -and $prior.order.Count -eq 2 -and
-            (Test-Path -LiteralPath $paths[0]) -and (Test-Path -LiteralPath $paths[1]))
-        $marker=Get-SafeChild $InstallRoot ('apps/'+$version+'-'+('a'*12)+'/setup-complete.json')
-        [IO.Directory]::Delete($marker,$false)
+            (Test-Path -LiteralPath $paths[0]) -and (Test-Path -LiteralPath $paths[1]) -and
+            -not (Test-Path -LiteralPath $failedApp))
         $script:Fault='none'
     }
     Install-Cytellect
