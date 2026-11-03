@@ -300,6 +300,9 @@ per attempt remain within the parent's 60-second cleanup/reporting allowance.
 Setup journals its own new app and runtimes under `setup-cache/a-<id>` while
 holding `setup.lock`. A failed attempt removes its owned incomplete app and
 unreferenced new runtimes; an interrupted attempt is recovered on the next run.
+If interruption occurs after the storage ledger was committed, repeated runtime
+claims are accepted only when their full inventory still matches the recorded
+one. Changed or additional files are never adopted by retrying setup.
 Unknown folders, existing apps, in-use files, redirected paths, data and settings
 are preserved. A small ownership journal remains when cleanup is deferred.
 The Inno temporary payload is released before showing the finished/failure page.

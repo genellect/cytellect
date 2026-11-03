@@ -331,9 +331,16 @@ def maintain(root: Path, app: Path, created_runtimes: list[str], *, processes: l
     ledger["apps"][relative] = {"inventory": snapshot, "references": references, "archives": archives}
     ledger["order"] = [entry for entry in ledger["order"] if entry != relative] + [relative]
     for ref in created_runtimes:
-        if ref not in references or ref in ledger["runtimes"]:
+        if ref not in references:
             raise ValueError("storage_runtime_registration")
-        ledger["runtimes"][ref] = inventory(root, ref)
+        snapshot = inventory(root, ref)
+        if ref in ledger["runtimes"]:
+            # A validated setup journal may outlive this ledger commit. Accept
+            # its repeated claim only while the original owned bytes match.
+            if ledger["runtimes"][ref] != snapshot:
+                raise ValueError("storage_runtime_modified")
+        else:
+            ledger["runtimes"][ref] = snapshot
     keep = set(ledger["order"][-2:])
     # Persist the new successful generation BEFORE any removal. Interrupted
     # removal can leave missing old members, never an unrecorded new generation.
