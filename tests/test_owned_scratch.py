@@ -76,9 +76,11 @@ def test_capacity_does_not_count_live_owners_and_rejects_escaping_scope(tmp_path
                 remove_scratch(other)
             remove_scratch(live)
         with storage.scratch_ownership_scope(tmp_path / "scope"):
-            with pytest.raises(ValueError, match="scratch_scope_invalid"):
-                with claimed_scratch(tmp_path / "outside", "j-"):
-                    pytest.fail("scope boundary must be enforced")
+            for outside in (tmp_path / "outside", tmp_path / "scope" / ".." / "outside"):
+                with pytest.raises(ValueError, match="scratch_scope_invalid"):
+                    with claimed_scratch(outside, "j-"):
+                        pytest.fail("scope boundary must be enforced")
+            assert not (tmp_path / "outside").exists()
 
 
 def test_worker_cleanup_recovers_only_journaled_scratch_after_restart(tmp_path):

@@ -30,7 +30,7 @@ def scratch_ownership_scope(root: Path, *, max_deferred_bytes: int = MAX_DEFERRE
     if type(max_deferred_bytes) is not int or max_deferred_bytes <= 0:
         raise ValueError("scratch_capacity_invalid")
     _regular(root)
-    token = _scope.set((root.absolute(), max_deferred_bytes))
+    token = _scope.set((root.resolve(), max_deferred_bytes))
     try:
         yield
     finally:
@@ -161,7 +161,7 @@ def claimed_scratch(directory: Path, prefix: str) -> Iterator[Path]:
         raise ValueError("scratch_prefix_invalid")
     _regular(directory)
     root, limit = _scope.get() or (directory, MAX_DEFERRED_BYTES)
-    if not directory.absolute().is_relative_to(root.absolute()):
+    if not directory.resolve().is_relative_to(root.resolve()):
         raise ValueError("scratch_scope_invalid")
     directory.mkdir(parents=True, exist_ok=True)
     reap_owned_temporaries(root, recursive=True)
