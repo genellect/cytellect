@@ -19,6 +19,7 @@ build/
 *.sqlite*
 *.db
 *.tif
+!packages/analysis/src/cytellect_analysis/assets/install-check/BBBC013-A01-draq.tif
 *.tiff
 *.czi
 *.nd2

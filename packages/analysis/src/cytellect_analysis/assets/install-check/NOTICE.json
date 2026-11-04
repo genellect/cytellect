@@ -1,0 +1,15 @@
+{
+  "dataset": "BBBC013v1",
+  "image": "A01-dapi.tif",
+  "stain": "DRAQ (DNA), not DAPI",
+  "bundled_file": "BBBC013-A01-draq.tif",
+  "sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e",
+  "source": "https://bbbc.broadinstitute.org/BBBC013",
+  "source_member": "BBBC013_v1_images_bmp/Channel2-01-A-01.BMP",
+  "source_sha256": "11b2e022fb1dfef12963c479a9a14aa0806ae972ed80493b49bebdf0046998e9",
+  "license": "CC-BY-3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/",
+  "attribution": "Image by Ilya Ravkin, Broad Bioimage Benchmark Collection BBBC013v1. The published 8-bit BMP was converted to TIFF without changing pixel samples. The bundled TIFF is byte-identical to the registered public fixture; its file name states the recorded DRAQ stain.",
+  "citation": "Ljosa et al., Nature Methods 2012, doi:10.1038/nmeth.2083",
+  "scope": "Offline installation runtime check only; no segmentation ground truth or biological accuracy claim."
+}

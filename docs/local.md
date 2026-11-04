@@ -49,15 +49,16 @@ that point leaves previous generations intact. The setup window reports retained
 application count and reclaimed bytes. Research data under `data/` is never part
 of this collection.
 
-Running versions, modified files, unknown/incomplete directories and any reparse
+Running versions, modified files, unproven incomplete directories and any reparse
 point are preserved. Setup is serialized; managed launches and collection share
 an OS-released installation lock. A native Windows process-SID inventory checks
 user processes and executable interpreter candidates; an unreadable relevant
 process disables collection. The retained applications keep their referenced
-Fiji/Python/bootstrap runtimes. Only newly installer-created runtime trees enter
-the ownership ledger; existing unregistered installations are never assumed to
-be disposable. Unknown installations prevent shared-runtime collection because
-their references cannot be established.
+Fiji/Python/bootstrap runtimes. Newly installer-created runtimes and reused
+runtimes whose complete inventories match pinned input proof can enter the
+ownership ledger. A receiptless failed app can be collected only from verified
+release/wheel declarations. Other unknown installations prevent shared-runtime
+collection because their references cannot be established.
 
 New package installations disable persistent uv caching. Known downloaded
 Python/uv ZIPs are retained only while a retained app refers to them; their
@@ -274,6 +275,67 @@ an explicit retry; the UI warns that retrying may incur another charge.
 Public-data/browser acceptance and Windows archive acceptance are recorded against
 the exact release commit. These checks do not establish private-image validity,
 Windows application-control compatibility on every device, or human usability.
+
+### Failed installation recovery
+
+The offline installation check uses the registered public BBBC013v1 A01 DRAQ
+image and a minimal exact arithmetic array. It checks runtime execution, not
+biological accuracy. Compilation and execution each have 300 seconds;
+only transient native failures receive one retry. The parent budget is the
+same two attempts plus 120 seconds (1320 seconds), including cleanup and startup.
+The fixed Java runtime ignores inherited Java option variables.
+
+`logs/setup-check-latest.json` records each attempt, native exit code, duration
+and fixed error hints, including an initial failure when the retry succeeds.
+`setup-check-last-failure.json` retains the most recent failed check, and
+`setup-latest.json` records the setup phase and cleanup result. The last ten
+`setup-<attempt-id>.json` reports (at most 64 KiB each) retain successful and failed
+runs, version/commit, OS build, initial free bytes, phase timings, storage errors,
+and that run's analysis-check details. Diagnostic I/O failure does not replace
+the first execution code. Reports contain no native output, command arguments
+or research paths.
+
+After Java exits, a Windows sharing violation (32/33) while deleting its own
+temporary files is retried for at most 10 seconds per directory. This covers
+the reproduced `tensorflow_jni.dll` cleanup failure without rerunning detection.
+Persistent locks are recorded as deferred `fiji_temporary_cleanup_failed` events;
+they do not invalidate a successful analysis or replace its first execution error.
+Scratch creation journals are written before mkdir and protected by OS locks
+while an engine owns them. Setup retries recovery on its next run. Worker cleanup
+also reaps unlocked, journal-owned scratch under `runs` on startup and at most
+once per minute. Unknown folders, active owners and redirected paths are preserved.
+Before another extraction, outstanding unlocked journal-owned trees are counted
+across the setup-cache or worker runs scope. At 1 GiB or more, extraction stops
+with `fiji_temporary_cleanup_pending`; recovery runs before the next capacity
+check. This bounds repeated accumulation without turning a successful analysis
+into a failure solely because its cleanup is deferred.
+
+Setup journals its own new app and runtimes under `setup-cache/a-<id>` while
+holding `setup.lock`. A failed attempt removes its owned incomplete app and
+unreferenced new runtimes; an interrupted attempt is recovered on the next run.
+Each cleanup item is independent, so a locked scratch file does not prevent app
+or runtime rollback. Empty directories left between creation intent and the
+owner marker, or after the last marker unlink, are recoverable.
+Completion receipts are published atomically from the owned scratch area. A
+receipt written just before interruption protects the checked app; the next
+setup finalizes its journal and removes only its proven ownership marker.
+If interruption occurs after the storage ledger was committed, repeated runtime
+claims are accepted only when their full inventory still matches the recorded
+one. Changed or additional files are never adopted by retrying setup.
+Validated, unregistered attempts of other versions are enrolled before the new
+generation, then use the existing current/previous retention rule. Recovery errors
+are retained as fixed codes instead of silently disappearing.
+Pre-journal failed apps are collected only when their release identity and all
+remaining release/wheel-declared members establish ownership and they are idle.
+Recorded deletion proof survives partial removal. Reused, unregistered runtimes
+can be enrolled only after a complete inventory matches pinned input proof:
+Python and uv use the verified archive members; Fiji is reconstructed from its
+fixed inputs for comparison without modifying the old runtime. Extra or changed
+files prevent adoption and remain protected.
+Unknown folders, existing apps, in-use files, redirected paths, data and settings
+are preserved. A small ownership journal remains when cleanup is deferred.
+The Inno temporary payload is released before showing the finished/failure page.
+Rerun the same installer; another download is unnecessary.
 
 ### Optional lab retention policy
 

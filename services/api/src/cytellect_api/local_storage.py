@@ -70,7 +70,8 @@ def inventory(root: Path, relative: str) -> dict[str, Any]:
     return {"files": files, "directories": sorted(directories), "bytes": size}
 
 
-def declared_app_files(root: Path, relative: str, release: dict[str, Any], snapshot: dict[str, Any]) -> None:
+def declared_app_files(root: Path, relative: str, release: dict[str, Any], snapshot: dict[str, Any],
+                       *, incomplete: bool = False) -> None:
     """A first snapshot is not ownership: establish it from release/wheel manifests."""
     app = child(root, relative)
     allowed = {"local-release.json", "setup-complete.json", ".venv/pyvenv.cfg", ".venv/.gitignore"}
@@ -81,6 +82,10 @@ def declared_app_files(root: Path, relative: str, release: dict[str, Any], snaps
         "python.exe", "pythonw.exe", "activate", "activate.bat", "deactivate.bat", "Activate.ps1",
         "activate.fish", "activate.csh"))
     for entry in release["files"]:
+        child(root, relative + "/" + entry["path"])
+        if incomplete and entry["path"] not in snapshot["files"]:
+            allowed.add(entry["path"])
+            continue
         if snapshot["files"].get(entry["path"]) != entry["sha256"]:
             raise ValueError("storage_release_modified")
         allowed.add(entry["path"])
@@ -102,6 +107,9 @@ def declared_app_files(root: Path, relative: str, release: dict[str, Any], snaps
                 algorithm, value = encoded.split("=", 1)
                 if algorithm not in {"sha256", "sha384", "sha512"}:
                     raise ValueError("storage_wheel_digest_invalid")
+                if incomplete and not file.exists():
+                    allowed.add(key)
+                    continue
                 with file.open("rb") as content:
                     digest = hashlib.file_digest(content, algorithm).digest()
                 if base64.urlsafe_b64encode(digest).decode().rstrip("=") != value:
@@ -268,7 +276,72 @@ def remove_exact(root: Path, relative: str, expected: dict[str, Any], *, interru
     return int(actual["bytes"])
 
 
-def maintain(root: Path, app: Path, created_runtimes: list[str], *, processes: list[str] | None) -> dict[str, Any]:
+def validated_attempts(root: Path) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    cache = child(root, "setup-cache")
+    if not cache.is_dir():
+        return result
+    for path in sorted(cache.glob("a-*/setup-attempt.json")):
+        try:
+            child(root, path.relative_to(root).as_posix())
+            if path.stat().st_size > 65536:
+                continue
+            saved = json.loads(path.read_text(encoding="utf-8-sig"))
+            identity = saved.get("id", "")
+            if (saved.get("schema") != "cytellect-setup-attempt/1" or saved.get("validated") is not True
+                    or not re.fullmatch(r"[a-f0-9]{32}", identity) or type(saved.get("app_owned")) is not bool
+                    or saved.get("directory") != f"setup-cache/a-{identity[:8]}"
+                    or path.parent.name != f"a-{identity[:8]}" or not APP.fullmatch(saved.get("app", ""))
+                    or not isinstance(saved.get("runtimes"), list)
+                    or any(not RUNTIME.fullmatch(name) for name in saved["runtimes"])):
+                continue
+            result.append(saved)
+        except (OSError, ValueError, TypeError, AttributeError):
+            continue
+    return result
+
+
+def recover_incomplete_apps(root: Path, ledger: dict[str, Any], processes: list[str] | None) -> int:
+    """Migrate only manifest-proven failed old apps; persist proof before removal."""
+    reclaimed = 0
+    pending = ledger.setdefault("incomplete_apps", {})
+    apps = child(root, "apps")
+    for path in sorted(apps.iterdir()):
+        relative = "apps/" + path.name
+        if relative in ledger["apps"] or not APP.fullmatch(relative):
+            continue
+        try:
+            child(root, relative)
+            if child(root, relative + "/setup-complete.json").exists():
+                continue
+            if relative not in pending:
+                release = json.loads(child(root, relative + "/local-release.json").read_text(encoding="utf-8-sig"))
+                if (release.get("schema") != "cytellect-local-release/1" or release.get("platform") != "windows-x64"
+                        or not re.fullmatch(r"[a-f0-9]{40}", release.get("source_commit", ""))
+                        or relative != f'apps/{release["version"]}-{release["source_commit"][:12]}'):
+                    continue
+                snapshot = inventory(root, relative)
+                declared_app_files(root, relative, release, snapshot, incomplete=True)
+                pending[relative] = snapshot
+                persist(root, ledger)
+            if processes is None or active(root, relative, processes):
+                continue
+            reclaimed += remove_exact(root, relative, pending[relative], interrupted=True)
+            del pending[relative]
+            persist(root, ledger)
+        except (OSError, ValueError, KeyError, TypeError):
+            # An extra/changed file or an interrupted removal stays protected.
+            continue
+    for relative in list(pending):
+        if not APP.fullmatch(relative):
+            raise ValueError("storage_ledger_invalid")
+        if not child(root, relative).exists():
+            del pending[relative]
+    return reclaimed
+
+
+def maintain(root: Path, app: Path, created_runtimes: list[str], *, processes: list[str] | None,
+             recover_attempts: bool = True, runtime_claims: dict[str, Any] | None = None) -> dict[str, Any]:
     root = root.absolute()
     if json.loads(child(root, "setup-root.json").read_text()) != {"product": "cytellect-local", "schema": 1}:
         raise ValueError("storage_root_not_owned")
@@ -290,6 +363,22 @@ def maintain(root: Path, app: Path, created_runtimes: list[str], *, processes: l
     for ref in references:
         child(root, ref)
     ledger_path = child(root, "setup-storage.json")
+    attempts = validated_attempts(root) if recover_attempts else []
+    recovery_errors = []
+    for attempt in attempts:
+        if attempt["app"] == relative or not child(root, attempt["app"]).exists():
+            continue
+        try:
+            prior = json.loads(ledger_path.read_text()) if ledger_path.exists() else {"apps": {}}
+            if attempt["app"] not in prior.get("apps", {}):
+                # Register the older validated generation without deleting any
+                # tree. The current generation is registered last below.
+                maintain(root, child(root, attempt["app"]), attempt["runtimes"],
+                         processes=None, recover_attempts=False)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            code = str(error)
+            recovery_errors.append(code if re.fullmatch(r"storage_[a-z_]{1,48}", code)
+                                   else "storage_attempt_recovery_failed")
     ledger: dict[str, Any] = json.loads(ledger_path.read_text()) if ledger_path.exists() else {
         "schema": SCHEMA, "order": [], "apps": {}, "runtimes": {}, "archives": {}, "pending": []}
     if ledger.get("schema") != SCHEMA or not isinstance(ledger.get("order"), list):
@@ -305,6 +394,8 @@ def maintain(root: Path, app: Path, created_runtimes: list[str], *, processes: l
     if any(not CACHE.fullmatch(ref) for ref in ledger.get("archives", {})):
         raise ValueError("storage_ledger_invalid")
     if any(not (APP.fullmatch(ref) or RUNTIME.fullmatch(ref)) for ref in ledger.get("pending", [])):
+        raise ValueError("storage_ledger_invalid")
+    if any(not APP.fullmatch(ref) for ref in ledger.get("incomplete_apps", {})):
         raise ValueError("storage_ledger_invalid")
     # Previously registered trees cannot be silently re-owned after modification.
     snapshot = inventory(root, relative)
@@ -330,15 +421,48 @@ def maintain(root: Path, app: Path, created_runtimes: list[str], *, processes: l
                 archives.append(cache)
     ledger["apps"][relative] = {"inventory": snapshot, "references": references, "archives": archives}
     ledger["order"] = [entry for entry in ledger["order"] if entry != relative] + [relative]
+    for ref, claim in (runtime_claims or {}).items():
+        try:
+            if ref not in references or not RUNTIME.fullmatch(ref):
+                raise ValueError("storage_runtime_unverified")
+            if "inventory" in claim:
+                expected = claim["inventory"]
+            else:
+                files = {}
+                directories: set[str] = set()
+                size = 0
+                for entry in claim["files"]:
+                    name, digest, length = entry["path"], entry["sha256"], entry["bytes"]
+                    child(root, ref + "/" + name)
+                    if name in files or not re.fullmatch(r"[a-f0-9]{64}", digest) or type(length) is not int or length < 0:
+                        raise ValueError("storage_runtime_unverified")
+                    files[name] = digest
+                    size += length
+                    directories.update(parent.as_posix() for parent in Path(name).parents if parent != Path("."))
+                expected = {"files": files, "directories": sorted(directories), "bytes": size}
+            if inventory(root, ref) != expected:
+                raise ValueError("storage_runtime_unverified")
+            if ref in ledger["runtimes"] and ledger["runtimes"][ref] != expected:
+                raise ValueError("storage_runtime_modified")
+            ledger["runtimes"][ref] = expected
+        except (OSError, ValueError, KeyError, TypeError):
+            recovery_errors.append("storage_runtime_claim_deferred")
     for ref in created_runtimes:
-        if ref not in references or ref in ledger["runtimes"]:
+        if ref not in references:
             raise ValueError("storage_runtime_registration")
-        ledger["runtimes"][ref] = inventory(root, ref)
+        snapshot = inventory(root, ref)
+        if ref in ledger["runtimes"]:
+            # A validated setup journal may outlive this ledger commit. Accept
+            # its repeated claim only while the original owned bytes match.
+            if ledger["runtimes"][ref] != snapshot:
+                raise ValueError("storage_runtime_modified")
+        else:
+            ledger["runtimes"][ref] = snapshot
     keep = set(ledger["order"][-2:])
     # Persist the new successful generation BEFORE any removal. Interrupted
     # removal can leave missing old members, never an unrecorded new generation.
     persist(root, ledger)
-    reclaimed = 0
+    reclaimed = recover_incomplete_apps(root, ledger, processes)
     retained = []
     unverified_apps = False
     for candidate in list(ledger["order"]):
@@ -424,24 +548,47 @@ def maintain(root: Path, app: Path, created_runtimes: list[str], *, processes: l
         for entry in cache_root.iterdir())
     return {"schema": SCHEMA, "retained_apps": len(retained), "reclaimed_bytes": reclaimed,
             "unknown_apps_retained": unknown, "unmanaged_cache_retained": unmanaged_cache,
-            "process_inventory_available": processes is not None}
+            "process_inventory_available": processes is not None,
+            "recovery_errors": sorted(set(recovery_errors)),
+            "committed_attempt_ids": [item["id"] for item in attempts if item["app"] in ledger["apps"]
+                                      or not child(root, item["app"]).exists()]}
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--app", type=Path, required=True)
     parser.add_argument("--created-runtime", action="append", default=[])
+    parser.add_argument("--runtime-claims")
     args = parser.parse_args()
     try:
-        with usage_lock(args.root.absolute()):
-            result = maintain(args.root, args.app, args.created_runtime, processes=process_paths())
-    except ValueError as exc:
-        if str(exc) != "local_runtime_already_in_use":
-            raise
-        result = maintain(args.root, args.app, args.created_runtime, processes=None)
-    child(args.root.absolute(), "setup-storage-result.json").write_text(json.dumps(result), encoding="utf-8")
+        claims = None
+        if args.runtime_claims:
+            if not re.fullmatch(r"setup-cache/a-[a-f0-9]{8}/runtime-claims\.json", args.runtime_claims):
+                raise ValueError("storage_runtime_claims_invalid")
+            path = child(args.root.absolute(), args.runtime_claims)
+            if path.stat().st_size > 8_000_000:
+                raise ValueError("storage_runtime_claims_invalid")
+            document = json.loads(path.read_text(encoding="utf-8-sig"))
+            if document.get("schema") != "cytellect-runtime-claims/1" or not isinstance(document.get("runtimes"), dict):
+                raise ValueError("storage_runtime_claims_invalid")
+            claims = document["runtimes"]
+        try:
+            with usage_lock(args.root.absolute()):
+                result = maintain(args.root, args.app, args.created_runtime, processes=process_paths(), runtime_claims=claims)
+        except ValueError as exc:
+            if str(exc) != "local_runtime_already_in_use":
+                raise
+            result = maintain(args.root, args.app, args.created_runtime, processes=None, runtime_claims=claims)
+        child(args.root.absolute(), "setup-storage-result.json").write_text(json.dumps(result), encoding="utf-8")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        code = str(error)
+        if not re.fullmatch(r"storage_[a-z_]{1,48}", code):
+            code = "storage_management_failed"
+        print("CYTELLECT_STORAGE: " + code, file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

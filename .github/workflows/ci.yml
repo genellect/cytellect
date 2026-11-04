@@ -455,6 +455,52 @@ jobs:
           Write-Host ('Installed footprint: {0:N2} GB' -f ($footprint / 1GB))
           "CYTELLECT_FRESH_ROOT=$install" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CYTELLECT_FRESH_APP=$($state.app)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Installed Python and real Fiji survive a native DLL lock over thirty seconds
+        shell: pwsh
+        run: |
+          $state = Get-Content -LiteralPath (Join-Path $env:CYTELLECT_FRESH_APP 'setup-complete.json') -Raw | ConvertFrom-Json
+          $python = Join-Path $env:CYTELLECT_FRESH_APP '.venv/Scripts/python.exe'
+          & $python -B -E scripts/verify_windows_recovery.py --fiji $state.fiji --scratch (Join-Path $env:RUNNER_TEMP 'recovery-lock') --out (Join-Path $env:RUNNER_TEMP 'windows-cleanup-recovery.json') --source-commit $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Installed native DLL cleanup/recovery verification failed' }
+      - name: Retain the scoped native cleanup receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-cleanup-recovery
+          path: ${{ runner.temp }}/windows-cleanup-recovery*.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Repair a pre-journal failed layout and enroll reused pinned runtimes
+        shell: pwsh
+        run: |
+          # Disposable runner fixture: complete program files, no completion or
+          # storage receipts, as left by an older failed setup. No research data.
+          $root = [IO.Path]::GetFullPath($env:CYTELLECT_FRESH_ROOT)
+          $runner = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
+          $app = [IO.Path]::GetFullPath($env:CYTELLECT_FRESH_APP)
+          $apps = (Join-Path $root 'apps').TrimEnd('\') + '\'
+          if (-not $root.StartsWith($runner, [StringComparison]::OrdinalIgnoreCase) -or
+              -not $app.StartsWith($apps, [StringComparison]::OrdinalIgnoreCase)) { throw 'Fixture escaped the runner installation' }
+          $before = (Get-ChildItem -LiteralPath $root -Recurse -File -Force | Measure-Object Length -Sum).Sum
+          $manifest = Get-Content -LiteralPath (Join-Path $app 'local-release.json') -Raw | ConvertFrom-Json
+          if ($manifest.source_commit -cnotmatch '^[a-f0-9]{40}$') { throw 'Invalid fixture source' }
+          $failed = Join-Path $apps ('0.0.0-local.failed-' + $manifest.source_commit.Substring(0,12))
+          if (-not $failed.StartsWith($apps, [StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $failed)) { throw 'Unsafe failed fixture' }
+          Remove-Item -LiteralPath (Join-Path $app 'setup-complete.json')
+          foreach ($name in @('setup-storage.json','setup-storage-result.json')) {
+            Remove-Item -LiteralPath (Join-Path $root $name)
+          }
+          Move-Item -LiteralPath $app -Destination $failed
+          $manifest.version = '0.0.0-local.failed'
+          [IO.File]::WriteAllText((Join-Path $failed 'local-release.json'), ($manifest | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+          $source = Join-Path $env:RUNNER_TEMP 'package-source'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$source\scripts\local_setup.ps1" -SourceRoot $source -InstallRoot $root -Console -NoShortcut
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy-layout repair failed' }
+          $ledger = Get-Content -LiteralPath (Join-Path $root 'setup-storage.json') -Raw | ConvertFrom-Json
+          if ((Test-Path -LiteralPath $failed) -or @(Get-ChildItem -LiteralPath (Join-Path $root 'apps') -Directory).Count -ne 1) { throw 'Failed app was not collected' }
+          if (@($ledger.runtimes.PSObject.Properties).Count -ne 3) { throw 'Reused Python, Fiji and uv were not enrolled' }
+          $after = (Get-ChildItem -LiteralPath $root -Recurse -File -Force | Measure-Object Length -Sum).Sum
+          if ($after -gt $before + 4MB) { throw 'Repair retained duplicate installation payloads' }
       - name: The installed application selects the cloud GPU for Cellpose without contacting it
         shell: pwsh
         run: |

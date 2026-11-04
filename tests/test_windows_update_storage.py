@@ -14,7 +14,8 @@ from test_windows_setup_completion import HARNESS, ROOT, RUNTIME_DOUBLE
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows setup integration")
 
 
-def test_three_application_versions_download_fiji_once_and_bound_storage(tmp_path):
+@pytest.mark.parametrize("interrupt_after_storage", [False, True])
+def test_three_application_versions_download_fiji_once_and_bound_storage(tmp_path, interrupt_after_storage):
     source = tmp_path / "source"
     wheel_path = "wheels/cytellect-0.1.0-py3-none-any.whl"
     requirements_path = "engines/python/windows-requirements.txt"
@@ -45,9 +46,14 @@ def test_three_application_versions_download_fiji_once_and_bound_storage(tmp_pat
                     throw 'storage_subprocess_app_identity_mismatch'
                 }
                 & $env:CYTELLECT_TEST_PYTHON @Arguments
-                if ($LASTEXITCODE -ne 0) { throw 'storage_process_failed' }""")
+                if ($LASTEXITCODE -ne 0) { throw 'storage_process_failed' }
+                if ($script:InterruptAfterStorage) {
+                    $script:InterruptAfterStorage=$false
+                    throw 'controlled_interruption_after_storage_commit'
+                }""")
     harness += r'''
 $script:Fault='none'; $NoShortcut=$true
+$script:InterruptAfterStorage=($env:CYTELLECT_TEST_INTERRUPT_STORAGE -eq '1')
 $paths=@(); $fijiPaths=@(); $storageTransitions=@()
 function Assert-StorageTransition([string]$Version,[string[]]$Expected) {
     $ledger=Get-Content -LiteralPath (Join-Path $InstallRoot 'setup-storage.json') -Raw | ConvertFrom-Json
@@ -70,13 +76,21 @@ foreach ($version in @('0.1.0-local.1','0.1.0-local.2','0.1.0-local.3')) {
         $failed=$false
         try { Install-Cytellect } catch { $failed=$true }
         $prior=Get-Content -LiteralPath (Join-Path $InstallRoot 'setup-storage.json') -Raw | ConvertFrom-Json
+        $failedApp=Get-SafeChild $InstallRoot ('apps/'+$version+'-'+('a'*12))
         $failedSetupPreserved=($failed -and $prior.order.Count -eq 2 -and
-            (Test-Path -LiteralPath $paths[0]) -and (Test-Path -LiteralPath $paths[1]))
-        $marker=Get-SafeChild $InstallRoot ('apps/'+$version+'-'+('a'*12)+'/setup-complete.json')
-        [IO.Directory]::Delete($marker,$false)
+            (Test-Path -LiteralPath $paths[0]) -and (Test-Path -LiteralPath $paths[1]) -and
+            -not (Test-Path -LiteralPath $failedApp))
         $script:Fault='none'
     }
     Install-Cytellect
+    if ($version -eq '0.1.0-local.1' -and $env:CYTELLECT_TEST_INTERRUPT_STORAGE -eq '1') {
+        $pending=@(Read-SetupAttempts $InstallRoot)
+        if ($pending.Count -ne 1 -or -not $pending[0].validated -or $pending[0].runtimes.Count -ne 3) {
+            throw 'missing_validated_attempt_after_storage_commit'
+        }
+        Install-Cytellect
+        if (@(Read-SetupAttempts $InstallRoot).Count -ne 0) { throw 'retry_did_not_close_validated_attempts' }
+    }
     $app=Join-Path $InstallRoot ('apps/'+$version+'-'+('a'*12))
     $paths += $app
     $state=Get-Content -LiteralPath (Join-Path $app 'setup-complete.json') -Raw | ConvertFrom-Json
@@ -106,6 +120,7 @@ $result=Get-Content -LiteralPath (Join-Path $InstallRoot 'setup-storage-result.j
              "CYTELLECT_TEST_RUNTIME": str(ROOT / "scripts/windows_runtime.ps1"),
              "CYTELLECT_TEST_SOURCE": str(source), "CYTELLECT_TEST_ROOT": str(tmp_path / "installation"),
              "CYTELLECT_TEST_PYTHON": sys.executable, "CYTELLECT_TEST_FAULT": "none",
+             "CYTELLECT_TEST_INTERRUPT_STORAGE": "1" if interrupt_after_storage else "0",
              "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ["services/api/src", "packages/analysis/src", "services/worker/src"])},
         capture_output=True, text=True, encoding="utf-8", errors="strict", timeout=60)
     assert completed.returncode == 0, completed.stdout + completed.stderr
