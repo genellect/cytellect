@@ -90,10 +90,24 @@ def download(url: str, target: Path, expected: str, offline: Path | None = None)
     raise RuntimeError("Downloaded artifact SHA-256 mismatch after retries")
 
 
+def verify_existing_runtime(expected_runtime: Path, destination: Path, output: Path) -> None:
+    """Only a full match to newly reconstructed fixed inputs proves old ownership."""
+    from cytellect_api.local_storage import inventory
+
+    expected = inventory(expected_runtime.parent, expected_runtime.name)
+    actual = destination.absolute()
+    if inventory(actual.parent, actual.name) != expected:
+        raise RuntimeError("storage_runtime_unverified")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(expected), encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path)
     parser.add_argument("--scratch-root", type=Path, help="Installer-owned temporary directory")
+    parser.add_argument("--verify-existing", action="store_true", help="Compare an old runtime with newly verified fixed inputs")
+    parser.add_argument("--inventory-output", type=Path, help="Write the verified public runtime inventory")
     parser.add_argument("--platform", choices=("linux-x64", "windows-x64"),
                         default="windows-x64" if platform.system() == "Windows" else "linux-x64")
     parser.add_argument("--offline-dir", type=Path,
@@ -106,8 +120,10 @@ def main() -> None:
     destination = args.destination.resolve()
     if destination == repo or repo in destination.parents:
         parser.error("Fiji binaries must be outside the checkout")
-    if destination.exists():
+    if destination.exists() and not args.verify_existing:
         parser.error("Destination exists; choose a new directory (existing installations are never modified)")
+    if args.verify_existing and (not destination.is_dir() or args.inventory_output is None):
+        parser.error("Existing-runtime verification needs a directory and an inventory output")
     lock = json.loads((repo / "engines/fiji/runtime.lock.json").read_text())
     destination.parent.mkdir(parents=True, exist_ok=True)
     scratch = args.scratch_root.resolve() if args.scratch_root else destination.parent
@@ -170,8 +186,14 @@ def main() -> None:
                       "model": model, "lock_sha256": sha(repo / "engines/fiji/runtime.lock.json")}
         (runtime / "cytellect-runtime.json").write_text(json.dumps(provenance, indent=2) + "\n")
         shutil.copy2(repo / "engines/fiji/runtime.lock.json", runtime / "cytellect-lock.json")
-        shutil.move(str(runtime), destination)
-    print("Fiji installed and hash-checked. Set CYTELLECT_FIJI_EXECUTABLE to", destination)
+        if args.verify_existing:
+            verify_existing_runtime(runtime, args.destination, args.inventory_output)
+        else:
+            shutil.move(str(runtime), destination)
+    if args.verify_existing:
+        print("Existing Fiji matches the complete pinned input inventory.")
+    else:
+        print("Fiji installed and hash-checked. Set CYTELLECT_FIJI_EXECUTABLE to", destination)
     print("Run the marked integration tests; installation alone is not validation.")
 
 

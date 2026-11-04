@@ -48,7 +48,7 @@ def test_transient_check_failure_is_retained_when_one_retry_succeeds(tmp_path, m
     assert report["status"] == "passed" and len(calls) == 2
     assert [attempt["status"] for attempt in report["attempts"]] == ["failed", "passed"]
     assert report["attempts"][0]["error_code"] == "fiji_timeout"
-    assert report["maximum_seconds"] == 900
+    assert report["maximum_seconds"] == 1320
     assert json.loads(result.read_text()) == report
     assert not list(tmp_path.glob("check-*.tmp"))
 
@@ -101,3 +101,17 @@ def test_invalid_check_budget_never_starts_or_writes_report(tmp_path, monkeypatc
         install_check.run_check("unused", tmp_path, tmp_path / "report.json",
                                 compile_seconds=compile_seconds, execution_seconds=execution_seconds)
     assert not (tmp_path / "report.json").exists()
+
+
+def test_diagnostic_write_failure_does_not_replace_execution_error(tmp_path, monkeypatch):
+    def failure(*args):
+        raise RuntimeError("installation_fixture_invalid")
+
+    def unavailable(*args):
+        raise PermissionError("not retained")
+
+    monkeypatch.setattr(install_check, "verify_installation", failure)
+    monkeypatch.setattr(install_check, "_write_json", unavailable)
+    report = install_check.run_check("unused", tmp_path, tmp_path / "report.json")
+    assert report["error_code"] == "installation_fixture_invalid"
+    assert report["report_error_code"] == "installation_report_write_failed"

@@ -16,7 +16,7 @@ $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }
 foreach ($name in @('Get-SafeChild','Write-SetupAttempt','Test-SetupAttempt','New-SetupAttempt',
-    'Register-SetupRuntime','Remove-SetupTree','Test-SetupRuntimeReferenced','Close-SetupAttempt','Read-SetupAttempts')) {
+    'Register-SetupRuntime','Remove-SetupTree','Test-SetupRuntimeReferenced','Close-SetupAttempt','Read-SetupAttempts','Finalize-SetupAttempt','Write-SetupSummary')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     Invoke-Expression $function.Extent.Text
 }
@@ -77,16 +77,16 @@ $e=New-SetupAttempt $root ('apps/0.1.0-test.5-'+('e'*12))
 OwnedApp $root $e
 $link=Join-Path (Get-SafeChild $root $e.app) 'redirect'
 New-Item -ItemType Junction -Path $link -Target (Get-SafeChild $root 'data') | Out-Null
-$redirectRejected=$false
-try { $null=Close-SetupAttempt $root $e } catch { $redirectRejected=$true }
+$redirectResult=Close-SetupAttempt $root $e
+$redirectRejected=($redirectResult.deferred_types -contains 'app')
 $intact=[IO.File]::Exists((Get-SafeChild $root ($e.app+'/partial.txt')))
 
 # A locked partial file leaves the proof intact, allowing a later cleanup retry.
 $f=New-SetupAttempt $root ('apps/0.1.0-test.6-'+('f'*12))
 OwnedApp $root $f
 $locked=[IO.File]::Open((Get-SafeChild $root ($f.app+'/partial.txt')),'Open','ReadWrite','None')
-$lockRejected=$false
-try { $null=Close-SetupAttempt $root $f } catch { $lockRejected=$true }
+$lockResult=Close-SetupAttempt $root $f
+$lockRejected=($lockResult.deferred_types -contains 'app')
 $proofKept=[IO.File]::Exists((Get-SafeChild $root ($f.app+'/.setup-owner.json')))
 $locked.Dispose()
 $null=Close-SetupAttempt $root $f

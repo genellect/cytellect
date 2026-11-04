@@ -19,6 +19,7 @@ from .engine import detect_nuclei
 from .engine_diagnostics import installation_execution_policy, owned_temporary_directory
 from .measurement import region_values
 from .region_contracts import NuclearDetectorSpec
+from .temporary_storage import scratch_ownership_scope
 
 SCHEMA = "cytellect-installation-check/2"
 FIXTURE_SHA256 = "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e"
@@ -30,6 +31,7 @@ ERROR_CODES = frozenset({
     "installation_detection_check_failed", "installation_pixels_changed", "installation_arithmetic_check_failed",
     "installation_file_access_failed", "installation_check_failed", "installation_report_write_failed",
     "fiji_temporary_cleanup_failed",
+    "fiji_temporary_cleanup_pending",
 })
 
 
@@ -98,20 +100,25 @@ def _retryable(error: Exception, code: str) -> bool:
             or (code == "fiji_process_unavailable" and diagnostic.get("native_error_code") in {32, 33}))
 
 
-def run_check(fiji: str, scratch: Path, result: Path, *, attempts: int = 2, compile_seconds: int = 120,
-              execution_seconds: int = 300, status_file: Path | None = None) -> dict:
+def run_check(fiji: str, scratch: Path, result: Path, *, attempts: int = 2, compile_seconds: int = 300,
+              execution_seconds: int = 300, status_file: Path | None = None,
+              recovery_scope: Path | None = None) -> dict:
     if type(attempts) is not int or not 1 <= attempts <= 2:
         raise ValueError("installation_attempts_invalid")
     if (type(compile_seconds) is not int or not 1 <= compile_seconds <= 300
             or type(execution_seconds) is not int or not 1 <= execution_seconds <= 1800):
         raise ValueError("installation_timeout_invalid")
     report: dict[str, Any] = {"schema": SCHEMA, "status": "running", "attempts": [],
-                              "maximum_seconds": attempts * (compile_seconds + execution_seconds) + 60}
+                              "maximum_seconds": attempts * (compile_seconds + execution_seconds) + 120}
 
     def publish(phase: str) -> None:
-        _write_json(result, report)
-        if status_file is not None:
-            status_file.write_text(phase, encoding="ascii")
+        try:
+            _write_json(result, report)
+            if status_file is not None:
+                status_file.write_text(phase, encoding="ascii")
+        except OSError:
+            # Keep execution's first fixed code even if diagnostic I/O also fails.
+            report["report_error_code"] = "installation_report_write_failed"
 
     for number in range(1, attempts + 1):
         attempt: dict[str, Any] = {"number": number, "status": "running", "events": []}
@@ -128,7 +135,7 @@ def run_check(fiji: str, scratch: Path, result: Path, *, attempts: int = 2, comp
             publish(phases[event["operation"]])
 
         try:
-            with installation_execution_policy(compile_seconds, execution_seconds, record):
+            with scratch_ownership_scope(recovery_scope or scratch), installation_execution_policy(compile_seconds, execution_seconds, record):
                 verified = verify_installation(fiji, scratch)
         except Exception as error:
             code = _error_code(error)
@@ -155,20 +162,24 @@ def main() -> int:
     parser.add_argument("--scratch", type=Path, required=True)
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--status-file", type=Path)
+    parser.add_argument("--recovery-scope", type=Path)
     parser.add_argument("--attempts", type=int, choices=(1, 2), default=2)
-    parser.add_argument("--compile-seconds", type=int, default=120)
+    parser.add_argument("--compile-seconds", type=int, default=300)
     parser.add_argument("--execution-seconds", type=int, default=300)
     args = parser.parse_args()
     try:
         report = run_check(args.fiji, args.scratch, args.result, attempts=args.attempts,
                            compile_seconds=args.compile_seconds, execution_seconds=args.execution_seconds,
-                           status_file=args.status_file)
+                           status_file=args.status_file, recovery_scope=args.recovery_scope)
     except OSError:
         print("CYTELLECT_INSTALL_CHECK: installation_report_write_failed", file=sys.stderr)
         return 2
     if report["status"] != "passed":
         print("CYTELLECT_INSTALL_CHECK: " + report["error_code"], file=sys.stderr)
         return 1
+    if report.get("report_error_code"):
+        print("CYTELLECT_INSTALL_CHECK: installation_report_write_failed", file=sys.stderr)
+        return 2
     return 0
 
 

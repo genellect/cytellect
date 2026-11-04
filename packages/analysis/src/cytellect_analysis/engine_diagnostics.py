@@ -1,9 +1,9 @@
 """Bounded installer diagnostics; never retain native output or local paths."""
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
-import tempfile
-import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -11,6 +11,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .temporary_storage import claimed_scratch, remove_scratch
 
 
 @dataclass(frozen=True)
@@ -47,7 +49,7 @@ class NativeCheckFailure(RuntimeError):
         self.diagnostic = event
 
 
-def cleanup_owned_temporary(cleanup: Callable[[], None]) -> None:
+def cleanup_owned_temporary(cleanup: Callable[[], None], *, defer: bool = False) -> None:
     """Retry only Windows sharing violations, after the owned Java process exited."""
     started = time.monotonic()
     attempts = 0
@@ -57,18 +59,20 @@ def cleanup_owned_temporary(cleanup: Callable[[], None]) -> None:
         try:
             cleanup()
             break
-        except OSError as error:
-            native_error = getattr(error, "winerror", None) or error.errno
+        except (OSError, ValueError) as error:
+            native_error = getattr(error, "winerror", None) or getattr(error, "errno", None)
             remaining = 10 - (time.monotonic() - started)
             if getattr(error, "winerror", None) in {32, 33} and remaining > 0:
                 time.sleep(min(0.25 * attempts, 1, remaining))
                 continue
-            event = {"operation": "cleanup_scratch", "state": "failed", "attempts": attempts,
+            event = {"operation": "cleanup_scratch", "state": "deferred" if defer else "failed", "attempts": attempts,
                      "timeout_seconds": 10, "elapsed_seconds": round(time.monotonic() - started, 3),
                      "native_error_code": native_error, "native_hint": "file_in_use" if native_error in {32, 33} else None,
                      "error_code": "fiji_temporary_cleanup_failed"}
             if (policy := current_policy()) is not None:
                 policy.record(event)
+            if defer:
+                return
             raise NativeCheckFailure("fiji_temporary_cleanup_failed", event) from None
     if attempts > 1 and (policy := current_policy()) is not None:
         policy.record({"operation": "cleanup_scratch", "state": "passed", "attempts": attempts,
@@ -78,19 +82,13 @@ def cleanup_owned_temporary(cleanup: Callable[[], None]) -> None:
 
 @contextmanager
 def owned_temporary_directory(*, prefix: str, directory: Path) -> Iterator[Path]:
-    temporary = tempfile.TemporaryDirectory(prefix=prefix, dir=directory)
-    try:
-        yield Path(temporary.name)
-    except BaseException:
-        # Preserve the first execution failure if cleanup also fails. Its separate
-        # fixed event remains in the installer report, and setup owns the parent.
+    with claimed_scratch(directory, prefix) as temporary:
         try:
-            cleanup_owned_temporary(temporary.cleanup)
-        except NativeCheckFailure:
-            pass
-        raise
-    else:
-        cleanup_owned_temporary(temporary.cleanup)
+            yield temporary
+        finally:
+            # A cleanup-only failure cannot invalidate verified pixels or mask an
+            # engine error. The durable journal allows setup/worker recovery later.
+            cleanup_owned_temporary(lambda: remove_scratch(temporary), defer=True)
 
 
 def native_hint(output: bytes) -> str | None:
@@ -120,38 +118,65 @@ def run_native_check(command: list[str], directory: Path, timeout: int, env: dic
                              "exit_code": None, "native_error_code": None, "native_hint": None}
     captured = bytearray()
     code = None
+    process = None
     try:
-        with subprocess.Popen(command, cwd=directory, env=env, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.PIPE) as process:
-            assert process.stderr is not None
-            stream = process.stderr
+        process = subprocess.Popen(command, cwd=directory, env=env, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.PIPE, start_new_session=os.name != "nt",
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        assert process.stderr is not None
+        descriptor = process.stderr.fileno()
+        # Nonblocking reads also bound EOF handling when a descendant inherits
+        # stderr. No reader thread or buffered close can wait for that descendant.
+        os.set_blocking(descriptor, False)
 
-            def drain() -> None:
+        def drain() -> None:
+            for _ in range(16):
                 try:
-                    while chunk := stream.read(4096):
-                        captured.extend(chunk[:max(0, 65536 - len(captured))])
-                except OSError:
-                    pass
+                    chunk = os.read(descriptor, 4096)
+                except BlockingIOError:
+                    break
+                if not chunk:
+                    break
+                captured.extend(chunk[:max(0, 65536 - len(captured))])
 
-            reader = threading.Thread(target=drain, daemon=True)
-            reader.start()
-            try:
-                process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
+        while True:
+            drain()
+            if process.poll() is not None:
+                drain()
+                break
+            if time.monotonic() - started >= timeout:
                 code = "fiji_timeout"
-                process.kill()
-                process.wait()
-            finally:
-                reader.join()
-            event["exit_code"] = process.returncode
-            event["native_hint"] = native_hint(bytes(captured))
-            if process.returncode and code is None:
-                code = "fiji_execution_failed"
+                if os.name == "nt":
+                    subprocess.run([str(Path(env.get("SystemRoot", r"C:\Windows")) / "System32/taskkill.exe"),
+                                    "/PID", str(process.pid), "/T", "/F"],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10,
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False)
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+                break
+            time.sleep(0.025)
+        event["exit_code"] = process.poll()
+        event["native_hint"] = native_hint(bytes(captured))
+        if process.returncode and code is None:
+            code = "fiji_execution_failed"
+    except subprocess.TimeoutExpired:
+        code = code or "fiji_timeout"
     except OSError as error:
-        code = "fiji_process_unavailable"
+        code = code or "fiji_process_unavailable"
         event["native_error_code"] = getattr(error, "winerror", None) or error.errno
         if getattr(error, "winerror", None) == 4551:
             event["native_hint"] = "windows_application_control_blocked"
+    finally:
+        if process is not None:
+            if process.poll() is None:
+                process.kill()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                code = code or "fiji_timeout"
+            event["exit_code"] = process.returncode
+            if process.stderr is not None:
+                process.stderr.close()
     event["elapsed_seconds"] = round(time.monotonic() - started, 3)
     event["error_code"] = code
     if code is not None:

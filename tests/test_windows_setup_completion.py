@@ -23,7 +23,7 @@ foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Write-SetupMarker','U
     'Get-VerifiedOffline','Copy-OfflineArtifact','ConvertTo-NativeArgument','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote',
     'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Set-WorkspaceRetention','Get-SetupFailureCode',
     'Write-SetupAttempt','Test-SetupAttempt','New-SetupAttempt','Register-SetupRuntime','Remove-SetupTree',
-    'Test-SetupRuntimeReferenced','Close-SetupAttempt','Read-SetupAttempts','Install-Cytellect')) {
+    'Test-SetupRuntimeReferenced','Close-SetupAttempt','Read-SetupAttempts','Finalize-SetupAttempt','Write-SetupSummary','Install-Cytellect')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
     Invoke-Expression $function.Extent.Text
@@ -115,10 +115,10 @@ function Invoke-SetupProcess([string]$Executable,[string[]]$Arguments,[string]$D
             } elseif ($Arguments[2] -ceq 'cytellect_analysis.install_check') {
                 if ($Executable -cne $python) { throw 'wrong_python_interpreter' }
                 $script:Pipeline += 'analysis-check'
-                if ($TimeoutSeconds -ne 900 -or $Arguments[9] -cne '--attempts' -or $Arguments[10] -cne '2' -or
-                    $Arguments[11] -cne '--compile-seconds' -or $Arguments[12] -cne '120' -or
+                if ($TimeoutSeconds -ne 1320 -or $Arguments[9] -cne '--attempts' -or $Arguments[10] -cne '2' -or
+                    $Arguments[11] -cne '--compile-seconds' -or $Arguments[12] -cne '300' -or
                     $Arguments[13] -cne '--execution-seconds' -or $Arguments[14] -cne '300') { throw 'check_budget_mismatch' }
-                [IO.File]::WriteAllText($Arguments[8], '{"schema":"cytellect-installation-check/2","status":"passed","maximum_seconds":900}')
+                [IO.File]::WriteAllText($Arguments[8], '{"schema":"cytellect-installation-check/2","status":"passed","maximum_seconds":1320}')
                 if ($script:Fault -eq 'completion_write') {
                     [IO.Directory]::CreateDirectory((Join-Path $Directory 'setup-complete.json')) | Out-Null
                 }

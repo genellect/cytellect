@@ -1,7 +1,9 @@
 import json
 import os
 import sys
+import tempfile
 import threading
+import time
 
 import pytest
 from cytellect_analysis.engine_diagnostics import (
@@ -55,7 +57,7 @@ def test_sharing_violation_cleanup_retries_and_reports_without_rerunning_engine(
 
     preserved = tmp_path / "preserved.txt"
     preserved.write_text("keep")
-    temporary = diagnostics.tempfile.TemporaryDirectory(prefix="owned-", dir=tmp_path)
+    temporary = tempfile.TemporaryDirectory(prefix="owned-", dir=tmp_path)
     (diagnostics.Path(temporary.name) / "generated.dll").write_bytes(b"unit cleanup bytes")
     calls = []
 
@@ -97,18 +99,12 @@ def test_persistent_sharing_violation_has_a_finite_budget(monkeypatch):
 def test_cleanup_failure_never_replaces_the_first_engine_error(tmp_path, monkeypatch):
     from cytellect_analysis import engine_diagnostics as diagnostics
 
-    actual = diagnostics.tempfile.TemporaryDirectory
-    temporary = actual(prefix="owned-", dir=tmp_path)
+    def locked(path):
+        error = PermissionError("not retryable access denial")
+        error.winerror = 5
+        raise error
 
-    class Locked:
-        name = temporary.name
-
-        def cleanup(self):
-            error = PermissionError("not retryable access denial")
-            error.winerror = 5
-            raise error
-
-    monkeypatch.setattr(diagnostics.tempfile, "TemporaryDirectory", lambda **kwargs: Locked())
+    monkeypatch.setattr(diagnostics, "remove_scratch", locked)
     events = []
     with installation_execution_policy(120, 300, events.append):
         with pytest.raises(RuntimeError, match="first_engine_error"):
@@ -116,14 +112,15 @@ def test_cleanup_failure_never_replaces_the_first_engine_error(tmp_path, monkeyp
                 raise RuntimeError("first_engine_error")
     assert events[-1]["error_code"] == "fiji_temporary_cleanup_failed"
     assert events[-1]["attempts"] == 1
-    temporary.cleanup()
+    from cytellect_analysis.temporary_storage import reap_owned_temporaries
+    assert reap_owned_temporaries(tmp_path)["recovered"] == 1
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Actual Windows sharing violation")
 def test_actual_windows_file_lock_is_released_and_owned_temp_is_removed(tmp_path):
     from cytellect_analysis import engine_diagnostics as diagnostics
 
-    temporary = diagnostics.tempfile.TemporaryDirectory(prefix="owned-", dir=tmp_path)
+    temporary = tempfile.TemporaryDirectory(prefix="owned-", dir=tmp_path)
     path = diagnostics.Path(temporary.name) / "generated.dll"
     path.write_bytes(b"non-executable unit cleanup fixture")
     handle = path.open("rb")
@@ -139,3 +136,11 @@ def test_actual_windows_file_lock_is_released_and_owned_temp_is_removed(tmp_path
         temporary.cleanup()
     assert not path.parent.exists()
     assert events[-1]["state"] == "passed" and events[-1]["native_error_code"] == 32
+
+
+def test_inherited_stderr_does_not_wait_for_descendant_eof(tmp_path):
+    script = "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time;time.sleep(2)'],stderr=sys.stderr)"
+    started = time.monotonic()
+    result = run_native_check([sys.executable, "-c", script], tmp_path, 5, os.environ.copy())
+    assert result["exit_code"] == 0
+    assert time.monotonic() - started < 1.5

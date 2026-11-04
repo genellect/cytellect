@@ -26,6 +26,7 @@ from .masks import validate_labels
 from .measurement import normalize_nucleolar_states
 from .region_contracts import NuclearDetectorSpec
 from .regions import _array_hash
+from .temporary_storage import ScratchCapacityExceeded
 
 # Admission bounds for the fixed -Xmx2g bridge, not a guarantee for every image.
 # The pinned CSBDeep implementation retains predicted tiles; more tiles alone
@@ -154,6 +155,8 @@ def _private_java_scratch(output: Path, scratch_root: Path | None):
         failure = EngineUnavailable(str(error))
         failure.diagnostic = error.event
         raise failure from None
+    except ScratchCapacityExceeded:
+        raise EngineUnavailable("fiji_temporary_cleanup_pending") from None
 
 
 def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path | None) -> Path:
@@ -169,7 +172,7 @@ def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path 
         policy = current_policy()
         _run([str(javac), "-encoding", "UTF-8", "-cp", classpath, "-d", str(compiled),
               str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output,
-             policy.compile_seconds if policy is not None else 120, env)
+             policy.compile_seconds if policy is not None else 300, env)
         command = [
             str(java), "--add-opens=java.base/java.lang=ALL-UNNAMED", "-Djava.awt.headless=true",
             "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",

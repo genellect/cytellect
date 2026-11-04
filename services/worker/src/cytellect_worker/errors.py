@@ -127,6 +127,7 @@ SAFE_ERRORS = frozenset(
         "fiji_temporary_path_too_long",
         "fiji_temporary_path_invalid",
         "fiji_temporary_cleanup_failed",
+        "fiji_temporary_cleanup_pending",
         "single_series_required",
         "fiji_timeout",
         "replay_requires_complete_reviewed_masks",
