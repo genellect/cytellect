@@ -337,6 +337,14 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
       return client.request<NucleusTableData>(`/v1/revisions/${revision}/nucleus-table?${query}`);
     },
+    /** Saves the same nucleus table as a ZIP: the CSV, each column's unit and definition, and the JSON. */
+    async saveNucleusTable(revision: string, field: string, nucleolarRevision?: string) {
+      const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
+      const blob = await client.blob(`/v1/revisions/${revision}/nucleus-table.zip?${query}`);
+      const url = URL.createObjectURL(blob), anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `nucleus-table-${field}.zip`; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
     async compartmentSummary(revision: string, field: string) {
       return client.request<CompartmentSummaryFile>(`/v1/revisions/${revision}/compartment-summary?field_id=${encodeURIComponent(field)}`);
     },

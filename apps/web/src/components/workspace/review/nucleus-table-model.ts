@@ -10,6 +10,8 @@ type Values = Row["channels"][number];
 const reasons:Record<string,string>={
   no_candidate:"核小体の候補なし",indeterminate:"核小体を判定できない",review_required:"候補の確認待ち",
   processing_failed:"処理に失敗",no_adopted_nucleolus:"採用した核小体なし",nucleus_excluded:"除外した核",
+  unclassified:"核小体を分類していない",legacy_candidate:"旧版の候補（未確認）",none_after_edit:"修正後に核小体なし",not_measured_recipe:"この条件では核小体を測らない",
+  nucleolar_state_unknown:"検出の記録がない",nucleolar_field_excluded:"核小体の解析で視野を除外",nucleolar_revision_not_adopted:"核小体は未採用",
   nucleolar_revision_not_selected:"核小体は未解析",degenerate_objects:"1 画素の核小体だけで形を測れない",
   calibration_unknown:"画素寸法が未確認",not_requested:"輝度は測定していない",
   background_not_established:"背景を決めていない",acquisition_limit_unknown:"検出器の飽和値が未確認",
@@ -41,7 +43,9 @@ export function nucleusTableView(table:NucleusTableData,channels:NucleusTableCha
       cells.push({id,cell:values=>number(key==="integrated"?values.integrated_corrected:values.mean_corrected,key==="integrated"?0:1,values.correction_missing_reason??values.intensity_missing_reason)});
     }
   }
-  if(nucleoli)columns.push({key:"count",label:"核小体数"},{key:"fraction",label:"核小体の面積 / 核",title:"核小体の合計面積を核の面積で割った値"},
+  if(nucleoli)columns.push({key:"count",label:"核小体数"},
+    {key:"union",label:calibrated?"核小体の面積 / µm²":"核小体の面積 / px²",title:"その核の確定した核小体の合計面積"},
+    {key:"fraction",label:"核小体の面積 / 核",title:"核小体の合計面積を核の面積で割った値"},
     {key:"largest",label:"最大の核小体 / 核小体全体",title:"最も大きい核小体の面積を、その核の核小体の合計面積で割った値"},
     {key:"eccentricity",label:"離心率",title:"核小体ごとの離心率を面積で重み付けした平均。0 が円、1 に近いほど細長い"});
   columns.push({key:"state",label:"状態"});
@@ -50,9 +54,12 @@ export function nucleusTableView(table:NucleusTableData,channels:NucleusTableCha
     const area=calibrated?number(row.nucleus_area_um2,1,row.area_missing_reason):number(row.nucleus_area_px,0);
     const signal=cells.map(({id,cell})=>cell(byChannel.get(id)!));
     const m=row.nucleoli,reason=m.status==="measured"?null:m.reason;
-    const nucleolar=nucleoli?[m.count===null?missing(reason):{text:String(m.count)},percent(m.area_fraction,reason),percent(m.largest_object_fraction,reason),
+    const union=calibrated?number(m.union_area_um2,2,reason):number(m.union_area_px,0,reason);
+    const nucleolar=nucleoli?[m.count===null?missing(reason):{text:String(m.count)},union,percent(m.area_fraction,reason),percent(m.largest_object_fraction,reason),
       number(m.eccentricity,3,m.status==="measured"?m.eccentricity_missing_reason:reason)]:[];
-    const state=row.excluded?`除外${row.exclusion_reason?`：${row.exclusion_reason}`:""}`:m.status==="missing"?reasonText(m.reason):row.touches_border?"画像の端に接する":"";
+    const notes=[row.excluded?`除外${row.exclusion_reason?`：${row.exclusion_reason}`:""}`:m.status==="missing"?reasonText(m.reason):"",
+      m.excluded_objects?`除外した核小体 ${m.excluded_objects}`:"",!row.excluded&&row.touches_border?"画像の端に接する":""];
+    const state=notes.filter(Boolean).join("・");
     return {id:row.nucleus_id,excluded:row.excluded,cells:[area,...signal,...nucleolar,{text:state}]};
   });
   return {columns,rows,ledger:ledger(table,nucleoli,order.map(({id})=>({id,name:name(id)})))};
@@ -61,7 +68,7 @@ export function nucleusTableView(table:NucleusTableData,channels:NucleusTableCha
 /** Every nucleus is accounted for: resolved, missing by reason, excluded; saturated pixels by stain. */
 function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:string;name:string}>){
   const rows=table.rows,excluded=rows.filter(row=>row.excluded).length;
-  const parts=[`核 ${rows.length} 個`];
+  const parts=[`核 ${rows.length} 個${table.nuclear_adopted?"":"（採用前の候補）"}`];
   if(excluded)parts.push(`除外 ${excluded}`);
   if(nucleoli){
     const kept=rows.filter(row=>!row.excluded),measured=kept.filter(row=>row.nucleoli.status==="measured").length;

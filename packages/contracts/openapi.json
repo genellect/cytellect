@@ -2356,7 +2356,7 @@
     "/v1/revisions/{rid}/nucleus-table": {
       "get": {
         "summary": "Get Nucleus Table",
-        "description": "One row per nucleus of a nuclear revision; with `nucleolar_revision_id`, the\nnucleolar revision built on it adds each nucleus's adopted nucleoli.",
+        "description": "One row per nucleus of a nuclear revision; with `nucleolar_revision_id`, the\nnucleolar revision built on it adds each nucleus's confirmed nucleoli.",
         "operationId": "get_nucleus_table_v1_revisions__rid__nucleus_table_get",
         "parameters": [
           {
@@ -2403,6 +2403,67 @@
                   "$ref": "#/components/schemas/NucleusTable"
                 }
               }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/nucleus-table.zip": {
+      "get": {
+        "summary": "Download Nucleus Table",
+        "description": "The same table as `nucleus-table.csv`, `columns.csv` (units and definitions) and JSON.",
+        "operationId": "download_nucleus_table_v1_revisions__rid__nucleus_table_zip_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "nucleolar_revision_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Nucleolar Revision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/zip": {}
             }
           },
           "422": {
@@ -9603,6 +9664,11 @@
               }
             ],
             "title": "Eccentricity Missing Reason"
+          },
+          "excluded_objects": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Excluded Objects"
           }
         },
         "additionalProperties": false,
@@ -9617,7 +9683,8 @@
           "largest_object_area_px",
           "largest_object_fraction",
           "eccentricity",
-          "eccentricity_missing_reason"
+          "eccentricity_missing_reason",
+          "excluded_objects"
         ],
         "title": "NucleolarMorphology"
       },
@@ -9641,6 +9708,14 @@
             "type": "string",
             "pattern": "^[a-f0-9]{64}$",
             "title": "Mask Sha256"
+          },
+          "adopted": {
+            "type": "boolean",
+            "title": "Adopted"
+          },
+          "field_excluded": {
+            "type": "boolean",
+            "title": "Field Excluded"
           }
         },
         "additionalProperties": false,
@@ -9648,7 +9723,9 @@
         "required": [
           "revision_id",
           "mask_revision_id",
-          "mask_sha256"
+          "mask_sha256",
+          "adopted",
+          "field_excluded"
         ],
         "title": "NucleolarSource"
       },
@@ -9914,6 +9991,10 @@
             "pattern": "^[a-f0-9]{64}$",
             "title": "Nuclear Mask Sha256"
           },
+          "nuclear_adopted": {
+            "type": "boolean",
+            "title": "Nuclear Adopted"
+          },
           "measurement_protocol_version": {
             "type": "string",
             "enum": [
@@ -9977,6 +10058,7 @@
           "nuclear_revision_id",
           "nuclear_mask_revision_id",
           "nuclear_mask_sha256",
+          "nuclear_adopted",
           "measurement_protocol_version",
           "nuclear_channel_id",
           "nucleolar_source",

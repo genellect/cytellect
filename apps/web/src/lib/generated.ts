@@ -825,9 +825,29 @@ export interface paths {
         /**
          * Get Nucleus Table
          * @description One row per nucleus of a nuclear revision; with `nucleolar_revision_id`, the
-         *     nucleolar revision built on it adds each nucleus's adopted nucleoli.
+         *     nucleolar revision built on it adds each nucleus's confirmed nucleoli.
          */
         get: operations["get_nucleus_table_v1_revisions__rid__nucleus_table_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/nucleus-table.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Nucleus Table
+         * @description The same table as `nucleus-table.csv`, `columns.csv` (units and definitions) and JSON.
+         */
+        get: operations["download_nucleus_table_v1_revisions__rid__nucleus_table_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3662,6 +3682,8 @@ export interface components {
             eccentricity: number | null;
             /** Eccentricity Missing Reason */
             eccentricity_missing_reason: string | null;
+            /** Excluded Objects */
+            excluded_objects: number;
         };
         /** NucleolarSource */
         NucleolarSource: {
@@ -3671,6 +3693,10 @@ export interface components {
             mask_revision_id: string;
             /** Mask Sha256 */
             mask_sha256: string;
+            /** Adopted */
+            adopted: boolean;
+            /** Field Excluded */
+            field_excluded: boolean;
         };
         /** NucleusChannelValues */
         NucleusChannelValues: {
@@ -3736,6 +3762,8 @@ export interface components {
             nuclear_mask_revision_id: string;
             /** Nuclear Mask Sha256 */
             nuclear_mask_sha256: string;
+            /** Nuclear Adopted */
+            nuclear_adopted: boolean;
             /**
              * Measurement Protocol Version
              * @enum {string}
@@ -8105,6 +8133,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NucleusTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_nucleus_table_v1_revisions__rid__nucleus_table_zip_get: {
+        parameters: {
+            query: {
+                field_id: string;
+                nucleolar_revision_id?: string | null;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
                 };
             };
             /** @description Validation Error */
