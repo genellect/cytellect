@@ -1136,7 +1136,7 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
                            field_record, result_root, queue, touch, child_revision)
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
-    register_nucleus_table_routes(api, owner, revision, result_root)
+    register_nucleus_table_routes(api, store, owner, revision, result_root)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace, credentials=proposal_credentials)
