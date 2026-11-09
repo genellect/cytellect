@@ -68,7 +68,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 | 認証情報 | API キー、トークン、招待リンク | 各サービスの secret 管理 | 使用不可 |
 
 - 非公開データは、コード、ログ、Issue、PR、スクリーンショット、CI、開発用 AI（チャットへの貼り付けを含む）に含めない。
-- **隔離ローカル環境の例外。** オーナーが指定した隔離ローカル環境に限り、開発用 AI が非公開データを扱ってよい（2026-11-09、オーナーの判断）。条件は[ローカル研究データの利用](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用)に従う。
+- **隔離ローカル環境の例外。** オーナーが指定した隔離ローカル領域で、オーナーが指定した開発用 AI とそのモデル提供元に限り、指定した目的のために非公開データを扱ってよい（2026-11-09、オーナーの判断）。領域・AI と送信先・目的と条件は[ローカル研究データの利用](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用)に従い、その外（クラウド開発、Git、PR、CI、公開デモ、ほかの AI）には適用しない。
 - 製品の解析提案機能は、利用者が AI に指示を送ったときに限り、[定められた情報](../SECURITY.md#研究データ)を送る。この機能は、開発で非公開データを扱ってよい根拠にはならない。
 - **評価データを分ける。** 検出精度の評価には、学習と条件調整に使わない実験回の画像を使う。分割は実験回の単位で行い、どの画像をどちらに使ったかを記録する。評価データを見て閾値やモデルを調整しない。
 - **学習済みモデルを管理する。** 非公開データで学習した重みを公開・配布する場合は、オーナーとデータ提供元の承認を得る。学習データ、重み、推論条件は組にして版を管理する。
@@ -154,7 +154,7 @@ Research data falls into these categories.
 | Credentials | API keys, tokens, invitation links | Each service's secret store | Not permitted |
 
 - Keep private data out of code, logs, issues, PRs, screenshots, CI and development AI, including pasting into chat.
-- **Isolated local environment exception.** Only in an isolated local environment the owner designates may a development AI handle private data (owner's decision, 2026-11-09), under the conditions in [Local research data](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用).
+- **Isolated local environment exception.** Only in an isolated local area the owner designates, and only the development AI the owner designates together with its model provider, may handle private data, and only for the designated purposes (owner's decision, 2026-11-09). The area, AI and recipient, purposes and conditions are in [Local research data](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用); the exception never extends to cloud development, Git, PRs, CI, public demos or other AI.
 - The product's analysis proposal feature sends only [defined information](../SECURITY.md#research-data), and only when the user sends an instruction to the AI. It does not permit handling private data during development.
 - **Separate evaluation data.** Evaluate detection accuracy on images from experimental runs that were not used for training or parameter tuning. Split by experimental run and record which images were used for which purpose. Do not tune thresholds or models against evaluation data.
 - **Manage trained models.** Publishing or distributing weights trained on private data requires approval from the owner and the data provider. Version training data, weights and inference settings together.
