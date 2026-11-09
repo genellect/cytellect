@@ -89,6 +89,15 @@ export interface ProposalDraft {
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
 export interface GfpGateResult {unit?: "nucleus" | "cell_roi"; objects?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; protocol?: string; method?: "negative_control" | "manual" | "batch_otsu"; nuclei?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
 export type NucleusTableData = components["schemas"]["NucleusTable"];
+export type RegionPartitionData = components["schemas"]["RegionPartitionTable"];
+export interface RegionPartitionRequest {
+  fieldId:string; nuclearRevisionId:string; targetRevisionId:string; referenceRevisionId:string; channelId:string;
+}
+function partitionPath(value:RegionPartitionRequest, csv=false) {
+  const query=new URLSearchParams({field_id:value.fieldId,target_revision_id:value.targetRevisionId,
+    reference_revision_id:value.referenceRevisionId,channel_id:value.channelId});
+  return `/v1/revisions/${encodeURIComponent(value.nuclearRevisionId)}/region-partition${csv?".csv":""}?${query}`;
+}
 export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
 export interface CompartmentSummaryFile {
   channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>;
@@ -344,6 +353,15 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const url = URL.createObjectURL(blob), anchor = document.createElement("a");
       anchor.href = url; anchor.download = `nucleus-table-${field}.zip`; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    async regionPartition(value:RegionPartitionRequest) {
+      return client.request<RegionPartitionData>(partitionPath(value));
+    },
+    async saveRegionPartition(value:RegionPartitionRequest) {
+      const blob=await client.blob(partitionPath(value,true));
+      const url=URL.createObjectURL(blob),anchor=document.createElement("a");
+      anchor.href=url;anchor.download=`region-partition-${value.fieldId}.csv`;anchor.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
     },
     async compartmentSummary(revision: string, field: string) {
       return client.request<CompartmentSummaryFile>(`/v1/revisions/${revision}/compartment-summary?field_id=${encodeURIComponent(field)}`);

@@ -2479,6 +2479,173 @@
         }
       }
     },
+    "/v1/revisions/{rid}/region-partition": {
+      "get": {
+        "summary": "Get Region Partition",
+        "operationId": "get_region_partition_v1_revisions__rid__region_partition_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "target_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Target Revision Id"
+            }
+          },
+          {
+            "name": "reference_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Reference Revision Id"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Channel Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionPartitionTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/region-partition.csv": {
+      "get": {
+        "summary": "Get Region Partition Csv",
+        "operationId": "get_region_partition_csv_v1_revisions__rid__region_partition_csv_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "target_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Target Revision Id"
+            }
+          },
+          {
+            "name": "reference_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Reference Revision Id"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Channel Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/common-statistics": {
       "post": {
         "summary": "Calculate",
@@ -10224,6 +10391,481 @@
         "title": "PagedDescriptiveRequest",
         "type": "object"
       },
+      "PartitionBackground": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "missing"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "background_not_confirmed"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "source_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Source Revision Id"
+          },
+          "roi_revision_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi Revision Id"
+          },
+          "mask_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mask Sha256"
+          },
+          "pixel_count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pixel Count"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "polygon": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Polygon"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason",
+          "source_revision_id",
+          "roi_revision_id",
+          "mask_sha256",
+          "pixel_count",
+          "median",
+          "polygon"
+        ],
+        "title": "PartitionBackground"
+      },
+      "PartitionExclusion": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "nuclear",
+              "target",
+              "reference"
+            ],
+            "title": "Source"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4294967295.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "region_id",
+          "reason"
+        ],
+        "title": "PartitionExclusion"
+      },
+      "PartitionPixelSource": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelSpec"
+              },
+              {
+                "$ref": "#/components/schemas/ObservedChannelSpec"
+              }
+            ],
+            "title": "Channel"
+          },
+          "input_mode": {
+            "type": "string",
+            "const": "native",
+            "title": "Input Mode",
+            "default": "native"
+          },
+          "dtype": {
+            "type": "string",
+            "enum": [
+              "uint8",
+              "uint16"
+            ],
+            "title": "Dtype"
+          },
+          "pixel_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Pixel Sha256"
+          },
+          "array_file": {
+            "$ref": "#/components/schemas/RegionStoredFile"
+          },
+          "original_files": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/RegionStoredFile"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Original Files"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "dtype",
+          "pixel_sha256",
+          "array_file",
+          "original_files"
+        ],
+        "title": "PartitionPixelSource"
+      },
+      "PartitionRatioMeasurement": {
+        "properties": {
+          "k": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K"
+          },
+          "log2_k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log2 K"
+          },
+          "missing_reasons": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "type": "array",
+            "title": "Missing Reasons"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "k",
+          "log2_k",
+          "missing_reasons"
+        ],
+        "title": "PartitionRatioMeasurement"
+      },
+      "PartitionRegionMeasurement": {
+        "properties": {
+          "area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Px"
+          },
+          "area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Um2"
+          },
+          "area_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Missing Reason"
+          },
+          "raw_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Mean"
+          },
+          "raw_integrated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Integrated"
+          },
+          "corrected_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Mean"
+          },
+          "corrected_integrated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Integrated"
+          },
+          "raw_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Missing Reason"
+          },
+          "corrected_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Missing Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area_px",
+          "area_um2",
+          "area_missing_reason",
+          "raw_mean",
+          "raw_integrated",
+          "corrected_mean",
+          "corrected_integrated",
+          "raw_missing_reason",
+          "corrected_missing_reason"
+        ],
+        "title": "PartitionRegionMeasurement"
+      },
+      "PartitionSource": {
+        "properties": {
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "stardist_nuclear",
+              "manual",
+              "imported",
+              "fiji_nuclear_compartment"
+            ],
+            "title": "Source"
+          },
+          "mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Mask Revision Id"
+          },
+          "mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Mask Sha256"
+          },
+          "effective_mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Effective Mask Sha256"
+          },
+          "label_file": {
+            "$ref": "#/components/schemas/RegionStoredFile"
+          },
+          "report_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Report Sha256"
+          },
+          "provenance_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Provenance Sha256"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "title": "Reviewed"
+          },
+          "adopted": {
+            "type": "boolean",
+            "title": "Adopted"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision_id",
+          "region_set_id",
+          "label",
+          "source",
+          "mask_revision_id",
+          "mask_sha256",
+          "effective_mask_sha256",
+          "label_file",
+          "report_sha256",
+          "provenance_sha256",
+          "reviewed",
+          "adopted"
+        ],
+        "title": "PartitionSource"
+      },
       "PlanAnswers": {
         "properties": {
           "measurement": {
@@ -14194,6 +14836,210 @@
           "nuclear_stain_confirmed"
         ],
         "title": "RegionNuclearRecipe"
+      },
+      "RegionPartitionTable": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "region-partition-table/1.0.0",
+            "title": "Protocol",
+            "default": "region-partition-table/1.0.0"
+          },
+          "calculation_protocol": {
+            "type": "string",
+            "const": "region-partition/1.0.0",
+            "title": "Calculation Protocol",
+            "default": "region-partition/1.0.0"
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "preview"
+            ],
+            "title": "Review Status"
+          },
+          "workspace_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Workspace Id"
+          },
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "nuclear_source": {
+            "$ref": "#/components/schemas/PartitionSource"
+          },
+          "target_source": {
+            "$ref": "#/components/schemas/PartitionSource"
+          },
+          "reference_source": {
+            "$ref": "#/components/schemas/PartitionSource"
+          },
+          "pixel_source": {
+            "$ref": "#/components/schemas/PartitionPixelSource"
+          },
+          "background": {
+            "$ref": "#/components/schemas/PartitionBackground"
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Calibration2D"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "area_unit": {
+            "type": "string",
+            "const": "px",
+            "title": "Area Unit",
+            "default": "px"
+          },
+          "calibrated_area_unit": {
+            "type": "string",
+            "const": "um2",
+            "title": "Calibrated Area Unit",
+            "default": "um2"
+          },
+          "mean_unit": {
+            "type": "string",
+            "const": "native_intensity",
+            "title": "Mean Unit",
+            "default": "native_intensity"
+          },
+          "integrated_unit": {
+            "type": "string",
+            "const": "native_intensity_px",
+            "title": "Integrated Unit",
+            "default": "native_intensity_px"
+          },
+          "ratio_unit": {
+            "type": "string",
+            "const": "dimensionless",
+            "title": "Ratio Unit",
+            "default": "dimensionless"
+          },
+          "log2_unit": {
+            "type": "string",
+            "const": "log2",
+            "title": "Log2 Unit",
+            "default": "log2"
+          },
+          "methods": {
+            "type": "string",
+            "title": "Methods"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RegionPartitionTableRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "review_status",
+          "workspace_id",
+          "field_id",
+          "nuclear_source",
+          "target_source",
+          "reference_source",
+          "pixel_source",
+          "background",
+          "calibration",
+          "methods",
+          "rows"
+        ],
+        "title": "RegionPartitionTable"
+      },
+      "RegionPartitionTableRow": {
+        "properties": {
+          "nucleus_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Nucleus Id"
+          },
+          "nucleus_area_px": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Nucleus Area Px"
+          },
+          "nucleus_area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleus Area Um2"
+          },
+          "excluded": {
+            "type": "boolean",
+            "title": "Excluded"
+          },
+          "exclusions": {
+            "items": {
+              "$ref": "#/components/schemas/PartitionExclusion"
+            },
+            "type": "array",
+            "title": "Exclusions"
+          },
+          "target_state": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Target State"
+          },
+          "reference_state": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Reference State"
+          },
+          "target": {
+            "$ref": "#/components/schemas/PartitionRegionMeasurement"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/PartitionRegionMeasurement"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/PartitionRatioMeasurement"
+          },
+          "corrected": {
+            "$ref": "#/components/schemas/PartitionRatioMeasurement"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nucleus_id",
+          "nucleus_area_px",
+          "nucleus_area_um2",
+          "excluded",
+          "exclusions",
+          "target_state",
+          "reference_state",
+          "target",
+          "reference",
+          "raw",
+          "corrected"
+        ],
+        "title": "RegionPartitionTableRow"
       },
       "RegionRecipe": {
         "properties": {

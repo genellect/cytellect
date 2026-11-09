@@ -21,6 +21,7 @@ import {ConnectedResults} from "./ConnectedResults";
 import {ExperimentSetup,type AddTarget} from "./ExperimentSetup";
 import {MeasurementTable} from "./MeasurementTable";
 import {ConnectedNucleusTable,type NucleusTableSource} from "./NucleusTable";
+import {ConnectedPartition} from "./ConnectedPartition";
 import {UnfinishedImports} from "./UnfinishedImports";
 import {PairStage,pairDisplayText,pairRuns,type Historical,type PairDisplay} from "./PairStage";
 import {assignFields,fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
@@ -87,6 +88,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const calibrated=fields.length>0&&fields.every(value=>value.kind==="reference"||!!value.pixelSizeUm);
   const regionOffered=(id:ReviewTarget)=>!demo||(id!=="cell"&&(!showcase.dataset?.regions||showcase.dataset.regions.includes(id)));
   const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>("nuclei"),[region,setRegion]=useState<number>(),[nucleusView,setNucleusView]=useState(false);
+  const [partitionView,setPartitionView]=useState(false);
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
   // The first images of a workspace without a form, held until the form is chosen (see add).
   const [pending,setPending]=useState<File[]|null>(null);
@@ -117,6 +119,11 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const nuclearResult=target==="nuclei"&&!demo&&!historicResult&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
   const nucleusTableSource:NucleusTableSource|undefined=field&&nuclearResult?{shown:nucleusView,onShow:setNucleusView,load:r.adapter.nucleusTable,save:r.adapter.saveNucleusTable,field:field.id,caption:field.label,
     nuclearRevision:nuclearResult.revision,nucleolarRevision:r.currentResult(field.id,"nucleoli")?.revision,channels:field.channels}:undefined;
+  const partitionNucleus=field&&!demo&&!historicResult&&!candidate?r.currentResult(field.id,"nuclei"):undefined;
+  const partitionSources=field?(["nucleoli","nucleoplasm"] as const).flatMap(name=>{
+    const value=r.currentResult(field.id,name);
+    return value?[{revisionId:value.revision,label:targets[name]}]:[];
+  }):[];
   const planes=fields.flatMap(value=>value.channels.map(ch=>({field:value,channel:ch,key:`${value.id}:${ch.id}`})));
   const visible=compare?planes.filter(value=>picked.includes(value.key)):planes.filter(value=>value.field.id===field?.id&&value.channel.id===actualChannel);
   // The table beside one image lists `rows` (the selected field in the selected channel), which a comparison may not show:
@@ -346,6 +353,19 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
           {/* Side by side, each pane lists its own measurements; this row then only carries the selected field's actions. */}
           {(!pairActive||!!candidate||!!field.exclusionReason||!!field.error)&&<div className={styles.measureToggle}>{pairActive?<strong>{field.label}</strong>:<button aria-expanded={table} onClick={()=>setTable(!table)}>測定値{rows.length?` · ${rows.length}`:""}</button>}<span>{targets[target]}{historicResult?" · 図の保存時の版":candidate?" · 検出候補":result?"":" · 未測定"}</span>{candidate&&<button disabled={busy} onClick={()=>void act(()=>r.acceptCandidates(field.id,target))}>候補を採用</button>}{field.exclusionReason?<button onClick={()=>void act(()=>r.excludeField(field.id,null))}>解析対象に戻す</button>:field.error?<button onClick={()=>void act(()=>r.excludeField(field.id,"利用者が解析対象から除外"))}>この視野を除外</button>:null}</div>}
           {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementTable rows={rows} selected={region} onSelect={setRegion}/></div>}
+          {!demo&&!historicResult&&!candidate&&<>
+            <div className={styles.measureToggle}><button disabled={busy||!partitionNucleus}
+              aria-expanded={partitionView} onClick={()=>setPartitionView(!partitionView)}>区画への分配</button>
+              {!partitionNucleus&&<span>核の領域を採用してから計算できます。</span>}</div>
+            {partitionView&&partitionNucleus&&!editing&&<ConnectedPartition
+              key={`${field.id}:${partitionNucleus.revision}:${partitionSources.map(value=>value.revisionId).join(":")}`}
+              fieldId={field.id} fieldLabel={field.label} nuclearRevisionId={partitionNucleus.revision}
+              sources={partitionSources} channels={field.channels.filter(value=>value.role!=="unused")}
+              load={value=>explained(()=>r.adapter.regionPartition(value))}
+              exportCsv={value=>explained(()=>r.adapter.saveRegionPartition(value))}
+              selectedNucleus={target==="nuclei"?region:undefined}
+              onSelectNucleus={id=>{changeTarget("nuclei");setRegion(id);}}/>}
+          </>}
         </>}
       </section>
       <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像が {r.unfinishedImports.length} 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。</p>}<ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} onOpening={(openedMetric,openedChannel)=>{if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} experiment={experiment} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>

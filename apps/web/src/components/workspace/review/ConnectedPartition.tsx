@@ -48,6 +48,8 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
   const key=requestKey(request);
   const current=state.key===key?state:undefined;
   const table=current?.table;
+  const areaKey=table?.calibration?"area_um2":"area_px";
+  const areaUnit=table?.calibration?"µm²":"px²";
   const valid=!!nuclearRevisionId&&sources.some(item=>item.revisionId===chosen.target)
     &&sources.some(item=>item.revisionId===chosen.reference)&&channels.some(item=>item.id===chosen.channel)
     &&chosen.target!==chosen.reference;
@@ -92,6 +94,7 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
     </>}
     {current?.error&&<p role="alert">{current.error}</p>}
     {table&&<>
+      {table.review_status==="preview"&&<p role="status">領域を確認するための計算表です。統計に使う前に、領域・欠測・除外を確認してください。</p>}
       <div className={styles.toolbar}><label htmlFor={`${controlId}-basis`}>表示する輝度<select id={`${controlId}-basis`} value={basis} onChange={event=>setBasis(event.target.value as "raw"|"corrected")}>
         <option value="raw">原値</option><option value="corrected">背景補正値</option>
       </select></label><button type="button" disabled={exporting} onClick={()=>void download()}>{exporting?"CSVを保存中…":"原値・補正値をCSV保存"}</button></div>
@@ -99,7 +102,7 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
       <p role="status">{table.background.status==="confirmed"?"保存済みの確認済み背景ROIを用いて補正しています。":"測定用の背景ROIが未確認のため、補正値は欠測です。"}</p>
       <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="核ごとの分配表を横にスクロール">
         <table><caption>{fieldLabel}の分配表 · {basis==="raw"?"原値":"背景補正値"}</caption><thead><tr>
-          <th scope="col">核</th><th scope="col">対象面積<br/>px</th><th scope="col">参照面積<br/>px</th>
+          <th scope="col">核</th><th scope="col">対象面積<br/>{areaUnit}</th><th scope="col">参照面積<br/>{areaUnit}</th>
           <th scope="col">対象平均<br/>元の輝度単位</th><th scope="col">参照平均<br/>元の輝度単位</th>
           <th scope="col">対象積算<br/>輝度 × px</th><th scope="col">参照積算<br/>輝度 × px</th>
           <th scope="col">K</th><th scope="col">log2K</th><th scope="col">状態・欠測理由</th>
@@ -109,7 +112,7 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
           const integrated=basis==="raw"?"raw_integrated":"corrected_integrated";
           return <tr key={row.nucleus_id} aria-selected={selectedNucleus===row.nucleus_id} data-excluded={row.excluded||undefined}>
             <th scope="row">{onSelectNucleus?<button type="button" onClick={()=>onSelectNucleus(row.nucleus_id)} aria-label={`画像の核${row.nucleus_id}を選択`}>{row.nucleus_id}</button>:row.nucleus_id}</th>
-            <td>{valueText(row.target.area_px)}</td><td>{valueText(row.reference.area_px)}</td>
+            <td>{valueText(row.target[areaKey])}</td><td>{valueText(row.reference[areaKey])}</td>
             <td>{valueText(row.target[mean])}</td><td>{valueText(row.reference[mean])}</td>
             <td>{valueText(row.target[integrated])}</td><td>{valueText(row.reference[integrated])}</td>
             <td>{valueText(row[basis].k)}</td><td>{valueText(row[basis].log2_k)}</td>
@@ -119,9 +122,9 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
       </div>
       {!table.rows.length&&<p>保存された核領域がありません。核の測定値は作成されていません。</p>}
       <details className={styles.provenance}><summary>採用した入力と測定の定義を確認</summary>
-        <dl><dt>核</dt><dd>{table.nuclear_source.label} / {table.nuclear_source.revision_id}</dd>
-          <dt>対象</dt><dd>{table.target_source.label} / {table.target_source.revision_id}</dd>
-          <dt>参照</dt><dd>{table.reference_source.label} / {table.reference_source.revision_id}</dd>
+        <dl><dt>核</dt><dd>{table.nuclear_source.label} / {table.nuclear_source.revision_id} · {table.nuclear_source.adopted?"現在の採用領域":"保存された領域"} · {table.nuclear_source.reviewed?"確認済み":"確認前"}</dd>
+          <dt>対象</dt><dd>{table.target_source.label} / {table.target_source.revision_id} · {table.target_source.adopted?"現在の採用領域":"保存された領域"} · {table.target_source.reviewed?"確認済み":"確認前"}</dd>
+          <dt>参照</dt><dd>{table.reference_source.label} / {table.reference_source.revision_id} · {table.reference_source.adopted?"現在の採用領域":"保存された領域"} · {table.reference_source.reviewed?"確認済み":"確認前"}</dd>
           <dt>測定チャンネル</dt><dd>{table.pixel_source.channel.label}（{table.pixel_source.channel.stain??"染色未設定"}）</dd>
           <dt>画素寸法</dt><dd>{table.calibration?`${table.calibration.pixel_size_x_um} × ${table.calibration.pixel_size_y_um} µm`:"未校正。面積はpxで表示"}</dd></dl>
         <p>原値と補正値、欠測・除外理由、マスクと元画素の識別情報はCSVに含まれます。</p>

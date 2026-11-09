@@ -797,3 +797,84 @@ For the standard model, the server retains the exact previously deployed runner
 to serve installed clients. New clients accept that pinned runner only for
 `cpsam_v2`; fine-tuned models require the current runner identity. See the
 [adapter record](../engines/cellpose/README.md#cytellect-nucleolar-checkpoints).
+
+## Channel-neutral nuclear gate 1.0.0
+
+`channel-gate/1.0.0` classifies the saved arithmetic mean of one explicitly
+identified channel inside each exact parent nucleus. It does not infer a stain
+from its channel number or rename a stain as GFP. Raw and corrected means are
+separate choices; an absent corrected value is unclassified, never replaced by
+its raw value. The legacy GFP contracts and saved recipes keep their meaning.
+
+The new filter supports a manual threshold, a negative-control percentile per
+acquisition date, and exploratory Otsu per acquisition date. Percentile and Otsu
+arithmetic are shared with the existing gate. Negative controls require at least
+20 evaluable control nuclei per date; a missing date or insufficient control
+population leaves the corresponding classifications missing. A mean strictly
+greater than the threshold is positive; equality is negative. Control, excluded,
+failed and unclassified observations retain their separate statuses and reasons.
+Manual and Otsu thresholds are exploratory and do not establish biological
+positivity without a suitable experimental control.
+
+Classification returns a digest of the channel meaning, saved nuclear means,
+canonical mask identities, metadata, exclusions, thresholds and full per-nucleus
+decisions. Formal descriptions and comparisons require the digest and recompute
+it against their frozen cohort. A changed source or experiment record requires
+explicit reclassification; the browser never silently substitutes a new gate.
+Preview classification does not review or adopt the source. The existing review
+and experimental-unit requirements still apply to formal statistics.
+
+For field positive count and positive fraction, the same decision record supplies
+the numerator and denominator. Positive fraction is positive / (positive +
+negative), before the requested positive/negative subset is selected. Missing,
+control and excluded nuclei are reported separately. A zero denominator is
+missing, not zero. Choosing the negative subset cannot turn its positive fraction
+into zero. These are nuclear positivity summaries, not a cell-count or DNA-ploidy
+assay.
+
+## Explicit region partition table 1.0.0
+
+`region-partition/1.0.0` measures two explicitly selected memberships in one
+native measurement channel inside each exact parent nucleus.
+`region-partition-table/1.0.0` binds this calculation to owned, succeeded, frozen
+source revisions, original pixel/file hashes, canonical label hashes, confirmed
+calibration and saved exclusions. A target or reference can be a saved manual or
+imported membership or an exactly bound nuclear compartment. Nonzero membership
+labels need not be parent IDs. Both memberships must lie inside the selected
+nuclei and be disjoint; they need not cover the whole nucleus. The reference is
+never inferred from the remaining pixels.
+
+For each membership, area is its pixel count, mean is the arithmetic mean of its
+original pixels and integrated intensity is their sum. Confirmed XY calibration
+also gives area in µm². With background median `b` from that nuclear revision's
+saved, confirmed measurement-channel ROI, corrected mean is `mean - b` and
+corrected integrated intensity is `sum - area * b`. Automatic background
+candidates do not establish this ROI. Without it, corrected values are missing.
+
+`K = target mean / reference mean` and `log2K = log2(K)` are computed separately
+for raw and corrected values, only when both means are positive and the result
+is finite and representable. There is no epsilon, clipping or raw fallback.
+An empty region, unresolved compartment, exclusion, nonpositive mean or
+out-of-range ratio retains its reason; an unresolved structure never becomes a
+zero-valued measurement. Excluded parent IDs and reasons remain in the table.
+The historical `log2_nucleoplasm_over_nucleolus` metric is unchanged: selecting
+nucleoli as target and nucleoplasm as reference in the new table uses the
+opposite ratio direction.
+
+The JSON and CSV use the same server builder. Actual `reviewed` and current
+`adopted` flags accompany all three sources; the server resolves adoption from
+the saved field selection. The read-only table is a `preview` until every source
+is reviewed. Viewing or exporting it never changes review/adoption decisions.
+The CSV includes raw/corrected values, missing/exclusion reasons, units, source
+provenance and Methods. This table is not yet a common-statistics, figure or replay
+source. It reports an apparent intensity partition ratio: linearity, bleaching,
+compartment-level saturation and concentration interpretation need experimental
+validation before a physical partition coefficient can be claimed.
+
+The registered public DS6a consistency check is reproducible with
+`python scripts/verify_research_measurements.py --out <new-directory-outside-checkout>`.
+It verifies the seed hash, byte-exact restoration, per-field adopted sources,
+native pixel arithmetic and JSON/CSV agreement without running a model or
+changing scientific review decisions. It is not an independent detector benchmark
+or evidence of biological validity, experimental independence or researcher task
+completion time.

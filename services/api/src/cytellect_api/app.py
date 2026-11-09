@@ -58,6 +58,7 @@ from .proposals import register_proposal_routes
 from .public_uploads import require_registered
 from .region_cohorts import register_region_cohort_routes
 from .region_comparisons import register_region_comparison_routes
+from .region_partitions import register_region_partition_routes
 from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
@@ -1137,6 +1138,7 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
     register_nucleus_table_routes(api, store, owner, revision, result_root)
+    register_region_partition_routes(api, store, owner, revision, result_root, field_record)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace, credentials=proposal_credentials)

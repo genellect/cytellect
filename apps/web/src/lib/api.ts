@@ -53,6 +53,13 @@ export async function download(path: string, name: string) {
 }
 const messages:Record<string,string> = {
  ...showcaseNotices,
+ partition_memberships_overlap:"対象と参照が重なっています。画像で領域を確認してください。",
+ partition_membership_outside_nuclei:"選んだ領域に親核の外側が含まれています。同じ核の中の領域を選んでください。",
+ partition_native_channel_required:"表示用のRGB画像では分配を測れません。撮影時の原チャンネルを登録してください。",
+ partition_background_provenance_mismatch:"保存した背景ROIと測定記録が一致しません。背景の領域を確認して再測定してください。",
+ partition_compartment_nuclear_binding_mismatch:"対象と参照を、現在の核領域から作られた版にそろえてください。",
+ partition_current_image_mismatch:"画像や染色情報が更新されています。現在の条件で測定した領域を選んでください。",
+ partition_source_field_not_measured:"選んだ領域には、この視野の測定結果がありません。保存した版を確認してください。",
  proposal_model_not_selected:"AI提案には未選択のモデルが含まれています。検出条件から使用するモデルを選択してください。",
  proposal_model_selection_changed:"AI提案が選択済みのモデルを変更しようとしたため適用しませんでした。モデルの変更は検出条件から行ってください。",
  proposal_association_same_region_required:"相関の横軸と縦軸には同じ測定領域を指定してください。核と核小体など、異なる領域を組み合わせた相関は現在実行できません。",

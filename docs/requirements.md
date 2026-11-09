@@ -154,3 +154,23 @@ T21: The researcher can select the published Cytellect nucleolar checkpoints
 Save the exact model/SHA pair with the recipe and provenance, retain the standard
 model for existing recipes, and prohibit silent fallback or AI model replacement.
 The GPU service preserves the pinned baseline runner for installed clients.
+
+M22: Channel-neutral nuclear classification uses the versioned `channel-gate/1.0.0`
+contract while preserving legacy GFP recipes. The researcher selects the actual
+channel, raw/corrected means, method and controls. The saved decision digest must
+match the frozen statistical cohort; input changes require explicit
+reclassification. Positive count/fraction, selection, Methods and saved statistics
+use the same nucleus decisions. Positive fraction uses all evaluable positive and
+negative nuclei before subset selection, with missing/control/excluded counts
+reported separately. This does not establish a biological positivity threshold.
+
+M23: A read-only `region-partition-table/1.0.0` reports explicitly chosen target,
+reference and measurement-channel values in the same parent nuclei, with JSON
+and CSV from one shared implementation. Keep source identities, calibration,
+background ROI evidence, exclusions and missing reasons. Reject overlapping or
+exterior memberships and stale source bindings. Show actual adoption and review
+states; allow an identified preview without changing them. Formal statistics
+retain their separate review requirement. The initial UI exposes the currently
+adopted nucleolar/nucleoplasmic sources; API-level manual/imported memberships
+retain explicit source semantics. Partition comparisons, editable figures, replay
+and compartment-level saturation acceptance remain subsequent work.

@@ -1,4 +1,4 @@
-"""Check nucleus-table API/exports against registered public pixels and saved masks.
+"""Check nucleus/partition APIs and exports against registered public pixels and saved masks.
 
 This checks calculation and source joins, not detector accuracy or biological
 validity. It never runs a detector, changes review decisions, or uses private data.
@@ -118,8 +118,42 @@ def verify(output: Path) -> dict:
             for column, value in (("nucleolar_count", row["nucleoli"]["count"]),
                                   ("nucleolar_area_px", row["nucleoli"]["union_area_px"])):
                 assert saved[column] == (str(value) if value is not None else "")
+        reference = adopted.get("nucleoplasm")
+        partition_status = "not_selected"
+        if reference is not None:
+            partition_params = {"field_id": fid, "target_revision_id": child["id"],
+                                "reference_revision_id": reference["id"], "channel_id": "eu5"}
+            partition_path = f'/v1/revisions/{nuclear["id"]}/region-partition'
+            partition = client.get(partition_path, params=partition_params, headers=headers)
+            if partition.status_code == 200:
+                values = partition.json()
+                assert values["nuclear_source"]["reviewed"] == bool(nuclear["reviewed"])
+                assert values["target_source"]["reviewed"] == bool(child["reviewed"])
+                assert values["reference_source"]["reviewed"] == bool(reference["reviewed"])
+                reference_labels = np.load(store.safe_path(reference["result_dir"]) / fid / "labels.npy", allow_pickle=False)
+                pixels = np.load(data / "workspaces" / wid / "fields" / fid / "channel-eu5.npy", allow_pickle=False)
+                for row in values["rows"]:
+                    for name, membership in (("target", child_labels), ("reference", reference_labels)):
+                        if row[name]["raw_mean"] is not None:
+                            support = (labels == row["nucleus_id"]) & (membership > 0)
+                            selected_pixels = pixels[support].astype(np.float64)
+                            close(row[name]["raw_mean"], float(selected_pixels.mean()))
+                            close(row[name]["raw_integrated"], float(selected_pixels.sum()))
+                    if row["raw"]["k"] is not None:
+                        close(row["raw"]["k"], row["target"]["raw_mean"] / row["reference"]["raw_mean"])
+                        close(row["raw"]["log2_k"], float(np.log2(row["raw"]["k"])))
+                    else:
+                        assert row["raw"]["missing_reasons"]
+                partition_csv = client.get(partition_path + ".csv", params=partition_params, headers=headers)
+                assert partition_csv.status_code == 200
+                records = list(csv.DictReader(io.StringIO(partition_csv.content.decode("utf-8-sig"))))
+                assert json.loads(records[0]["provenance_json"])["review_status"] == values["review_status"]
+                partition_status = "checked"
+            else:
+                partition_status = partition.json()["detail"]
         checked.append({"field_id": fid, "nuclear_revision_id": nuclear["id"],
                         "nucleolar_revision_id": child["id"], "status": "checked",
+                        "partition_status": partition_status,
                         "nuclei": len(table["rows"]),
                         "nucleolar_statuses": dict(Counter(row["nucleoli"]["status"] for row in table["rows"]))})
     result = {"source": "https://zenodo.org/records/6643470", "license": "CC-BY-4.0",
@@ -136,4 +170,9 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     verification = verify(arguments.out)
     print(json.dumps({"fields": len(verification["field_checks"]),
-                      "statuses": dict(Counter(row["status"] for row in verification["field_checks"]))}))
+                      "statuses": dict(Counter(row["status"] for row in verification["field_checks"])),
+                      "partition_statuses": dict(Counter(row.get("partition_status", "not_checked")
+                                                         for row in verification["field_checks"]))}))
+    if any(row["status"] != "checked" or row.get("partition_status") != "checked"
+           for row in verification["field_checks"]):
+        raise SystemExit(1)
