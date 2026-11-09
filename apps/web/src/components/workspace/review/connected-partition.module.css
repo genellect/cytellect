@@ -17,7 +17,7 @@
 .tableScroll caption { text-align: left; padding: 10px; font-weight: 600; }
 .tableScroll th, .tableScroll td { border-top: 1px solid #e0e7e1; padding: 9px 10px; text-align: right; vertical-align: top; }
 .tableScroll thead th { background: #f3f7f4; position: sticky; top: 0; font-size: 0.875rem; }
-.tableScroll :is(th, td):last-child { text-align: left; min-width: 220px; max-width: 330px; line-height: 1.55; }
+.tableScroll :is(th, td):nth-child(4) { text-align: left; min-width: 180px; max-width: 260px; line-height: 1.55; white-space: normal; }
 .tableScroll tr[aria-selected="true"] { background: #edf6ee; }
 .tableScroll tr[data-excluded] { color: #6f6c64; background: #f5f4f0; }
 .provenance { border-top: 1px solid #d2ddd5; padding-top: 12px; line-height: 1.6; }

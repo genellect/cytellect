@@ -102,21 +102,21 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
       <p role="status">{table.background.status==="confirmed"?"保存済みの確認済み背景ROIを用いて補正しています。":"測定用の背景ROIが未確認のため、補正値は欠測です。"}</p>
       <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="核ごとの分配表を横にスクロール">
         <table><caption>{fieldLabel}の分配表 · {basis==="raw"?"原値":"背景補正値"}</caption><thead><tr>
-          <th scope="col">核</th><th scope="col">対象面積<br/>{areaUnit}</th><th scope="col">参照面積<br/>{areaUnit}</th>
+          <th scope="col">核</th><th scope="col">K</th><th scope="col">log2K</th><th scope="col">状態・欠測理由</th>
+          <th scope="col">対象面積<br/>{areaUnit}</th><th scope="col">参照面積<br/>{areaUnit}</th>
           <th scope="col">対象平均<br/>元の輝度単位</th><th scope="col">参照平均<br/>元の輝度単位</th>
           <th scope="col">対象積算<br/>輝度 × px</th><th scope="col">参照積算<br/>輝度 × px</th>
-          <th scope="col">K</th><th scope="col">log2K</th><th scope="col">状態・欠測理由</th>
         </tr></thead><tbody>{table.rows.map(row=>{
           const reasons=row[basis].missing_reasons.map(reasonText);
           const mean=basis==="raw"?"raw_mean":"corrected_mean";
           const integrated=basis==="raw"?"raw_integrated":"corrected_integrated";
           return <tr key={row.nucleus_id} aria-selected={selectedNucleus===row.nucleus_id} data-excluded={row.excluded||undefined}>
             <th scope="row">{onSelectNucleus?<button type="button" onClick={()=>onSelectNucleus(row.nucleus_id)} aria-label={`画像の核${row.nucleus_id}を選択`}>{row.nucleus_id}</button>:row.nucleus_id}</th>
+            <td>{valueText(row[basis].k)}</td><td>{valueText(row[basis].log2_k)}</td>
+            <td>{reasons.length?reasons.join("、"):"測定済み"}{row.exclusions.map((item,index)=><div key={index}>{item.source==="nuclear"?"核":item.source==="target"?"対象":"参照"}の除外：{item.reason}</div>)}</td>
             <td>{valueText(row.target[areaKey])}</td><td>{valueText(row.reference[areaKey])}</td>
             <td>{valueText(row.target[mean])}</td><td>{valueText(row.reference[mean])}</td>
             <td>{valueText(row.target[integrated])}</td><td>{valueText(row.reference[integrated])}</td>
-            <td>{valueText(row[basis].k)}</td><td>{valueText(row[basis].log2_k)}</td>
-            <td>{reasons.length?reasons.join("、"):"測定済み"}{row.exclusions.map((item,index)=><div key={index}>{item.source==="nuclear"?"核":item.source==="target"?"対象":"参照"}の除外：{item.reason}</div>)}</td>
           </tr>;
         })}</tbody></table>
       </div>
