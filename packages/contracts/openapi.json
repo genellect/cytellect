@@ -2646,6 +2646,55 @@
         }
       }
     },
+    "/v1/workspaces/{wid}/channel-gate": {
+      "post": {
+        "summary": "Classify",
+        "operationId": "classify_v1_workspaces__wid__channel_gate_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelGateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelGateResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/common-statistics": {
       "post": {
         "summary": "Calculate",
@@ -3886,6 +3935,16 @@
               }
             ],
             "title": "Gfp"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5308,6 +5367,376 @@
         ],
         "title": "ChannelAssignmentsWrite"
       },
+      "ChannelGateCounts": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "no_regions",
+              "excluded",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "nuclei": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nuclei"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          },
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "unclassified": {
+            "type": "integer",
+            "title": "Unclassified"
+          },
+          "control": {
+            "type": "integer",
+            "title": "Control"
+          },
+          "excluded": {
+            "type": "integer",
+            "title": "Excluded"
+          },
+          "evaluable": {
+            "type": "integer",
+            "title": "Evaluable"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "nuclei",
+          "positive",
+          "negative",
+          "unclassified",
+          "control",
+          "excluded",
+          "evaluable"
+        ],
+        "title": "ChannelGateCounts"
+      },
+      "ChannelGateField": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "revision_id"
+        ],
+        "title": "ChannelGateField"
+      },
+      "ChannelGateFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "gate_protocol": {
+            "const": "channel-gate/1.0.0",
+            "title": "Gate Protocol",
+            "type": "string"
+          },
+          "channel_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "negative_control",
+              "manual",
+              "batch_otsu"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "values": {
+            "default": "raw",
+            "enum": [
+              "raw",
+              "corrected"
+            ],
+            "title": "Values",
+            "type": "string"
+          },
+          "keep": {
+            "enum": [
+              "positive",
+              "negative"
+            ],
+            "title": "Keep",
+            "type": "string"
+          },
+          "percentile": {
+            "default": 99.0,
+            "exclusiveMaximum": 100,
+            "minimum": 50,
+            "title": "Percentile",
+            "type": "number"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Threshold"
+          },
+          "control_field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Control Field Ids",
+            "type": "array"
+          },
+          "reference_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Sha256"
+          }
+        },
+        "required": [
+          "version",
+          "gate_protocol",
+          "channel_id",
+          "method",
+          "keep"
+        ],
+        "title": "ChannelGateFilter",
+        "type": "object"
+      },
+      "ChannelGateNucleus": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "region_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Region Id"
+          },
+          "acquisition_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Date"
+          },
+          "channel_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Mean"
+          },
+          "positive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positive"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "positive",
+              "negative",
+              "unclassified",
+              "control",
+              "excluded"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "exclusion_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusion Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "region_id",
+          "acquisition_date",
+          "channel_mean",
+          "positive",
+          "status",
+          "reason",
+          "threshold",
+          "exclusion_reason"
+        ],
+        "title": "ChannelGateNucleus"
+      },
+      "ChannelGateRequest": {
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/ChannelGateFilter"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelGateField"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "filter",
+          "fields"
+        ],
+        "title": "ChannelGateRequest",
+        "description": "Classify saved nuclear measurements; this endpoint does not adopt or review them."
+      },
+      "ChannelGateResult": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "channel-gate/1.0.0",
+            "title": "Protocol",
+            "default": "channel-gate/1.0.0"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/ChannelGateFilter"
+          },
+          "channel": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Channel"
+          },
+          "dates": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Dates"
+          },
+          "nuclei": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelGateNucleus"
+            },
+            "type": "array",
+            "title": "Nuclei"
+          },
+          "field_counts": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/ChannelGateCounts"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Counts"
+          },
+          "record": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Record"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "filter",
+          "channel",
+          "dates",
+          "nuclei",
+          "field_counts",
+          "record"
+        ],
+        "title": "ChannelGateResult"
+      },
       "ChannelProvenance": {
         "properties": {
           "channel": {
@@ -6483,6 +6912,16 @@
               }
             ],
             "title": "Gfp Gate"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -6562,6 +7001,16 @@
               }
             ],
             "title": "Gfp Gate"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7884,6 +8333,9 @@
               },
               {
                 "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
               },
               {
                 "type": "null"
@@ -15748,6 +16200,16 @@
               }
             ],
             "title": "Gfp Gate"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

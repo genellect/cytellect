@@ -890,6 +890,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/channel-gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Classify */
+        post: operations["classify_v1_workspaces__wid__channel_gate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/common-statistics": {
         parameters: {
             query?: never;
@@ -1289,6 +1306,7 @@ export interface components {
             field_ids?: string[];
             /** Gfp */
             gfp?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /** AnalysisSpec */
         AnalysisSpec: {
@@ -1840,6 +1858,141 @@ export interface components {
             /** Field Ids */
             field_ids?: string[] | null;
         };
+        /** ChannelGateCounts */
+        ChannelGateCounts: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "no_regions" | "excluded" | "failed";
+            /** Nuclei */
+            nuclei: number | null;
+            /** Positive */
+            positive: number;
+            /** Negative */
+            negative: number;
+            /** Unclassified */
+            unclassified: number;
+            /** Control */
+            control: number;
+            /** Excluded */
+            excluded: number;
+            /** Evaluable */
+            evaluable: number;
+        };
+        /** ChannelGateField */
+        ChannelGateField: {
+            /** Field Id */
+            field_id: string;
+            /** Revision Id */
+            revision_id: string;
+        };
+        /** ChannelGateFilter */
+        ChannelGateFilter: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /**
+             * Gate Protocol
+             * @constant
+             */
+            gate_protocol: "channel-gate/1.0.0";
+            /** Channel Id */
+            channel_id: string;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "negative_control" | "manual" | "batch_otsu";
+            /**
+             * Values
+             * @default raw
+             * @enum {string}
+             */
+            values: "raw" | "corrected";
+            /**
+             * Keep
+             * @enum {string}
+             */
+            keep: "positive" | "negative";
+            /**
+             * Percentile
+             * @default 99
+             */
+            percentile: number;
+            /**
+             * Threshold
+             * @default null
+             */
+            threshold: number | null;
+            /** Control Field Ids */
+            control_field_ids?: string[];
+            /** Reference Sha256 */
+            reference_sha256?: string | null;
+        };
+        /** ChannelGateNucleus */
+        ChannelGateNucleus: {
+            /** Field Id */
+            field_id: string;
+            /** Region Id */
+            region_id: number;
+            /** Acquisition Date */
+            acquisition_date: string | null;
+            /** Channel Mean */
+            channel_mean: number | null;
+            /** Positive */
+            positive: boolean | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "positive" | "negative" | "unclassified" | "control" | "excluded";
+            /** Reason */
+            reason: string;
+            /** Threshold */
+            threshold: number | null;
+            /** Exclusion Reason */
+            exclusion_reason: string | null;
+        };
+        /**
+         * ChannelGateRequest
+         * @description Classify saved nuclear measurements; this endpoint does not adopt or review them.
+         */
+        ChannelGateRequest: {
+            filter: components["schemas"]["ChannelGateFilter"];
+            /** Fields */
+            fields: components["schemas"]["ChannelGateField"][];
+        };
+        /** ChannelGateResult */
+        ChannelGateResult: {
+            /**
+             * Protocol
+             * @default channel-gate/1.0.0
+             * @constant
+             */
+            protocol: "channel-gate/1.0.0";
+            filter: components["schemas"]["ChannelGateFilter"];
+            /** Channel */
+            channel: {
+                [key: string]: unknown;
+            };
+            /** Dates */
+            dates: {
+                [key: string]: unknown;
+            };
+            /** Nuclei */
+            nuclei: components["schemas"]["ChannelGateNucleus"][];
+            /** Field Counts */
+            field_counts: {
+                [key: string]: components["schemas"]["ChannelGateCounts"];
+            };
+            /** Record */
+            record: {
+                [key: string]: unknown;
+            };
+        };
         /** ChannelProvenance */
         ChannelProvenance: {
             channel: components["schemas"]["ChannelSpec"];
@@ -2311,6 +2464,7 @@ export interface components {
             metric: "log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count";
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /**
          * CompartmentSummarySelectionV11
@@ -2338,6 +2492,7 @@ export interface components {
             metric: ("log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /** ContourView */
         ContourView: {
@@ -2793,7 +2948,7 @@ export interface components {
              */
             metric: "nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction";
             /** Positivity */
-            positivity?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            positivity?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | components["schemas"]["ChannelGateFilter"] | null;
         };
         /** FieldView */
         FieldView: {
@@ -5717,6 +5872,7 @@ export interface components {
             metric: "area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected";
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /** RegionSetSpec */
         RegionSetSpec: {
@@ -8484,6 +8640,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    classify_v1_workspaces__wid__channel_gate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChannelGateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelGateResult"];
+                };
             };
             /** @description Validation Error */
             422: {
