@@ -218,7 +218,8 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         by_channel = {row.channel_id: row for row in grouped[nucleus_id]}
         first = by_channel[order[0]]
         # An exclusion (of this nucleus or of the whole field) comes before every nucleolar reason.
-        scope = "nucleus" if nucleus_id in excluded else "field" if field_excluded else None
+        scope: Literal["field", "nucleus"] | None = (
+            "nucleus" if nucleus_id in excluded else "field" if field_excluded else None)
         nucleus_excluded = scope is not None
         if nucleus_excluded:
             nucleolar = _unconfirmed("not_measured", "nucleus_excluded")
