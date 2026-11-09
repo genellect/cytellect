@@ -1,5 +1,6 @@
-.panel { position: absolute; right: 0; top: 44px; bottom: 36px; z-index: 12; width: min(650px, 65%); display: grid; align-content: start; gap: 12px; color: #1d3027; min-width: 0; min-height: 0; overflow: auto; padding: 14px; background: white; border-left: 1px solid #d2ddd5; box-shadow: -4px 0 12px #0001; }
+.panel { position: absolute; right: 0; top: 44px; bottom: 36px; z-index: 12; width: min(650px, 65%); display: block; color: #1d3027; min-width: 0; min-height: 0; overflow: auto; padding: 14px; background: white; border-left: 1px solid #d2ddd5; box-shadow: -4px 0 12px #0001; }
 .panel h3, .panel p { margin: 0; }
+.panel > * + * { margin-top: 12px; }
 .intro, .hint { max-width: 72ch; line-height: 1.6; }
 .source { padding: 10px 12px; background: #f3f7f4; border-left: 3px solid #49735b; }
 .choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border: 1px solid #d2ddd5; padding: 12px; }
