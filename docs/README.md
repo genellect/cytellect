@@ -35,6 +35,8 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 - [解析基盤の費用と制約](hosting-costs.ja.md)
 - [要件](requirements.md)（英語）
 - [研究者の作業の流れと改善の進め方](research-workflow.md)（英語）
+- [研究パラメータの拡張計画](drafts/research-measurements/plan.md)：必要な測定を先に実装する方針、計算定義、受入、Claude レビュー後の並行実装案
+- [ローカル研究データの利用](drafts/research-measurements/local-data.md)：非公開の教師・評価データを公開開発から分離する境界
 - [群間比較の UX 改善：目標定義書（案）](drafts/group-comparison/goals.md)、[要件定義書（案）](drafts/group-comparison/requirements.md)、[開発体制（案）](drafts/group-comparison/development.md)：レビュー中の下書き
 - [クラウド開発環境：実装計画（案）](drafts/cloud-development/plan.md)：オーナーの承認待ち
 - [本番構成での動作確認と研究者 UX 評価：実施計画（案）](drafts/cloud-development/verification.md)：オーナーの承認待ち
