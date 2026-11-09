@@ -363,7 +363,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
           {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementTable rows={rows} selected={region} onSelect={setRegion}/></div>}
           {!demo&&!historicResult&&!candidate&&<>
             <div className={styles.measureToggle}><button disabled={busy||!partitionNucleus}
-              aria-expanded={partitionView} onClick={()=>setPartitionView(!partitionView)}>区画への分配</button>
+              aria-expanded={partitionView} onClick={()=>{setPairView(false);setCompare(false);setPartitionView(!partitionView);}}>区画への分配</button>
               {!partitionNucleus&&<span>核の領域を採用してから計算できます。</span>}</div>
             {partitionView&&partitionNucleus&&!editing&&<ConnectedPartition
               key={`${field.id}:${partitionNucleus.revision}:${partitionSources.map(value=>value.revisionId).join(":")}`}

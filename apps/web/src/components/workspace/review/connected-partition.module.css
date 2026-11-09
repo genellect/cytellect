@@ -1,4 +1,4 @@
-.panel { display: grid; gap: 12px; color: #1d3027; min-width: 0; min-height: 0; flex: 0 1 45vh; max-height: 45vh; overflow: auto; padding: 14px; background: white; border-top: 1px solid #d2ddd5; }
+.panel { position: absolute; right: 0; top: 44px; bottom: 36px; z-index: 12; width: min(650px, 65%); display: grid; align-content: start; gap: 12px; color: #1d3027; min-width: 0; min-height: 0; overflow: auto; padding: 14px; background: white; border-left: 1px solid #d2ddd5; box-shadow: -4px 0 12px #0001; }
 .panel h3, .panel p { margin: 0; }
 .intro, .hint { max-width: 72ch; line-height: 1.6; }
 .source { padding: 10px 12px; background: #f3f7f4; border-left: 3px solid #49735b; }
@@ -24,4 +24,4 @@
 .provenance dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 14px; }
 .provenance dd { margin: 0; overflow-wrap: anywhere; }
 .provenance p { margin-top: 12px; max-width: 76ch; overflow-wrap: anywhere; }
-@media (max-width: 700px) { .choices { grid-template-columns: 1fr; } .toolbar { align-items: start; } }
+@media (max-width: 700px) { .panel { width: min(420px, 90%); } .choices { grid-template-columns: 1fr; } .toolbar { align-items: start; } }

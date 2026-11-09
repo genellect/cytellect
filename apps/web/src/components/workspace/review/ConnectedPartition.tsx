@@ -85,7 +85,7 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
           <option value="">参照を選択</option>{sources.map(source=><option key={source.revisionId} value={source.revisionId}>{source.label}{source.detail?`（${source.detail}）`:""}</option>)}
         </select></label>
         <label htmlFor={`${controlId}-channel`}>測定チャンネル<select id={`${controlId}-channel`} value={chosen.channel} onChange={event=>choose("channel",event.target.value)}>
-          <option value="">チャンネルを選択</option>{channels.map(channel=><option key={channel.id} value={channel.id}>{channel.label}{channel.stain?`（${channel.stain}）`:""}</option>)}
+          <option value="">チャンネルを選択</option>{channels.map(channel=><option key={channel.id} value={channel.id}>{channel.label}{channel.stain&&channel.stain!==channel.label?`（${channel.stain}）`:""}</option>)}
         </select></label>
       </fieldset>
       <p className={styles.hint}>対象と参照は、同じ核の中で重ならない領域を選びます。参照は自動で補いません。</p>
