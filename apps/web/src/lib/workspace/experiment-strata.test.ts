@@ -134,7 +134,7 @@ describe("declared strata",()=>{
     expect(first.shown).toBe(stored);
     expect(first.stored).toBe(stored);
     expect(isStratified(first.shown)&&first.shown.factors.length).toBe(1);
-    expect(first.shown?.fields?.f1?.stratum_id).toBe(declared.strata[0].id);
+    expect((first.shown as typeof stored).fields?.f1?.stratum_id).toBe(declared.strata[0].id);
     expect(first.error).toMatch(/最後に保存した計画に戻しました/);
     // Corrected and saved again: the editor now shows and keeps the stored correction.
     const corrected=addFactor(first.shown as typeof stored,"因子3",["水準Y"]);
