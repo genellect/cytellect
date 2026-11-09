@@ -17,6 +17,7 @@ from pydantic.json_schema import SkipJsonSchema
 
 from .channel_gate_contracts import ChannelGateFilter
 from .contracts import PlotSpec, StrictModel
+from .experiment_strata import StratumRecord
 from .regions import Id
 from .statistical_methods import StatisticalMethodsTemplate
 
@@ -362,10 +363,14 @@ class DescriptiveResult(StrictModel):
     compartment_missing: CompartmentMissingSummary | None = Field(default=None, json_schema_extra=_omit_default)
     # Present for region results created with the mask-correction ledger (absent from older results).
     mask_corrections: MaskCorrectionSummary | None = Field(default=None, json_schema_extra=_omit_default)
+    # Present only for a source of a stratified design (experiment design 1.1.0; absent from older results).
+    stratum: StratumRecord | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_serializer(mode="wrap")
     def omit_absent_review_marker(self, handler):
         result = handler(self)
+        if self.stratum is None:
+            result.pop("stratum", None)
         if self.source_review is None:
             result.pop("source_review", None)
         if self.compartment_missing is None:

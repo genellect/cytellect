@@ -12,6 +12,7 @@ from .common_statistics_figures import COMPARTMENT_LABELS
 from .compartment_review import compartment_missing_lines
 from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
+from .experiment_strata import stratum_methods_lines
 from .exports_csv import write_csv
 from .figure_sources import attach_svg_sources, bind_points
 from .figures import (
@@ -143,7 +144,7 @@ def _caption(result, labels, methods_template=None):
 def descriptive_methods(result, *, methods_template=None):
     """Record the selected protocol rather than borrowing inferential Methods text."""
     text = _descriptive_methods(result, methods_template=methods_template)
-    missing = compartment_missing_lines(result)
+    missing = stratum_methods_lines(result.get("stratum")) + compartment_missing_lines(result)
     # Unresolved nucleoli kept as missing (Q-05) are stated with every descriptive Methods text.
     return text + ("\n" + "\n".join(missing) + "\n" if missing else "")
 

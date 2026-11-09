@@ -81,6 +81,14 @@ def run_descriptive(store, job, output):
     else:
         result = describe_legacy(report, snapshot, request)
     result["revision_id"] = rev["id"]
+    if generic and not preview:
+        from cytellect_analysis.experiment_strata import check_source_strata, with_stratum
+        from cytellect_api.analysis_spec import saved_experiment
+
+        # The saved design may have changed after the request was accepted (one declared stratum, never pooled).
+        with store.transaction() as conn:
+            check_source_strata(saved_experiment(conn, rev["workspace_id"]), rev["config"])
+        with_stratum(result, config)
     if generic:
         from cytellect_analysis.mask_corrections import with_mask_corrections
 

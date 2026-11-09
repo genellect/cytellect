@@ -7,6 +7,7 @@ from cytellect_analysis.gfp_selection import gate_of
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from fastapi import Depends, HTTPException
 
+from .analysis_spec import require_source_strata
 from .channel_gates import require_gate_source
 from .regions import is_region, require_compartment_revision
 from .storage import read_json
@@ -67,5 +68,7 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
         if is_region(rev):
             require_gate_source(rev, body.selection)
         with store.transaction() as conn:
+            if rev["config"].get("analysis_kind") == "region-2d":
+                require_source_strata(conn, rev)
             jid = queue(conn, rev["workspace_id"], rid, "statistics", body.model_dump(mode="json"))
         return {"job_id": jid}

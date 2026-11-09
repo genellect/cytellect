@@ -7,7 +7,7 @@ import {usePrivateImage} from "@/lib/usePrivateImage";
 import {comparisonWarnings} from "@/lib/region-comparison-view";
 import {commonWarnings} from "@/lib/common-statistics";
 import {descriptiveWarning} from "@/lib/descriptive-view";
-import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CompartmentLedgerEntry,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
+import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CohortStratum,type CompartmentLedgerEntry,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricStructure,metricUsesChannel} from "@/lib/workspace/metric-catalog";
@@ -19,7 +19,7 @@ import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisContr
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
 import type {components} from "@/lib/generated";
-import {comparisonDefaults,fieldMetadata,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {comparisonDefaults,fieldMetadata,isStratified,scopedIdentity,strataOf,stratumRequestFor,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {breakdown,formatNumber,summarize,type ComparisonEstimates,type CountRow,type FieldLedgerRow,type SavedComparison} from "@/lib/result-summary";
 import {channelGateInputSignature,channelGateName,channelGateRequest,channelGateThresholds,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult} from "@/lib/workspace/channel-gate";
 
@@ -42,10 +42,12 @@ export interface ConnectedResultsProps {
   onPrepareMissing?:()=>Promise<unknown>;
   /** The declared experiment design; its derived metadata replaces per-field typing (E-08). */
   experiment?:ExperimentDesign|null;
+  /** Hash of the saved stratified design, from the API; a stratum's cohort is bound to it. */
+  experimentSha256?:string|null;
   onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
-interface ResultPayload {selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
+interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
 type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
@@ -68,8 +70,19 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,onChannelGateRecorded,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,onChannelGateRecorded,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
+  // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
+  // and the API refuses a cohort, description or comparison that pools strata.
+  const strata=useMemo(()=>strataOf(experiment),[experiment]);
+  const [stratumChoice,setStratumChoice]=useState("");
+  const stratum=strata.find(value=>value.id===stratumChoice)??null;
+  const stratifiedDesign=isStratified(experiment);
+  const items=stratifiedDesign?allItems.filter(item=>!!stratum?.fieldIds.includes(item.fieldId)):allItems;
+  const stratumRequestRef=useRef<CohortStratum|null>(null);
+  const unstratified=stratifiedDesign?allItems.filter(item=>!experiment?.fields?.[item.fieldId]?.stratum_id).length:0;
+  const stratumRequest:CohortStratum|null=stratum?stratumRequestFor(experiment,experimentSha256,stratum.id):null;
+  useLayoutEffect(()=>{stratumRequestRef.current=stratumRequest;});
   const comparison=useMemo(()=>createComparisonAdapter(),[]);
   const [csv,setCsv]=useState(false);
   const [operation,setOperation]=useState<ResultOperation>("distribution");
@@ -114,7 +127,9 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:derived[item.fieldId]??metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
   const fields=Object.fromEntries(sources.map(source=>[source.field,source.metadata]));
   const regionSet=sources[0]?.result.regionSet||target;
-  const gateIdentity=channelGateInputSignature(workspace,target,sources,fields,channelGate);
+  // Every identity carries the saved design hash and the chosen stratum: a new stratum, a changed
+  // assignment or another design makes the earlier classification, cohort and result stale.
+  const gateIdentity=scopedIdentity(channelGateInputSignature(workspace,target,sources,fields,channelGate),stratumRequest);
   const gateCurrent=useRef(gateIdentity);
   useLayoutEffect(()=>{gateCurrent.current=gateIdentity;return()=>{gateCurrent.current="";};},[gateIdentity]);
   const currentGate=recordedGate?.identity===gateIdentity?recordedGate:null;
@@ -138,7 +153,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   // 計算 adopts the sources' revisions through the adapter; the selection it wrote is current until a newer one arrives.
   const [written,setWritten]=useState<WorkspaceSelection|null>(null);
   const currentSelection=written&&written.version>(selection?.version??-1)?written:selection;
-  const identity=JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,currentSelection]);
+  const identity=scopedIdentity(JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,currentSelection]),stratumRequest);
   const conditions=[...new Set(Object.entries(fields).filter(([fid])=>!(channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value.condition?.trim()).filter((value):value is string=>!!value))];
   const declared=experiment?.layout==="pair"&&experiment.control_group_id?comparisonDefaults(experiment):null;
   // The declared pair reads treatment − control; other pairs keep the order the groups appear in.
@@ -188,7 +203,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
+  const ready=(!stratifiedDesign||!!stratumRequest)&&!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
@@ -220,7 +235,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       let adopted=beforePrepare?await beforePrepare():selection;
       if(!beforePrepare){for(const source of sources)await adapter.selectRevision(workspace,source.revision,source.field);adopted=adapter.selection();}
       setWritten(adopted);
-      const revision=await comparison.cohort(workspace,sources,fields,adopted,compartment&&unresolved?MISSING_POLICY:null,true);
+      const revision=await comparison.cohort(workspace,sources,fields,adopted,compartment&&unresolved?MISSING_POLICY:null,true,stratumRequest);
       const result=await adapter.channelGate(workspace,channelGateRequest({...channelGate,reference_sha256:null},sources.map(source=>({fieldId:source.field,label:source.label,revisionId:revision}))));
       if(gateCurrent.current!==requested)return;
       const filter=recordedChannelGate(result);
@@ -242,7 +257,10 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       if(!beforePrepare){for(const source of sources)await adapter.selectRevision(workspace,source.revision,source.field);adopted=adapter.selection();}
       setWritten(adopted);
       const keepMissing=compartment&&unresolved;
-      const revision=currentGate?.revision??(sources.length===1?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted,keepMissing?MISSING_POLICY:null));
+      // A stratified design always reads a stratum cohort, one field included, so the stratum, the design
+      // hash and the exclusion ledger reach the result; an undivided design keeps the single-field path.
+      const requestedStratum=stratumRequest;
+      const revision=currentGate?.revision??(sources.length===1&&!requestedStratum?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted,keepMissing?MISSING_POLICY:null,sources.length===1,requestedStratum));
       // For inferential requests the cohort persists the entered experimental metadata.
       if(operation!=="distribution"&&sources.length<2)throw new Error("統計解析には複数視野の測定結果と実験情報が必要です。");
       await comparison.review(revision,reviewed,keepMissing?unresolvedFields:null);
@@ -251,7 +269,9 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       const result=await request<ResultPayload>(`/v1/jobs/${accepted.job_id}/${operation==="distribution"?"result":"common-statistics"}`);
       if(result.revision_id!==revision)throw new Error("結果の解析版が一致しません。");
       setFigureKind(chosenKind);
-      const created:Saved={job:accepted.job_id,revision,result,identity:JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,adopted]),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target};setSaved(created);setHistory(previous=>[created,...previous.filter(value=>value.job!==created.job)]);
+      // A design, stratum or source changed while this ran: its result is not shown as current.
+      if(requestedStratum&&scopedIdentity("",requestedStratum)!==scopedIdentity("",stratumRequestRef.current))throw new Error("層か実験の形が計算中に変わりました。もう一度計算してください。");
+      const created:Saved={job:accepted.job_id,revision,result,identity:scopedIdentity(JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,adopted]),requestedStratum),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target};setSaved(created);setHistory(previous=>[created,...previous.filter(value=>value.job!==created.job)]);
     }catch(cause){setError(fail(cause));}finally{lock.current=false;setBusy("");}
   }
   async function render(downloadZip=false){
@@ -303,6 +323,12 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   return <section className={styles.root} aria-label={mode==="figure"?"図の作成・保存":"測定結果の統計解析"}>
     <div className={styles.settings} onBlur={event=>{if(event.currentTarget.contains(event.relatedTarget))return;if(!busy&&!saved?.historical)void persist().catch(cause=>setError(fail(cause)));}}>
       <header><h2>{mode==="figure"?"グラフ":"統計解析"}</h2><span>{sources.length} 視野{excludedCount?` · 除外 ${excludedCount}`:""}</span></header>
+      {stratifiedDesign&&<div className={styles.stratumPick}>
+        <label>比べる層<select aria-label="比べる層" value={stratumChoice} disabled={!!busy} onChange={event=>setStratumChoice(event.target.value)}>
+          <option value="">層を選ぶ…</option>{strata.map(value=><option key={value.id} value={value.id}>{value.label}（{value.fieldIds.length} 視野）</option>)}</select></label>
+        <p role="status">{stratum?`層「${stratum.label}」の視野だけで計算します（${sources.length} 視野${excludedCount?`、除外 ${excludedCount}`:""}${missing?`、未測定 ${missing}`:""}）。ほかの層とは合算も比較もしません。`
+          :"層を選ぶと、その層の視野だけで 2 群を比べます。層をまたいで合算しません。"}{unstratified?` 層が決まっていない視野 ${unstratified} 件は、どの層にも入りません。`:""}</p>
+      </div>}
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
       <p className={styles.current}>{regionLabel(shownMetric,shownTarget)??"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
       {positivityMissing&&<p role="status">陽性核数・陽性率には、設定の「チャンネルによる核の分類・陽性率」でチャンネルを選んで分類してください。</p>}
@@ -359,6 +385,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}
       {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open={!saved&&!experiment}><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
+        {saved.result.stratum&&<p className={styles.current}>層：{saved.result.stratum.label}（{saved.result.stratum.levels.map(value=>`${value.factor}：${value.level}`).join("、")}）· 割り当て {saved.result.stratum.field_ids.length} 視野のうち解析 {saved.result.stratum.analysed_field_ids.length}{saved.result.stratum.excluded_fields.length?`、除外 ${saved.result.stratum.excluded_fields.length}`:""}。ほかの層は含みません。</p>}
         {mode==="statistics"&&previous&&<p role="status" className={styles.previous}>表示中は{saved.historical?"記録した結果":"前の結果"}（{previous.shown}）です。「計算」で、選んだ条件（{previous.chosen}）の結果になります。</p>}
         {mode==="statistics"?<div className={styles.resultGrid} data-columns={(!!saved.result.estimates||saved.operation==="distribution"&&!!experiment)&&svgFiles.length>0?2:1}>
           <div>
@@ -404,8 +431,14 @@ function SavedTable({rows,fieldLabels,onSource}:{rows:Record<string,unknown>[];f
   const names:Record<string,string>={pair:"実験回",experimental_unit:"実験単位",sample:"試料",acquisition_date:"撮影日",exclusion_reason:"除外理由",gate_selected:"選別で採用",selection_status:"採用",channel_id:"染色",observation_id:"観測",region_set_id:"領域の種類",mask_revision_id:"輪郭の版",analysis_revision_id:"解析版",field_id:"視野",region_id:"領域番号",nucleus_id:"親核番号",value:"測定値",condition:"群",input_rows:"入力観測数",excluded:"除外観測数",manual_edits:"手作業の修正",gate_unselected:"選別の対象外数",missing_metric_selected:"採用対象の測定値欠測数",selected_rows:"採用観測数",mean:"平均値",median:"中央値",q1:"第1四分位",q3:"第3四分位",minimum:"最小値",maximum:"最大値",p_value:"p 値",p_adjusted:"補正 p 値",p_holm:"Holm補正 p 値",estimate:"推定値",coefficient:"相関係数",ci_low:"95% CI 下限",ci_high:"95% CI 上限",n:"対象数",missing_reason:"欠測理由",reason:"理由",group_a:"群 A",group_b:"群 B",observations:"採用観測数",input_fields:"入力視野数",selected_fields:"採用視野数",excluded_failed_fields:"除外した失敗視野数",samples:"試料数",input_units:"入力独立実験単位数",experimental_units:"採用独立実験単位数",explicitly_excluded_units:"除外独立実験単位数",complete_pairs:"完全ペア数",effect:"効果量",effect_name:"効果量の種類",method:"方法",scope:"対象",status:"状態",
     // Channel-neutral positivity (channel gate): the judged channel is named in the result, not here.
     channel_mean:"判定チャンネルの平均輝度",channel_positive:"陽性と判定",channel_excluded:"判定から除外",channel_saturated:"判定チャンネルの飽和",channel_gate_status:"判定の状態",channel_gate_reason:"判定の理由",channel_gate_threshold:"判定の閾値",channel_control_field:"対照視野",channel_missing_reason:"判定値の欠測理由",gfp_positive:"GFP陽性と判定",positive_count:"陽性数",negative_count:"陰性数",unclassified_count:"未判定数",evaluable_count:"判定できた数",positive_fraction:"陽性の割合"};
-  const statuses:Record<string,string>={selected:"採用",no_regions:"領域なし",no_selected_values:"採用できる測定値なし",excluded:"除外",missing:"欠測"};
-  const cell=(row:Record<string,unknown>,key:string,index:number)=>key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:(key==="status"||key==="selection_status")&&typeof row[key]==="string"?statuses[row[key]]||row[key]:typeof row[key]==="boolean"?(row[key]?"はい":"いいえ"):row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key]);
+  const statuses:Record<string,string>={selected:"採用",no_regions:"領域なし",no_selected_values:"採用できる測定値なし",excluded:"除外",missing:"欠測",
+    // Channel-neutral positivity: each nucleus's judgement and its reason (values and keys are unchanged).
+    positive:"陽性",negative:"陰性",unclassified:"未判定",control:"対照",failed:"解析に失敗",measured:"測定済み",
+    channel_negative_control:"陰性対照",gfp_negative_control:"陰性対照（GFP）",negative_control:"陰性対照",
+    above_threshold:"閾値より高い",at_or_below_threshold:"閾値以下",nucleus_excluded:"除外した核",field_excluded:"除外した視野",
+    channel_intensity_missing:"判定チャンネルの値なし",channel_threshold_missing:"閾値を決められない"};
+  const statusKeys=new Set(["status","selection_status","channel_gate_status","channel_gate_reason"]);
+  const cell=(row:Record<string,unknown>,key:string,index:number)=>key==="field_id"&&typeof row[key]==="string"?<button style={{maxWidth:"14em",whiteSpace:"normal",overflowWrap:"anywhere"}} onClick={()=>onSource(row[key] as string,typeof row.region_id==="number"?row.region_id:undefined)}>{fieldLabels[row[key]]||`視野 ${index+1}`}</button>:statusKeys.has(key)&&typeof row[key]==="string"?statuses[row[key]]||row[key]:typeof row[key]==="boolean"?(row[key]?"はい":"いいえ"):row[key]!==null&&typeof row[key]==="object"?<span style={{whiteSpace:"normal",overflowWrap:"anywhere"}}>{JSON.stringify(row[key])}</span>:formatValue(row[key]);
   // On an observation row `excluded` is that region's flag, not a count.
   const head=(key:string)=><th key={key} scope="col" className={key==="field_id"?styles.stickyColumn:undefined} style={{whiteSpace:"normal",overflowWrap:"anywhere",maxWidth:"8em"}}>{observations&&key==="excluded"?"除外":names[key]||key}</th>;
   const body=(columns:string[])=><tbody>{rows.map((row,index)=><tr key={index}>{columns.map(key=><td key={key} className={key==="field_id"?styles.stickyColumn:undefined}>{cell(row,key,index)}</td>)}</tr>)}</tbody>;

@@ -1345,13 +1345,16 @@ export interface components {
             /** Figure Proposals */
             figure_proposals?: components["schemas"]["SavedDraftFigure"][];
             figure?: components["schemas"]["FigureDraft"] | null;
-            experiment?: components["schemas"]["ExperimentDesign"] | null;
+            /** Experiment */
+            experiment?: (components["schemas"]["ExperimentDesign"] | components["schemas"]["StratifiedExperimentDesign"]) | null;
         };
         /** AnalysisSpecView */
         AnalysisSpecView: {
             /** Version */
             version: number;
             spec: components["schemas"]["AnalysisSpec"] | null;
+            /** Experiment Sha256 */
+            experiment_sha256?: string | null;
         };
         /** AnalysisSpecWrite */
         AnalysisSpecWrite: {
@@ -1488,6 +1491,7 @@ export interface components {
             }[];
             /** Warnings */
             warnings: string[];
+            stratum?: components["schemas"]["StratumRecord"] | null;
             /** Figure */
             figure: {
                 [key: string]: unknown;
@@ -2096,6 +2100,22 @@ export interface components {
             /** Revision Id */
             revision_id: string;
         };
+        /**
+         * CohortStratum
+         * @description The stratum a cohort request selects, bound to the saved design it was read from.
+         */
+        CohortStratum: {
+            /**
+             * Design Version
+             * @default 1.1.0
+             * @constant
+             */
+            design_version: "1.1.0";
+            /** Design Sha256 */
+            design_sha256: string;
+            /** Stratum Id */
+            stratum_id: string;
+        };
         /** CommonComparisonPlot */
         CommonComparisonPlot: {
             style?: components["schemas"]["FigureStyle"] | null;
@@ -2273,6 +2293,7 @@ export interface components {
             };
             estimates?: components["schemas"]["ComparisonEstimates"] | null;
             compartment_missing?: components["schemas"]["CompartmentMissingSummary"] | null;
+            stratum?: components["schemas"]["StratumRecord"] | null;
             /** Figure */
             figure: {
                 [key: string]: unknown;
@@ -2773,6 +2794,13 @@ export interface components {
             basis: string | null;
             /** Unavailable Reason */
             unavailable_reason: string | null;
+        };
+        /** ExcludedStratumField */
+        ExcludedStratumField: {
+            /** Field Id */
+            field_id: string;
+            /** Reason */
+            reason: string | null;
         };
         /** Exclusion */
         Exclusion: {
@@ -4758,6 +4786,7 @@ export interface components {
             workspace_selection?: components["schemas"]["WorkspaceSelection"] | null;
             /** Compartment Missing */
             compartment_missing?: "unresolved-as-missing/1.0.0" | null;
+            stratum?: components["schemas"]["CohortStratum"] | null;
         };
         /** RegionComparisonPlot */
         RegionComparisonPlot: {
@@ -6291,6 +6320,131 @@ export interface components {
             /** Sensitivity Region Revision Ids */
             sensitivity_region_revision_ids?: string[];
         };
+        /** StratifiedExperimentDesign */
+        StratifiedExperimentDesign: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.1.0";
+            /**
+             * Layout
+             * @enum {string}
+             */
+            layout: "single" | "pair";
+            /** Groups */
+            groups: components["schemas"]["ExperimentGroup"][];
+            /** Control Group Id */
+            control_group_id?: string | null;
+            /** Runs */
+            runs?: components["schemas"]["ExperimentRun"][];
+            /**
+             * Independence Confirmed
+             * @default false
+             */
+            independence_confirmed: boolean;
+            /** Factors */
+            factors: components["schemas"]["StratumFactor"][];
+            /** Strata */
+            strata: components["schemas"]["Stratum"][];
+            /** Fields */
+            fields?: {
+                [key: string]: components["schemas"]["StratifiedFieldAssignment"];
+            };
+        };
+        /** StratifiedFieldAssignment */
+        StratifiedFieldAssignment: {
+            /** Group Id */
+            group_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Sample */
+            sample?: string | null;
+            /** Acquired On */
+            acquired_on?: string | null;
+            /** Stratum Id */
+            stratum_id?: string | null;
+        };
+        /**
+         * Stratum
+         * @description One declared stratum: exactly one level of every factor.
+         */
+        Stratum: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Levels */
+            levels: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * StratumFactor
+         * @description A condition the researcher holds constant within each comparison (e.g. cell line).
+         */
+        StratumFactor: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Levels */
+            levels: components["schemas"]["StratumLevel"][];
+        };
+        /** StratumLevel */
+        StratumLevel: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** StratumLevelRecord */
+        StratumLevelRecord: {
+            /** Factor Id */
+            factor_id: string;
+            /** Factor */
+            factor: string;
+            /** Level Id */
+            level_id: string;
+            /** Level */
+            level: string;
+        };
+        /**
+         * StratumRecord
+         * @description What a cohort, its results and their Methods keep about the selected stratum.
+         *
+         *     `field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`
+         *     the fields the cohort holds; `excluded_fields` the assigned fields excluded before
+         *     analysis, with the researcher's reason. Together they account for every assigned field.
+         */
+        StratumRecord: {
+            /**
+             * Version
+             * @default stratum-selection/1.0.0
+             * @constant
+             */
+            version: "stratum-selection/1.0.0";
+            /**
+             * Design Version
+             * @default 1.1.0
+             * @constant
+             */
+            design_version: "1.1.0";
+            /** Design Sha256 */
+            design_sha256: string;
+            /** Stratum Id */
+            stratum_id: string;
+            /** Label */
+            label: string;
+            /** Levels */
+            levels: components["schemas"]["StratumLevelRecord"][];
+            /** Field Ids */
+            field_ids: string[];
+            /** Analysed Field Ids */
+            analysed_field_ids: string[];
+            /** Excluded Fields */
+            excluded_fields: components["schemas"]["ExcludedStratumField"][];
+        };
         /** ValidatedProposal */
         ValidatedProposal: {
             /**
@@ -6789,6 +6943,7 @@ export interface components {
             source_review: "automatic_unreviewed" | null;
             compartment_missing?: components["schemas"]["CompartmentMissingSummary"] | null;
             mask_corrections?: components["schemas"]["MaskCorrectionSummary"] | null;
+            stratum?: components["schemas"]["StratumRecord"] | null;
         };
     };
     responses: never;
