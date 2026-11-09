@@ -5,7 +5,7 @@ import io
 import json
 from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat
+from pydantic import Field, FiniteFloat, model_validator
 
 from .exports_csv import _write_rows
 from .region_contracts import RegionStoredFile
@@ -27,7 +27,8 @@ class PartitionSource(RegionModel):
     label_file: RegionStoredFile
     report_sha256: Digest
     provenance_sha256: Digest
-    reviewed: Literal[True]
+    reviewed: bool
+    adopted: bool
 
 
 class PartitionPixelSource(RegionModel):
@@ -91,6 +92,7 @@ class RegionPartitionTableRow(RegionModel):
 class RegionPartitionTable(RegionModel):
     protocol: Literal["region-partition-table/1.0.0"] = "region-partition-table/1.0.0"
     calculation_protocol: Literal["region-partition/1.0.0"] = "region-partition/1.0.0"
+    review_status: Literal["reviewed", "preview"]
     workspace_id: Id
     field_id: Id
     nuclear_source: PartitionSource
@@ -108,6 +110,15 @@ class RegionPartitionTable(RegionModel):
     methods: str
     rows: tuple[RegionPartitionTableRow, ...]
 
+    @model_validator(mode="after")
+    def actual_source_review(self):
+        expected = "reviewed" if all(source.reviewed for source in (
+            self.nuclear_source, self.target_source, self.reference_source,
+        )) else "preview"
+        if self.review_status != expected:
+            raise ValueError("partition_review_status_mismatch")
+        return self
+
 
 def partition_table_csv(table: RegionPartitionTable) -> bytes:
     """Serialize server values unchanged, with BOM and shared formula-safe text escaping.
@@ -118,12 +129,17 @@ def partition_table_csv(table: RegionPartitionTable) -> bytes:
     """
     data = table.model_dump(mode="json")
     metadata = {key: value for key, value in data.items() if key != "rows"}
-    common = {"protocol": table.protocol, "workspace_id": table.workspace_id, "field_id": table.field_id,
+    common = {"protocol": table.protocol, "review_status": table.review_status,
+              "workspace_id": table.workspace_id, "field_id": table.field_id,
               "channel_id": table.pixel_source.channel.channel_id,
               "channel_label": table.pixel_source.channel.label, "channel_stain": table.pixel_source.channel.stain,
               "target_label": table.target_source.label, "reference_label": table.reference_source.label,
               "provenance_json": json.dumps(metadata, ensure_ascii=False, separators=(",", ":")),
               "methods": table.methods}
+    for role in ("nuclear", "target", "reference"):
+        source = getattr(table, f"{role}_source")
+        common[f"{role}_reviewed"] = source.reviewed
+        common[f"{role}_adopted"] = source.adopted
     columns = ["record_type", *common, "nucleus_id", "nucleus_area_px", "nucleus_area_um2", "excluded",
                "exclusions_json", "target_state", "reference_state"]
     for side in ("target", "reference"):

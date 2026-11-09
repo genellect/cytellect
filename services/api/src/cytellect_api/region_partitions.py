@@ -1,4 +1,4 @@
-"""Read-only source-bound partition table and CSV from adopted original-coordinate masks."""
+"""Read-only partition preview and CSV from explicit saved original-coordinate sources."""
 import hashlib
 import json
 import math
@@ -20,6 +20,9 @@ from cytellect_analysis.region_partition import region_partition
 from cytellect_analysis.region_partition_table import RegionPartitionTable, partition_table_csv
 from cytellect_analysis.regions import _array_hash
 from fastapi import Depends, HTTPException, Query, Response
+
+from .workspace_runs import adopted_for
+from .workspace_selection import selection_at
 
 MAX_JSON = 32 * 1024 * 1024
 MAX_ARRAY = 4096 * 4096 * 4 + 65536
@@ -116,7 +119,7 @@ def _load_source(store, rev, fid):
         "revision_id": rev["id"], "region_set_id": mask.region_set_id, "label": report.recipe.label,
         "source": mask.source, "mask_revision_id": mask.mask_revision_id, "mask_sha256": mask.mask_sha256,
         "effective_mask_sha256": mask.mask_sha256, "label_file": mask.file,
-        "report_sha256": report_hash, "provenance_sha256": provenance_hash, "reviewed": True,
+        "report_sha256": report_hash, "provenance_sha256": provenance_hash, "reviewed": bool(rev["reviewed"]),
     }
     return {"rev": rev, "info": info, "recipe": report.recipe, "table": table, "labels": labels, "source": source,
             "exclusions": exclusions, "provenance": field_provenance}
@@ -249,6 +252,12 @@ def build_partition_table(store, nuclear, target, reference, field_record, fid, 
     """All records are owner-checked before this source-integrity boundary is entered."""
     sources = [_load_source(store, rev, fid) for rev in (nuclear, target, reference)]
     n, t, r = sources
+    with store.transaction() as conn:
+        adopted = adopted_for(conn, nuclear["workspace_id"], fid, selection_at(conn, nuclear["workspace_id"]))
+    adopted_ids = {value["id"] for value in adopted.values()}
+    for source in sources:
+        source["source"]["adopted"] = source["rev"]["id"] in adopted_ids
+    review_status = "reviewed" if all(source["source"]["reviewed"] for source in sources) else "preview"
     recipe = nuclear["config"]["recipe"]
     if recipe.get("source") != "stardist_nuclear" or n["table"].region_set.source != "stardist_nuclear":
         raise ValueError("partition_nuclear_source_required")
@@ -322,8 +331,14 @@ def build_partition_table(store, nuclear, target, reference, field_record, fid, 
                    nucleus_area_um2=None if pixel_area is None else row["nucleus_area_px"] * pixel_area)
         rows.append(row)
     methods = (
+        f"Source review status: {review_status}. "
+        + "; ".join(f"{role} source adopted={str(source['source']['adopted']).lower()}, "
+                    f"reviewed={str(source['source']['reviewed']).lower()}"
+                    for role, source in zip(("nuclear", "target", "reference"), sources, strict=True))
+        + ". Adoption is read from the server's saved workspace selection independently of scientific review. "
+        "Reading or exporting this table does not adopt or review sources. "
         "Original native channel pixels and exact parent-nucleus labels were used. Target and reference were "
-        "explicitly selected adopted sources; no complement region was inferred. Nonzero memberships were required "
+        "explicitly selected saved sources; no complement region was inferred. Nonzero memberships were required "
         "to lie inside the selected nuclei and to be disjoint. Excluded labels were removed with their recorded reasons; "
         "unresolved compartments remained missing. Mean and integrated intensity use the region union pixels. "
         "K = mean(target) / mean(reference); log2K = log2(K), separately for raw and corrected values. Both means "
@@ -335,7 +350,7 @@ def build_partition_table(store, nuclear, target, reference, field_record, fid, 
     )
     # JSON validation is the shared list-to-immutable-tuple transport boundary.
     return RegionPartitionTable.model_validate_json(json.dumps({
-        "workspace_id": nuclear["workspace_id"], "field_id": fid,
+        "workspace_id": nuclear["workspace_id"], "field_id": fid, "review_status": review_status,
         "nuclear_source": n["source"], "target_source": t["source"], "reference_source": r["source"],
         "pixel_source": pixel_source,
         "background": background, "calibration": None if calibration is None else calibration.model_dump(mode="json"),
@@ -357,8 +372,6 @@ def register_region_partition_routes(api, store, owner, revision, result_root, f
                 raise HTTPException(409, "partition_region_analysis_required")
             if rev["state"] != "succeeded" or not rev.get("result_dir"):
                 raise HTTPException(409, "partition_source_not_succeeded")
-            if rev.get("reviewed") is not True:
-                raise HTTPException(409, "partition_source_not_reviewed")
         try:
             for rev in revisions:
                 result_root(rev)

@@ -1,7 +1,7 @@
 """Synthetic arithmetic/source-binding tests, not detector or biological acceptance.
 
 The tiny numeric/label arrays have hand-checkable joins and failure cases. Saved
-source records stand in for reviewed detector/manual outputs; no cell images or
+source records stand in for saved detector/manual outputs; no cell images or
 biological ground truth are generated. Real-image pipeline acceptance is separate.
 """
 import copy
@@ -30,7 +30,7 @@ from cytellect_analysis.regions import (
     _array_hash,
     measure_regions,
 )
-from cytellect_api.db import Store, fields, revisions, workspaces
+from cytellect_api.db import Store, fields, revisions, workspace_selections, workspaces
 from cytellect_api.region_partitions import register_region_partition_routes
 from cytellect_api.storage import read_json, write_json
 from fastapi import FastAPI, HTTPException, Request
@@ -157,6 +157,10 @@ def test_synthetic_readonly_table_and_csv_share_values_provenance_and_units(part
     assert response.status_code == 200, response.text
     table = response.json()
     assert table["protocol"] == "region-partition-table/1.0.0"
+    assert table["review_status"] == "reviewed"
+    assert all(table[f"{role}_source"]["reviewed"] is True for role in ("nuclear", "target", "reference"))
+    # Ambiguous legacy selection has no adopted source; review never invents adoption.
+    assert all(table[f"{role}_source"]["adopted"] is False for role in ("nuclear", "target", "reference"))
     first, second = table["rows"]
     assert (first["nucleus_id"], second["nucleus_id"]) == (7, 19)
     assert first["target"]["raw_mean"] == 9 and first["reference"]["raw_mean"] == 5
@@ -180,13 +184,48 @@ def test_synthetic_readonly_table_and_csv_share_values_provenance_and_units(part
 
 
 @pytest.mark.parametrize("route", [JSON_ROUTE, CSV_ROUTE])
-def test_synthetic_owner_and_adoption_guards_apply_to_both_formats(partition_api, route):
+@pytest.mark.parametrize("unreviewed", ["nuclear", "target", "reference"])
+def test_synthetic_owner_guard_and_actual_preview_review_flags_apply_to_both_formats(partition_api, route, unreviewed):
     client, store, _ = partition_api
     assert client.get(route, params=PARAMS, headers={"x-test-owner": "other"}).status_code == 404
     with store.transaction() as conn:
-        conn.execute(update(revisions).where(revisions.c.id == "target").values(reviewed=False))
+        conn.execute(update(revisions).where(revisions.c.id == unreviewed).values(reviewed=False))
     response = client.get(route, params=PARAMS)
-    assert response.status_code == 409 and response.json()["detail"] == "partition_source_not_reviewed"
+    assert response.status_code == 200, response.text
+    if route == JSON_ROUTE:
+        data = response.json()
+        assert data["rows"][0]["raw"]["k"] == pytest.approx(9 / 5)
+    else:
+        exported = list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
+        data = json.loads(exported[0]["provenance_json"])
+        assert exported[0]["review_status"] == "preview"
+        assert exported[0][f"{unreviewed}_reviewed"] == "False"
+        assert exported[0]["nuclear_adopted"] == "False"
+    assert data["review_status"] == "preview"
+    assert "Source review status: preview" in data["methods"]
+    for role in ("nuclear", "target", "reference"):
+        assert data[f"{role}_source"]["reviewed"] is (role != unreviewed)
+        assert data[f"{role}_source"]["adopted"] is False
+    assert store.one(revisions, id=unreviewed)["reviewed"] is False
+
+
+def test_synthetic_unreviewed_sources_still_require_frozen_mask_integrity(partition_api):
+    client, store, _ = partition_api
+    with store.transaction() as conn:
+        conn.execute(update(revisions).where(revisions.c.id == "nuclear").values(reviewed=False))
+    path = store.safe_path("results", "target", "f", "labels.npy")
+    path.write_bytes(path.read_bytes() + b"x")
+    for route in (JSON_ROUTE, CSV_ROUTE):
+        response = client.get(route, params=PARAMS)
+        assert response.status_code == 409 and response.json()["detail"] == "partition_source_file_size_mismatch"
+
+
+def test_synthetic_preview_status_cannot_claim_all_sources_reviewed(partition_api):
+    client, _, _ = partition_api
+    data = client.get(JSON_ROUTE, params=PARAMS).json()
+    data["nuclear_source"]["reviewed"] = False
+    with pytest.raises(ValueError, match="partition_review_status_mismatch"):
+        RegionPartitionTable.model_validate_json(json.dumps(data))
 
 
 def test_synthetic_unauthenticated_request_is_refused(partition_api):
@@ -458,6 +497,35 @@ def test_synthetic_compartment_exact_nuclear_binding_is_required(partition_api):
     _make_target_compartment(store, {"7": "candidate", "19": "candidate"})
     _edit_source(store, "target", provenance_edit=lambda value: value["fields"]["f"]["nuclear_source"].update(mask_sha256="0" * 64))
     assert client.get(JSON_ROUTE, params=PARAMS).json()["detail"] == "partition_compartment_nuclear_binding_mismatch"
+
+
+def test_synthetic_adoption_is_resolved_from_server_selection_independently_of_review(partition_api):
+    client, store, _ = partition_api
+    _make_target_compartment(store, {"7": "candidate", "19": "candidate"})
+    with store.transaction() as conn:
+        conn.execute(workspace_selections.insert().values(workspace_id="w", version=1, entries=[{
+            "id": "f", "field_id": "f", "revision_id": "target", "exclusion_reason": None,
+            "target_revisions": {"nuclei": "nuclear", "nucleoli": "target"},
+        }]))
+        conn.execute(update(revisions).where(revisions.c.id.in_(["nuclear", "target"])).values(reviewed=False))
+    response = client.get(JSON_ROUTE, params={**PARAMS, "adopted": "false", "reviewed": "true"})
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["review_status"] == "preview"
+    assert data["nuclear_source"]["adopted"] is True and data["nuclear_source"]["reviewed"] is False
+    assert data["target_source"]["adopted"] is True and data["target_source"]["reviewed"] is False
+    # The generic manual source is readable, with unknown adoption semantics recorded as false.
+    assert data["reference_source"]["adopted"] is False and data["reference_source"]["reviewed"] is True
+    assert "nuclear source adopted=true, reviewed=false" in data["methods"]
+    exported = client.get(CSV_ROUTE, params=PARAMS)
+    assert exported.status_code == 200
+    rows = list(csv.DictReader(io.StringIO(exported.content.decode("utf-8-sig"))))
+    provenance = json.loads(rows[0]["provenance_json"])
+    assert provenance["nuclear_source"] == data["nuclear_source"]
+    assert rows[0]["nuclear_adopted"] == "True" and rows[0]["nuclear_reviewed"] == "False"
+    # The reads neither review a source nor alter the saved selection.
+    assert store.one(revisions, id="nuclear")["reviewed"] is False
+    assert store.one(workspace_selections, workspace_id="w")["version"] == 1
 
 
 def test_synthetic_unlisted_compartment_parent_stays_unclassified_and_missing(partition_api):
