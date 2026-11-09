@@ -3732,6 +3732,8 @@ export interface components {
             nucleus_id: number;
             /** Excluded */
             excluded: boolean;
+            /** Exclusion Scope */
+            exclusion_scope: ("field" | "nucleus") | null;
             /** Exclusion Reason */
             exclusion_reason: string | null;
             /** Touches Border */

@@ -9885,6 +9885,21 @@
             "type": "boolean",
             "title": "Excluded"
           },
+          "exclusion_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "field",
+                  "nucleus"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusion Scope"
+          },
           "exclusion_reason": {
             "anyOf": [
               {
@@ -9947,6 +9962,7 @@
         "required": [
           "nucleus_id",
           "excluded",
+          "exclusion_scope",
           "exclusion_reason",
           "touches_border",
           "nucleus_area_px",

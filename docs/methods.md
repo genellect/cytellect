@@ -666,9 +666,11 @@ spreadsheet would read as a formula are prefixed with an apostrophe in the CSV.
   `no_adopted_nucleolus` (every object excluded or removed),
   `nucleolar_revision_not_adopted` or `nucleolar_field_excluded` (the field is
   excluded in the nucleolar revision). An excluded nucleus, or every nucleus of a
-  field excluded in the nuclear revision, stays in the table with its reason and
-  nucleolar values `not_measured` (`nucleus_excluded`); without a nucleolar
-  revision they are `not_measured` (`nucleolar_revision_not_selected`).
+  field excluded in the nuclear revision, stays in the table with
+  `exclusion_scope` (`nucleus` or `field`) and the reason (the nucleus's own, else
+  the field's); its nucleolar values are `not_measured` (`nucleus_excluded`), which
+  comes before every nucleolar reason. Without a nucleolar revision they are
+  `not_measured` (`nucleolar_revision_not_selected`).
 - The table records whether the nuclei and the nucleoli are the field's adopted
   revisions (`nuclear_adopted`, `nucleolar_source.adopted`). It is read-only and
   versioned; it adds no comparison or statistics. The workspace shows it beside the
