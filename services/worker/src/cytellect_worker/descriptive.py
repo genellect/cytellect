@@ -6,6 +6,7 @@ from pathlib import Path
 from cytellect_analysis.descriptive import describe_legacy, describe_regions
 from cytellect_analysis.descriptive_contracts import parse_descriptive_request
 from cytellect_analysis.descriptive_output import render_descriptive_output
+from cytellect_analysis.gfp_selection import gate_of
 from cytellect_analysis.images import sha256
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from cytellect_analysis.statistical_methods import CURRENT_METHODS_TEMPLATE
@@ -14,11 +15,11 @@ from cytellect_api.storage import read_json, write_json
 
 
 def _gfp_source(store, rev, report, request):
-    if getattr(request.selection, "gfp_gate", None) is None:
+    if gate_of(request.selection) is None:
         return None
-    from .gfp_sources import load_gfp_nuclear_source
+    from .gfp_sources import load_gate_nuclear_source
 
-    return load_gfp_nuclear_source(store, rev, report)
+    return load_gate_nuclear_source(store, rev, report, request.selection)
 
 
 def run_descriptive(store, job, output):
@@ -71,10 +72,11 @@ def run_descriptive(store, job, output):
 
         if not generic or preview:
             raise ValueError("descriptive_source_mismatch")
-        result = describe_field_summary(report, snapshot, request)
+        result = describe_field_summary(report, snapshot, request, nuclear=_gfp_source(store, rev, report, request))
     elif generic:
-        if preview and getattr(request.selection, "gfp_gate", None) is not None:
-            raise ValueError("gfp_gate_preview_unsupported")
+        if preview and gate_of(request.selection) is not None:
+            prefix = "channel_gate" if getattr(request.selection, "channel_gate", None) is not None else "gfp_gate"
+            raise ValueError(f"{prefix}_preview_unsupported")
         result = describe_regions(report, snapshot, request, nuclear=_gfp_source(store, rev, report, request))
     else:
         result = describe_legacy(report, snapshot, request)

@@ -47,14 +47,14 @@ def test_whole_field_exclusion_removes_the_observation_but_keeps_the_ledger():
     assert ledger["A2"]["explicitly_excluded"] is True
 
 
-def test_positivity_is_refused_until_connected():
+def test_positivity_requires_a_bound_nuclear_source():
     gate = {"version": "1.1.0", "gate_protocol": "gfp-gate/3.0.0", "gfp_channel_id": "actin", "method": "manual",
             "threshold": 10.0, "keep": "positive"}
     report, config = comparison_fixture()
     request = count_request()
     raw = request.model_dump(mode="json")
     raw["selection"] = {**raw["selection"], "metric": "positive_fraction", "positivity": gate}
-    with pytest.raises(ValueError, match="field_summary_positivity_not_connected"):
+    with pytest.raises(ValueError, match="gfp_gate_nuclear_source_unbound"):
         analyze_region_comparison(report, config, RegionComparisonRequestV2.model_validate(raw))
 
 

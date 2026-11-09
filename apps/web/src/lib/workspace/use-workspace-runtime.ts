@@ -334,11 +334,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     let selection=priorSelection;
     const gate=draft.gfp_selection;
     if(gate&&hasImages){
+      const {channel_gate:priorChannelGate,...legacySelection}=priorSelection;void priorChannelGate;
       const previousGate=priorSelection.gfp&&typeof priorSelection.gfp==="object"?priorSelection.gfp as Record<string,unknown>:{};
       if(gate.method==="negative_control"&&gate.unit==="nucleus"){
         const controls=previousGate.control_field_ids;
-        if(Array.isArray(controls)&&controls.length)selection={...priorSelection,gfp:{version:"1.0.0",gate_protocol:"gfp-gate/2.0.0",gfp_channel_id:gate.channel,percentile:gate.percentile,control_field_ids:controls,keep:gate.keep}};
-      }else if(gate.method!=="negative_control")selection={...priorSelection,gfp:{...(gate.unit==="cell_roi"?{unit:"cell_roi"}:{}),version:"1.1.0",gate_protocol:"gfp-gate/3.0.0",gfp_channel_id:gate.channel,method:gate.method,threshold:gate.threshold,values:gate.values,keep:gate.keep}};
+        if(Array.isArray(controls)&&controls.length)selection={...legacySelection,gfp:{version:"1.0.0",gate_protocol:"gfp-gate/2.0.0",gfp_channel_id:gate.channel,percentile:gate.percentile,control_field_ids:controls,keep:gate.keep}};
+      }else if(gate.method!=="negative_control")selection={...legacySelection,gfp:{...(gate.unit==="cell_roi"?{unit:"cell_roi"}:{}),version:"1.1.0",gate_protocol:"gfp-gate/3.0.0",gfp_channel_id:gate.channel,method:gate.method,threshold:gate.threshold,values:gate.values,keep:gate.keep}};
     }
     const statistical=prior?.statistics&&typeof prior.statistics==="object"?prior.statistics:{};
     const figure=prior?.figure&&typeof prior.figure==="object"?prior.figure:{};

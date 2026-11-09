@@ -3,6 +3,7 @@ import {metricUsesChannel} from "../../../lib/workspace/metric-catalog";
 import {defaultFigureEdits} from "../../../lib/figure-controls";
 import type {AssociationRequest} from "../../../lib/common-statistics";
 import type {MeasurementRow} from "../../../lib/workspace/api-adapter";
+import type {ChannelGateFilter} from "../../../lib/workspace/channel-gate";
 
 export type ResultOperation = "distribution" | "comparison" | "association";
 export const emptyMetadata: Metadata = {condition:null,sample:null,experimental_unit:null,pair:null,acquisition_date:null,repeat_length:null};
@@ -35,6 +36,7 @@ export interface ResultDesign {
   paired: boolean; rank: boolean; unit: string; pairing: string; confirmed: boolean;
   contrasts: string[][]; xMetric: string; xChannel: string | null;
   gfp?: GfpSelectionChoice | null;
+  channelGate?:ChannelGateFilter|null;
   /** Request treatment − control estimates (a declared two-group design). */
   estimates?: boolean;
   /** False while the runs' independence is unconfirmed: compare descriptively, without a test. */
@@ -48,12 +50,12 @@ export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
   axes?:{version:"1.0.0";x_scale:"linear"|"log10"|"log2";y_scale:"linear"|"log10"|"log2";x_min:number|null;x_max:number|null;x_tick_step:number|null};
 };
 const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity",...FIELD_SUMMARY_METRICS]);
-export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp">) {
+export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp"|"channelGate">) {
   if (!metrics.has(design.metric)) throw new Error("対応する測定項目を選択してください。");
-  return comparisonSelection(design.regionSet, design.metric as ComparisonMetric, metricUsesChannel(design.metric) ? design.channel : null, design.gfp??null);
+  return comparisonSelection(design.regionSet, design.metric as ComparisonMetric, metricUsesChannel(design.metric) ? design.channel : null, design.gfp??null,design.channelGate??null);
 }
 /** An association plots two region measurements; per-nucleus nucleolar summaries cannot be an axis. */
-export function associationSupported(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp">) {
+export function associationSupported(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp"|"channelGate">) {
   try {return resultSelection(design).source === "region";} catch {return false;}
 }
 /** Horizontal-axis measurements that differ from the vertical one. */
@@ -94,23 +96,24 @@ export function comparisonKind(design: Pick<ResultDesign, "paired" | "estimates"
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
   const selection = resultSelection(design);
   if (design.operation === "distribution") return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...plot,kind:"distribution"}};
-  const conditions = [...new Set(Object.values(fields).map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
+  const compared=Object.entries(fields).filter(([fid])=>!(design.channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value);
+  const conditions = [...new Set(compared.map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
   if (!design.confirmed || !design.unit.trim()) throw new Error("独立実験単位と解析条件を確認してください。");
-  if (Object.values(fields).some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
+  if (compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
     || ((metricUsesChannel(design.metric) || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
     || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・独立実験単位と、必要な撮影日・対応ペアを入力してください。");
   if (design.operation === "comparison") {
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
       contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
-      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,estimates:design.estimates,inference:design.inference};
+      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,channelGate:design.channelGate,estimates:design.estimates,inference:design.inference};
     const request = comparisonRequest(choices);
     return {...request,plot:{...request.plot,...plot,kind:comparisonKind(design)}};
   }
   const x = resultSelection({...design,metric:design.xMetric,channel:design.xChannel});
   if (selection.source !== "region" || x.source !== "region") throw new Error("相関には同じ領域の面積・輝度を選択してください。");
   if (JSON.stringify(x) === JSON.stringify(selection)) throw new Error("横軸と縦軸に異なる測定項目を選択してください。");
-  const request: AssociationRequest = {mode:"region-association",version:design.gfp?"1.1.0":"1.0.0",x_selection:x,y_selection:selection,
+  const request: AssociationRequest = {mode:"region-association",version:design.gfp||design.channelGate?"1.1.0":"1.0.0",x_selection:x,y_selection:selection,
     design:{kind:"independent",confirmed:true,unit_definition:design.unit.trim(),pairing_basis:null},conditions,
     acquisition_review:{confirmed:true,basis:"same-settings",field_batches:{},spatial_sampling_confirmed:true},missingness_confirmed:true,
     method:design.rank?"spearman":"pearson",scope:"per-condition",pooling_confirmed:false,

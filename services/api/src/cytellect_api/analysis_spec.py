@@ -1,6 +1,7 @@
 """Persistent editable analysis intent; saving a draft never executes or adopts results."""
 from typing import Annotated, Literal
 
+from cytellect_analysis.channel_gate_contracts import ChannelGateFilter
 from cytellect_analysis.common_statistics_contracts import AssociationPlot, CommonComparisonPlot
 from cytellect_analysis.descriptive_contracts import GfpFilter, LegacyMetric, RegionMetric
 from cytellect_analysis.experiment_design import ExperimentDesign
@@ -66,11 +67,14 @@ class RuntimeSettingsDraft(RegionModel):
 class AnalysisSelectionDraft(RegionModel):
     field_ids: list[Id] = Field(default_factory=list, max_length=100)
     gfp: GfpFilter | None = None
+    channel_gate: ChannelGateFilter | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def unique_fields(self):
         if len(self.field_ids) != len(set(self.field_ids)):
             raise ValueError("analysis_spec_duplicate_field")
+        if self.gfp is not None and self.channel_gate is not None:
+            raise ValueError("channel_gate_conflicting_filters")
         return self
 
 

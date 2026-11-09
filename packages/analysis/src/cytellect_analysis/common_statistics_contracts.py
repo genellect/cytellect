@@ -119,6 +119,10 @@ class RegionAssociationRequest(RegionModel):
             raise ValueError("gfp_gate_unsupported_request")
         if self.x_selection.gfp_gate != self.y_selection.gfp_gate:
             raise ValueError("common_statistics_matched_gfp_selection_required")
+        if self.version == "1.0.0" and (self.x_selection.channel_gate is not None or self.y_selection.channel_gate is not None):
+            raise ValueError("channel_gate_unsupported_request")
+        if self.x_selection.channel_gate != self.y_selection.channel_gate:
+            raise ValueError("common_statistics_matched_channel_selection_required")
         if self.version == "1.1.0" and not any(s.metric.startswith("area_") for s in (self.x_selection, self.y_selection)):
             if self.x_selection.metric.endswith("_corrected") != self.y_selection.metric.endswith("_corrected"):
                 raise ValueError("common_statistics_matched_intensity_policy_required")

@@ -126,8 +126,8 @@ describe("one-group summary distributions", () => {
     expect(result).not.toHaveProperty("conditions");
   });
   it("does not enable unconnected positivity", () => {
-    expect(descriptiveSupported("positive_count")).toBe(false);
-    expect(descriptiveSupported("positive_fraction")).toBe(false);
+    expect(descriptiveSupported("positive_count")).toBe(true);
+    expect(descriptiveSupported("positive_fraction")).toBe(true);
   });
 });
 

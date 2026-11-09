@@ -45,6 +45,7 @@ from sqlalchemy import func, select, update
 from .analysis_spec import register_analysis_spec_routes
 from .app_update import register_app_update_routes
 from .channel_assignments import register_channel_assignment_routes
+from .channel_gates import register_channel_gate_routes
 from .common_statistics import register_common_statistics_routes
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
@@ -1137,6 +1138,7 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
     register_nucleus_table_routes(api, owner, revision, result_root)
+    register_channel_gate_routes(api, store, owner, workspace, revision, result_root)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace, credentials=proposal_credentials)

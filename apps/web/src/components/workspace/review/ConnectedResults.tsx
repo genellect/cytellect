@@ -21,6 +21,7 @@ import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure
 import type {components} from "@/lib/generated";
 import {comparisonDefaults,fieldMetadata,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {breakdown,formatNumber,summarize,type ComparisonEstimates,type CountRow,type FieldLedgerRow,type SavedComparison} from "@/lib/result-summary";
+import {channelGateInputSignature,channelGateName,channelGateRequest,channelGateThresholds,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult} from "@/lib/workspace/channel-gate";
 
 export interface ConnectedResultItem {fieldId:string;label:string;result?:SavedResult;metadata?:Metadata;excluded?:boolean}
 export interface ConnectedResultsProps {
@@ -30,6 +31,8 @@ export interface ConnectedResultsProps {
   /** `target` is the region set the values come from; `structure` is what they are checked on in the image. */
   onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null,structure?:ReviewTarget)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
   gfp?:GfpSelectionChoice|null;
+  channelGate?:ChannelGateFilter|null;
+  onChannelGateRecorded?:(result:ChannelGateResult,filter:ChannelGateFilter)=>void|Promise<void>;
   initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals">;
   onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]})=>Promise<unknown>;
   onMetricChange?:(metric:string,channel:string|null)=>void;
@@ -42,13 +45,13 @@ export interface ConnectedResultsProps {
   onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
-interface ResultPayload {revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
+interface ResultPayload {selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
 type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
 const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":""};
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
-const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
+const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",positive_count:"視野あたりの陽性核数",positive_fraction:"陽性率",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
 const regionNames:Record<string,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
 /** The region a metric is checked on: a per-nucleus value of the nucleoli comes from the nucleoplasm set
  * but reads 「核小体（核ごとの値）」, as the image shows it (V-04, X-01). */
@@ -56,7 +59,7 @@ function regionLabel(metric:string,region:string|undefined){if(!region||!(region
 /** The region a saved result measured: its selection's region set, else its sources'. */
 function savedRegion(result:ResultPayload):ReviewTarget|undefined{const id=result.spec?.selection?.region_set_id||resultSources(result)[0]?.region_set?.region_set_id||"";return id in regionNames?id as ReviewTarget:undefined;}
 /** A per-region metric names its region and channel (「核小体の平均輝度（eu5）」); summaries name their own. */
-function resultMetricLabel(result:ResultPayload,metric:string){const selection=result.spec?.selection,label=metricLabels[metric]||metric;if(selection?.source!=="region")return label;const region=regionNames[selection.region_set_id||""];return `${region?`${region}の`:""}${label}${selection.channel_id?`（${selection.channel_id}）`:""}`;}
+function resultMetricLabel(result:ResultPayload,metric:string){const selection=result.spec?.selection,label=metricLabels[metric]||metric;if(metric.startsWith("positive_")){const judged=result.selection?.channel_gate?.channel;return `${label}${judged?`（${judged.stain||judged.label||judged.channel_id}）`:""}`;}if(selection?.source!=="region")return label;const region=regionNames[selection.region_set_id||""];return `${region?`${region}の`:""}${label}${selection.channel_id?`（${selection.channel_id}）`:""}`;}
 const resultSources=(result:ResultPayload):SavedSource[]=>result.source_fields||result.x_source?.source_fields||result.y_source?.source_fields||[];
 const fail=(error:unknown)=>error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。";
 
@@ -65,7 +68,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,onChannelGateRecorded,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,onEditExperiment}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   const comparison=useMemo(()=>createComparisonAdapter(),[]);
   const [csv,setCsv]=useState(false);
@@ -99,6 +102,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const [selectedSeries,setSelectedSeries]=useState("");
   const [pointSource,setPointSource]=useState<{job:string;source:FigureSource}|null>(null);
   const [saved,setSaved]=useState<Saved|null>(null),[busy,setBusy]=useState(""),[error,setError]=useState("");
+  const [recordedGate,setRecordedGate]=useState<{identity:string;revision:string;filter:ChannelGateFilter;result:ChannelGateResult}|null>(null);
   const [rawExport,setRawExport]=useState<{revision:string;included:boolean}|null>(null);
   const includeRaw=!!saved&&rawExport?.revision===saved.revision&&rawExport.included;
   const lock=useRef(false),renderCache=useRef(new Map<string,{job:string;figure:ResultPayload["figure"]}>()),renderIds=useRef(new Map<string,string>());
@@ -110,6 +114,11 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:derived[item.fieldId]??metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
   const fields=Object.fromEntries(sources.map(source=>[source.field,source.metadata]));
   const regionSet=sources[0]?.result.regionSet||target;
+  const gateIdentity=channelGateInputSignature(workspace,target,sources,fields,channelGate);
+  const gateCurrent=useRef(gateIdentity);
+  useLayoutEffect(()=>{gateCurrent.current=gateIdentity;return()=>{gateCurrent.current="";};},[gateIdentity]);
+  const currentGate=recordedGate?.identity===gateIdentity?recordedGate:null;
+  const positivityMissing=metric.startsWith("positive_")&&!channelGate;
   // Nuclei whose nucleolus could not be established (Q-05): listed by group, run and reason before the
   // calculation; once confirmed they stay as missing instead of stopping the statistics.
   const compartment=regionSet==="nucleoli"||regionSet==="nucleoplasm";
@@ -130,7 +139,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const [written,setWritten]=useState<WorkspaceSelection|null>(null);
   const currentSelection=written&&written.version>(selection?.version??-1)?written:selection;
   const identity=JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,currentSelection]);
-  const conditions=[...new Set(Object.values(fields).map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
+  const conditions=[...new Set(Object.entries(fields).filter(([fid])=>!(channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value.condition?.trim()).filter((value):value is string=>!!value))];
   const declared=experiment?.layout==="pair"&&experiment.control_group_id?comparisonDefaults(experiment):null;
   // The declared pair reads treatment − control; other pairs keep the order the groups appear in.
   const pairs=conditions.flatMap((a,index)=>conditions.slice(index+1).map(b=>declared&&new Set([a,b,declared.control,declared.treatment]).size===2?declared.contrasts[0]:[a,b]));
@@ -138,14 +147,14 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   // Only choices the calculation accepts are offered: an association needs two different region measurements.
   // Groups with saturated brightness are not analysed. With a GFP filter the analysed nuclei are not
   // known here, so the API decides.
-  const saturatedIn=(value:string,stain:string|null)=>gfp?new Set<string>():saturatedGroups(sources,fields,value,stain);
+  const saturatedIn=(value:string,stain:string|null)=>gfp||channelGate?new Set<string>():saturatedGroups(sources,fields,value,stain);
   const saturatedSet=saturatedIn(metric,channel),saturatedKey=[...saturatedSet].sort().join("\n");
   const unsaturatedPair=(pair:string[])=>pair.every(value=>!saturatedSet.has(value));
   const saturated=saturatedSet.size>0&&!pairs.some(unsaturatedPair);
   // The horizontal axis needs a stain for brightness; one without saturated pixels is offered first.
   const xStain=channels.find(value=>value===xChannel&&!saturatedIn("mean",value).size)??channels.find(value=>!saturatedIn("mean",value).size)??null;
   const xAxes=associationAxes(metric,channel,xStain).filter(value=>value.startsWith("area_")||!!xStain);
-  const canAssociate=associationSupported({regionSet,metric,channel,gfp})&&!saturatedSet.size&&xAxes.length>0;
+  const canAssociate=associationSupported({regionSet,metric,channel,gfp,channelGate})&&!saturatedSet.size&&xAxes.length>0;
   // Unconfirmed independence (E-05): no association test; a comparison stays descriptive (test "none").
   const unconfirmed=!!experiment&&!experiment.independence_confirmed;
   useEffect(()=>{if((operation==="association"&&(!canAssociate||unconfirmed))||(operation==="comparison"&&saturated))setOperation("distribution");
@@ -153,11 +162,11 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   useEffect(()=>{if(saturatedKey&&contrasts.some(pair=>!unsaturatedPair(pair)))setContrasts(previous=>previous.filter(unsaturatedPair));},[saturatedKey,contrasts]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
-  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed};
+  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed};
   // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
   const designDefaults=declared;
   const independenceMissing=unconfirmed&&operation==="association";
-  const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric)));
+  const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric))||(!!channelGate&&channelGate.method!=="manual"));
   const datesMissing=!!experiment&&needsDates&&sources.some(source=>source.field in derived&&!source.metadata.acquisition_date?.trim());
   // A changed control (a new declared contrast) replaces the earlier contrast, so the direction shown is the one computed (S-04).
   const declaredContrast=useRef(designDefaults?.contrasts.join("\n"));
@@ -179,7 +188,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing;
+  const ready=!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
@@ -203,6 +212,23 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       if(job.state==="failed"||job.state==="cancelled")throw new Error(job.error||"処理が中止されました。");
       await new Promise(resolve=>setTimeout(resolve,1000));}
   }
+  async function classifyForResults(){
+    if(lock.current||disabled||busy||!channelGate||!sources.length||missing||!ledgerReady)return;
+    lock.current=true;setBusy("分類記録を確認中…");setError("");const requested=gateIdentity;
+    try{
+      await persist();
+      let adopted=beforePrepare?await beforePrepare():selection;
+      if(!beforePrepare){for(const source of sources)await adapter.selectRevision(workspace,source.revision,source.field);adopted=adapter.selection();}
+      setWritten(adopted);
+      const revision=await comparison.cohort(workspace,sources,fields,adopted,compartment&&unresolved?MISSING_POLICY:null,true);
+      const result=await adapter.channelGate(workspace,channelGateRequest({...channelGate,reference_sha256:null},sources.map(source=>({fieldId:source.field,label:source.label,revisionId:revision}))));
+      if(gateCurrent.current!==requested)return;
+      const filter=recordedChannelGate(result);
+      await onChannelGateRecorded?.(result,filter);
+      if(gateCurrent.current===requested)setRecordedGate({identity:requested,revision,filter,result});
+    }catch(cause){if(gateCurrent.current===requested)setError(fail(cause));}
+    finally{lock.current=false;setBusy("");}
+  }
   async function calculate(){
     if(lock.current||!ready)return;lock.current=true;setBusy("解析中…");setError("");
     try{
@@ -216,7 +242,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       if(!beforePrepare){for(const source of sources)await adapter.selectRevision(workspace,source.revision,source.field);adopted=adapter.selection();}
       setWritten(adopted);
       const keepMissing=compartment&&unresolved;
-      const revision=sources.length===1?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted,keepMissing?MISSING_POLICY:null);
+      const revision=currentGate?.revision??(sources.length===1?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted,keepMissing?MISSING_POLICY:null));
       // For inferential requests the cohort persists the entered experimental metadata.
       if(operation!=="distribution"&&sources.length<2)throw new Error("統計解析には複数視野の測定結果と実験情報が必要です。");
       await comparison.review(revision,reviewed,keepMissing?unresolvedFields:null);
@@ -268,7 +294,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
     if(savedMetric===metric&&(!saved.target||saved.target===target)&&(savedChannelId==null||savedChannelId===channel))return null;
     const describe=(region:string|undefined,value:string,channelId:string|null)=>[regionLabel(value,region),metricLabels[value]||value||"別の指標",channelId].filter(Boolean).join(" · ");
     return {shown:describe(saved.target,savedMetric,savedChannelId),chosen:describe(target,metric,savedChannelId==null?null:channel)};})();
-  const savedChannel=saved?.result.channel?.channel_id??saved?.result.y_source?.channel?.channel_id??saved?.result.spec?.selection?.channel_id??null;
+  const savedChannel=saved?.result.channel?.channel_id??saved?.result.y_source?.channel?.channel_id??saved?.result.spec?.selection?.channel_id??saved?.result.selection?.channel_gate?.channel?.channel_id??saved?.result.spec?.selection?.positivity?.channel_id??null;
   const savedStructure=saved?.target?metricStructure(saved.result.spec?.selection?.metric??saved.result.estimates?.metric??saved.result.metric??"",saved.target):undefined;
   const tableRows=saved?.operation==="comparison"?saved.result.comparisons:saved?.operation==="association"?saved.result.associations:saved?.result.field_summary&&withMaskCorrections(saved.result.field_summary,saved.result.mask_corrections);
   const fieldLabels=Object.fromEntries([...(saved?.sources||[]).map((source,index)=>[source.field,source.label!==source.field?source.label:`視野 ${index+1}`]),...items.map(item=>[item.fieldId,item.label])]);
@@ -279,6 +305,14 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
       <header><h2>{mode==="figure"?"グラフ":"統計解析"}</h2><span>{sources.length} 視野{excludedCount?` · 除外 ${excludedCount}`:""}</span></header>
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
       <p className={styles.current}>{regionLabel(shownMetric,shownTarget)??"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
+      {positivityMissing&&<p role="status">陽性核数・陽性率には、設定の「チャンネルによる核の分類・陽性率」でチャンネルを選んで分類してください。</p>}
+      {channelGate&&<div><p>{currentGate?`${channelGateName(currentGate.result)}の分類記録を確認しました。` :"集計対象・実験情報の変更後は、分類記録の確認が必要です。"}</p>
+        <button type="button" disabled={disabled||!!busy||!sources.length||!!missing||!ledgerReady} onClick={()=>void classifyForResults()}>現在の実験情報で再分類</button>
+        <small>判定記録の確認後に計算できます。陽性率の分母は選別前の判定可能な核です。</small>
+        {currentGate&&<><table aria-label="核の分類の内訳"><thead><tr><th>視野</th><th>陽性</th><th>陰性</th><th>未判定</th><th>除外</th><th>対照</th></tr></thead>
+          <tbody>{Object.entries(currentGate.result.field_counts).map(([fid,row])=><tr key={fid}><th scope="row">{sources.find(source=>source.field===fid)?.label||fid}</th>{(["positive","negative","unclassified","excluded","control"] as const).map(key=><td key={key}>{row.nuclei===null?"—":row[key]}</td>)}</tr>)}</tbody></table>
+          {channelGateThresholds(currentGate.result).map(row=><small key={row.date}>{row.date} · {row.threshold===null?errorCodeMessage(row.reason||"channel_threshold_missing"):`しきい値 ${row.threshold.toPrecision(5)}`}</small>)}</>}
+      </div>}
       {mode==="statistics"?<>
         {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
         {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
