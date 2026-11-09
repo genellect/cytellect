@@ -2353,6 +2353,71 @@
         }
       }
     },
+    "/v1/revisions/{rid}/nucleus-table": {
+      "get": {
+        "summary": "Get Nucleus Table",
+        "description": "One row per nucleus of a nuclear revision; with `nucleolar_revision_id`, the\nnucleolar revision built on it adds each nucleus's adopted nucleoli.",
+        "operationId": "get_nucleus_table_v1_revisions__rid__nucleus_table_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "nucleolar_revision_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Nucleolar Revision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NucleusTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/common-statistics": {
       "post": {
         "summary": "Calculate",
@@ -9414,6 +9479,512 @@
         "type": "object",
         "title": "NucleolarDetectorV21",
         "description": "Marker-only revision: the recorded smoothing sigma is the effective value."
+      },
+      "NucleolarMorphology": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "missing",
+              "not_measured"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "union_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Union Area Px"
+          },
+          "union_area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Union Area Um2"
+          },
+          "area_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Fraction"
+          },
+          "largest_object_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest Object Area Px"
+          },
+          "largest_object_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest Object Fraction"
+          },
+          "eccentricity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eccentricity"
+          },
+          "eccentricity_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eccentricity Missing Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason",
+          "count",
+          "union_area_px",
+          "union_area_um2",
+          "area_fraction",
+          "largest_object_area_px",
+          "largest_object_fraction",
+          "eccentricity",
+          "eccentricity_missing_reason"
+        ],
+        "title": "NucleolarMorphology"
+      },
+      "NucleolarSource": {
+        "properties": {
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          },
+          "mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Mask Revision Id"
+          },
+          "mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Mask Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision_id",
+          "mask_revision_id",
+          "mask_sha256"
+        ],
+        "title": "NucleolarSource"
+      },
+      "NucleusChannelValues": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "nuclear_stain",
+              "measure"
+            ],
+            "title": "Role"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "integrated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrated"
+          },
+          "mean_corrected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Corrected"
+          },
+          "integrated_corrected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrated Corrected"
+          },
+          "intensity_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity Missing Reason"
+          },
+          "correction_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Missing Reason"
+          },
+          "storage_limit_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Limit Fraction"
+          },
+          "acquisition_saturation_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Saturation Fraction"
+          },
+          "acquisition_saturation_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Saturation Missing Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "role",
+          "mean",
+          "integrated",
+          "mean_corrected",
+          "integrated_corrected",
+          "intensity_missing_reason",
+          "correction_missing_reason",
+          "storage_limit_fraction",
+          "acquisition_saturation_fraction",
+          "acquisition_saturation_missing_reason"
+        ],
+        "title": "NucleusChannelValues"
+      },
+      "NucleusRow": {
+        "properties": {
+          "nucleus_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Nucleus Id"
+          },
+          "excluded": {
+            "type": "boolean",
+            "title": "Excluded"
+          },
+          "exclusion_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusion Reason"
+          },
+          "touches_border": {
+            "type": "boolean",
+            "title": "Touches Border"
+          },
+          "nucleus_area_px": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Nucleus Area Px"
+          },
+          "nucleus_area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleus Area Um2"
+          },
+          "area_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "calibration_unknown"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Missing Reason"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/NucleusChannelValues"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "nucleoli": {
+            "$ref": "#/components/schemas/NucleolarMorphology"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nucleus_id",
+          "excluded",
+          "exclusion_reason",
+          "touches_border",
+          "nucleus_area_px",
+          "nucleus_area_um2",
+          "area_missing_reason",
+          "channels",
+          "nucleoli"
+        ],
+        "title": "NucleusRow"
+      },
+      "NucleusTable": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "nucleus-table/1.0.0",
+            "title": "Protocol",
+            "default": "nucleus-table/1.0.0"
+          },
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "nuclear_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Nuclear Revision Id"
+          },
+          "nuclear_mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Nuclear Mask Revision Id"
+          },
+          "nuclear_mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Nuclear Mask Sha256"
+          },
+          "measurement_protocol_version": {
+            "type": "string",
+            "enum": [
+              "1.0.0",
+              "2.0.0",
+              "3.0.0",
+              "4.0.0"
+            ],
+            "title": "Measurement Protocol Version"
+          },
+          "nuclear_channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nuclear Channel Id"
+          },
+          "nucleolar_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NucleolarSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Calibration2D"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field_excluded": {
+            "type": "boolean",
+            "title": "Field Excluded"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/NucleusRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "nuclear_revision_id",
+          "nuclear_mask_revision_id",
+          "nuclear_mask_sha256",
+          "measurement_protocol_version",
+          "nuclear_channel_id",
+          "nucleolar_source",
+          "calibration",
+          "field_excluded",
+          "rows"
+        ],
+        "title": "NucleusTable"
       },
       "NumericalSelection": {
         "additionalProperties": false,

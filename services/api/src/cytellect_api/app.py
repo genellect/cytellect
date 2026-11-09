@@ -51,6 +51,7 @@ from .db import Store, digest, fields, invitations, jobs, revisions, sessions, t
 from .descriptive import register_descriptive_routes
 from .field_links import register_field_link_routes
 from .figure_render import register_figure_render_routes
+from .nucleus_tables import register_nucleus_table_routes
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
 from .proposals import register_proposal_routes
@@ -1135,6 +1136,7 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
                            field_record, result_root, queue, touch, child_revision)
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
+    register_nucleus_table_routes(api, owner, revision, result_root)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace, credentials=proposal_credentials)
