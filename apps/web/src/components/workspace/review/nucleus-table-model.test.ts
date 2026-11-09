@@ -11,12 +11,12 @@ const measured={status:"measured" as const,reason:null,count:2,union_area_px:5,u
 const missing=(reason:string)=>({status:"missing" as const,reason,count:null,union_area_px:null,union_area_um2:null,area_fraction:null,
   largest_object_area_px:null,largest_object_fraction:null,eccentricity:null,eccentricity_missing_reason:null,excluded_objects:0});
 const row=(nucleus_id:number,nucleoli:NucleusTableData["rows"][number]["nucleoli"],extra:Partial<NucleusTableData["rows"][number]>={})=>({
-  nucleus_id,excluded:false,exclusion_reason:null,touches_border:false,nucleus_area_px:25,nucleus_area_um2:6.25,area_missing_reason:null,
+  nucleus_id,excluded:false,exclusion_scope:null,exclusion_reason:null,touches_border:false,nucleus_area_px:25,nucleus_area_um2:6.25,area_missing_reason:null,
   channels:[values("dna","nuclear_stain",100,2500,null),values("npm1","measure",40.25,1006,30,nucleus_id===2?0.01:0)],nucleoli,...extra});
 const table:NucleusTableData={protocol:"nucleus-table/1.0.0",field_id:"f1",nuclear_revision_id:"n",nuclear_mask_revision_id:"n",nuclear_mask_sha256:"a".repeat(64),nuclear_adopted:true,
   measurement_protocol_version:"4.0.0",nuclear_channel_id:"dna",nucleolar_source:{revision_id:"c",mask_revision_id:"c",mask_sha256:"b".repeat(64),adopted:true,field_excluded:false},
   calibration:{pixel_size_x_um:0.5,pixel_size_y_um:0.5,confirmed:true},field_excluded:false,
-  rows:[row(1,measured),row(2,missing("no_candidate")),row(3,{...missing("nucleus_excluded"),status:"not_measured"},{excluded:true,exclusion_reason:"mitotic"})]};
+  rows:[row(1,measured),row(2,missing("no_candidate")),row(3,{...missing("nucleus_excluded"),status:"not_measured"},{excluded:true,exclusion_scope:"nucleus",exclusion_reason:"mitotic"})]};
 const channels=[{id:"dna",stain:"Hoechst"},{id:"npm1",stain:"NPM1"}];
 
 describe("nucleus table view",()=>{
@@ -35,6 +35,12 @@ describe("nucleus table view",()=>{
     expect(second[9].text).toBe("核小体の候補なし");
     expect(view.rows[2].cells.at(-1)?.text).toBe("除外：mitotic");
     expect(view.ledger).toBe("核 3 個 · 除外 1 · 核小体を確定 1 · 欠測 1（核小体の候補なし 1） · NPM1の飽和画素を含む核 1");
+  });
+  it("names a whole-field exclusion and its reason on every nucleus",()=>{
+    const excluded={...missing("nucleus_excluded"),status:"not_measured" as const};
+    const view=nucleusTableView({...table,field_excluded:true,rows:[row(1,excluded,{excluded:true,exclusion_scope:"field",exclusion_reason:"焦点外"})]},channels);
+    expect(view.rows[0].cells.at(-1)?.text).toBe("視野を除外：焦点外");
+    expect(view.ledger.startsWith("核 1 個 · 除外 1")).toBe(true);
   });
   it("invites nucleolar analysis when only nuclei are adopted, and uses pixels without a confirmed calibration",()=>{
     const view=nucleusTableView({...table,nucleolar_source:null,calibration:null,rows:[row(1,{...missing("nucleolar_revision_not_selected"),status:"not_measured"})]},channels);

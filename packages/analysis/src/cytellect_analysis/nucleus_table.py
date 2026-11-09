@@ -69,6 +69,7 @@ class NucleolarMorphology(RegionModel):
 class NucleusRow(RegionModel):
     nucleus_id: RegionId
     excluded: bool
+    exclusion_scope: Literal["field", "nucleus"] | None
     exclusion_reason: Annotated[str, Field(min_length=1, max_length=200)] | None
     touches_border: bool
     nucleus_area_px: Annotated[int, Field(gt=0)]
@@ -162,9 +163,10 @@ def nucleolar_morphology(nuclei: np.ndarray, nucleoli: np.ndarray, states: Mappi
     return result
 
 
-def _excluded(exclusions: Sequence[Mapping]) -> tuple[bool, dict[int, str]]:
-    return (any(item.get("region_id") is None for item in exclusions),
-            {int(item["region_id"]): item["reason"] for item in exclusions if item.get("region_id") is not None})
+def _excluded(exclusions: Sequence[Mapping]) -> tuple[str | None, dict[int, str]]:
+    """The whole-field exclusion reason (None when the field is kept) and the per-region reasons."""
+    field = next((item["reason"] for item in exclusions if item.get("region_id") is None), None)
+    return field, {int(item["region_id"]): item["reason"] for item in exclusions if item.get("region_id") is not None}
 
 
 def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapping, nuclear_table,
@@ -186,7 +188,8 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         raise ValueError("nucleus_table_mask_mismatch")
     if (nucleoli is None) != (nucleolar_source is None):
         raise ValueError("nucleus_table_nucleolar_source_invalid")
-    field_excluded, excluded = _excluded(exclusions)
+    field_reason, excluded = _excluded(exclusions)
+    field_excluded = field_reason is not None
     calibration = nuclear_table.calibration
     pixel_area = (calibration.pixel_size_x_um * calibration.pixel_size_y_um) if calibration is not None else None
     morphology: dict[int, NucleolarMorphology] = {}
@@ -194,7 +197,8 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
     if nucleoli is not None:
         assert nucleolar_source is not None
         validate_labels(nuclear_labels, nucleoli)
-        nucleolar_field_excluded, dropped_ids = _excluded(nucleolar_exclusions)
+        nucleolar_field_reason, dropped_ids = _excluded(nucleolar_exclusions)
+        nucleolar_field_excluded = nucleolar_field_reason is not None
         dropped = np.isin(nucleoli, sorted(dropped_ids))
         dropped_by_parent: dict[int, int] = {}
         for child, parent in {int(c): int(p) for c, p in zip(nucleoli[dropped], nuclear_labels[dropped], strict=True)}.items():
@@ -213,7 +217,10 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
     for nucleus_id in sorted(grouped):
         by_channel = {row.channel_id: row for row in grouped[nucleus_id]}
         first = by_channel[order[0]]
-        nucleus_excluded = field_excluded or nucleus_id in excluded
+        # An exclusion (of this nucleus or of the whole field) comes before every nucleolar reason.
+        scope: Literal["field", "nucleus"] | None = (
+            "nucleus" if nucleus_id in excluded else "field" if field_excluded else None)
+        nucleus_excluded = scope is not None
         if nucleus_excluded:
             nucleolar = _unconfirmed("not_measured", "nucleus_excluded")
         elif nucleoli is None:
@@ -225,7 +232,8 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         else:
             nucleolar = morphology[nucleus_id]
         rows.append(NucleusRow(
-            nucleus_id=nucleus_id, excluded=nucleus_excluded, exclusion_reason=excluded.get(nucleus_id),
+            nucleus_id=nucleus_id, excluded=nucleus_excluded, exclusion_scope=scope,
+            exclusion_reason=excluded.get(nucleus_id, field_reason),
             touches_border=first.touches_border, nucleus_area_px=first.area_px, nucleus_area_um2=first.area_um2,
             area_missing_reason=first.area_missing_reason,
             channels=tuple(_channel_values(by_channel[cid], "nuclear_stain" if cid == nuclear_channel_id else "measure")
@@ -276,7 +284,8 @@ def _columns(table: NucleusTable) -> list[tuple[str, str, str]]:
         ("pixel_size_y_um", "µm", "Confirmed pixel height (empty: uncalibrated)"),
         ("nucleus_id", "", "Nucleus label in the nuclear mask"),
         ("excluded", "", "Excluded by the researcher (the whole field or this nucleus)"),
-        ("exclusion_reason", "", "Researcher's reason for excluding this nucleus"),
+        ("exclusion_scope", "", "field: the whole field was excluded; nucleus: this nucleus was excluded"),
+        ("exclusion_reason", "", "Researcher's reason (this nucleus's own reason, else the field's)"),
         ("touches_border", "", "The nucleus touches the image border"),
         ("nucleus_area_px", "px²", "Nucleus area"),
         ("nucleus_area_um2", "µm²", "Nucleus area with a confirmed calibration"),
@@ -318,7 +327,7 @@ def nucleus_table_csv_rows(table: NucleusTable) -> tuple[list[str], list[dict], 
     }
     rows = []
     for row in table.rows:
-        record = {**common, "nucleus_id": row.nucleus_id, "excluded": row.excluded,
+        record = {**common, "nucleus_id": row.nucleus_id, "excluded": row.excluded, "exclusion_scope": row.exclusion_scope,
                   "exclusion_reason": row.exclusion_reason, "touches_border": row.touches_border,
                   "nucleus_area_px": row.nucleus_area_px, "nucleus_area_um2": row.nucleus_area_um2,
                   "area_missing_reason": row.area_missing_reason}

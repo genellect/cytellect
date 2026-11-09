@@ -131,9 +131,22 @@ def test_exclusions_adoption_and_field_exclusions_never_confirm_nucleoli():
     rows, _ = _table(nucleolar_source={"revision_id": "c", "mask_revision_id": "c", "mask_sha256": "b" * 64, "adopted": False})
     assert {(row.nucleoli.status, row.nucleoli.reason) for row in rows.values()} == {("missing", "nucleolar_revision_not_adopted")}
     rows, table = _table(exclusions=[{"field_id": "f1", "region_id": None, "reason": "out of focus"}])
-    assert table.field_excluded and all(row.excluded and row.nucleoli.reason == "nucleus_excluded" for row in rows.values())
+    # The whole-field reason reaches every nucleus row, and exclusion comes before any nucleolar reason.
+    assert table.field_excluded and all(
+        (row.excluded, row.exclusion_scope, row.exclusion_reason, row.nucleoli.status, row.nucleoli.reason)
+        == (True, "field", "out of focus", "not_measured", "nucleus_excluded") for row in rows.values())
+    rows, _ = _table(exclusions=[{"field_id": "f1", "region_id": None, "reason": "out of focus"},
+                                 {"field_id": "f1", "region_id": 2, "reason": "mitotic"}],
+                     nucleolar_exclusions=[{"field_id": "f1", "region_id": None, "reason": "blurred"}],
+                     nucleolar_source={"revision_id": "c", "mask_revision_id": "c", "mask_sha256": "b" * 64, "adopted": False})
+    assert (rows[2].exclusion_scope, rows[2].exclusion_reason) == ("nucleus", "mitotic")
+    assert {(row.nucleoli.status, row.nucleoli.reason) for row in rows.values()} == {("not_measured", "nucleus_excluded")}
+    rows, _ = _table(nucleolar_exclusions=[{"field_id": "f1", "region_id": None, "reason": "blurred"}],
+                     nucleolar_source={"revision_id": "c", "mask_revision_id": "c", "mask_sha256": "b" * 64, "adopted": False})
+    assert {row.nucleoli.reason for row in rows.values()} == {"nucleolar_field_excluded"}  # before adoption and states
     rows, _ = _table(exclusions=[{"field_id": "f1", "region_id": 1, "reason": "mitotic"}])
-    assert (rows[1].excluded, rows[1].exclusion_reason, rows[1].nucleoli.status) == (True, "mitotic", "not_measured")
+    assert (rows[1].excluded, rows[1].exclusion_scope, rows[1].exclusion_reason, rows[1].nucleoli.status) == (True, "nucleus", "mitotic", "not_measured")
+    assert (rows[2].excluded, rows[2].exclusion_scope, rows[2].exclusion_reason) == (False, None, None)
     with pytest.raises(ValueError, match="nucleolar_state_invalid"):
         _table(nucleolar_states={"1": "adopted_by_hand"})
 

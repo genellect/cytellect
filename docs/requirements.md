@@ -80,7 +80,7 @@ T04: Six replacement boundaries: identity, DB, storage, jobs, image engine, meth
 T05: Initial concurrency1, field-by-field memory. Atomic claims, leases/heartbeat, recovery/retry, fencing, idempotency, partial-failure reporting, child time/memory limits and tree cancellation.
 T06: CLI one-use expiring invite, hashed tokens, Secure HttpOnly cookie; no URL/localStorage secrets. Exact CORS, Origin/CSRF mutation checks.
 T07: Ownership on image/preview/mask/table/figure/ZIP; immediate revocation/expiry/deletion applies to every path.
-T08: Research content and names/conditions never in Git/CI/logs/issues/PR/analytics/external AI, except the user-enabled proposal request scoped by L03. no-store, no CDN/service-worker caches. Worker egress denied, allowlisted recipes, no arbitrary macros/code/URLs.
+T08: Research content and names/conditions never in Git/CI/logs/issues/PR/analytics/external AI, except the user-enabled proposal request scoped by L03 and, for development only, the owner-designated isolated local area with its designated AI and purposes (team-development §6). no-store, no CDN/service-worker caches. Worker egress denied, allowlisted recipes, no arbitrary macros/code/URLs.
 T09: 24h from explicit activity, polling excluded. On expiry/delete block access, stop execution, remove raw/derived/temp files. Protect active execution and exclude research files from general PoC backups.
 T10: Lock actual Python/pnpm/Fiji/Java/plugins/weights versions/URLs/SHA256/licenses. No runtime downloads/updates. Verify CPU/headless support or include Xvfb.
 

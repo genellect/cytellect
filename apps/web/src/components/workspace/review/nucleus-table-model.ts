@@ -57,7 +57,7 @@ export function nucleusTableView(table:NucleusTableData,channels:NucleusTableCha
     const union=calibrated?number(m.union_area_um2,2,reason):number(m.union_area_px,0,reason);
     const nucleolar=nucleoli?[m.count===null?missing(reason):{text:String(m.count)},union,percent(m.area_fraction,reason),percent(m.largest_object_fraction,reason),
       number(m.eccentricity,3,m.status==="measured"?m.eccentricity_missing_reason:reason)]:[];
-    const notes=[row.excluded?`除外${row.exclusion_reason?`：${row.exclusion_reason}`:""}`:m.status==="missing"?reasonText(m.reason):"",
+    const notes=[row.excluded?`${row.exclusion_scope==="field"?"視野を除外":"除外"}${row.exclusion_reason?`：${row.exclusion_reason}`:""}`:m.status==="missing"?reasonText(m.reason):"",
       m.excluded_objects?`除外した核小体 ${m.excluded_objects}`:"",!row.excluded&&row.touches_border?"画像の端に接する":""];
     const state=notes.filter(Boolean).join("・");
     return {id:row.nucleus_id,excluded:row.excluded,cells:[area,...signal,...nucleolar,{text:state}]};
