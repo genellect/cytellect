@@ -3,10 +3,12 @@
 from typing import Annotated
 
 from cytellect_analysis.descriptive_contracts import DescriptiveRequestType
+from cytellect_analysis.gfp_selection import gate_of
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from fastapi import Depends, HTTPException
 
-from .regions import is_region, require_compartment_revision, require_gfp_gate_source
+from .channel_gates import require_gate_source
+from .regions import is_region, require_compartment_revision
 from .storage import read_json
 
 
@@ -21,9 +23,10 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
             raise HTTPException(409, "workspace_measurements_required")
         if body.selection.source != "region":
             raise HTTPException(422, "descriptive_source_mismatch")
-        if getattr(body.selection, "gfp_gate", None) is not None:
+        if gate_of(body.selection) is not None:
             # Control designation and gating are reviewed research decisions, not automatic previews.
-            raise HTTPException(422, "gfp_gate_preview_unsupported")
+            prefix = "channel_gate" if getattr(body.selection, "channel_gate", None) is not None else "gfp_gate"
+            raise HTTPException(422, f"{prefix}_preview_unsupported")
         report = read_json(result_root(rev) / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "resolve_failed_fields")
@@ -62,7 +65,7 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
             except ValueError as exc:
                 raise HTTPException(409, str(exc)) from None
         if is_region(rev):
-            require_gfp_gate_source(rev, body.selection)
+            require_gate_source(rev, body.selection)
         with store.transaction() as conn:
             jid = queue(conn, rev["workspace_id"], rid, "statistics", body.model_dump(mode="json"))
         return {"job_id": jid}

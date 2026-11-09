@@ -15,7 +15,7 @@ from .descriptive_contracts import (
     RegionSelection,
     parse_descriptive_request,
 )
-from .gfp_selection import GATE_KEYS, finish_gated_description, gate_source_observations
+from .gfp_selection import finish_gated_description, gate_of, gate_record_keys, gate_source_observations
 from .region_contracts import DISPLAY_NAME
 from .region_measurement_v2 import region_table_from_json, require_region_metric
 from .region_policy import MEASUREMENT_POLICY, measurement_protocol
@@ -369,11 +369,11 @@ def describe_regions(report, field_snapshot, request, nuclear=None):
     """``nuclear`` binds a GFP nucleus filter on a nucleoplasm revision to its adopted nuclei."""
     request = _request(request, "region")
     observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection)
-    if request.selection.gfp_gate is None:
+    if gate_of(request.selection) is None:
         return _finish(observations, fields, request, "region-2d", "regions", unit, excluded)
     observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,
                                                     observations, excluded, nuclear=nuclear)
-    result = _finish(observations, fields, request, "region-2d", "regions", unit, excluded, GATE_KEYS)
+    result = _finish(observations, fields, request, "region-2d", "regions", unit, excluded, gate_record_keys(record))
     return finish_gated_description(result, record)
 
 

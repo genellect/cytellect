@@ -19,7 +19,7 @@ from typing import Any
 from .compartment_summary import PROTOCOL as SUMMARY_PROTOCOL
 from .descriptive import _metadata, prepare_region_observations
 from .descriptive_contracts import CompartmentSummarySelection, RegionSelection
-from .gfp_selection import GATE_KEYS, finish_gated_description, gate_source_observations
+from .gfp_selection import finish_gated_description, gate_of, gate_record_keys, gate_source_observations
 from .group_comparison_contracts import CompartmentSummarySelectionV11
 
 SELECTION_VERSION = "1.0.0"
@@ -237,11 +237,11 @@ def describe_compartment_summary(report, field_snapshot, request, summaries, nuc
     observations, fields, unit, excluded = prepare_compartment_observations(
         report, field_snapshot, request.selection, summaries, shapes)
     record = None
-    if request.selection.gfp_gate is not None:
+    if gate_of(request.selection) is not None:
         observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,
                                                         observations, excluded, summaries, nuclear)
     result = _finish(observations, fields, request, "region-2d", "nuclei", unit, excluded,
-                     () if record is None else GATE_KEYS)
+                     () if record is None else gate_record_keys(record))
     result["metric_definition"] = f"{DEFINITIONS[request.selection.metric]}; per-field observed values"
     if request.selection.metric == LOG2:
         result["warnings"].append("nucleolar_union_saturation_not_assessed")

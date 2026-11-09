@@ -55,6 +55,8 @@ COMPARTMENT_LABELS = {
 FIELD_SUMMARY_LABELS = {
     "nucleus_count": ("Nucleus count", "核数"),
     "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
+    "positive_count": ("Positive nuclei per field", "視野あたりの陽性核数"),
+    "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率"),
 }
 
 

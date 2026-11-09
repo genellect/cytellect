@@ -340,6 +340,9 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async gfpGate(workspace: string, body: {gfp_channel_id: string; percentile: number; unit?: "nucleus" | "cell_roi"; method?: "negative_control" | "manual" | "batch_otsu"; threshold?: number; values?: "raw" | "corrected"; fields: Array<{field_id: string; revision_id: string; control: boolean}>}) {
       return client.post<GfpGateResult>(`/v1/workspaces/${workspace}/gfp-gate`, body);
     },
+    async channelGate(workspace:string, body:components["schemas"]["ChannelGateRequest"]){
+      return client.post<components["schemas"]["ChannelGateResult"]>(`/v1/workspaces/${workspace}/channel-gate`,body);
+    },
     /** One row per nucleus of a nuclear revision with every channel, and the adopted nucleoli of
      * `nucleolarRevision` when given (computed by the API from saved rows and labels). */
     async nucleusTable(revision: string, field: string, nucleolarRevision?: string) {
