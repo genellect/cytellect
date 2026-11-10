@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+from .channel_selection import SAFE_ERROR_CODES as CHANNEL_GATE_ERRORS
 from .common_statistics_contracts import (
     RegionAssociationRequest,
     RegionAssociationResult,
@@ -16,19 +17,19 @@ from .common_unit_inference import (
     omnibus_common_units,
 )
 from .comparison_estimates import comparison_estimates
-from .compartment_observations import LOG2, acquisition_proxy, compartment_comparison_source
+from .compartment_observations import LOG2, acquisition_reviews, compartment_comparison_source
 from .compartment_observations import SAFE_ERROR_CODES as COMPARTMENT_ERRORS
 from .compartment_review import compartment_missing_summary, confirmed_policy
 from .descriptive_contracts import CompartmentMissingSummary, RegionSelection
-from .field_summary_source import prepare_field_summary_observations
+from .field_summary_source import exploratory_positivity, prepare_field_summary_observations
 from .gfp_selection import SAFE_ERROR_CODES as GFP_GATE_ERRORS
-from .gfp_selection import gate_of, gate_source_observations, gate_warnings
+from .gfp_selection import gate_of, gate_record_key, gate_source_observations, gate_warnings
 from .region_comparison import SAFE_ERROR_CODES as COMPARISON_ERRORS
 from .region_comparison import _acquisition, _design_ledger, _source, source_fingerprint
 from .statistics import finite_records
 from .unit_inference import aggregate_unit_observations, apply_holm
 
-SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | frozenset({
+SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | CHANNEL_GATE_ERRORS | frozenset({
     "common_statistics_finite_units_required", "common_statistics_insufficient_units",
     "common_statistics_constant_units", "common_statistics_not_estimable",
     "common_statistics_insufficient_nonzero_pairs", "common_statistics_unknown_method",
@@ -39,10 +40,11 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | fr
     "common_statistics_matched_region_set_required", "common_statistics_pooling_confirmation_required",
     "common_statistics_result_required",
     "common_statistics_matched_gfp_selection_required", "common_statistics_matched_intensity_policy_required",
+    "common_statistics_matched_channel_selection_required",
     "common_statistics_matched_observations_required",
     "comparison_estimates_single_contrast_required", "comparison_estimates_unknown_metric",
     "field_summary_positivity_not_connected", "field_summary_nuclear_source_required", "field_summary_status_mismatch", "field_summary_region_identity",
-    "field_summary_invalid_calibration",
+    "field_summary_invalid_calibration", "field_positivity_exploratory_threshold_descriptive_only",
     "compartment_missing_association_unsupported", "compartment_missing_policy_unknown",
     "compartment_missing_ledger_changed", "compartment_state_not_missing", "compartment_ledger_invalid",
 })
@@ -51,6 +53,7 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | fr
 def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None):
     compartment = request.selection.source == "compartment-summary"
     per_field = request.selection.source == "field-summary"
+    gate_record = None
     if compartment:
         snapshot, observations, sources, unit, failed = compartment_comparison_source(
             report, config, request.selection, summaries, shapes)
@@ -58,18 +61,23 @@ def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None
         area = RegionSelection(source="region", region_set_id=request.selection.region_set_id, channel_id=None,
                                metric="area_px")
         snapshot, *_ = _source(report, config, SimpleNamespace(selection=area))
-        observations, sources, unit, failed = prepare_field_summary_observations(report, snapshot, request.selection)
+        observations, sources, unit, failed, gate_record = prepare_field_summary_observations(
+            report, snapshot, request.selection, nuclear, with_gate_record=True)
     else:
         snapshot, observations, sources, unit, failed = _source(report, config, request)
-    gate_record = None
-    if gate_of(request.selection) is not None:
+    if not per_field and gate_of(request.selection) is not None:
         observations, gate_record = gate_source_observations(
             report, config.get("recipe"), snapshot, request.selection, observations, failed, summaries, nuclear)
     ledger, unit_ledger, pairs, selected, observation_ledger, missing, counts = _design_ledger(
         snapshot, observations, report, request,
-        control_fields=None if gate_record is None else gate_record["control_field_ids"])
-    acquisition, warnings = _acquisition(sources, snapshot, selected, ledger,
-                                         acquisition_proxy(request) if compartment or per_field else request)
+        control_fields=None if gate_record is None else gate_record["control_field_ids"],
+        gate_kind="channel" if gate_record is not None and gate_record_key(gate_record) == "channel_gate" else "gfp")
+    acquisition = None
+    warnings: list[str] = []
+    for review in acquisition_reviews(request) if compartment or per_field else [request]:
+        reviewed, found = _acquisition(sources, snapshot, selected, ledger, review)
+        acquisition = acquisition or reviewed
+        warnings.extend(code for code in found if code not in warnings)
     if not request.selection.metric.startswith("area_") and not per_field:
         selected_ids = {(row["field_id"], row["region_id"]) for row in selected}
         for fid, table in report["field_tables"].items():
@@ -81,6 +89,9 @@ def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None
     channel = (next(p["channel"] for p in sources[0]["channel_provenance"]
                     if p["channel"]["channel_id"] == request.selection.channel_id)
                if getattr(request.selection, "channel_id", None) is not None else None)
+    if per_field and gate_record is not None:
+        judged = getattr(request.selection.positivity, "channel_id", None) or getattr(request.selection.positivity, "gfp_channel_id", None)
+        channel = next(p["channel"] for p in sources[0]["channel_provenance"] if p["channel"]["channel_id"] == judged)
     if missing:
         warnings.append("missing_outcomes_excluded_not_assumed_missing_at_random")
     if failed:
@@ -90,7 +101,7 @@ def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None
         warnings.append("nucleolar_union_saturation_not_assessed")
     selection = {"input_rows": len(observations), **counts}
     if gate_record is not None:
-        selection["gfp_gate"] = gate_record
+        selection[gate_record_key(gate_record)] = gate_record
         warnings.extend(gate_warnings(gate_record))
     return {"metric": request.selection.metric, "unit": unit, "region": sources[0]["region_set"],
             "channel": channel, "source_fields": sources, "source_field_ledger": ledger,
@@ -124,6 +135,10 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
     bound adopted nuclear source for a GFP nucleus filter on a nucleoplasm revision
     (a nuclear revision is its own source)."""
     request = RegionComparisonRequestV2.model_validate(request)
+    if request.test != "none" and exploratory_positivity(request.selection):
+        # A threshold not fixed by a negative control can be moved after seeing the values:
+        # the positive count and fraction are described (test "none"), never tested.
+        raise ValueError("field_positivity_exploratory_threshold_descriptive_only")
     data = _prepared(report, config, request, summaries, nuclear, shapes)
     units = pd.DataFrame(data["unit_summary"])
     paired = request.design.kind == "paired"

@@ -856,6 +856,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/region-partition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Region Partition */
+        get: operations["get_region_partition_v1_revisions__rid__region_partition_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/region-partition.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Region Partition Csv */
+        get: operations["get_region_partition_csv_v1_revisions__rid__region_partition_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/channel-gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Classify */
+        post: operations["classify_v1_workspaces__wid__channel_gate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/common-statistics": {
         parameters: {
             query?: never;
@@ -1255,6 +1306,7 @@ export interface components {
             field_ids?: string[];
             /** Gfp */
             gfp?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /** AnalysisSpec */
         AnalysisSpec: {
@@ -1824,6 +1876,141 @@ export interface components {
             /** Median */
             median: number | null;
         };
+        /** ChannelGateCounts */
+        ChannelGateCounts: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "no_regions" | "excluded" | "failed";
+            /** Nuclei */
+            nuclei: number | null;
+            /** Positive */
+            positive: number;
+            /** Negative */
+            negative: number;
+            /** Unclassified */
+            unclassified: number;
+            /** Control */
+            control: number;
+            /** Excluded */
+            excluded: number;
+            /** Evaluable */
+            evaluable: number;
+        };
+        /** ChannelGateField */
+        ChannelGateField: {
+            /** Field Id */
+            field_id: string;
+            /** Revision Id */
+            revision_id: string;
+        };
+        /** ChannelGateFilter */
+        ChannelGateFilter: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /**
+             * Gate Protocol
+             * @constant
+             */
+            gate_protocol: "channel-gate/1.0.0";
+            /** Channel Id */
+            channel_id: string;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "negative_control" | "manual" | "batch_otsu";
+            /**
+             * Values
+             * @default raw
+             * @enum {string}
+             */
+            values: "raw" | "corrected";
+            /**
+             * Keep
+             * @enum {string}
+             */
+            keep: "positive" | "negative";
+            /**
+             * Percentile
+             * @default 99
+             */
+            percentile: number;
+            /**
+             * Threshold
+             * @default null
+             */
+            threshold: number | null;
+            /** Control Field Ids */
+            control_field_ids?: string[];
+            /** Reference Sha256 */
+            reference_sha256?: string | null;
+        };
+        /** ChannelGateNucleus */
+        ChannelGateNucleus: {
+            /** Field Id */
+            field_id: string;
+            /** Region Id */
+            region_id: number;
+            /** Acquisition Date */
+            acquisition_date: string | null;
+            /** Channel Mean */
+            channel_mean: number | null;
+            /** Positive */
+            positive: boolean | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "positive" | "negative" | "unclassified" | "control" | "excluded";
+            /** Reason */
+            reason: string;
+            /** Threshold */
+            threshold: number | null;
+            /** Exclusion Reason */
+            exclusion_reason: string | null;
+        };
+        /**
+         * ChannelGateRequest
+         * @description Classify saved nuclear measurements; this endpoint does not adopt or review them.
+         */
+        ChannelGateRequest: {
+            filter: components["schemas"]["ChannelGateFilter"];
+            /** Fields */
+            fields: components["schemas"]["ChannelGateField"][];
+        };
+        /** ChannelGateResult */
+        ChannelGateResult: {
+            /**
+             * Protocol
+             * @default channel-gate/1.0.0
+             * @constant
+             */
+            protocol: "channel-gate/1.0.0";
+            filter: components["schemas"]["ChannelGateFilter"];
+            /** Channel */
+            channel: {
+                [key: string]: unknown;
+            };
+            /** Dates */
+            dates: {
+                [key: string]: unknown;
+            };
+            /** Nuclei */
+            nuclei: components["schemas"]["ChannelGateNucleus"][];
+            /** Field Counts */
+            field_counts: {
+                [key: string]: components["schemas"]["ChannelGateCounts"];
+            };
+            /** Record */
+            record: {
+                [key: string]: unknown;
+            };
+        };
         /** ChannelProvenance */
         ChannelProvenance: {
             channel: components["schemas"]["ChannelSpec"];
@@ -2295,6 +2482,7 @@ export interface components {
             metric: "log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count";
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /**
          * CompartmentSummarySelectionV11
@@ -2322,6 +2510,7 @@ export interface components {
             metric: ("log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /** ContourView */
         ContourView: {
@@ -2777,7 +2966,7 @@ export interface components {
              */
             metric: "nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction";
             /** Positivity */
-            positivity?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            positivity?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | components["schemas"]["ChannelGateFilter"] | null;
         };
         /** FieldView */
         FieldView: {
@@ -3859,6 +4048,125 @@ export interface components {
             group_by: "field";
             plot?: components["schemas"]["DescriptivePlot"];
             figure_policy: components["schemas"]["DescriptiveFigurePolicy"];
+        };
+        /** PartitionBackground */
+        PartitionBackground: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "missing";
+            /** Reason */
+            reason: "background_not_confirmed" | null;
+            /** Source Revision Id */
+            source_revision_id: string;
+            /** Roi Revision Id */
+            roi_revision_id: string | null;
+            /** Mask Sha256 */
+            mask_sha256: string | null;
+            /** Pixel Count */
+            pixel_count: number | null;
+            /** Median */
+            median: number | null;
+            /** Polygon */
+            polygon: [
+                number,
+                number
+            ][] | null;
+        };
+        /** PartitionExclusion */
+        PartitionExclusion: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "nuclear" | "target" | "reference";
+            /** Region Id */
+            region_id: number | null;
+            /** Reason */
+            reason: string;
+        };
+        /** PartitionPixelSource */
+        PartitionPixelSource: {
+            /** Channel */
+            channel: components["schemas"]["ChannelSpec"] | components["schemas"]["ObservedChannelSpec"];
+            /**
+             * Input Mode
+             * @default native
+             * @constant
+             */
+            input_mode: "native";
+            /**
+             * Dtype
+             * @enum {string}
+             */
+            dtype: "uint8" | "uint16";
+            /** Pixel Sha256 */
+            pixel_sha256: string;
+            array_file: components["schemas"]["RegionStoredFile"];
+            /** Original Files */
+            original_files: {
+                [key: string]: components["schemas"]["RegionStoredFile"];
+            };
+        };
+        /** PartitionRatioMeasurement */
+        PartitionRatioMeasurement: {
+            /** K */
+            k: number | null;
+            /** Log2 K */
+            log2_k: number | null;
+            /** Missing Reasons */
+            missing_reasons: string[];
+        };
+        /** PartitionRegionMeasurement */
+        PartitionRegionMeasurement: {
+            /** Area Px */
+            area_px: number | null;
+            /** Area Um2 */
+            area_um2: number | null;
+            /** Area Missing Reason */
+            area_missing_reason: string | null;
+            /** Raw Mean */
+            raw_mean: number | null;
+            /** Raw Integrated */
+            raw_integrated: number | null;
+            /** Corrected Mean */
+            corrected_mean: number | null;
+            /** Corrected Integrated */
+            corrected_integrated: number | null;
+            /** Raw Missing Reason */
+            raw_missing_reason: string | null;
+            /** Corrected Missing Reason */
+            corrected_missing_reason: string | null;
+        };
+        /** PartitionSource */
+        PartitionSource: {
+            /** Revision Id */
+            revision_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "stardist_nuclear" | "manual" | "imported" | "fiji_nuclear_compartment";
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /** Effective Mask Sha256 */
+            effective_mask_sha256: string;
+            label_file: components["schemas"]["RegionStoredFile"];
+            /** Report Sha256 */
+            report_sha256: string;
+            /** Provenance Sha256 */
+            provenance_sha256: string;
+            /** Reviewed */
+            reviewed: boolean;
+            /** Adopted */
+            adopted: boolean;
         };
         /** PlanAnswers */
         PlanAnswers: {
@@ -5292,6 +5600,97 @@ export interface components {
             nuclear_stain_confirmed: true;
             detector?: components["schemas"]["NuclearDetectorSpec"];
         };
+        /** RegionPartitionTable */
+        RegionPartitionTable: {
+            /**
+             * Protocol
+             * @default region-partition-table/1.0.0
+             * @constant
+             */
+            protocol: "region-partition-table/1.0.0";
+            /**
+             * Calculation Protocol
+             * @default region-partition/1.0.0
+             * @constant
+             */
+            calculation_protocol: "region-partition/1.0.0";
+            /**
+             * Review Status
+             * @enum {string}
+             */
+            review_status: "reviewed" | "preview";
+            /** Workspace Id */
+            workspace_id: string;
+            /** Field Id */
+            field_id: string;
+            nuclear_source: components["schemas"]["PartitionSource"];
+            target_source: components["schemas"]["PartitionSource"];
+            reference_source: components["schemas"]["PartitionSource"];
+            pixel_source: components["schemas"]["PartitionPixelSource"];
+            background: components["schemas"]["PartitionBackground"];
+            calibration: components["schemas"]["Calibration2D"] | null;
+            /**
+             * Area Unit
+             * @default px
+             * @constant
+             */
+            area_unit: "px";
+            /**
+             * Calibrated Area Unit
+             * @default um2
+             * @constant
+             */
+            calibrated_area_unit: "um2";
+            /**
+             * Mean Unit
+             * @default native_intensity
+             * @constant
+             */
+            mean_unit: "native_intensity";
+            /**
+             * Integrated Unit
+             * @default native_intensity_px
+             * @constant
+             */
+            integrated_unit: "native_intensity_px";
+            /**
+             * Ratio Unit
+             * @default dimensionless
+             * @constant
+             */
+            ratio_unit: "dimensionless";
+            /**
+             * Log2 Unit
+             * @default log2
+             * @constant
+             */
+            log2_unit: "log2";
+            /** Methods */
+            methods: string;
+            /** Rows */
+            rows: components["schemas"]["RegionPartitionTableRow"][];
+        };
+        /** RegionPartitionTableRow */
+        RegionPartitionTableRow: {
+            /** Nucleus Id */
+            nucleus_id: number;
+            /** Nucleus Area Px */
+            nucleus_area_px: number;
+            /** Nucleus Area Um2 */
+            nucleus_area_um2: number | null;
+            /** Excluded */
+            excluded: boolean;
+            /** Exclusions */
+            exclusions: components["schemas"]["PartitionExclusion"][];
+            /** Target State */
+            target_state: string;
+            /** Reference State */
+            reference_state: string;
+            target: components["schemas"]["PartitionRegionMeasurement"];
+            reference: components["schemas"]["PartitionRegionMeasurement"];
+            raw: components["schemas"]["PartitionRatioMeasurement"];
+            corrected: components["schemas"]["PartitionRatioMeasurement"];
+        };
         /** RegionRecipe */
         RegionRecipe: {
             /**
@@ -5497,6 +5896,7 @@ export interface components {
             metric: "area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected";
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
+            channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
         };
         /** RegionSetSpec */
         RegionSetSpec: {
@@ -8210,6 +8610,111 @@ export interface operations {
                 };
                 content: {
                     "application/zip": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_region_partition_v1_revisions__rid__region_partition_get: {
+        parameters: {
+            query: {
+                field_id: string;
+                target_revision_id: string;
+                reference_revision_id: string;
+                channel_id: string;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionPartitionTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_region_partition_csv_v1_revisions__rid__region_partition_csv_get: {
+        parameters: {
+            query: {
+                field_id: string;
+                target_revision_id: string;
+                reference_revision_id: string;
+                channel_id: string;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    classify_v1_workspaces__wid__channel_gate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChannelGateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelGateResult"];
                 };
             };
             /** @description Validation Error */

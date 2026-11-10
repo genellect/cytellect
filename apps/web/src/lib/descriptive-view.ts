@@ -139,5 +139,10 @@ const warnings: Record<string, string> = {
   missing_outcomes_excluded_inspect_fieldwise_missingness: "指標が欠測した観測は図に含まれません。視野ごとの欠測と理由を確認してください。",
   ncl_defined_regions_can_change_with_the_measured_ncl_distribution: "NCLから定義した領域は、測定対象であるNCLの分布とともに変化することがあります。",
   data_derived_or_manual_gfp_selection_requires_predeclared_or_independent_validation: "GFPの手動・データ由来の選別を含みます。事前に定めた条件または別データでの検証を確認してください。",
+  channel_gated_subset_selected_by_expression_level_not_randomized: "核の陽性・陰性はチャンネルの強度による判定です。無作為に割り付けた群を意味しません。",
+  channel_gate_exploratory_threshold_without_negative_control: "手動・Otsuのしきい値は陰性対照を用いていないため、探索的な判定です。",
+  channel_gate_unclassified_nuclei_not_selected: "測定値やしきい値が欠けた核は未判定です。集計対象や陽性率の分母には含めていません。",
+  channel_gate_saturated_nuclei_present: "保存形式または記録された撮影上限値に達した画素を含む核があります。元画像と撮影条件、定量できる輝度範囲を確認してください。",
+  channel_gate_selection_and_outcome_share_channel: "選別に使ったチャンネルの輝度を、選んだ核で測っています。値はしきい値で区切られているため、陽性と陰性の差は独立した結果ではありません。",
 };
 export const descriptiveWarning = (code: string) => warnings[code] ?? code;

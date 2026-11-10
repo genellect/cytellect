@@ -8,6 +8,7 @@ from cytellect_analysis.common_statistics_contracts import (
     RegionAssociationRequest,
     RegionComparisonRequestV2,
 )
+from cytellect_analysis.gfp_selection import gate_of
 from cytellect_api.db import revisions
 from cytellect_api.storage import read_json, write_json
 from cytellect_api.workspace_selection import selection_at
@@ -47,19 +48,19 @@ def run_common_statistics(store, job, output):
         raise ValueError("region_comparison_source_review_mismatch")
     request: RegionComparisonRequestV2 | RegionAssociationRequest = TypeAdapter(CommonStatisticsRequest).validate_python(payload)
     if isinstance(request, RegionComparisonRequestV2) and (
-            request.selection.source == "compartment-summary" or getattr(request.selection, "gfp_gate", None) is not None):
+            request.selection.source == "compartment-summary" or gate_of(request.selection) is not None):
         from .compartment_sources import load_compartment_summaries, load_nucleolar_shapes
-        from .gfp_sources import load_gfp_nuclear_source
+        from .gfp_sources import load_gate_nuclear_source
 
         summaries = (load_compartment_summaries(store, rev, report)
                      if request.selection.source == "compartment-summary" else None)
         shapes = (load_nucleolar_shapes(store, rev, report, summaries)
                   if request.selection.metric == "nucleolar_eccentricity" else None)
-        nuclear = load_gfp_nuclear_source(store, rev, report) if getattr(request.selection, "gfp_gate", None) is not None else None
+        nuclear = load_gate_nuclear_source(store, rev, report, request.selection) if gate_of(request.selection) is not None else None
         value = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear, shapes=shapes)
-    elif isinstance(request, RegionAssociationRequest) and request.x_selection.gfp_gate is not None:
-        from .gfp_sources import load_gfp_nuclear_source
-        nuclear = load_gfp_nuclear_source(store, rev, report)
+    elif isinstance(request, RegionAssociationRequest) and gate_of(request.x_selection) is not None:
+        from .gfp_sources import load_gate_nuclear_source
+        nuclear = load_gate_nuclear_source(store, rev, report, request.x_selection)
         value = analyze_region_association(report, config, request, nuclear=nuclear)
     else:
         calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
