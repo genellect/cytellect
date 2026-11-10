@@ -64,3 +64,37 @@ def test_only_nuclear_region_sources_are_counted_as_nuclei():
         source["recipe"] = {**source["recipe"], "source": "fiji_positive_regions"}
     with pytest.raises(ValueError, match="field_summary_nuclear_source_required"):
         analyze_region_comparison(report, config, count_request())
+
+
+def test_legacy_gfp_positivity_counts_only_judged_nuclei(monkeypatch):
+    """The recorded GFP gate's judged reasons give positive and negative; an unjudged nucleus is neither,
+    and a field whose nuclei were all unjudged has no positive count (missing, never zero)."""
+    from cytellect_analysis import field_summary_source as source
+    gate = {"version": "1.1.0", "gate_protocol": "gfp-gate/3.0.0", "gfp_channel_id": "actin", "method": "manual",
+            "threshold": 10.0, "keep": "positive"}
+    report, config = comparison_fixture()
+
+    def judged(report, recipe, snapshot, selector, regions, excluded, nuclear=None):
+        out = []
+        for row in regions:
+            if row["field_id"] == "B1":
+                out.append({**row, "gfp_positive": None, "gfp_gate_reason": "gfp_missing"})
+                continue
+            positive = row["region_id"] % 2 == 1
+            out.append({**row, "gfp_positive": positive,
+                        "gfp_gate_reason": "above_exploratory_threshold" if positive else "at_or_below_exploratory_threshold"})
+        return out, {"control_field_ids": []}
+
+    monkeypatch.setattr(source, "gate_source_observations", judged)
+    for metric in ("positive_fraction", "positive_count"):
+        selection = {"source": "field-summary", "version": "1.0.0", "region_set_id": "regions", "metric": metric,
+                     "positivity": gate}
+        observations, *_ = source.prepare_field_summary_observations(report, config["field_snapshot"], selection)
+        rows = {row["field_id"]: row for row in observations}
+        for fid, row in rows.items():
+            if fid == "B1":
+                assert (row["value"], row["missing_reason"], row["evaluable_count"]) == (None, "no_evaluable_nuclei", 0)
+                continue
+            assert row["evaluable_count"] == row["positive_count"] + row["negative_count"] > 0
+            expected = row["positive_count"] if metric == "positive_count" else row["positive_count"] / row["evaluable_count"]
+            assert row["value"] == pytest.approx(expected)

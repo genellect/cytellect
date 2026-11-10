@@ -579,11 +579,13 @@ selected nuclear region set (`field_summary.field_summary_values`):
   the confirmed square pixel size `s` in µm; missing (`calibration_unknown`)
   without calibration.
 - `positive_count` and `positive_fraction`: nuclei classified positive by the
-  recorded nucleus gate (`gfp-gate/2.0.0` negative-control or `gfp-gate/3.0.0`
-  manual/batch Otsu, `keep: "positive"`) on the judged channel. The denominator of
-  the fraction is the number of nuclei with a gate value (`evaluable_count`); the
-  total and the non-evaluable count are reported. No evaluable nucleus → fraction
-  missing (`no_evaluable_nuclei`); positive count 0.
+  recorded nucleus gate on the judged channel: `gfp-gate/2.0.0` negative-control or
+  `gfp-gate/3.0.0` manual/batch Otsu (`keep: "positive"` only), or the channel-neutral
+  gate below (either `keep`; the fraction is read before the subset is selected). The
+  denominator of the fraction is the number of nuclei with a gate value
+  (`evaluable_count`); the total and the non-evaluable count are reported. No
+  evaluable nucleus → both the fraction and the positive count are missing
+  (`no_evaluable_nuclei`), never zero (owner's decision, 2026-11-10).
 - Failed and explicitly excluded fields are not observations (`field_failed`,
   `field_excluded`) and stay in the comparison ledger; their counts are unknown
   (`null`), not zero.
@@ -881,7 +883,9 @@ The CSV includes raw/corrected values, missing/exclusion reasons, units, source
 provenance and Methods. This table is not yet a common-statistics, figure or replay
 source. It reports an apparent intensity partition ratio: linearity, bleaching,
 compartment-level saturation and concentration interpretation need experimental
-validation before a physical partition coefficient can be claimed.
+validation before a physical partition coefficient can be claimed. Saturation within the
+target and reference regions is not evaluated by this table (its screen, CSV Methods
+and this section say so); saturated pixels can bias K.
 
 The registered public DS6a consistency check is reproducible with
 `python scripts/verify_research_measurements.py --out <new-directory-outside-checkout>`.

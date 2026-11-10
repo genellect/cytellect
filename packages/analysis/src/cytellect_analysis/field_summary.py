@@ -86,11 +86,13 @@ def field_summary_values(fields: Sequence[FieldInput], selection: FieldSummarySe
                 row["missing_reason"] = "calibration_unknown"
             else:
                 row["value"] = len(regions) / row["field_area_mm2"]
+        elif not row["evaluable_count"]:
+            # No nucleus could be judged (e.g. no control that day): the count and the rate are
+            # missing, never a positive count of zero (owner's decision, 2026-11-10).
+            row["missing_reason"] = "no_evaluable_nuclei"
         elif metric == "positive_count":
             row["value"] = float(row["positive_count"] or 0)
-        elif row["evaluable_count"]:
-            row["value"] = (row["positive_count"] or 0) / row["evaluable_count"]
         else:
-            row["missing_reason"] = "no_evaluable_nuclei"
+            row["value"] = (row["positive_count"] or 0) / row["evaluable_count"]
         rows.append(row)
     return rows
