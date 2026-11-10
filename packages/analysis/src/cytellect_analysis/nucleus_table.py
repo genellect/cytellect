@@ -7,12 +7,12 @@ count, union area, area fraction, largest-object fraction and eccentricity come
 from the nucleolar revision's original-coordinate label images (definitions in
 docs/methods.md, "Nucleus table 1.0.0").
 
-A nucleus's nucleoli are confirmed only when the detector recorded the nucleus as
-`candidate`, the nucleolar revision is the adopted one and at least one object
-remains after exclusions. Every other case is missing with its reason, never zero:
-a parent awaiting review keeps its retained candidates in the mask (compartment
-protocol 1.1.0) but is not confirmed. Excluded nuclei stay in the table with their
-reason. Rows are bound by nucleus label, never by order or position.
+A nucleus's nucleoli are confirmed when the nucleolar revision is the adopted one and
+the nucleus has at least one adopted nucleolus left after exclusions: the same rule as
+comparisons and descriptions (`adopted_nucleolar_states`), so a nucleolus the researcher
+added, kept or edited counts. Every other case is missing with its reason, never zero.
+Excluded nuclei stay in the table with their reason. Rows are bound by nucleus label,
+never by order or position.
 """
 from __future__ import annotations
 
@@ -24,9 +24,9 @@ from typing import Annotated, Final, Literal
 import numpy as np
 from pydantic import Field, FiniteFloat
 
+from .compartment_engine import adopted_nucleolar_states
 from .exports_csv import write_csv_stream
 from .masks import validate_label_array, validate_labels
-from .measurement import normalize_nucleolar_states
 from .nucleolar_shape import nucleolar_eccentricity, nucleolar_objects
 from .regions import Calibration2D, Id, RegionModel
 
@@ -87,6 +87,28 @@ class NucleolarSource(RegionModel):
     field_excluded: bool
 
 
+class ChannelBackground(RegionModel):
+    """Where a channel's corrected values come from: a confirmed ROI, an unconfirmed automatic
+    candidate (protocol 4.0.0), or no background (raw or area-only protocols)."""
+    channel_id: Id
+    source: Literal["confirmed_roi", "automatic_candidate", "not_established"]
+    confirmed_by_researcher: bool
+    median: FiniteFloat | None
+
+
+def _channel_background(provenance) -> ChannelBackground:
+    channel_id = provenance.channel.channel_id
+    record = getattr(provenance, "background", None)
+    if record is None and getattr(provenance, "background_median", None) is not None:
+        # Corrected protocol 1.0.0: a confirmed background ROI of a saved background revision.
+        return ChannelBackground(channel_id=channel_id, source="confirmed_roi", confirmed_by_researcher=True,
+                                 median=provenance.background_median)
+    if record is not None and getattr(record, "background_source", None) == "automatic_candidate":
+        return ChannelBackground(channel_id=channel_id, source="automatic_candidate", confirmed_by_researcher=False,
+                                 median=record.background_median)
+    return ChannelBackground(channel_id=channel_id, source="not_established", confirmed_by_researcher=False, median=None)
+
+
 class NucleusTable(RegionModel):
     protocol: Literal["nucleus-table/1.0.0"] = PROTOCOL
     field_id: Id
@@ -99,6 +121,7 @@ class NucleusTable(RegionModel):
     nucleolar_source: NucleolarSource | None
     calibration: Calibration2D | None
     field_excluded: bool
+    backgrounds: tuple[ChannelBackground, ...]
     rows: tuple[NucleusRow, ...]
 
 
@@ -172,14 +195,18 @@ def _excluded(exclusions: Sequence[Mapping]) -> tuple[str | None, dict[int, str]
 def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapping, nuclear_table,
                   nuclear_labels: np.ndarray, exclusions: Sequence[Mapping], nuclear_channel_id: str | None,
                   nuclear_adopted: bool, nucleoli: np.ndarray | None = None, nucleolar_states: Mapping | None = None,
-                  nucleolar_exclusions: Sequence[Mapping] = (), nucleolar_source: Mapping | None = None) -> NucleusTable:
+                  nucleolar_exclusions: Sequence[Mapping] = (), nucleolar_source: Mapping | None = None,
+                  nucleolar_calibration_matches: bool = True,
+                  nucleolar_missing_reason: str = "nucleolar_revision_not_selected") -> NucleusTable:
     """Join the nuclear revision's saved rows with the nucleolar revision of one field.
 
     `nuclear_table` is the field's saved measurement table (any region protocol);
     `nuclear_labels` the saved nuclear labels whose hash matches `nuclear_mask`;
     `exclusions` the nuclear revision's exclusions for this field. `nucleoli` are the
     nucleolar revision's saved labels before its `nucleolar_exclusions` are applied;
-    `nucleolar_source` records its identity and whether it is the adopted one.
+    `nucleolar_source` records its identity and whether it is the adopted one. Nucleolar µm²
+    needs the nucleolar revision's calibration to equal the nuclear one; without a nucleolar
+    revision, `nucleolar_missing_reason` says why (not selected, or unavailable for this field).
     """
     validate_label_array(nuclear_labels)
     if tuple(nuclear_labels.shape) != tuple(nuclear_table.shape_yx):
@@ -203,9 +230,13 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         dropped_by_parent: dict[int, int] = {}
         for child, parent in {int(c): int(p) for c, p in zip(nucleoli[dropped], nuclear_labels[dropped], strict=True)}.items():
             dropped_by_parent[parent] = dropped_by_parent.get(parent, 0) + 1
-        states = normalize_nucleolar_states({"nucleolar_states": nucleolar_states or {}})
+        # The same rule as comparisons and descriptions: a nucleus with an adopted nucleolus (added,
+        # kept or edited by the researcher) is confirmed; one whose nucleoli were all excluded keeps
+        # that state, so its reason stays "no adopted nucleolus" with the excluded count.
+        states = adopted_nucleolar_states(nuclear_labels, nucleoli, nucleolar_states)
         morphology = nucleolar_morphology(nuclear_labels, np.where(dropped, 0, nucleoli).astype(nucleoli.dtype),
-                                          states, pixel_area, dropped_by_parent)
+                                          states, pixel_area if nucleolar_calibration_matches else None,
+                                          dropped_by_parent)
     present = {int(value) for value in np.unique(nuclear_labels) if value}
     grouped: dict[int, list] = {}
     for row in nuclear_table.rows:
@@ -216,6 +247,8 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
     rows = []
     for nucleus_id in sorted(grouped):
         by_channel = {row.channel_id: row for row in grouped[nucleus_id]}
+        if not order or set(by_channel) != set(order):
+            raise ValueError("nucleus_table_region_mismatch")  # every nucleus needs one row per channel
         first = by_channel[order[0]]
         # An exclusion (of this nucleus or of the whole field) comes before every nucleolar reason.
         scope: Literal["field", "nucleus"] | None = (
@@ -224,7 +257,7 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         if nucleus_excluded:
             nucleolar = _unconfirmed("not_measured", "nucleus_excluded")
         elif nucleoli is None:
-            nucleolar = _unconfirmed("not_measured", "nucleolar_revision_not_selected")
+            nucleolar = _unconfirmed("not_measured", nucleolar_missing_reason)
         elif nucleolar_field_excluded:
             nucleolar = _unconfirmed("missing", "nucleolar_field_excluded")
         elif not nucleolar_source["adopted"]:  # type: ignore[index]
@@ -246,7 +279,9 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         nuclear_channel_id=nuclear_channel_id if nuclear_channel_id in order else None,
         nucleolar_source=None if nucleolar_source is None else NucleolarSource(
             **nucleolar_source, field_excluded=nucleolar_field_excluded),
-        calibration=calibration, field_excluded=field_excluded, rows=tuple(rows))
+        calibration=calibration, field_excluded=field_excluded,
+        backgrounds=tuple(_channel_background(item) for item in nuclear_table.channel_provenance),
+        rows=tuple(rows))
 
 
 # --- CSV export: the same table, one row per nucleus, with units and definitions ---
@@ -298,7 +333,10 @@ def _columns(table: NucleusTable) -> list[tuple[str, str, str]]:
             (f"{cid}__role", "", "nuclear_stain: the channel that defined the nuclei; measure: other stains"),
             (f"{cid}__mean", "intensity", f"Mean original pixel value of {stain} in the nucleus"),
             (f"{cid}__integrated", "intensity × px", f"Sum of original pixel values of {stain} in the nucleus"),
-            (f"{cid}__mean_corrected", "intensity", "Mean minus the channel background"),
+            (f"{cid}__background_source", "", "confirmed_roi: a researcher-confirmed background ROI; automatic_candidate: an unconfirmed automatic estimate; not_established: no background"),
+            (f"{cid}__background_confirmed", "", "Whether a person confirmed the background used for the corrected values"),
+            (f"{cid}__background_median", "intensity", "Background value subtracted for the corrected values"),
+            (f"{cid}__mean_corrected", "intensity", "Mean minus the channel background (see background_source)"),
             (f"{cid}__integrated_corrected", "intensity × px", "Sum minus area × background"),
             (f"{cid}__intensity_missing_reason", "", "Why raw intensities are absent"),
             (f"{cid}__correction_missing_reason", "", "Why corrected intensities are absent"),
@@ -331,6 +369,10 @@ def nucleus_table_csv_rows(table: NucleusTable) -> tuple[list[str], list[dict], 
                   "exclusion_reason": row.exclusion_reason, "touches_border": row.touches_border,
                   "nucleus_area_px": row.nucleus_area_px, "nucleus_area_um2": row.nucleus_area_um2,
                   "area_missing_reason": row.area_missing_reason}
+        for background in table.backgrounds:
+            record[f"{background.channel_id}__background_source"] = background.source
+            record[f"{background.channel_id}__background_confirmed"] = background.confirmed_by_researcher
+            record[f"{background.channel_id}__background_median"] = background.median
         for item in row.channels:
             for key in ("role", "mean", "integrated", "mean_corrected", "integrated_corrected", "intensity_missing_reason",
                         "correction_missing_reason", "storage_limit_fraction", "acquisition_saturation_fraction",

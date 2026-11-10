@@ -62,12 +62,12 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 
 | 区分 | 例 | 保存場所 | Git・CI・開発用 AI |
 |---|---|---|---|
-| 非公開データ | 研究室の未発表画像、正解の輪郭、測定表、論文草稿、ファイル名とパス、参加者情報 | 研究室が管理するストレージ（checkout の外） | 使用不可 |
+| 非公開データ | 研究室の未発表画像、正解の輪郭、測定表、論文草稿、ファイル名とパス、参加者情報 | 研究室が管理するストレージ（checkout の外） | 使用不可（開発用 AI は下の隔離ローカル環境の例外だけ） |
 | 公開データ | 出典とライセンスを確認した公開画像 | 登録済みの fixture。出典、染色情報、再配布条件、ハッシュを記録 | 使用可（リポジトリに置くのは再配布できるものだけ） |
 | 合成データ | 計算の照合に使う最小の数値・ラベルの配列（細胞を模した画像は除く） | リポジトリ | [開発の原則](development-principles.md#研究データと検証)の条件を満たす場合に限り使用可 |
 | 認証情報 | API キー、トークン、招待リンク | 各サービスの secret 管理 | 使用不可 |
 
-- 非公開データは、コード、ログ、Issue、PR、スクリーンショット、CI、開発用 AI（チャットへの貼り付けを含む）に含めない。
+- 非公開データは、コード、ログ、Issue、PR、スクリーンショット、CI、開発用 AI（チャットへの貼り付けを含む）に含めない。開発用 AI の例外は、次の隔離ローカル環境だけ。
 - **隔離ローカル環境の例外。** オーナーが指定した隔離ローカル領域で、オーナーが指定した開発用 AI とそのモデル提供元に限り、指定した目的のために非公開データを扱ってよい（2026-11-09、オーナーの判断）。領域・AI と送信先・目的と条件は[ローカル研究データの利用](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用)に従い、その外（クラウド開発、Git、PR、CI、公開デモ、ほかの AI）には適用しない。
 - 製品の解析提案機能は、利用者が AI に指示を送ったときに限り、[定められた情報](../SECURITY.md#研究データ)を送る。この機能は、開発で非公開データを扱ってよい根拠にはならない。
 - **評価データを分ける。** 検出精度の評価には、学習と条件調整に使わない実験回の画像を使う。分割は実験回の単位で行い、どの画像をどちらに使ったかを記録する。評価データを見て閾値やモデルを調整しない。
@@ -148,12 +148,12 @@ Research data falls into these categories.
 
 | Category | Examples | Storage | Git, CI and development AI |
 |---|---|---|---|
-| Private data | Unpublished lab images, ground-truth contours, measurement tables, manuscript drafts, file names and paths, participant information | Lab-managed storage outside the checkout | Not permitted |
+| Private data | Unpublished lab images, ground-truth contours, measurement tables, manuscript drafts, file names and paths, participant information | Lab-managed storage outside the checkout | Not permitted (development AI only under the isolated local environment exception below) |
 | Public data | Published images with confirmed source and license | Registered fixtures with recorded source, stain metadata, redistribution terms and hashes | Permitted (only redistributable assets in the repository) |
 | Synthetic data | Minimal numeric or label arrays for checking calculations (not images imitating cells) | Repository | Permitted only under the conditions in [Development principles](development-principles.md#研究データと検証) |
 | Credentials | API keys, tokens, invitation links | Each service's secret store | Not permitted |
 
-- Keep private data out of code, logs, issues, PRs, screenshots, CI and development AI, including pasting into chat.
+- Keep private data out of code, logs, issues, PRs, screenshots, CI and development AI, including pasting into chat. The only exception for development AI is the isolated local environment below.
 - **Isolated local environment exception.** Only in an isolated local area the owner designates, and only the development AI the owner designates together with its model provider, may handle private data, and only for the designated purposes (owner's decision, 2026-11-09). The area, AI and recipient, purposes and conditions are in [Local research data](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用); the exception never extends to cloud development, Git, PRs, CI, public demos or other AI.
 - The product's analysis proposal feature sends only [defined information](../SECURITY.md#research-data), and only when the user sends an instruction to the AI. It does not permit handling private data during development.
 - **Separate evaluation data.** Evaluate detection accuracy on images from experimental runs that were not used for training or parameter tuning. Split by experimental run and record which images were used for which purpose. Do not tune thresholds or models against evaluation data.
