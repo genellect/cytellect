@@ -89,6 +89,8 @@ for (let waited = 0; waited < 360 && await cards.count() < config.fields; waited
 const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
 /** A save button's download, awaited so its GET is recorded (the page keeps no copy of the file). */
+/** Whether a control appears (a table's save button shows once the table has arrived). */
+const appears = (locator, timeout = 60000) => locator.waitFor({state: "visible", timeout}).then(() => true, () => false);
 async function saved(button) {
   const download = page.waitForEvent("download", {timeout: 180000});
   await button.click();
@@ -109,7 +111,7 @@ async function fieldTables(number) {
   if (await toggle.count()) {
     await step(`field ${number} nucleus table`, () => toggle.first().click());
     const zip = page.getByRole("button", {name: "CSV を保存", exact: true}).first();
-    if (await zip.count()) await step(`field ${number} nucleus table zip`, () => saved(zip));
+    if (await appears(zip)) await step(`field ${number} nucleus table zip`, () => saved(zip));
     else report.alerts.push(`field ${number}: no nucleus table ZIP button`);
     await step(`field ${number} channel table`, () => page.getByRole("button", {name: "このチャンネル", exact: true}).first().click());
   } else report.alerts.push(`field ${number}: no nucleus table toggle`);
@@ -128,7 +130,8 @@ async function fieldTables(number) {
         await target.selectOption(t); await reference.selectOption(r); await channel.selectOption(c);
         await step(`field ${number} partition ${report.partitions + 1}`, () => panel.getByRole("button", {name: "分配表を表示", exact: true}).click());
         const csv = panel.getByRole("button", {name: "原値・補正値をCSV保存", exact: true});
-        if (await csv.count()) await step(`field ${number} partition csv`, () => saved(csv));
+        if (await appears(csv)) await step(`field ${number} partition csv`, () => saved(csv));
+        else report.alerts.push(`field ${number}: no partition CSV button`);
         report.partitions++;
       }
     }
