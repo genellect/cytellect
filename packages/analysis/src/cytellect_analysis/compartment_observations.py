@@ -224,9 +224,26 @@ def acquisition_proxy(request):
     like pixel area (explicit equal-sampling confirmation, one calibration)."""
     metric = request.selection.metric
     proxy = "mean" if metric == LOG2 else "area_um2" if metric == "nucleolar_area_um2" else "area_px"
+    return _review(request, proxy, getattr(request.selection, "channel_id", None))
+
+
+def _review(request, metric, channel_id):
     return SimpleNamespace(acquisition_review=request.acquisition_review, design=request.design,
                            conditions=request.conditions, comparison_family=request.comparison_family,
-                           selection=SimpleNamespace(metric=proxy, channel_id=getattr(request.selection, "channel_id", None)))
+                           selection=SimpleNamespace(metric=metric, channel_id=channel_id))
+
+
+def acquisition_reviews(request):
+    """Every acquisition review a summary outcome needs. A value decided by an intensity
+    threshold (positive count, positive fraction) is an intensity outcome of the judged
+    channel as well as a sampled count: it is reviewed as both, so acquisition dates are
+    required, the judged channel has one dtype and no contrast is confounded with batch."""
+    reviews = [acquisition_proxy(request)]
+    judged = getattr(request.selection, "positivity", None)
+    if judged is not None:
+        channel = getattr(judged, "channel_id", None) or getattr(judged, "gfp_channel_id", None)
+        reviews.append(_review(request, "mean", channel))
+    return reviews
 
 
 def describe_compartment_summary(report, field_snapshot, request, summaries, nuclear=None, shapes=None):

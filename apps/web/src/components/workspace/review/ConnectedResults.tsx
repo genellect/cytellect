@@ -11,7 +11,7 @@ import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type Compart
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricStructure,metricUsesChannel} from "@/lib/workspace/metric-catalog";
-import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,comparisonKind,exploratoryPositivity,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import type {ShowcaseDataset} from "@/lib/showcase";
@@ -157,16 +157,18 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
   const canAssociate=associationSupported({regionSet,metric,channel,gfp,channelGate})&&!saturatedSet.size&&xAxes.length>0;
   // Unconfirmed independence (E-05): no association test; a comparison stays descriptive (test "none").
   const unconfirmed=!!experiment&&!experiment.independence_confirmed;
+  // A threshold without a negative control is exploratory: positive counts and fractions are described, not tested.
+  const exploratory=exploratoryPositivity(metric,channelGate);
   useEffect(()=>{if((operation==="association"&&(!canAssociate||unconfirmed))||(operation==="comparison"&&saturated))setOperation("distribution");
     else if(operation==="distribution"&&!descriptiveSupported(metric)&&!saturated)setOperation("comparison");},[operation,canAssociate,saturated,unconfirmed,metric]);
   useEffect(()=>{if(saturatedKey&&contrasts.some(pair=>!unsaturatedPair(pair)))setContrasts(previous=>previous.filter(unsaturatedPair));},[saturatedKey,contrasts]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
-  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed};
+  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed&&!exploratory};
   // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
   const designDefaults=declared;
   const independenceMissing=unconfirmed&&operation==="association";
-  const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric))||(!!channelGate&&channelGate.method!=="manual"));
+  const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric))||(!!channelGate&&channelGate.method!=="manual")||metric.startsWith("positive_"));
   const datesMissing=!!experiment&&needsDates&&sources.some(source=>source.field in derived&&!source.metadata.acquisition_date?.trim());
   // A changed control (a new declared contrast) replaces the earlier contrast, so the direction shown is the one computed (S-04).
   const declaredContrast=useRef(designDefaults?.contrasts.join("\n"));
@@ -319,7 +321,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
         <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution" disabled={!descriptiveSupported(metric)}>{descriptiveSupported(metric)?"分布":"分布（この指標は群間比較で示します）"}</option><option value="comparison" disabled={saturated}>{saturated?"群間比較（飽和した画素があるため選べません）":"群間比較"}</option><option value="association" disabled={!canAssociate||unconfirmed}>{unconfirmed?"相関（実験回の独立性の確認が必要です）":canAssociate?"相関":saturatedSet.size?"相関（飽和した画素があるため選べません）":"相関（面積・輝度で選べます）"}</option></select></label>
         {operation!=="distribution"&&<>
-          <div className={styles.row}>{operation==="comparison"&&unconfirmed?<label>方法<select value="none" disabled><option value="none">記述のみ（検定なし）</option></select></label>:<label>方法<select value={rank?"rank":"parametric"} disabled={demo} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
+          <div className={styles.row}>{operation==="comparison"&&(unconfirmed||exploratory)?<label>方法<select value="none" disabled><option value="none">記述のみ（検定なし）</option></select></label>:<label>方法<select value={rank?"rank":"parametric"} disabled={demo} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
           {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} disabled={demo} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
 
           <label>独立実験単位<input value={unit} readOnly={demo} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
@@ -333,6 +335,7 @@ function WorkspaceResults({adapter,workspace,selection,items,target,metric,chann
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
         {datesMissing&&<p role="status">輝度を比べるには撮影日が必要です。「実験」で各実験回の撮影日を入力してください（日付を推定して補いません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力する</button>}</p>}
         {unconfirmed&&operation==="comparison"&&<p role="status">実験回が独立に行われたことが確認されていないため、検定と信頼区間は計算せず、実験回ごとの値と差を示します。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
+        {exploratory&&operation==="comparison"&&<p role="status">陰性対照で決めたしきい値ではないため（手動・Otsu）、陽性率と陽性の核数は検定と信頼区間を計算せず、実験回ごとの値と差を示します。検定するには、陰性対照の視野からしきい値を決めてください。</p>}
         {independenceMissing&&<p role="status">相関の検定には、実験回が独立に行われたことの確認が必要です。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
         <button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>
       </>:<>

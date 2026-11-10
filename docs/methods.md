@@ -602,6 +602,20 @@ selected nuclear region set (`field_summary.field_summary_values`):
 - Acquisition review follows pixel area: equal spatial sampling must be confirmed
   and all compared fields must share one calibration, because the count depends on
   the imaged area and resolution.
+- Field positivity review: `positive_count` and `positive_fraction` are decided by an
+  intensity threshold, so they are reviewed as intensity outcomes of the judged
+  channel as well: every compared field needs an acquisition date, the judged
+  channel has one dtype, and a contrast whose groups share no acquisition batch is
+  refused (`region_comparison_condition_batch_confounded`), exactly as for a mean
+  intensity. A per-date threshold does not remove this confound.
+- A threshold that no designated negative control fixed (manual, Otsu; legacy
+  `gfp-gate/3.0.0`) is exploratory and can be moved after the values are seen. With
+  such a gate the positive count and fraction are described only: a comparison
+  must use `test: "none"` (unit values and differences, no test, p-value or
+  interval); any test is refused
+  (`field_positivity_exploratory_threshold_descriptive_only`). Tests require the
+  negative-control gate. Whether the control is biologically suitable remains the
+  researcher's judgement.
 
 ### Compartment-summary selection 1.1.0
 
@@ -845,6 +859,13 @@ control and excluded nuclei are reported separately. A zero denominator is
 missing, not zero. Choosing the negative subset cannot turn its positive fraction
 into zero. These are nuclear positivity summaries, not a cell-count or DNA-ploidy
 assay.
+
+When a positive or negative subset is selected by a channel and the intensity of
+that same channel is then described or compared, the selected values are bounded
+by the threshold by construction. The result carries
+`channel_gate_selection_and_outcome_share_channel`, the gate record states it and
+Methods say that a difference in that channel between the subsets is not an
+independent finding. Other channels and area metrics are not marked.
 
 ## Explicit region partition table 1.0.0
 
