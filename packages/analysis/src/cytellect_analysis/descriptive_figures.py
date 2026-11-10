@@ -12,6 +12,7 @@ from .common_statistics_figures import COMPARTMENT_LABELS
 from .compartment_review import compartment_missing_lines
 from .descriptive import region_report_measurement_policy
 from .descriptive_contracts import DescriptiveRequest, parse_descriptive_request
+from .experiment_strata import stratum_methods_lines
 from .exports_csv import write_csv
 from .figure_sources import attach_svg_sources, bind_points
 from .figures import (
@@ -49,6 +50,11 @@ def _source_measurement_policy(result):
 
 def _selected_channel(result):
     selection = result["spec"]["selection"]
+    if selection["source"] == "field-summary" and selection.get("positivity") is not None:
+        gate = selection["positivity"]
+        channel_id = gate.get("channel_id", gate.get("gfp_channel_id"))
+        return next(item["channel"] for item in result["source_fields"][0]["channel_provenance"]
+                    if item["channel"]["channel_id"] == channel_id)
     if selection["source"] not in ("region", "compartment-summary") or selection.get("channel_id") is None:
         return None
     return next(item["channel"] for item in result["source_fields"][0]["channel_provenance"]
@@ -138,7 +144,7 @@ def _caption(result, labels, methods_template=None):
 def descriptive_methods(result, *, methods_template=None):
     """Record the selected protocol rather than borrowing inferential Methods text."""
     text = _descriptive_methods(result, methods_template=methods_template)
-    missing = compartment_missing_lines(result)
+    missing = stratum_methods_lines(result.get("stratum")) + compartment_missing_lines(result)
     # Unresolved nucleoli kept as missing (Q-05) are stated with every descriptive Methods text.
     return text + ("\n" + "\n".join(missing) + "\n" if missing else "")
 
@@ -201,7 +207,9 @@ def _ylabel(result, ja):
               "integrated": ("Region integrated intensity", "領域の積算輝度"),
               "value": ("Measured value", "測定値"),
               "nucleus_count": ("Nuclei per field", "視野あたりの核数"),
-              "nucleus_density_per_mm2": ("Nuclear density", "核の密度")}
+              "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
+              "positive_count": ("Positive nuclei per field", "視野あたりの陽性核数"),
+              "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率")}
     if metric in COMPARTMENT_LABELS:
         channel = _selected_channel(result)
         label = (f"{channel['label']}: " if channel else "") + COMPARTMENT_LABELS[metric][ja]
@@ -210,6 +218,8 @@ def _ylabel(result, ja):
     channel = _selected_channel(result)
     if channel:
         label = label.replace("Region ", channel["label"] + " ").replace("領域の", channel["label"] + "の")
+        if metric.startswith("positive_"):
+            label = f"{channel['label']}: {label}"
     correction = ("背景補正" if ja else "background corrected") if metric.endswith("_corrected") else ""
     suffix = ", ".join(item for item in (correction, unit) if item)
     return label + (f"\n({suffix})" if suffix else "")

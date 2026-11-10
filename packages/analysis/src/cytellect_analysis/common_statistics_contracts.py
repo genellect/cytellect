@@ -5,6 +5,7 @@ from pydantic import Field, StrictBool, TypeAdapter, field_validator, model_seri
 
 from .contracts import PlotSpec
 from .descriptive_contracts import CompartmentMissingSummary, RegionSelection, _omit_default
+from .experiment_strata import StratumRecord
 from .group_comparison_contracts import ComparisonEstimates, ComparisonSelection
 from .region_comparison_contracts import (
     AcquisitionReview,
@@ -75,10 +76,14 @@ class RegionComparisonResultV2(RegionComparisonResult):
     estimates: ComparisonEstimates | None = Field(default=None, json_schema_extra=_omit_default)
     # Present only for a revision reviewed under the unresolved-nucleoli policy (Q-05).
     compartment_missing: CompartmentMissingSummary | None = Field(default=None, json_schema_extra=_omit_default)
+    # Present only for a cohort of one declared stratum (experiment design 1.1.0).
+    stratum: StratumRecord | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_serializer(mode="wrap")
     def omit_absent_estimates(self, handler):
         value = handler(self)
+        if isinstance(value, dict) and self.stratum is None:
+            value.pop("stratum", None)
         if isinstance(value, dict) and self.estimates is None:
             value.pop("estimates", None)
         if isinstance(value, dict) and self.compartment_missing is None:
@@ -119,6 +124,10 @@ class RegionAssociationRequest(RegionModel):
             raise ValueError("gfp_gate_unsupported_request")
         if self.x_selection.gfp_gate != self.y_selection.gfp_gate:
             raise ValueError("common_statistics_matched_gfp_selection_required")
+        if self.version == "1.0.0" and (self.x_selection.channel_gate is not None or self.y_selection.channel_gate is not None):
+            raise ValueError("channel_gate_unsupported_request")
+        if self.x_selection.channel_gate != self.y_selection.channel_gate:
+            raise ValueError("common_statistics_matched_channel_selection_required")
         if self.version == "1.1.0" and not any(s.metric.startswith("area_") for s in (self.x_selection, self.y_selection)):
             if self.x_selection.metric.endswith("_corrected") != self.y_selection.metric.endswith("_corrected"):
                 raise ValueError("common_statistics_matched_intensity_policy_required")
@@ -157,6 +166,15 @@ class RegionAssociationResult(RegionModel):
     counts: list[dict[str, Any]]
     missingness: list[dict[str, Any]]
     warnings: list[str]
+    # Present only for a cohort of one declared stratum (experiment design 1.1.0).
+    stratum: StratumRecord | None = Field(default=None, json_schema_extra=_omit_default)
+
+    @model_serializer(mode="wrap")
+    def omit_absent_stratum(self, handler):
+        value = handler(self)
+        if isinstance(value, dict) and self.stratum is None:
+            value.pop("stratum", None)
+        return value
 
 
 CommonStatisticsRequest = Annotated[RegionComparisonRequestV2 | RegionAssociationRequest, Field(discriminator="mode")]

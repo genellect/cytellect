@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
-import {LABEL_LIMIT,addRun,assignFields,emptyDesign,expandToPair,fieldsIn,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {LABEL_LIMIT,savePlan,addRun,assignFields,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {StrataEditor} from "./StrataEditor";
 import styles from "./experiment-setup.module.css";
 
 export interface SetupField {id:string;label:string;preview?:string}
@@ -34,11 +35,18 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
   const [pendingTarget,setPendingTarget]=useState("");
   const fileInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null);
   const target=useRef<AddTarget|null>(null);
-  useEffect(()=>{setDraft(design);},[design]);
+  // The last plan the API stored: a refused save returns the editor to it instead of keeping the refused edit.
+  const stored=useRef<ExperimentDesign|null>(design);
+  useEffect(()=>{stored.current=design;setDraft(design);},[design]);
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
   const fieldLabel=(id:string)=>fields.find(value=>value.id===id)?.label??id;
 
-  async function save(next:ExperimentDesign){setError("");setDraft(next);try{await onSave(next);return true;}catch(cause){setError(cause instanceof Error?cause.message:"保存できませんでした。");return false;}}
+  async function save(next:ExperimentDesign){
+    setError("");setDraft(next);
+    const outcome=await savePlan(stored.current,next,onSave);
+    stored.current=outcome.stored;setDraft(outcome.shown);setError(outcome.error);
+    return outcome.ok;
+  }
   async function place(target:AddTarget,next:ExperimentDesign){setError("");try{await pending?.onPlace(target,next);}catch(cause){setError(cause instanceof Error?cause.message:"画像を登録できませんでした。");}}
   async function choose(layout:"single"|"pair"){
     const next=addRun(emptyDesign(layout),{label:runDate,performed_on:runDate});
@@ -125,6 +133,9 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
                 <span>{fieldLabel(id)}</span>{value.sample&&<small>{value.sample}</small>}
               </button>
               {!readOnly&&<button className={styles.remove} aria-label={`${fieldLabel(id)} の割り当てを外す`} disabled={locked} onClick={()=>void save(unassignField(draft,id))}>×</button>}
+              {isStratified(draft)&&<select className={styles.stratum} aria-label={`${fieldLabel(id)} の層`} disabled={locked} value={value.stratum_id??""}
+                onChange={event=>void save(assignStratum(draft,[id],event.target.value||null))}>
+                <option value="">層を選ぶ…</option>{draft.strata.map(stratum=><option key={stratum.id} value={stratum.id}>{stratum.label}</option>)}</select>}
             </li>)}</ul>
             {!readOnly&&<div className={styles.addRow}>
               <label className={styles.sample}>試料（任意）<input value={samples[key]??""} maxLength={LABEL_LIMIT} placeholder="例：カバーガラス 1" onChange={event=>setSamples(previous=>({...previous,[key]:event.target.value}))}/></label>
@@ -142,6 +153,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     </div>}
     <label className={styles.independence}><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>
       <span><strong>各実験回は独立に行った</strong>（別々に播種・処理・染色した）。日付やプレートが違うだけでは独立とは限りません。確認できない場合は、分布の記述まで行えます。</span></label>
+    <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
     {unassigned.length>0&&<section className={styles.unassigned} aria-label="群と実験回が決まっていない視野">
       <h2>群と実験回が決まっていない視野</h2>
       <ul>{unassigned.map(field=><li key={field.id}><button className={styles.link} onClick={()=>onOpenField(field.id)}>{field.label}</button>

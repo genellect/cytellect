@@ -13,8 +13,8 @@ from cytellect_api.db import revisions
 from cytellect_api.storage import read_json
 
 
-def load_gfp_nuclear_source(store, rev, report):
-    if binding_kind(rev["config"].get("recipe")) == "same_revision":
+def load_gfp_nuclear_source(store, rev, report, *, error_prefix="gfp_gate"):
+    if binding_kind(rev["config"].get("recipe"), error_prefix=error_prefix) == "same_revision":
         return None
     provenance = read_json(store.safe_path(rev["result_dir"], "provenance.json"))
     loaded: dict = {}
@@ -22,17 +22,17 @@ def load_gfp_nuclear_source(store, rev, report):
     for fid in sorted(report["field_tables"]):
         source = (provenance.get("fields", {}).get(fid) or {}).get("nuclear_source")
         if not isinstance(source, dict) or not isinstance(source.get("revision_id"), str):
-            raise ValueError("gfp_gate_nuclear_source_unbound")
+            raise ValueError(f"{error_prefix}_nuclear_source_unbound")
         rid = source["revision_id"]
         if rid not in loaded:
             nuclear = store.one(revisions, id=rid)
             if (nuclear is None or nuclear["workspace_id"] != rev["workspace_id"] or nuclear["state"] != "succeeded"
                     or not nuclear["result_dir"] or nuclear["config"].get("analysis_kind") != "region-2d"
                     or nuclear["config"].get("recipe", {}).get("source") != "stardist_nuclear"):
-                raise ValueError("gfp_gate_nuclear_source_unbound")
+                raise ValueError(f"{error_prefix}_nuclear_source_unbound")
             path = store.safe_path(nuclear["result_dir"], "measurements.json")
             if path.is_symlink() or not path.is_file():
-                raise ValueError("gfp_gate_nuclear_source_unbound")
+                raise ValueError(f"{error_prefix}_nuclear_source_unbound")
             loaded[rid] = (nuclear, read_json(path), sha256(path))
         nuclear, nuclear_report, digest = loaded[rid]
         mask = nuclear_report.get("field_masks", {}).get(fid)
@@ -43,8 +43,16 @@ def load_gfp_nuclear_source(store, rev, report):
                 or mask.get("mask_revision_id") != source.get("mask_revision_id")
                 or mask.get("mask_sha256") != source.get("mask_sha256")
                 or exclusions != source.get("exclusions")):
-            raise ValueError("gfp_gate_nuclear_identity_mismatch")
+            raise ValueError(f"{error_prefix}_nuclear_identity_mismatch")
         fields[fid] = {"revision_id": rid, "report_sha256": digest, "table": table,
                        "mask_revision_id": mask["mask_revision_id"], "mask_sha256": mask["mask_sha256"],
                        "exclusions": exclusions, "image_info": original.get("image_info")}
     return {"binding": "parent_nucleus", "fields": fields}
+
+
+def load_gate_nuclear_source(store, rev, report, selection):
+    from cytellect_analysis.channel_gate_contracts import ChannelGateFilter
+    from cytellect_analysis.gfp_selection import gate_of
+
+    prefix = "channel_gate" if isinstance(gate_of(selection), ChannelGateFilter) else "gfp_gate"
+    return load_gfp_nuclear_source(store, rev, report, error_prefix=prefix)

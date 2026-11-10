@@ -10,7 +10,9 @@ from cytellect_analysis.common_statistics_contracts import (
 from fastapi import Depends, HTTPException
 from pydantic import Field, TypeAdapter
 
-from .regions import is_region, require_compartment_revision, require_gfp_gate_source
+from .analysis_spec import require_source_strata
+from .channel_gates import require_gate_source
+from .regions import is_region, require_compartment_revision
 from .storage import read_json
 from .workspace_selection import assert_selection
 
@@ -42,9 +44,9 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
             raise HTTPException(409, "review_required")
         if getattr(getattr(body, "selection", None), "source", None) == "compartment-summary":
             require_compartment_revision(rev)
-        require_gfp_gate_source(rev, getattr(body, "selection", None))
-        require_gfp_gate_source(rev, getattr(body, "x_selection", None))
-        require_gfp_gate_source(rev, getattr(body, "y_selection", None))
+        require_gate_source(rev, getattr(body, "selection", None))
+        require_gate_source(rev, getattr(body, "x_selection", None))
+        require_gate_source(rev, getattr(body, "y_selection", None))
         report = read_json(result_root(rev) / "measurements.json")
         if report["field_failures"]:
             raise HTTPException(409, "review_required")
@@ -64,6 +66,7 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
             "source_fingerprint": source_fingerprint(report, config),
         }
         with store.transaction() as conn:
+            require_source_strata(conn, rev)
             if config.get("workspace_selection"):
                 assert_selection(conn, rev["workspace_id"], config["workspace_selection"])
             jid = queue(conn, rev["workspace_id"], rid, "statistics",

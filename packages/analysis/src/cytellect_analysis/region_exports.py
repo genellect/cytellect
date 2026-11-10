@@ -375,7 +375,8 @@ def _recompute_statistics(report, config, result, dependencies=None, provenance=
         if request.mode == "region-association":
             calculated = analyze_region_association(report, config, request, nuclear=nuclear)
         else:
-            calculated = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear)
+            calculated = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear,
+                                                    shapes=_descriptive_shapes(result, dependencies or {}, config))
     elif result["analysis_kind"] == "region-comparison":
         from .region_comparison import compare_regions
         from .region_comparison_contracts import RegionComparisonRequest
@@ -389,10 +390,14 @@ def _recompute_statistics(report, config, result, dependencies=None, provenance=
                 shapes=_descriptive_shapes(result, dependencies or {}, config))
         elif result["spec"]["selection"]["source"] == "field-summary":
             from .field_summary_source import describe_field_summary
-            calculated = describe_field_summary(report, config["field_snapshot"], parse_descriptive_request(result["spec"]))
+            calculated = describe_field_summary(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
         else:
             calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
     calculated["revision_id"] = report["revision_id"]
+    if result.get("analysis_kind") == "descriptive":
+        from .experiment_strata import with_stratum
+
+        with_stratum(calculated, config)
     if result.get("analysis_kind") == "descriptive" and result.get("source_review") != "automatic_unreviewed":
         from .compartment_review import with_compartment_missing
 

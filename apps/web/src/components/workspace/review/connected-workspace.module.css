@@ -22,3 +22,5 @@
 .workspace .settingsButton{display:inline-flex;align-items:center;gap:4px;height:34px;padding:4px 8px;border:0;background:none;flex-shrink:0;font-size:14px;white-space:nowrap}.settingsButton[aria-pressed=true]{background:#e8f0fc!important;color:#1757b6}@media(max-width:1100px){.settingsButton span{display:none}}
 @media(max-width:1180px){.wideOnly{display:none}}
 .header .brand{flex-shrink:0;white-space:nowrap}
+
+.tableViews{display:flex;gap:4px;margin:0 0 8px}.tableViews button{font-size:14px;border:0;background:none;padding:3px 10px;border-radius:12px}.tableViews button[aria-pressed=true]{color:#1e58ad;background:#e8f0fc}.workspace tr[data-excluded=true] td{color:#8a919c}

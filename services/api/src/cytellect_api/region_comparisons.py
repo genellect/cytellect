@@ -5,6 +5,7 @@ from typing import Annotated, Any
 from cytellect_analysis.region_comparison_contracts import RegionComparisonRequest, RegionComparisonResult
 from fastapi import Depends, HTTPException
 
+from .analysis_spec import require_source_strata
 from .regions import is_region
 from .storage import read_json
 
@@ -33,6 +34,14 @@ def register_region_comparison_routes(api, store, owner, revision, result_root, 
                          "reviewed_at": config["review_record"].get("confirmed_at"),
                          "source_fingerprint": source_fingerprint(report, config)}
         with store.transaction() as conn:
+            from cytellect_analysis.experiment_strata import refuse_legacy_comparison
+
+            from .analysis_spec import saved_experiment
+            try:
+                refuse_legacy_comparison(saved_experiment(conn, rev["workspace_id"]))
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from None
+            require_source_strata(conn, rev)
             jid = queue(conn, rev["workspace_id"], rid, "statistics",
                         {**body.model_dump(mode="json"), "_source_review": source_review})
         return {"job_id": jid}

@@ -511,9 +511,11 @@ descriptive endpoint (one-screen descriptions); comparison estimates remain comp
 
 | Contract | Version | Status | Compatibility |
 |---|---|---|---|
+| Analysis spec `experiment` (experiment design, declared strata) | 1.1.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec`; cohorts, descriptions and comparisons read one declared stratum | 1.0.0 documents and their bytes unchanged; results gain `stratum` only for stratified cohorts |
 | Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
 | Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons and per-field descriptions: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
 | Compartment-summary selection | 1.1.0 | Comparisons and per-field descriptions (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
+| Nucleus table | `nucleus-table/1.0.0` | Read-only `GET /v1/revisions/{rid}/nucleus-table` and its CSV/JSON ZIP, shown beside the adopted nuclei | New endpoint; saved measurements, masks and results unchanged |
 | Comparison estimates | `comparison-estimates/1.0.0` | Opt-in `estimates` on common-statistics 2.0.0 comparisons with one contrast | Absent from historical requests and results |
 | Unresolved-nucleoli policy | `unresolved-as-missing/1.0.0` | Opt-in `compartment_missing` on cohorts and reviews of nucleolar/nucleoplasm revisions; comparisons and descriptions | Absent from historical requests, review records and results; without it every parent must be a candidate |
 | Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
@@ -566,6 +568,102 @@ unconfirmed independence. Descriptions never wait for these issues (S09). The de
 comparison is paired by run with contrast `[treatment, control]`, so the reported
 effect is treatment − control; the researcher still confirms the design (S10).
 
+### Experiment design 1.1.0: declared strata (2026-11-09)
+
+Version 1.1.0 keeps groups (at most two), runs, samples, independence and the derived
+metadata of 1.0.0, and adds what the researcher declares to keep comparisons within
+one condition (for example one cell line or one time point):
+
+- `factors`: 1–3 named factors, each with its levels;
+- `strata`: each stratum is exactly one level of every factor, with a label; the
+  same combination is never declared twice. The list may be empty while the researcher
+  is still declaring factors (`experiment_design_no_strata`); no cohort can be made then;
+- each field's `stratum_id`, chosen by the researcher. A field without one belongs to
+  no stratum (`experiment_design_unstratified_fields`); nothing is inferred from file
+  names, dates, folders or values.
+
+1.0.0 documents keep their model and bytes (a document without `version` is 1.0.0).
+`experiment_design.readiness` checks a stratified design within each stratum: a run that
+appears in a stratum needs both groups there, and an empty stratum is named.
+
+In the workspace, 実験 declares factors, levels and strata (one level of every factor
+per stratum) and the stratum of each field. Adding a factor removes the existing strata,
+because they no longer name a level of every factor; removing a level, factor or stratum
+removes the strata that named it. In each case the affected fields keep their group and
+run, become unassigned, and the researcher confirms first, with the number of fields
+named. Nothing is reassigned automatically. The 2-screen view pairs only fields of the
+selected field's stratum within a run, and an unassigned field is not paired.
+
+Strata are read one at a time (`experiment_strata.py`). A cohort of a stratified design
+names one declared stratum and the hash of the saved design
+(`stratum: {design_version, design_sha256, stratum_id}`; the API returns
+`experiment_sha256` with the saved analysis spec). The API checks it against the saved
+design and refuses:
+
+- no stratum (`cohort_stratum_required`);
+- a field of another stratum (`cohort_stratum_mixed`);
+- a stratum field neither included nor excluded (`cohort_stratum_incomplete`);
+- a registered field that has no stratum (unassigned, or absent from the design) and no
+  recorded exclusion reason (`cohort_stratum_unassigned`): as in 1.0.0, every registered
+  field is either analysed or excluded with a reason before a cohort is made, so leaving
+  a field out of every stratum is never a silent exclusion. The workspace does not start
+  the calculation until each such field is assigned or excluded;
+- metadata other than the design derives, i.e. condition, unit, sample, pair or date
+  (`cohort_stratum_metadata_mismatch`);
+- a design changed since (`cohort_stratum_design_changed`).
+
+A stratified design always uses such a cohort, even when one field is adopted. The
+cohort records the stratum (`stratum-selection/1.0.0`): label, factor levels, design
+hash, `declared_stratum_count` (how many strata the saved design declared),
+`field_ids` (every field assigned to the stratum), `analysed_field_ids` (the fields
+the cohort holds) and `excluded_fields` (assigned fields excluded before analysis, with
+the researcher's reason).
+
+Unlike 1.0.0, where descriptions never wait for design issues, a formal (reviewed)
+description of a stratified design also needs a stratum cohort: it is refused until the
+researcher selects a stratum and every field has a stratum or a recorded exclusion. Only
+the automatic preview below is exempt.
+
+For a stratified design, descriptions, common statistics and region comparisons (API
+and worker) re-check the source against the saved design and refuse:
+
+- a source without a stratum record (`comparison_stratum_required`);
+- unassigned fields (`comparison_stratum_unassigned`);
+- fields of more than one stratum, or other than the analysed fields
+  (`comparison_stratum_mixed`);
+- a changed design (`comparison_stratum_design_changed`);
+- field metadata other than the design derives, including a metadata edit of a child
+  revision (`comparison_stratum_metadata_mismatch`).
+
+Region comparison 1.0.0 predates strata and is refused for a stratified design
+(`comparison_stratum_legacy_unsupported`); common statistics 2.0.0 is used instead.
+An automatic (unreviewed) description preview of a stratified design describes one
+field or fields of one declared stratum; a source holding fields of several strata or
+unassigned fields is refused at the API and in the worker (`comparison_stratum_mixed`,
+`comparison_stratum_unassigned`). A preview records no stratum and is not a formal result.
+Labels containing control characters or a lone surrogate are refused when the design is
+parsed, before its hash is computed.
+
+Results, Methods and replay keep the record. Methods state the stratum, its levels and
+the design hash, and the counts of assigned, analysed and excluded fields: "The
+researcher assigned N fields to this declared stratum; M were analysed and K were
+excluded before analysis with recorded reasons. Only fields of this stratum were used.
+Other strata were neither pooled with it nor compared, and the stratum was not modelled
+as a factor. The saved design declared S strata. Each stratum is analysed separately:
+multiplicity is controlled within this stratum's comparison family only, and p-values
+are not adjusted for analyses of the other declared strata."
+
+Each stratum's comparisons form their own Holm family. Nothing adjusts for the number of
+declared strata, so the count is recorded with every result and shown beside the stratum
+choice: a reader can see how many per-stratum analyses were possible, and a stratum
+reported alone is not evidence that the other strata were examined and agreed.
+
+Strata are never pooled, compared with each other or modelled as a factor. The
+workspace binds the selected stratum and the design hash into the identities of channel
+classifications, cohorts and results, so changing either makes them stale instead of
+reusing them; a channel gate's digest recomputed over another stratum's fields does not
+match. Unstratified designs and earlier results are unchanged.
+
 ### Field-summary selection 1.0.0
 
 One observation per field, computed from the adopted, non-excluded regions of the
@@ -578,11 +676,13 @@ selected nuclear region set (`field_summary.field_summary_values`):
   the confirmed square pixel size `s` in µm; missing (`calibration_unknown`)
   without calibration.
 - `positive_count` and `positive_fraction`: nuclei classified positive by the
-  recorded nucleus gate (`gfp-gate/2.0.0` negative-control or `gfp-gate/3.0.0`
-  manual/batch Otsu, `keep: "positive"`) on the judged channel. The denominator of
-  the fraction is the number of nuclei with a gate value (`evaluable_count`); the
-  total and the non-evaluable count are reported. No evaluable nucleus → fraction
-  missing (`no_evaluable_nuclei`); positive count 0.
+  recorded nucleus gate on the judged channel: `gfp-gate/2.0.0` negative-control or
+  `gfp-gate/3.0.0` manual/batch Otsu (`keep: "positive"` only), or the channel-neutral
+  gate below (either `keep`; the fraction is read before the subset is selected). The
+  denominator of the fraction is the number of nuclei with a gate value
+  (`evaluable_count`); the total and the non-evaluable count are reported. No
+  evaluable nucleus → both the fraction and the positive count are missing
+  (`no_evaluable_nuclei`), never zero (owner's decision, 2026-11-10).
 - Failed and explicitly excluded fields are not observations (`field_failed`,
   `field_excluded`) and stay in the comparison ledger; their counts are unknown
   (`null`), not zero.
@@ -599,6 +699,20 @@ selected nuclear region set (`field_summary.field_summary_values`):
 - Acquisition review follows pixel area: equal spatial sampling must be confirmed
   and all compared fields must share one calibration, because the count depends on
   the imaged area and resolution.
+- Field positivity review: `positive_count` and `positive_fraction` are decided by an
+  intensity threshold, so they are reviewed as intensity outcomes of the judged
+  channel as well: every compared field needs an acquisition date, the judged
+  channel has one dtype, and a contrast whose groups share no acquisition batch is
+  refused (`region_comparison_condition_batch_confounded`), exactly as for a mean
+  intensity. A per-date threshold does not remove this confound.
+- A threshold that no designated negative control fixed (manual, Otsu; legacy
+  `gfp-gate/3.0.0`) is exploratory and can be moved after the values are seen. With
+  such a gate the positive count and fraction are described only: a comparison
+  must use `test: "none"` (unit values and differences, no test, p-value or
+  interval); any test is refused
+  (`field_positivity_exploratory_threshold_descriptive_only`). Tests require the
+  negative-control gate. Whether the control is biologically suitable remains the
+  researcher's judgement.
 
 ### Compartment-summary selection 1.1.0
 
@@ -622,6 +736,86 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
 - `nucleolar_area_um2` needs a confirmed calibration (`compartment_summary_calibration_required`);
   area and eccentricity follow the pixel-area acquisition review (equal sampling,
   one calibration), µm² the calibrated-area review.
+
+### Nucleus table 1.0.0 (2026-11-09)
+
+`GET /v1/revisions/{rid}/nucleus-table?field_id=…[&nucleolar_revision_id=…]`
+(`nucleus_table.py`) returns one row per nucleus of a nuclear revision, so a
+researcher reads each nucleus's size, nuclear-stain signal, every stain's signal
+and its nucleoli together, and opens the nucleus on the image from its row.
+`GET /v1/revisions/{rid}/nucleus-table.zip` returns the same table as
+`nucleus-table.csv` (one row per nucleus), `columns.csv` (unit and definition of
+every column) and the authoritative `nucleus-table.json`. Text cells that a
+spreadsheet would read as a formula are prefixed with an apostrophe in the CSV.
+The saved files name the stain of every channel column on their own: the table
+records each channel's ID, recorded label, stain and role (`channels`), the CSV
+repeats them as `<channel>__label` and `<channel>__stain`, and `columns.csv` gives
+`channel_id`, `channel_label` and `stain` beside each channel column's definition.
+A stain that was not recorded stays empty, never guessed. The table covers one
+field; it does not carry the field's display name or its group, run and condition.
+
+- Nuclei are only a revision detected with the nuclear-stain recipe
+  (`source: "stardist_nuclear"` with a defining channel); any other region set is
+  refused (`nucleus_table_nuclear_source_required`) and never returned as nuclei or
+  DNA signal. Rows are bound to the saved nuclear labels by nucleus label
+  (`region_id`), never by order or position. The labels must match the saved mask
+  hash (`nucleus_table_mask_mismatch`) and every label must have saved rows
+  (`nucleus_table_region_mismatch`).
+- Nucleus area, raw and background-corrected mean and integrated intensity,
+  saturation fractions and their missing reasons are the nuclear revision's saved
+  measurement rows (any region protocol), copied unchanged; pixels are not read
+  again. The defining channel is marked `nuclear_stain`: its integrated signal is a
+  relative DNA-stain signal, comparable only under the same stain, linear range and
+  acquisition, not a DNA amount or ploidy. Values are not divided by nuclear area or
+  DNA signal. Each channel's background is recorded with the table and in the CSV
+  (`background_source`: `confirmed_roi`, `automatic_candidate` (protocol 4.0.0, not
+  confirmed by a person) or `not_established`; `background_confirmed`; the subtracted
+  `background_median`), so corrected values from an unconfirmed automatic background are
+  never read as ROI-corrected.
+- A nucleolar revision must be built on this nuclear revision (`compartment:
+  "nucleoli"`, the same `nuclear_revision_id`, otherwise
+  `nucleus_table_nucleolar_source_invalid`) and its provenance must pin these saved
+  nuclei and their mask hash (`nucleus_table_nucleolar_source_mismatch`).
+- A nucleus's nucleoli are **confirmed** (`measured`) when the nucleolar revision is
+  the field's adopted one and the nucleus has at least one adopted nucleolus that
+  remains after the researcher's object exclusions. This is the rule comparisons and
+  descriptions use (`compartment_engine.adopted_nucleolar_states`): a nucleolus the
+  researcher added, kept or edited counts, whatever the detector recorded. Then the
+  table adds object count, union area (px, µm² with a confirmed calibration), union
+  area / nuclear area, largest object area / union area, the area-weighted
+  eccentricity of compartment-summary 1.1.0 and the number of excluded objects.
+- Every other nucleus is `missing`, never zero, with its reason: the detector's
+  recorded reason for a nucleus without an adopted nucleolus (`no_candidate` when the
+  detector found one but every one was removed or none was recorded, `review_required`,
+  `indeterminate`, `processing_failed`, …), `no_adopted_nucleolus` (every adopted
+  object excluded),
+  `nucleolar_revision_not_adopted` or `nucleolar_field_excluded` (the field is
+  excluded in the nucleolar revision). Nucleolar µm² also needs the nucleolar
+  revision's calibration to equal the nuclear one; when µm² is absent for confirmed
+  nucleoli, `union_area_um2_missing_reason` says why (`calibration_unknown` or
+  `calibration_mismatch`). When this field's nucleoli cannot be
+  read (not measured, or a damaged mask), the nuclei are still shown and their nucleolar
+  values are `not_measured` (`nucleolar_revision_unavailable`). An excluded nucleus, or
+  every nucleus of a field excluded in the nuclear revision or on the workspace's
+  selection screen, stays in the table with
+  `exclusion_scope` (`nucleus` or `field`) and the reason (the nucleus's own, else
+  the field's, whole at the selection screen's limit of 300 characters); its nucleolar values are `not_measured` (`nucleus_excluded`), which
+  comes before every nucleolar reason. Without a nucleolar revision they are
+  `not_measured` (`nucleolar_revision_not_selected`).
+- The table records whether the nuclei and the nucleoli are the field's adopted
+  revisions (`nuclear_adopted`, `nucleolar_source.adopted`). It is read-only and
+  versioned; it adds no comparison or statistics. The workspace shows it beside the
+  image of the adopted nuclei with the nucleus ledger (nuclei, excluded, confirmed,
+  missing by reason, nuclei with pixels at the detector's saturation value or, when that
+  value is unknown, at the file's maximum, per stain; channels corrected with an
+  unconfirmed automatic background), both the absolute
+  nucleolar area and its fraction of the nucleus, and saves it as the ZIP above.
+
+Label validation (`masks.validate_labels`) and eccentricity
+(`nucleolar_shape.nucleolar_eccentricity`) read each object once from its bounding
+box instead of scanning the whole image per object; their definitions, results and
+error codes are unchanged (`tests/test_nucleus_table.py` compares the eccentricity
+with the per-object full-image definition).
 
 ### Comparison estimates 1.0.0
 
@@ -736,3 +930,93 @@ For the standard model, the server retains the exact previously deployed runner
 to serve installed clients. New clients accept that pinned runner only for
 `cpsam_v2`; fine-tuned models require the current runner identity. See the
 [adapter record](../engines/cellpose/README.md#cytellect-nucleolar-checkpoints).
+
+## Channel-neutral nuclear gate 1.0.0
+
+`channel-gate/1.0.0` classifies the saved arithmetic mean of one explicitly
+identified channel inside each exact parent nucleus. It does not infer a stain
+from its channel number or rename a stain as GFP. Raw and corrected means are
+separate choices; an absent corrected value is unclassified, never replaced by
+its raw value. The legacy GFP contracts and saved recipes keep their meaning.
+
+The new filter supports a manual threshold, a negative-control percentile per
+acquisition date, and exploratory Otsu per acquisition date. Percentile and Otsu
+arithmetic are shared with the existing gate. Negative controls require at least
+20 evaluable control nuclei per date; a missing date or insufficient control
+population leaves the corresponding classifications missing. A mean strictly
+greater than the threshold is positive; equality is negative. Control, excluded,
+failed and unclassified observations retain their separate statuses and reasons.
+Manual and Otsu thresholds are exploratory and do not establish biological
+positivity without a suitable experimental control.
+
+Classification returns a digest of the channel meaning, saved nuclear means,
+canonical mask identities, metadata, exclusions, thresholds and full per-nucleus
+decisions. Formal descriptions and comparisons require the digest and recompute
+it against their frozen cohort. A changed source or experiment record requires
+explicit reclassification; the browser never silently substitutes a new gate.
+Preview classification does not review or adopt the source. The existing review
+and experimental-unit requirements still apply to formal statistics.
+
+For field positive count and positive fraction, the same decision record supplies
+the numerator and denominator. Positive fraction is positive / (positive +
+negative), before the requested positive/negative subset is selected. Missing,
+control and excluded nuclei are reported separately. A zero denominator is
+missing, not zero. Choosing the negative subset cannot turn its positive fraction
+into zero. These are nuclear positivity summaries, not a cell-count or DNA-ploidy
+assay.
+
+When a positive or negative subset is selected by a channel and the intensity of
+that same channel is then described or compared, the selected values are bounded
+by the threshold by construction. The result carries
+`channel_gate_selection_and_outcome_share_channel`, the gate record states it and
+Methods say that a difference in that channel between the subsets is not an
+independent finding. Other channels and area metrics are not marked.
+
+## Explicit region partition table 1.0.0
+
+`region-partition/1.0.0` measures two explicitly selected memberships in one
+native measurement channel inside each exact parent nucleus.
+`region-partition-table/1.0.0` binds this calculation to owned, succeeded, frozen
+source revisions, original pixel/file hashes, canonical label hashes, confirmed
+calibration and saved exclusions. A target or reference can be a saved manual or
+imported membership or an exactly bound nuclear compartment. Nonzero membership
+labels need not be parent IDs. Both memberships must lie inside the selected
+nuclei and be disjoint; they need not cover the whole nucleus. The reference is
+never inferred from the remaining pixels.
+
+For each membership, area is its pixel count, mean is the arithmetic mean of its
+original pixels and integrated intensity is their sum. Confirmed XY calibration
+also gives area in µm². With background median `b` from that nuclear revision's
+saved, confirmed measurement-channel ROI, corrected mean is `mean - b` and
+corrected integrated intensity is `sum - area * b`. Automatic background
+candidates do not establish this ROI. Without it, corrected values are missing.
+
+`K = target mean / reference mean` and `log2K = log2(K)` are computed separately
+for raw and corrected values, only when both means are positive and the result
+is finite and representable. There is no epsilon, clipping or raw fallback.
+An empty region, unresolved compartment, exclusion, nonpositive mean or
+out-of-range ratio retains its reason; an unresolved structure never becomes a
+zero-valued measurement. Excluded parent IDs and reasons remain in the table.
+The historical `log2_nucleoplasm_over_nucleolus` metric is unchanged: selecting
+nucleoli as target and nucleoplasm as reference in the new table uses the
+opposite ratio direction.
+
+The JSON and CSV use the same server builder. Actual `reviewed` and current
+`adopted` flags accompany all three sources; the server resolves adoption from
+the saved field selection. The read-only table is a `preview` until every source
+is reviewed. Viewing or exporting it never changes review/adoption decisions.
+The CSV includes raw/corrected values, missing/exclusion reasons, units, source
+provenance and Methods. This table is not yet a common-statistics, figure or replay
+source. It reports an apparent intensity partition ratio: linearity, bleaching,
+compartment-level saturation and concentration interpretation need experimental
+validation before a physical partition coefficient can be claimed. Saturation within the
+target and reference regions is not evaluated by this table (its screen, CSV Methods
+and this section say so); saturated pixels can bias K.
+
+The registered public DS6a consistency check is reproducible with
+`python scripts/verify_research_measurements.py --out <new-directory-outside-checkout>`.
+It verifies the seed hash, byte-exact restoration, per-field adopted sources,
+native pixel arithmetic and JSON/CSV agreement without running a model or
+changing scientific review decisions. It is not an independent detector benchmark
+or evidence of biological validity, experimental independence or researcher task
+completion time.

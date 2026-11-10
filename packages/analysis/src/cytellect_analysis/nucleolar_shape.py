@@ -9,6 +9,7 @@ import math
 from typing import TypedDict
 
 import numpy as np
+from scipy import ndimage
 
 from .masks import validate_labels
 
@@ -30,16 +31,48 @@ def object_eccentricity(rows: np.ndarray, columns: np.ndarray) -> float | None:
     return math.sqrt(min(1.0, max(0.0, 1.0 - max(low, 0.0) / high)))
 
 
+def nucleolar_objects(nuclei: np.ndarray, nucleoli: np.ndarray) -> dict[int, list[int]]:
+    """Nucleolus labels inside each parent nucleus, ascending; parents without one are absent."""
+    inside = nucleoli > 0
+    children: dict[int, list[int]] = {}
+    if inside.any():
+        pairs = np.unique(np.stack([nuclei[inside].astype(np.int64), nucleoli[inside].astype(np.int64)]), axis=1)
+        for parent, child in pairs.T:
+            children.setdefault(int(parent), []).append(int(child))
+    return children
+
+
+def _object_pixels(nucleoli: np.ndarray):
+    """Return a function giving one object's pixel centres in original coordinates and C order.
+
+    Labels are compacted before `find_objects`, so sparse 32-bit label values do not
+    allocate one slot per possible value; each object is then read from its bounding box.
+    """
+    values, inverse = np.unique(nucleoli, return_inverse=True)
+    if values.size and values[0] != 0:
+        values, inverse = np.concatenate([[0], values]), inverse + 1
+    compact = inverse.reshape(nucleoli.shape)
+    boxes = ndimage.find_objects(compact)
+
+    def pixels(label: int):
+        index = int(np.searchsorted(values, label))
+        box = boxes[index - 1]
+        rows, columns = np.nonzero(compact[box] == index)
+        return rows + box[0].start, columns + box[1].start
+    return pixels
+
+
 def nucleolar_eccentricity(nuclei: np.ndarray, nucleoli: np.ndarray) -> dict[int, NucleolarShape]:
     """Return one entry per nucleus label in `nuclei`, keyed by the parent nucleus ID."""
     validate_labels(nuclei, nucleoli)
+    children = nucleolar_objects(nuclei, nucleoli)
+    pixels = _object_pixels(nucleoli)
     shapes: dict[int, NucleolarShape] = {}
     for parent in (int(value) for value in np.unique(nuclei) if value):
-        inside = nuclei == parent
-        objects = [int(value) for value in np.unique(nucleoli[inside]) if value]
+        objects = children.get(parent, [])
         weighted, weight, measured = 0.0, 0, 0
         for label in objects:
-            rows, columns = np.nonzero(nucleoli == label)
+            rows, columns = pixels(label)
             value = object_eccentricity(rows, columns)
             if value is None:
                 continue

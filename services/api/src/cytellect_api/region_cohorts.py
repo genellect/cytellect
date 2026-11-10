@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Annotated, Literal
 
 from cytellect_analysis.compartment_review import assert_complete_compartments, comparable_region_recipe
+from cytellect_analysis.experiment_strata import CohortStratum, check_cohort_stratum, design_sha256
 from cytellect_analysis.images import sha256
 from cytellect_analysis.region_contracts import (
     RegionAnalysisRequest,
@@ -19,6 +20,7 @@ from fastapi import Depends, HTTPException
 from pydantic import Field, model_validator
 from sqlalchemy import select, update
 
+from .analysis_spec import saved_experiment
 from .channel_assignments import apply_channel_assignments, effective_assignments
 from .db import fields, jobs, revisions, uid, workspace_selections, workspaces
 from .regions import is_region
@@ -39,6 +41,8 @@ class RegionCohortRequest(RegionModel):
     # Unresolved-nucleoli policy (Q-05): nuclei without an established nucleolus stay as missing;
     # the review then confirms the per-field list. Absent: every parent must be resolved, as before.
     compartment_missing: Literal["unresolved-as-missing/1.0.0"] | None = None
+    # Experiment design 1.1.0: the one declared stratum this cohort holds (required for such a design).
+    stratum: CohortStratum | None = None
 
     @model_validator(mode="after")
     def complete_metadata(self):
@@ -83,11 +87,29 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
         ids = {source.field_id for source in body.sources}
         adoption = body.workspace_selection.model_dump(mode="json") if body.workspace_selection else None
         excluded_ids = {entry["field_id"] for entry in adoption["entries"] if entry["exclusion_reason"] and entry["field_id"]} if adoption else set()
+        # An image that never became a field (failed upload) must carry a reason, whichever fields the
+        # cohort holds: it is checked before the entries are narrowed to a stratum.
+        if adoption and any(entry["field_id"] is None and not entry["exclusion_reason"] for entry in adoption["entries"]):
+            raise HTTPException(409, "workspace_selection_incomplete")
+        with store.engine.connect() as conn:
+            design = saved_experiment(conn, wid)
+        try:
+            reasons = {entry["field_id"]: entry["exclusion_reason"] for entry in (adoption or {}).get("entries", [])
+                       if entry["field_id"] and entry["exclusion_reason"]}
+            stratum = check_cohort_stratum(design, body.stratum, ids, excluded_ids,
+                                           {fid: value.model_dump(mode="json") for fid, value in body.metadata.items()},
+                                           exclusion_reasons=reasons, registered_ids=set(registered))
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
+        # A stratified cohort holds exactly one declared stratum; otherwise every workspace field, as before.
+        scope = set(stratum["field_ids"]) if stratum else set(registered)
         if adoption:
-            included = {entry["field_id"]: entry["revision_id"] for entry in adoption["entries"] if not entry["exclusion_reason"]}
-            if included != {source.field_id: source.revision_id for source in body.sources} or None in included:
+            included = {entry["field_id"]: entry["revision_id"] for entry in adoption["entries"]
+                        if not entry["exclusion_reason"] and entry["field_id"] in scope}
+            if included != {source.field_id: source.revision_id for source in body.sources}:
                 raise HTTPException(409, "workspace_selection_incomplete")
-        if ids | excluded_ids != set(registered) or ids & excluded_ids or any(not is_region(row) for row in registered.values()):
+        if (ids | (excluded_ids & scope) != scope or not scope <= set(registered) or ids & excluded_ids
+                or any(not is_region(registered[fid]) for fid in scope)):
             raise HTTPException(409, "cohort_all_workspace_fields_required")
         snapshot, pins, source_records, backgrounds = {}, {}, {}, {}
         exclusions: list[dict] = []
@@ -147,6 +169,8 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
             config["workspace_selection"] = adoption
         if body.compartment_missing is not None:
             config["compartment_missing"] = body.compartment_missing
+        if stratum is not None:
+            config["stratum"] = stratum
         fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         config["cohort_request_sha256"] = fingerprint
         with store.transaction() as conn:
@@ -168,8 +192,13 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                         return {"revision_id": item["id"], "job_id": job["id"]}
             if live["active_revision"] != body.expected_active_revision_id:
                 raise HTTPException(409, "stale_revision")
-            if set(conn.execute(select(fields.c.id).where(fields.c.workspace_id == wid)).scalars()) != ids | excluded_ids:
+            present = set(conn.execute(select(fields.c.id).where(fields.c.workspace_id == wid)).scalars())
+            if (not scope <= present) if stratum else present != ids | excluded_ids:
                 raise HTTPException(409, "cohort_all_workspace_fields_required")
+            # The saved design must still be the one the stratum was read from.
+            current = saved_experiment(conn, wid)
+            if stratum is not None and (current is None or design_sha256(current) != stratum["design_sha256"]):
+                raise HTTPException(409, "cohort_stratum_design_changed")
             # Recheck immutable source identity under the same write lock as enqueue.
             for sid, expected in source_records.items():
                 current = conn.execute(select(revisions).where(revisions.c.id == sid)).mappings().first()

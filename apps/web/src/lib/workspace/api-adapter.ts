@@ -1,6 +1,7 @@
 /** Real workspace transport. Pixels, masks, summaries and figures remain server-owned. */
 import { API, ApiError, errorCodeMessage, fetchBlob, post, request } from "../api";
 import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-view";
+import type { components } from "../generated";
 import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
 import type {NclObjectProcessingDetector} from "./nucleolar-definition";
@@ -87,6 +88,16 @@ export interface ProposalDraft {
 }
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
 export interface GfpGateResult {unit?: "nucleus" | "cell_roi"; objects?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; protocol?: string; method?: "negative_control" | "manual" | "batch_otsu"; nuclei?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
+export type NucleusTableData = components["schemas"]["NucleusTable"];
+export type RegionPartitionData = components["schemas"]["RegionPartitionTable"];
+export interface RegionPartitionRequest {
+  fieldId:string; nuclearRevisionId:string; targetRevisionId:string; referenceRevisionId:string; channelId:string;
+}
+function partitionPath(value:RegionPartitionRequest, csv=false) {
+  const query=new URLSearchParams({field_id:value.fieldId,target_revision_id:value.targetRevisionId,
+    reference_revision_id:value.referenceRevisionId,channel_id:value.channelId});
+  return `/v1/revisions/${encodeURIComponent(value.nuclearRevisionId)}/region-partition${csv?".csv":""}?${query}`;
+}
 export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
 export interface CompartmentSummaryFile {
   channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>;
@@ -328,6 +339,32 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     },
     async gfpGate(workspace: string, body: {gfp_channel_id: string; percentile: number; unit?: "nucleus" | "cell_roi"; method?: "negative_control" | "manual" | "batch_otsu"; threshold?: number; values?: "raw" | "corrected"; fields: Array<{field_id: string; revision_id: string; control: boolean}>}) {
       return client.post<GfpGateResult>(`/v1/workspaces/${workspace}/gfp-gate`, body);
+    },
+    async channelGate(workspace:string, body:components["schemas"]["ChannelGateRequest"]){
+      return client.post<components["schemas"]["ChannelGateResult"]>(`/v1/workspaces/${workspace}/channel-gate`,body);
+    },
+    /** One row per nucleus of a nuclear revision with every channel, and the adopted nucleoli of
+     * `nucleolarRevision` when given (computed by the API from saved rows and labels). */
+    async nucleusTable(revision: string, field: string, nucleolarRevision?: string) {
+      const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
+      return client.request<NucleusTableData>(`/v1/revisions/${revision}/nucleus-table?${query}`);
+    },
+    /** Saves the same nucleus table as a ZIP: the CSV, each column's unit and definition, and the JSON. */
+    async saveNucleusTable(revision: string, field: string, nucleolarRevision?: string) {
+      const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
+      const blob = await client.blob(`/v1/revisions/${revision}/nucleus-table.zip?${query}`);
+      const url = URL.createObjectURL(blob), anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `nucleus-table-${field}.zip`; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    async regionPartition(value:RegionPartitionRequest) {
+      return client.request<RegionPartitionData>(partitionPath(value));
+    },
+    async saveRegionPartition(value:RegionPartitionRequest) {
+      const blob=await client.blob(partitionPath(value,true));
+      const url=URL.createObjectURL(blob),anchor=document.createElement("a");
+      anchor.href=url;anchor.download=`region-partition-${value.fieldId}.csv`;anchor.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
     },
     async compartmentSummary(revision: string, field: string) {
       return client.request<CompartmentSummaryFile>(`/v1/revisions/${revision}/compartment-summary?field_id=${encodeURIComponent(field)}`);

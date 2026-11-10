@@ -2353,6 +2353,348 @@
         }
       }
     },
+    "/v1/revisions/{rid}/nucleus-table": {
+      "get": {
+        "summary": "Get Nucleus Table",
+        "description": "One row per nucleus of a nuclear revision; with `nucleolar_revision_id`, the\nnucleolar revision built on it adds each nucleus's confirmed nucleoli.",
+        "operationId": "get_nucleus_table_v1_revisions__rid__nucleus_table_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "nucleolar_revision_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Nucleolar Revision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NucleusTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/nucleus-table.zip": {
+      "get": {
+        "summary": "Download Nucleus Table",
+        "description": "The same table as `nucleus-table.csv`, `columns.csv` (units and definitions) and JSON.",
+        "operationId": "download_nucleus_table_v1_revisions__rid__nucleus_table_zip_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "nucleolar_revision_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Nucleolar Revision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/region-partition": {
+      "get": {
+        "summary": "Get Region Partition",
+        "operationId": "get_region_partition_v1_revisions__rid__region_partition_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "target_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Target Revision Id"
+            }
+          },
+          {
+            "name": "reference_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Reference Revision Id"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Channel Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionPartitionTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/revisions/{rid}/region-partition.csv": {
+      "get": {
+        "summary": "Get Region Partition Csv",
+        "operationId": "get_region_partition_csv_v1_revisions__rid__region_partition_csv_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "target_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Target Revision Id"
+            }
+          },
+          {
+            "name": "reference_revision_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Reference Revision Id"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Channel Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/channel-gate": {
+      "post": {
+        "summary": "Classify",
+        "operationId": "classify_v1_workspaces__wid__channel_gate_post",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelGateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelGateResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/common-statistics": {
       "post": {
         "summary": "Calculate",
@@ -3593,6 +3935,16 @@
               }
             ],
             "title": "Gfp"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -3734,12 +4086,20 @@
           "experiment": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ExperimentDesign"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ExperimentDesign"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StratifiedExperimentDesign"
+                  }
+                ]
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Experiment"
           }
         },
         "additionalProperties": false,
@@ -3765,6 +4125,17 @@
                 "type": "null"
               }
             ]
+          },
+          "experiment_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment Sha256"
           }
         },
         "additionalProperties": false,
@@ -4052,6 +4423,16 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StratumRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "figure": {
             "additionalProperties": true,
@@ -5015,6 +5396,421 @@
         ],
         "title": "ChannelAssignmentsWrite"
       },
+      "ChannelBackground": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "confirmed_roi",
+              "automatic_candidate",
+              "not_established"
+            ],
+            "title": "Source"
+          },
+          "confirmed_by_researcher": {
+            "type": "boolean",
+            "title": "Confirmed By Researcher"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "source",
+          "confirmed_by_researcher",
+          "median"
+        ],
+        "title": "ChannelBackground",
+        "description": "Where a channel's corrected values come from: a confirmed ROI, an unconfirmed automatic\ncandidate (protocol 4.0.0), or no background (raw or area-only protocols)."
+      },
+      "ChannelGateCounts": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "no_regions",
+              "excluded",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "nuclei": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nuclei"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          },
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "unclassified": {
+            "type": "integer",
+            "title": "Unclassified"
+          },
+          "control": {
+            "type": "integer",
+            "title": "Control"
+          },
+          "excluded": {
+            "type": "integer",
+            "title": "Excluded"
+          },
+          "evaluable": {
+            "type": "integer",
+            "title": "Evaluable"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "nuclei",
+          "positive",
+          "negative",
+          "unclassified",
+          "control",
+          "excluded",
+          "evaluable"
+        ],
+        "title": "ChannelGateCounts"
+      },
+      "ChannelGateField": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "revision_id"
+        ],
+        "title": "ChannelGateField"
+      },
+      "ChannelGateFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "gate_protocol": {
+            "const": "channel-gate/1.0.0",
+            "title": "Gate Protocol",
+            "type": "string"
+          },
+          "channel_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "negative_control",
+              "manual",
+              "batch_otsu"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "values": {
+            "default": "raw",
+            "enum": [
+              "raw",
+              "corrected"
+            ],
+            "title": "Values",
+            "type": "string"
+          },
+          "keep": {
+            "enum": [
+              "positive",
+              "negative"
+            ],
+            "title": "Keep",
+            "type": "string"
+          },
+          "percentile": {
+            "default": 99.0,
+            "exclusiveMaximum": 100,
+            "minimum": 50,
+            "title": "Percentile",
+            "type": "number"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Threshold"
+          },
+          "control_field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Control Field Ids",
+            "type": "array"
+          },
+          "reference_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Sha256"
+          }
+        },
+        "required": [
+          "version",
+          "gate_protocol",
+          "channel_id",
+          "method",
+          "keep"
+        ],
+        "title": "ChannelGateFilter",
+        "type": "object"
+      },
+      "ChannelGateNucleus": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "region_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Region Id"
+          },
+          "acquisition_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Date"
+          },
+          "channel_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Mean"
+          },
+          "positive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positive"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "positive",
+              "negative",
+              "unclassified",
+              "control",
+              "excluded"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "exclusion_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusion Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "region_id",
+          "acquisition_date",
+          "channel_mean",
+          "positive",
+          "status",
+          "reason",
+          "threshold",
+          "exclusion_reason"
+        ],
+        "title": "ChannelGateNucleus"
+      },
+      "ChannelGateRequest": {
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/ChannelGateFilter"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelGateField"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "filter",
+          "fields"
+        ],
+        "title": "ChannelGateRequest",
+        "description": "Classify saved nuclear measurements; this endpoint does not adopt or review them."
+      },
+      "ChannelGateResult": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "channel-gate/1.0.0",
+            "title": "Protocol",
+            "default": "channel-gate/1.0.0"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/ChannelGateFilter"
+          },
+          "channel": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Channel"
+          },
+          "dates": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Dates"
+          },
+          "nuclei": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelGateNucleus"
+            },
+            "type": "array",
+            "title": "Nuclei"
+          },
+          "field_counts": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/ChannelGateCounts"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Field Counts"
+          },
+          "record": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Record"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "filter",
+          "channel",
+          "dates",
+          "nuclei",
+          "field_counts",
+          "record"
+        ],
+        "title": "ChannelGateResult"
+      },
       "ChannelProvenance": {
         "properties": {
           "channel": {
@@ -5302,6 +6098,36 @@
           "revision_id"
         ],
         "title": "CohortSource"
+      },
+      "CohortStratum": {
+        "properties": {
+          "design_version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Design Version",
+            "default": "1.1.0"
+          },
+          "design_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Design Sha256"
+          },
+          "stratum_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Stratum Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "design_sha256",
+          "stratum_id"
+        ],
+        "title": "CohortStratum",
+        "description": "The stratum a cohort request selects, bound to the saved design it was read from."
       },
       "CommonComparisonPlot": {
         "properties": {
@@ -5683,6 +6509,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/CompartmentMissingSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StratumRecord"
               },
               {
                 "type": "null"
@@ -6190,6 +7026,16 @@
               }
             ],
             "title": "Gfp Gate"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -6269,6 +7115,16 @@
               }
             ],
             "title": "Gfp Gate"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7126,6 +7982,35 @@
         ],
         "title": "EstimateInterval"
       },
+      "ExcludedStratumField": {
+        "additionalProperties": false,
+        "properties": {
+          "field_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "field_id",
+          "reason"
+        ],
+        "title": "ExcludedStratumField",
+        "type": "object"
+      },
       "Exclusion": {
         "properties": {
           "field_id": {
@@ -7591,6 +8476,9 @@
               },
               {
                 "$ref": "#/components/schemas/ExploratoryGfpGateFilter"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
               },
               {
                 "type": "null"
@@ -9415,6 +10303,581 @@
         "title": "NucleolarDetectorV21",
         "description": "Marker-only revision: the recorded smoothing sigma is the effective value."
       },
+      "NucleolarMorphology": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "missing",
+              "not_measured"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "union_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Union Area Px"
+          },
+          "union_area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Union Area Um2"
+          },
+          "union_area_um2_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "calibration_unknown",
+                  "calibration_mismatch"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Union Area Um2 Missing Reason"
+          },
+          "area_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Fraction"
+          },
+          "largest_object_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest Object Area Px"
+          },
+          "largest_object_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest Object Fraction"
+          },
+          "eccentricity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eccentricity"
+          },
+          "eccentricity_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eccentricity Missing Reason"
+          },
+          "excluded_objects": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Excluded Objects"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason",
+          "count",
+          "union_area_px",
+          "union_area_um2",
+          "union_area_um2_missing_reason",
+          "area_fraction",
+          "largest_object_area_px",
+          "largest_object_fraction",
+          "eccentricity",
+          "eccentricity_missing_reason",
+          "excluded_objects"
+        ],
+        "title": "NucleolarMorphology"
+      },
+      "NucleolarSource": {
+        "properties": {
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          },
+          "mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Mask Revision Id"
+          },
+          "mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Mask Sha256"
+          },
+          "adopted": {
+            "type": "boolean",
+            "title": "Adopted"
+          },
+          "field_excluded": {
+            "type": "boolean",
+            "title": "Field Excluded"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision_id",
+          "mask_revision_id",
+          "mask_sha256",
+          "adopted",
+          "field_excluded"
+        ],
+        "title": "NucleolarSource"
+      },
+      "NucleusChannelValues": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "nuclear_stain",
+              "measure"
+            ],
+            "title": "Role"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "integrated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrated"
+          },
+          "mean_corrected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Corrected"
+          },
+          "integrated_corrected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrated Corrected"
+          },
+          "intensity_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity Missing Reason"
+          },
+          "correction_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Missing Reason"
+          },
+          "storage_limit_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Limit Fraction"
+          },
+          "acquisition_saturation_fraction": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Saturation Fraction"
+          },
+          "acquisition_saturation_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Saturation Missing Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "role",
+          "mean",
+          "integrated",
+          "mean_corrected",
+          "integrated_corrected",
+          "intensity_missing_reason",
+          "correction_missing_reason",
+          "storage_limit_fraction",
+          "acquisition_saturation_fraction",
+          "acquisition_saturation_missing_reason"
+        ],
+        "title": "NucleusChannelValues"
+      },
+      "NucleusRow": {
+        "properties": {
+          "nucleus_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Nucleus Id"
+          },
+          "excluded": {
+            "type": "boolean",
+            "title": "Excluded"
+          },
+          "exclusion_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "field",
+                  "nucleus"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusion Scope"
+          },
+          "exclusion_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusion Reason"
+          },
+          "touches_border": {
+            "type": "boolean",
+            "title": "Touches Border"
+          },
+          "nucleus_area_px": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Nucleus Area Px"
+          },
+          "nucleus_area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleus Area Um2"
+          },
+          "area_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "calibration_unknown"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Missing Reason"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/NucleusChannelValues"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "nucleoli": {
+            "$ref": "#/components/schemas/NucleolarMorphology"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nucleus_id",
+          "excluded",
+          "exclusion_scope",
+          "exclusion_reason",
+          "touches_border",
+          "nucleus_area_px",
+          "nucleus_area_um2",
+          "area_missing_reason",
+          "channels",
+          "nucleoli"
+        ],
+        "title": "NucleusRow"
+      },
+      "NucleusTable": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "nucleus-table/1.0.0",
+            "title": "Protocol",
+            "default": "nucleus-table/1.0.0"
+          },
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "nuclear_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Nuclear Revision Id"
+          },
+          "nuclear_mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Nuclear Mask Revision Id"
+          },
+          "nuclear_mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Nuclear Mask Sha256"
+          },
+          "nuclear_adopted": {
+            "type": "boolean",
+            "title": "Nuclear Adopted"
+          },
+          "measurement_protocol_version": {
+            "type": "string",
+            "enum": [
+              "1.0.0",
+              "2.0.0",
+              "3.0.0",
+              "4.0.0"
+            ],
+            "title": "Measurement Protocol Version"
+          },
+          "nuclear_channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nuclear Channel Id"
+          },
+          "nucleolar_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NucleolarSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Calibration2D"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field_excluded": {
+            "type": "boolean",
+            "title": "Field Excluded"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/TableChannel"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "backgrounds": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelBackground"
+            },
+            "type": "array",
+            "title": "Backgrounds"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/NucleusRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field_id",
+          "nuclear_revision_id",
+          "nuclear_mask_revision_id",
+          "nuclear_mask_sha256",
+          "nuclear_adopted",
+          "measurement_protocol_version",
+          "nuclear_channel_id",
+          "nucleolar_source",
+          "calibration",
+          "field_excluded",
+          "channels",
+          "backgrounds",
+          "rows"
+        ],
+        "title": "NucleusTable"
+      },
       "NumericalSelection": {
         "additionalProperties": false,
         "properties": {
@@ -9554,6 +11017,481 @@
         ],
         "title": "PagedDescriptiveRequest",
         "type": "object"
+      },
+      "PartitionBackground": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "missing"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "background_not_confirmed"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "source_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Source Revision Id"
+          },
+          "roi_revision_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi Revision Id"
+          },
+          "mask_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mask Sha256"
+          },
+          "pixel_count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pixel Count"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "polygon": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Polygon"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason",
+          "source_revision_id",
+          "roi_revision_id",
+          "mask_sha256",
+          "pixel_count",
+          "median",
+          "polygon"
+        ],
+        "title": "PartitionBackground"
+      },
+      "PartitionExclusion": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "nuclear",
+              "target",
+              "reference"
+            ],
+            "title": "Source"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4294967295.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "region_id",
+          "reason"
+        ],
+        "title": "PartitionExclusion"
+      },
+      "PartitionPixelSource": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelSpec"
+              },
+              {
+                "$ref": "#/components/schemas/ObservedChannelSpec"
+              }
+            ],
+            "title": "Channel"
+          },
+          "input_mode": {
+            "type": "string",
+            "const": "native",
+            "title": "Input Mode",
+            "default": "native"
+          },
+          "dtype": {
+            "type": "string",
+            "enum": [
+              "uint8",
+              "uint16"
+            ],
+            "title": "Dtype"
+          },
+          "pixel_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Pixel Sha256"
+          },
+          "array_file": {
+            "$ref": "#/components/schemas/RegionStoredFile"
+          },
+          "original_files": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/RegionStoredFile"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Original Files"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel",
+          "dtype",
+          "pixel_sha256",
+          "array_file",
+          "original_files"
+        ],
+        "title": "PartitionPixelSource"
+      },
+      "PartitionRatioMeasurement": {
+        "properties": {
+          "k": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K"
+          },
+          "log2_k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log2 K"
+          },
+          "missing_reasons": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[a-z0-9_]+$"
+            },
+            "type": "array",
+            "title": "Missing Reasons"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "k",
+          "log2_k",
+          "missing_reasons"
+        ],
+        "title": "PartitionRatioMeasurement"
+      },
+      "PartitionRegionMeasurement": {
+        "properties": {
+          "area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Px"
+          },
+          "area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Um2"
+          },
+          "area_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Missing Reason"
+          },
+          "raw_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Mean"
+          },
+          "raw_integrated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Integrated"
+          },
+          "corrected_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Mean"
+          },
+          "corrected_integrated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Integrated"
+          },
+          "raw_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Missing Reason"
+          },
+          "corrected_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Missing Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area_px",
+          "area_um2",
+          "area_missing_reason",
+          "raw_mean",
+          "raw_integrated",
+          "corrected_mean",
+          "corrected_integrated",
+          "raw_missing_reason",
+          "corrected_missing_reason"
+        ],
+        "title": "PartitionRegionMeasurement"
+      },
+      "PartitionSource": {
+        "properties": {
+          "revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Revision Id"
+          },
+          "region_set_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Region Set Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "stardist_nuclear",
+              "manual",
+              "imported",
+              "fiji_nuclear_compartment"
+            ],
+            "title": "Source"
+          },
+          "mask_revision_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Mask Revision Id"
+          },
+          "mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Mask Sha256"
+          },
+          "effective_mask_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Effective Mask Sha256"
+          },
+          "label_file": {
+            "$ref": "#/components/schemas/RegionStoredFile"
+          },
+          "report_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Report Sha256"
+          },
+          "provenance_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Provenance Sha256"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "title": "Reviewed"
+          },
+          "adopted": {
+            "type": "boolean",
+            "title": "Adopted"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision_id",
+          "region_set_id",
+          "label",
+          "source",
+          "mask_revision_id",
+          "mask_sha256",
+          "effective_mask_sha256",
+          "label_file",
+          "report_sha256",
+          "provenance_sha256",
+          "reviewed",
+          "adopted"
+        ],
+        "title": "PartitionSource"
       },
       "PlanAnswers": {
         "properties": {
@@ -11142,6 +13080,16 @@
               }
             ],
             "title": "Compartment Missing"
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CohortStratum"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -13526,6 +15474,210 @@
         ],
         "title": "RegionNuclearRecipe"
       },
+      "RegionPartitionTable": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "region-partition-table/1.0.0",
+            "title": "Protocol",
+            "default": "region-partition-table/1.0.0"
+          },
+          "calculation_protocol": {
+            "type": "string",
+            "const": "region-partition/1.0.0",
+            "title": "Calculation Protocol",
+            "default": "region-partition/1.0.0"
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "preview"
+            ],
+            "title": "Review Status"
+          },
+          "workspace_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Workspace Id"
+          },
+          "field_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id"
+          },
+          "nuclear_source": {
+            "$ref": "#/components/schemas/PartitionSource"
+          },
+          "target_source": {
+            "$ref": "#/components/schemas/PartitionSource"
+          },
+          "reference_source": {
+            "$ref": "#/components/schemas/PartitionSource"
+          },
+          "pixel_source": {
+            "$ref": "#/components/schemas/PartitionPixelSource"
+          },
+          "background": {
+            "$ref": "#/components/schemas/PartitionBackground"
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Calibration2D"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "area_unit": {
+            "type": "string",
+            "const": "px",
+            "title": "Area Unit",
+            "default": "px"
+          },
+          "calibrated_area_unit": {
+            "type": "string",
+            "const": "um2",
+            "title": "Calibrated Area Unit",
+            "default": "um2"
+          },
+          "mean_unit": {
+            "type": "string",
+            "const": "native_intensity",
+            "title": "Mean Unit",
+            "default": "native_intensity"
+          },
+          "integrated_unit": {
+            "type": "string",
+            "const": "native_intensity_px",
+            "title": "Integrated Unit",
+            "default": "native_intensity_px"
+          },
+          "ratio_unit": {
+            "type": "string",
+            "const": "dimensionless",
+            "title": "Ratio Unit",
+            "default": "dimensionless"
+          },
+          "log2_unit": {
+            "type": "string",
+            "const": "log2",
+            "title": "Log2 Unit",
+            "default": "log2"
+          },
+          "methods": {
+            "type": "string",
+            "title": "Methods"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RegionPartitionTableRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "review_status",
+          "workspace_id",
+          "field_id",
+          "nuclear_source",
+          "target_source",
+          "reference_source",
+          "pixel_source",
+          "background",
+          "calibration",
+          "methods",
+          "rows"
+        ],
+        "title": "RegionPartitionTable"
+      },
+      "RegionPartitionTableRow": {
+        "properties": {
+          "nucleus_id": {
+            "type": "integer",
+            "maximum": 4294967295.0,
+            "minimum": 1.0,
+            "title": "Nucleus Id"
+          },
+          "nucleus_area_px": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Nucleus Area Px"
+          },
+          "nucleus_area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nucleus Area Um2"
+          },
+          "excluded": {
+            "type": "boolean",
+            "title": "Excluded"
+          },
+          "exclusions": {
+            "items": {
+              "$ref": "#/components/schemas/PartitionExclusion"
+            },
+            "type": "array",
+            "title": "Exclusions"
+          },
+          "target_state": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Target State"
+          },
+          "reference_state": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Reference State"
+          },
+          "target": {
+            "$ref": "#/components/schemas/PartitionRegionMeasurement"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/PartitionRegionMeasurement"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/PartitionRatioMeasurement"
+          },
+          "corrected": {
+            "$ref": "#/components/schemas/PartitionRatioMeasurement"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nucleus_id",
+          "nucleus_area_px",
+          "nucleus_area_um2",
+          "excluded",
+          "exclusions",
+          "target_state",
+          "reference_state",
+          "target",
+          "reference",
+          "raw",
+          "corrected"
+        ],
+        "title": "RegionPartitionTableRow"
+      },
       "RegionRecipe": {
         "properties": {
           "id": {
@@ -14233,6 +16385,16 @@
               }
             ],
             "title": "Gfp Gate"
+          },
+          "channel_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelGateFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -15683,6 +17845,435 @@
         ],
         "title": "StatisticsRequest"
       },
+      "StratifiedExperimentDesign": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Version"
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "single",
+              "pair"
+            ],
+            "title": "Layout"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentGroup"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Groups"
+          },
+          "control_group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Group Id"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentRun"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Runs"
+          },
+          "independence_confirmed": {
+            "type": "boolean",
+            "title": "Independence Confirmed",
+            "default": false
+          },
+          "factors": {
+            "items": {
+              "$ref": "#/components/schemas/StratumFactor"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Factors"
+          },
+          "strata": {
+            "items": {
+              "$ref": "#/components/schemas/Stratum"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "title": "Strata"
+          },
+          "fields": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/StratifiedFieldAssignment"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "layout",
+          "groups",
+          "factors",
+          "strata"
+        ],
+        "title": "StratifiedExperimentDesign"
+      },
+      "StratifiedFieldAssignment": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Group Id"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Run Id"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 24,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          },
+          "acquired_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired On"
+          },
+          "stratum_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stratum Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "group_id",
+          "run_id"
+        ],
+        "title": "StratifiedFieldAssignment"
+      },
+      "Stratum": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "levels": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 3,
+            "minProperties": 1,
+            "title": "Levels"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "levels"
+        ],
+        "title": "Stratum",
+        "description": "One declared stratum: exactly one level of every factor."
+      },
+      "StratumFactor": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/StratumLevel"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Levels"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "levels"
+        ],
+        "title": "StratumFactor",
+        "description": "A condition the researcher holds constant within each comparison (e.g. cell line)."
+      },
+      "StratumLevel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "StratumLevel"
+      },
+      "StratumLevelRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "factor_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Factor Id",
+            "type": "string"
+          },
+          "factor": {
+            "title": "Factor",
+            "type": "string"
+          },
+          "level_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Level Id",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factor_id",
+          "factor",
+          "level_id",
+          "level"
+        ],
+        "title": "StratumLevelRecord",
+        "type": "object"
+      },
+      "StratumRecord": {
+        "additionalProperties": false,
+        "description": "What a cohort, its results and their Methods keep about the selected stratum.\n\n`field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`\nthe fields the cohort holds; `excluded_fields` the assigned fields excluded before\nanalysis, with the researcher's reason. Together they account for every assigned field.\n`declared_stratum_count` is how many strata the saved design declared: each stratum is\nanalysed and tested on its own, so a reader can see how many such analyses were possible.",
+        "properties": {
+          "version": {
+            "const": "stratum-selection/1.0.0",
+            "default": "stratum-selection/1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "design_version": {
+            "const": "1.1.0",
+            "default": "1.1.0",
+            "title": "Design Version",
+            "type": "string"
+          },
+          "design_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Design Sha256",
+            "type": "string"
+          },
+          "stratum_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Stratum Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/StratumLevelRecord"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "declared_stratum_count": {
+            "minimum": 1,
+            "title": "Declared Stratum Count",
+            "type": "integer"
+          },
+          "field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "title": "Field Ids",
+            "type": "array"
+          },
+          "analysed_field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "title": "Analysed Field Ids",
+            "type": "array"
+          },
+          "excluded_fields": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedStratumField"
+            },
+            "title": "Excluded Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "design_sha256",
+          "stratum_id",
+          "label",
+          "levels",
+          "declared_stratum_count",
+          "field_ids",
+          "analysed_field_ids",
+          "excluded_fields"
+        ],
+        "title": "StratumRecord",
+        "type": "object"
+      },
+      "TableChannel": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "nuclear_stain",
+              "measure"
+            ],
+            "title": "Role"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "label",
+          "stain",
+          "role"
+        ],
+        "title": "TableChannel",
+        "description": "The recorded identity of one channel, so a saved table names the stain of every column."
+      },
       "ValidatedProposal": {
         "properties": {
           "protocol": {
@@ -16986,6 +19577,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/MaskCorrectionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StratumRecord"
               },
               {
                 "type": "null"

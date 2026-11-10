@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, TypeAdapter, field_validator, model_validator
@@ -18,6 +18,9 @@ from .measurement import region_values
 
 Id = Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")]
 Label = Annotated[str, Field(min_length=1, max_length=120)]
+# The longest reason a researcher can save when excluding a field on the workspace's selection screen.
+# Every table that repeats that reason accepts the same length.
+FIELD_EXCLUSION_REASON_MAX: Final = 300
 Positive = Annotated[FiniteFloat, Field(gt=0)]
 PROTOCOL_VERSION: Literal["1.0.0"] = "1.0.0"
 

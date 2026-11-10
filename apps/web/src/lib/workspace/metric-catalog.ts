@@ -38,6 +38,12 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
     {id: "mean_corrected", label: "平均輝度（背景補正）", channel: true, definition: "背景を差し引いた平均輝度。背景の決め方は測定の設定に記録されます。"},
     {id: "integrated_corrected", label: "積算輝度（背景補正）", channel: true, definition: "背景を差し引いた積算輝度。領域の大きさにも左右されます。"},
   ]},
+  {question:"陽性の核が増えたか",metrics:[
+    {id:"positive_count",label:"視野あたりの陽性核数",target:"nuclei",channel:false,
+      definition:"記録したチャンネルの分類による、視野ごとの陽性核数。対照・除外核・未判定核は別に数えます。"},
+    {id:"positive_fraction",label:"陽性率",target:"nuclei",channel:false,
+      definition:"視野ごとの陽性核数 ÷ 選別前に判定できた陽性核と陰性核の数。未判定核・除外核・対照は分母に含めません。"},
+  ]},
   {question: "核小体が変わったか", metrics: [
     {id: "nucleolar_area_px", label: "核小体の総面積（px²）", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "採用した核小体がある核ごとの、核小体の総面積（px²）。候補がない核は 0 ではなく欠測です。核小体を決めた染色と方法は解析の記録に残ります。"},

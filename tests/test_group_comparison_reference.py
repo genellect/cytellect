@@ -220,7 +220,10 @@ def test_positive_fraction_uses_evaluable_nuclei():
     assert rows["f2"]["positive_count"] == 0
     assert rows["f5"]["value"] is None and rows["f5"]["missing_reason"] == "no_evaluable_nuclei"
     counts = summary("positive_count")
-    assert counts["f1"]["value"] == 2 and counts["f2"]["value"] == 0
+    # With no nucleus judged, the positive count is missing like the fraction, never an observed zero.
+    assert counts["f1"]["value"] == 2
+    assert (counts["f2"]["value"], counts["f2"]["missing_reason"]) == (None, "no_evaluable_nuclei")
+    assert (counts["f5"]["value"], counts["f5"]["missing_reason"]) == (None, "no_evaluable_nuclei")
 
 
 # ---------------------------------------------------------------- nucleolar eccentricity
