@@ -428,3 +428,64 @@ def test_every_stratum_refusal_has_a_researcher_message():
               "experiment_design_stratum_levels"}
     assert SAFE_ERROR_CODES <= SAFE_ERRORS
     assert all(f"\n {code}:" in messages for code in SAFE_ERROR_CODES | cohort)
+
+
+def test_preview_never_pools_strata_and_unit_rule():
+    from cytellect_analysis.experiment_strata import check_preview_strata
+    design = stratified(assignments())
+    check_preview_strata(design, {"field_ids": ["f-level-a-r1-a"]})  # one field: allowed
+    check_preview_strata(design, {"field_ids": ["f-level-a-r1-a", "f-level-a-r2-b"]})  # one stratum: allowed
+    with pytest.raises(ValueError, match="comparison_stratum_mixed"):
+        check_preview_strata(design, {"field_ids": ["f-level-a-r1-a", "f-level-b-r1-a"]})
+    missing = assignments()
+    missing["f-level-a-r1-a"]["stratum_id"] = None
+    with pytest.raises(ValueError, match="comparison_stratum_unassigned"):
+        check_preview_strata(stratified(missing), {"field_ids": ["f-level-a-r1-a", "f-level-a-r1-b"]})
+    check_preview_strata(V10, {"field_ids": ["f1", "f2"]})  # unstratified designs are unchanged
+
+
+def test_api_preview_refuses_a_source_spanning_strata_and_worker_rechecks_a_changed_design(tmp_path):
+    client, app, settings = authenticated(tmp_path)
+    wid, ids, sources, design = _workspace(client, app, settings)
+    # A source holding fields of two strata (e.g. a whole-workspace analysis) is never previewed pooled.
+    first, other = ids["f-level-a-r1-a"], ids["f-level-b-r1-a"]
+    rid = sources[first]
+    saved = app.state.store.one(revisions, id=rid)
+    snapshot = dict(saved["config"]["field_snapshot"])
+    snapshot[other] = snapshot[first]
+    with app.state.store.transaction() as conn:
+        # A workspace measurement revision (the kind automatic previews read), holding both fields.
+        conn.execute(update(revisions).where(revisions.c.id == rid).values(
+            config={**saved["config"], "field_ids": [first, other], "field_snapshot": snapshot,
+                    "recipe": {**saved["config"]["recipe"], "version": "1.7.0"}}))
+    request = {**comparison_request(), "version": "2.0.0", "test": "welch-t",
+               "plot": {"kind": "box", "language": "en", "y_label": "Measured signal"}}
+    preview = client.post(f"/v1/revisions/{rid}/descriptive-preview", headers=HEADERS,
+                          json={"mode": "descriptive", "selection": request["selection"], "group_by": "field",
+                                "plot": {"kind": "distribution", "language": "en"}})
+    assert preview.status_code == 409 and preview.json()["detail"] == "comparison_stratum_mixed"
+    with app.state.store.transaction() as conn:
+        conn.execute(update(revisions).where(revisions.c.id == rid).values(config=saved["config"]))
+    # Accepted under one design, then the design changes before the worker runs: the worker refuses it.
+    body = _cohort_body(client, wid, ids, sources, design, "level-a")
+    cohort = client.post(f"/v1/workspaces/{wid}/region-cohorts", json=body, headers=HEADERS)
+    process_one(app.state.store, settings)
+    cid = cohort.json()["revision_id"]
+    assert client.post(f"/v1/revisions/{cid}/review", headers=HEADERS, json={}).status_code == 200
+    queued = client.post(f"/v1/revisions/{cid}/common-statistics", headers=HEADERS, json=request)
+    assert queued.status_code == 202, queued.text
+    spec = client.get(f"/v1/workspaces/{wid}/analysis-spec").json()
+    changed = {**design, "independence_confirmed": False}
+    assert client.put(f"/v1/workspaces/{wid}/analysis-spec", headers=HEADERS, json={
+        "version": spec["version"], "spec": {**spec["spec"], "experiment": changed}}).status_code == 200
+    process_one(app.state.store, settings)
+    job = client.get(f"/v1/jobs/{queued.json()['job_id']}").json()
+    assert job["state"] == "failed" and job["error"] == "comparison_stratum_design_changed", job
+
+
+def test_labels_with_a_lone_surrogate_are_refused_before_hashing():
+    broken = stratified(assignments())
+    broken["strata"][0]["label"] = "LEVEL-A \ud83d"
+    # Refused while parsing (a non-encodable string), so the design hash never sees it.
+    with pytest.raises(ValidationError, match="string_unicode|experiment_design_invalid_label"):
+        parse_design(broken)

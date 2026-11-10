@@ -68,6 +68,7 @@ const messages:Record<string,string> = {
  comparison_stratum_metadata_mismatch:"視野の群・実験回などが「実験」の内容と一致しません。視野ごとの情報の変更ではなく「実験」で直し、計算し直してください。",
  comparison_stratum_legacy_unsupported:"層を分けた実験では、この旧版の比較は使えません。統計の画面の比較で計算してください。",
  experiment_design_unknown_stratum:"存在しない層が割り当てられています。「実験」で視野の層を選び直してください。",
+ experiment_design_invalid_label:"名前に使えない文字（改行や記号など）が含まれているか、前後に空白があります。",
  experiment_design_stratum_levels:"層には、それぞれの因子から水準を 1 つずつ選んでください。",
  experiment_design_duplicate:"同じ名前の群・実験回・因子・水準・層があるか、同じ水準の組み合わせの層が 2 つあります。名前か組み合わせを変えてください。",
  experiment_design_unknown_group:"存在しない群が割り当てられています。「実験」で視野の群を選び直してください。",

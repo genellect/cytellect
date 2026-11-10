@@ -81,6 +81,12 @@ def run_descriptive(store, job, output):
     else:
         result = describe_legacy(report, snapshot, request)
     result["revision_id"] = rev["id"]
+    if generic and preview:
+        from cytellect_analysis.experiment_strata import check_preview_strata
+        from cytellect_api.analysis_spec import saved_experiment
+
+        with store.transaction() as conn:
+            check_preview_strata(saved_experiment(conn, rev["workspace_id"]), rev["config"])
     if generic and not preview:
         from cytellect_analysis.experiment_strata import check_source_strata, with_stratum
         from cytellect_api.analysis_spec import saved_experiment

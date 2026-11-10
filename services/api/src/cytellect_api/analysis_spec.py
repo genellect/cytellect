@@ -234,6 +234,16 @@ def require_source_strata(conn, rev):
         raise HTTPException(409, str(exc)) from None
 
 
+def require_preview_strata(conn, rev):
+    """API guard: an automatic preview never pools fields of several declared strata."""
+    from cytellect_analysis.experiment_strata import check_preview_strata
+
+    try:
+        check_preview_strata(saved_experiment(conn, rev["workspace_id"]), rev["config"])
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
 def register_analysis_spec_routes(api, store, owner, workspace, touch):
     Owner = Annotated[str, Depends(owner)]
 

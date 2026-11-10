@@ -626,6 +626,12 @@ and worker) re-check the source against the saved design and refuse:
 
 Region comparison 1.0.0 predates strata and is refused for a stratified design
 (`comparison_stratum_legacy_unsupported`); common statistics 2.0.0 is used instead.
+An automatic (unreviewed) description preview of a stratified design describes one
+field or fields of one declared stratum; a source holding fields of several strata or
+unassigned fields is refused at the API and in the worker (`comparison_stratum_mixed`,
+`comparison_stratum_unassigned`). A preview records no stratum and is not a formal result.
+Labels containing control characters or a lone surrogate are refused when the design is
+parsed, before its hash is computed.
 
 Results, Methods and replay keep the record. Methods state the stratum, its levels and
 the design hash, and the counts of assigned, analysed and excluded fields: "The

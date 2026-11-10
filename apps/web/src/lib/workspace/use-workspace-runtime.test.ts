@@ -51,6 +51,15 @@ describe("functional workspace runtime",()=>{
     await pair.runtime.load("w");
     expect((pair.loadPreview.mock.calls as unknown as Array<[string,string[]|undefined]>).map(([id,fields])=>[id,fields])).toEqual([["w",["f2","f1"]],["w",undefined]]);
   });
+  it("saves a target selection without sending back the read-only design hash of a stratified plan",async()=>{
+    const read={version:3,experiment_sha256:"a".repeat(64),spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null}};
+    const loaded=fixture(true,read as never);
+    await loaded.runtime.load("w");
+    await loaded.runtime.saveSelection({kind:"gfp"} as never);
+    const written=loaded.writeSpecification.mock.calls.at(-1)![1] as unknown as Record<string,unknown>;
+    expect(Object.keys(written).sort()).toEqual(["spec","version"]);
+    expect((written.spec as {selection:unknown}).selection).toEqual({kind:"gfp"});
+  });
   it("repairs historical result settings in one versioned write with current manual settings",async()=>{
     const settings=defaultRuntimeSettings();
     const invalid={method:{kind:"association",association:"spearman"},x_metric:"nucleolar_count",y_metric:"nuclear_area"};

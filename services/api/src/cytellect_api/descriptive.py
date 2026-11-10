@@ -7,7 +7,7 @@ from cytellect_analysis.gfp_selection import gate_of
 from cytellect_analysis.review import unresolved_nucleolar_failures
 from fastapi import Depends, HTTPException
 
-from .analysis_spec import require_source_strata
+from .analysis_spec import require_preview_strata, require_source_strata
 from .channel_gates import require_gate_source
 from .regions import is_region, require_compartment_revision
 from .storage import read_json
@@ -34,6 +34,7 @@ def register_descriptive_routes(api, store, owner, revision, result_root, queue)
         payload = body.model_dump(mode="json")
         payload["_automatic_preview"] = True
         with store.transaction() as conn:
+            require_preview_strata(conn, rev)
             jid = queue(conn, rev["workspace_id"], rid, "statistics", payload)
         return {"job_id": jid}
 

@@ -25,6 +25,8 @@ export const LABEL_LIMIT = 24;
 export function labelProblem(value:string):string|null {
   if (!value.trim()) return "名前を入力してください。";
   if (value !== value.trim()) return "前後の空白を除いてください。";
+  // A lone surrogate (half of an emoji) cannot be saved as text.
+  if (/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value)) return "使えない文字が含まれています。";
   if ([...value].length > LABEL_LIMIT) return `${LABEL_LIMIT} 文字以内にしてください。`;
   if ([...value].some(char => char.charCodeAt(0) < 32) || value.includes(SEPARATOR.trim())) return "「·」と制御文字は使えません。";
   return null;
@@ -345,14 +347,15 @@ export function addStratumCombination(design:StratifiedExperimentDesign, levels:
     levels:Object.fromEntries(design.factors.map(factor => [factor.id, levels[factor.id]]))}]};
 }
 
-/** A default stratum label from its levels ("U2OS / 24h"), within the label limit. */
+/** A default stratum label from its levels ("水準A / 水準X"), within the label limit (counted in characters, never splitting one). */
 export function combinationLabel(design:StratifiedExperimentDesign, levels:Record<string,string>):string {
-  return design.factors.map(factor => factor.levels.find(level => level.id === levels[factor.id])?.label ?? "").filter(Boolean).join(" / ").slice(0, LABEL_LIMIT).trim();
+  return [...design.factors.map(factor => factor.levels.find(level => level.id === levels[factor.id])?.label ?? "").filter(Boolean).join(" / ")].slice(0, LABEL_LIMIT).join("").trim();
 }
 
 /** The limits the API enforces on declared strata (experiment_design.StratifiedExperimentDesign). */
 export const FACTOR_LIMIT = 3, LEVEL_LIMIT = 12, STRATUM_LIMIT = 24;
-const fold = (value:string) => value.trim().toLowerCase();
+// Close to Python's str.casefold (the API's rule): upper- then lower-casing folds ß to ss and final sigma.
+const fold = (value:string) => value.trim().toUpperCase().toLowerCase();
 const repeated = (values:string[]) => new Set(values.map(fold)).size !== values.length;
 
 /** Why a factor with these levels cannot be declared or added, checked before saving (the API refuses the same). */
