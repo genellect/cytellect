@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from cytellect_analysis import engine_diagnostics as diagnostics
@@ -140,3 +141,80 @@ def test_redirection_above_the_scope_is_allowed_but_never_inside_it(tmp_path):
         with pytest.raises(ValueError, match="scratch_path_redirected"):
             with claimed_scratch(scope / "inner", "owned-"):
                 pass
+
+
+def test_creation_waits_for_a_recovery_pass_that_holds_the_new_journal(tmp_path, monkeypatch):
+    """Recovery can lock the still-empty journal for an instant; the creator waits instead of failing."""
+    acquire, refused = storage._acquire, []
+
+    def contended(handle):
+        if len(refused) < 3:
+            refused.append(handle.name)
+            raise BlockingIOError("unit: recovery holds the journal")
+        acquire(handle)
+
+    monkeypatch.setattr(storage, "_acquire", contended)
+    with claimed_scratch(tmp_path, "owned-") as owned:
+        assert owned.is_dir() and len(refused) == 3
+        remove_scratch(owned)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_creation_gives_up_after_the_bounded_wait_and_leaves_nothing(tmp_path, monkeypatch):
+    def held(handle):
+        raise BlockingIOError("unit: never released")
+
+    monkeypatch.setattr(storage, "_acquire", held)
+    monkeypatch.setattr(storage, "CREATION_LOCK_WAIT_SECONDS", 0.05)
+    with pytest.raises(BlockingIOError):
+        with claimed_scratch(tmp_path, "owned-"):
+            pytest.fail("no scratch without its lock")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_creation_survives_concurrent_recovery_of_the_same_scope(tmp_path):
+    """Real locks: another thread recovers the scope continuously while scratch trees are claimed."""
+    import threading
+
+    stop, errors = threading.Event(), []
+
+    def recover():
+        while not stop.is_set():
+            try:
+                reap_owned_temporaries(tmp_path, recursive=True)
+            except Exception as error:  # noqa: BLE001 - the test reports any failure of the recovery pass
+                errors.append(error)
+
+    workers = [threading.Thread(target=recover) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    try:
+        with storage.scratch_ownership_scope(tmp_path):
+            for _ in range(300):
+                with claimed_scratch(tmp_path / "job", "j-") as owned:
+                    remove_scratch(owned)
+    finally:
+        stop.set()
+        for worker in workers:
+            worker.join(timeout=10)
+    assert errors == []
+    assert list(tmp_path.rglob(".cytellect-scratch-*.json")) == []
+
+
+def test_creation_walks_the_scope_once(tmp_path, monkeypatch):
+    """Recovery and the deferred-capacity measurement share one walk of the scope."""
+    runs = tmp_path / "runs"
+    (runs / "job" / "results").mkdir(parents=True)
+    walked = []
+    walk = storage.os.walk
+
+    def counted(top, *args, **kwargs):
+        walked.append(top)
+        return walk(top, *args, **kwargs)
+
+    monkeypatch.setattr(storage.os, "walk", counted)
+    with storage.scratch_ownership_scope(runs):
+        with claimed_scratch(runs / "job", "j-") as owned:
+            creation = [top for top in walked if Path(top) == runs.resolve()]
+            remove_scratch(owned)
+    assert len(creation) == 1

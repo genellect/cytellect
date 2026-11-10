@@ -8,6 +8,7 @@ import re
 import shutil
 import stat
 import sys
+import time
 import uuid
 from collections.abc import Iterator
 from contextvars import ContextVar
@@ -18,6 +19,7 @@ SCHEMA = "cytellect-owned-scratch/1"
 JOURNAL = re.compile(r"\.cytellect-scratch-([a-f0-9]{32})\.json\Z")
 NAME = re.compile(r"[a-z][a-z-]{0,24}-[a-f0-9]{8}\Z")
 MAX_DEFERRED_BYTES = 1024 ** 3
+CREATION_LOCK_WAIT_SECONDS = 2.0
 _scope: ContextVar[tuple[Path, int] | None] = ContextVar("engine_scratch_scope", default=None)
 # The scope root as given (not resolved): redirections are refused at and below it, not above it,
 # so a profile folder moved with a junction (e.g. C:\\Users) does not stop an owned scratch scope.
@@ -57,8 +59,7 @@ def _regular(path: Path, *, boundary: Path | None = None) -> None:
             raise ValueError("scratch_path_redirected")
 
 
-@contextlib.contextmanager
-def _lock(handle: TextIO) -> Iterator[None]:
+def _acquire(handle: TextIO) -> None:
     handle.seek(0)
     if sys.platform == "win32":
         import msvcrt
@@ -66,6 +67,21 @@ def _lock(handle: TextIO) -> Iterator[None]:
     else:
         import fcntl
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@contextlib.contextmanager
+def _lock(handle: TextIO, *, wait_seconds: float = 0.0) -> Iterator[None]:
+    """Recovery never waits (``wait_seconds`` 0). The creator of a journal waits a bounded time:
+    recovery may hold the lock of the still-empty journal for the instant it takes to read it."""
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            _acquire(handle)
+            break
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
     try:
         yield
     finally:
@@ -101,44 +117,26 @@ def _target(journal: Path, handle: TextIO) -> Path | None:
     return journal.parent / name
 
 
-def _pending_bytes(root: Path) -> int:
-    targets: list[Path] = []
-    for parent, names, files in os.walk(root, followlinks=False):
+def _tree_bytes(target: Path) -> int:
+    size = 0
+    for parent, names, files in os.walk(target, followlinks=False):
         names[:] = [name for name in names if not (Path(parent) / name).is_symlink()
                     and not (Path(parent) / name).is_junction()]
         for name in files:
-            if not JOURNAL.fullmatch(name):
-                continue
-            journal = Path(parent) / name
             try:
-                _regular(journal)
-                with journal.open("r+", encoding="ascii") as handle, _lock(handle):
-                    target = _target(journal, handle)
-                    if target is not None:
-                        _regular(target)
-                        targets.append(target)
-            except (OSError, ValueError, TypeError, AttributeError):
-                continue  # Live owners cannot be acquired; they are not a backlog.
-    size = 0
-    unique = [path for path in targets if not any(parent in targets for parent in path.parents)]
-    for target in unique:
-        for parent, names, files in os.walk(target, followlinks=False):
-            names[:] = [name for name in names if not (Path(parent) / name).is_symlink()
-                        and not (Path(parent) / name).is_junction()]
-            for name in files:
-                try:
-                    size += (Path(parent) / name).lstat().st_size
-                except OSError:
-                    pass
+                size += (Path(parent) / name).lstat().st_size
+            except OSError:
+                pass
     return size
 
 
-def reap_owned_temporaries(directory: Path, *, recursive: bool = False) -> dict[str, int]:
-    """Only an unlocked, valid creation journal permits removal; never wait on locks."""
+def _recover(directory: Path, *, recursive: bool) -> tuple[dict[str, int], int]:
+    """One pass over the journals: remove what an unlocked, valid journal owns, and measure what
+    could not be removed. A journal whose lock is held has a live owner and is not a backlog."""
     result = {"recovered": 0, "deferred": 0}
     _regular(directory)
     if not directory.is_dir():
-        return result
+        return result, 0
     journals: list[Path]
     if recursive:
         journals = []
@@ -148,13 +146,16 @@ def reap_owned_temporaries(directory: Path, *, recursive: bool = False) -> dict[
             journals.extend(Path(parent) / name for name in files if JOURNAL.fullmatch(name))
     else:
         journals = list(directory.glob(".cytellect-scratch-*.json"))
+    remaining: list[Path] = []
     for journal in journals:
+        target = None
         try:
             _regular(journal)
             with journal.open("r+", encoding="ascii") as handle, _lock(handle):
                 target = _target(journal, handle)
                 if target is None:
                     continue
+                _regular(target)
                 remove_scratch(target)
             journal.unlink(missing_ok=True)
             result["recovered"] += 1
@@ -162,7 +163,22 @@ def reap_owned_temporaries(directory: Path, *, recursive: bool = False) -> dict[
             continue  # An outer owned tree may already have removed its nested journal.
         except (OSError, ValueError, TypeError, AttributeError):
             result["deferred"] += 1
-    return result
+            if target is not None:
+                remaining.append(target)  # Owned and unlocked, but its removal failed.
+    unique = [path for path in remaining if not any(parent in remaining for parent in path.parents)]
+    pending = 0
+    for target in unique:
+        try:
+            _regular(target)
+            pending += _tree_bytes(target)
+        except (OSError, ValueError):
+            continue
+    return result, pending
+
+
+def reap_owned_temporaries(directory: Path, *, recursive: bool = False) -> dict[str, int]:
+    """Only an unlocked, valid creation journal permits removal; never wait on locks."""
+    return _recover(directory, recursive=recursive)[0]
 
 
 @contextlib.contextmanager
@@ -174,8 +190,8 @@ def claimed_scratch(directory: Path, prefix: str) -> Iterator[Path]:
     if not directory.resolve().is_relative_to(root.resolve()):
         raise ValueError("scratch_scope_invalid")
     directory.mkdir(parents=True, exist_ok=True)
-    reap_owned_temporaries(root, recursive=True)
-    if _pending_bytes(root) >= limit:
+    # Recovery and the backlog measurement share one walk of the scope.
+    if _recover(root, recursive=True)[1] >= limit:
         raise ScratchCapacityExceeded("fiji_temporary_cleanup_pending")
     identity = uuid.uuid4().hex
     target = directory / (prefix + identity[:8])
@@ -184,9 +200,10 @@ def claimed_scratch(directory: Path, prefix: str) -> Iterator[Path]:
         raise ValueError("scratch_creation_conflict")
     # Record intent before mkdir. An OS lock proves a live owner even after Java exits. The lock is
     # taken before the intent is written, so recovery never sees a written journal without its owner
-    # (an empty or unreadable journal is left for later, never removed).
+    # (an empty or unreadable journal is left for later, never removed). Recovery in another process
+    # can hold the lock of the still-empty journal for an instant, so the creator waits a bounded time.
     try:
-        with journal.open("x+", encoding="ascii") as handle, _lock(handle):
+        with journal.open("x+", encoding="ascii") as handle, _lock(handle, wait_seconds=CREATION_LOCK_WAIT_SECONDS):
             handle.write(json.dumps({"schema": SCHEMA, "id": identity, "name": target.name}))
             handle.flush()
             os.fsync(handle.fileno())
