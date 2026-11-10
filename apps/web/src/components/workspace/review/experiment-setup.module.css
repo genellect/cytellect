@@ -66,3 +66,5 @@
 
 .strata{margin-top:16px;padding-top:12px;border-top:1px solid #dfe3e8}.strata h2{font-size:15px;margin:0 0 6px}.strata p{font-size:14px;margin:4px 0}.stratum{max-width:9em;font-size:13px;padding:2px 4px;margin-left:4px}
 .factors{list-style:none;padding:0;margin:6px 0;font-size:14px}.factors li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}.level{display:inline-flex;align-items:center;gap:2px;padding:1px 8px;border-radius:10px;background:#eef2f7}.inlineAdd{display:inline-flex;gap:6px;align-items:center;margin-left:8px}.inlineAdd input{width:8em}.addFactor{margin:8px 0}.addFactor summary{font-size:14px;cursor:pointer}.strataTable{border-collapse:collapse;font-size:14px;margin:8px 0}.strataTable th,.strataTable td{padding:4px 10px;border-bottom:1px solid #e8ebef;text-align:left}
+.strata summary{font-size:15px;font-weight:600;cursor:pointer}
+.inlineHeading{display:inline;font-size:15px;margin:0}
