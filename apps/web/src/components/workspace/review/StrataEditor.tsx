@@ -30,10 +30,12 @@ export function StrataEditor({design,locked,readOnly,onSave}:{design:ExperimentD
     {factorIssue&&<small role="status">{factorIssue}</small>}
   </div>;
 
+  // Most designs hold nothing else fixed: the option stays folded until the researcher opens it.
   if(!isStratified(design))return <section className={styles.strata} aria-label="層">
-    <h2>層（比較の中で固定する条件。例：細胞株、時点）</h2>
-    <p>層ごとに 2 つの群を比べます。層をまたいで値を合わせたり、層どうしを比べたりはしません。各視野の層は、ここで宣言し、表で選んだものだけを使います。</p>
-    {!readOnly&&factorForm((label,values)=>onSave(declareStrata(design,label,values)),"層を宣言（各水準を 1 つの層にする）")}
+    <details><summary>層で分けて比べる（任意。例：細胞株、時点）</summary>
+      <p>層ごとに 2 つの群を比べます。層をまたいで値を合わせたり、層どうしを比べたりはしません。各視野の層は、ここで宣言し、表で選んだものだけを使います。</p>
+      {!readOnly&&factorForm((label,values)=>onSave(declareStrata(design,label,values)),"層を宣言（各水準を 1 つの層にする）")}
+    </details>
   </section>;
 
   const strata=strataOf(design);

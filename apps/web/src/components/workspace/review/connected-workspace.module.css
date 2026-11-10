@@ -24,3 +24,4 @@
 .header .brand{flex-shrink:0;white-space:nowrap}
 
 .tableViews{display:flex;gap:4px;margin:0 0 8px}.tableViews button{font-size:14px;border:0;background:none;padding:3px 10px;border-radius:12px}.tableViews button[aria-pressed=true]{color:#1e58ad;background:#e8f0fc}.workspace tr[data-excluded=true] td{color:#8a919c}
+.tableDrawer{padding:4px 12px 8px}.tableDrawer h3{font-size:14px;margin:6px 0}
