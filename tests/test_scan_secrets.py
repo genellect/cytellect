@@ -68,7 +68,7 @@ def test_stage_never_reads_untracked_or_local_environment(tmp_path, monkeypatch)
     assert sorted(item.name for item in target.iterdir()) == ["source.txt"]
 
 
-def test_scan_uses_all_history_and_isolated_forced_rules(tmp_path, monkeypatch):
+def test_scan_uses_the_complete_history_of_head_and_isolated_forced_rules(tmp_path, monkeypatch):
     repo = init_repository(tmp_path / "repo")
     commit(repo, "source.txt", "public")
     cache = tmp_path / "tools"
@@ -95,7 +95,8 @@ def test_scan_uses_all_history_and_isolated_forced_rules(tmp_path, monkeypatch):
     receipt = scanner.scan(repo, cache)
     assert receipt["status"] == "clean"
     assert len(commands) == 2
-    assert "--log-opts=--all --full-history --no-ext-diff --no-textconv" in commands[0]
+    assert "--log-opts=--full-history --no-ext-diff --no-textconv HEAD" in commands[0]
+    assert not any("--all" in argument for argument in commands[0])
     assert commands[1][1] == "dir"
     assert Path(commands[1][2]) != repo
     assert not any(path.name.startswith("cytellect-secret-scan-") for path in cache.iterdir())
@@ -226,6 +227,26 @@ def test_real_gitleaks_detects_deleted_history_and_tracked_changes_only(tmp_path
     serialized = json.dumps(receipt)
     assert "historical.txt" not in serialized and "current.txt" not in serialized
     assert "Synthetic fixture" not in serialized
+
+
+def test_real_gitleaks_scans_the_history_of_head_not_other_branches(tmp_path):
+    """A branch is judged by its own complete history: another branch's commits are that branch's run."""
+    cache_value = os.environ.get("CYTELLECT_GITLEAKS_TEST_CACHE")
+    if not cache_value:
+        pytest.skip("set CYTELLECT_GITLEAKS_TEST_CACHE to test the pinned external tool")
+    repo = init_repository(tmp_path / "repo")
+    commit(repo, "current.txt", "clean initial content")
+    base = subprocess.run(["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"], check=True,
+                          capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "other"], check=True)
+    commit(repo, "other.txt", "token = " + synthetic_token("H"))
+    # On the other branch its own history is scanned, deleted content included.
+    commit(repo, "other.txt", "removed synthetic token")
+    assert scanner.scan(repo, Path(cache_value))["history"]["finding_count"] == 1
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", base], check=True)
+    receipt = scanner.scan(repo, Path(cache_value))
+    assert receipt["status"] == "clean"
+    assert receipt["history"] == {"scope": "commits_reachable_from_head", "finding_count": 0, "rules": {}}
 
 
 @pytest.mark.parametrize("entry", json.loads(scanner.LOCK.read_text())["reviewed_non_secrets"])

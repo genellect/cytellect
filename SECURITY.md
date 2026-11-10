@@ -45,7 +45,7 @@ LLM の出力はコードとして実行しない。決められた項目と値�
 - Windows 版のアプリ内更新は、管理者の Ed25519 鍵で署名された manifest をアプリに組み込んだ公開鍵で検証し、インストーラーの SHA-256 とサイズが一致したときだけ実行する。
 - 署名鍵は管理者の手元と、管理者の承認なしには動かないリリースの環境にだけ置く。リポジトリへの書き込み権限だけでは、利用者の PC でコードを実行させられない。
 - 最初の導入でも、同じ manifest でダウンロードを確かめられる（[手順](docs/install-windows.ja.md#2-ダウンロードと確認)）。
-- リポジトリでは `GITHUB_TOKEN` を既定で読み取り専用にし、依存をロックファイルとハッシュで固定し、ハッシュを検証した gitleaks で Git の全履歴の秘密を走査している。
+- リポジトリでは `GITHUB_TOKEN` を既定で読み取り専用にし、依存をロックファイルとハッシュで固定し、ハッシュを検証した gitleaks で、`main` と各 PR の Git の全履歴の秘密を走査している。
 
 ## 対象とする版
 
@@ -131,7 +131,7 @@ LLM output is never executed as code. It is validated on the PC as structured se
 - The in-app update of the Windows release verifies a manifest signed with the maintainer's Ed25519 key against the public key built into the app, and runs the installer only when its SHA-256 and size match.
 - The signing key exists only with the maintainer and in a release environment that cannot run without the maintainer's approval, so write access to the repository alone cannot run code on users' PCs.
 - A first installation can be checked against the same manifest ([steps, in Japanese](docs/install-windows.ja.md#2-ダウンロードと確認)).
-- In the repository, `GITHUB_TOKEN` is read-only by default, dependencies are pinned by lockfiles and hashes, and a hash-verified gitleaks scans the full Git history for secrets.
+- In the repository, `GITHUB_TOKEN` is read-only by default, dependencies are pinned by lockfiles and hashes, and a hash-verified gitleaks scans the full Git history of `main` and of every pull request for secrets.
 
 ### Supported versions
 
