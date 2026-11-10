@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import type {NucleusTableData} from "@/lib/workspace/api-adapter";
-import {nucleusTableView,type NucleusTableChannel} from "./nucleus-table-model";
+import {nucleusTableKey,nucleusTableView,type NucleusTableChannel} from "./nucleus-table-model";
 
 /** Every nucleus of one field in one row: area, each stain's signal and the nucleus's confirmed nucleoli.
  * The values come from the API; a row selects the nucleus on the image, and a nucleus chosen on the
@@ -26,13 +26,16 @@ export function NucleusTable({table,channels,selected,onSelect,onSave}:{table:Nu
 }
 
 /** Loads the nucleus table of the adopted nuclei (and nucleoli, when adopted) of one field. */
-export function ConnectedNucleusTable({load,save,field,nuclearRevision,nucleolarRevision,channels,selected,onSelect}:{
+export function ConnectedNucleusTable({load,save,field,nuclearRevision,nucleolarRevision,exclusion,channels,selected,onSelect}:{
   load:(revision:string,field:string,nucleolarRevision?:string)=>Promise<NucleusTableData>;save?:(revision:string,field:string,nucleolarRevision?:string)=>Promise<void>;
   field:string;nuclearRevision?:string;nucleolarRevision?:string;
+  /** The field's exclusion on the workspace's selection screen (its reason, or none). The table repeats
+   * it, and excluding or restoring a field changes no revision, so it is part of what the table shows. */
+  exclusion?:string|null;
   channels:NucleusTableChannel[];selected?:number;onSelect:(n:number)=>void}){
   const [state,setState]=useState<{key:string;table?:NucleusTableData;error?:string}>({key:""});
-  const key=`${field}|${nuclearRevision??""}|${nucleolarRevision??""}`;
-  // The loader may be a new function on every render; only the revisions decide a new request.
+  const key=nucleusTableKey(field,nuclearRevision,nucleolarRevision,exclusion);
+  // The loader may be a new function on every render; only what the table depends on decides a new request.
   const loader=useRef(load);
   useEffect(()=>{loader.current=load;},[load]);
   useEffect(()=>{
@@ -53,5 +56,5 @@ export function ConnectedNucleusTable({load,save,field,nuclearRevision,nucleolar
 export interface NucleusTableSource {
   shown:boolean;onShow:(shown:boolean)=>void;load:(revision:string,field:string,nucleolarRevision?:string)=>Promise<NucleusTableData>;
   save:(revision:string,field:string,nucleolarRevision?:string)=>Promise<void>;
-  field:string;caption:string;nuclearRevision:string;nucleolarRevision?:string;channels:NucleusTableChannel[];
+  field:string;caption:string;nuclearRevision:string;nucleolarRevision?:string;exclusion?:string|null;channels:NucleusTableChannel[];
 }
