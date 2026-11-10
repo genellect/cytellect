@@ -1,6 +1,6 @@
 import {descriptiveSupported} from "../../../lib/workspace/comparison-adapter";
 import {describe,it,expect} from "vitest";
-import {associationAxes,associationSupported,checkedPlot,saturatedGroups,emptyMetadata,numericFigureFiles,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type ResultDesign} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,exploratoryPositivity,saturatedGroups,emptyMetadata,numericFigureFiles,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type ResultDesign} from "./connected-results-model";
 
 const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
@@ -125,9 +125,23 @@ describe("one-group summary distributions", () => {
     expect(result).not.toHaveProperty("test");
     expect(result).not.toHaveProperty("conditions");
   });
-  it("does not enable unconnected positivity", () => {
+  it("describes the connected positive count and fraction", () => {
     expect(descriptiveSupported("positive_count")).toBe(true);
     expect(descriptiveSupported("positive_fraction")).toBe(true);
+  });
+  it("describes positivity from an exploratory threshold without a test and requires acquisition dates", () => {
+    const gate=(method:"manual"|"batch_otsu"|"negative_control")=>({version:"1.0.0" as const,gate_protocol:"channel-gate/1.0.0" as const,channel_id:"gfp",method,values:"raw" as const,keep:"positive" as const,
+      percentile:99,threshold:method==="manual"?10:null,control_field_ids:method==="negative_control"?["c"]:[],reference_sha256:"a".repeat(64)});
+    const positive={...design,metric:"positive_fraction",channel:null};
+    for(const method of ["manual","batch_otsu"] as const){
+      expect(exploratoryPositivity("positive_fraction",gate(method))).toBe(true);
+      expect(resultRequest({...positive,channelGate:gate(method)},fields,plot)).toMatchObject({test:"none",omnibus:null});
+    }
+    expect(exploratoryPositivity("positive_count",gate("negative_control"))).toBe(false);
+    expect(exploratoryPositivity("mean",gate("manual"))).toBe(false);
+    expect(resultRequest({...positive,channelGate:gate("negative_control")},{...fields,c:{...emptyMetadata,condition:"control",sample:"s",experimental_unit:"u",acquisition_date:"day1"}},plot)).toMatchObject({test:"welch-t"});
+    const undated={f1:{...fields.f1,acquisition_date:""},f2:fields.f2};
+    expect(()=>resultRequest({...positive,channelGate:gate("manual")},undated,plot)).toThrow("撮影日");
   });
 });
 

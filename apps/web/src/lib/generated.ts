@@ -3907,6 +3907,8 @@ export interface components {
             union_area_px: number | null;
             /** Union Area Um2 */
             union_area_um2: number | null;
+            /** Union Area Um2 Missing Reason */
+            union_area_um2_missing_reason: ("calibration_unknown" | "calibration_mismatch") | null;
             /** Area Fraction */
             area_fraction: number | null;
             /** Largest Object Area Px */
@@ -4012,6 +4014,8 @@ export interface components {
             calibration: components["schemas"]["Calibration2D"] | null;
             /** Field Excluded */
             field_excluded: boolean;
+            /** Channels */
+            channels: components["schemas"]["TableChannel"][];
             /** Backgrounds */
             backgrounds: components["schemas"]["ChannelBackground"][];
             /** Rows */
@@ -6436,6 +6440,8 @@ export interface components {
          *     `field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`
          *     the fields the cohort holds; `excluded_fields` the assigned fields excluded before
          *     analysis, with the researcher's reason. Together they account for every assigned field.
+         *     `declared_stratum_count` is how many strata the saved design declared: each stratum is
+         *     analysed and tested on its own, so a reader can see how many such analyses were possible.
          */
         StratumRecord: {
             /**
@@ -6458,12 +6464,31 @@ export interface components {
             label: string;
             /** Levels */
             levels: components["schemas"]["StratumLevelRecord"][];
+            /** Declared Stratum Count */
+            declared_stratum_count: number;
             /** Field Ids */
             field_ids: string[];
             /** Analysed Field Ids */
             analysed_field_ids: string[];
             /** Excluded Fields */
             excluded_fields: components["schemas"]["ExcludedStratumField"][];
+        };
+        /**
+         * TableChannel
+         * @description The recorded identity of one channel, so a saved table names the stain of every column.
+         */
+        TableChannel: {
+            /** Channel Id */
+            channel_id: string;
+            /** Label */
+            label: string;
+            /** Stain */
+            stain: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "nuclear_stain" | "measure";
         };
         /** ValidatedProposal */
         ValidatedProposal: {

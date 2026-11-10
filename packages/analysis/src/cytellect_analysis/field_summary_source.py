@@ -30,6 +30,17 @@ DEFINITIONS = {
 NUCLEAR_SOURCES = frozenset({"stardist_nuclear", "manual", "imported"})
 
 
+def exploratory_positivity(selection) -> bool:
+    """True when positive nuclei are judged by a threshold that no designated negative
+    control fixed (manual or Otsu). Such a classification is exploratory: positive counts
+    and fractions are described, never tested (Methods, "Field positivity review")."""
+    judged = getattr(selection, "positivity", None)
+    if judged is None:
+        return False
+    # Legacy GFP: the exploratory filter is its own contract version; channel gate: its method.
+    return getattr(judged, "method", "negative_control") != "negative_control"
+
+
 def prepare_field_summary_observations(report, field_snapshot, selection, nuclear=None, *, with_gate_record=False):
     selection = FieldSummarySelection.model_validate(selection)
     if (report.get("recipe") or {}).get("source") not in NUCLEAR_SOURCES:

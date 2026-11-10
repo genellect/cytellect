@@ -87,6 +87,10 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
         ids = {source.field_id for source in body.sources}
         adoption = body.workspace_selection.model_dump(mode="json") if body.workspace_selection else None
         excluded_ids = {entry["field_id"] for entry in adoption["entries"] if entry["exclusion_reason"] and entry["field_id"]} if adoption else set()
+        # An image that never became a field (failed upload) must carry a reason, whichever fields the
+        # cohort holds: it is checked before the entries are narrowed to a stratum.
+        if adoption and any(entry["field_id"] is None and not entry["exclusion_reason"] for entry in adoption["entries"]):
+            raise HTTPException(409, "workspace_selection_incomplete")
         with store.engine.connect() as conn:
             design = saved_experiment(conn, wid)
         try:
@@ -94,7 +98,7 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                        if entry["field_id"] and entry["exclusion_reason"]}
             stratum = check_cohort_stratum(design, body.stratum, ids, excluded_ids,
                                            {fid: value.model_dump(mode="json") for fid, value in body.metadata.items()},
-                                           exclusion_reasons=reasons)
+                                           exclusion_reasons=reasons, registered_ids=set(registered))
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from None
         # A stratified cohort holds exactly one declared stratum; otherwise every workspace field, as before.
@@ -102,7 +106,7 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
         if adoption:
             included = {entry["field_id"]: entry["revision_id"] for entry in adoption["entries"]
                         if not entry["exclusion_reason"] and entry["field_id"] in scope}
-            if included != {source.field_id: source.revision_id for source in body.sources} or None in included:
+            if included != {source.field_id: source.revision_id for source in body.sources}:
                 raise HTTPException(409, "workspace_selection_incomplete")
         if (ids | (excluded_ids & scope) != scope or not scope <= set(registered) or ids & excluded_ids
                 or any(not is_region(registered[fid]) for fid in scope)):

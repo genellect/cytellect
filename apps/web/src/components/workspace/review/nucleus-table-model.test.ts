@@ -1,14 +1,14 @@
 import {describe,expect,it} from "vitest";
 import type {NucleusTableData} from "@/lib/workspace/api-adapter";
-import {nucleusTableView} from "./nucleus-table-model";
+import {nucleusTableKey,nucleusTableView} from "./nucleus-table-model";
 
 const values=(channel_id:string,role:"nuclear_stain"|"measure",mean:number,integrated:number,corrected:number|null,saturation=0)=>({
   channel_id,role,mean,integrated,mean_corrected:corrected,integrated_corrected:corrected===null?null:corrected*4,
   intensity_missing_reason:null,correction_missing_reason:corrected===null?"background_not_established":null,
   storage_limit_fraction:0,acquisition_saturation_fraction:saturation,acquisition_saturation_missing_reason:null});
-const measured={status:"measured" as const,reason:null,count:2,union_area_px:5,union_area_um2:1.25,area_fraction:0.2,
+const measured={status:"measured" as const,reason:null,count:2,union_area_px:5,union_area_um2:1.25,union_area_um2_missing_reason:null,area_fraction:0.2,
   largest_object_area_px:4,largest_object_fraction:0.8,eccentricity:0.5,eccentricity_missing_reason:null,excluded_objects:1};
-const missing=(reason:string)=>({status:"missing" as const,reason,count:null,union_area_px:null,union_area_um2:null,area_fraction:null,
+const missing=(reason:string)=>({status:"missing" as const,reason,count:null,union_area_px:null,union_area_um2:null,union_area_um2_missing_reason:null,area_fraction:null,
   largest_object_area_px:null,largest_object_fraction:null,eccentricity:null,eccentricity_missing_reason:null,excluded_objects:0});
 const row=(nucleus_id:number,nucleoli:NucleusTableData["rows"][number]["nucleoli"],extra:Partial<NucleusTableData["rows"][number]>={})=>({
   nucleus_id,excluded:false,exclusion_scope:null,exclusion_reason:null,touches_border:false,nucleus_area_px:25,nucleus_area_um2:6.25,area_missing_reason:null,
@@ -16,6 +16,7 @@ const row=(nucleus_id:number,nucleoli:NucleusTableData["rows"][number]["nucleoli
 const table:NucleusTableData={protocol:"nucleus-table/1.0.0",field_id:"f1",nuclear_revision_id:"n",nuclear_mask_revision_id:"n",nuclear_mask_sha256:"a".repeat(64),nuclear_adopted:true,
   measurement_protocol_version:"4.0.0",nuclear_channel_id:"dna",nucleolar_source:{revision_id:"c",mask_revision_id:"c",mask_sha256:"b".repeat(64),adopted:true,field_excluded:false},
   calibration:{pixel_size_x_um:0.5,pixel_size_y_um:0.5,confirmed:true},field_excluded:false,
+  channels:[{channel_id:"dna",label:"c1",stain:"Hoechst",role:"nuclear_stain"},{channel_id:"npm1",label:"c2",stain:"NPM1",role:"measure"}],
   backgrounds:[{channel_id:"dna",source:"not_established",confirmed_by_researcher:false,median:null},{channel_id:"npm1",source:"confirmed_roi",confirmed_by_researcher:true,median:10}],
   rows:[row(1,measured),row(2,missing("no_candidate")),row(3,{...missing("nucleus_excluded"),status:"not_measured"},{excluded:true,exclusion_scope:"nucleus",exclusion_reason:"mitotic"})]};
 const channels=[{id:"dna",stain:"Hoechst"},{id:"npm1",stain:"NPM1"}];
@@ -61,5 +62,20 @@ describe("nucleus table view",()=>{
     const view=nucleusTableView({...table,backgrounds:[{channel_id:"npm1",source:"automatic_candidate",confirmed_by_researcher:false,median:8}],
       rows:[row(1,measured,{channels:[values("dna","nuclear_stain",100,2500,null),capped]})]},channels);
     expect(view.ledger).toBe("核 1 個 · 核小体を確定 1 · NPM1の飽和画素を含む核 1 · NPM1の補正値は自動推定の背景（未確認）");
+  });
+  it("names nucleoli that could not be read for the field, and why confirmed nucleoli have no µm²",()=>{
+    const unread=nucleusTableView({...table,nucleolar_source:null,rows:[row(1,{...missing("nucleolar_revision_unavailable"),status:"not_measured"})]},channels);
+    expect(unread.ledger).toBe("核 1 個 · この視野の核小体を読み込めない");
+    const mismatch=nucleusTableView({...table,rows:[row(1,{...measured,union_area_um2:null,union_area_um2_missing_reason:"calibration_mismatch"})]},channels);
+    expect(mismatch.rows[0].cells[5]).toEqual({text:"—",title:"核と核小体で画素寸法が異なる"});
+  });
+  it("asks for the table again when the field is excluded or restored, though no revision changes",()=>{
+    const kept=nucleusTableKey("f1","n","c",undefined);
+    expect(nucleusTableKey("f1","n","c",null)).toBe(kept);
+    expect(nucleusTableKey("f1","n","c","")).toBe(kept);
+    expect(nucleusTableKey("f1","n","c","焦点外")).not.toBe(kept);
+    expect(nucleusTableKey("f1","n","c","別の理由")).not.toBe(nucleusTableKey("f1","n","c","焦点外"));
+    // Identifiers and reasons never run into one another.
+    expect(nucleusTableKey("f1|n","","c")).not.toBe(nucleusTableKey("f1","n|","c"));
   });
 });

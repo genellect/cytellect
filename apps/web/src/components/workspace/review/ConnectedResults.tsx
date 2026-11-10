@@ -11,7 +11,7 @@ import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CohortS
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricStructure,metricUsesChannel} from "@/lib/workspace/metric-catalog";
-import {associationAxes,associationSupported,checkedPlot,comparisonKind,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
+import {associationAxes,associationSupported,checkedPlot,comparisonKind,exploratoryPositivity,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import type {ShowcaseDataset} from "@/lib/showcase";
@@ -19,7 +19,7 @@ import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisContr
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
 import type {components} from "@/lib/generated";
-import {comparisonDefaults,fieldMetadata,isStratified,scopedIdentity,strataOf,stratumRequestFor,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {comparisonDefaults,fieldMetadata,isStratified,scopedIdentity,strataOf,stratumRequestFor,unassignedFieldCount,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {breakdown,formatNumber,summarize,type ComparisonEstimates,type CountRow,type FieldLedgerRow,type SavedComparison} from "@/lib/result-summary";
 import {channelGateInputSignature,channelGateName,channelGateRequest,channelGateThresholds,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult} from "@/lib/workspace/channel-gate";
 
@@ -47,7 +47,7 @@ export interface ConnectedResultsProps {
   onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
-interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
+interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;declared_stratum_count?:number;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
 type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
@@ -80,7 +80,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const stratifiedDesign=isStratified(experiment);
   const items=stratifiedDesign?allItems.filter(item=>!!stratum?.fieldIds.includes(item.fieldId)):allItems;
   const stratumRequestRef=useRef<CohortStratum|null>(null);
-  const unstratified=stratifiedDesign?allItems.filter(item=>!experiment?.fields?.[item.fieldId]?.stratum_id).length:0;
+  // A field without a stratum is assigned or excluded with a reason before any stratum is analysed (the API refuses otherwise).
+  const unstratified=unassignedFieldCount(experiment,allItems);
   const stratumRequest:CohortStratum|null=stratum?stratumRequestFor(experiment,experimentSha256,stratum.id):null;
   useLayoutEffect(()=>{stratumRequestRef.current=stratumRequest;});
   const comparison=useMemo(()=>createComparisonAdapter(),[]);
@@ -172,16 +173,18 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const canAssociate=associationSupported({regionSet,metric,channel,gfp,channelGate})&&!saturatedSet.size&&xAxes.length>0;
   // Unconfirmed independence (E-05): no association test; a comparison stays descriptive (test "none").
   const unconfirmed=!!experiment&&!experiment.independence_confirmed;
+  // A threshold without a negative control is exploratory: positive counts and fractions are described, not tested.
+  const exploratory=exploratoryPositivity(metric,channelGate);
   useEffect(()=>{if((operation==="association"&&(!canAssociate||unconfirmed))||(operation==="comparison"&&saturated))setOperation("distribution");
     else if(operation==="distribution"&&!descriptiveSupported(metric)&&!saturated)setOperation("comparison");},[operation,canAssociate,saturated,unconfirmed,metric]);
   useEffect(()=>{if(saturatedKey&&contrasts.some(pair=>!unsaturatedPair(pair)))setContrasts(previous=>previous.filter(unsaturatedPair));},[saturatedKey,contrasts]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
-  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed};
+  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed&&!exploratory};
   // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
   const designDefaults=declared;
   const independenceMissing=unconfirmed&&operation==="association";
-  const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric))||(!!channelGate&&channelGate.method!=="manual"));
+  const needsDates=operation!=="distribution"&&(metricUsesChannel(metric)||(operation==="association"&&metricUsesChannel(xMetric))||(!!channelGate&&channelGate.method!=="manual")||metric.startsWith("positive_"));
   const datesMissing=!!experiment&&needsDates&&sources.some(source=>source.field in derived&&!source.metadata.acquisition_date?.trim());
   // A changed control (a new declared contrast) replaces the earlier contrast, so the direction shown is the one computed (S-04).
   const declaredContrast=useRef(designDefaults?.contrasts.join("\n"));
@@ -203,7 +206,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=(!stratifiedDesign||!!stratumRequest)&&!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
+  const ready=(!stratifiedDesign||!!stratumRequest&&!unstratified)&&!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   const canRender=!!saved&&!stale&&!disabled&&!busy;
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
@@ -327,7 +330,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         <label>比べる層<select aria-label="比べる層" value={stratumChoice} disabled={!!busy} onChange={event=>setStratumChoice(event.target.value)}>
           <option value="">層を選ぶ…</option>{strata.map(value=><option key={value.id} value={value.id}>{value.label}（{value.fieldIds.length} 視野）</option>)}</select></label>
         <p role="status">{stratum?`層「${stratum.label}」の視野だけで計算します（${sources.length} 視野${excludedCount?`、除外 ${excludedCount}`:""}${missing?`、未測定 ${missing}`:""}）。ほかの層とは合算も比較もしません。`
-          :"層を選ぶと、その層の視野だけで 2 群を比べます。層をまたいで合算しません。"}{unstratified?` 層が決まっていない視野 ${unstratified} 件は、どの層にも入りません。`:""}</p>
+          :"層を選ぶと、その層の視野だけで 2 群を比べます。層をまたいで合算しません。"}{strata.length>1?` 宣言した層は ${strata.length} 個です。層ごとに別々に検定し、層の数に対する多重性の補正はしません。`:""}</p>
+        {!!unstratified&&<p role="alert">層が決まっていない視野が {unstratified} 件あります。「実験」で層を決めるか、理由を付けて除外してから計算してください。</p>}
       </div>}
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
       <p className={styles.current}>{regionLabel(shownMetric,shownTarget)??"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
@@ -345,7 +349,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
         <label>解析<select value={operation} disabled={!!busy} onChange={event=>{setOperation(event.target.value as ResultOperation);setConfirmed(false);}}><option value="distribution" disabled={!descriptiveSupported(metric)}>{descriptiveSupported(metric)?"分布":"分布（この指標は群間比較で示します）"}</option><option value="comparison" disabled={saturated}>{saturated?"群間比較（飽和した画素があるため選べません）":"群間比較"}</option><option value="association" disabled={!canAssociate||unconfirmed}>{unconfirmed?"相関（実験回の独立性の確認が必要です）":canAssociate?"相関":saturatedSet.size?"相関（飽和した画素があるため選べません）":"相関（面積・輝度で選べます）"}</option></select></label>
         {operation!=="distribution"&&<>
-          <div className={styles.row}>{operation==="comparison"&&unconfirmed?<label>方法<select value="none" disabled><option value="none">記述のみ（検定なし）</option></select></label>:<label>方法<select value={rank?"rank":"parametric"} disabled={demo} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
+          <div className={styles.row}>{operation==="comparison"&&(unconfirmed||exploratory)?<label>方法<select value="none" disabled><option value="none">記述のみ（検定なし）</option></select></label>:<label>方法<select value={rank?"rank":"parametric"} disabled={demo} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">独立した実験</option><option value="paired">対応あり</option></select></label>}</div>
           {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} disabled={demo} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
 
           <label>独立実験単位<input value={unit} readOnly={demo} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
@@ -359,6 +363,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
         {datesMissing&&<p role="status">輝度を比べるには撮影日が必要です。「実験」で各実験回の撮影日を入力してください（日付を推定して補いません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力する</button>}</p>}
         {unconfirmed&&operation==="comparison"&&<p role="status">実験回が独立に行われたことが確認されていないため、検定と信頼区間は計算せず、実験回ごとの値と差を示します。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
+        {exploratory&&operation==="comparison"&&<p role="status">陰性対照で決めたしきい値ではないため（手動・Otsu）、陽性率と陽性の核数は検定と信頼区間を計算せず、実験回ごとの値と差を示します。検定するには、陰性対照の視野からしきい値を決めてください。</p>}
         {independenceMissing&&<p role="status">相関の検定には、実験回が独立に行われたことの確認が必要です。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
         <button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>
       </>:<>
@@ -385,7 +390,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}
       {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open={!saved&&!experiment}><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形を編集</button>}</p>}<div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
-        {saved.result.stratum&&<p className={styles.current}>層：{saved.result.stratum.label}（{saved.result.stratum.levels.map(value=>`${value.factor}：${value.level}`).join("、")}）· 割り当て {saved.result.stratum.field_ids.length} 視野のうち解析 {saved.result.stratum.analysed_field_ids.length}{saved.result.stratum.excluded_fields.length?`、除外 ${saved.result.stratum.excluded_fields.length}`:""}。ほかの層は含みません。</p>}
+        {saved.result.stratum&&<p className={styles.current}>層：{saved.result.stratum.label}（{saved.result.stratum.levels.map(value=>`${value.factor}：${value.level}`).join("、")}）· 割り当て {saved.result.stratum.field_ids.length} 視野のうち解析 {saved.result.stratum.analysed_field_ids.length}{saved.result.stratum.excluded_fields.length?`、除外 ${saved.result.stratum.excluded_fields.length}`:""}。ほかの層は含みません。{saved.result.stratum.declared_stratum_count&&saved.result.stratum.declared_stratum_count>1?`宣言した層は ${saved.result.stratum.declared_stratum_count} 個で、層ごとに別々に検定しています（層の数に対する多重性の補正なし）。`:""}</p>}
         {mode==="statistics"&&previous&&<p role="status" className={styles.previous}>表示中は{saved.historical?"記録した結果":"前の結果"}（{previous.shown}）です。「計算」で、選んだ条件（{previous.chosen}）の結果になります。</p>}
         {mode==="statistics"?<div className={styles.resultGrid} data-columns={(!!saved.result.estimates||saved.operation==="distribution"&&!!experiment)&&svgFiles.length>0?2:1}>
           <div>

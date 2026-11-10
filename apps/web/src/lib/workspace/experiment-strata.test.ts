@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {labelProblem,factorProblem,levelProblem,savePlan,stratumProblem,LEVEL_LIMIT,addFactor,addLevel,addStratumCombination,combinationLabel,fieldsInStrata,removeFactor,removeLevel,removeStrataById,strataNaming,addStratum,assignFields,assignStratum,declareStrata,fieldMetadata,isStratified,readiness,removeStrata,pairPanes,paneKey,scopedIdentity,strataOf,stratumRequestFor,type PlainExperimentDesign} from "./experiment-design";
+import {unassignedFieldCount,labelProblem,factorProblem,levelProblem,savePlan,stratumProblem,LEVEL_LIMIT,addFactor,addLevel,addStratumCombination,combinationLabel,fieldsInStrata,removeFactor,removeLevel,removeStrataById,strataNaming,addStratum,assignFields,assignStratum,declareStrata,fieldMetadata,isStratified,readiness,removeStrata,pairPanes,paneKey,scopedIdentity,strataOf,stratumRequestFor,type PlainExperimentDesign} from "./experiment-design";
 
 // The same cases as tests/test_experiment_strata.py: strata are declared, never inferred, and read one at a time.
 const plain:PlainExperimentDesign={version:"1.0.0",layout:"pair",groups:[{id:"a",label:"A"},{id:"b",label:"B"}],control_group_id:"a",
@@ -15,6 +15,15 @@ describe("declared strata",()=>{
     expect(readiness(design,["f1","f2"])).toContainEqual({code:"experiment_design_unstratified_fields",field_ids:["f1","f2"]});
     // Derived metadata (condition, unit, sample) are unchanged by strata.
     expect(fieldMetadata(design)).toEqual(fieldMetadata(plain));
+  });
+  it("counts fields without a stratum unless they are excluded, and none for an unstratified design",()=>{
+    let design=declareStrata(plain,"因子",["水準A","水準B"]);
+    design=assignStratum(design,["f1"],design.strata[0].id);
+    // f2 is unassigned and f3 is not in the design: both block the calculation until assigned or excluded.
+    expect(unassignedFieldCount(design,[{fieldId:"f1"},{fieldId:"f2"},{fieldId:"f3"}])).toBe(2);
+    expect(unassignedFieldCount(design,[{fieldId:"f1"},{fieldId:"f2",excluded:true},{fieldId:"f3",excluded:true}])).toBe(0);
+    expect(unassignedFieldCount(plain,[{fieldId:"f1"},{fieldId:"f9"}])).toBe(0);
+    expect(unassignedFieldCount(null,[{fieldId:"f1"}])).toBe(0);
   });
   it("assigns fields explicitly, checks each stratum on its own, and keeps the stratum on reassignment",()=>{
     let design=declareStrata(plain,"因子",["水準A","水準B"]);

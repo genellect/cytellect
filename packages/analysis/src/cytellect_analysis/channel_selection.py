@@ -215,10 +215,22 @@ def gate_source_observations(report, recipe, snapshot, selection, observations, 
         for fid, table in report["field_tables"].items():
             inner.update({(fid, row["region_id"]): row["area_px"] for row in table["rows"]})
     field_exclusions = {item["field_id"] for item in report.get("exclusions", []) if item.get("region_id") is None}
-    return apply_channel_gate(observations, snapshot, gate, nuclear,
-                              failed_fields=[row["field_id"] for row in failed], field_exclusions=field_exclusions,
-                              exact_nuclear_area=exact, smaller_than_nucleus=inner,
-                              target_exclusions=report.get("exclusions", []))
+    marked, record = apply_channel_gate(observations, snapshot, gate, nuclear,
+                                        failed_fields=[row["field_id"] for row in failed], field_exclusions=field_exclusions,
+                                        exact_nuclear_area=exact, smaller_than_nucleus=inner,
+                                        target_exclusions=report.get("exclusions", []))
+    if selects_by_measured_channel(selection):
+        record = {**record, "selected_by_measured_channel": True}
+    return marked, record
+
+
+def selects_by_measured_channel(selection) -> bool:
+    """True when a positive/negative subset is selected by the very channel whose intensity is
+    then measured: the selected values are bounded by the threshold by construction."""
+    gate = getattr(selection, "channel_gate", None)
+    metric = getattr(selection, "metric", "")
+    intensity = metric.startswith(("mean", "median", "integrated", "log2_"))
+    return isinstance(gate, ChannelGateFilter) and intensity and getattr(selection, "channel_id", None) == gate.channel_id
 
 
 def gate_warnings(record):
@@ -229,6 +241,8 @@ def gate_warnings(record):
         warnings.append("channel_gate_unclassified_nuclei_not_selected")
     if record["saturated_nuclei"]:
         warnings.append("channel_gate_saturated_nuclei_present")
+    if record.get("selected_by_measured_channel"):
+        warnings.append("channel_gate_selection_and_outcome_share_channel")
     return warnings
 
 
@@ -252,6 +266,13 @@ def methods_sentences(record):
                       + (f" from {setting['control_nuclei']} control nuclei" if gate["method"] == "negative_control" else "")
                       for date, setting in sorted(record["dates"].items()))
     positivity = record.get("purpose") == "field_positivity"
+    circular = (["The selected nuclei were chosen by the same channel whose intensity is reported: their values are "
+                 "bounded by the threshold by construction, so a difference in this channel between the positive and "
+                 "negative subsets, or from unselected nuclei, is not an independent finding."]
+                if record.get("selected_by_measured_channel") else [])
+    exploratory = (["Because no negative control fixed the threshold, positive counts and fractions were described "
+                    "without a test, p-value or confidence interval."]
+                   if positivity and gate["method"] != "negative_control" else [])
     return [
         f"Channel gate {record['gate_protocol']}, filter {record['filter_version']}: channel {channel['channel_id']} "
         f"(label {channel.get('label') or 'not recorded'}; declared stain {channel.get('stain') or 'not recorded'}).",
@@ -263,4 +284,5 @@ def methods_sentences(record):
         ("Field positivity used all evaluable positive and negative nuclei before subset selection; unclassified, excluded and control nuclei were outside the denominator."
          if positivity else f"Only {gate['keep']} nuclei were selected; unclassified, excluded and control nuclei were not selected."),
         f"Negative-control fields ({', '.join(record['control_field_ids']) or 'none'}) supplied thresholds only and were not compared. "
-        "Manual and Otsu gates are exploratory. Classification does not establish biological identity or randomized groups."]
+        "Manual and Otsu gates are exploratory. Classification does not establish biological identity or randomized groups.",
+        *circular, *exploratory]

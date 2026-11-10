@@ -213,3 +213,98 @@ def test_control_fields_do_not_require_or_manufacture_compared_units():
     control = next(row for row in result["source_field_ledger"] if row["field_id"] == "c")
     assert control["condition"] is None and control["experimental_unit"] is None
     assert control["status"] == "channel_negative_control"
+
+
+def positivity_request(report, config, test, metric="positive_fraction", **gate_updates):
+    raw = request(test=test).model_dump(mode="json")
+    raw["selection"] = {"source": "field-summary", "version": "1.0.0", "region_set_id": "nuclei",
+                        "metric": metric, "positivity": recorded_gate(report, config, **gate_updates)}
+    return RegionComparisonRequestV2.model_validate(raw)
+
+
+def test_positivity_is_reviewed_as_an_intensity_outcome_of_the_judged_channel():
+    """合成の最小配列（1 画素 = 1 核の平均）。しきい値で決まる陽性率・陽性核数は判定チャンネルの輝度の結果として
+    検査する：群と撮影日が完全に重なる比較は、平均輝度と同じく拒否し、撮影日のない視野も受け付けない。"""
+    confounded = {"a1": ("A", "a1", "d1", [(1, 5), (1, 20)]), "a2": ("A", "a2", "d1", [(1, 5), (1, 30)]),
+                  "a3": ("A", "a3", "d1", [(1, 20), (1, 30)]), "b1": ("B", "b1", "d2", [(1, 5), (1, 8)]),
+                  "b2": ("B", "b2", "d2", [(1, 5), (1, 40)]), "b3": ("B", "b3", "d2", [(1, 30), (1, 40)])}
+    report, config = nuclear_fixture(confounded)
+    with pytest.raises(ValueError, match="region_comparison_condition_batch_confounded"):
+        analyze_region_comparison(report, config, request(test="none", conditions=("A", "B")))
+    for metric in ("positive_fraction", "positive_count"):
+        with pytest.raises(ValueError, match="region_comparison_condition_batch_confounded"):
+            analyze_region_comparison(report, config, positivity_request(report, config, "none", metric))
+    undated = {fid: (condition, unit, None, nuclei) for fid, (condition, unit, _, nuclei) in confounded.items()}
+    report, config = nuclear_fixture(undated)
+    with pytest.raises(ValueError, match="region_comparison_acquisition_batch_required"):
+        analyze_region_comparison(report, config, positivity_request(report, config, "none"))
+    # The same fields on one shared date are comparable; the nucleus count needs no date as before.
+    shared = {fid: (condition, unit, "d1", nuclei) for fid, (condition, unit, _, nuclei) in confounded.items()}
+    report, config = nuclear_fixture(shared)
+    result = analyze_region_comparison(report, config, positivity_request(report, config, "none"))
+    assert {row["experimental_unit"]: row["value"] for row in result["unit_summary"]} == {
+        "a1": 0.5, "a2": 0.5, "a3": 1.0, "b1": 0.0, "b2": 0.5, "b3": 1.0}
+    count = request(test="none").model_dump(mode="json")
+    count["selection"] = {"source": "field-summary", "version": "1.0.0", "region_set_id": "nuclei", "metric": "nucleus_count"}
+    report, config = nuclear_fixture(undated)
+    counted = analyze_region_comparison(report, config, RegionComparisonRequestV2.model_validate(count))
+    assert {row["value"] for row in counted["unit_summary"]} == {2.0}
+
+
+def test_exploratory_thresholds_describe_positivity_and_never_test_it():
+    """合成の最小配列。陰性対照で決めていないしきい値（手動・Otsu）では、陽性率・陽性核数に検定・p 値・区間を出さない。
+    記述（test "none"）は通り、陰性対照のゲートは検定できる。"""
+    fields = {"a1": ("A", "a1", "d1", [(1, 5), (1, 20)]), "a2": ("A", "a2", "d1", [(1, 5), (1, 30)]),
+              "a3": ("A", "a3", "d1", [(1, 20), (1, 30)]), "b1": ("B", "b1", "d1", [(1, 50), (1, 80)]),
+              "b2": ("B", "b2", "d1", [(1, 5), (1, 40)]), "b3": ("B", "b3", "d1", [(1, 30), (1, 40)])}
+    report, config = nuclear_fixture(fields)
+    for updates in ({}, {"method": "batch_otsu", "threshold": None}):
+        for metric in ("positive_fraction", "positive_count"):
+            for test in ("welch-t", "mann-whitney-u"):
+                with pytest.raises(ValueError, match="field_positivity_exploratory_threshold_descriptive_only"):
+                    analyze_region_comparison(report, config, positivity_request(report, config, test, metric, **updates))
+        described = analyze_region_comparison(report, config, positivity_request(report, config, "none", **updates))
+        assert described["comparisons"] == [] and described["omnibus"] is None
+        assert all(row["ci_low"] is None and row["ci_high"] is None for row in described["means"])
+        assert {"channel_gate_exploratory_threshold_without_negative_control",
+                "descriptive_comparison_no_test_or_interval"} <= set(described["warnings"])
+        assert "without a test, p-value or confidence interval" in " ".join(
+            methods_sentences(described["selection"]["channel_gate"]))
+    control = {"c": ("control", "c", "d1", [(1, value) for value in range(20)]), **fields}
+    report, config = nuclear_fixture(control)
+    tested = analyze_region_comparison(report, config, positivity_request(
+        report, config, "welch-t", method="negative_control", threshold=None, percentile=50.0, control_field_ids=["c"]))
+    assert len(tested["comparisons"]) == 1 and tested["comparisons"][0]["p_value"] is not None
+    assert "without a test" not in " ".join(methods_sentences(tested["selection"]["channel_gate"]))
+
+
+def test_batch_otsu_cannot_equalise_groups_imaged_on_different_dates():
+    """合成の最小配列。レビューの再現：日付ごとの Otsu では輝度が 10 倍違う 2 群の陽性率が同じになり p = 1.0 だった。
+    群と撮影日が重なる比較は検定も記述も受け付けない。"""
+    fields = {f"a{i}": ("A", f"a{i}", "d1", [(1, 10), (1, 12), (1, 18), (1, 20)]) for i in range(3)}
+    fields.update({f"b{i}": ("B", f"b{i}", "d2", [(1, 100), (1, 120), (1, 180), (1, 200)]) for i in range(3)})
+    report, config = nuclear_fixture(fields)
+    with pytest.raises(ValueError, match="field_positivity_exploratory_threshold_descriptive_only"):
+        analyze_region_comparison(report, config, positivity_request(
+            report, config, "welch-t", method="batch_otsu", threshold=None))
+    with pytest.raises(ValueError, match="region_comparison_condition_batch_confounded"):
+        analyze_region_comparison(report, config, positivity_request(
+            report, config, "none", method="batch_otsu", threshold=None))
+
+
+def test_selecting_and_measuring_the_same_channel_is_recorded_as_circular():
+    """合成の最小配列。選別に使ったチャンネルの輝度を選んだ核で測ると、値はしきい値で区切られる。その循環を警告と Methods に残す。"""
+    report, config = nuclear_fixture({"a": ("A", "a", "d1", [(1, 5), (1, 20), (1, 30)])})
+    filter_ = recorded_gate(report, config)
+    def described(channel, metric):
+        return describe_regions(report, config["field_snapshot"], {"mode": "descriptive", "selection": {
+            "source": "region", "region_set_id": "nuclei", "metric": metric, "channel_id": channel, "channel_gate": filter_}})
+    same = described("ncl", "mean")
+    assert "channel_gate_selection_and_outcome_share_channel" in same["warnings"]
+    assert same["selection"]["channel_gate"]["selected_by_measured_channel"] is True
+    assert "bounded by the threshold by construction" in " ".join(methods_sentences(same["selection"]["channel_gate"]))
+    for channel, metric in (("gfp", "mean"), (None, "area_px")):
+        other = described(channel, metric)
+        assert "channel_gate_selection_and_outcome_share_channel" not in other["warnings"]
+        assert "selected_by_measured_channel" not in other["selection"]["channel_gate"]
+        assert "by construction" not in " ".join(methods_sentences(other["selection"]["channel_gate"]))

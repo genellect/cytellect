@@ -50,6 +50,21 @@ def test_undo_is_shared_and_stale_tab_cannot_overwrite_or_compare(tmp_path):
     assert foreign.get(path).status_code == 404
 
 
+def test_a_failed_upload_alone_blocks_the_cohort_until_it_has_a_reason(tmp_path):
+    """Every registered field is measured; only an image that never became a field lacks a reason."""
+    client, _app, _settings, wid, body, _ = setup_cohort(tmp_path)
+    path = f"/v1/workspaces/{wid}/selection"
+    selection = client.get(path).json()
+    selection["entries"].append({"id": "interrupted-upload", "field_id": None, "revision_id": None, "exclusion_reason": None})
+    selection = save(client, wid, selection)
+    refused = client.post(f"/v1/workspaces/{wid}/region-cohorts", json={**body, "workspace_selection": selection}, headers=HEADERS)
+    assert refused.status_code == 409 and refused.json()["detail"] == "workspace_selection_incomplete"
+    selection["entries"][-1]["exclusion_reason"] = "Upload interrupted; excluded before comparison"
+    selection = save(client, wid, selection)
+    queued = client.post(f"/v1/workspaces/{wid}/region-cohorts", json={**body, "workspace_selection": selection}, headers=HEADERS)
+    assert queued.status_code == 202, queued.text
+
+
 def test_failed_upload_and_analysis_require_reasoned_exclusions_and_are_saved(tmp_path):
     client, app, settings, wid, body, _ = setup_cohort(tmp_path)
     failed_field = make_field(client, wid).json()["id"]

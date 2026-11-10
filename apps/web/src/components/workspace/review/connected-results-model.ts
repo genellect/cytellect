@@ -100,13 +100,13 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
   const conditions = [...new Set(compared.map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
   if (!design.confirmed || !design.unit.trim()) throw new Error("独立実験単位と解析条件を確認してください。");
   if (compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
-    || ((metricUsesChannel(design.metric) || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
+    || ((metricUsesChannel(design.metric) || design.metric.startsWith("positive_") || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
     || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・独立実験単位と、必要な撮影日・対応ペアを入力してください。");
   if (design.operation === "comparison") {
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
       contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
-      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,channelGate:design.channelGate,estimates:design.estimates,inference:design.inference};
+      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,channelGate:design.channelGate,estimates:design.estimates,inference:design.inference!==false&&!exploratoryPositivity(design.metric,design.channelGate)};
     const request = comparisonRequest(choices);
     return {...request,plot:{...request.plot,...plot,kind:comparisonKind(design)}};
   }
@@ -140,4 +140,10 @@ export function runTable(design:{groups:Array<{id:string;label:string}>;control_
     .filter(row=>typeof row.field_id==="string"&&assigned[row.field_id]?.run_id===run.id&&assigned[row.field_id]?.group_id===group.id)
     .map(row=>typeof row.median==="number"&&Number.isFinite(row.median)?row.median:null))})).filter(run=>run.cells.some(cell=>cell.length));
   return groups.length>1&&runs.length?{groups,runs}:null;
+}
+
+/** A positive count or fraction judged by a threshold that no negative control fixed (manual, Otsu) is
+ * exploratory: it is described (test "none"), never tested. The API refuses a test for it. */
+export function exploratoryPositivity(metric:string,gate:{method:string}|null|undefined){
+  return metric.startsWith("positive_")&&!!gate&&gate.method!=="negative_control";
 }

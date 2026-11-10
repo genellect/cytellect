@@ -28,7 +28,7 @@ from .compartment_engine import adopted_nucleolar_states
 from .exports_csv import write_csv_stream
 from .masks import validate_label_array, validate_labels
 from .nucleolar_shape import nucleolar_eccentricity, nucleolar_objects
-from .regions import Calibration2D, Id, RegionModel
+from .regions import FIELD_EXCLUSION_REASON_MAX, Calibration2D, Id, Label, RegionModel
 
 PROTOCOL: Final = "nucleus-table/1.0.0"
 Digest64 = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
@@ -58,6 +58,9 @@ class NucleolarMorphology(RegionModel):
     count: Annotated[int, Field(ge=1)] | None
     union_area_px: Annotated[int, Field(ge=1)] | None
     union_area_um2: Annotated[FiniteFloat, Field(gt=0)] | None
+    # Why µm² is absent while the nucleoli are confirmed: no calibration, or the nucleolar
+    # revision's calibration differs from the nuclear one.
+    union_area_um2_missing_reason: Literal["calibration_unknown", "calibration_mismatch"] | None
     area_fraction: Fraction01 | None
     largest_object_area_px: Annotated[int, Field(ge=1)] | None
     largest_object_fraction: Fraction01 | None
@@ -70,13 +73,23 @@ class NucleusRow(RegionModel):
     nucleus_id: RegionId
     excluded: bool
     exclusion_scope: Literal["field", "nucleus"] | None
-    exclusion_reason: Annotated[str, Field(min_length=1, max_length=200)] | None
+    # A nucleus's own reason (at most 200 characters) or the reason of its excluded field, which the
+    # workspace's selection screen saves at up to FIELD_EXCLUSION_REASON_MAX characters.
+    exclusion_reason: Annotated[str, Field(min_length=1, max_length=FIELD_EXCLUSION_REASON_MAX)] | None
     touches_border: bool
     nucleus_area_px: Annotated[int, Field(gt=0)]
     nucleus_area_um2: Annotated[FiniteFloat, Field(gt=0)] | None
     area_missing_reason: Literal["calibration_unknown"] | None
     channels: tuple[NucleusChannelValues, ...]
     nucleoli: NucleolarMorphology
+
+
+class TableChannel(RegionModel):
+    """The recorded identity of one channel, so a saved table names the stain of every column."""
+    channel_id: Id
+    label: Label
+    stain: Label | None
+    role: Literal["nuclear_stain", "measure"]
 
 
 class NucleolarSource(RegionModel):
@@ -121,6 +134,7 @@ class NucleusTable(RegionModel):
     nucleolar_source: NucleolarSource | None
     calibration: Calibration2D | None
     field_excluded: bool
+    channels: tuple[TableChannel, ...]
     backgrounds: tuple[ChannelBackground, ...]
     rows: tuple[NucleusRow, ...]
 
@@ -140,21 +154,26 @@ def _channel_values(row, role: Literal["nuclear_stain", "measure"]) -> NucleusCh
 
 def _unconfirmed(status: Literal["missing", "not_measured"], reason: str, excluded_objects: int = 0) -> NucleolarMorphology:
     return NucleolarMorphology(status=status, reason=reason, count=None, union_area_px=None, union_area_um2=None,
-                               area_fraction=None, largest_object_area_px=None, largest_object_fraction=None,
+                               union_area_um2_missing_reason=None, area_fraction=None, largest_object_area_px=None, largest_object_fraction=None,
                                eccentricity=None, eccentricity_missing_reason=None, excluded_objects=excluded_objects)
 
 
 def nucleolar_morphology(nuclei: np.ndarray, nucleoli: np.ndarray, states: Mapping[int, str],
                          pixel_area_um2: float | None,
-                         excluded_objects: Mapping[int, int] | None = None) -> dict[int, NucleolarMorphology]:
+                         excluded_objects: Mapping[int, int] | None = None,
+                         area_missing_reason: Literal["calibration_unknown", "calibration_mismatch"] = "calibration_unknown",
+                         ) -> dict[int, NucleolarMorphology]:
     """Per parent nucleus label: its confirmed nucleoli, from labels and the recorded detector state.
 
     `nucleoli` must already have excluded objects set to 0; `excluded_objects` counts
-    them per parent. Only a parent recorded as `candidate` with at least one remaining
-    object is measured. A parent awaiting review (`review_required`), without a
-    candidate, failed or without a recorded state is missing with that reason, even
-    when the mask keeps its retained candidates. The largest-object fraction is the
-    largest object's area over the union area of the nucleus's nucleoli.
+    them per parent. `states` is the state this function is to trust for each parent:
+    a parent whose state is `candidate` and that has at least one remaining object is
+    measured; any other state, or none, is missing with that reason. The table passes
+    `adopted_nucleolar_states`, where a parent with an adopted nucleolus (also one
+    awaiting review that the researcher kept, added or edited) is `candidate`. The
+    largest-object fraction is the largest object's area over the union area of the
+    nucleus's nucleoli. Without `pixel_area_um2` the µm² area is missing with
+    `area_missing_reason`.
     """
     validate_labels(nuclei, nucleoli)
     excluded_objects = excluded_objects or {}
@@ -180,6 +199,7 @@ def nucleolar_morphology(nuclei: np.ndarray, nucleoli: np.ndarray, states: Mappi
             result[parent] = NucleolarMorphology(
                 status="measured", reason=None, count=len(areas), union_area_px=union,
                 union_area_um2=None if pixel_area_um2 is None else union * pixel_area_um2,
+                union_area_um2_missing_reason=area_missing_reason if pixel_area_um2 is None else None,
                 area_fraction=union / nuclear_area[parent], largest_object_area_px=largest,
                 largest_object_fraction=largest / union, eccentricity=shape["nucleolar_eccentricity"],
                 eccentricity_missing_reason=shape["missing_reason"], excluded_objects=dropped)
@@ -236,7 +256,8 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         states = adopted_nucleolar_states(nuclear_labels, nucleoli, nucleolar_states)
         morphology = nucleolar_morphology(nuclear_labels, np.where(dropped, 0, nucleoli).astype(nucleoli.dtype),
                                           states, pixel_area if nucleolar_calibration_matches else None,
-                                          dropped_by_parent)
+                                          dropped_by_parent,
+                                          "calibration_unknown" if pixel_area is None else "calibration_mismatch")
     present = {int(value) for value in np.unique(nuclear_labels) if value}
     grouped: dict[int, list] = {}
     for row in nuclear_table.rows:
@@ -280,6 +301,10 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
         nucleolar_source=None if nucleolar_source is None else NucleolarSource(
             **nucleolar_source, field_excluded=nucleolar_field_excluded),
         calibration=calibration, field_excluded=field_excluded,
+        channels=tuple(TableChannel(channel_id=item.channel.channel_id, label=item.channel.label,
+                                    stain=item.channel.stain,
+                                    role="nuclear_stain" if item.channel.channel_id == nuclear_channel_id else "measure")
+                       for item in nuclear_table.channel_provenance),
         backgrounds=tuple(_channel_background(item) for item in nuclear_table.channel_provenance),
         rows=tuple(rows))
 
@@ -292,6 +317,7 @@ _NUCLEOLAR_COLUMNS = (
     ("nucleolar_count", "objects", "Number of confirmed nucleolar objects in the nucleus"),
     ("nucleolar_area_px", "px²", "Union area of the nucleus's confirmed nucleoli"),
     ("nucleolar_area_um2", "µm²", "Union area in µm² with a confirmed calibration"),
+    ("nucleolar_area_um2_missing_reason", "", "Why µm² is absent while the nucleoli are confirmed: calibration_unknown, or calibration_mismatch (the nucleolar and nuclear revisions record different pixel sizes)"),
     ("nucleolar_area_fraction", "ratio", "Nucleolar union area / nucleus area"),
     ("largest_nucleolus_area_px", "px²", "Area of the largest confirmed nucleolus"),
     ("largest_nucleolus_fraction", "ratio", "Largest nucleolus area / nucleolar union area"),
@@ -302,7 +328,7 @@ _NUCLEOLAR_COLUMNS = (
 
 
 def _columns(table: NucleusTable) -> list[tuple[str, str, str]]:
-    channels = table.rows[0].channels if table.rows else ()
+    channels = table.channels
     columns = [
         ("protocol", "", "Nucleus table version"),
         ("field_id", "", "Field"),
@@ -330,6 +356,8 @@ def _columns(table: NucleusTable) -> list[tuple[str, str, str]]:
         cid = item.channel_id
         stain = "the nuclear stain (relative DNA signal; not a DNA amount)" if item.role == "nuclear_stain" else "this stain"
         columns += [
+            (f"{cid}__label", "", "Recorded name of this channel"),
+            (f"{cid}__stain", "", "Recorded stain of this channel (empty: not recorded)"),
             (f"{cid}__role", "", "nuclear_stain: the channel that defined the nuclei; measure: other stains"),
             (f"{cid}__mean", "intensity", f"Mean original pixel value of {stain} in the nucleus"),
             (f"{cid}__integrated", "intensity × px", f"Sum of original pixel values of {stain} in the nucleus"),
@@ -369,6 +397,9 @@ def nucleus_table_csv_rows(table: NucleusTable) -> tuple[list[str], list[dict], 
                   "exclusion_reason": row.exclusion_reason, "touches_border": row.touches_border,
                   "nucleus_area_px": row.nucleus_area_px, "nucleus_area_um2": row.nucleus_area_um2,
                   "area_missing_reason": row.area_missing_reason}
+        for channel in table.channels:
+            record[f"{channel.channel_id}__label"] = channel.label
+            record[f"{channel.channel_id}__stain"] = channel.stain
         for background in table.backgrounds:
             record[f"{background.channel_id}__background_source"] = background.source
             record[f"{background.channel_id}__background_confirmed"] = background.confirmed_by_researcher
@@ -381,13 +412,22 @@ def nucleus_table_csv_rows(table: NucleusTable) -> tuple[list[str], list[dict], 
         m = row.nucleoli
         record.update({"nucleolar_status": m.status, "nucleolar_reason": m.reason, "nucleolar_count": m.count,
                        "nucleolar_area_px": m.union_area_px, "nucleolar_area_um2": m.union_area_um2,
+                       "nucleolar_area_um2_missing_reason": m.union_area_um2_missing_reason,
                        "nucleolar_area_fraction": m.area_fraction, "largest_nucleolus_area_px": m.largest_object_area_px,
                        "largest_nucleolus_fraction": m.largest_object_fraction, "nucleolar_eccentricity": m.eccentricity,
                        "nucleolar_eccentricity_missing_reason": m.eccentricity_missing_reason,
                        "excluded_nucleoli": m.excluded_objects})
         rows.append(record)
     names = [name for name, _, _ in columns]
-    definitions = [{"column": name, "unit": unit, "definition": text} for name, unit, text in columns]
+    # A channel column is named by its channel ID; the definitions name that channel's label and stain.
+    by_id = {channel.channel_id: channel for channel in table.channels}
+    definitions = []
+    for name, unit, text in columns:
+        named = by_id.get(name.split("__", 1)[0]) if "__" in name else None
+        definitions.append({"column": name, "unit": unit, "definition": text,
+                            "channel_id": named.channel_id if named else None,
+                            "channel_label": named.label if named else None,
+                            "stain": named.stain if named else None})
     return names, rows, definitions
 
 
@@ -396,7 +436,8 @@ def nucleus_table_files(table: NucleusTable) -> dict[str, bytes]:
     names, rows, definitions = nucleus_table_csv_rows(table)
     files = {}
     for name, (data, columns) in {"nucleus-table.csv": (rows, names),
-                                  "columns.csv": (definitions, ["column", "unit", "definition"])}.items():
+                                  "columns.csv": (definitions, ["column", "unit", "definition", "channel_id",
+                                                                "channel_label", "stain"])}.items():
         stream = io.StringIO()
         write_csv_stream(stream, data, columns=columns)
         files[name] = b"\xef\xbb\xbf" + stream.getvalue().encode("utf-8")

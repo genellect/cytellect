@@ -36,6 +36,7 @@ export const commonWarnings:Record<string,string>={
  channel_gate_exploratory_threshold_without_negative_control:"手動・Otsuのしきい値は探索的な判定です。陰性対照による基準ではありません。",
  channel_gate_unclassified_nuclei_not_selected:"値やしきい値を決められない核は未判定のまま残し、選別や陽性率の分母に含めていません。",
  channel_gate_saturated_nuclei_present:"判定に使ったチャンネルに、飽和画素を含む核があります。線形範囲を確認してください。",
+ channel_gate_selection_and_outcome_share_channel:"選別に使ったチャンネルの輝度を、選んだ核で比べています。値はしきい値で区切られているため、陽性と陰性の差は独立した結果ではありません。",
  association_does_not_establish_causation_no_regression_or_batch_adjustment:"相関は因果関係を示しません。回帰分析・バッチ補正は行っていません。",
  pooled_association_may_reflect_condition_or_acquisition_batch_confounding:"統合した相関には、条件や撮影バッチ間の違いが影響している可能性があります。",
 };
