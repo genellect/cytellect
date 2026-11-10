@@ -71,3 +71,13 @@ def test_modal_deploy_runs_only_from_main_with_hashed_client():
     assert "if: github.ref == 'refs/heads/main'" in workflow and "--require-hashes" in workflow
     requirements = (ROOT / "infra" / "modal-requirements.txt").read_text(encoding="utf-8")
     assert "modal==1.6.2" in requirements and "--hash=sha256:" in requirements
+
+
+def test_modal_deploy_stops_on_failure_but_not_on_a_missing_url_line():
+    """The deploy step fails when authentication or the deploy fails (pipefail), not when the log names no URL."""
+    workflow = (ROOT / ".github" / "workflows" / "cellpose-modal-deploy.yml").read_text(encoding="utf-8")
+    step = workflow.split("name: Deploy and record the server URL", 1)[1].split("- name:", 1)[0]
+    assert "shell: bash" in step and "set -euo pipefail" in step
+    assert step.index("modal token info") < step.index("modal deploy infra/modal_cellpose.py")
+    summary = next(line for line in step.splitlines() if "GITHUB_STEP_SUMMARY" in line)
+    assert r"modal\.(direct|run)" in summary and "|| true" in summary
