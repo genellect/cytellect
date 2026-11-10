@@ -771,3 +771,55 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI i
   await expect(notRecorded).toHaveCount(0);
   await noErrors(page, watch);
 });
+
+test("the nucleus table, the partition table and positivity by a channel open from the recording", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  test.setTimeout(600_000);
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
+  // One field's nuclei, one row each, with every stain and the adopted nucleoli; its ZIP is recorded too.
+  const toggle = page.getByRole("button", {name: "核ごとの表", exact: true});
+  if (!await toggle.count()) await page.getByRole("button", {name: /^測定値/}).first().click();
+  await toggle.first().click();
+  const table = page.getByRole("table", {name: "核ごとの表"});
+  await expect(table.locator("tbody tr").first()).toBeVisible({timeout: live});
+  const download = page.waitForEvent("download", {timeout: live});
+  await page.getByRole("button", {name: "CSV を保存", exact: true}).click();
+  expect((await download).suggestedFilename()).toMatch(/^nucleus-table-.+\.zip$/);
+  await expect(notRecorded(page)).toHaveCount(0);
+  // A row selects its nucleus on the image.
+  const first = table.locator("tbody tr").first().getByRole("button").first();
+  const id = Number(await first.textContent());
+  await first.click();
+  await expect(page.locator(`svg path[data-region="${id}"]`)).toHaveAttribute("aria-pressed", "true");
+  // The partition table of the same nuclei, for a target and a different reference region.
+  await page.getByRole("button", {name: "区画への分配", exact: true}).click();
+  const partition = page.getByRole("region", {name: "区画への分配"});
+  const values = (label: string) => partition.getByLabel(label).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
+  const [target, reference] = await values("対象領域");
+  await partition.getByLabel("対象領域").selectOption(target);
+  await partition.getByLabel("参照領域").selectOption(reference);
+  await partition.getByLabel("測定チャンネル").selectOption((await values("測定チャンネル"))[0]);
+  await partition.getByRole("button", {name: "分配表を表示", exact: true}).click();
+  await expect(partition.locator("table caption")).toContainText("分配表", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
+  await page.getByRole("button", {name: "区画への分配", exact: true}).click();
+  // Positivity by a channel: the demo offers the method that needs no value typed in.
+  const inspector = await openSettings(page);
+  await inspector.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"}).click();
+  const gate = inspector.getByRole("region", {name: "チャンネルによる核の分類"});
+  expect(await gate.getByLabel("判定方法").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["batch_otsu"]);
+  const channel = (await gate.getByLabel("判定するチャンネル").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean)))[0];
+  await gate.getByLabel("判定するチャンネル").selectOption(channel);
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.locator("output")).toContainText("陽性", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
+  // The positive fraction of the nuclei, compared descriptively (the threshold is exploratory).
+  await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
+  await page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true}).selectOption("positive_fraction");
+  await calculate(page);
+  await expect(notRecorded(page)).toHaveCount(0);
+  await noErrors(page, watch);
+});
