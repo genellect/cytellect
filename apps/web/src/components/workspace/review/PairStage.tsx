@@ -118,7 +118,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
           {nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
           {nuclear&&nucleusView?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
-            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} channels={field.channels} selected={shown} onSelect={select}/>
+            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} selected={shown} onSelect={select}/>
           :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
         </div>
       </section>;
