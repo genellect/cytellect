@@ -23,7 +23,7 @@ foreach ($name in @('Get-SafeChild','Get-VerifiedRelease','Write-SetupMarker','U
     'Get-VerifiedOffline','Copy-OfflineArtifact','ConvertTo-NativeArgument','Test-CellposeRemoteUrl','Test-CellposeRemoteToken','Set-CellposeRemote',
     'Get-CellposeRemoteUrl','Remove-LegacyVersionShortcuts','Set-WorkspaceRetention','Get-SetupFailureCode',
     'Write-SetupAttempt','Test-SetupAttempt','New-SetupAttempt','Register-SetupRuntime','Remove-SetupTree',
-    'Test-SetupRuntimeReferenced','Close-SetupAttempt','Read-SetupAttempts','Finalize-SetupAttempt','Write-SetupSummary','Install-Cytellect')) {
+    'Test-SetupRuntimeReferenced','New-SetupFailure','Get-UnrecoveredSetupRuntimes','Test-SetupAppCleanupPending','Close-SetupAttempt','Read-SetupAttempts','Finalize-SetupAttempt','Write-SetupSummary','Install-Cytellect')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
     Invoke-Expression $function.Extent.Text
