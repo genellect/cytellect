@@ -118,3 +118,25 @@ def test_success_survives_locked_scratch_and_next_execution_recovers_it(tmp_path
     with diagnostics.owned_temporary_directory(prefix="owned-", directory=tmp_path):
         assert not member.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+def test_redirection_above_the_scope_is_allowed_but_never_inside_it(tmp_path):
+    """A profile folder moved with a link (above the scope) is not the scope's concern; a link inside it is refused."""
+    real = tmp_path / "real-home"
+    (real / "Cytellect" / "setup-cache").mkdir(parents=True)
+    linked = tmp_path / "linked-home"
+    linked.symlink_to(real, target_is_directory=True)
+    scope = linked / "Cytellect" / "setup-cache"
+    with storage.scratch_ownership_scope(scope):
+        with claimed_scratch(scope / "attempt", "owned-") as owned:
+            (owned / "unit.txt").write_text("owned")
+            remove_scratch(owned)
+        assert not owned.exists()
+    with pytest.raises(ValueError, match="scratch_path_redirected"):
+        with claimed_scratch(scope / "attempt", "owned-"):
+            pass  # Outside any scope every ancestor is still checked.
+    (real / "Cytellect" / "setup-cache" / "inner").symlink_to(tmp_path, target_is_directory=True)
+    with storage.scratch_ownership_scope(scope):
+        with pytest.raises(ValueError, match="scratch_path_redirected"):
+            with claimed_scratch(scope / "inner", "owned-"):
+                pass

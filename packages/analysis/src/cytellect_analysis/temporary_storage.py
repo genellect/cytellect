@@ -19,6 +19,9 @@ JOURNAL = re.compile(r"\.cytellect-scratch-([a-f0-9]{32})\.json\Z")
 NAME = re.compile(r"[a-z][a-z-]{0,24}-[a-f0-9]{8}\Z")
 MAX_DEFERRED_BYTES = 1024 ** 3
 _scope: ContextVar[tuple[Path, int] | None] = ContextVar("engine_scratch_scope", default=None)
+# The scope root as given (not resolved): redirections are refused at and below it, not above it,
+# so a profile folder moved with a junction (e.g. C:\\Users) does not stop an owned scratch scope.
+_boundary: ContextVar[Path | None] = ContextVar("engine_scratch_boundary", default=None)
 
 
 class ScratchCapacityExceeded(RuntimeError):
@@ -29,16 +32,23 @@ class ScratchCapacityExceeded(RuntimeError):
 def scratch_ownership_scope(root: Path, *, max_deferred_bytes: int = MAX_DEFERRED_BYTES) -> Iterator[None]:
     if type(max_deferred_bytes) is not int or max_deferred_bytes <= 0:
         raise ValueError("scratch_capacity_invalid")
-    _regular(root)
+    _regular(root, boundary=root)
     token = _scope.set((root.resolve(), max_deferred_bytes))
+    boundary = _boundary.set(root)
     try:
         yield
     finally:
+        _boundary.reset(boundary)
         _scope.reset(token)
 
 
-def _regular(path: Path) -> None:
-    for part in [*path.parents, path]:
+def _regular(path: Path, *, boundary: Path | None = None) -> None:
+    """Refuse a symlink or junction at the path or an ancestor, up to the scope root (all ancestors outside a scope)."""
+    limit = boundary if boundary is not None else _boundary.get()
+    parts = [path, *path.parents]
+    if limit is not None and path.is_relative_to(limit):
+        parts = [part for part in parts if part.is_relative_to(limit)]
+    for part in parts:
         try:
             info = part.lstat()
         except FileNotFoundError:
@@ -172,15 +182,16 @@ def claimed_scratch(directory: Path, prefix: str) -> Iterator[Path]:
     journal = directory / f".cytellect-scratch-{identity}.json"
     if target.exists():
         raise ValueError("scratch_creation_conflict")
-    # Record intent before mkdir. An OS lock proves a live owner even after Java exits.
+    # Record intent before mkdir. An OS lock proves a live owner even after Java exits. The lock is
+    # taken before the intent is written, so recovery never sees a written journal without its owner
+    # (an empty or unreadable journal is left for later, never removed).
     try:
-        with journal.open("x+", encoding="ascii") as handle:
+        with journal.open("x+", encoding="ascii") as handle, _lock(handle):
             handle.write(json.dumps({"schema": SCHEMA, "id": identity, "name": target.name}))
             handle.flush()
             os.fsync(handle.fileno())
-            with _lock(handle):
-                target.mkdir()
-                yield target  # The caller applies its cleanup budget while holding this lock.
+            target.mkdir()
+            yield target  # The caller applies its cleanup budget while holding this lock.
     finally:
         if not target.exists():
             try:

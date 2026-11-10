@@ -300,8 +300,11 @@ temporary files is retried for at most 10 seconds per directory. This covers
 the reproduced `tensorflow_jni.dll` cleanup failure without rerunning detection.
 Persistent locks are recorded as deferred `fiji_temporary_cleanup_failed` events;
 they do not invalidate a successful analysis or replace its first execution error.
-Scratch creation journals are written before mkdir and protected by OS locks
-while an engine owns them. Setup retries recovery on its next run. Worker cleanup
+Scratch creation journals are locked first, then written before mkdir, and stay
+protected by OS locks while an engine owns them; recovery leaves an empty or
+unreadable journal in place. Redirections (symlinks, junctions) are refused at and
+below the scratch scope root, not above it, so a profile folder moved with a
+junction does not stop setup. Setup retries recovery on its next run. Worker cleanup
 also reaps unlocked, journal-owned scratch under `runs` on startup and at most
 once per minute. Unknown folders, active owners and redirected paths are preserved.
 Before another extraction, outstanding unlocked journal-owned trees are counted
@@ -312,7 +315,15 @@ into a failure solely because its cleanup is deferred.
 
 Setup journals its own new app and runtimes under `setup-cache/a-<id>` while
 holding `setup.lock`. A failed attempt removes its owned incomplete app and
-unreferenced new runtimes; an interrupted attempt is recovered on the next run.
+unreferenced new runtimes; an interrupted attempt is recovered on the next run. Items whose
+removal is deferred are recorded in `logs/setup-latest.json`
+(`storage_recovery_codes`, `storage_cleanup_types`). A runtime that an
+unfinished attempt created and could not remove may be partly deleted, so it is
+never reused as an existing runtime: setup stops with
+`fiji_runtime_recovery_pending` until the next run can remove it. Removal clears
+the ReadOnly attribute of owned files first. The installation check requires
+175–700 nuclei in the bundled public BBBC013 image (350 on Linux); the band only
+catches a broken runtime and is not a measure of detection accuracy.
 Each cleanup item is independent, so a locked scratch file does not prevent app
 or runtime rollback. Empty directories left between creation intent and the
 owner marker, or after the last marker unlink, are recoverable.

@@ -25,6 +25,10 @@ SCHEMA = "cytellect-installation-check/2"
 FIXTURE_SHA256 = "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e"
 FIXTURE_PIXEL_SHA256 = "d498ff570f685959b32d9e7266897ba6ebe6f686bce4838d949baad15f5dda1f"
 FIXTURE = Path(__file__).parent / "assets/install-check/BBBC013-A01-draq.tif"
+# StarDist found 350 nuclei in this public image on Linux (2026-11-10). The band (half to double)
+# only catches a broken runtime (nothing or far too much detected) across platforms; it is not a
+# check of detection accuracy and was not tuned on evaluation data.
+EXPECTED_NUCLEI = range(175, 701)
 ERROR_CODES = frozenset({
     "fiji_timeout", "fiji_execution_failed", "fiji_process_unavailable", "fiji_temporary_path_invalid",
     "fiji_temporary_path_too_long", "windows_application_control_blocked", "installation_fixture_invalid",
@@ -49,7 +53,7 @@ def verify_installation(fiji: str, scratch: Path) -> dict:
         nuclei, info = detect_nuclei(image, NuclearDetectorSpec(), deep_output, fiji,
                                     scratch_root=temporary)
         count = len(np.unique(nuclei)) - 1
-        if nuclei.shape != image.shape or not np.issubdtype(nuclei.dtype, np.integer) or count < 1:
+        if nuclei.shape != image.shape or not np.issubdtype(nuclei.dtype, np.integer) or count not in EXPECTED_NUCLEI:
             raise RuntimeError("installation_detection_check_failed")
         if not np.array_equal(image, original):
             raise RuntimeError("installation_pixels_changed")

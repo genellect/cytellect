@@ -115,3 +115,19 @@ def test_diagnostic_write_failure_does_not_replace_execution_error(tmp_path, mon
     report = install_check.run_check("unused", tmp_path, tmp_path / "report.json")
     assert report["error_code"] == "installation_fixture_invalid"
     assert report["report_error_code"] == "installation_report_write_failed"
+
+
+@pytest.mark.parametrize("count", [0, 1, 2000])
+def test_detection_outside_the_public_image_band_fails_the_check(tmp_path, monkeypatch, count):
+    """A broken runtime that finds nothing (or far too much) in the registered public image is refused."""
+    import numpy as np
+
+    def detected(image, detector, output, fiji, **kwargs):
+        labels = np.zeros(image.shape, dtype=np.int32)
+        flat = labels.reshape(-1)
+        flat[:count] = np.arange(1, count + 1)
+        return labels, {"model_sha256": "m", "runtime_lock_sha256": "r", "bridge_sha256": "b"}
+
+    monkeypatch.setattr(install_check, "detect_nuclei", detected)
+    with pytest.raises(RuntimeError, match="installation_detection_check_failed"):
+        install_check.verify_installation("unused", tmp_path)

@@ -250,6 +250,9 @@ function Get-SetupFailureText([string]$Code, [string]$Phase) {
     if ($Code -ceq 'fiji_temporary_cleanup_pending') {
         return '以前の一時ファイルが使用中のため、容量を保護して停止しました。しばらく待って同じインストーラーをもう一度開いてください。'
     }
+    if ($Code -ceq 'fiji_runtime_recovery_pending') {
+        return '前回の失敗で途中まで削除されたFijiが使用中のため、再利用せずに停止しました。PCを再起動してから同じインストーラーをもう一度開いてください。'
+    }
     return '準備を停止しました (' + $Phase + ')。接続・空き容量を確認して再試行してください。'
 }
 
@@ -517,6 +520,9 @@ function Remove-SetupTree([string]$Root, [string]$Relative) {
     $proofFiles = @((Join-Path $target '.setup-owner.json'), (Join-Path $target 'setup-attempt.json'))
     foreach ($file in @($files | Where-Object { $_ -cnotin $proofFiles })) {
         $null = Get-SafeChild $Root ($file.Substring($Root.TrimEnd('\', '/').Length + 1).Replace('\', '/'))
+        # A ReadOnly file (e.g. from an archive entry without write permission) would stop the removal midway.
+        $attributes = [IO.File]::GetAttributes($file)
+        if ($attributes -band [IO.FileAttributes]::ReadOnly) { [IO.File]::SetAttributes($file, $attributes -band (-bnot [IO.FileAttributes]::ReadOnly)) }
         [IO.File]::Delete($file)
     }
     foreach ($directory in @($directories | Sort-Object Length -Descending)) { [IO.Directory]::Delete($directory, $false) }
@@ -524,6 +530,9 @@ function Remove-SetupTree([string]$Root, [string]$Relative) {
     # not strand a partial tree without its ownership marker.
     foreach ($file in @($files | Where-Object { $_ -cin $proofFiles })) {
         $null = Get-SafeChild $Root ($file.Substring($Root.TrimEnd('\', '/').Length + 1).Replace('\', '/'))
+        # A ReadOnly file (e.g. from an archive entry without write permission) would stop the removal midway.
+        $attributes = [IO.File]::GetAttributes($file)
+        if ($attributes -band [IO.FileAttributes]::ReadOnly) { [IO.File]::SetAttributes($file, $attributes -band (-bnot [IO.FileAttributes]::ReadOnly)) }
         [IO.File]::Delete($file)
     }
     [IO.Directory]::Delete($target, $false)
@@ -707,6 +716,7 @@ function Install-Cytellect {
     $runtimeClaims = @{}
     $storageCleanupDeferred = 0
     $storageCleanupTypes = @()
+    $unrecoveredRuntimes = @()
     $analysisCheckStarted = $false
     $initialFreeBytes = try { [IO.DriveInfo]::new([IO.Path]::GetPathRoot($root)).AvailableFreeSpace } catch { $null }
     try {
@@ -716,9 +726,27 @@ function Install-Cytellect {
                 Finalize-SetupAttempt $root $previousAttempt
             }
         } catch { $storageRecoveryCodes += 'storage_attempt_completion_deferred' }
-        try { $null = Close-SetupAttempt $root $previousAttempt }
-        catch { $storageRecoveryCodes += 'storage_attempt_recovery_deferred' }
+        try {
+            $previousCleanup = Close-SetupAttempt $root $previousAttempt
+            if ($previousCleanup.deferred_items -gt 0) {
+                $storageRecoveryCodes += 'storage_attempt_recovery_deferred'
+                $storageCleanupDeferred += $previousCleanup.deferred_items
+                $storageCleanupTypes += $previousCleanup.deferred_types
+            }
+        } catch { $storageRecoveryCodes += 'storage_attempt_recovery_deferred' }
+        # A runtime this unfinished attempt created and could not remove may be partly deleted
+        # (a locked file stops the removal midway). It is never reused as an existing runtime.
+        if (-not $previousAttempt.validated) {
+            foreach ($relative in @($previousAttempt.runtimes)) {
+                try {
+                    if ((Test-Path -LiteralPath (Get-SafeChild $root $relative)) -and -not (Test-SetupRuntimeReferenced $root $relative)) {
+                        $unrecoveredRuntimes += $relative
+                    }
+                } catch { $unrecoveredRuntimes += $relative }
+            }
+        }
     }
+    $storageRecoveryCodes = @($storageRecoveryCodes | Select-Object -Unique)
     Set-CellposeRemote $root $script:CellposeRemoteUrl $script:CellposeRemoteToken
     $releaseId = $manifest.version + '-' + $manifest.source_commit.Substring(0, 12)
     $appRelative = 'apps/' + $releaseId
@@ -817,6 +845,7 @@ function Install-Cytellect {
     if (-not (Test-Path -LiteralPath $pythonw -PathType Leaf)) { throw 'python_gui_unavailable' }
     $lockHash = (Get-FileHash -LiteralPath (Join-Path $app 'engines/fiji/runtime.lock.json')).Hash.ToLowerInvariant()
     $fiji = Get-SafeChild $root ('runtimes/fiji-' + $lockHash.Substring(0, 16))
+    if (('runtimes/fiji-' + $lockHash.Substring(0, 16)) -cin $unrecoveredRuntimes) { throw 'fiji_runtime_recovery_pending' }
     $fijiWasPresent = Test-Path -LiteralPath $fiji
     Register-SetupRuntime $root $attempt ('runtimes/fiji-' + $lockHash.Substring(0, 16))
     if (-not (Test-Path -LiteralPath $fiji)) {

@@ -111,6 +111,7 @@ FailedHeading=インストールを完了できませんでした
 FailedText=%1%n%nこのインストーラーを閉じ、同じファイルをもう一度開いてください。失敗した回の未完成ファイルは、削除可能なものを回収します。研究データは削除しません。%n%nダウンロードし直す必要はありません。繰り返し止まる場合は、次の詳細と「Cytellect」フォルダー内の logs/setup-latest.json、logs/setup-check-last-failure.json を開発者にお知らせください。%n%n詳細: %2 / %3
 FailedGeneric=準備の途中で止まりました。
 FailedApplicationControl=Windows の保護機能（Smart App Control など）が、Cytellect の一部の実行を止めました。セキュリティ設定は変えないでください。%n%nCytellect の公式サイトからインストーラーをダウンロードし直して開いても止まる場合は、この PC では今の配布物を使えません。PC の管理者に配布物の確認を依頼してください。
+FailedCleanupPending=前回の準備で使っていたファイルがまだ使用中のため、容量とデータを守って停止しました。少し待つか PC を再起動してから、同じインストーラーをもう一度開いてください。
 FailedNotOwned=インストール先に Cytellect 以外のファイルがあります。
 FailedPayload=インストーラーのファイルが壊れているか、一部が欠けています。ダウンロードし直してから開いてください。
 AlreadyRunning=この版の Cytellect はインストール済みで、起動しています。作業画面をブラウザで開きます。%n%n開かない場合は、小さな「Cytellect」の画面（起動・停止の画面）の「作業画面を開く」を押してください。
@@ -325,6 +326,8 @@ var
 begin
   if FailureCode = 'windows_application_control_blocked' then
     Reason := CustomMessage('FailedApplicationControl')
+  else if (FailureCode = 'fiji_temporary_cleanup_pending') or (FailureCode = 'fiji_runtime_recovery_pending') then
+    Reason := CustomMessage('FailedCleanupPending')
   else if FailureCode = 'install_directory_not_owned' then
     Reason := CustomMessage('FailedNotOwned')
   else if (Pos('offline', FailureCode) = 1) or (Pos('release', FailureCode) = 1) or
