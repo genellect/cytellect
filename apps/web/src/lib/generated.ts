@@ -3907,6 +3907,8 @@ export interface components {
             union_area_px: number | null;
             /** Union Area Um2 */
             union_area_um2: number | null;
+            /** Union Area Um2 Missing Reason */
+            union_area_um2_missing_reason: ("calibration_unknown" | "calibration_mismatch") | null;
             /** Area Fraction */
             area_fraction: number | null;
             /** Largest Object Area Px */
@@ -4012,6 +4014,8 @@ export interface components {
             calibration: components["schemas"]["Calibration2D"] | null;
             /** Field Excluded */
             field_excluded: boolean;
+            /** Channels */
+            channels: components["schemas"]["TableChannel"][];
             /** Backgrounds */
             backgrounds: components["schemas"]["ChannelBackground"][];
             /** Rows */
@@ -6468,6 +6472,23 @@ export interface components {
             analysed_field_ids: string[];
             /** Excluded Fields */
             excluded_fields: components["schemas"]["ExcludedStratumField"][];
+        };
+        /**
+         * TableChannel
+         * @description The recorded identity of one channel, so a saved table names the stain of every column.
+         */
+        TableChannel: {
+            /** Channel Id */
+            channel_id: string;
+            /** Label */
+            label: string;
+            /** Stain */
+            stain: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "nuclear_stain" | "measure";
         };
         /** ValidatedProposal */
         ValidatedProposal: {

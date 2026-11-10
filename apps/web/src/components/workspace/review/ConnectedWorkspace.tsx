@@ -120,7 +120,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const rows=result?.rows.filter(value=>value.channel_id===actualChannel)||[];
   // Nuclei of the real workspace; the recorded demo has no nucleus tables yet.
   const nuclearResult=target==="nuclei"&&!demo&&!historicResult&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
-  const nucleusTableSource:NucleusTableSource|undefined=field&&nuclearResult?{shown:nucleusView,onShow:setNucleusView,load:r.adapter.nucleusTable,save:r.adapter.saveNucleusTable,field:field.id,caption:field.label,
+  const nucleusTableSource:NucleusTableSource|undefined=field&&nuclearResult?{shown:nucleusView,onShow:setNucleusView,load:r.adapter.nucleusTable,save:r.adapter.saveNucleusTable,field:field.id,caption:field.label,exclusion:field.exclusionReason,
     nuclearRevision:nuclearResult.revision,nucleolarRevision:r.currentResult(field.id,"nucleoli")?.revision,channels:field.channels}:undefined;
   const partitionNucleus=field&&!demo&&!historicResult&&!candidate?r.currentResult(field.id,"nuclei"):undefined;
   const partitionSources=field?(["nucleoli","nucleoplasm"] as const).flatMap(name=>{
@@ -499,7 +499,7 @@ function ImageStage({planes,target,fieldId,region,rows,rowsCaption,onRegion,onSe
     {showTable&&<div className={styles.sideMeasurements}>
       {/* The nucleus table joins every stain and the adopted nucleoli of each nucleus (values from the API). */}
       {nucleusTable&&<div className={styles.tableViews} role="group" aria-label="表の切り替え"><button aria-pressed={!nucleusTable.shown} onClick={()=>nucleusTable.onShow(false)}>このチャンネル</button><button aria-pressed={nucleusTable.shown} onClick={()=>nucleusTable.onShow(true)}>核ごとの表</button></div>}
-      {nucleusTable?.shown?<><h3>核ごとの表<small> · {nucleusTable.caption}</small></h3><ConnectedNucleusTable load={nucleusTable.load} save={nucleusTable.save} field={nucleusTable.field} nuclearRevision={nucleusTable.nuclearRevision} nucleolarRevision={nucleusTable.nucleolarRevision} channels={nucleusTable.channels} selected={region} onSelect={onRegion}/></>
+      {nucleusTable?.shown?<><h3>核ごとの表<small> · {nucleusTable.caption}</small></h3><ConnectedNucleusTable load={nucleusTable.load} save={nucleusTable.save} field={nucleusTable.field} nuclearRevision={nucleusTable.nuclearRevision} nucleolarRevision={nucleusTable.nucleolarRevision} exclusion={nucleusTable.exclusion} channels={nucleusTable.channels} selected={region} onSelect={onRegion}/></>
       :<><h3>{targets[target]}の測定値{rowsCaption&&<small> · {rowsCaption}</small>}</h3>{rows.length?<MeasurementTable rows={rows} selected={region} onSelect={onRegion}/>:<p>測定結果はここに表示されます。</p>}</>}{editing&&<p>描画を保存または取消して続けてください。</p>}</div>}
   </div>;
 }

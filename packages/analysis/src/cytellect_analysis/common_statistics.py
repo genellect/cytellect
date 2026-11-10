@@ -17,11 +17,11 @@ from .common_unit_inference import (
     omnibus_common_units,
 )
 from .comparison_estimates import comparison_estimates
-from .compartment_observations import LOG2, acquisition_proxy, compartment_comparison_source
+from .compartment_observations import LOG2, acquisition_reviews, compartment_comparison_source
 from .compartment_observations import SAFE_ERROR_CODES as COMPARTMENT_ERRORS
 from .compartment_review import compartment_missing_summary, confirmed_policy
 from .descriptive_contracts import CompartmentMissingSummary, RegionSelection
-from .field_summary_source import prepare_field_summary_observations
+from .field_summary_source import exploratory_positivity, prepare_field_summary_observations
 from .gfp_selection import SAFE_ERROR_CODES as GFP_GATE_ERRORS
 from .gfp_selection import gate_of, gate_record_key, gate_source_observations, gate_warnings
 from .region_comparison import SAFE_ERROR_CODES as COMPARISON_ERRORS
@@ -44,7 +44,7 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | CH
     "common_statistics_matched_observations_required",
     "comparison_estimates_single_contrast_required", "comparison_estimates_unknown_metric",
     "field_summary_positivity_not_connected", "field_summary_nuclear_source_required", "field_summary_status_mismatch", "field_summary_region_identity",
-    "field_summary_invalid_calibration",
+    "field_summary_invalid_calibration", "field_positivity_exploratory_threshold_descriptive_only",
     "compartment_missing_association_unsupported", "compartment_missing_policy_unknown",
     "compartment_missing_ledger_changed", "compartment_state_not_missing", "compartment_ledger_invalid",
 })
@@ -72,8 +72,12 @@ def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None
         snapshot, observations, report, request,
         control_fields=None if gate_record is None else gate_record["control_field_ids"],
         gate_kind="channel" if gate_record is not None and gate_record_key(gate_record) == "channel_gate" else "gfp")
-    acquisition, warnings = _acquisition(sources, snapshot, selected, ledger,
-                                         acquisition_proxy(request) if compartment or per_field else request)
+    acquisition = None
+    warnings: list[str] = []
+    for review in acquisition_reviews(request) if compartment or per_field else [request]:
+        reviewed, found = _acquisition(sources, snapshot, selected, ledger, review)
+        acquisition = acquisition or reviewed
+        warnings.extend(code for code in found if code not in warnings)
     if not request.selection.metric.startswith("area_") and not per_field:
         selected_ids = {(row["field_id"], row["region_id"]) for row in selected}
         for fid, table in report["field_tables"].items():
@@ -131,6 +135,10 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
     bound adopted nuclear source for a GFP nucleus filter on a nucleoplasm revision
     (a nuclear revision is its own source)."""
     request = RegionComparisonRequestV2.model_validate(request)
+    if request.test != "none" and exploratory_positivity(request.selection):
+        # A threshold not fixed by a negative control can be moved after seeing the values:
+        # the positive count and fraction are described (test "none"), never tested.
+        raise ValueError("field_positivity_exploratory_threshold_descriptive_only")
     data = _prepared(report, config, request, summaries, nuclear, shapes)
     units = pd.DataFrame(data["unit_summary"])
     paired = request.design.kind == "paired"

@@ -163,6 +163,11 @@ reclassification. Positive count/fraction, selection, Methods and saved statisti
 use the same nucleus decisions. Positive fraction uses all evaluable positive and
 negative nuclei before subset selection, with missing/control/excluded counts
 reported separately. This does not establish a biological positivity threshold.
+Positive count/fraction comparisons pass the intensity acquisition review of the
+judged channel (dates, one dtype, no condition-confounded batch). With a threshold
+not fixed by a negative control (manual, Otsu) they are descriptive only; tests
+are refused. Selecting and measuring the same channel is warned and stated in
+Methods.
 
 M23: A read-only `region-partition-table/1.0.0` reports explicitly chosen target,
 reference and measurement-channel values in the same parent nuclei, with JSON
@@ -172,5 +177,8 @@ exterior memberships and stale source bindings. Show actual adoption and review
 states; allow an identified preview without changing them. Formal statistics
 retain their separate review requirement. The initial UI exposes the currently
 adopted nucleolar/nucleoplasmic sources; API-level manual/imported memberships
-retain explicit source semantics. Partition comparisons, editable figures, replay
-and compartment-level saturation acceptance remain subsequent work.
+retain explicit source semantics. The parent nuclei must be an adopted StarDist
+nuclear revision; manual or imported nuclei are refused
+(`partition_nuclear_source_required`) until their parent binding is accepted.
+Partition comparisons, editable figures, replay and compartment-level saturation
+acceptance remain subsequent work.

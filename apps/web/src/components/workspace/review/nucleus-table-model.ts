@@ -13,7 +13,7 @@ const reasons:Record<string,string>={
   unclassified:"核小体を分類していない",legacy_candidate:"旧版の候補（未確認）",none_after_edit:"修正後に核小体なし",not_measured_recipe:"この条件では核小体を測らない",
   nucleolar_state_unknown:"検出の記録がない",nucleolar_field_excluded:"核小体の解析で視野を除外",nucleolar_revision_not_adopted:"核小体は未採用",
   nucleolar_revision_not_selected:"核小体は未解析",nucleolar_revision_unavailable:"この視野の核小体を読み込めない",degenerate_objects:"1 画素の核小体だけで形を測れない",
-  calibration_unknown:"画素寸法が未確認",not_requested:"輝度は測定していない",
+  calibration_unknown:"画素寸法が未確認",calibration_mismatch:"核と核小体で画素寸法が異なる",not_requested:"輝度は測定していない",
   background_not_established:"背景を決めていない",acquisition_limit_unknown:"検出器の飽和値が未確認",
   automatic_background_insufficient_tiles:"背景の候補が足りない",automatic_background_insufficient_coverage:"背景の候補が画像の一部に偏る",
 };
@@ -23,6 +23,12 @@ const number=(value:number|null|undefined,digits:number,reason?:string|null):Cel
   value===null||value===undefined?missing(reason):{text:value.toLocaleString("ja-JP",{maximumFractionDigits:digits,minimumFractionDigits:digits})};
 const percent=(value:number|null|undefined,reason?:string|null):Cell=>
   value===null||value===undefined?missing(reason):{text:`${(value*100).toLocaleString("ja-JP",{maximumFractionDigits:1,minimumFractionDigits:1})}%`};
+
+/** Everything the served table depends on: the field, both revisions and the field's exclusion on the
+ * workspace's selection screen. Excluding or restoring a field changes no revision but changes the table,
+ * so a table loaded under another key is never shown and the screen states what the saved CSV states. */
+export const nucleusTableKey=(field:string,nuclearRevision?:string,nucleolarRevision?:string,exclusion?:string|null)=>
+  JSON.stringify([field,nuclearRevision??"",nucleolarRevision??"",exclusion||null]);
 
 /** Columns, rows and the nucleus ledger of a nucleus table, in the order the API returned them. */
 export function nucleusTableView(table:NucleusTableData,channels:NucleusTableChannel[]){
@@ -54,7 +60,8 @@ export function nucleusTableView(table:NucleusTableData,channels:NucleusTableCha
     const area=calibrated?number(row.nucleus_area_um2,1,row.area_missing_reason):number(row.nucleus_area_px,0);
     const signal=cells.map(({id,cell})=>cell(byChannel.get(id)!));
     const m=row.nucleoli,reason=m.status==="measured"?null:m.reason;
-    const union=calibrated?number(m.union_area_um2,2,reason):number(m.union_area_px,0,reason);
+    // Confirmed nucleoli without µm² (the two revisions record different pixel sizes) say so.
+    const union=calibrated?number(m.union_area_um2,2,reason??m.union_area_um2_missing_reason):number(m.union_area_px,0,reason);
     const nucleolar=nucleoli?[m.count===null?missing(reason):{text:String(m.count)},union,percent(m.area_fraction,reason),percent(m.largest_object_fraction,reason),
       number(m.eccentricity,3,m.status==="measured"?m.eccentricity_missing_reason:reason)]:[];
     const notes=[row.excluded?`${row.exclusion_scope==="field"?"視野を除外":"除外"}${row.exclusion_reason?`：${row.exclusion_reason}`:""}`:m.status==="missing"?reasonText(m.reason):"",
@@ -76,7 +83,11 @@ function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:strin
     for(const row of kept)if(row.nucleoli.status==="missing")counts.set(reasonText(row.nucleoli.reason),(counts.get(reasonText(row.nucleoli.reason))??0)+1);
     parts.push(`核小体を確定 ${measured}`);
     if(counts.size)parts.push(`欠測 ${[...counts.values()].reduce((a,b)=>a+b,0)}（${[...counts].map(([text,n])=>`${text} ${n}`).join("、")}）`);
-  }else parts.push("核小体を解析すると、核ごとの核小体の値が加わります");
+  }else{
+    // Analysed nucleoli that could not be read for this field are named; they are not "not analysed yet".
+    const unavailable=rows.some(row=>row.nucleoli.reason==="nucleolar_revision_unavailable");
+    parts.push(unavailable?reasonText("nucleolar_revision_unavailable"):"核小体を解析すると、核ごとの核小体の値が加わります");
+  }
   for(const {id,name} of channels){
     // Pixels at the detector's saturation value or, when that value is unknown, at the file's maximum.
     const saturated=rows.filter(row=>{const item=row.channels.find(value=>value.channel_id===id);return (item?.acquisition_saturation_fraction??0)>0||(item?.storage_limit_fraction??0)>0;}).length;

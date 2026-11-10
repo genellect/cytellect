@@ -54,8 +54,11 @@ def test_positivity_requires_a_bound_nuclear_source():
     request = count_request()
     raw = request.model_dump(mode="json")
     raw["selection"] = {**raw["selection"], "metric": "positive_fraction", "positivity": gate}
-    with pytest.raises(ValueError, match="gfp_gate_nuclear_source_unbound"):
+    # A manual (exploratory) threshold is described, never tested: the legacy GFP gate follows the same rule.
+    with pytest.raises(ValueError, match="field_positivity_exploratory_threshold_descriptive_only"):
         analyze_region_comparison(report, config, RegionComparisonRequestV2.model_validate(raw))
+    with pytest.raises(ValueError, match="gfp_gate_nuclear_source_unbound"):
+        analyze_region_comparison(report, config, RegionComparisonRequestV2.model_validate({**raw, "test": "none"}))
 
 
 def test_only_nuclear_region_sources_are_counted_as_nuclei():
