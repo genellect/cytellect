@@ -648,25 +648,35 @@ spreadsheet would read as a formula are prefixed with an apostrophe in the CSV.
   again. The defining channel is marked `nuclear_stain`: its integrated signal is a
   relative DNA-stain signal, comparable only under the same stain, linear range and
   acquisition, not a DNA amount or ploidy. Values are not divided by nuclear area or
-  DNA signal.
+  DNA signal. Each channel's background is recorded with the table and in the CSV
+  (`background_source`: `confirmed_roi`, `automatic_candidate` (protocol 4.0.0, not
+  confirmed by a person) or `not_established`; `background_confirmed`; the subtracted
+  `background_median`), so corrected values from an unconfirmed automatic background are
+  never read as ROI-corrected.
 - A nucleolar revision must be built on this nuclear revision (`compartment:
   "nucleoli"`, the same `nuclear_revision_id`, otherwise
   `nucleus_table_nucleolar_source_invalid`) and its provenance must pin these saved
   nuclei and their mask hash (`nucleus_table_nucleolar_source_mismatch`).
-- A nucleus's nucleoli are **confirmed** (`measured`) only when the detector recorded
-  that nucleus as `candidate`, the nucleolar revision is the field's adopted one and
-  at least one object remains after the researcher's object exclusions. Then the
+- A nucleus's nucleoli are **confirmed** (`measured`) when the nucleolar revision is
+  the field's adopted one and the nucleus has at least one adopted nucleolus that
+  remains after the researcher's object exclusions. This is the rule comparisons and
+  descriptions use (`compartment_engine.adopted_nucleolar_states`): a nucleolus the
+  researcher added, kept or edited counts, whatever the detector recorded. Then the
   table adds object count, union area (px, µm² with a confirmed calibration), union
   area / nuclear area, largest object area / union area, the area-weighted
   eccentricity of compartment-summary 1.1.0 and the number of excluded objects.
-- Every other nucleus is `missing`, never zero, with its reason: the recorded
-  detector state (`review_required` even when compartment protocol 1.1.0 keeps its
-  retained candidates in the mask, `no_candidate`, `indeterminate`,
-  `processing_failed`, …), `nucleolar_state_unknown` (no recorded state),
-  `no_adopted_nucleolus` (every object excluded or removed),
+- Every other nucleus is `missing`, never zero, with its reason: the detector's
+  recorded reason for a nucleus without an adopted nucleolus (`no_candidate` when the
+  detector found one but every one was removed or none was recorded, `review_required`,
+  `indeterminate`, `processing_failed`, …), `no_adopted_nucleolus` (every adopted
+  object excluded),
   `nucleolar_revision_not_adopted` or `nucleolar_field_excluded` (the field is
-  excluded in the nucleolar revision). An excluded nucleus, or every nucleus of a
-  field excluded in the nuclear revision, stays in the table with
+  excluded in the nucleolar revision). Nucleolar µm² also needs the nucleolar
+  revision's calibration to equal the nuclear one. When this field's nucleoli cannot be
+  read (not measured, or a damaged mask), the nuclei are still shown and their nucleolar
+  values are `not_measured` (`nucleolar_revision_unavailable`). An excluded nucleus, or
+  every nucleus of a field excluded in the nuclear revision or on the workspace's
+  selection screen, stays in the table with
   `exclusion_scope` (`nucleus` or `field`) and the reason (the nucleus's own, else
   the field's); its nucleolar values are `not_measured` (`nucleus_excluded`), which
   comes before every nucleolar reason. Without a nucleolar revision they are
@@ -675,7 +685,9 @@ spreadsheet would read as a formula are prefixed with an apostrophe in the CSV.
   revisions (`nuclear_adopted`, `nucleolar_source.adopted`). It is read-only and
   versioned; it adds no comparison or statistics. The workspace shows it beside the
   image of the adopted nuclei with the nucleus ledger (nuclei, excluded, confirmed,
-  missing by reason, nuclei with saturated pixels per stain), both the absolute
+  missing by reason, nuclei with pixels at the detector's saturation value or, when that
+  value is unknown, at the file's maximum, per stain; channels corrected with an
+  unconfirmed automatic background), both the absolute
   nucleolar area and its fraction of the nucleus, and saves it as the ZIP above.
 
 Label validation (`masks.validate_labels`) and eccentricity

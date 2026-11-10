@@ -1806,6 +1806,24 @@ export interface components {
             /** Field Ids */
             field_ids?: string[] | null;
         };
+        /**
+         * ChannelBackground
+         * @description Where a channel's corrected values come from: a confirmed ROI, an unconfirmed automatic
+         *     candidate (protocol 4.0.0), or no background (raw or area-only protocols).
+         */
+        ChannelBackground: {
+            /** Channel Id */
+            channel_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "confirmed_roi" | "automatic_candidate" | "not_established";
+            /** Confirmed By Researcher */
+            confirmed_by_researcher: boolean;
+            /** Median */
+            median: number | null;
+        };
         /** ChannelProvenance */
         ChannelProvenance: {
             channel: components["schemas"]["ChannelSpec"];
@@ -3777,6 +3795,8 @@ export interface components {
             calibration: components["schemas"]["Calibration2D"] | null;
             /** Field Excluded */
             field_excluded: boolean;
+            /** Backgrounds */
+            backgrounds: components["schemas"]["ChannelBackground"][];
             /** Rows */
             rows: components["schemas"]["NucleusRow"][];
         };

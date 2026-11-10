@@ -16,6 +16,7 @@ const row=(nucleus_id:number,nucleoli:NucleusTableData["rows"][number]["nucleoli
 const table:NucleusTableData={protocol:"nucleus-table/1.0.0",field_id:"f1",nuclear_revision_id:"n",nuclear_mask_revision_id:"n",nuclear_mask_sha256:"a".repeat(64),nuclear_adopted:true,
   measurement_protocol_version:"4.0.0",nuclear_channel_id:"dna",nucleolar_source:{revision_id:"c",mask_revision_id:"c",mask_sha256:"b".repeat(64),adopted:true,field_excluded:false},
   calibration:{pixel_size_x_um:0.5,pixel_size_y_um:0.5,confirmed:true},field_excluded:false,
+  backgrounds:[{channel_id:"dna",source:"not_established",confirmed_by_researcher:false,median:null},{channel_id:"npm1",source:"confirmed_roi",confirmed_by_researcher:true,median:10}],
   rows:[row(1,measured),row(2,missing("no_candidate")),row(3,{...missing("nucleus_excluded"),status:"not_measured"},{excluded:true,exclusion_scope:"nucleus",exclusion_reason:"mitotic"})]};
 const channels=[{id:"dna",stain:"Hoechst"},{id:"npm1",stain:"NPM1"}];
 
@@ -54,5 +55,11 @@ describe("nucleus table view",()=>{
     expect(view.rows[0].cells[5].text).toBe("5");
     expect(view.rows[1].cells.at(-1)?.text).toBe("候補の確認待ち");
     expect(view.ledger).toBe("核 2 個（採用前の候補） · 核小体を確定 1 · 欠測 1（候補の確認待ち 1） · NPM1の飽和画素を含む核 1");
+  });
+  it("counts pixels at the file's maximum as saturated and names an unconfirmed automatic background",()=>{
+    const capped={...values("npm1","measure",40,1000,30),acquisition_saturation_fraction:null,acquisition_saturation_missing_reason:"acquisition_limit_unknown",storage_limit_fraction:0.02};
+    const view=nucleusTableView({...table,backgrounds:[{channel_id:"npm1",source:"automatic_candidate",confirmed_by_researcher:false,median:8}],
+      rows:[row(1,measured,{channels:[values("dna","nuclear_stain",100,2500,null),capped]})]},channels);
+    expect(view.ledger).toBe("核 1 個 · 核小体を確定 1 · NPM1の飽和画素を含む核 1 · NPM1の補正値は自動推定の背景（未確認）");
   });
 });
