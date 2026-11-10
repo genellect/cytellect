@@ -819,6 +819,10 @@ test("the nucleus table, the partition table and positivity by a channel open fr
   // The positive fraction of the nuclei, compared descriptively (the threshold is exploratory).
   await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
   await page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true}).selectOption("positive_fraction");
+  // The compared fields are classified again with the current experiment information before calculating.
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await results.getByRole("button", {name: "現在の実験情報で再分類", exact: true}).click();
+  await expect(results.getByText(/の分類記録を確認しました。/)).toBeVisible({timeout: live});
   await calculate(page);
   await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);

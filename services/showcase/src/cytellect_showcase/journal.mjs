@@ -149,6 +149,14 @@ async function calculate(page, refusal = null) {
   }
   // Nuclei without an established nucleolus are listed once their ledger is read (Q-05); the
   // visitor confirms the list, and they stay as missing.
+  // A positivity metric is calculated from a classification record that matches the current
+  // experiment information; the panel offers to classify again with it, as a visitor does.
+  const reclassify = results.getByRole("button", {name: "現在の実験情報で再分類", exact: true});
+  if (await reclassify.count() && await reclassify.isEnabled()) {
+    await reclassify.click();
+    await page.waitForFunction(() => ![...document.querySelectorAll("button")].some(button => /分類中/.test(button.textContent ?? "")), null, {timeout: LIVE});
+    await idle(page);
+  }
   const keep = "この一覧を確認し、欠測として残して計算する";
   await page.waitForFunction(text => document.body.innerText.includes(text) || [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), keep, {timeout: LIVE});
   const listed = results.getByLabel(keep, {exact: true});
@@ -269,7 +277,8 @@ function measureScene(target) {
     await tab(page, "画像");
   };
 }
-/** Each field's nucleus table after a measurement (one field at a time, its nuclei shown), then back. */
+/** Each field's nucleus table after a measurement (one field at a time, its nuclei shown), then back.
+ * Measured nuclei still to be adopted have no table, as in the workspace. */
 async function nucleusTables(page, inspector, cards) {
   const pair = header(page).getByRole("button", {name: "2 画面", exact: true});
   const paired = await pair.count() && await pair.getAttribute("aria-pressed") === "true";
@@ -286,7 +295,8 @@ async function nucleusTables(page, inspector, cards) {
     await toggle.first().click(); await idle(page);
     for (let index = 0; index < await cards.count(); index++) {await cards.nth(index).click(); await idle(page);}
     await page.getByRole("button", {name: "このチャンネル", exact: true}).first().click(); await idle(page);
-  } else report.alerts.push("measurement: no nucleus table toggle");
+  }
+  // Without the toggle the measured nuclei are detection candidates: the table opens once they are adopted.
   if (shown !== "nuclei") {await region.selectOption(shown); await idle(page);}
   if (paired) {await pair.click(); await idle(page);}
 }
@@ -317,9 +327,9 @@ async function classify(page, channel, values, keep = "positive") {
   const details = inspector.locator("details").filter({has: page.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"})});
   if (!await details.evaluate(element => element.open)) await details.locator("summary").click();
   const gate = details.getByRole("region", {name: "チャンネルによる核の分類"});
-  await gate.getByLabel("判定するチャンネル").selectOption(channel);
-  await gate.getByLabel("測定値", {exact: true}).selectOption(values);
-  await gate.getByLabel("測定値の集計対象").selectOption(keep);
+  await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).selectOption(channel);
+  await gate.getByRole("combobox", {name: "測定値", exact: true}).selectOption(values);
+  await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).selectOption(keep);
   await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
   await page.waitForFunction(() => ![...document.querySelectorAll("button")].some(button => button.textContent === "分類中…"), null, {timeout: LIVE});
   await idle(page);
@@ -333,7 +343,7 @@ async function gateChannels(page) {
   const details = inspector.locator("details").filter({has: page.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"})});
   if (!await details.count()) return [];
   if (!await details.evaluate(element => element.open)) await details.locator("summary").click();
-  return choices(details.getByLabel("判定するチャンネル"));
+  return choices(details.getByRole("combobox", {name: "判定するチャンネル", exact: true}));
 }
 
 async function closePanel(page) {
@@ -411,8 +421,9 @@ for (const demo of SCENES) {
   const context = await browser.newContext({viewport: {width: 1440, height: 900}});
   const page = await context.newPage();
   try {
+    // A visitor's page (no recorder): the panel lists the shown field's channels from the opening record.
     await page.goto(`${config.origin}/demo${demo.workspace ? `?id=${demo.workspace}` : ""}`, {waitUntil: "domcontentloaded", timeout: LIVE});
-    await page.locator("[data-showcase-engine=active]").waitFor({state: "attached", timeout: LIVE});
+    await page.locator("[class*=fieldCard]").first().waitFor({timeout: LIVE});
     await idle(page);
     demo.gateChannels = await gateChannels(page);
   } catch (error) {report.alerts.push(`${demo.id || "scene"}: classification channels: ${String(error).split("\n")[0].slice(0, 200)}`); demo.gateChannels = [];}
