@@ -71,7 +71,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行する（�
 ### 3. GitHub に登録してデプロイする
 
 1. リポジトリの Settings → Secrets and variables → Actions に、`MODAL_TOKEN_ID` と `MODAL_TOKEN_SECRET`（手順 2 の 3）を登録する。
-2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行する（オーナーの指示で行う）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示される。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、実行結果の概要には表示されない。
+2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行する（オーナーの指示で行う）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示される。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、ログに出ていれば実行結果の概要にも記録する。
 
 デプロイ用のトークンは GitHub の秘密の値にだけ置き、研究室の PC や作業環境には置かない。この作業環境（Claude Code のクラウドセッション）からは、通信の制約で `modal deploy` を実行できない。
 
@@ -201,3 +201,9 @@ ghcr.io/genellect/cytellect-cellpose-gpu@sha256:beaf5218535e20e18fda78cad406bf2c
 `3090c044fe642b989d51c1c6acca1f4778ae3ea8` に固定し、可変タグから実行しない。
 旧版コードを読む子プロセスには Modal の認証環境変数を渡さず、認証を扱う処理は
 現在のレビュー済みの中継プロセスだけで行う。
+
+GitHub Actions の配備では、最初に `modal token info` で認証を確認する。
+`modal deploy` の出力を保存する pipeline には `pipefail` を指定し、配備の失敗を
+成功として扱わない。ログに URL の行がないことは配備の失敗として扱わない（配備した Server は
+次のステップで公開画像を使って確かめる）。`Token has expired` の場合は GitHub の Modal 認証を更新してから
+再実行する。workflow のステップ表示だけでなく、配備ログと公開画像の実行記録で確認する。
