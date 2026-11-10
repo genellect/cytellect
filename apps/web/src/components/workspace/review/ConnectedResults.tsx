@@ -407,8 +407,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           ?<Folded summary="検定の詳細">{()=><SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>
           :<SavedTable rows={tableRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>)}
         {mode==="statistics"&&saved.result.omnibus&&<p>全体検定 {String(saved.result.omnibus.method)} · p = {formatValue(saved.result.omnibus.p_value)}</p>}
-        {/* Every count stays one click away; the result sentence and the n breakdown above already state n. */}
-        {mode==="statistics"&&Array.isArray(saved.result.counts)&&<Folded summary="数の内訳（観測・視野・独立実験単位）">{()=><SavedTable rows={saved.result.counts as Record<string,unknown>[]} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>}
+        {/* With a result summary (it states n and its breakdown) the full count table is one click away;
+            without one (associations, several groups, descriptions) it stays open, so n is always in view (S-03, S-07). */}
+        {mode==="statistics"&&Array.isArray(saved.result.counts)&&(saved.result.estimates
+          ?<Folded summary="数の内訳（観測・視野・独立実験単位）">{()=><SavedTable rows={saved.result.counts as Record<string,unknown>[]} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>
+          :<SavedTable rows={saved.result.counts as Record<string,unknown>[]} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>)}
         {!!saved.result.warnings?.length&&<details><summary>解析上の注意</summary><ul>{saved.result.warnings.map(value=><li key={value}>{comparisonWarnings[value]||commonWarnings[value]||descriptiveWarning(value)}</li>)}</ul></details>}
         {!!saved.result.plot_data?.length&&<Folded summary="図の元データ">{()=><SavedTable rows={saved.result.plot_data!} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/>}</Folded>}
         <details><summary>元の視野{saved.historical?"（保存時の解析版）":""}</summary>{(saved.sources||[]).map(source=><button key={source.field} onClick={()=>onSource(source.field,undefined,saved.revision,saved.target,savedChannel,savedStructure)}>{items.find(item=>item.fieldId===source.field)?.label||source.label}</button>)}</details>
