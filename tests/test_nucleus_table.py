@@ -99,7 +99,9 @@ def _saved_rows(nuclei, *, channels=("dna", "npm1")):
                                         acquisition_saturation_missing_reason="acquisition_limit_unknown"))
     return SimpleNamespace(shape_yx=nuclei.shape, mask_sha256=SHA, protocol_version="3.0.0",
                            calibration=Calibration2D(pixel_size_x_um=0.5, pixel_size_y_um=0.5, confirmed=True),
-                           channel_provenance=[SimpleNamespace(channel=SimpleNamespace(channel_id=c)) for c in channels],
+                           channel_provenance=[SimpleNamespace(channel=SimpleNamespace(
+                               channel_id=c, label=f"channel {c}", stain={"dna": "DAPI", "npm1": "=NPM1"}.get(c)))
+                               for c in channels],
                            rows=tuple(rows))
 
 
@@ -184,6 +186,14 @@ def test_csv_copies_the_table_with_units_definitions_and_escaped_text():
     assert {row["nuclear_mask_sha256"] for row in rows} == {SHA} and rows[0]["nucleolar_revision_id"] == "c"
     definitions = {row["column"]: row for row in csv.DictReader(io.StringIO(files["columns.csv"].decode("utf-8-sig")))}
     assert set(definitions) == set(rows[0]) and definitions["nucleolar_area_um2"]["unit"] == "µm²"
+    # The saved files alone name the stain of every channel column (text cells are escaped like the rest).
+    assert (first["dna__label"], first["dna__stain"], first["npm1__stain"]) == ("channel dna", "DAPI", "'=NPM1")
+    assert (definitions["dna__integrated"]["channel_id"], definitions["dna__integrated"]["channel_label"],
+            definitions["dna__integrated"]["stain"]) == ("dna", "channel dna", "DAPI")
+    assert definitions["npm1__mean"]["stain"] == "'=NPM1" and definitions["nucleus_area_px"]["channel_id"] == ""
+    assert json.loads(files["nucleus-table.json"])["channels"] == [
+        {"channel_id": "dna", "label": "channel dna", "stain": "DAPI", "role": "nuclear_stain"},
+        {"channel_id": "npm1", "label": "channel npm1", "stain": "=NPM1", "role": "measure"}]
     assert json.loads(files["nucleus-table.json"])["rows"][2]["nucleoli"]["reason"] == "nucleus_excluded"
 
 
@@ -238,7 +248,7 @@ def test_api_confirms_adopted_nucleoli_and_downloads_the_same_table(tmp_path, mo
     assert all(item["integrated"] == expected[(7, item["channel_id"])] for item in first["channels"])
     assert first["nucleoli"] == {
         "status": "measured", "reason": None, "count": 1, "union_area_px": 2,
-        "union_area_um2": pytest.approx(2 * 0.1), "area_fraction": 0.5, "largest_object_area_px": 2,
+        "union_area_um2": pytest.approx(2 * 0.1), "union_area_um2_missing_reason": None, "area_fraction": 0.5, "largest_object_area_px": 2,
         "largest_object_fraction": 1.0, "eccentricity": 1.0, "eccentricity_missing_reason": None, "excluded_objects": 0}
     # The retained review candidate is an adopted nucleolus: confirmed, as comparisons count it.
     assert (rows[19]["nucleoli"]["status"], rows[19]["nucleoli"]["reason"]) == ("measured", None)
@@ -306,9 +316,38 @@ def test_api_excludes_a_field_the_workspace_excluded_with_its_reason(tmp_path, m
     assert {(row["excluded"], row["exclusion_reason"]) for row in rows} == {("True", "焦点が合っていない")}
 
 
+@pytest.mark.parametrize("length", [200, 201, 300])
+def test_api_opens_the_table_for_every_field_exclusion_reason_the_workspace_can_save(tmp_path, monkeypatch, length):
+    """The selection screen saves reasons of up to 300 characters; the table and its ZIP repeat them whole."""
+    client, _, _ = _api(tmp_path, monkeypatch, {"7": "candidate", "19": "review_required"})
+    reason = "理" * length
+    selection = client.get("/v1/workspaces/w/selection", headers=HEADERS).json()
+    entries = [{**entry, "exclusion_reason": reason} if entry["field_id"] == "f1" else entry
+               for entry in selection["entries"]]
+    saved = client.post("/v1/workspaces/w/selection", headers=HEADERS, json={"version": selection["version"], "entries": entries})
+    assert saved.status_code == 200, saved.text
+    table = _get(client, nucleolar_revision_id="nucleoli")
+    assert table.status_code == 200, table.text
+    assert {row["exclusion_reason"] for row in table.json()["rows"]} == {reason}
+    download = client.get("/v1/revisions/nuclear/nucleus-table.zip", headers=HEADERS,
+                          params={"field_id": "f1", "nucleolar_revision_id": "nucleoli"})
+    assert download.status_code == 200, download.text
+    rows = list(csv.DictReader(io.StringIO(zipfile.ZipFile(io.BytesIO(download.content)).read("nucleus-table.csv").decode("utf-8-sig"))))
+    assert {row["exclusion_reason"] for row in rows} == {reason}
+
+
 def test_nucleolar_area_needs_a_matching_calibration_and_unreadable_nucleoli_stay_unavailable():
+    rows, _ = _table()
+    assert (rows[1].nucleoli.union_area_um2, rows[1].nucleoli.union_area_um2_missing_reason) == (1.25, None)
     rows, _ = _table(nucleolar_calibration_matches=False)
     assert (rows[1].nucleoli.union_area_px, rows[1].nucleoli.union_area_um2) == (5, None)
+    # The reason is recorded: the two revisions disagree on the pixel size (not "no calibration").
+    assert rows[1].nucleoli.union_area_um2_missing_reason == "calibration_mismatch"
+    assert rows[3].nucleoli.status == "missing" and rows[3].nucleoli.union_area_um2_missing_reason is None
+    nuclei, _ = _field()
+    uncalibrated = SimpleNamespace(**{**vars(_saved_rows(nuclei)), "calibration": None})
+    rows, _ = _table(nuclear_table=uncalibrated)
+    assert rows[1].nucleoli.union_area_um2_missing_reason == "calibration_unknown"
     rows, _ = _table(nucleoli=None, nucleolar_source=None, nucleolar_missing_reason="nucleolar_revision_unavailable")
     assert {(row.nucleoli.status, row.nucleoli.reason) for row in rows.values()} == {
         ("not_measured", "nucleolar_revision_unavailable")}

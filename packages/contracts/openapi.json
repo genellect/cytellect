@@ -9646,6 +9646,21 @@
             ],
             "title": "Union Area Um2"
           },
+          "union_area_um2_missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "calibration_unknown",
+                  "calibration_mismatch"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Union Area Um2 Missing Reason"
+          },
           "area_fraction": {
             "anyOf": [
               {
@@ -9724,6 +9739,7 @@
           "count",
           "union_area_px",
           "union_area_um2",
+          "union_area_um2_missing_reason",
           "area_fraction",
           "largest_object_area_px",
           "largest_object_fraction",
@@ -9949,7 +9965,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 200,
+                "maxLength": 300,
                 "minLength": 1
               },
               {
@@ -10104,6 +10120,13 @@
             "type": "boolean",
             "title": "Field Excluded"
           },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/TableChannel"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
           "backgrounds": {
             "items": {
               "$ref": "#/components/schemas/ChannelBackground"
@@ -10132,6 +10155,7 @@
           "nucleolar_source",
           "calibration",
           "field_excluded",
+          "channels",
           "backgrounds",
           "rows"
         ],
@@ -16404,6 +16428,54 @@
           "comparisons"
         ],
         "title": "StatisticsRequest"
+      },
+      "TableChannel": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stain"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "nuclear_stain",
+              "measure"
+            ],
+            "title": "Role"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "label",
+          "stain",
+          "role"
+        ],
+        "title": "TableChannel",
+        "description": "The recorded identity of one channel, so a saved table names the stain of every column."
       },
       "ValidatedProposal": {
         "properties": {

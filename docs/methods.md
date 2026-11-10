@@ -634,6 +634,12 @@ and its nucleoli together, and opens the nucleus on the image from its row.
 `nucleus-table.csv` (one row per nucleus), `columns.csv` (unit and definition of
 every column) and the authoritative `nucleus-table.json`. Text cells that a
 spreadsheet would read as a formula are prefixed with an apostrophe in the CSV.
+The saved files name the stain of every channel column on their own: the table
+records each channel's ID, recorded label, stain and role (`channels`), the CSV
+repeats them as `<channel>__label` and `<channel>__stain`, and `columns.csv` gives
+`channel_id`, `channel_label` and `stain` beside each channel column's definition.
+A stain that was not recorded stays empty, never guessed. The table covers one
+field; it does not carry the field's display name or its group, run and condition.
 
 - Nuclei are only a revision detected with the nuclear-stain recipe
   (`source: "stardist_nuclear"` with a defining channel); any other region set is
@@ -672,13 +678,15 @@ spreadsheet would read as a formula are prefixed with an apostrophe in the CSV.
   object excluded),
   `nucleolar_revision_not_adopted` or `nucleolar_field_excluded` (the field is
   excluded in the nucleolar revision). Nucleolar µm² also needs the nucleolar
-  revision's calibration to equal the nuclear one. When this field's nucleoli cannot be
+  revision's calibration to equal the nuclear one; when µm² is absent for confirmed
+  nucleoli, `union_area_um2_missing_reason` says why (`calibration_unknown` or
+  `calibration_mismatch`). When this field's nucleoli cannot be
   read (not measured, or a damaged mask), the nuclei are still shown and their nucleolar
   values are `not_measured` (`nucleolar_revision_unavailable`). An excluded nucleus, or
   every nucleus of a field excluded in the nuclear revision or on the workspace's
   selection screen, stays in the table with
   `exclusion_scope` (`nucleus` or `field`) and the reason (the nucleus's own, else
-  the field's); its nucleolar values are `not_measured` (`nucleus_excluded`), which
+  the field's, whole at the selection screen's limit of 300 characters); its nucleolar values are `not_measured` (`nucleus_excluded`), which
   comes before every nucleolar reason. Without a nucleolar revision they are
   `not_measured` (`nucleolar_revision_not_selected`).
 - The table records whether the nuclei and the nucleoli are the field's adopted
