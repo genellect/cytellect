@@ -423,11 +423,11 @@ def nucleus_table_csv_rows(table: NucleusTable) -> tuple[list[str], list[dict], 
     by_id = {channel.channel_id: channel for channel in table.channels}
     definitions = []
     for name, unit, text in columns:
-        channel = by_id.get(name.split("__", 1)[0]) if "__" in name else None
+        named = by_id.get(name.split("__", 1)[0]) if "__" in name else None
         definitions.append({"column": name, "unit": unit, "definition": text,
-                            "channel_id": channel.channel_id if channel else None,
-                            "channel_label": channel.label if channel else None,
-                            "stain": channel.stain if channel else None})
+                            "channel_id": named.channel_id if named else None,
+                            "channel_label": named.label if named else None,
+                            "stain": named.stain if named else None})
     return names, rows, definitions
 
 
