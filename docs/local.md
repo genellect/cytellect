@@ -318,9 +318,15 @@ holding `setup.lock`. A failed attempt removes its owned incomplete app and
 unreferenced new runtimes; an interrupted attempt is recovered on the next run. Items whose
 removal is deferred are recorded in `logs/setup-latest.json`
 (`storage_recovery_codes`, `storage_cleanup_types`). A runtime that an
-unfinished attempt created and could not remove may be partly deleted, so it is
-never reused as an existing runtime: setup stops with
-`fiji_runtime_recovery_pending` until the next run can remove it. Removal clears
+unfinished attempt created and that is still present after cleanup may be partly
+deleted. A reference from another app keeps it from being removed but does not
+prove it complete, so it is reused only when it is already registered in the
+storage ledger or matches the complete pinned inventory (`--verify-existing`);
+otherwise setup stops with `fiji_runtime_recovery_pending`. When the unfinished
+app of the same version could not be removed, setup stops with
+`setup_cleanup_pending` instead of reporting a damaged download. Both stops, and
+`fiji_temporary_cleanup_pending`, carry a fixed marker, so the setup window and
+the installer show their own guidance. Removal clears
 the ReadOnly attribute of owned files first. The installation check requires
 175–700 nuclei in the bundled public BBBC013 image (350 on Linux); the band only
 catches a broken runtime and is not a measure of detection accuracy.

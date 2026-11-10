@@ -17,7 +17,7 @@ $ErrorActionPreference='Stop'
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_TEST_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }
-foreach ($name in @('Get-SetupFailureCode','Get-SetupFailureText')) {
+foreach ($name in @('Get-SetupFailureCode','New-SetupFailure','Get-SetupFailureText')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if ($null -eq $function) { throw 'test_function_absent' }
     Invoke-Expression $function.Extent.Text
@@ -31,6 +31,8 @@ if ($case.kind -eq 'native') {
 } elseif ($case.kind -eq 'marker') {
     $failure=[InvalidOperationException]::new('windows_application_control_blocked')
     $failure.Data['CytellectSetupFailure']='windows_application_control_blocked'
+} elseif ($case.kind -eq 'marked') {
+    $failure=New-SetupFailure ([string]$case.detail)
 }
 if ($case.wrapped) { $failure=[Reflection.TargetInvocationException]::new($failure) }
 $code=Get-SetupFailureCode -Exception $failure -ExitCode $case.exit_code -StandardError $case.detail -UvProcess:$case.uv
@@ -154,3 +156,33 @@ def test_controlled_child_failure_cleanup_and_retry(uv, cancel, commands, expect
     assert "__synthetic_private__" not in result.stdout + result.stderr
     assert result.stderr == ""
     assert json.loads(result.stdout) == {"outcomes": expected, "process_released": True}
+
+
+@pytest.mark.parametrize(
+    "kind,wrapped,detail,expected,guidance",
+    [
+        ("marked", False, "fiji_runtime_recovery_pending", "fiji_runtime_recovery_pending", "再起動"),
+        ("marked", True, "fiji_temporary_cleanup_pending", "fiji_temporary_cleanup_pending", "もう一度開いて"),
+        ("marked", False, "setup_cleanup_pending", "setup_cleanup_pending", "ダウンロードし直す必要はありません"),
+        # A marked code without its own guidance, and the same words as an unmarked message, stay generic.
+        ("marked", False, "setup_stage_failed", None, None),
+        ("ordinary", False, "fiji_runtime_recovery_pending", None, None),
+        ("ordinary", False, "setup_cleanup_pending", None, None),
+    ],
+)
+def test_marked_recovery_stops_reach_their_own_guidance(kind, wrapped, detail, expected, guidance):
+    shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    case = {"kind": kind, "native_code": 0, "wrapped": wrapped, "exit_code": 0, "uv": False, "detail": detail}
+    result = subprocess.run(
+        [str(shell), "-NoProfile", "-NonInteractive", "-Command", HARNESS],
+        env={**os.environ, "CYTELLECT_TEST_SETUP": str(ROOT / "scripts/local_setup.ps1"),
+             "CYTELLECT_TEST_CASE": json.dumps(case)},
+        capture_output=True, text=True, encoding="utf-8", errors="strict", check=False, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    actual = json.loads(result.stdout)
+    assert actual["code"] == expected
+    if expected:
+        assert guidance in actual["text"] and "接続・空き容量" not in actual["text"]
+    else:
+        assert actual["text"] == "準備を停止しました (install_dependencies)。接続・空き容量を確認して再試行してください。"

@@ -229,10 +229,14 @@ function Get-SetupFailureCode([Exception]$Exception = $null, [int]$ExitCode = 0,
     # Inspect typed native errors and our own fixed marker, never arbitrary messages.
     $failure = $Exception
     while ($null -ne $failure) {
+        $marked = if ($failure.Data.Contains('CytellectSetupFailure')) { $failure.Data['CytellectSetupFailure'] } else { $null }
         if (($failure -is [ComponentModel.Win32Exception] -and $failure.NativeErrorCode -eq 4551) -or
-            ($failure.Data.Contains('CytellectSetupFailure') -and
-             $failure.Data['CytellectSetupFailure'] -ceq 'windows_application_control_blocked')) {
+            $marked -ceq 'windows_application_control_blocked') {
             return 'windows_application_control_blocked'
+        }
+        # Our own marked stops that have their own guidance (Get-SetupFailureText).
+        if ($marked -cin @('fiji_temporary_cleanup_pending', 'fiji_runtime_recovery_pending', 'setup_cleanup_pending')) {
+            return $marked
         }
         $failure = $failure.InnerException
     }
@@ -241,6 +245,13 @@ function Get-SetupFailureCode([Exception]$Exception = $null, [int]$ExitCode = 0,
         return 'windows_application_control_blocked'
     }
     return $null
+}
+
+function New-SetupFailure([string]$Code) {
+    # A fixed code of our own, marked so that its guidance is chosen without reading messages.
+    $failure = [InvalidOperationException]::new($Code)
+    $failure.Data['CytellectSetupFailure'] = $Code
+    return $failure
 }
 
 function Get-SetupFailureText([string]$Code, [string]$Phase) {
@@ -252,6 +263,9 @@ function Get-SetupFailureText([string]$Code, [string]$Phase) {
     }
     if ($Code -ceq 'fiji_runtime_recovery_pending') {
         return '前回の失敗で途中まで削除されたFijiが使用中のため、再利用せずに停止しました。PCを再起動してから同じインストーラーをもう一度開いてください。'
+    }
+    if ($Code -ceq 'setup_cleanup_pending') {
+        return '前回の準備で作成した未完成のファイルが使用中のため、停止しました。PCを再起動してから同じインストーラーをもう一度開いてください。ダウンロードし直す必要はありません。'
     }
     return '準備を停止しました (' + $Phase + ')。接続・空き容量を確認して再試行してください。'
 }
@@ -300,7 +314,10 @@ function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]
             }
             if ($standardError -match '(?m)^CYTELLECT_INSTALL_CHECK: (fiji_[a-z_]+|installation_[a-z_]+|windows_application_control_blocked)\s*$') {
                 $script:ProcessDiagnostic.error_code = $Matches[1]
-                throw $Matches[1]
+                # Marked like the policy failure above, so the setup window can show its guidance.
+                $failure = [InvalidOperationException]::new($Matches[1])
+                $failure.Data['CytellectSetupFailure'] = $Matches[1]
+                throw $failure
             }
             if ($standardError -match '(?m)^CYTELLECT_STORAGE: (storage_[a-z_]{1,48})\s*$') {
                 $script:ProcessDiagnostic.error_code = $Matches[1]
@@ -578,6 +595,26 @@ function Test-SetupRuntimeReferenced([string]$Root, [string]$Relative) {
     return $false
 }
 
+function Get-UnrecoveredSetupRuntimes([string]$Root, $Attempt) {
+    # A runtime that an unfinished attempt created and that is still there after its cleanup may be
+    # partly deleted (a locked file stops the removal midway). A reference from another app keeps it
+    # from being removed but does not prove it complete, so the reference is not consulted here.
+    if ($Attempt.validated) { return }
+    foreach ($relative in @($Attempt.runtimes)) {
+        try { if (Test-Path -LiteralPath (Get-SafeChild $Root $relative)) { $relative } } catch { $relative }
+    }
+}
+
+function Test-SetupAppCleanupPending([string]$Root, $Attempt) {
+    # The app that an unfinished attempt created is still there without a completion receipt:
+    # its removal was deferred, and what remains may be partly deleted.
+    if ($Attempt.validated -or -not $Attempt.app_owned) { return $false }
+    try {
+        $app = Get-SafeChild $Root $Attempt.app
+        return ([IO.Directory]::Exists($app) -and -not [IO.File]::Exists((Get-SafeChild $app 'setup-complete.json')))
+    } catch { return $true }
+}
+
 function Close-SetupAttempt([string]$Root, $Attempt, [switch]$Committed) {
     if (-not (Test-SetupAttempt $Attempt)) { throw 'invalid_setup_attempt' }
     [long]$reclaimed = 0
@@ -717,6 +754,7 @@ function Install-Cytellect {
     $storageCleanupDeferred = 0
     $storageCleanupTypes = @()
     $unrecoveredRuntimes = @()
+    $pendingApps = @()
     $analysisCheckStarted = $false
     $initialFreeBytes = try { [IO.DriveInfo]::new([IO.Path]::GetPathRoot($root)).AvailableFreeSpace } catch { $null }
     try {
@@ -734,17 +772,11 @@ function Install-Cytellect {
                 $storageCleanupTypes += $previousCleanup.deferred_types
             }
         } catch { $storageRecoveryCodes += 'storage_attempt_recovery_deferred' }
-        # A runtime this unfinished attempt created and could not remove may be partly deleted
-        # (a locked file stops the removal midway). It is never reused as an existing runtime.
-        if (-not $previousAttempt.validated) {
-            foreach ($relative in @($previousAttempt.runtimes)) {
-                try {
-                    if ((Test-Path -LiteralPath (Get-SafeChild $root $relative)) -and -not (Test-SetupRuntimeReferenced $root $relative)) {
-                        $unrecoveredRuntimes += $relative
-                    }
-                } catch { $unrecoveredRuntimes += $relative }
-            }
-        }
+        # What this unfinished attempt created and could not remove may be partly deleted. Such a
+        # runtime is reused only after it matches the complete pinned inventory (below), and such
+        # an app stops this run instead of being reported as a damaged download.
+        $unrecoveredRuntimes += @(Get-UnrecoveredSetupRuntimes $root $previousAttempt)
+        if (Test-SetupAppCleanupPending $root $previousAttempt) { $pendingApps += $previousAttempt.app }
     }
     $storageRecoveryCodes = @($storageRecoveryCodes | Select-Object -Unique)
     Set-CellposeRemote $root $script:CellposeRemoteUrl $script:CellposeRemoteToken
@@ -771,6 +803,8 @@ function Install-Cytellect {
             throw 'release_install_conflict'
         }
     } elseif (@(Get-ChildItem -LiteralPath $app -Force | Where-Object { $_.Name -cne '.setup-owner.json' }).Count -gt 0) {
+        # The remainder of this version's own failed attempt is a deferred cleanup, not a damaged download.
+        if ($appRelative -cin $pendingApps) { throw (New-SetupFailure 'setup_cleanup_pending') }
         throw 'release_install_conflict'
     } else {
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'local-release.json') -Destination $installedManifest
@@ -845,8 +879,9 @@ function Install-Cytellect {
     if (-not (Test-Path -LiteralPath $pythonw -PathType Leaf)) { throw 'python_gui_unavailable' }
     $lockHash = (Get-FileHash -LiteralPath (Join-Path $app 'engines/fiji/runtime.lock.json')).Hash.ToLowerInvariant()
     $fiji = Get-SafeChild $root ('runtimes/fiji-' + $lockHash.Substring(0, 16))
-    if (('runtimes/fiji-' + $lockHash.Substring(0, 16)) -cin $unrecoveredRuntimes) { throw 'fiji_runtime_recovery_pending' }
     $fijiWasPresent = Test-Path -LiteralPath $fiji
+    # Left by an unfinished attempt: reused only if the complete inventory check below passes.
+    $fijiUnrecovered = $fijiWasPresent -and (('runtimes/fiji-' + $lockHash.Substring(0, 16)) -cin $unrecoveredRuntimes)
     Register-SetupRuntime $root $attempt ('runtimes/fiji-' + $lockHash.Substring(0, 16))
     if (-not (Test-Path -LiteralPath $fiji)) {
         Update-SetupStatus 'install_fiji' 'Fijiを取得・検証しています。初回は数分かかる場合があります…'
@@ -855,8 +890,13 @@ function Install-Cytellect {
         Invoke-SetupProcess $python $fijiArgs $app @{}
     }
     Update-SetupStatus 'verify_fiji' 'Fijiのプラグインとモデルを検証しています…'
-    Invoke-SetupProcess $python @('-B', '-c', 'import sys; from cytellect_analysis.engine import runtime_info; runtime_info(sys.argv[1])', $fiji) $app @{} 180
-    if ($fijiWasPresent -and [IO.File]::Exists($runtime.receipt)) {
+    try {
+        Invoke-SetupProcess $python @('-B', '-c', 'import sys; from cytellect_analysis.engine import runtime_info; runtime_info(sys.argv[1])', $fiji) $app @{} 180
+    } catch {
+        if ($fijiUnrecovered -and -not $script:Cancelled) { throw (New-SetupFailure 'fiji_runtime_recovery_pending') }
+        throw
+    }
+    if ($fijiWasPresent -and ($fijiUnrecovered -or [IO.File]::Exists($runtime.receipt))) {
         $fijiRelative = 'runtimes/fiji-' + $lockHash.Substring(0,16)
         $registered = $false
         $ledgerPath = Get-SafeChild $root 'setup-storage.json'
@@ -876,7 +916,15 @@ function Install-Cytellect {
             try {
                 Invoke-SetupProcess $python $verifyArgs $app @{} 600
                 $runtimeClaims[$fijiRelative] = @{inventory=(Get-Content -LiteralPath $proof -Raw -Encoding UTF8 | ConvertFrom-Json)}
-            } catch { $storageRecoveryCodes += 'storage_runtime_verification_deferred' }
+            } catch {
+                # The fixed plugins, models and java checked above do not show a partly deleted
+                # runtime. Without the complete match, what an unfinished attempt left is not reused.
+                if ($fijiUnrecovered) {
+                    if ($script:Cancelled) { throw }
+                    throw (New-SetupFailure 'fiji_runtime_recovery_pending')
+                }
+                $storageRecoveryCodes += 'storage_runtime_verification_deferred'
+            }
         }
     }
     Update-SetupStatus 'check_analysis' '公開練習画像で検出と計算を確認しています（実験画像の精度評価ではありません）…'

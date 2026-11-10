@@ -139,3 +139,62 @@ $after=Close-SetupAttempt $root $saved -Committed
 ''')
     assert result == {"protected": True, "validated": True, "app_preserved": True,
                       "owner_removed": True, "journal_closed": True}
+
+
+def test_a_partly_removed_runtime_or_app_is_never_taken_for_a_complete_one(tmp_path):
+    """Filesystem fixtures only. A locked file stops the rollback midway; what is left is reported as
+    unrecovered whether or not another app could refer to it, and is removed once the lock is gone."""
+    result = run_script(tmp_path, r"""
+$root=$env:CYTELLECT_CLEANUP_ROOT
+[IO.Directory]::CreateDirectory((Join-Path $root 'setup-cache')) | Out-Null
+$fiji='runtimes/fiji-'+('a'*16)
+$a=New-SetupAttempt $root ('apps/0.1.0-test.1-'+('a'*12))
+OwnedApp $root $a
+Register-SetupRuntime $root $a $fiji
+[IO.Directory]::CreateDirectory((Get-SafeChild $root ($fiji+'/jars'))) | Out-Null
+[IO.File]::WriteAllText((Get-SafeChild $root ($fiji+'/first.txt')),'removed before the locked file')
+$readonly=Get-SafeChild $root ($fiji+'/jars/readonly.jar')
+[IO.File]::WriteAllText($readonly,'archive entry without write permission')
+[IO.File]::SetAttributes($readonly,[IO.FileAttributes]::ReadOnly)
+[IO.File]::WriteAllText((Get-SafeChild $root ($fiji+'/jars/used.jar')),'in use')
+$runtimeLock=[IO.File]::Open((Get-SafeChild $root ($fiji+'/jars/used.jar')),'Open','ReadWrite','None')
+$first=Close-SetupAttempt $root $a
+$pending=@(Read-SetupAttempts $root | Where-Object { $_.id -ceq $a.id })[0]
+$partly=(-not [IO.File]::Exists((Get-SafeChild $root ($fiji+'/first.txt'))) -and
+    [IO.File]::Exists((Get-SafeChild $root ($fiji+'/jars/used.jar'))))
+$unrecovered=(@(Get-UnrecoveredSetupRuntimes $root $pending) -ccontains $fiji)
+$ownAppGone=(-not (Test-SetupAppCleanupPending $root $pending))
+
+# Another attempt's app whose removal stops midway cannot be read: it could refer to the runtime,
+# so removal of the runtime is deferred. Its reuse is still refused.
+$b=New-SetupAttempt $root ('apps/0.1.0-test.2-'+('b'*12))
+OwnedApp $root $b
+$appLock=[IO.File]::Open((Get-SafeChild $root ($b.app+'/partial.txt')),'Open','ReadWrite','None')
+$appClosed=Close-SetupAttempt $root $b
+$appPending=[bool](Test-SetupAppCleanupPending $root $b)
+$runtimeLock.Dispose()
+$second=Close-SetupAttempt $root $pending
+$referenced=[bool](Test-SetupRuntimeReferenced $root $fiji)
+$stillUnrecovered=(@(Get-UnrecoveredSetupRuntimes $root $pending) -ccontains $fiji)
+
+$appLock.Dispose()
+$null=Close-SetupAttempt $root $b
+$appRecovered=(-not (Test-Path -LiteralPath (Get-SafeChild $root $b.app)) -and
+    -not (Test-SetupAppCleanupPending $root $b))
+$third=Close-SetupAttempt $root $pending
+$removed=(-not (Test-Path -LiteralPath (Get-SafeChild $root $fiji)) -and
+    @(Get-UnrecoveredSetupRuntimes $root $pending).Count -eq 0 -and
+    -not (Test-Path -LiteralPath (Get-SafeChild $root $a.directory)))
+[IO.Directory]::CreateDirectory((Get-SafeChild $root $fiji)) | Out-Null
+$present=@(Get-UnrecoveredSetupRuntimes $root $pending).Count
+$pending.validated=$true
+[ordered]@{first=@($first.deferred_types);partly=$partly;unrecovered=$unrecovered;own_app_gone=$ownAppGone;
+    app_closed=@($appClosed.deferred_types);app_pending=$appPending;
+    second=@($second.deferred_types);referenced=$referenced;still_unrecovered=$stillUnrecovered;
+    app_recovered=$appRecovered;third=$third.deferred_items;removed=$removed;
+    present=$present;validated=@(Get-UnrecoveredSetupRuntimes $root $pending).Count} | ConvertTo-Json -Compress
+""")
+    assert result == {"first": ["runtime"], "partly": True, "unrecovered": True, "own_app_gone": True,
+                      "app_closed": ["app"], "app_pending": True,
+                      "second": ["runtime_reference"], "referenced": True, "still_unrecovered": True,
+                      "app_recovered": True, "third": 0, "removed": True, "present": 1, "validated": 0}

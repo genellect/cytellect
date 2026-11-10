@@ -326,7 +326,8 @@ var
 begin
   if FailureCode = 'windows_application_control_blocked' then
     Reason := CustomMessage('FailedApplicationControl')
-  else if (FailureCode = 'fiji_temporary_cleanup_pending') or (FailureCode = 'fiji_runtime_recovery_pending') then
+  else if (FailureCode = 'fiji_temporary_cleanup_pending') or (FailureCode = 'fiji_runtime_recovery_pending') or
+    (FailureCode = 'setup_cleanup_pending') then
     Reason := CustomMessage('FailedCleanupPending')
   else if FailureCode = 'install_directory_not_owned' then
     Reason := CustomMessage('FailedNotOwned')

@@ -16,7 +16,8 @@ $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($env:CYTELLECT_SETUP,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'parse_failed' }
 foreach ($name in @('Get-SafeChild','Write-SetupAttempt','Test-SetupAttempt','New-SetupAttempt',
-    'Register-SetupRuntime','Remove-SetupTree','Test-SetupRuntimeReferenced','Close-SetupAttempt','Read-SetupAttempts','Finalize-SetupAttempt','Write-SetupSummary')) {
+    'Register-SetupRuntime','Remove-SetupTree','Test-SetupRuntimeReferenced','Get-UnrecoveredSetupRuntimes','Test-SetupAppCleanupPending',
+    'Close-SetupAttempt','Read-SetupAttempts','Finalize-SetupAttempt','Write-SetupSummary')) {
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     Invoke-Expression $function.Extent.Text
 }
