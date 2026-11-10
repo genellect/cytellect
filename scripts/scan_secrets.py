@@ -235,8 +235,12 @@ def scan(repo: Path, cache_dir: Path) -> dict[str, Any]:
                   "--ignore-gitleaks-allow", "--no-banner", "--no-color", "--redact=100",
                   "--log-level", "error", "--report-format", "json", "--report-path", "-",
                   "--exit-code", str(FINDINGS_EXIT), "--timeout", "600", "--max-decode-depth", "5"]
+        # The complete history of the checked-out commit, never other branches: a pull request is
+        # judged with the reviewed exceptions of its own tree, so another branch's unmerged commits
+        # (scanned by that branch's own run) cannot fail it. Each branch reaches main only through a
+        # pull request, and main is scanned in full on every push.
         history = aggregate(run_capture([str(executable), "git", str(repo),
-                                          "--log-opts=--all --full-history --no-ext-diff --no-textconv",
+                                          "--log-opts=--full-history --no-ext-diff --no-textconv HEAD",
                                           *common], cwd=scratch, timeout=660, trusted_repo=repo))
         target = scratch / "tracked"
         target.mkdir(mode=0o700)
@@ -248,7 +252,7 @@ def scan(repo: Path, cache_dir: Path) -> dict[str, Any]:
         tracked.update(counts)
     total = history["finding_count"] + tracked["finding_count"]
     return {"schema_version": 1, "tool": identity, "status": "findings" if total else "clean",
-            "history": {"scope": "all_reachable_commits", **history},
+            "history": {"scope": "commits_reachable_from_head", **history},
             "tracked": tracked, "finding_count": total}
 
 
