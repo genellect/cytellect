@@ -5396,6 +5396,51 @@
         ],
         "title": "ChannelAssignmentsWrite"
       },
+      "ChannelBackground": {
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Channel Id"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "confirmed_roi",
+              "automatic_candidate",
+              "not_established"
+            ],
+            "title": "Source"
+          },
+          "confirmed_by_researcher": {
+            "type": "boolean",
+            "title": "Confirmed By Researcher"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "channel_id",
+          "source",
+          "confirmed_by_researcher",
+          "median"
+        ],
+        "title": "ChannelBackground",
+        "description": "Where a channel's corrected values come from: a confirmed ROI, an unconfirmed automatic\ncandidate (protocol 4.0.0), or no background (raw or area-only protocols)."
+      },
       "ChannelGateCounts": {
         "properties": {
           "status": {
@@ -10776,6 +10821,13 @@
             "type": "boolean",
             "title": "Field Excluded"
           },
+          "backgrounds": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelBackground"
+            },
+            "type": "array",
+            "title": "Backgrounds"
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/NucleusRow"
@@ -10797,6 +10849,7 @@
           "nucleolar_source",
           "calibration",
           "field_excluded",
+          "backgrounds",
           "rows"
         ],
         "title": "NucleusTable"

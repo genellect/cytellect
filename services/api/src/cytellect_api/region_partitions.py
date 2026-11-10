@@ -343,6 +343,7 @@ def build_partition_table(store, nuclear, target, reference, field_record, fid, 
         "unresolved compartments remained missing. Mean and integrated intensity use the region union pixels. "
         "K = mean(target) / mean(reference); log2K = log2(K), separately for raw and corrected values. Both means "
         "must be positive; no epsilon, clipping or raw fallback was used. Correction is mean - b and sum - area*b. "
+        "Saturation within the target and reference regions was not evaluated; saturated pixels can bias K. "
         + ("b is the median of the nuclear revision's saved, confirmed background ROI. "
            if background["status"] == "confirmed" else "No confirmed measurement ROI background was established; corrected values are missing. ")
         + "Areas are pixel counts, with um2 only for confirmed XY calibration. The table is a read-only source-derived "

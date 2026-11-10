@@ -29,6 +29,12 @@ ROOT = Path(__file__).resolve().parents[1]
 TITLE = "核小体と転写（ActD 処理）"
 
 
+def check(condition: object, code: str = "public_check_failed") -> None:
+    """An explicit check that `python -O` cannot remove (unlike assert)."""
+    if not condition:
+        raise AssertionError(code)
+
+
 def close(actual: float | None, expected: float) -> None:
     if actual is None or not np.isclose(actual, expected, rtol=1e-12, atol=1e-12):
         raise AssertionError(f"public_value_mismatch: {actual!r} != {expected!r}")
@@ -84,7 +90,7 @@ def verify(output: Path) -> dict:
         child_labels = np.where(np.isin(child_labels, drop), 0, child_labels)
         for row in table["rows"]:
             mask = labels == row["nucleus_id"]
-            assert row["nucleus_area_px"] == np.count_nonzero(mask)
+            check(row["nucleus_area_px"] == np.count_nonzero(mask), "public_check_failed")
             for channel in row["channels"]:
                 original = np.load(data / "workspaces" / wid / "fields" / fid /
                                    f'channel-{channel["channel_id"]}.npy', allow_pickle=False)
@@ -95,8 +101,8 @@ def verify(output: Path) -> dict:
             if morph["status"] == "measured":
                 objects, sizes = np.unique(child_labels[mask & (child_labels > 0)], return_counts=True)
                 area = int(sizes.sum())
-                assert morph["count"] == len(objects) and morph["union_area_px"] == area
-                assert morph["largest_object_area_px"] == int(sizes.max())
+                check(morph["count"] == len(objects) and morph["union_area_px"] == area, "public_check_failed")
+                check(morph["largest_object_area_px"] == int(sizes.max()), "public_check_failed")
                 close(morph["area_fraction"], area / int(mask.sum()))
                 close(morph["largest_object_fraction"], int(sizes.max()) / area)
                 if table["calibration"] is not None:
@@ -104,20 +110,24 @@ def verify(output: Path) -> dict:
                     close(morph["union_area_um2"], area * calibration["pixel_size_x_um"] *
                           calibration["pixel_size_y_um"])
             else:
-                assert morph["count"] is None and morph["union_area_px"] is None
+                check(morph["count"] is None and morph["union_area_px"] is None, "public_check_failed")
+                # Both ways: a nucleus left without nucleoli has no adopted nucleolus in the saved mask
+                # (unless the nucleoli are not adopted, the field is excluded or the nucleus is excluded).
+                if not row["excluded"] and morph["reason"] not in ("nucleolar_revision_not_adopted", "nucleolar_field_excluded"):
+                    check(not np.any(child_labels[mask] > 0), "nucleolus_present_but_missing")
         download = client.get(path + ".zip", params=params, headers=headers)
-        assert download.status_code == 200
+        check(download.status_code == 200, "public_check_failed")
         with zipfile.ZipFile(io.BytesIO(download.content)) as archive:
-            assert json.loads(archive.read("nucleus-table.json")) == table
+            check(json.loads(archive.read("nucleus-table.json")) == table, "public_check_failed")
             csv_rows = {int(row["nucleus_id"]): row for row in csv.DictReader(
                 io.StringIO(archive.read("nucleus-table.csv").decode("utf-8-sig")))}
         for row in table["rows"]:
             saved = csv_rows[row["nucleus_id"]]
-            assert saved["nucleolar_status"] == row["nucleoli"]["status"]
-            assert saved["nucleolar_reason"] == (row["nucleoli"]["reason"] or "")
+            check(saved["nucleolar_status"] == row["nucleoli"]["status"], "public_check_failed")
+            check(saved["nucleolar_reason"] == (row["nucleoli"]["reason"] or ""), "public_check_failed")
             for column, value in (("nucleolar_count", row["nucleoli"]["count"]),
                                   ("nucleolar_area_px", row["nucleoli"]["union_area_px"])):
-                assert saved[column] == (str(value) if value is not None else "")
+                check(saved[column] == (str(value) if value is not None else ""), "public_check_failed")
         reference = adopted.get("nucleoplasm")
         partition_status = "not_selected"
         if reference is not None:
@@ -127,27 +137,30 @@ def verify(output: Path) -> dict:
             partition = client.get(partition_path, params=partition_params, headers=headers)
             if partition.status_code == 200:
                 values = partition.json()
-                assert values["nuclear_source"]["reviewed"] == bool(nuclear["reviewed"])
-                assert values["target_source"]["reviewed"] == bool(child["reviewed"])
-                assert values["reference_source"]["reviewed"] == bool(reference["reviewed"])
+                check(values["nuclear_source"]["reviewed"] == bool(nuclear["reviewed"]), "public_check_failed")
+                check(values["target_source"]["reviewed"] == bool(child["reviewed"]), "public_check_failed")
+                check(values["reference_source"]["reviewed"] == bool(reference["reviewed"]), "public_check_failed")
                 reference_labels = np.load(store.safe_path(reference["result_dir"]) / fid / "labels.npy", allow_pickle=False)
                 pixels = np.load(data / "workspaces" / wid / "fields" / fid / "channel-eu5.npy", allow_pickle=False)
                 for row in values["rows"]:
                     for name, membership in (("target", child_labels), ("reference", reference_labels)):
+                        support = (labels == row["nucleus_id"]) & (membership > 0)
                         if row[name]["raw_mean"] is not None:
-                            support = (labels == row["nucleus_id"]) & (membership > 0)
                             selected_pixels = pixels[support].astype(np.float64)
                             close(row[name]["raw_mean"], float(selected_pixels.mean()))
                             close(row[name]["raw_integrated"], float(selected_pixels.sum()))
+                        else:
+                            # Both ways: a value is missing only for an empty region, with its reason.
+                            check(not support.any() and row[name]["raw_missing_reason"], "partition_value_missing")
                     if row["raw"]["k"] is not None:
                         close(row["raw"]["k"], row["target"]["raw_mean"] / row["reference"]["raw_mean"])
                         close(row["raw"]["log2_k"], float(np.log2(row["raw"]["k"])))
                     else:
-                        assert row["raw"]["missing_reasons"]
+                        check(row["raw"]["missing_reasons"], "public_check_failed")
                 partition_csv = client.get(partition_path + ".csv", params=partition_params, headers=headers)
-                assert partition_csv.status_code == 200
+                check(partition_csv.status_code == 200, "public_check_failed")
                 records = list(csv.DictReader(io.StringIO(partition_csv.content.decode("utf-8-sig"))))
-                assert json.loads(records[0]["provenance_json"])["review_status"] == values["review_status"]
+                check(json.loads(records[0]["provenance_json"])["review_status"] == values["review_status"], "public_check_failed")
                 partition_status = "checked"
             else:
                 partition_status = partition.json()["detail"]

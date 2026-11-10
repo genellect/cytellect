@@ -57,9 +57,17 @@ def register_nucleus_table_routes(api, store, owner, revision, result_root):
             raise HTTPException(404, "field_not_found")
         table, mask, labels, exclusions = _saved_field(result_root(rev), rev, field_id)
         with store.transaction() as conn:
-            adopted = adopted_for(conn, rev["workspace_id"], field_id, selection_at(conn, rev["workspace_id"]))
+            selection = selection_at(conn, rev["workspace_id"])
+            adopted = adopted_for(conn, rev["workspace_id"], field_id, selection)
+        # A field excluded on the workspace's selection screen is excluded in the table too, with that
+        # reason, unless the revision itself already excludes the whole field.
+        workspace_reason = next((entry.get("exclusion_reason") for entry in (selection or {}).get("entries", [])
+                                 if entry.get("field_id") == field_id and entry.get("exclusion_reason")), None)
+        if workspace_reason and not any(item.get("region_id") is None for item in exclusions):
+            exclusions = [*exclusions, {"field_id": field_id, "region_id": None, "reason": workspace_reason}]
         nucleoli = states = source = None
         child_exclusions: list = []
+        calibration_matches, missing_reason = True, "nucleolar_revision_not_selected"
         if nucleolar_revision_id is not None:
             child = measured(nucleolar_revision_id, who)
             child_recipe = child["config"].get("recipe", {})
@@ -68,7 +76,15 @@ def register_nucleus_table_routes(api, store, owner, revision, result_root):
                     or field_id not in child["config"].get("field_ids", [])):
                 raise HTTPException(422, "nucleus_table_nucleolar_source_invalid")
             root = result_root(child)
-            _, child_mask, nucleoli, child_exclusions = _saved_field(root, child, field_id)
+            try:
+                child_table, child_mask, nucleoli, child_exclusions = _saved_field(root, child, field_id)
+            except HTTPException as exc:
+                # This field's nucleoli could not be read (not measured or a damaged mask): the nuclei
+                # are still shown, with the nucleolar values marked unavailable, never zero.
+                if exc.detail not in ("field_not_measured", "nucleus_table_mask_mismatch"):
+                    raise
+                nucleolar_revision_id, missing_reason = None, "nucleolar_revision_unavailable"
+        if nucleolar_revision_id is not None:
             record = read_json(root / "provenance.json").get("fields", {}).get(field_id, {})
             pinned = record.get("nuclear_source") or {}
             # The nucleoli must have been derived from exactly these saved nuclei.
@@ -78,6 +94,7 @@ def register_nucleus_table_routes(api, store, owner, revision, result_root):
             source = {"revision_id": child["id"], "mask_revision_id": child_mask.mask_revision_id,
                       "mask_sha256": child_mask.mask_sha256,
                       "adopted": adopted.get("nucleoli", {}).get("id") == child["id"]}
+            calibration_matches = child_table.calibration == table.calibration
         try:
             return nucleus_table(
                 field_id=field_id, nuclear_revision_id=rid, nuclear_mask=mask.model_dump(mode="json"),
@@ -85,7 +102,8 @@ def register_nucleus_table_routes(api, store, owner, revision, result_root):
                 nuclear_channel_id=recipe["defining_channel_id"],
                 nuclear_adopted=adopted.get("nuclei", {}).get("id") == rid,
                 nucleoli=nucleoli, nucleolar_states=states, nucleolar_exclusions=child_exclusions,
-                nucleolar_source=source)
+                nucleolar_source=source, nucleolar_calibration_matches=calibration_matches,
+                nucleolar_missing_reason=missing_reason)
         except ValueError as exc:
             code = str(exc)
             raise HTTPException(409, code if code.startswith(("nucleus_table_", "nucleolus_", "nucleolar_"))

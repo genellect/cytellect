@@ -83,6 +83,7 @@ const messages:Record<string,string> = {
  partition_compartment_nuclear_binding_mismatch:"対象と参照を、現在の核領域から作られた版にそろえてください。",
  partition_current_image_mismatch:"画像や染色情報が更新されています。現在の条件で測定した領域を選んでください。",
  partition_source_field_not_measured:"選んだ領域には、この視野の測定結果がありません。保存した版を確認してください。",
+ channel_gate_source_mixed_binding:"核の領域と核内の区画の解析版が混在しています。同じ種類の解析版だけを選んで分類してください。",
  channel_gate_record_required:"現在の実験情報で核を分類してから計算してください。",
  channel_gate_record_mismatch:"分類後に測定値・実験情報・除外が変わりました。現在の実験情報で再分類してください。",
  channel_gate_nuclear_source_unbound:"分類する核の出典を確認できません。核を採用し直してください。",
