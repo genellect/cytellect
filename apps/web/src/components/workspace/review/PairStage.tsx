@@ -7,6 +7,8 @@ import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design"
 import {decodedPreview,percentileRange,planeRange,redrawnPreview,remapTable,sharedRange} from "@/lib/shared-display";
 import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
 import {MeasurementTable} from "./MeasurementTable";
+import {ConnectedNucleusTable} from "./NucleusTable";
+import {useShowcaseUi} from "./showcase-ui";
 import {pairPaneLayout} from "./image-stage-layout";
 import styles from "./pair-stage.module.css";
 
@@ -70,6 +72,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   useEffect(()=>{onDisplay?.(display);},[displayValue]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>()=>onDisplay?.(null),[]);// eslint-disable-line react-hooks/exhaustive-deps
 
+  // Each pane can show its field's nucleus table (every stain and the confirmed nucleoli per nucleus).
+  const showcase=useShowcaseUi(),[nucleusView,setNucleusView]=useState(false);
   if(!run)return <p className={styles.empty}>2 つの群に画像がある実験回がありません。「実験」で群と実験回に画像を割り当ててください。</p>;
   return <div className={styles.pair} data-placement={layout.placement}>
     {panes.map((pane,index)=>{
@@ -84,6 +88,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
       const rows=value?.rows.filter(row=>row.channel_id===channel)??[];
       const count=value?new Set(value.masks.regions.map(region=>region.id)).size:null;
       const select=(n:number)=>{if(field)onSelect(field.id,channel,n);};
+      const nuclear=target==="nuclei"&&!saved&&!candidate&&!showcase.enabled&&field?r.currentResult(field.id,"nuclei"):undefined;
       const label=`${pane.group.label}${pane.group.id===design.control_group_id?"（対照）":""}`;
       return <section key={pane.group.id} className={styles.pane} aria-label={label}>
         <header className={styles.paneHead}>
@@ -111,7 +116,10 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(field.id,"nuclei")?.masks.regions:undefined)}
           contextSelected={savedView?.nucleus}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
-          {rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
+          {nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
+          {nuclear&&nucleusView?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
+            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} selected={shown} onSelect={select}/>
+          :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
         </div>
       </section>;
     })}

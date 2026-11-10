@@ -1,7 +1,7 @@
 """Persisted field adoption; whole-ledger CAS prevents stale tabs changing cohorts."""
 from typing import Annotated, Literal
 
-from cytellect_analysis.regions import Id, RegionModel
+from cytellect_analysis.regions import FIELD_EXCLUSION_REASON_MAX, Id, RegionModel
 from fastapi import Depends, HTTPException
 from pydantic import Field, model_validator
 from sqlalchemy import select
@@ -15,7 +15,7 @@ class WorkspaceSelectionEntry(RegionModel):
     id: Id
     field_id: Id | None = None
     revision_id: Id | None = None
-    exclusion_reason: str | None = Field(default=None, min_length=1, max_length=300)
+    exclusion_reason: str | None = Field(default=None, min_length=1, max_length=FIELD_EXCLUSION_REASON_MAX)
     target_revisions: dict[Target, Id] | None = Field(default=None, max_length=6, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")

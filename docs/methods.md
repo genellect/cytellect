@@ -514,6 +514,7 @@ descriptive endpoint (one-screen descriptions); comparison estimates remain comp
 | Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
 | Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons and per-field descriptions: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
 | Compartment-summary selection | 1.1.0 | Comparisons and per-field descriptions (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
+| Nucleus table | `nucleus-table/1.0.0` | Read-only `GET /v1/revisions/{rid}/nucleus-table` and its CSV/JSON ZIP, shown beside the adopted nuclei | New endpoint; saved measurements, masks and results unchanged |
 | Comparison estimates | `comparison-estimates/1.0.0` | Opt-in `estimates` on common-statistics 2.0.0 comparisons with one contrast | Absent from historical requests and results |
 | Unresolved-nucleoli policy | `unresolved-as-missing/1.0.0` | Opt-in `compartment_missing` on cohorts and reviews of nucleolar/nucleoplasm revisions; comparisons and descriptions | Absent from historical requests, review records and results; without it every parent must be a candidate |
 | Region comparison 1.0.0, common statistics 2.0.0, statistics 1.2.3, figure policies | unchanged | Implemented | Replayed with their original definitions |
@@ -622,6 +623,86 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
 - `nucleolar_area_um2` needs a confirmed calibration (`compartment_summary_calibration_required`);
   area and eccentricity follow the pixel-area acquisition review (equal sampling,
   one calibration), µm² the calibrated-area review.
+
+### Nucleus table 1.0.0 (2026-11-09)
+
+`GET /v1/revisions/{rid}/nucleus-table?field_id=…[&nucleolar_revision_id=…]`
+(`nucleus_table.py`) returns one row per nucleus of a nuclear revision, so a
+researcher reads each nucleus's size, nuclear-stain signal, every stain's signal
+and its nucleoli together, and opens the nucleus on the image from its row.
+`GET /v1/revisions/{rid}/nucleus-table.zip` returns the same table as
+`nucleus-table.csv` (one row per nucleus), `columns.csv` (unit and definition of
+every column) and the authoritative `nucleus-table.json`. Text cells that a
+spreadsheet would read as a formula are prefixed with an apostrophe in the CSV.
+The saved files name the stain of every channel column on their own: the table
+records each channel's ID, recorded label, stain and role (`channels`), the CSV
+repeats them as `<channel>__label` and `<channel>__stain`, and `columns.csv` gives
+`channel_id`, `channel_label` and `stain` beside each channel column's definition.
+A stain that was not recorded stays empty, never guessed. The table covers one
+field; it does not carry the field's display name or its group, run and condition.
+
+- Nuclei are only a revision detected with the nuclear-stain recipe
+  (`source: "stardist_nuclear"` with a defining channel); any other region set is
+  refused (`nucleus_table_nuclear_source_required`) and never returned as nuclei or
+  DNA signal. Rows are bound to the saved nuclear labels by nucleus label
+  (`region_id`), never by order or position. The labels must match the saved mask
+  hash (`nucleus_table_mask_mismatch`) and every label must have saved rows
+  (`nucleus_table_region_mismatch`).
+- Nucleus area, raw and background-corrected mean and integrated intensity,
+  saturation fractions and their missing reasons are the nuclear revision's saved
+  measurement rows (any region protocol), copied unchanged; pixels are not read
+  again. The defining channel is marked `nuclear_stain`: its integrated signal is a
+  relative DNA-stain signal, comparable only under the same stain, linear range and
+  acquisition, not a DNA amount or ploidy. Values are not divided by nuclear area or
+  DNA signal. Each channel's background is recorded with the table and in the CSV
+  (`background_source`: `confirmed_roi`, `automatic_candidate` (protocol 4.0.0, not
+  confirmed by a person) or `not_established`; `background_confirmed`; the subtracted
+  `background_median`), so corrected values from an unconfirmed automatic background are
+  never read as ROI-corrected.
+- A nucleolar revision must be built on this nuclear revision (`compartment:
+  "nucleoli"`, the same `nuclear_revision_id`, otherwise
+  `nucleus_table_nucleolar_source_invalid`) and its provenance must pin these saved
+  nuclei and their mask hash (`nucleus_table_nucleolar_source_mismatch`).
+- A nucleus's nucleoli are **confirmed** (`measured`) when the nucleolar revision is
+  the field's adopted one and the nucleus has at least one adopted nucleolus that
+  remains after the researcher's object exclusions. This is the rule comparisons and
+  descriptions use (`compartment_engine.adopted_nucleolar_states`): a nucleolus the
+  researcher added, kept or edited counts, whatever the detector recorded. Then the
+  table adds object count, union area (px, µm² with a confirmed calibration), union
+  area / nuclear area, largest object area / union area, the area-weighted
+  eccentricity of compartment-summary 1.1.0 and the number of excluded objects.
+- Every other nucleus is `missing`, never zero, with its reason: the detector's
+  recorded reason for a nucleus without an adopted nucleolus (`no_candidate` when the
+  detector found one but every one was removed or none was recorded, `review_required`,
+  `indeterminate`, `processing_failed`, …), `no_adopted_nucleolus` (every adopted
+  object excluded),
+  `nucleolar_revision_not_adopted` or `nucleolar_field_excluded` (the field is
+  excluded in the nucleolar revision). Nucleolar µm² also needs the nucleolar
+  revision's calibration to equal the nuclear one; when µm² is absent for confirmed
+  nucleoli, `union_area_um2_missing_reason` says why (`calibration_unknown` or
+  `calibration_mismatch`). When this field's nucleoli cannot be
+  read (not measured, or a damaged mask), the nuclei are still shown and their nucleolar
+  values are `not_measured` (`nucleolar_revision_unavailable`). An excluded nucleus, or
+  every nucleus of a field excluded in the nuclear revision or on the workspace's
+  selection screen, stays in the table with
+  `exclusion_scope` (`nucleus` or `field`) and the reason (the nucleus's own, else
+  the field's, whole at the selection screen's limit of 300 characters); its nucleolar values are `not_measured` (`nucleus_excluded`), which
+  comes before every nucleolar reason. Without a nucleolar revision they are
+  `not_measured` (`nucleolar_revision_not_selected`).
+- The table records whether the nuclei and the nucleoli are the field's adopted
+  revisions (`nuclear_adopted`, `nucleolar_source.adopted`). It is read-only and
+  versioned; it adds no comparison or statistics. The workspace shows it beside the
+  image of the adopted nuclei with the nucleus ledger (nuclei, excluded, confirmed,
+  missing by reason, nuclei with pixels at the detector's saturation value or, when that
+  value is unknown, at the file's maximum, per stain; channels corrected with an
+  unconfirmed automatic background), both the absolute
+  nucleolar area and its fraction of the nucleus, and saves it as the ZIP above.
+
+Label validation (`masks.validate_labels`) and eccentricity
+(`nucleolar_shape.nucleolar_eccentricity`) read each object once from its bounding
+box instead of scanning the whole image per object; their definitions, results and
+error codes are unchanged (`tests/test_nucleus_table.py` compares the eccentricity
+with the per-object full-image definition).
 
 ### Comparison estimates 1.0.0
 

@@ -815,6 +815,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/nucleus-table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Nucleus Table
+         * @description One row per nucleus of a nuclear revision; with `nucleolar_revision_id`, the
+         *     nucleolar revision built on it adds each nucleus's confirmed nucleoli.
+         */
+        get: operations["get_nucleus_table_v1_revisions__rid__nucleus_table_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/revisions/{rid}/nucleus-table.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Nucleus Table
+         * @description The same table as `nucleus-table.csv`, `columns.csv` (units and definitions) and JSON.
+         */
+        get: operations["download_nucleus_table_v1_revisions__rid__nucleus_table_zip_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/common-statistics": {
         parameters: {
             query?: never;
@@ -1764,6 +1805,24 @@ export interface components {
             assignments: components["schemas"]["ChannelAssignment"][];
             /** Field Ids */
             field_ids?: string[] | null;
+        };
+        /**
+         * ChannelBackground
+         * @description Where a channel's corrected values come from: a confirmed ROI, an unconfirmed automatic
+         *     candidate (protocol 4.0.0), or no background (raw or area-only protocols).
+         */
+        ChannelBackground: {
+            /** Channel Id */
+            channel_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "confirmed_roi" | "automatic_candidate" | "not_established";
+            /** Confirmed By Researcher */
+            confirmed_by_researcher: boolean;
+            /** Median */
+            median: number | null;
         };
         /** ChannelProvenance */
         ChannelProvenance: {
@@ -3615,6 +3674,135 @@ export interface components {
              * @default 0.6
              */
             minimum_solidity: number;
+        };
+        /** NucleolarMorphology */
+        NucleolarMorphology: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "measured" | "missing" | "not_measured";
+            /** Reason */
+            reason: string | null;
+            /** Count */
+            count: number | null;
+            /** Union Area Px */
+            union_area_px: number | null;
+            /** Union Area Um2 */
+            union_area_um2: number | null;
+            /** Union Area Um2 Missing Reason */
+            union_area_um2_missing_reason: ("calibration_unknown" | "calibration_mismatch") | null;
+            /** Area Fraction */
+            area_fraction: number | null;
+            /** Largest Object Area Px */
+            largest_object_area_px: number | null;
+            /** Largest Object Fraction */
+            largest_object_fraction: number | null;
+            /** Eccentricity */
+            eccentricity: number | null;
+            /** Eccentricity Missing Reason */
+            eccentricity_missing_reason: string | null;
+            /** Excluded Objects */
+            excluded_objects: number;
+        };
+        /** NucleolarSource */
+        NucleolarSource: {
+            /** Revision Id */
+            revision_id: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Mask Sha256 */
+            mask_sha256: string;
+            /** Adopted */
+            adopted: boolean;
+            /** Field Excluded */
+            field_excluded: boolean;
+        };
+        /** NucleusChannelValues */
+        NucleusChannelValues: {
+            /** Channel Id */
+            channel_id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "nuclear_stain" | "measure";
+            /** Mean */
+            mean: number | null;
+            /** Integrated */
+            integrated: number | null;
+            /** Mean Corrected */
+            mean_corrected: number | null;
+            /** Integrated Corrected */
+            integrated_corrected: number | null;
+            /** Intensity Missing Reason */
+            intensity_missing_reason: string | null;
+            /** Correction Missing Reason */
+            correction_missing_reason: string | null;
+            /** Storage Limit Fraction */
+            storage_limit_fraction: number | null;
+            /** Acquisition Saturation Fraction */
+            acquisition_saturation_fraction: number | null;
+            /** Acquisition Saturation Missing Reason */
+            acquisition_saturation_missing_reason: string | null;
+        };
+        /** NucleusRow */
+        NucleusRow: {
+            /** Nucleus Id */
+            nucleus_id: number;
+            /** Excluded */
+            excluded: boolean;
+            /** Exclusion Scope */
+            exclusion_scope: ("field" | "nucleus") | null;
+            /** Exclusion Reason */
+            exclusion_reason: string | null;
+            /** Touches Border */
+            touches_border: boolean;
+            /** Nucleus Area Px */
+            nucleus_area_px: number;
+            /** Nucleus Area Um2 */
+            nucleus_area_um2: number | null;
+            /** Area Missing Reason */
+            area_missing_reason: "calibration_unknown" | null;
+            /** Channels */
+            channels: components["schemas"]["NucleusChannelValues"][];
+            nucleoli: components["schemas"]["NucleolarMorphology"];
+        };
+        /** NucleusTable */
+        NucleusTable: {
+            /**
+             * Protocol
+             * @default nucleus-table/1.0.0
+             * @constant
+             */
+            protocol: "nucleus-table/1.0.0";
+            /** Field Id */
+            field_id: string;
+            /** Nuclear Revision Id */
+            nuclear_revision_id: string;
+            /** Nuclear Mask Revision Id */
+            nuclear_mask_revision_id: string;
+            /** Nuclear Mask Sha256 */
+            nuclear_mask_sha256: string;
+            /** Nuclear Adopted */
+            nuclear_adopted: boolean;
+            /**
+             * Measurement Protocol Version
+             * @enum {string}
+             */
+            measurement_protocol_version: "1.0.0" | "2.0.0" | "3.0.0" | "4.0.0";
+            /** Nuclear Channel Id */
+            nuclear_channel_id: string | null;
+            nucleolar_source: components["schemas"]["NucleolarSource"] | null;
+            calibration: components["schemas"]["Calibration2D"] | null;
+            /** Field Excluded */
+            field_excluded: boolean;
+            /** Channels */
+            channels: components["schemas"]["TableChannel"][];
+            /** Backgrounds */
+            backgrounds: components["schemas"]["ChannelBackground"][];
+            /** Rows */
+            rows: components["schemas"]["NucleusRow"][];
         };
         /** NumericalSelection */
         NumericalSelection: {
@@ -5726,6 +5914,23 @@ export interface components {
             sensitivity_legacy_high_regions?: (5 | 10 | 20)[];
             /** Sensitivity Region Revision Ids */
             sensitivity_region_revision_ids?: string[];
+        };
+        /**
+         * TableChannel
+         * @description The recorded identity of one channel, so a saved table names the stain of every column.
+         */
+        TableChannel: {
+            /** Channel Id */
+            channel_id: string;
+            /** Label */
+            label: string;
+            /** Stain */
+            stain: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "nuclear_stain" | "measure";
         };
         /** ValidatedProposal */
         ValidatedProposal: {
@@ -7937,6 +8142,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegionComparisonView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_nucleus_table_v1_revisions__rid__nucleus_table_get: {
+        parameters: {
+            query: {
+                field_id: string;
+                nucleolar_revision_id?: string | null;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NucleusTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_nucleus_table_v1_revisions__rid__nucleus_table_zip_get: {
+        parameters: {
+            query: {
+                field_id: string;
+                nucleolar_revision_id?: string | null;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
                 };
             };
             /** @description Validation Error */

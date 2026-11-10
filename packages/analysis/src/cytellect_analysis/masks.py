@@ -31,12 +31,14 @@ def validate_labels(nuclei, nucleoli):
     validate_label_array(nucleoli)
     if nuclei.shape != nucleoli.shape or (nuclei < 0).any() or (nucleoli < 0).any():
         raise ValueError("invalid_label_shapes")
-    for label in np.unique(nucleoli):
-        if label == 0:
-            continue
-        parents = np.unique(nuclei[nucleoli == label])
-        if len(parents) != 1 or parents[0] == 0:
-            raise ValueError("nucleolus_requires_single_parent")
+    # Every nucleolus label lies inside exactly one nonzero nucleus. One pass over the
+    # (nucleolus, nucleus) pairs instead of one full-image scan per nucleolus.
+    inside = nucleoli > 0
+    if not inside.any():
+        return
+    pairs = np.unique(np.stack([nucleoli[inside].astype(np.int64), nuclei[inside].astype(np.int64)]), axis=1)
+    if (np.unique(pairs[0], return_counts=True)[1] != 1).any() or (pairs[1] == 0).any():
+        raise ValueError("nucleolus_requires_single_parent")
 
 def detect_nucleoli(nuclei, ncl, dapi, recipe: Recipe):
     signal = ncl if recipe.nucleolar_method == "ncl-otsu" else dapi
