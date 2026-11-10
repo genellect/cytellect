@@ -1,6 +1,6 @@
 "use client";
 
-import {useId, useRef, useState} from "react";
+import {useEffect, useId, useRef, useState} from "react";
 import type {components} from "@/lib/generated";
 import styles from "./connected-partition.module.css";
 
@@ -72,7 +72,10 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
     try{await exportCsv(request);}catch(error){setState({key,table,error:error instanceof Error?error.message:"CSVを保存できませんでした。"});}
     finally{setExporting(false);}
   }
-  return <section className={styles.panel} aria-label="区画への分配">
+  // The panel opens from the toolbar above the image: bring it into view, once, when it appears.
+  const panel=useRef<HTMLElement>(null);
+  useEffect(()=>{panel.current?.scrollIntoView?.({block:"nearest"});},[]);
+  return <section ref={panel} className={styles.panel} aria-label="区画への分配">
     <div><h3>区画への分配</h3><p className={styles.intro}>{fieldLabel}の同じ核で、対象と参照に含まれる信号を比較します。</p></div>
     {!nuclearRevisionId?<p>この視野の核領域を採用すると、対象・参照・測定チャンネルを選べます。</p>:<>
       <p className={styles.source}>親核：{nuclearLabel??"採用した核領域"}</p>
