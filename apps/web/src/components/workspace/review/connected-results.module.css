@@ -40,3 +40,5 @@
 .reportedLine{margin:10px 0 0;font-size:14px;color:#3b4656}.reportedLine strong{margin-right:8px;color:#1d2b45}
 .unresolved{margin:10px 0;padding:10px 12px;border:1px solid #f0d9a8;border-radius:6px;background:#fffaf0;font-size:14px}.unresolved p{margin:6px 0;color:#4a4130}.unresolved table{font-size:13px;margin:6px 0}
 .missingLead{margin:6px 0 10px;padding:6px 10px;border-left:3px solid #d9a441;background:#fffaf0;font-size:14px}.missingLead p{margin:2px 0}.missing{margin:10px 0;font-size:13px}.missing p{margin:4px 0;color:#4a4130}.missing table{font-size:13px;margin:4px 0}.missing th[scope=row]{white-space:nowrap}.missingWarning{color:#7a4b00;font-weight:600}
+
+.stratumPick{display:flex;flex-direction:column;gap:4px;margin:6px 0 10px;padding:8px 10px;border:1px solid #dfe3e8;border-radius:6px;background:#f8fafc}.stratumPick label{display:flex;gap:8px;align-items:center;font-size:14px}.stratumPick p{margin:0;font-size:13px;color:#3b4656}

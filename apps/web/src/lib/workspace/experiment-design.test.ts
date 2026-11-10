@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparisonDefaults, emptyDesign, fieldMetadata, labelProblem, newId, readiness, type ExperimentDesign } from "./experiment-design";
+import { comparisonDefaults, emptyDesign, fieldMetadata, labelProblem, newId, readiness, type PlainExperimentDesign as ExperimentDesign } from "./experiment-design";
 
 // The same cases as tests/test_experiment_design.py, so both derivations agree.
 const design = (overrides: Partial<ExperimentDesign> = {}): ExperimentDesign => ({

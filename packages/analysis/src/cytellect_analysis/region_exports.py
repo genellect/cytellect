@@ -394,6 +394,10 @@ def _recompute_statistics(report, config, result, dependencies=None, provenance=
         else:
             calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
     calculated["revision_id"] = report["revision_id"]
+    if result.get("analysis_kind") == "descriptive":
+        from .experiment_strata import with_stratum
+
+        with_stratum(calculated, config)
     if result.get("analysis_kind") == "descriptive" and result.get("source_review") != "automatic_unreviewed":
         from .compartment_review import with_compartment_missing
 

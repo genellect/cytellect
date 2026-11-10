@@ -182,6 +182,7 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
         inference_version=VERSION, revision_id=report["revision_id"], source_fingerprint=source_fingerprint(report, config),
         spec=request, comparisons=comparisons, means=means, counts=counts, omnibus=omnibus, estimates=estimates,
         compartment_missing=None if missing is None else CompartmentMissingSummary.model_validate(missing),
+        stratum=config.get("stratum"),
         method_settings={"test": request.test, "omnibus": request.omnibus, "correction": "Holm",
                          "family_id": request.comparison_family.family_id,
                          "family_size": len(comparisons), "contrast_policy": "all declared contrasts regardless of omnibus p",
@@ -242,4 +243,5 @@ def analyze_region_association(report, config, request, *, nuclear=None):
         spec=request, x_source=x, y_source=y, unit_summary=matched, unit_ledger=ledger, associations=associations,
         counts=[{"condition": c, "matched_units": sum(r["condition"] == c for r in matched),
                  "unmatched_units": 0, "excluded_units": sum(r["condition"] == c and r["status"] == "excluded" for r in ledger)}
-                for c in request.conditions], missingness=missingness, warnings=warnings).model_dump(mode="json")
+                for c in request.conditions], missingness=missingness, warnings=warnings,
+        stratum=config.get("stratum")).model_dump(mode="json")

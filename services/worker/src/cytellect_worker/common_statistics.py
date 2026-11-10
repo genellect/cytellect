@@ -29,6 +29,12 @@ def run_common_statistics(store, job, output):
         with store.transaction() as conn:
             if selection_at(conn, job["workspace_id"]) != rev["config"]["workspace_selection"]:
                 raise ValueError("workspace_selection_changed")
+    from cytellect_analysis.experiment_strata import check_source_strata
+    from cytellect_api.analysis_spec import saved_experiment
+
+    # One declared stratum per comparison, under the design saved now (experiment design 1.1.0).
+    with store.transaction() as conn:
+        check_source_strata(saved_experiment(conn, rev["workspace_id"]), rev["config"])
     report = read_json(store.safe_path(rev["result_dir"], "measurements.json"))
     if report["field_failures"]:
         raise ValueError("review_required")

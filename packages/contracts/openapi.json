@@ -4086,12 +4086,20 @@
           "experiment": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ExperimentDesign"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ExperimentDesign"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StratifiedExperimentDesign"
+                  }
+                ]
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Experiment"
           }
         },
         "additionalProperties": false,
@@ -4117,6 +4125,17 @@
                 "type": "null"
               }
             ]
+          },
+          "experiment_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment Sha256"
           }
         },
         "additionalProperties": false,
@@ -4404,6 +4423,16 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StratumRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "figure": {
             "additionalProperties": true,
@@ -6070,6 +6099,36 @@
         ],
         "title": "CohortSource"
       },
+      "CohortStratum": {
+        "properties": {
+          "design_version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Design Version",
+            "default": "1.1.0"
+          },
+          "design_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Design Sha256"
+          },
+          "stratum_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Stratum Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "design_sha256",
+          "stratum_id"
+        ],
+        "title": "CohortStratum",
+        "description": "The stratum a cohort request selects, bound to the saved design it was read from."
+      },
       "CommonComparisonPlot": {
         "properties": {
           "style": {
@@ -6450,6 +6509,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/CompartmentMissingSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StratumRecord"
               },
               {
                 "type": "null"
@@ -7912,6 +7981,35 @@
           "unavailable_reason"
         ],
         "title": "EstimateInterval"
+      },
+      "ExcludedStratumField": {
+        "additionalProperties": false,
+        "properties": {
+          "field_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Field Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "field_id",
+          "reason"
+        ],
+        "title": "ExcludedStratumField",
+        "type": "object"
       },
       "Exclusion": {
         "properties": {
@@ -12982,6 +13080,16 @@
               }
             ],
             "title": "Compartment Missing"
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CohortStratum"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -17737,6 +17845,387 @@
         ],
         "title": "StatisticsRequest"
       },
+      "StratifiedExperimentDesign": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.1.0",
+            "title": "Version"
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "single",
+              "pair"
+            ],
+            "title": "Layout"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentGroup"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Groups"
+          },
+          "control_group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Group Id"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentRun"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Runs"
+          },
+          "independence_confirmed": {
+            "type": "boolean",
+            "title": "Independence Confirmed",
+            "default": false
+          },
+          "factors": {
+            "items": {
+              "$ref": "#/components/schemas/StratumFactor"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Factors"
+          },
+          "strata": {
+            "items": {
+              "$ref": "#/components/schemas/Stratum"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "title": "Strata"
+          },
+          "fields": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "$ref": "#/components/schemas/StratifiedFieldAssignment"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "layout",
+          "groups",
+          "factors",
+          "strata"
+        ],
+        "title": "StratifiedExperimentDesign"
+      },
+      "StratifiedFieldAssignment": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Group Id"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Run Id"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 24,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          },
+          "acquired_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired On"
+          },
+          "stratum_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stratum Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "group_id",
+          "run_id"
+        ],
+        "title": "StratifiedFieldAssignment"
+      },
+      "Stratum": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "levels": {
+            "patternProperties": {
+              "^[A-Za-z0-9_-]+$": {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 3,
+            "minProperties": 1,
+            "title": "Levels"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "levels"
+        ],
+        "title": "Stratum",
+        "description": "One declared stratum: exactly one level of every factor."
+      },
+      "StratumFactor": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/StratumLevel"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Levels"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "levels"
+        ],
+        "title": "StratumFactor",
+        "description": "A condition the researcher holds constant within each comparison (e.g. cell line)."
+      },
+      "StratumLevel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "StratumLevel"
+      },
+      "StratumLevelRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "factor_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Factor Id",
+            "type": "string"
+          },
+          "factor": {
+            "title": "Factor",
+            "type": "string"
+          },
+          "level_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Level Id",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factor_id",
+          "factor",
+          "level_id",
+          "level"
+        ],
+        "title": "StratumLevelRecord",
+        "type": "object"
+      },
+      "StratumRecord": {
+        "additionalProperties": false,
+        "description": "What a cohort, its results and their Methods keep about the selected stratum.\n\n`field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`\nthe fields the cohort holds; `excluded_fields` the assigned fields excluded before\nanalysis, with the researcher's reason. Together they account for every assigned field.\n`declared_stratum_count` is how many strata the saved design declared: each stratum is\nanalysed and tested on its own, so a reader can see how many such analyses were possible.",
+        "properties": {
+          "version": {
+            "const": "stratum-selection/1.0.0",
+            "default": "stratum-selection/1.0.0",
+            "title": "Version",
+            "type": "string"
+          },
+          "design_version": {
+            "const": "1.1.0",
+            "default": "1.1.0",
+            "title": "Design Version",
+            "type": "string"
+          },
+          "design_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Design Sha256",
+            "type": "string"
+          },
+          "stratum_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Stratum Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/StratumLevelRecord"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "declared_stratum_count": {
+            "minimum": 1,
+            "title": "Declared Stratum Count",
+            "type": "integer"
+          },
+          "field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "title": "Field Ids",
+            "type": "array"
+          },
+          "analysed_field_ids": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "title": "Analysed Field Ids",
+            "type": "array"
+          },
+          "excluded_fields": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedStratumField"
+            },
+            "title": "Excluded Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "design_sha256",
+          "stratum_id",
+          "label",
+          "levels",
+          "declared_stratum_count",
+          "field_ids",
+          "analysed_field_ids",
+          "excluded_fields"
+        ],
+        "title": "StratumRecord",
+        "type": "object"
+      },
       "TableChannel": {
         "properties": {
           "channel_id": {
@@ -19088,6 +19577,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/MaskCorrectionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StratumRecord"
               },
               {
                 "type": "null"

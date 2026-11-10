@@ -1,4 +1,5 @@
 /** Comparison transport uses immutable server cohorts and explicit research decisions. */
+import type {StratumRequest} from "./experiment-design";
 import {API, errorCodeMessage, fetchBlob, post, request} from "../api";
 import {defaultFigureEdits} from "../figure-controls";
 import {comparisonMethod, type CommonComparisonRequest, type CommonPlotKind} from "../common-statistics";
@@ -7,6 +8,8 @@ import type {Job} from "../types";
 import {assertWorkspaceConnection, refusedWrite, type SavedResult, type Transport, type WorkspaceSelection} from "./api-adapter";
 import type {ChannelGateFilter} from "./channel-gate";
 
+/** The stratum a cohort holds, bound to the saved design by its hash (experiment design 1.1.0). */
+export type CohortStratum = StratumRequest;
 export type ComparisonResult = components["schemas"]["CommonComparisonView"];
 export type Metadata = components["schemas"]["RegionFieldMetadata"];
 export interface ComparisonSource {field: string; revision: string; label: string; result: SavedResult; metadata: Metadata}
@@ -148,10 +151,11 @@ export function createComparisonAdapter(overrides: Partial<Transport> = {}) {
     async compartmentLedger(revision: string, field: string) {
       check(); return (await client.request<CompartmentLedger>(`/v1/revisions/${revision}/compartment-ledger?field_id=${encodeURIComponent(field)}`)).fields;
     },
-    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>, selection: WorkspaceSelection | null = null, missingPolicy: typeof MISSING_POLICY | null = null, allowSingle=false) {
+    /** ``stratum``: the one declared stratum of a stratified design (experiment design 1.1.0); the API checks it against the saved design. */
+    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>, selection: WorkspaceSelection | null = null, missingPolicy: typeof MISSING_POLICY | null = null, allowSingle=false, stratum: CohortStratum | null = null) {
       if (sources.length < (allowSingle?1:2) || new Set(sources.map(source => source.field)).size !== sources.length) throw new Error(allowSingle?"採用した視野を選択してください。":"異なる視野を2件以上選択してください。");
       check(); const current = await client.request<{active_revision: string | null}>(`/v1/workspaces/${workspace}`);
-      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, ...(selection ? {workspace_selection: selection} : {}), sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata, ...(missingPolicy ? {compartment_missing: missingPolicy} : {})}, {sources: sources.map(source => [source.field, source.revision]), metadata, selection, missingPolicy});
+      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, ...(selection ? {workspace_selection: selection} : {}), sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata, ...(missingPolicy ? {compartment_missing: missingPolicy} : {}), ...(stratum ? {stratum} : {})}, {sources: sources.map(source => [source.field, source.revision]), metadata, selection, missingPolicy, stratum});
       if (!result.revision_id) throw new Error("集合の解析版がありません。");
       return result.revision_id;
     },

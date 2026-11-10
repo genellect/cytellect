@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from cytellect_analysis.channel_gate_contracts import ChannelGateFilter
 from cytellect_analysis.common_statistics_contracts import AssociationPlot, CommonComparisonPlot
 from cytellect_analysis.descriptive_contracts import GfpFilter, LegacyMetric, RegionMetric
-from cytellect_analysis.experiment_design import ExperimentDesign
+from cytellect_analysis.experiment_design import AnyExperimentDesign
 from cytellect_analysis.group_comparison_contracts import FieldSummaryMetric, NucleolarSummaryMetric
 from cytellect_analysis.proposal_contracts import (
     DraftCellProcessing,
@@ -159,8 +159,9 @@ class AnalysisSpec(RegionModel):
     additional_analyses: list[SavedDraftStatistics] = Field(default_factory=list, max_length=3)
     figure_proposals: list[SavedDraftFigure] = Field(default_factory=list, max_length=8)
     figure: FigureDraft | None = None
-    # Experiment design 1.0.0 (additive): groups, runs and samples entered before analysis.
-    experiment: ExperimentDesign | None = None
+    # Experiment design 1.0.0 (additive): groups, runs and samples entered before analysis;
+    # 1.1.0 adds declared strata compared one at a time.
+    experiment: AnyExperimentDesign | None = None
 
     @model_validator(mode="after")
     def consistent_measurement(self):
@@ -195,12 +196,52 @@ class AnalysisSpecWrite(RegionModel):
 class AnalysisSpecView(RegionModel):
     version: int = Field(ge=0)
     spec: AnalysisSpec | None
+    # Hash of the saved experiment design; a stratified cohort request names it (experiment design 1.1.0).
+    experiment_sha256: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 def analysis_spec_at(conn, wid):
     row = conn.execute(select(workspace_analysis_specs).where(
         workspace_analysis_specs.c.workspace_id == wid)).mappings().first()
-    return {"version": row["version"], "spec": row["spec"]} if row else {"version": 0, "spec": None}
+    if not row:
+        return {"version": 0, "spec": None}
+    return with_experiment_sha256({"version": row["version"], "spec": row["spec"]})
+
+
+def with_experiment_sha256(view):
+    """Add the hash of a stratified saved design (1.1.0); other responses keep their earlier shape."""
+    from cytellect_analysis.experiment_strata import design_sha256, stratified
+
+    experiment = (view["spec"] or {}).get("experiment")
+    if experiment is not None and stratified(experiment) is not None:
+        return {**view, "experiment_sha256": design_sha256(experiment)}
+    return view
+
+
+def saved_experiment(conn, wid):
+    """The workspace's saved experiment design document, or None."""
+    spec = analysis_spec_at(conn, wid)["spec"]
+    return (spec or {}).get("experiment")
+
+
+def require_source_strata(conn, rev):
+    """API guard: a description or comparison reads exactly one declared stratum (design 1.1.0)."""
+    from cytellect_analysis.experiment_strata import check_source_strata
+
+    try:
+        check_source_strata(saved_experiment(conn, rev["workspace_id"]), rev["config"])
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
+def require_preview_strata(conn, rev):
+    """API guard: an automatic preview never pools fields of several declared strata."""
+    from cytellect_analysis.experiment_strata import check_preview_strata
+
+    try:
+        check_preview_strata(saved_experiment(conn, rev["workspace_id"]), rev["config"])
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
 
 
 def register_analysis_spec_routes(api, store, owner, workspace, touch):
@@ -239,4 +280,4 @@ def register_analysis_spec_routes(api, store, owner, workspace, touch):
                     workspace_analysis_specs.c.workspace_id == wid).values(**updated))
             else:
                 conn.execute(workspace_analysis_specs.insert().values(workspace_id=wid, **updated))
-            return updated
+            return with_experiment_sha256(updated)

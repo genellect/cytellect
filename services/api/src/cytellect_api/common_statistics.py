@@ -10,6 +10,7 @@ from cytellect_analysis.common_statistics_contracts import (
 from fastapi import Depends, HTTPException
 from pydantic import Field, TypeAdapter
 
+from .analysis_spec import require_source_strata
 from .channel_gates import require_gate_source
 from .regions import is_region, require_compartment_revision
 from .storage import read_json
@@ -65,6 +66,7 @@ def register_common_statistics_routes(api, store, owner, revision, result_root, 
             "source_fingerprint": source_fingerprint(report, config),
         }
         with store.transaction() as conn:
+            require_source_strata(conn, rev)
             if config.get("workspace_selection"):
                 assert_selection(conn, rev["workspace_id"], config["workspace_selection"])
             jid = queue(conn, rev["workspace_id"], rid, "statistics",

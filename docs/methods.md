@@ -511,6 +511,7 @@ descriptive endpoint (one-screen descriptions); comparison estimates remain comp
 
 | Contract | Version | Status | Compatibility |
 |---|---|---|---|
+| Analysis spec `experiment` (experiment design, declared strata) | 1.1.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec`; cohorts, descriptions and comparisons read one declared stratum | 1.0.0 documents and their bytes unchanged; results gain `stratum` only for stratified cohorts |
 | Analysis spec `experiment` (experiment design) | 1.0.0 | Accepted by `PUT /v1/workspaces/{wid}/analysis-spec` | Optional key; specs saved without it read back with `experiment: null` |
 | Field-summary selection (`source: "field-summary"`) | 1.0.0 | Comparisons and per-field descriptions: `nucleus_count`, `nucleus_density_per_mm2` (`field_summary_source.py`). Positivity metrics refused (`field_summary_positivity_not_connected`) | New source; existing sources unchanged |
 | Compartment-summary selection | 1.1.0 | Comparisons and per-field descriptions (`compartment_observations.py`; eccentricity from the adopted masks, `nucleolar_shape.py`) | 1.0.0 requests (with or without `version`) and results unchanged |
@@ -566,6 +567,102 @@ imaging date (needed for intensity comparisons, not for areas or counts), and
 unconfirmed independence. Descriptions never wait for these issues (S09). The default pair
 comparison is paired by run with contrast `[treatment, control]`, so the reported
 effect is treatment − control; the researcher still confirms the design (S10).
+
+### Experiment design 1.1.0: declared strata (2026-11-09)
+
+Version 1.1.0 keeps groups (at most two), runs, samples, independence and the derived
+metadata of 1.0.0, and adds what the researcher declares to keep comparisons within
+one condition (for example one cell line or one time point):
+
+- `factors`: 1–3 named factors, each with its levels;
+- `strata`: each stratum is exactly one level of every factor, with a label; the
+  same combination is never declared twice. The list may be empty while the researcher
+  is still declaring factors (`experiment_design_no_strata`); no cohort can be made then;
+- each field's `stratum_id`, chosen by the researcher. A field without one belongs to
+  no stratum (`experiment_design_unstratified_fields`); nothing is inferred from file
+  names, dates, folders or values.
+
+1.0.0 documents keep their model and bytes (a document without `version` is 1.0.0).
+`experiment_design.readiness` checks a stratified design within each stratum: a run that
+appears in a stratum needs both groups there, and an empty stratum is named.
+
+In the workspace, 実験 declares factors, levels and strata (one level of every factor
+per stratum) and the stratum of each field. Adding a factor removes the existing strata,
+because they no longer name a level of every factor; removing a level, factor or stratum
+removes the strata that named it. In each case the affected fields keep their group and
+run, become unassigned, and the researcher confirms first, with the number of fields
+named. Nothing is reassigned automatically. The 2-screen view pairs only fields of the
+selected field's stratum within a run, and an unassigned field is not paired.
+
+Strata are read one at a time (`experiment_strata.py`). A cohort of a stratified design
+names one declared stratum and the hash of the saved design
+(`stratum: {design_version, design_sha256, stratum_id}`; the API returns
+`experiment_sha256` with the saved analysis spec). The API checks it against the saved
+design and refuses:
+
+- no stratum (`cohort_stratum_required`);
+- a field of another stratum (`cohort_stratum_mixed`);
+- a stratum field neither included nor excluded (`cohort_stratum_incomplete`);
+- a registered field that has no stratum (unassigned, or absent from the design) and no
+  recorded exclusion reason (`cohort_stratum_unassigned`): as in 1.0.0, every registered
+  field is either analysed or excluded with a reason before a cohort is made, so leaving
+  a field out of every stratum is never a silent exclusion. The workspace does not start
+  the calculation until each such field is assigned or excluded;
+- metadata other than the design derives, i.e. condition, unit, sample, pair or date
+  (`cohort_stratum_metadata_mismatch`);
+- a design changed since (`cohort_stratum_design_changed`).
+
+A stratified design always uses such a cohort, even when one field is adopted. The
+cohort records the stratum (`stratum-selection/1.0.0`): label, factor levels, design
+hash, `declared_stratum_count` (how many strata the saved design declared),
+`field_ids` (every field assigned to the stratum), `analysed_field_ids` (the fields
+the cohort holds) and `excluded_fields` (assigned fields excluded before analysis, with
+the researcher's reason).
+
+Unlike 1.0.0, where descriptions never wait for design issues, a formal (reviewed)
+description of a stratified design also needs a stratum cohort: it is refused until the
+researcher selects a stratum and every field has a stratum or a recorded exclusion. Only
+the automatic preview below is exempt.
+
+For a stratified design, descriptions, common statistics and region comparisons (API
+and worker) re-check the source against the saved design and refuse:
+
+- a source without a stratum record (`comparison_stratum_required`);
+- unassigned fields (`comparison_stratum_unassigned`);
+- fields of more than one stratum, or other than the analysed fields
+  (`comparison_stratum_mixed`);
+- a changed design (`comparison_stratum_design_changed`);
+- field metadata other than the design derives, including a metadata edit of a child
+  revision (`comparison_stratum_metadata_mismatch`).
+
+Region comparison 1.0.0 predates strata and is refused for a stratified design
+(`comparison_stratum_legacy_unsupported`); common statistics 2.0.0 is used instead.
+An automatic (unreviewed) description preview of a stratified design describes one
+field or fields of one declared stratum; a source holding fields of several strata or
+unassigned fields is refused at the API and in the worker (`comparison_stratum_mixed`,
+`comparison_stratum_unassigned`). A preview records no stratum and is not a formal result.
+Labels containing control characters or a lone surrogate are refused when the design is
+parsed, before its hash is computed.
+
+Results, Methods and replay keep the record. Methods state the stratum, its levels and
+the design hash, and the counts of assigned, analysed and excluded fields: "The
+researcher assigned N fields to this declared stratum; M were analysed and K were
+excluded before analysis with recorded reasons. Only fields of this stratum were used.
+Other strata were neither pooled with it nor compared, and the stratum was not modelled
+as a factor. The saved design declared S strata. Each stratum is analysed separately:
+multiplicity is controlled within this stratum's comparison family only, and p-values
+are not adjusted for analyses of the other declared strata."
+
+Each stratum's comparisons form their own Holm family. Nothing adjusts for the number of
+declared strata, so the count is recorded with every result and shown beside the stratum
+choice: a reader can see how many per-stratum analyses were possible, and a stratum
+reported alone is not evidence that the other strata were examined and agreed.
+
+Strata are never pooled, compared with each other or modelled as a factor. The
+workspace binds the selected stratum and the design hash into the identities of channel
+classifications, cohorts and results, so changing either makes them stale instead of
+reusing them; a channel gate's digest recomputed over another stratum's fields does not
+match. Unstratified designs and earlier results are unchanged.
 
 ### Field-summary selection 1.0.0
 
