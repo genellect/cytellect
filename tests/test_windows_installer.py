@@ -541,6 +541,25 @@ def test_every_setup_phase_and_preflight_code_has_a_japanese_message():
     assert "何も変更" in text and "空きを作ってから" in text
 
 
+def test_every_guided_stop_has_setup_text_and_installer_text():
+    """Static contract (runs on every platform): a code the setup script marks for guidance has a
+    message in the setup window and is not reported by the installer as a damaged download."""
+    setup = SETUP.read_text(encoding="utf-8-sig")
+    classify = setup.split("function Get-SetupFailureCode", 1)[1].split("\nfunction ", 1)[0]
+    guided = set(re.findall(r"'([a-z_]+_pending)'", classify))
+    assert guided == {"fiji_temporary_cleanup_pending", "fiji_runtime_recovery_pending", "setup_cleanup_pending"}
+    text = setup.split("function Get-SetupFailureText", 1)[1].split("\nfunction ", 1)[0]
+    installer = iss_text()
+    pending = installer.split("Reason := CustomMessage('FailedCleanupPending')", 1)[0].rsplit("else if", 1)[1]
+    for code in guided:
+        assert f"$Code -ceq '{code}'" in text
+        assert f"FailureCode = '{code}'" in pending
+    # Every stop the script raises for a deferred cleanup is marked, so no caller has to read a message.
+    assert not re.search(r"throw '(fiji_runtime_recovery_pending|setup_cleanup_pending)'", setup)
+    assert setup.count("New-SetupFailure 'fiji_runtime_recovery_pending'") == 2
+    assert setup.count("New-SetupFailure 'setup_cleanup_pending'") == 1
+
+
 powershell = pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell installer contract")
 SHELL = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
 DECISION = r'''

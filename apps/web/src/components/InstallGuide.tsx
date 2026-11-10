@@ -45,7 +45,7 @@ export function InstallGuide() {
         <dl className={lp.guideList}>
           <dt>「Smart App Control」と表示されて止まった</dt><dd>画面からは許可できません。設定は変えずに、<a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a>ください。</dd>
           <dt>空き容量が足りないと表示された</dt><dd>空きを作ってから、同じファイルをもう一度開きます。</dd>
-          <dt>途中で閉じた・電源が切れた</dt><dd>同じファイルをもう一度開くと、続きから再開します。</dd>
+          <dt>途中で閉じた・電源が切れた</dt><dd>同じファイルをもう一度開くと、未完成の分を削除して、準備をやり直します。ダウンロードし直す必要はありません。</dd>
         </dl>
       </section>
 

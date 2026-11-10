@@ -307,6 +307,7 @@ const messages:Record<string,string> = {
 
  fiji_temporary_path_too_long:"解析用の保存先パスが長すぎます。短い保存先での再セットアップが必要です。原画像は変更されていません。",
  fiji_temporary_path_invalid:"解析用の一時保存先が正しく設定されていません。セットアップを確認してください。",
+ fiji_temporary_cleanup_pending:"以前の一時ファイルが使用中のため、容量を保護して解析を停止しました。しばらく待ってから再実行してください。原画像は変更されていません。",
  japanese_font_not_installed:"図に使用できる通常の太さの日本語フォントが見つかりません。フォント環境を確認してください。",
  sans_serif_font_not_installed:"図に使用できる通常の太さのフォントが見つかりません。フォント環境を確認してください。",
  figure_font_glyphs_unavailable:"選択した書体では図中の一部の文字を表示できません。図の言語・ラベルとフォント環境を確認してください。",

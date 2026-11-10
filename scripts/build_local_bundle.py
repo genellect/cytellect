@@ -20,6 +20,10 @@ UV_VERSION = "0.12.2"
 PRODUCTION_EXPORT = ("export", "--locked", "--no-dev", "--no-emit-project", "--no-header")
 ROOT_FILES = {"pyproject.toml", "uv.lock", "README.md", "README.en.md", "LICENSE", "NOTICE"}
 SOURCE_TREES = ("packages/analysis/src/", "services/api/src/", "services/worker/src/", "services/showcase/src/")
+INSTALL_CHECK_ASSETS = {
+    "packages/analysis/src/cytellect_analysis/assets/install-check/BBBC013-A01-draq.tif",
+    "packages/analysis/src/cytellect_analysis/assets/install-check/NOTICE.json",
+}
 SCRIPTS = {"scripts/fiji_setup.py", "scripts/local_setup.ps1", "scripts/windows_runtime.ps1",
            "scripts/cellpose_setup.py", "scripts/cellpose_setup.ps1"}
 CELLPOSE_ASSETS = {f"engines/cellpose/{name}" for name in (
@@ -45,7 +49,7 @@ def source_allowed(name: str) -> bool:
     path = Path(name)
     if any(part.startswith(".") or part in {"__pycache__", "node_modules"} for part in path.parts):
         return False
-    return (name in ROOT_FILES | SCRIPTS | DOCS | DATA_NOTICES | RUNTIME_RECORDS | CELLPOSE_ASSETS
+    return (name in ROOT_FILES | SCRIPTS | DOCS | DATA_NOTICES | RUNTIME_RECORDS | CELLPOSE_ASSETS | INSTALL_CHECK_ASSETS
             or (name.startswith(SOURCE_TREES) and path.suffix == ".py")
             or (name.startswith("engines/fiji/") and path.suffix in {".java", ".json"})
             or (name.startswith("scripts/windows/") and path.suffix == ".cmd"))
@@ -63,7 +67,8 @@ def verify_file(root: Path, path: Path) -> None:
 
 def collect_files(root: Path, tracked: list[str], web_dir: Path) -> dict[str, Path]:
     files = {name: root / name for name in tracked if source_allowed(name)}
-    required = ROOT_FILES | SCRIPTS | RUNTIME_RECORDS | CELLPOSE_ASSETS | {"scripts/windows/Cytellect Setup.cmd"}
+    required = (ROOT_FILES | SCRIPTS | RUNTIME_RECORDS | CELLPOSE_ASSETS | INSTALL_CHECK_ASSETS
+                | {"scripts/windows/Cytellect Setup.cmd"})
     if required - files.keys():
         raise ValueError("bundle_required_source_missing")
     for path in files.values():
@@ -194,6 +199,12 @@ def install_payload(root: Path, wheel: Path, requirements: Path) -> dict[str, by
         for path in source.rglob("*.py"):
             verify_file(root, path)
             expected[path.relative_to(source).as_posix()] = path.read_bytes()
+    for name in INSTALL_CHECK_ASSETS:
+        path = root / name
+        if not path.exists():
+            continue  # Minimal unit-test source trees need not contain the optional check module.
+        verify_file(root, path)
+        expected[name.removeprefix("packages/analysis/src/")] = path.read_bytes()
     if not expected:
         raise ValueError("bundle_project_sources_missing")
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -203,7 +214,8 @@ def install_payload(root: Path, wheel: Path, requirements: Path) -> dict[str, by
                                              for name in names):
             raise ValueError("bundle_project_wheel_paths")
         sources = {name for name in names if name.endswith(".py")}
-        if sources != expected.keys() or any(archive.read(name) != value for name, value in expected.items()):
+        if (sources != {name for name in expected if name.endswith('.py')}
+                or any(name not in names or archive.read(name) != value for name, value in expected.items())):
             raise ValueError("bundle_project_wheel_source_mismatch")
         info = f"cytellect-{project['version']}.dist-info/"
         if any(not name.startswith(info) and name not in expected for name in names):

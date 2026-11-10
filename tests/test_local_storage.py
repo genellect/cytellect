@@ -52,6 +52,31 @@ def test_three_versions_keep_current_previous_share_one_fiji(installation):
     assert storage.maintain(root, three, [], processes=[])["reclaimed_bytes"] == 0
 
 
+def test_retry_after_runtime_registration_is_idempotent(installation):
+    app, _ = install(installation, 1)
+    ledger_path = installation / "setup-storage.json"
+    before = json.loads(ledger_path.read_text())
+    # The storage commit survived, but setup's validated journal still claims
+    # these runtimes because the process stopped before closing the attempt.
+    result = storage.maintain(installation, app, list(before["runtimes"]), processes=[])
+    assert result["retained_apps"] == 1 and result["reclaimed_bytes"] == 0
+    assert json.loads(ledger_path.read_text()) == before
+
+
+@pytest.mark.parametrize("change", ["changed_member", "new_member"])
+def test_repeated_runtime_claim_cannot_adopt_modified_files(installation, change):
+    app, _ = install(installation, 1)
+    ledger_path = installation / "setup-storage.json"
+    before = ledger_path.read_bytes()
+    runtime = "runtimes/fiji-" + "a" * 16
+    member = installation / runtime / ("engine.bin" if change == "changed_member" else "extra.txt")
+    member.write_bytes(b"unregistered content; preserve")
+    with pytest.raises(ValueError, match="storage_runtime_modified"):
+        storage.maintain(installation, app, [runtime], processes=[])
+    assert ledger_path.read_bytes() == before
+    assert member.read_bytes() == b"unregistered content; preserve"
+
+
 def test_wheel_members_and_empty_uv_lock_are_owned_but_modified_members_are_not(installation):
     import base64
     import hashlib

@@ -25,7 +25,7 @@ def test_source_allowlist_denies_research_and_runtime(name):
 
 
 def fixture_tree(root):
-    names = bundle.ROOT_FILES | bundle.SCRIPTS | bundle.RUNTIME_RECORDS | bundle.CELLPOSE_ASSETS | {
+    names = bundle.ROOT_FILES | bundle.SCRIPTS | bundle.RUNTIME_RECORDS | bundle.CELLPOSE_ASSETS | bundle.INSTALL_CHECK_ASSETS | {
         "scripts/windows/Cytellect Setup.cmd"}
     for name in names:
         path = root / name
@@ -265,6 +265,28 @@ def test_normal_wheel_and_hash_requirements_are_bound_to_release_source(tmp_path
     assert ("./wheels/" + wheel.name + " --hash=sha256:" + hashlib.sha256(wheel.read_bytes()).hexdigest()
             in payload[bundle.INSTALL_REQUIREMENTS].decode())
     assert payload[bundle.INSTALL_REQUIREMENTS].decode().startswith(requirements.read_text())
+
+
+def test_public_install_check_assets_must_match_checkout_bytes(tmp_path, monkeypatch):
+    wheel, requirements = package_inputs(tmp_path)
+    monkeypatch.setattr(bundle, "canonical_requirements", lambda root: CANONICAL_REQUIREMENTS)
+    names = set()
+    for name in bundle.INSTALL_CHECK_ASSETS:
+        assert bundle.source_allowed(name)
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Exact registered bytes, never generated cell-like pixels.
+        path.write_bytes((Path(__file__).resolve().parents[1] / name).read_bytes())
+        names.add(name.removeprefix("packages/analysis/src/"))
+    with pytest.raises(ValueError, match="bundle_project_wheel_source_mismatch"):
+        bundle.install_payload(tmp_path, wheel, requirements)
+    with zipfile.ZipFile(wheel, "a") as archive:
+        for name in bundle.INSTALL_CHECK_ASSETS:
+            archive.write(tmp_path / name, name.removeprefix("packages/analysis/src/"))
+    assert bundle.install_payload(tmp_path, wheel, requirements)
+    next(tmp_path.rglob("BBBC013-A01-draq.tif")).write_bytes(b"corrupted public file")
+    with pytest.raises(ValueError, match="bundle_project_wheel_source_mismatch"):
+        bundle.install_payload(tmp_path, wheel, requirements)
 
 
 @pytest.mark.parametrize("fault", ["modified", "missing", "extra_code", "extra_payload", "support",

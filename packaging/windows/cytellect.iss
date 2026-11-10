@@ -97,15 +97,21 @@ Phase_verify_python_gui=起動・停止の画面を確認しています…
 Phase_install_fiji=Fiji を準備しています（数分かかります）…
 Phase_verify_fiji=Fiji のプラグインとモデルを確認しています…
 Phase_check_analysis=検出と計算を確認しています…
+Phase_check_analysis_fixture=公開練習画像を確認しています…
+Phase_check_analysis_compile=解析プログラムを準備しています…
+Phase_check_analysis_engine=公開練習画像を解析しています（最大5分）…
+Phase_check_analysis_retry=解析の動作確認をもう一度試しています…
+Phase_check_analysis_cleanup=解析用の一時ファイルを解放しています…
 Phase_create_shortcut=ショートカットを作成しています…
 Phase_complete=仕上げをしています…
 Phase_manage_storage=仕上げをしています…
 FinishedHeading=インストールが完了しました
 FinishedText=作業画面をブラウザで開きました。%n%n開かない場合は、デスクトップの「Cytellect」を開き、表示される小さな画面の「作業画面を開く」を押してください。研究データはこの PC の中だけに保存されます。
 FailedHeading=インストールを完了できませんでした
-FailedText=%1%n%n次の順に試してください。%n1. もう一度このインストーラーを開く（準備済みの部分は再利用され、続きから再開します）%n2. PC を再起動してから、もう一度開く%n3. インストーラーをダウンロードし直して開く%nそれでも続く場合は、下の詳細を添えて PC の管理者にご相談ください。%n%n詳細: %2 / %3
+FailedText=%1%n%nこのインストーラーを閉じ、同じファイルをもう一度開いてください。失敗した回の未完成ファイルは、削除可能なものを回収します。研究データは削除しません。%n%nダウンロードし直す必要はありません。繰り返し止まる場合は、次の詳細と「Cytellect」フォルダー内の logs/setup-latest.json、logs/setup-check-last-failure.json を開発者にお知らせください。%n%n詳細: %2 / %3
 FailedGeneric=準備の途中で止まりました。
 FailedApplicationControl=Windows の保護機能（Smart App Control など）が、Cytellect の一部の実行を止めました。セキュリティ設定は変えないでください。%n%nCytellect の公式サイトからインストーラーをダウンロードし直して開いても止まる場合は、この PC では今の配布物を使えません。PC の管理者に配布物の確認を依頼してください。
+FailedCleanupPending=前回の準備で使っていたファイルがまだ使用中のため、容量とデータを守って停止しました。少し待つか PC を再起動してから、同じインストーラーをもう一度開いてください。
 FailedNotOwned=インストール先に Cytellect 以外のファイルがあります。
 FailedPayload=インストーラーのファイルが壊れているか、一部が欠けています。ダウンロードし直してから開いてください。
 AlreadyRunning=この版の Cytellect はインストール済みで、起動しています。作業画面をブラウザで開きます。%n%n開かない場合は、小さな「Cytellect」の画面（起動・停止の画面）の「作業画面を開く」を押してください。
@@ -134,6 +140,7 @@ var
   StatusPath: String;
   StatusTimer: LongWord;
   DeleteResearchData: Boolean;
+  FailureMemo: TNewMemo;
 
 function SetTimer(hWnd: LongWord; nIDEvent, uElapse: LongWord; lpTimerFunc: LongWord): LongWord;
   external 'SetTimer@user32.dll stdcall';
@@ -319,6 +326,9 @@ var
 begin
   if FailureCode = 'windows_application_control_blocked' then
     Reason := CustomMessage('FailedApplicationControl')
+  else if (FailureCode = 'fiji_temporary_cleanup_pending') or (FailureCode = 'fiji_runtime_recovery_pending') or
+    (FailureCode = 'setup_cleanup_pending') then
+    Reason := CustomMessage('FailedCleanupPending')
   else if FailureCode = 'install_directory_not_owned' then
     Reason := CustomMessage('FailedNotOwned')
   else if (Pos('offline', FailureCode) = 1) or (Pos('release', FailureCode) = 1) or
@@ -355,6 +365,9 @@ begin
   finally
     KillTimer(0, StatusTimer);
     WizardForm.ProgressGauge.Style := npbstNormal;
+    // The completed bootstrap no longer uses its large offline payload.
+    // Free it even while the failure page remains open.
+    DelTree(Payload, True, True, True);
   end;
   if (ResultCode = 0) and LoadStringFromFile(ResultFile, Outcome) and (Trim(String(Outcome)) = 'ok') then
     Exit;
@@ -403,7 +416,18 @@ begin
     if SetupFailed then
     begin
       WizardForm.FinishedHeadingLabel.Caption := CustomMessage('FailedHeading');
-      WizardForm.FinishedLabel.Caption := FailureText();
+      WizardForm.FinishedLabel.Visible := False;
+      if FailureMemo = nil then
+      begin
+        FailureMemo := TNewMemo.Create(WizardForm);
+        FailureMemo.Parent := WizardForm.FinishedPage;
+        FailureMemo.SetBounds(WizardForm.FinishedLabel.Left, WizardForm.FinishedLabel.Top,
+          WizardForm.FinishedLabel.Width, WizardForm.FinishedPage.ClientHeight - WizardForm.FinishedLabel.Top);
+        FailureMemo.ReadOnly := True;
+        FailureMemo.WordWrap := True;
+        FailureMemo.ScrollBars := ssVertical;
+      end;
+      FailureMemo.Text := FailureText();
     end
     else
     begin
