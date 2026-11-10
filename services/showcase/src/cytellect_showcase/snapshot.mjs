@@ -1,6 +1,7 @@
 // Record every GET response the real workspace UI makes while opening the seeded
-// workspace and switching 画像 (each field, region and channel), 統計 and
-// グラフ (each saved figure). Config arrives as JSON on stdin (see build.py).
+// workspace and switching 画像 (each field, region and channel; each field's nucleus table and
+// its ZIP; each field's partition table and CSV for every target, reference and channel),
+// 統計 and グラフ (each saved figure). Config arrives as JSON on stdin (see build.py).
 import {createHash} from "node:crypto";
 import {mkdir, writeFile} from "node:fs/promises";
 import {createRequire} from "node:module";
@@ -10,7 +11,7 @@ const config = JSON.parse(await new Promise(resolve => {let text = ""; process.s
 const require = createRequire(path.join(config.web, "package.json"));
 const {chromium} = require("@playwright/test");
 const KEEP_HEADERS = ["content-type", "x-cytellect-preview-display"];
-const EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv", "application/pdf": ".pdf"};
+const EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv", "application/pdf": ".pdf", "application/zip": ".zip"};
 
 const entries = {}, bodies = new Map(), report = {nonGet: [], consoleErrors: [], alerts: [], changed: [], steps: [], failedRequests: []};
 const pending = new Set();
@@ -24,7 +25,7 @@ async function step(label, action) {
   }
 }
 const browser = await chromium.launch({executablePath: config.chromium, headless: true});
-const context = await browser.newContext({viewport: {width: 1440, height: 900}});
+const context = await browser.newContext({viewport: {width: 1440, height: 900}, acceptDownloads: true});
 const page = await context.newPage();
 page.on("console", message => {if (message.type() === "error") report.consoleErrors.push(message.text().slice(0, 300));});
 page.on("pageerror", error => report.consoleErrors.push(String(error).slice(0, 300)));
@@ -87,6 +88,53 @@ if (await pair.count() && await pair.getAttribute("aria-pressed") === "true") aw
 for (let waited = 0; waited < 360 && await cards.count() < config.fields; waited++) await page.waitForTimeout(500);
 const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
+/** A save button's download, awaited so its GET is recorded (the page keeps no copy of the file). */
+async function saved(button) {
+  const download = page.waitForEvent("download", {timeout: 180000});
+  await button.click();
+  await download;
+}
+/**
+ * The shown field's nucleus table and its ZIP, and its partition tables: every target and reference
+ * (different regions of the same nuclei) with every measured channel, each with its CSV. The nucleus
+ * table is read with the nuclei shown, from the table beside the image or, without room, below it.
+ */
+async function fieldTables(number) {
+  await step(`field ${number} nuclei`, () => region.selectOption("nuclei"));
+  const toggle = page.getByRole("button", {name: "核ごとの表", exact: true});
+  if (!await toggle.count()) {
+    const drawer = page.getByRole("button", {name: /^測定値/}).first();
+    if (await drawer.count() && await drawer.getAttribute("aria-expanded") !== "true") await step(`field ${number} measurements`, () => drawer.click());
+  }
+  if (await toggle.count()) {
+    await step(`field ${number} nucleus table`, () => toggle.first().click());
+    const zip = page.getByRole("button", {name: "CSV を保存", exact: true}).first();
+    if (await zip.count()) await step(`field ${number} nucleus table zip`, () => saved(zip));
+    else report.alerts.push(`field ${number}: no nucleus table ZIP button`);
+    await step(`field ${number} channel table`, () => page.getByRole("button", {name: "このチャンネル", exact: true}).first().click());
+  } else report.alerts.push(`field ${number}: no nucleus table toggle`);
+  const open = page.getByRole("button", {name: "区画への分配", exact: true});
+  if (!await open.count()) return;
+  await step(`field ${number} partition`, () => open.click());
+  const panel = page.getByRole("region", {name: "区画への分配"});
+  const target = panel.getByLabel("対象領域"), reference = panel.getByLabel("参照領域"), channel = panel.getByLabel("測定チャンネル");
+  if (await target.count()) {
+    const values = select => select.locator("option").evaluateAll(options => options.map(option => option.value).filter(Boolean));
+    const regions = await values(target), measured = await values(channel);
+    report.partitions = report.partitions ?? 0;
+    for (const t of regions) for (const r of regions) {
+      if (t === r) continue;
+      for (const c of measured) {
+        await target.selectOption(t); await reference.selectOption(r); await channel.selectOption(c);
+        await step(`field ${number} partition ${report.partitions + 1}`, () => panel.getByRole("button", {name: "分配表を表示", exact: true}).click());
+        const csv = panel.getByRole("button", {name: "原値・補正値をCSV保存", exact: true});
+        if (await csv.count()) await step(`field ${number} partition csv`, () => saved(csv));
+        report.partitions++;
+      }
+    }
+  }
+  await step(`field ${number} partition closed`, () => open.click());
+}
 // Every field, region and channel a visitor can look at, so browsing never meets an unrecorded
 // view (regions through the settings panel; never 細胞ROI: it starts a run).
 const region = page.locator("select").filter({has: page.locator("option[value=nucleoplasm]")}).first();
@@ -99,6 +147,7 @@ for (let index = 0; index < count; index++) {
     const total = await channels.count();
     for (let channel = 0; channel < total; channel++) await step(`field ${index + 1} ${value} channel ${channel + 1}`, () => channels.nth(channel).click());
   }
+  await fieldTables(index + 1);
 }
 await step("first field", () => cards.first().click());
 if (await pair.count() && await pair.getAttribute("aria-pressed") === "false") await step("side by side", () => pair.click());

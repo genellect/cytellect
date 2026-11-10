@@ -255,6 +255,7 @@ function measureScene(target) {
     }
     await range.selectOption("all");
     await header(page).getByRole("button", {name: "測定", exact: true}).click(); await idle(page);
+    await nucleusTables(page, inspector, cards);
     // What a researcher does next: back to the first field's nuclei, then statistics and figures
     // of the new measurements.
     await cards.first().click(); await idle(page);
@@ -267,6 +268,27 @@ function measureScene(target) {
     }
     await tab(page, "画像");
   };
+}
+/** Each field's nucleus table after a measurement (one field at a time, its nuclei shown), then back. */
+async function nucleusTables(page, inspector, cards) {
+  const pair = header(page).getByRole("button", {name: "2 画面", exact: true});
+  const paired = await pair.count() && await pair.getAttribute("aria-pressed") === "true";
+  if (paired) {await pair.click(); await idle(page);}
+  const region = inspector.getByRole("combobox", {name: "領域", exact: true});
+  const shown = await region.inputValue();
+  if (shown !== "nuclei") {await region.selectOption("nuclei"); await idle(page);}
+  const toggle = page.getByRole("button", {name: "核ごとの表", exact: true});
+  if (!await toggle.count()) {
+    const drawer = page.getByRole("button", {name: /^測定値/}).first();
+    if (await drawer.count() && await drawer.getAttribute("aria-expanded") !== "true") {await drawer.click(); await idle(page);}
+  }
+  if (await toggle.count()) {
+    await toggle.first().click(); await idle(page);
+    for (let index = 0; index < await cards.count(); index++) {await cards.nth(index).click(); await idle(page);}
+    await page.getByRole("button", {name: "このチャンネル", exact: true}).first().click(); await idle(page);
+  } else report.alerts.push("measurement: no nucleus table toggle");
+  if (shown !== "nuclei") {await region.selectOption(shown); await idle(page);}
+  if (paired) {await pair.click(); await idle(page);}
 }
 async function example(page, index) {
   await page.getByRole("group", {name: "指示の例"}).getByRole("button").nth(index).click();
@@ -283,6 +305,35 @@ async function statisticsAfter(page) {
     await calculate(page);
     await figures(page, kind === "comparison");
   }
+}
+
+/**
+ * Classifies the nuclei by one channel in the settings panel (the demo offers each acquisition date's
+ * Otsu threshold, which needs no value typed in), with the measured value and the nuclei kept.
+ */
+async function classify(page, channel, values, keep = "positive") {
+  const inspector = page.getByRole("complementary", {name: "画像解析"});
+  if (!await inspector.count()) {await header(page).getByRole("button", {name: "設定パネル"}).click(); await idle(page);}
+  const details = inspector.locator("details").filter({has: page.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"})});
+  if (!await details.evaluate(element => element.open)) await details.locator("summary").click();
+  const gate = details.getByRole("region", {name: "チャンネルによる核の分類"});
+  await gate.getByLabel("判定するチャンネル").selectOption(channel);
+  await gate.getByLabel("測定値", {exact: true}).selectOption(values);
+  await gate.getByLabel("測定値の集計対象").selectOption(keep);
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await page.waitForFunction(() => ![...document.querySelectorAll("button")].some(button => button.textContent === "分類中…"), null, {timeout: LIVE});
+  await idle(page);
+  const refused = (await gate.getByRole("alert").allTextContents()).filter(text => text.trim());
+  if (refused.length) throw new Error(`classification refused: ${refused.join(" / ")}`);
+}
+/** The channels the classification offers in this scene (the first field's channels). */
+async function gateChannels(page) {
+  const inspector = page.getByRole("complementary", {name: "画像解析"});
+  if (!await inspector.count()) {await header(page).getByRole("button", {name: "設定パネル"}).click(); await idle(page);}
+  const details = inspector.locator("details").filter({has: page.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"})});
+  if (!await details.count()) return [];
+  if (!await details.evaluate(element => element.open)) await details.locator("summary").click();
+  return choices(details.getByLabel("判定するチャンネル"));
 }
 
 async function closePanel(page) {
@@ -340,9 +391,33 @@ function walksOf(demo) {
     await closePanel(page);
     await statisticsScene(region, metric, ["comparison", "association"])(page);
   };
+  // Positivity by each channel the scene measures and each measured value: the classification, then
+  // the positive fraction and count of the nuclei (descriptive: the threshold is exploratory), and the
+  // classification keeping the negative nuclei.
+  for (const channel of demo.gateChannels ?? []) for (const values of ["raw", "corrected"]) {
+    scenes[`positivity-${channel}-${values}`] = async page => {
+      await classify(page, channel, values);
+      await closePanel(page);
+      for (const metric of ["positive_fraction", "positive_count"]) await statisticsScene("nuclei", metric)(page);
+    };
+    scenes[`positivity-${channel}-${values}-negative`] = async page => {await classify(page, channel, values, "negative");};
+  }
   return Object.entries(scenes).map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));
 }
 await mkdir(config.out, {recursive: true});
+// The channels each scene's classification offers, read once from the demo itself.
+for (const demo of SCENES) {
+  if (demo.gateChannels) continue;
+  const context = await browser.newContext({viewport: {width: 1440, height: 900}});
+  const page = await context.newPage();
+  try {
+    await page.goto(`${config.origin}/demo${demo.workspace ? `?id=${demo.workspace}` : ""}`, {waitUntil: "domcontentloaded", timeout: LIVE});
+    await page.locator("[data-showcase-engine=active]").waitFor({state: "attached", timeout: LIVE});
+    await idle(page);
+    demo.gateChannels = await gateChannels(page);
+  } catch (error) {report.alerts.push(`${demo.id || "scene"}: classification channels: ${String(error).split("\n")[0].slice(0, 200)}`); demo.gateChannels = [];}
+  await context.close();
+}
 // Scenes are independent (each starts from the seed), so several run at once.
 const walks = SCENES.flatMap(walksOf).filter(item => !config.only || config.only.includes(item.name));
 const names = walks.map(item => item.name);
