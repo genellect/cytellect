@@ -603,15 +603,26 @@ design and refuses:
 - no stratum (`cohort_stratum_required`);
 - a field of another stratum (`cohort_stratum_mixed`);
 - a stratum field neither included nor excluded (`cohort_stratum_incomplete`);
+- a registered field that has no stratum (unassigned, or absent from the design) and no
+  recorded exclusion reason (`cohort_stratum_unassigned`): as in 1.0.0, every registered
+  field is either analysed or excluded with a reason before a cohort is made, so leaving
+  a field out of every stratum is never a silent exclusion. The workspace does not start
+  the calculation until each such field is assigned or excluded;
 - metadata other than the design derives, i.e. condition, unit, sample, pair or date
   (`cohort_stratum_metadata_mismatch`);
 - a design changed since (`cohort_stratum_design_changed`).
 
 A stratified design always uses such a cohort, even when one field is adopted. The
 cohort records the stratum (`stratum-selection/1.0.0`): label, factor levels, design
-hash, `field_ids` (every field assigned to the stratum), `analysed_field_ids` (the fields
+hash, `declared_stratum_count` (how many strata the saved design declared),
+`field_ids` (every field assigned to the stratum), `analysed_field_ids` (the fields
 the cohort holds) and `excluded_fields` (assigned fields excluded before analysis, with
 the researcher's reason).
+
+Unlike 1.0.0, where descriptions never wait for design issues, a formal (reviewed)
+description of a stratified design also needs a stratum cohort: it is refused until the
+researcher selects a stratum and every field has a stratum or a recorded exclusion. Only
+the automatic preview below is exempt.
 
 For a stratified design, descriptions, common statistics and region comparisons (API
 and worker) re-check the source against the saved design and refuse:
@@ -638,7 +649,14 @@ the design hash, and the counts of assigned, analysed and excluded fields: "The
 researcher assigned N fields to this declared stratum; M were analysed and K were
 excluded before analysis with recorded reasons. Only fields of this stratum were used.
 Other strata were neither pooled with it nor compared, and the stratum was not modelled
-as a factor."
+as a factor. The saved design declared S strata. Each stratum is analysed separately:
+multiplicity is controlled within this stratum's comparison family only, and p-values
+are not adjusted for analyses of the other declared strata."
+
+Each stratum's comparisons form their own Holm family. Nothing adjusts for the number of
+declared strata, so the count is recorded with every result and shown beside the stratum
+choice: a reader can see how many per-stratum analyses were possible, and a stratum
+reported alone is not evidence that the other strata were examined and agreed.
 
 Strata are never pooled, compared with each other or modelled as a factor. The
 workspace binds the selected stratum and the design hash into the identities of channel
