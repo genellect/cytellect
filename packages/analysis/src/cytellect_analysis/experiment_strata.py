@@ -53,6 +53,8 @@ class StratumRecord(RegionModel):
     `field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`
     the fields the cohort holds; `excluded_fields` the assigned fields excluded before
     analysis, with the researcher's reason. Together they account for every assigned field.
+    `declared_stratum_count` is how many strata the saved design declared: each stratum is
+    analysed and tested on its own, so a reader can see how many such analyses were possible.
     """
     version: Literal["stratum-selection/1.0.0"] = RECORD_VERSION
     design_version: Literal["1.1.0"] = "1.1.0"
@@ -60,6 +62,7 @@ class StratumRecord(RegionModel):
     stratum_id: Id
     label: str
     levels: list[StratumLevelRecord]
+    declared_stratum_count: Annotated[int, Field(ge=1)]
     field_ids: list[Id]
     analysed_field_ids: list[Id]
     excluded_fields: list[ExcludedStratumField]
@@ -93,7 +96,8 @@ def stratum_record(design: StratifiedExperimentDesign, stratum_id: str, analysed
     members = sorted(fid for fid, assignment in design.fields.items() if assignment.stratum_id == stratum.id)
     excluded = dict(excluded or {})
     return StratumRecord(design_sha256=design_sha256(design), stratum_id=stratum.id, label=stratum.label,
-                         levels=[StratumLevelRecord(**item) for item in levels], field_ids=members,
+                         levels=[StratumLevelRecord(**item) for item in levels],
+                         declared_stratum_count=len(design.strata), field_ids=members,
                          analysed_field_ids=sorted(members if analysed is None else analysed),
                          excluded_fields=[ExcludedStratumField(field_id=fid, reason=excluded[fid]) for fid in sorted(excluded)],
                          ).model_dump(mode="json")
@@ -101,7 +105,8 @@ def stratum_record(design: StratifiedExperimentDesign, stratum_id: str, analysed
 
 def check_cohort_stratum(design, requested: CohortStratum | None, source_ids: Iterable[str],
                          excluded_ids: Iterable[str], metadata: Mapping[str, Mapping],
-                         exclusion_reasons: Mapping[str, str] | None = None) -> dict | None:
+                         exclusion_reasons: Mapping[str, str] | None = None,
+                         registered_ids: Iterable[str] | None = None) -> dict | None:
     """Validate a cohort request against the saved design; return the stratum record to keep.
 
     Without a stratified design the request must not name a stratum and nothing changes.
@@ -109,6 +114,11 @@ def check_cohort_stratum(design, requested: CohortStratum | None, source_ids: It
     the included and excluded fields must be exactly that stratum's fields, and each
     field's metadata must be the metadata the design derives (condition, unit, sample,
     pair, date), so the browser cannot relabel or mix fields.
+
+    `registered_ids` are every field registered in the workspace. A registered field that has
+    no stratum (unassigned, or absent from the design) must be excluded with a recorded reason
+    before any stratum cohort is made: leaving a field out of every stratum is never a silent
+    exclusion (the same rule as an unstratified cohort, which accounts for every field).
     """
     plan = stratified(design)
     sources, excluded = set(source_ids), set(excluded_ids)
@@ -125,6 +135,10 @@ def check_cohort_stratum(design, requested: CohortStratum | None, source_ids: It
         raise ValueError("cohort_stratum_empty")
     if sources - members:
         raise ValueError("cohort_stratum_mixed")
+    if registered_ids is not None:
+        placed = {fid for fid, assignment in plan.fields.items() if assignment.stratum_id is not None}
+        if set(registered_ids) - placed - excluded:
+            raise ValueError("cohort_stratum_unassigned")
     # Fields excluded elsewhere in the workspace belong to other strata and are not this cohort's.
     if (sources | (excluded & members)) != members or sources & excluded:
         raise ValueError("cohort_stratum_incomplete")
@@ -210,4 +224,7 @@ def stratum_methods_lines(record: Mapping | None) -> list[str]:
             f"design sha256 {record['design_sha256']}.",
             f"The researcher assigned {assigned} fields to this declared stratum; {analysed} were analysed and "
             f"{excluded} were excluded before analysis with recorded reasons. Only fields of this stratum were used. "
-            "Other strata were neither pooled with it nor compared, and the stratum was not modelled as a factor."]
+            "Other strata were neither pooled with it nor compared, and the stratum was not modelled as a factor.",
+            f"The saved design declared {record['declared_stratum_count']} strata. Each stratum is analysed separately: "
+            "multiplicity is controlled within this stratum's comparison family only, and p-values are not adjusted "
+            "for analyses of the other declared strata."]

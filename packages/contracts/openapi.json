@@ -18119,7 +18119,7 @@
       },
       "StratumRecord": {
         "additionalProperties": false,
-        "description": "What a cohort, its results and their Methods keep about the selected stratum.\n\n`field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`\nthe fields the cohort holds; `excluded_fields` the assigned fields excluded before\nanalysis, with the researcher's reason. Together they account for every assigned field.",
+        "description": "What a cohort, its results and their Methods keep about the selected stratum.\n\n`field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`\nthe fields the cohort holds; `excluded_fields` the assigned fields excluded before\nanalysis, with the researcher's reason. Together they account for every assigned field.\n`declared_stratum_count` is how many strata the saved design declared: each stratum is\nanalysed and tested on its own, so a reader can see how many such analyses were possible.",
         "properties": {
           "version": {
             "const": "stratum-selection/1.0.0",
@@ -18156,6 +18156,11 @@
             "title": "Levels",
             "type": "array"
           },
+          "declared_stratum_count": {
+            "minimum": 1,
+            "title": "Declared Stratum Count",
+            "type": "integer"
+          },
           "field_ids": {
             "items": {
               "maxLength": 80,
@@ -18189,6 +18194,7 @@
           "stratum_id",
           "label",
           "levels",
+          "declared_stratum_count",
           "field_ids",
           "analysed_field_ids",
           "excluded_fields"

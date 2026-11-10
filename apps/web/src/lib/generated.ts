@@ -6436,6 +6436,8 @@ export interface components {
          *     `field_ids` are every field the researcher assigned to the stratum; `analysed_field_ids`
          *     the fields the cohort holds; `excluded_fields` the assigned fields excluded before
          *     analysis, with the researcher's reason. Together they account for every assigned field.
+         *     `declared_stratum_count` is how many strata the saved design declared: each stratum is
+         *     analysed and tested on its own, so a reader can see how many such analyses were possible.
          */
         StratumRecord: {
             /**
@@ -6458,6 +6460,8 @@ export interface components {
             label: string;
             /** Levels */
             levels: components["schemas"]["StratumLevelRecord"][];
+            /** Declared Stratum Count */
+            declared_stratum_count: number;
             /** Field Ids */
             field_ids: string[];
             /** Analysed Field Ids */

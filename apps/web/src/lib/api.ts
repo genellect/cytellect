@@ -60,6 +60,7 @@ const messages:Record<string,string> = {
  cohort_stratum_incomplete:"選んだ層の視野がそろっていません。未測定の視野を測定するか、理由を付けて除外してから計算してください。",
  cohort_stratum_metadata_mismatch:"視野の群・実験回・試料・撮影日が「実験」の内容と一致しません。「実験」の内容のまま計算し直してください。",
  cohort_stratum_empty:"選んだ層に視野がありません。「実験」で視野の層を選んでください。",
+ cohort_stratum_unassigned:"層が決まっていない視野があります。「実験」で層を決めるか、理由を付けて除外してから計算してください。",
  stratum_unknown:"選んだ層が保存した実験の形にありません。画面を更新して層を選び直してください。",
  comparison_stratum_required:"この解析版は層を選ばずに作られています。比べる層を選んで計算し直してください。",
  comparison_stratum_design_changed:"実験の形が変わったため、この解析版では計算できません。層を選び直して計算し直してください。",

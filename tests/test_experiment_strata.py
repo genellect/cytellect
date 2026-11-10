@@ -155,6 +155,21 @@ def test_cohort_takes_exactly_one_declared_stratum_with_the_derived_metadata():
     stale = CohortStratum(design_sha256="0" * 64, stratum_id="s-level-a")
     with pytest.raises(ValueError, match="cohort_stratum_design_changed"):
         check_cohort_stratum(design, stale, level_a, set(), derived)
+    # Every registered field has a stratum or a recorded exclusion: a field left out of every stratum
+    # (unassigned, or absent from the design) is never dropped without a reason.
+    assert kept["declared_stratum_count"] == 2
+    assert "declared 2 strata" in lines and "not adjusted for analyses of the other declared strata" in lines
+    everything = set(members(None))
+    assert check_cohort_stratum(design, request, level_a, set(), derived, registered_ids=everything)["field_ids"] == level_a
+    with pytest.raises(ValueError, match="cohort_stratum_unassigned"):
+        check_cohort_stratum(design, request, level_a, set(), derived, registered_ids=everything | {"not-in-design"})
+    assert check_cohort_stratum(design, request, level_a, {"not-in-design"}, derived,
+                                registered_ids=everything | {"not-in-design"})["excluded_fields"] == []
+    loose = parse_design(stratified({**assignments(), "f-level-b-r1-a": {**assignments()["f-level-b-r1-a"], "stratum_id": None}}))
+    loose_request = CohortStratum(design_sha256=design_sha256(loose), stratum_id="s-level-a")
+    with pytest.raises(ValueError, match="cohort_stratum_unassigned"):
+        check_cohort_stratum(loose, loose_request, level_a, set(), derived, registered_ids=everything)
+    check_cohort_stratum(loose, loose_request, level_a, {"f-level-b-r1-a"}, derived, registered_ids=everything)
     with pytest.raises(ValueError, match="cohort_stratum_without_design"):
         check_cohort_stratum(V10, request, ["f1"], set(), {"f1": {}})
     assert check_cohort_stratum(V10, None, ["f1"], set(), {"f1": {}}) is None
@@ -382,6 +397,59 @@ def test_api_keeps_the_stratum_for_one_adopted_field_with_same_stratum_exclusion
     assert replayed["stratum"] == record
 
 
+def test_api_refuses_a_stratum_cohort_while_a_field_or_failed_upload_is_unaccounted_for(tmp_path):
+    """Synthetic numeric fields. A field without a stratum, or an image that never became a field,
+    needs a recorded reason before any stratum is analysed (no silent omission, as in 1.0.0)."""
+    client, app, settings = authenticated(tmp_path)
+    wid, ids, sources, design = _workspace(client, app, settings)
+    path = f"/v1/workspaces/{wid}/region-cohorts"
+    selection_path = f"/v1/workspaces/{wid}/selection"
+
+    def adopt(change):
+        selection = client.get(selection_path, headers=HEADERS).json()
+        change(selection["entries"])
+        saved = client.post(selection_path, headers=HEADERS, json=selection)
+        assert saved.status_code == 200, saved.text
+        return saved.json()
+
+    # 1. Every field is assigned and measured; only an interrupted upload has no reason.
+    body = _cohort_body(client, wid, ids, sources, design, "level-a")
+    selection = adopt(lambda entries: entries.append(
+        {"id": "interrupted-upload", "field_id": None, "revision_id": None, "exclusion_reason": None}))
+    refused = client.post(path, json={**body, "workspace_selection": selection}, headers=HEADERS)
+    assert refused.status_code == 409 and refused.json()["detail"] == "workspace_selection_incomplete"
+
+    def reason(entries):
+        entries[-1]["exclusion_reason"] = "Upload interrupted"
+    selection = adopt(reason)
+
+    # 2. One measured field of another stratum loses its stratum: no stratum can be analysed
+    #    until it is assigned again or excluded with a reason.
+    loose = ids["f-level-b-r1-a"]
+    changed = json.loads(json.dumps(design))
+    changed["fields"][loose]["stratum_id"] = None
+    spec = client.get(f"/v1/workspaces/{wid}/analysis-spec").json()
+    saved = client.put(f"/v1/workspaces/{wid}/analysis-spec", headers=HEADERS,
+                       json={"version": spec["version"], "spec": {**spec["spec"], "experiment": changed}})
+    assert saved.status_code == 200, saved.text
+    body = _cohort_body(client, wid, ids, sources, changed, "level-a")
+    refused = client.post(path, json={**body, "workspace_selection": selection}, headers=HEADERS)
+    assert refused.status_code == 409 and refused.json()["detail"] == "cohort_stratum_unassigned"
+    assert client.post(path, json=body, headers=HEADERS).json()["detail"] == "cohort_stratum_unassigned"
+
+    def exclude(entries):
+        entry = next(item for item in entries if item["field_id"] == loose)
+        entry.update(revision_id=None, exclusion_reason="Belongs to no declared stratum")
+        entry.pop("target_revisions", None)
+    selection = adopt(exclude)
+    queued = client.post(path, json={**body, "workspace_selection": selection}, headers=HEADERS)
+    assert queued.status_code == 202, queued.text
+    process_one(app.state.store, settings)
+    record = app.state.store.one(revisions, id=queued.json()["revision_id"])["config"]["stratum"]
+    assert record["declared_stratum_count"] == 2 and record["excluded_fields"] == []
+    assert len(record["analysed_field_ids"]) == 4
+
+
 def test_legacy_region_comparison_cannot_bypass_strata(tmp_path):
     client, app, settings = authenticated(tmp_path)
     wid, ids, sources, design = _workspace(client, app, settings)
@@ -424,7 +492,7 @@ def test_every_stratum_refusal_has_a_researcher_message():
     messages = (Path(__file__).resolve().parents[1] / "apps/web/src/lib/api.ts").read_text(encoding="utf-8")
     cohort = {"cohort_stratum_required", "cohort_stratum_without_design", "cohort_stratum_design_changed",
               "cohort_stratum_mixed", "cohort_stratum_incomplete", "cohort_stratum_metadata_mismatch",
-              "cohort_stratum_empty", "stratum_unknown", "experiment_design_unknown_stratum",
+              "cohort_stratum_empty", "cohort_stratum_unassigned", "stratum_unknown", "experiment_design_unknown_stratum",
               "experiment_design_stratum_levels"}
     assert SAFE_ERROR_CODES <= SAFE_ERRORS
     assert all(f"\n {code}:" in messages for code in SAFE_ERROR_CODES | cohort)

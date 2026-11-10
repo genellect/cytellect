@@ -239,6 +239,12 @@ export function removeStrata(design:StratifiedExperimentDesign):PlainExperimentD
     runs:design.runs ?? [], independence_confirmed:design.independence_confirmed, fields};
 }
 
+/** Fields of a stratified design that have no stratum and are not excluded: each is assigned or excluded
+ * with a reason before any stratum is analysed (the API refuses a cohort otherwise). */
+export function unassignedFieldCount(design:ExperimentDesign|null|undefined, fields:Array<{fieldId:string;excluded?:boolean}>):number {
+  return isStratified(design) ? fields.filter(field => !field.excluded && !design.fields?.[field.fieldId]?.stratum_id).length : 0;
+}
+
 /** The one declared stratum a cohort holds, bound to the saved design by the hash the API returned. */
 export interface StratumRequest {design_version:"1.1.0";design_sha256:string;stratum_id:string}
 

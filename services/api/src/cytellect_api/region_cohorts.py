@@ -98,7 +98,7 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
                        if entry["field_id"] and entry["exclusion_reason"]}
             stratum = check_cohort_stratum(design, body.stratum, ids, excluded_ids,
                                            {fid: value.model_dump(mode="json") for fid, value in body.metadata.items()},
-                                           exclusion_reasons=reasons)
+                                           exclusion_reasons=reasons, registered_ids=set(registered))
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from None
         # A stratified cohort holds exactly one declared stratum; otherwise every workspace field, as before.
