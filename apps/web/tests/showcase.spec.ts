@@ -158,6 +158,11 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(guide).toContainText("輪郭の修正は、各画像の左下の操作で行えます");
   await guide.getByRole("button", {name: "次へ"}).click();
   await expect(page.getByRole("button", {name: /^測定値/})).toHaveAttribute("aria-expanded", "true");
+  // The nucleus table step shows one field with its table of nuclei open.
+  await guide.getByRole("button", {name: "次へ"}).click();
+  await expect(page.getByRole("button", {name: "2 画面", exact: true})).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", {name: "核ごとの表", exact: true})).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("table", {name: "核ごとの表"}).locator("tbody tr").first()).toBeVisible({timeout: live});
   await guide.getByRole("button", {name: "次へ"}).click();
   await expect(header.getByRole("button", {name: "統計", exact: true})).toHaveAttribute("aria-current", "page");
   await guide.getByRole("button", {name: "次へ"}).click();
@@ -780,8 +785,15 @@ test("the nucleus table, the partition table and positivity by a channel open fr
   const pair = page.getByRole("button", {name: "2 画面", exact: true});
   if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
   // One field's nuclei, one row each, with every stain and the adopted nucleoli; its ZIP is recorded too.
-  const toggle = page.getByRole("button", {name: "核ごとの表", exact: true});
-  if (!await toggle.count()) await page.getByRole("button", {name: /^測定値/}).first().click();
+  // The nucleolar scene opens on its nucleoli; the table lists the nuclei.
+  await page.locator("[class*=channelBar]").getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
+  // The table beside the image, or below it when the image leaves no room.
+  const toggle = page.getByRole("button", {name: "核ごとの表", exact: true}).filter({visible: true});
+  await expect(page.getByRole("button", {name: /^測定値/}).first()).toBeVisible({timeout: live});
+  if (!await toggle.count()) {
+    const drawer = page.getByRole("button", {name: /^測定値/}).first();
+    if (await drawer.getAttribute("aria-expanded") !== "true") await drawer.click();
+  }
   await toggle.first().click();
   const table = page.getByRole("table", {name: "核ごとの表"});
   await expect(table.locator("tbody tr").first()).toBeVisible({timeout: live});

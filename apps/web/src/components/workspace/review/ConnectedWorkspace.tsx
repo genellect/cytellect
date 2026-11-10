@@ -337,9 +337,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const setup=<ExperimentSetup design={experiment} fields={fields.filter(value=>value.kind!=="reference").map(value=>{const ch=value.nuclearChannelId||value.channels[0]?.id;return {id:value.id,label:value.label,preview:ch?value.previews[ch]:undefined};})}
     busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} pending={pending&&!demo?{count:pending.length,onPlace:placePending,onWithoutForm:()=>{const files=pending;setPending(null);setMode("image");void act(()=>r.importFiles(files));},onDiscard:()=>setPending(null)}:undefined} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
   const setupShown=experimentSetupShown(mode,!!field,demo);
-  // The nucleus table step shows one field (the table lists one field's nuclei) with its table open.
+  // The nucleus table step shows one field's nuclei (the table lists one field's nuclei) with its table open.
   function guideStep(next:DemoStep,openTable:boolean,nucleus=false){changeMode(next);if(openTable){setTable(true);setPairTables(true);}
-    if(nucleus){setPairView(false);setCompare(false);setNucleusView(true);}else setNucleusView(false);}
+    if(nucleus){setPairView(false);setCompare(false);changeTarget("nuclei");setNucleusView(true);}else setNucleusView(false);}
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
   const chooseComparison=()=>{if(!picked.length&&field)setPicked(field.channels.map(ch=>`${field.id}:${ch.id}`));setCompare(true);setPicker(true);};
 
