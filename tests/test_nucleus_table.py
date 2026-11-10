@@ -12,7 +12,7 @@ from cytellect_analysis.masks import validate_labels
 from cytellect_analysis.nucleolar_shape import nucleolar_eccentricity, object_eccentricity
 from cytellect_analysis.nucleus_table import nucleolar_morphology, nucleus_table, nucleus_table_files
 from cytellect_analysis.regions import Calibration2D
-from cytellect_api.db import workspaces
+from cytellect_api.db import revisions, workspaces
 from cytellect_api.storage import read_json, write_json
 from cytellect_worker import regions
 from sqlalchemy import select, update
@@ -118,7 +118,10 @@ def _table(**changes):
 
 def test_exclusions_adoption_and_field_exclusions_never_confirm_nucleoli():
     rows, table = _table()
-    assert [rows[n].nucleoli.status for n in (1, 2, 3, 4)] == ["measured", "missing", "missing", "measured"]
+    # As in comparisons and descriptions, an adopted nucleolus confirms its nucleus whatever the
+    # detector recorded: nucleus 2 keeps its reviewed candidate, nucleus 3 has none.
+    assert [rows[n].nucleoli.status for n in (1, 2, 3, 4)] == ["measured", "measured", "missing", "measured"]
+    assert (rows[3].nucleoli.reason, rows[2].nucleoli.count) == ("no_candidate", 1)
     assert [item.role for item in rows[1].channels] == ["nuclear_stain", "measure"]
     # One nucleolus of nucleus 1 excluded: the rest stay confirmed and the exclusion is counted.
     rows, _ = _table(nucleolar_exclusions=[{"field_id": "f1", "region_id": 12, "reason": "debris"}])
@@ -151,6 +154,22 @@ def test_exclusions_adoption_and_field_exclusions_never_confirm_nucleoli():
         _table(nucleolar_states={"1": "adopted_by_hand"})
 
 
+def test_researcher_edits_confirm_or_remove_nucleoli_as_in_the_statistics():
+    """A nucleolus drawn on a nucleus the detector left without one is confirmed; removing every
+    nucleolus of a detected nucleus makes it missing (no_candidate), as compartment summaries count."""
+    from cytellect_analysis.compartment_engine import adopted_nucleolar_states
+    nuclei, nucleoli = _field()
+    edited = nucleoli.copy()
+    edited[1, 6] = 31  # drawn by the researcher inside nucleus 3 (recorded no_candidate)
+    edited[edited == 41] = 0  # every nucleolus of nucleus 4 (recorded candidate) removed
+    states = {"1": "candidate", "2": "review_required", "3": "no_candidate", "4": "candidate"}
+    rows, _ = _table(nucleoli=edited, nucleolar_states=states)
+    assert (rows[3].nucleoli.status, rows[3].nucleoli.count) == ("measured", 1)
+    assert (rows[4].nucleoli.status, rows[4].nucleoli.reason) == ("missing", "no_candidate")
+    shared = adopted_nucleolar_states(nuclei, edited, states)
+    assert {n: rows[n].nucleoli.status == "measured" for n in rows} == {n: shared[n] == "candidate" for n in shared}
+
+
 def test_csv_copies_the_table_with_units_definitions_and_escaped_text():
     _, table = _table(exclusions=[{"field_id": "f1", "region_id": 3, "reason": "=HYPERLINK(1)"}])
     files = nucleus_table_files(table)
@@ -160,12 +179,12 @@ def test_csv_copies_the_table_with_units_definitions_and_escaped_text():
     assert (first["nucleolar_status"], first["nucleolar_count"], first["nucleolar_area_px"], first["nucleolar_area_um2"]) == ("measured", "2", "5", "1.25")
     assert first["dna__role"] == "nuclear_stain" and first["npm1__mean"] == "10.0" and first["npm1__mean_corrected"] == ""
     assert first["npm1__correction_missing_reason"] == "background_not_established"
-    assert (rows[1]["nucleolar_status"], rows[1]["nucleolar_reason"], rows[1]["nucleolar_count"]) == ("missing", "review_required", "")
+    assert (rows[1]["nucleolar_status"], rows[1]["nucleolar_reason"], rows[1]["nucleolar_count"]) == ("measured", "", "1")
     assert rows[2]["exclusion_reason"] == "'=HYPERLINK(1)"
     assert {row["nuclear_mask_sha256"] for row in rows} == {SHA} and rows[0]["nucleolar_revision_id"] == "c"
     definitions = {row["column"]: row for row in csv.DictReader(io.StringIO(files["columns.csv"].decode("utf-8-sig")))}
     assert set(definitions) == set(rows[0]) and definitions["nucleolar_area_um2"]["unit"] == "µm²"
-    assert json.loads(files["nucleus-table.json"])["rows"][1]["nucleoli"]["reason"] == "review_required"
+    assert json.loads(files["nucleus-table.json"])["rows"][2]["nucleoli"]["reason"] == "nucleus_excluded"
 
 
 def _nucleoli_detector(monkeypatch, states):
@@ -196,7 +215,7 @@ def _get(client, rid="nuclear", **params):
     return client.get(f"/v1/revisions/{rid}/nucleus-table", headers=HEADERS, params={"field_id": "f1", **params})
 
 
-def test_api_confirms_only_adopted_candidate_nucleoli_and_downloads_the_same_table(tmp_path, monkeypatch):
+def test_api_confirms_adopted_nucleoli_and_downloads_the_same_table(tmp_path, monkeypatch):
     client, store, config = _api(tmp_path, monkeypatch, {"7": "candidate", "19": "review_required"})
     unadopted = _get(client, nucleolar_revision_id="nucleoli")
     assert unadopted.status_code == 200, unadopted.text
@@ -221,8 +240,8 @@ def test_api_confirms_only_adopted_candidate_nucleoli_and_downloads_the_same_tab
         "status": "measured", "reason": None, "count": 1, "union_area_px": 2,
         "union_area_um2": pytest.approx(2 * 0.1), "area_fraction": 0.5, "largest_object_area_px": 2,
         "largest_object_fraction": 1.0, "eccentricity": 1.0, "eccentricity_missing_reason": None, "excluded_objects": 0}
-    # The retained review candidate stays in the mask but the nucleus is not confirmed.
-    assert (rows[19]["nucleoli"]["status"], rows[19]["nucleoli"]["reason"], rows[19]["nucleoli"]["count"]) == ("missing", "review_required", None)
+    # The retained review candidate is an adopted nucleolus: confirmed, as comparisons count it.
+    assert (rows[19]["nucleoli"]["status"], rows[19]["nucleoli"]["reason"]) == ("measured", None)
 
     download = client.get("/v1/revisions/nuclear/nucleus-table.zip", headers=HEADERS,
                           params={"field_id": "f1", "nucleolar_revision_id": "nucleoli"})
@@ -231,7 +250,7 @@ def test_api_confirms_only_adopted_candidate_nucleoli_and_downloads_the_same_tab
     assert sorted(archive.namelist()) == ["columns.csv", "nucleus-table.csv", "nucleus-table.json"]
     assert json.loads(archive.read("nucleus-table.json")) == table
     csv_rows = {row["nucleus_id"]: row for row in csv.DictReader(io.StringIO(archive.read("nucleus-table.csv").decode("utf-8-sig")))}
-    assert (csv_rows["7"]["nucleolar_status"], csv_rows["19"]["nucleolar_status"], csv_rows["19"]["nucleolar_reason"]) == ("measured", "missing", "review_required")
+    assert (csv_rows["7"]["nucleolar_status"], csv_rows["19"]["nucleolar_status"]) == ("measured", "measured")
 
     alone = _get(client).json()
     assert {row["nucleoli"]["reason"] for row in alone["rows"]} == {"nucleolar_revision_not_selected"}
@@ -253,3 +272,69 @@ def test_api_reads_only_detected_nuclei_and_nucleoli_derived_from_them(tmp_path,
         conn.execute(update(revisions).where(revisions.c.id == "nucleoli").values(config=compartment_config(config, source="other")))
     invalid = _get(client, nucleolar_revision_id="nucleoli")
     assert invalid.status_code == 422 and invalid.json()["detail"] == "nucleus_table_nucleolar_source_invalid"
+
+
+def test_corrected_values_state_where_their_background_came_from():
+    """A confirmed ROI, an unconfirmed automatic candidate and no background are told apart in the table and CSV."""
+    from cytellect_analysis.nucleus_table import _channel_background
+    channel = SimpleNamespace(channel_id="npm1")
+    roi = _channel_background(SimpleNamespace(channel=channel, background_median=12.0))
+    automatic = _channel_background(SimpleNamespace(channel=channel, background=SimpleNamespace(
+        background_source="automatic_candidate", background_median=7.5)))
+    raw = _channel_background(SimpleNamespace(channel=channel, background=SimpleNamespace(status="not_established")))
+    assert (roi.source, roi.confirmed_by_researcher, roi.median) == ("confirmed_roi", True, 12.0)
+    assert (automatic.source, automatic.confirmed_by_researcher, automatic.median) == ("automatic_candidate", False, 7.5)
+    assert (raw.source, raw.confirmed_by_researcher, raw.median) == ("not_established", False, None)
+    _, table = _table()
+    rows = list(csv.DictReader(io.StringIO(nucleus_table_files(table)["nucleus-table.csv"].decode("utf-8-sig"))))
+    assert (rows[0]["npm1__background_source"], rows[0]["npm1__background_confirmed"]) == ("not_established", "False")
+
+
+def test_api_excludes_a_field_the_workspace_excluded_with_its_reason(tmp_path, monkeypatch):
+    client, _, _ = _api(tmp_path, monkeypatch, {"7": "candidate", "19": "review_required"})
+    selection = client.get("/v1/workspaces/w/selection", headers=HEADERS).json()
+    entries = [{**entry, "exclusion_reason": "焦点が合っていない"} if entry["field_id"] == "f1" else entry
+               for entry in selection["entries"]]
+    saved = client.post("/v1/workspaces/w/selection", headers=HEADERS, json={"version": selection["version"], "entries": entries})
+    assert saved.status_code == 200, saved.text
+    table = _get(client, nucleolar_revision_id="nucleoli").json()
+    assert table["field_excluded"] and {(row["exclusion_scope"], row["exclusion_reason"]) for row in table["rows"]} == {
+        ("field", "焦点が合っていない")}
+    download = client.get("/v1/revisions/nuclear/nucleus-table.zip", headers=HEADERS,
+                          params={"field_id": "f1", "nucleolar_revision_id": "nucleoli"})
+    rows = list(csv.DictReader(io.StringIO(zipfile.ZipFile(io.BytesIO(download.content)).read("nucleus-table.csv").decode("utf-8-sig"))))
+    assert {(row["excluded"], row["exclusion_reason"]) for row in rows} == {("True", "焦点が合っていない")}
+
+
+def test_nucleolar_area_needs_a_matching_calibration_and_unreadable_nucleoli_stay_unavailable():
+    rows, _ = _table(nucleolar_calibration_matches=False)
+    assert (rows[1].nucleoli.union_area_px, rows[1].nucleoli.union_area_um2) == (5, None)
+    rows, _ = _table(nucleoli=None, nucleolar_source=None, nucleolar_missing_reason="nucleolar_revision_unavailable")
+    assert {(row.nucleoli.status, row.nucleoli.reason) for row in rows.values()} == {
+        ("not_measured", "nucleolar_revision_unavailable")}
+    nuclei, _ = _field()
+    saved = _saved_rows(nuclei)
+    incomplete = SimpleNamespace(**{**vars(saved), "rows": tuple(row for row in saved.rows
+                                                                  if not (row.region_id == 2 and row.channel_id == "npm1"))})
+    with pytest.raises(ValueError, match="nucleus_table_region_mismatch"):
+        _table(nuclear_table=incomplete)
+
+
+def test_api_serves_the_table_only_to_the_owner_and_only_with_nucleoli_of_the_same_workspace(tmp_path, monkeypatch):
+    store, settings, config = nuclear_fields(tmp_path)
+    install_detector(monkeypatch)
+    execute(store, settings, config, "nuclear")
+    _nucleoli_detector(monkeypatch, {"7": "candidate"})
+    execute(store, settings, compartment_config(config), "nucleoli")
+    client, app, _ = authenticated(tmp_path / "private")
+    # Another session's workspace: neither the table nor its download is served.
+    assert _get(client, nucleolar_revision_id="nucleoli").status_code == 404
+    assert client.get("/v1/revisions/nuclear/nucleus-table.zip", headers=HEADERS, params={"field_id": "f1"}).status_code == 404
+    mine = client.post("/v1/workspaces", headers=HEADERS, json={"title": "owner"}).json()["id"]
+    with app.state.store.transaction() as conn:
+        owner = conn.execute(select(workspaces.c.owner).where(workspaces.c.id == mine)).scalar_one()
+        conn.execute(update(workspaces).where(workspaces.c.id == "w").values(owner=owner))
+        # The same owner's nucleoli, but recorded in another workspace: never joined to these nuclei.
+        conn.execute(update(revisions).where(revisions.c.id == "nucleoli").values(workspace_id=mine))
+    refused = _get(client, nucleolar_revision_id="nucleoli")
+    assert (refused.status_code, refused.json()["detail"]) == (422, "nucleus_table_nucleolar_source_invalid")

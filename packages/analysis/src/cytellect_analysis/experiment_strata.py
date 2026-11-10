@@ -172,6 +172,22 @@ def check_source_strata(design, config: Mapping) -> None:
         raise ValueError("comparison_stratum_metadata_mismatch")
 
 
+def check_preview_strata(design, config: Mapping) -> None:
+    """An automatic preview describes one field, or fields of one declared stratum: never several strata
+    or unassigned fields together. It records no stratum (a preview is not a formal result)."""
+    plan = stratified(design)
+    if plan is None:
+        return
+    fields = set(config.get("field_snapshot", {}) or config.get("field_ids", []))
+    if len(fields) <= 1:
+        return
+    strata = {plan.fields[fid].stratum_id if fid in plan.fields else None for fid in fields}
+    if None in strata:
+        raise ValueError("comparison_stratum_unassigned")
+    if len(strata) > 1:
+        raise ValueError("comparison_stratum_mixed")
+
+
 def refuse_legacy_comparison(design) -> None:
     """Region comparison 1.0.0 predates strata: a stratified design uses common statistics 2.0.0."""
     if stratified(design) is not None:

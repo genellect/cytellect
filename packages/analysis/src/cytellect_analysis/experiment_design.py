@@ -31,7 +31,9 @@ SEPARATOR = " · "
 
 
 def _clean(value: str) -> str:
-    if not value.strip() or value != value.strip() or any(ord(char) < 32 for char in value) or SEPARATOR.strip() in value:
+    if (not value.strip() or value != value.strip() or any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in value)
+            or SEPARATOR.strip() in value):
+        # A lone surrogate cannot be encoded (it would break the design hash), so it is refused like a control character.
         raise ValueError("experiment_design_invalid_label")
     return value
 

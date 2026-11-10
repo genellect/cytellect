@@ -88,9 +88,14 @@ def register_channel_gate_routes(api, store, owner, workspace, revision, result_
             for region_id in sorted({row["region_id"] for row in sources[item.field_id]["table"]["rows"]}):
                 observations.append({"field_id": item.field_id, "region_id": region_id,
                                      "excluded": None in excluded_ids or region_id in excluded_ids})
+        # One binding describes every field: nuclei read through their parent nucleus, or the same
+        # revision. A request mixing both would leave the record wrong for some fields, so it is refused.
+        bindings = {"parent_nucleus" if value[2] is not None else "same_revision" for value in loaded.values()}
+        if len(bindings) > 1:
+            raise HTTPException(422, "channel_gate_source_mixed_binding")
         try:
             _, record = apply_channel_gate(observations, snapshot, body.filter,
-                                           {"binding": "parent_nucleus" if any(value[2] is not None for value in loaded.values()) else "same_revision", "fields": sources},
+                                           {"binding": bindings.pop() if bindings else "same_revision", "fields": sources},
                                            failed_fields=failed, field_exclusions=exclusions,
                                            target_exclusions=target_exclusions)
         except ValueError as exc:

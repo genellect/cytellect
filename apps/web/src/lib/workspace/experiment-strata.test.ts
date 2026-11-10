@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {factorProblem,levelProblem,savePlan,stratumProblem,LEVEL_LIMIT,addFactor,addLevel,addStratumCombination,combinationLabel,fieldsInStrata,removeFactor,removeLevel,removeStrataById,strataNaming,addStratum,assignFields,assignStratum,declareStrata,fieldMetadata,isStratified,readiness,removeStrata,pairPanes,paneKey,scopedIdentity,strataOf,stratumRequestFor,type PlainExperimentDesign} from "./experiment-design";
+import {labelProblem,factorProblem,levelProblem,savePlan,stratumProblem,LEVEL_LIMIT,addFactor,addLevel,addStratumCombination,combinationLabel,fieldsInStrata,removeFactor,removeLevel,removeStrataById,strataNaming,addStratum,assignFields,assignStratum,declareStrata,fieldMetadata,isStratified,readiness,removeStrata,pairPanes,paneKey,scopedIdentity,strataOf,stratumRequestFor,type PlainExperimentDesign} from "./experiment-design";
 
 // The same cases as tests/test_experiment_strata.py: strata are declared, never inferred, and read one at a time.
 const plain:PlainExperimentDesign={version:"1.0.0",layout:"pair",groups:[{id:"a",label:"A"},{id:"b",label:"B"}],control_group_id:"a",
@@ -141,5 +141,14 @@ describe("declared strata",()=>{
     const second=await savePlan(first.stored,corrected,async design=>{saves.push(design);});
     expect(second).toEqual({ok:true,stored:corrected,shown:corrected,error:""});
     expect(saves).toEqual([corrected]);
+  });
+  it("folds case like the API and never cuts a character in half when naming a stratum",()=>{
+    expect(factorProblem(plain,"因子",["Straße","STRASSE"])).toBe("同じ名前の水準が重なっています。");
+    const long=declareStrata(plain,"因子",["😀".repeat(20),"水準B"]);
+    const two=addFactor(long,"因子2",["😀".repeat(20)]);
+    const label=combinationLabel(two,{[two.factors[0].id]:two.factors[0].levels[0].id,[two.factors[1].id]:two.factors[1].levels[0].id});
+    expect([...label].length).toBeLessThanOrEqual(24);
+    expect(labelProblem(label)).toBeNull();
+    expect(labelProblem("水準\ud83d")).toBe("使えない文字が含まれています。");
   });
 });

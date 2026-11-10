@@ -99,6 +99,7 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
         <option value="raw">原値</option><option value="corrected">背景補正値</option>
       </select></label><button type="button" disabled={exporting} onClick={()=>void download()}>{exporting?"CSVを保存中…":"原値・補正値をCSV保存"}</button></div>
       <p className={styles.definition}>K = 対象の平均輝度 ÷ 参照の平均輝度。同じ測定チャンネルの対象／参照を表します。</p>
+      <p className={styles.definition}>この表は区画内の飽和を評価していません。飽和した画素を含む核では、K が実際より小さく出ることがあります。</p>
       <p role="status">{table.background.status==="confirmed"?"保存済みの確認済み背景ROIを用いて補正しています。":"測定用の背景ROIが未確認のため、補正値は欠測です。"}</p>
       <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="核ごとの分配表を横にスクロール">
         <table><caption>{fieldLabel}の分配表 · {basis==="raw"?"原値":"背景補正値"}</caption><thead><tr>

@@ -12,7 +12,7 @@ const reasons:Record<string,string>={
   processing_failed:"処理に失敗",no_adopted_nucleolus:"採用した核小体なし",nucleus_excluded:"除外した核",
   unclassified:"核小体を分類していない",legacy_candidate:"旧版の候補（未確認）",none_after_edit:"修正後に核小体なし",not_measured_recipe:"この条件では核小体を測らない",
   nucleolar_state_unknown:"検出の記録がない",nucleolar_field_excluded:"核小体の解析で視野を除外",nucleolar_revision_not_adopted:"核小体は未採用",
-  nucleolar_revision_not_selected:"核小体は未解析",degenerate_objects:"1 画素の核小体だけで形を測れない",
+  nucleolar_revision_not_selected:"核小体は未解析",nucleolar_revision_unavailable:"この視野の核小体を読み込めない",degenerate_objects:"1 画素の核小体だけで形を測れない",
   calibration_unknown:"画素寸法が未確認",not_requested:"輝度は測定していない",
   background_not_established:"背景を決めていない",acquisition_limit_unknown:"検出器の飽和値が未確認",
   automatic_background_insufficient_tiles:"背景の候補が足りない",automatic_background_insufficient_coverage:"背景の候補が画像の一部に偏る",
@@ -78,8 +78,12 @@ function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:strin
     if(counts.size)parts.push(`欠測 ${[...counts.values()].reduce((a,b)=>a+b,0)}（${[...counts].map(([text,n])=>`${text} ${n}`).join("、")}）`);
   }else parts.push("核小体を解析すると、核ごとの核小体の値が加わります");
   for(const {id,name} of channels){
-    const saturated=rows.filter(row=>(row.channels.find(item=>item.channel_id===id)?.acquisition_saturation_fraction??0)>0).length;
+    // Pixels at the detector's saturation value or, when that value is unknown, at the file's maximum.
+    const saturated=rows.filter(row=>{const item=row.channels.find(value=>value.channel_id===id);return (item?.acquisition_saturation_fraction??0)>0||(item?.storage_limit_fraction??0)>0;}).length;
     if(saturated)parts.push(`${name}の飽和画素を含む核 ${saturated}`);
   }
+  // Corrected values from an unconfirmed automatic background are named as such (the CSV keeps the source).
+  const automatic=(table.backgrounds??[]).filter(value=>value.source==="automatic_candidate").map(value=>channels.find(item=>item.id===value.channel_id)?.name??value.channel_id);
+  if(automatic.length)parts.push(`${automatic.join("、")}の補正値は自動推定の背景（未確認）`);
   return parts.join(" · ");
 }
