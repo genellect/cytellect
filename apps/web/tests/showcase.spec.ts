@@ -193,7 +193,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await channels.nth(channelCount - 1).click();
   await expect(channels.nth(channelCount - 1)).toHaveAttribute("aria-pressed", "true");
   await channels.first().click();
-  const zoom = page.locator("[role=toolbar] span").first();
+  const zoom = page.locator("[role=toolbar][aria-label$='の表示操作'] span").first();
   // The fitted scale exists once the viewer has measured its viewport (until then it shows "–").
   await expect(zoom).toHaveText(/^\d+%$/);
   const before = await zoom.textContent();

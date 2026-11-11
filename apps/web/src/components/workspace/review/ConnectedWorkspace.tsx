@@ -27,7 +27,7 @@ import {channelGateRequest,recordedChannelGate,type ChannelGateFilter,type Chann
 import {PARTITION_DIRECTION,colorByChoices,gateLegend,gateStates,nextComparison,shownColorBy,tableHeading,type ColorBy,type NextComparison} from "@/lib/workspace/color-by";
 import type {RegionClassification} from "./ReviewImageCanvas";
 import type {NucleusTableGate} from "./nucleus-table-model";
-import {TableHeading,type ColorView,type NextAction} from "./ColorView";
+import {NextStep,TableHeading,type ColorView,type NextAction} from "./ColorView";
 import {UnfinishedImports} from "./UnfinishedImports";
 import {PairStage,pairDisplayText,pairRuns,type Historical,type PairDisplay} from "./PairStage";
 import {assignFields,fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
@@ -602,10 +602,12 @@ function MeasurementsPanel({heading,mode,gate,next,rows,rowsField,region,onRegio
   const field=rowsField?`${rowsField} · `:"";
   const nucleusRows=mode==="positivity"||!!nucleusTable?.shown;
   return <>
-    <TableHeading heading={`${field}${heading}`} next={next}/>
+    <TableHeading heading={`${field}${heading}`} next={nucleusRows&&nucleusTable&&mode!=="compartments"?null:next}>
+      {mode==="outline"&&nucleusTable&&<div className={styles.tableViews} role="group" aria-label="表の切り替え"><button aria-pressed={!nucleusTable.shown} onClick={()=>nucleusTable.onShow(false)}>このチャンネル</button><button aria-pressed={nucleusTable.shown} onClick={()=>nucleusTable.onShow(true)}>核ごとの表</button></div>}
+    </TableHeading>
     {mode==="compartments"?partition
-    :<>{mode==="outline"&&nucleusTable&&<div className={styles.tableViews} role="group" aria-label="表の切り替え"><button aria-pressed={!nucleusTable.shown} onClick={()=>nucleusTable.onShow(false)}>このチャンネル</button><button aria-pressed={nucleusTable.shown} onClick={()=>nucleusTable.onShow(true)}>核ごとの表</button></div>}
-    {nucleusRows&&nucleusTable?<ConnectedNucleusTable load={nucleusTable.load} save={nucleusTable.save} field={nucleusTable.field} nuclearRevision={nucleusTable.nuclearRevision} nucleolarRevision={nucleusTable.nucleolarRevision} channels={nucleusTable.channels} exclusion={nucleusTable.exclusion} gate={mode==="positivity"?gate:undefined} selected={region} onSelect={onRegion}/>
+    :<>
+    {nucleusRows&&nucleusTable?<ConnectedNucleusTable load={nucleusTable.load} save={nucleusTable.save} field={nucleusTable.field} nuclearRevision={nucleusTable.nuclearRevision} nucleolarRevision={nucleusTable.nucleolarRevision} channels={nucleusTable.channels} exclusion={nucleusTable.exclusion} gate={mode==="positivity"?gate:undefined} selected={region} onSelect={onRegion} aside={next?<NextStep next={next}/>:undefined}/>
     :mode==="positivity"?<p>核を検出して採用すると、核ごとの判定を表示します。</p>
     :rows.length?<MeasurementTable rows={rows} selected={region} onSelect={onRegion}/>:<p>測定結果はここに表示されます。</p>}</>}
     {editing&&<p>描画を保存または取消して続けてください。</p>}

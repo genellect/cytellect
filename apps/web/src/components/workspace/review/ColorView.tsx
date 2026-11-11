@@ -1,3 +1,4 @@
+import type {ReactNode} from "react";
 import type {MeasurementRow} from "@/lib/workspace/api-adapter";
 import type {ColorBy,NextComparison} from "@/lib/workspace/color-by";
 import type {Point} from "@/lib/types";
@@ -19,7 +20,12 @@ export interface ColorView {
   next:NextAction|null;
 }
 
-/** A table's heading, naming per what, which stain and which values (MV-06), with the next step on its right (MV-09). */
-export function TableHeading({heading,next}:{heading:string;next?:NextAction|null}){
-  return <div className={styles.tableHeading}><h3>{heading}</h3>{next&&<span className={styles.nextStep}><button type="button" disabled={next.disabled} title={next.disabled?"陽性・陰性を判定すると比べられます":next.note} onClick={next.onClick}>{next.label} →</button>{next.note&&!next.disabled&&<small>{next.note}</small>}</span>}</div>;
+/** A table's heading, naming per what, which stain and which values (MV-06), with the next step on its right (MV-09).
+ * Controls of the table itself (its views) sit on the same row, so the rows keep their readable height (V-04). */
+export function TableHeading({heading,next,children}:{heading:string;next?:NextAction|null;children?:ReactNode}){
+  return <div className={styles.tableHeading}><h3>{heading}</h3>{children}{next&&<NextStep next={next}/>}</div>;
+}
+/** The next step (MV-09). Before judging the compared fields again it says so, beside the button. */
+export function NextStep({next}:{next:NextAction}){
+  return <span className={styles.nextStep}><button type="button" disabled={next.disabled} title={next.disabled?"陽性・陰性を判定すると比べられます":next.note} onClick={next.onClick}>{next.label} →</button>{next.note&&!next.disabled&&<small>{next.note}</small>}</span>;
 }

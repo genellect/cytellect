@@ -43,3 +43,11 @@
 .workspace .arrange svg{width:17px;height:17px}
 .workspace .menuButton{display:block;margin-top:12px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:14px}
 @media(max-width:620px){.barGroup[data-arrange]{margin-left:0}.workspace .arrange span{display:none}}
+/* The toolbar may wrap to two rows: its popups open under their own button instead of at a fixed height, so they
+   never cover the second row (MV-08). On a phone they span the screen width under the button. */
+.rangeInfo,.fieldMenu{position:relative}
+.workspace .rangeInfo p,.menuPanel{top:calc(100% + 6px);right:0}
+@media(max-width:620px){.workspace .rangeInfo p,.menuPanel{position:fixed;top:auto;left:12px;right:12px;width:auto;margin-top:6px}}
+/* The colour mode keeps its natural width; below 1200 px the layout buttons show their icons only (names stay). */
+.channelBar .inline{flex:none}.channelBar .inline select{width:auto;max-width:12em}
+@media(max-width:1200px){.workspace .arrange span{display:none}}

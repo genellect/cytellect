@@ -9,7 +9,7 @@ import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
 import {MeasurementTable} from "./MeasurementTable";
 import {ConnectedNucleusTable} from "./NucleusTable";
 import {pairPaneLayout} from "./image-stage-layout";
-import {TableHeading,type ColorView} from "./ColorView";
+import {NextStep,TableHeading,type ColorView} from "./ColorView";
 import styles from "./pair-stage.module.css";
 
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
@@ -124,11 +124,15 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           contextSelected={savedView?.nucleus}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
           {/* Each table names what it lists; the next step sits once, beside the last group's table (MV-06, MV-09). */}
-          <TableHeading heading={heading(colorBy==="positivity"||(!!nuclear&&nucleusView),rows)} next={index===panes.length-1?next:null}/>
+          {/* The next step sits once, beside the last group's table: on its summary line when the nucleus table is shown. */}
+          <TableHeading heading={heading(colorBy==="positivity"||(!!nuclear&&nucleusView),rows)} next={index===panes.length-1&&!(colorBy!=="compartments"&&nuclear&&(nucleusView||colorBy==="positivity"))?next:null}>
+            {colorBy==="outline"&&nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
+          </TableHeading>
           {colorBy==="compartments"?partition?.(field)
-          :<>{colorBy==="outline"&&nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
+          :<>
           {nuclear&&(nucleusView||colorBy==="positivity")?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
-            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} gate={colorBy==="positivity"?gateTable(field.id):undefined} selected={shown} onSelect={select}/>
+            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} gate={colorBy==="positivity"?gateTable(field.id):undefined} selected={shown} onSelect={select}
+            aside={index===panes.length-1&&next?<NextStep next={next}/>:undefined}/>
           :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</>}</div>}
         </div>
       </section>;
