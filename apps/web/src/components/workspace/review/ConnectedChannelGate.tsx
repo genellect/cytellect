@@ -4,6 +4,7 @@ import {useLayoutEffect,useRef,useState} from "react";
 import {ApiError,errorCodeMessage,errorMessage} from "@/lib/api";
 import type {ApiAdapter} from "@/lib/workspace/api-adapter";
 import {channelGateName,channelGateRequest,channelGateThresholds,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult,type GateField} from "@/lib/workspace/channel-gate";
+import {ErrorText} from "./showcase-ui";
 import {GATE_STATUS_LABELS,GATE_STATUS_ORDER,gateExploratory,gateHistogram,gateMethodLabel,type GateStatus} from "@/lib/workspace/color-by";
 
 /** `recorded`: the public demo, which answers from its recording. It offers every method as production does and
@@ -63,7 +64,7 @@ export function ConnectedChannelGate({adapter,workspace,fields,channels,disabled
     {!fields.length&&<p>核を検出して採用すると分類できます。</p>}
     {totals&&result&&<output aria-live="polite">{channelGateName(result)} · 陽性 {totals.positive} · 陰性 {totals.negative} · 未判定 {totals.unclassified} · 除外 {totals.excluded} · 対照 {totals.control}</output>}
     {result&&channelGateThresholds(result).map(row=><small key={row.date}>{row.date} · {row.threshold===null?errorCodeMessage(row.reason||"channel_threshold_missing"):`しきい値 ${row.threshold.toPrecision(5)}`}</small>)}
-    {error&&<p role="alert">{error}</p>}
+    {error&&<ErrorText text={error}/>}
     {decision&&<GateReview result={decision.result} filter={decision.filter} selected={selected??null}/>}
   </section>;
 }

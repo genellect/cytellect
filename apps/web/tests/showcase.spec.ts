@@ -567,59 +567,78 @@ test("operations the recording does not hold are explained at once, without the 
   await noErrors(page, watch);
 });
 
-test("choices the recording holds answer as in production: deleting a region and taking it back, negative nuclei, a background mode", async ({page}) => {
+test("deleting one region of an opening field and taking it back is answered from the recording", async ({page}) => {
   test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  test.setTimeout(600_000);
   const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  // Deleting any nucleolus (the scene opens on nucleoli) or nucleus of an opening field is recorded, with its undo;
-  // the outline and the table follow.
+  // Any nucleolus (the scene opens on nucleoli) or nucleus of both opening fields; the outline and the table follow.
   const pane = page.getByRole("region", {name: /の測定値$/}).first();
   const section = pane.locator("xpath=ancestor::section[1]");
   const rows = pane.locator("table tbody tr");
   await expect(rows.first()).toBeVisible({timeout: live});
   const before = await section.locator("svg path[data-region]").count();
-  await rows.last().getByRole("button").first().click();
+  const choose = async (row: Locator) => {
+    await row.getByRole("button").first().click();
+    await expect(section.locator("svg path[data-region][aria-pressed=true]")).toHaveCount(1);
+  };
+  await choose(rows.last());
   await section.getByRole("button", {name: "選択領域を削除", exact: true}).click();
   await expect.poll(() => section.locator("svg path[data-region]").count(), {timeout: live}).toBe(before - 1);
   await expect(notRecorded(page)).toHaveCount(0);
   await section.getByRole("button", {name: "元に戻す", exact: true}).click();
   await expect.poll(() => section.locator("svg path[data-region]").count(), {timeout: live}).toBe(before);
   await expect(notRecorded(page)).toHaveCount(0);
-  // A second deletion in a row is not recorded and is explained at once.
-  await rows.first().getByRole("button").first().click();
-  await section.getByRole("button", {name: "選択領域を削除", exact: true}).click();
-  await expect.poll(() => section.locator("svg path[data-region]").count(), {timeout: live}).toBe(before - 1);
-  await rows.first().getByRole("button").first().click();
+  // The recording holds one deletion from the opening fields; a further one (after taking one back too) is explained at once.
+  await choose(rows.first());
+  const started = Date.now();
   await section.getByRole("button", {name: "選択領域を削除", exact: true}).click();
   await expect(notRecorded(page)).toBeVisible({timeout: 5000});
-  await page.getByRole("button", {name: "案内を閉じる", exact: true}).click();
-  await section.getByRole("button", {name: "元に戻す", exact: true}).click();
-  await expect.poll(() => section.locator("svg path[data-region]").count(), {timeout: live}).toBe(before);
+  expect(Date.now() - started).toBeLessThan(5000);
+  expect(await section.locator("svg path[data-region]").count()).toBe(before);
+  expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
+  await noErrors(page, watch);
+});
 
-  // Negative nuclei kept by the recorded classification.
-  const color = page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true});
-  await color.selectOption("positivity");
+test("negative nuclei are classified from the recording; a method it does not hold is explained as information", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  await page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true}).selectOption("positivity");
   const gate = page.getByRole("complementary", {name: "画像解析"}).getByRole("region", {name: "チャンネルによる核の分類"});
   await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).selectOption("negative");
   await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
   await expect(gate.locator("output")).toContainText("陰性", {timeout: live});
   await expect(notRecorded(page)).toHaveCount(0);
-  // A method the recording does not hold is explained, not computed.
   await gate.getByLabel("判定方法").selectOption("manual");
   await gate.getByLabel("核内平均輝度のしきい値").fill("1234");
   await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
-  await expect(notRecorded(page)).toBeVisible({timeout: 5000});
-  await page.getByRole("button", {name: "案内を閉じる", exact: true}).click();
-  await color.selectOption("outline");
+  await expect(gate.getByRole("status").filter({hasText: "公開デモに記録していません"})).toBeVisible({timeout: 5000});
+  await expect(gate.getByRole("alert")).toHaveCount(0);
+  // Back to the recorded method: answered again, and the notice is gone.
+  await gate.getByLabel("判定方法").selectOption("batch_otsu");
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.locator("output")).toContainText("陰性", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
+  await noErrors(page, watch);
+});
 
-  // Measuring again without background correction is recorded.
+test("measuring again with another background correction is answered from the recording", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
   const inspector = await openSettings(page);
+  // In the recorded order, each step once the previous one has settled: the correction (its preview of the opening
+  // region), the region, then the second field measured (the first field's nuclei were measured by the preview).
+  const settle = async () => {await page.waitForLoadState("networkidle"); await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live}); await page.waitForTimeout(1000);};
   await inspector.getByRole("combobox", {name: "背景補正", exact: true}).selectOption("raw");
+  await settle();
+  await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
+  await settle();
+  await page.locator("[class*=fieldCard]").nth(1).click();
+  await settle();
   await page.locator("header").getByRole("button", {name: "測定", exact: true}).click();
   await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live});
   await expect(notRecorded(page)).toHaveCount(0);
-  expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
   await noErrors(page, watch);
 });
 
