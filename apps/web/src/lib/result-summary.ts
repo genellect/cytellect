@@ -3,8 +3,9 @@ import type { components } from "./generated";
 /** Plain-language summary of a saved two-group comparison (requirements S-01–S-07).
  * Every number comes from the saved result; nothing is recalculated here. */
 export type ComparisonEstimates = components["schemas"]["ComparisonEstimates"];
-export interface SavedComparison {method?: string; p_value?: number | null; effect?: number | null; effect_name?: string | null}
-export interface ResultSummary {headline: string; interval: string | null; test: string; runs: string | null; cautions: string[]}
+export interface SavedComparison {method?: string; p_value?: number | null; effect?: number | null; effect_name?: string | null; group_a?: string; group_b?: string}
+/** `conclusion` is the one line a researcher reads first (S-01); `headline` states the measured difference. */
+export interface ResultSummary {conclusion: string; headline: string; interval: string | null; test: string; runs: string | null; cautions: string[]}
 
 const methodNames: Record<string, string> = {
   "paired t-test": "対応のある t 検定", "Welch t-test": "Welch の t 検定",
@@ -38,6 +39,10 @@ function words(metric: string): [string, string] {
   return ["低い", "高い"];
 }
 
+/** "小さい" → "小さく", for "小さくなりました". */
+const adverb = (word: string) => word.replace(/い$/, "く");
+/** Two significant digits: the conclusion states a size in plain words, the lines below give the saved values. */
+const rough = (value: number) => String(Number(Math.abs(value).toPrecision(2)));
 const signedPercent = (ratio: number) => `${ratio >= 1 ? "+" : "−"}${formatNumber(Math.abs(ratio - 1) * 100)}%`;
 
 export function summarize(estimates: ComparisonEstimates, comparison: SavedComparison, metricLabel: string, unit: string): ResultSummary {
@@ -77,12 +82,77 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
     runs = `${estimates.runs.length} 回中、${treatment}が${lower}回 ${down}、${higher}回 ${up}` + (estimates.runs.length - down - up ? `、同じ回 ${estimates.runs.length - down - up}` : "")
       + `。実験回ごとの差（${treatment} − ${control}）：` + estimates.runs.map(run => `${run.pair} ${run.difference > 0 ? "+" : run.difference < 0 ? "−" : ""}${show(Math.abs(run.difference))}`).join("、") + (unitText ? ` ${unitText}` : "");
   }
+  const conclusion = conclude(estimates, comparison, metricLabel, unit, [lower, higher]);
   const cautions: string[] = [];
   const units = paired ? estimates.n_pairs ?? 0 : Math.min(estimates.n_control, estimates.n_treatment);
   if (descriptive) cautions.push("実験回が独立に行われたことが確認されていないため、この比較は記述です。差の大きさと向きは各回の値で確かめ、検定の結果としては扱わないでください。");
   else if (units < 5) cautions.push(`実験回が少ないため（n = ${units}）、p 値だけで結論せず、各回の値と信頼区間を合わせて確かめてください。p が 0.05 以上でも「変化がない」ことを示すものではありません。`);
   cautions.push(descriptive ? "n は記録した実験回の数です（独立性は未確認）。核や視野の数は n ではありません。" : "n は独立した実験回の数です。核や視野の数は n ではありません。");
-  return {headline, interval, test, runs, cautions};
+  return {conclusion, headline, interval, test, runs, cautions};
+}
+
+/** The conclusion in one line (S-01, S-07): which way the treatment moved the metric, about how much, and whether
+ * the runs agree. It is built only from the saved estimates. A result whose interval includes 0, or a rank test with
+ * p ≥ 0.05, is "not clear", never "no change". Biological interpretation is not made here (roadmap: 結果の考察). */
+function conclude(estimates: ComparisonEstimates, comparison: SavedComparison, metricLabel: string, unit: string, [lower, higher]: [string, string]): string {
+  const {control, treatment, scale, difference, ratio, runs} = estimates;
+  const sign = (value: number) => value < 0 ? -1 : value > 0 ? 1 : 0;
+  const word = (direction: number) => direction < 0 ? lower : higher;
+  // The direction the runs show by majority, or else the group means (no runs in an independent design).
+  const means = Object.fromEntries(estimates.groups.map(group => [group.condition, group.mean]));
+  const shown = runs.length ? sign(runs.reduce((total, run) => total + sign(run.difference), 0))
+    : means[control] != null && means[treatment] != null ? sign(means[treatment]! - means[control]!) : 0;
+  const agreeing = (direction: number) => runs.filter(run => sign(run.difference) === direction).length;
+  const agreement = (direction: number) => !runs.length ? ""
+    : agreeing(direction) === runs.length ? `。${runs.length} 回の実験すべてで同じ向きでした` : `。同じ向きだったのは ${runs.length} 回中 ${agreeing(direction)} 回です`;
+  // About how much: a percent change where a ratio in the same direction is saved, otherwise the difference in its unit.
+  const moved = (direction: number) => {
+    const change = ratio.estimate != null && ratio.estimate > 0 && sign(ratio.estimate - 1) === direction ? ratio.estimate : null;
+    if (change != null && change >= 2) return `約 ${rough(change)} 倍になりました`;
+    const amount = change != null ? `約 ${rough((change - 1) * 100)}% `
+      : difference.estimate == null ? ""
+      : scale === "fraction" ? `約 ${rough(difference.estimate)} ポイント `
+      : scale === "log2" ? `log₂ で約 ${rough(difference.estimate)} `
+      : `約 ${rough(difference.estimate)}${unit ? ` ${unit}` : ""} `;
+    return `${amount}${adverb(word(direction))}なりました`;
+  };
+  const unclear = (why: string) => `この実験では、${treatment}による${metricLabel}の違いははっきりしませんでした（${why}）。違いがないことを示すものではありません。`;
+  if (estimates.test === "none") {
+    // Descriptive: what the recorded runs show, never a test result.
+    if (!shown) return `記録した実験回では、${treatment}と${control}で${metricLabel}の向きは揃いませんでした（記述のみ・検定なし）。`;
+    if (!runs.length) return `実験単位の平均で、${treatment}の${metricLabel}は${control}より${word(shown)}値でした（記述のみ・検定なし）。`;
+    // About how much, as the range of the saved per-run changes (no estimate is saved without a test).
+    const span = (values: number[], text: (value: number) => string) => {
+      const [low, high] = [Math.min(...values), Math.max(...values)];
+      return low === high ? text(low) : `${text(low)}〜${text(high)}`;
+    };
+    const ratios = runs.every(run => run.ratio != null && run.ratio > 0) ? runs.map(run => run.ratio!) : null;
+    const suffix = scale === "fraction" ? " ポイント" : scale === "log2" ? "（log₂）" : unit ? ` ${unit}` : "";
+    if (agreeing(shown) === runs.length) {
+      // All runs agree: the size alone, in the direction just stated.
+      const size = ratios?.every(value => value >= 2) ? `の ${span(ratios, rough)} 倍の`
+        : ratios ? `より ${span(ratios.map(value => Math.abs(value - 1) * 100), rough)}% ${word(shown)}`
+        : `より ${span(runs.map(run => Math.abs(run.difference)), rough)}${suffix} ${word(shown)}`;
+      return `記録した ${runs.length} 回の実験すべてで、${treatment}の${metricLabel}は${control}${size}値でした（記述のみ・検定なし）。`;
+    }
+    const signed = (value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${rough(value)}`;
+    const change = ratios ? span(ratios.map(value => (value - 1) * 100), value => `${signed(value)}%`) : `${span(runs.map(run => run.difference), signed)}${suffix}`;
+    return `記録した ${runs.length} 回の実験のうち ${agreeing(shown)} 回で、${treatment}の${metricLabel}は${control}より${word(shown)}値でした（実験回ごとの変化 ${change}、記述のみ・検定なし）。`;
+  }
+  if (difference.estimate != null && difference.ci_low != null && difference.ci_high != null) {
+    const direction = sign(difference.estimate);
+    if (!direction || difference.ci_low <= 0 && difference.ci_high >= 0) return unclear("差の 95% 信頼区間が 0 を含みます");
+    return `${treatment}で、${metricLabel}が${control}に比べ${moved(direction)}${agreement(direction)}。`;
+  }
+  // Rank tests give no mean difference: the direction is the saved effect's (group A against B, turned to
+  // treatment against control), stated only when p < 0.05; the runs' majority or the means never set it.
+  const p = comparison.p_value;
+  if (p == null || !Number.isFinite(p) || p >= 0.05) return unclear(formatP(p));
+  const centre = comparison.effect_name?.includes("superiority") ? 0.5 : comparison.effect_name?.includes("rank-biserial") ? 0 : null;
+  const facing = comparison.group_a === treatment && comparison.group_b === control ? 1 : comparison.group_a === control && comparison.group_b === treatment ? -1 : 0;
+  const ranked = comparison.effect != null && Number.isFinite(comparison.effect) && centre != null ? sign(comparison.effect - centre) * facing : 0;
+  if (!ranked) return `${treatment}と${control}で、${metricLabel}の分布に違いが見られました（順位に基づく検定、${formatP(p)}）。`;
+  return `${treatment}で、${metricLabel}が${control}に比べ${adverb(word(ranked))}なりました（順位に基づく検定、${formatP(p)}）${agreement(ranked)}。`;
 }
 
 export interface CountRow {condition: string; observations?: number; input_fields?: number; selected_fields?: number; samples?: number; experimental_units?: number}

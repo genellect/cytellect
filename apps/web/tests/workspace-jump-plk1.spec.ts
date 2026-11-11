@@ -313,7 +313,9 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   }, {timeout: 300_000}).toBe(1);
   // The descriptive result above is replaced by the tested one.
   await expect(summary.getByText(/^実験回 n = 3（対）、対応のある t 検定 /)).toBeVisible({timeout: 300_000});
-  const headline = (await summary.locator("p").first().textContent())!;
+  // The conclusion in one line, then the measured difference (S-01).
+  await expect(summary.locator("p").first()).toHaveText(/^PLK1 KOで、視野あたりの核数がNon-targetingに比べ約 [\d.]+(%| ) ?少なくなりました。/);
+  const headline = (await summary.locator("p").nth(1).textContent())!;
   expect(headline).toMatch(/^視野あたりの核数は、Non-targetingに比べPLK1 KOで [\d.]+ .*少ない値でした。$/);
   const interval = summary.getByText(/^実験回ごとの差の平均（PLK1 KO − Non-targeting）の 95% 信頼区間：/);
   await expect(interval).toBeVisible();
