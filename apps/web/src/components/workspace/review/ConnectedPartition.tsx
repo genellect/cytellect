@@ -79,7 +79,7 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,sources
   }
   return <section className={styles.panel} aria-label="区画への分配">
     {!nuclearRevisionId?<p>この視野の核領域を採用すると、核の中の区画への分配を表示します。</p>
-    :sources.length<2?<p>核の中の 2 つの領域（核小体と核質など）を測定すると、その間で信号の分配を比べられます。この視野で測定した核の中の領域は {sources.length} つです。</p>:<>
+    :sources.length<2?<p>核の中の 2 つの領域（核小体と核質など）を測定すると、その間で信号の分配を比べられます。{sources.length?`この視野で測定した核の中の領域は ${sources.length} つです。`:"この視野では、核の中の領域をまだ測定していません。"}</p>:<>
       <div className={styles.choices}>
         <label htmlFor={`${controlId}-target`}>対象<select id={`${controlId}-target`} value={pair.target} onChange={event=>onPair({target:event.target.value,reference:event.target.value===pair.reference?pair.target:pair.reference})}>
           {sources.map(source=><option key={source.name} value={source.name}>{source.label}</option>)}</select></label>
