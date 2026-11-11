@@ -90,10 +90,26 @@ describe("result summary", () => {
     const unclear = summarize(base({difference: interval(-3, -10, 4), ratio: interval(0.97, 0.9, 1.04)}), {method: "paired t-test", p_value: 0.3}, "核の面積", "µm²").conclusion;
     expect(unclear).toBe("この実験では、Drugによる核の面積の違いははっきりしませんでした（差の 95% 信頼区間が 0 を含みます）。違いがないことを示すものではありません。");
     const rank = (p: number) => summarize(base({test: "wilcoxon", difference: interval(null, null, null, "rank_test"), ratio: interval(null, null, null, "rank_test")}),
-      {method: "Wilcoxon signed-rank", p_value: p}, "核の面積", "µm²").conclusion;
+      {method: "Wilcoxon signed-rank", p_value: p, effect: 1, effect_name: "matched rank-biserial correlation A minus B", group_a: "DMSO", group_b: "Drug"}, "核の面積", "µm²").conclusion;
     expect(rank(0.25)).toBe("この実験では、Drugによる核の面積の違いははっきりしませんでした（p = 0.25）。違いがないことを示すものではありません。");
     expect(rank(0.03)).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.03）。3 回の実験すべてで同じ向きでした。");
     for (const text of [unclear, rank(0.25)]) expect(text).not.toMatch(/変化がない|変わらな|差がない/);
+  });
+
+  it("takes a rank test's direction from its saved effect, not from the means or the runs' majority", () => {
+    // One extreme treatment unit raises the treatment mean, while the saved Mann–Whitney effect says treatment is lower.
+    const independent = base({design: "independent", test: "mann-whitney-u", n_pairs: null, runs: [],
+      difference: interval(null, null, null, "rank_test"), ratio: interval(null, null, null, "rank_test"),
+      groups: [{condition: "DMSO", n: 8, mean: 13.5, sd: 2, ci_low: null, ci_high: null, unavailable_reason: "rank_test"},
+        {condition: "Drug", n: 8, mean: 128, sd: 350, ci_low: null, ci_high: null, unavailable_reason: "rank_test"}]});
+    const conclusion = (effect: number | null, groupA = "Drug", groupB = "DMSO") => summarize(independent,
+      {method: "Mann–Whitney U", p_value: 0.0104, effect, effect_name: "probability of superiority A over B (ties half)", group_a: groupA, group_b: groupB}, "核の面積", "µm²").conclusion;
+    expect(conclusion(0.125)).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.01）。");
+    // The same effect saved with the groups the other way round reads the same.
+    expect(conclusion(0.875, "DMSO", "Drug")).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.01）。");
+    // Without an effect whose groups are known, no direction is claimed.
+    expect(conclusion(null)).toBe("DrugとDMSOで、核の面積の分布に違いが見られました（順位に基づく検定、p = 0.01）。");
+    expect(conclusion(0.125, "A", "B")).toBe("DrugとDMSOで、核の面積の分布に違いが見られました（順位に基づく検定、p = 0.01）。");
   });
 
   it("states a descriptive comparison by the recorded runs and says it is not a test", () => {

@@ -3,7 +3,7 @@ import type { components } from "./generated";
 /** Plain-language summary of a saved two-group comparison (requirements S-01–S-07).
  * Every number comes from the saved result; nothing is recalculated here. */
 export type ComparisonEstimates = components["schemas"]["ComparisonEstimates"];
-export interface SavedComparison {method?: string; p_value?: number | null; effect?: number | null; effect_name?: string | null}
+export interface SavedComparison {method?: string; p_value?: number | null; effect?: number | null; effect_name?: string | null; group_a?: string; group_b?: string}
 /** `conclusion` is the one line a researcher reads first (S-01); `headline` states the measured difference. */
 export interface ResultSummary {conclusion: string; headline: string; interval: string | null; test: string; runs: string | null; cautions: string[]}
 
@@ -144,10 +144,15 @@ function conclude(estimates: ComparisonEstimates, comparison: SavedComparison, m
     if (!direction || difference.ci_low <= 0 && difference.ci_high >= 0) return unclear("差の 95% 信頼区間が 0 を含みます");
     return `${treatment}で、${metricLabel}が${control}に比べ${moved(direction)}${agreement(direction)}。`;
   }
-  // Rank tests give no mean difference: the direction is stated only when p < 0.05.
+  // Rank tests give no mean difference: the direction is the saved effect's (group A against B, turned to
+  // treatment against control), stated only when p < 0.05; the runs' majority or the means never set it.
   const p = comparison.p_value;
-  if (p == null || !Number.isFinite(p) || p >= 0.05 || !shown) return unclear(formatP(p));
-  return `${treatment}で、${metricLabel}が${control}に比べ${adverb(word(shown))}なりました（順位に基づく検定、${formatP(p)}）${agreement(shown)}。`;
+  if (p == null || !Number.isFinite(p) || p >= 0.05) return unclear(formatP(p));
+  const centre = comparison.effect_name?.includes("superiority") ? 0.5 : comparison.effect_name?.includes("rank-biserial") ? 0 : null;
+  const facing = comparison.group_a === treatment && comparison.group_b === control ? 1 : comparison.group_a === control && comparison.group_b === treatment ? -1 : 0;
+  const ranked = comparison.effect != null && Number.isFinite(comparison.effect) && centre != null ? sign(comparison.effect - centre) * facing : 0;
+  if (!ranked) return `${treatment}と${control}で、${metricLabel}の分布に違いが見られました（順位に基づく検定、${formatP(p)}）。`;
+  return `${treatment}で、${metricLabel}が${control}に比べ${adverb(word(ranked))}なりました（順位に基づく検定、${formatP(p)}）${agreement(ranked)}。`;
 }
 
 export interface CountRow {condition: string; observations?: number; input_fields?: number; selected_fields?: number; samples?: number; experimental_units?: number}
