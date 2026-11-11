@@ -310,6 +310,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   }
   // Experiment design (requirements E-01–E-08): saving never runs or changes analyses.
   const experiment=r.experiment();
+  // The demo classifies nuclei only by the stains its scene names (positive and negative must mean something).
+  const sceneGate=demo?showcase.dataset?.gateChannels:null;
+  const gateChannels=(field?.channels||data?.channels||[]).filter(value=>!sceneGate||sceneGate.includes(value.id));
   // Two-group designs open side by side (V-01); the single view stays one click away.
   const [pairView,setPairView]=useState(true);
   const pairActive=pairView&&experiment?.layout==="pair"&&!compare&&!backgroundDraw;
@@ -339,7 +342,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const setupShown=experimentSetupShown(mode,!!field,demo);
   // The nucleus table step shows one field's nuclei (the table lists one field's nuclei) with its table open.
   function guideStep(next:DemoStep,openTable:boolean,nucleus=false){changeMode(next);if(openTable){setTable(true);setPairTables(true);}
-    if(nucleus){setPairView(false);setCompare(false);changeTarget("nuclei");setNucleusView(true);}else setNucleusView(false);}
+    // The other steps show the two groups side by side again, as their text says.
+    if(nucleus){setPairView(false);setCompare(false);changeTarget("nuclei");setNucleusView(true);}else{setNucleusView(false);setPairView(true);}}
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
   const chooseComparison=()=>{if(!picked.length&&field)setPicked(field.channels.map(ch=>`${field.id}:${ch.id}`));setCompare(true);setPicker(true);};
 
@@ -389,7 +393,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   {([["core_contrast","候補中心の輝度差",0,65535,1],["minimum_peak_difference","局所背景との輝度差",0,65535,1],["minimum_peak_ratio","局所背景との輝度比",1,100,.1],["boundary_fraction","境界の輝度割合",.01,.99,.05],["minimum_solidity","充実度",0,1,.05],["minimum_circularity","円形度",0,1,.05]] as const).map(([key,label,min,max,step])=><NumberSetting key={key} label={label} value={nclDefaults[key]} min={min} max={max} step={step} onChange={v=>{if(v!==null){r.setNclParameter(field.id,key,v);queuePreview();}}}/>) }
 </>}</details>}</>}</fieldset>}</section>
         {!demo&&<details><summary>GFPによる対象選別</summary><ConnectedGfp key={gfpUnit} unit={gfpUnit} adapter={r.adapter} workspace={data?.workspaceId||""} fields={nuclearFields} channels={field?.channels||data?.channels||[]} disabled={busy} onClassified={(result,filter)=>void classify(result,filter)}/>{gfpFilter&&<button disabled={busy} onClick={()=>void act(async()=>{await r.saveSelection({field_ids:nuclearFields.map(value=>value.fieldId),gfp:null});setGfpSaved(null);})}>すべての{targets[classificationTarget]}を対象にする</button>}</details>}
-        {metricTarget(metric,target)!=="cell"&&<details><summary>チャンネルによる核の分類・陽性率</summary><ConnectedChannelGate recorded={demo} adapter={r.adapter} workspace={data?.workspaceId||""} fields={channelFields} channels={field?.channels||data?.channels||[]} disabled={busy} onClassified={classifyChannel}/>{channelFilter&&<button disabled={busy} onClick={()=>void act(async()=>{await r.saveSelection({field_ids:channelFields.map(value=>value.fieldId),gfp:null});setChannelSaved(null);})}>チャンネルによる分類を解除</button>}</details>}
+        {metricTarget(metric,target)!=="cell"&&gateChannels.length>0&&<details><summary>チャンネルによる核の分類・陽性率</summary><ConnectedChannelGate recorded={demo} adapter={r.adapter} workspace={data?.workspaceId||""} fields={channelFields} channels={gateChannels} disabled={busy} onClassified={classifyChannel}/>{channelFilter&&<button disabled={busy} onClick={()=>void act(async()=>{await r.saveSelection({field_ids:channelFields.map(value=>value.fieldId),gfp:null});setChannelSaved(null);})}>チャンネルによる分類を解除</button>}</details>}
         <section><h3>測定</h3><MetricSelect value={metric} onChange={setMetric} calibrated={calibrated} offered={id=>regionOffered(metricTarget(id,target))}/>{demo?<dl className={styles.recordedSettings}><div><dt>背景補正</dt><dd>{{raw:"なし（原値）",automatic:"自動推定",confirmed_roi:"背景ROI"}[r.settings.background]}</dd></div></dl>:<label>背景補正<select value={r.settings.background} disabled={busy} onChange={e=>setSetting("background",e.target.value as RuntimeSettings["background"])}><option value="raw">なし（原値）</option><option value="automatic">自動推定</option><option value="confirmed_roi">背景ROI</option></select></label>}{r.settings.background==="confirmed_roi"&&field&&<ConnectedBackground fieldId={field.id} fieldLabel={field.label} channels={field.channels.map(ch=>({...ch,role:ch.role||undefined}))} backgrounds={backgrounds} confirmedChannelIds={storedSpec?.confirmed_channel_ids||[]} disabled={r.busy} drawing={!!backgroundDraw} onDraw={channels=>{setCompare(false);setBackgroundDraw({field:field.id,channels,id:crypto.randomUUID()});}} onRemove={async channels=>{const updated={...backgrounds,[field.id]:{...backgrounds[field.id]}};for(const ch of channels)delete updated[field.id][ch];await r.saveBackgrounds(updated,storedSpec?.confirmed_channel_ids||[]);}}/>}</section>
       </>}
     </div></aside>}

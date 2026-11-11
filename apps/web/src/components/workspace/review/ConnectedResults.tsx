@@ -335,7 +335,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       </div>}
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
       <p className={styles.current}>{regionLabel(shownMetric,shownTarget)??"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
-      {positivityMissing&&<p role="status">陽性核数・陽性率には、設定の「チャンネルによる核の分類・陽性率」でチャンネルを選んで分類してください。</p>}
+      {positivityMissing&&<p role="status">陽性核数・陽性率には、「画像」の設定パネルにある「チャンネルによる核の分類・陽性率」で、チャンネルを選んで核を分類してください。</p>}
       {channelGate&&<div><p>{currentGate?`${channelGateName(currentGate.result)}の分類記録を確認しました。` :"集計対象・実験情報の変更後は、分類記録の確認が必要です。"}</p>
         <button type="button" disabled={disabled||!!busy||!sources.length||!!missing||!ledgerReady} onClick={()=>void classifyForResults()}>現在の実験情報で再分類</button>
         <small>判定記録の確認後に計算できます。陽性率の分母は選別前の判定可能な核です。</small>
@@ -363,7 +363,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         <label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認した</label>
         {datesMissing&&<p role="status">輝度を比べるには撮影日が必要です。「実験」で各実験回の撮影日を入力してください（日付を推定して補いません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力する</button>}</p>}
         {unconfirmed&&operation==="comparison"&&<p role="status">実験回が独立に行われたことが確認されていないため、検定と信頼区間は計算せず、実験回ごとの値と差を示します。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
-        {exploratory&&operation==="comparison"&&<p role="status">陰性対照で決めたしきい値ではないため（手動・Otsu）、陽性率と陽性の核数は検定と信頼区間を計算せず、実験回ごとの値と差を示します。検定するには、陰性対照の視野からしきい値を決めてください。</p>}
+        {exploratory&&operation==="comparison"&&<p role="status">陰性対照で決めたしきい値ではないため（手動・Otsu）、陽性率と陽性の核数は検定と信頼区間を計算せず、実験回ごとの値と差を示します。検定するには、陰性対照の視野からしきい値を決めてください{demo?"（公開デモでは選べません。お手元の画像で使えます）":""}。</p>}
         {independenceMissing&&<p role="status">相関の検定には、実験回が独立に行われたことの確認が必要です。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験の形で確認する</button>}</p>}
         <button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>
       </>:<>

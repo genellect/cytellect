@@ -88,9 +88,9 @@ if (await pair.count() && await pair.getAttribute("aria-pressed") === "true") aw
 for (let waited = 0; waited < 360 && await cards.count() < config.fields; waited++) await page.waitForTimeout(500);
 const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
-/** A save button's download, awaited so its GET is recorded (the page keeps no copy of the file). */
 /** Whether a control appears (a table's save button shows once the table has arrived). */
 const appears = (locator, timeout = 60000) => locator.waitFor({state: "visible", timeout}).then(() => true, () => false);
+/** A save button's download, awaited so its GET is recorded (the page keeps no copy of the file). */
 async function saved(button) {
   const download = page.waitForEvent("download", {timeout: 180000});
   await button.click();

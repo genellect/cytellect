@@ -595,6 +595,8 @@
   "pairing_basis": "同じ実験回（プレート）の対照と PLK1 ノックアウト",
   "nucleoli": false,
   "opening": "comparison",
+  "gate_channels": [],
+  "gate_channels_note": "この場面は核染色（DNA）だけなので、核の分類と陽性率は出さない。核染色の強さで陽性・陰性を分けても生物学的な意味がないため（2026-11-11、オーナーの判断）。",
   "statistics": {
    "distribution": {
     "target": "nuclei",

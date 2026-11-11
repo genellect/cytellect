@@ -1679,7 +1679,8 @@ def main(argv: list[str] | None = None) -> None:
             {"id": manifest["id"] if len(manifests) > 1 else "", "workspace": scenes[manifest["id"]]["scenario"]["workspace_id"],
              "regions": scene_regions(manifest),
              "examples": len((manifest["scenario"].get("proposals") or {}).get("presets", [])),
-             "rank": rank_examples(manifest)} for _, manifest in manifests])
+             "rank": rank_examples(manifest),
+             "gateChannels": manifest["scenario"].get("gate_channels", [])} for _, manifest in manifests])
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
@@ -1710,6 +1711,7 @@ def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
             "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"),
             "regions": scene_regions(manifest), "target": manifest["scenario"].get("final_target", "nuclei"),
+            "gateChannels": manifest["scenario"].get("gate_channels", []),
             **opening_channel(manifest), "examples": examples, "assistantScope": manifest.get("assistant_scope"),
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}
                        for index, item in enumerate(scene.get("prepared", []))]}

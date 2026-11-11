@@ -77,7 +77,8 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
   useEffect(()=>{panel.current?.scrollIntoView?.({block:"nearest"});},[]);
   return <section ref={panel} className={styles.panel} aria-label="区画への分配">
     <div><h3>区画への分配</h3><p className={styles.intro}>{fieldLabel}の同じ核で、対象と参照に含まれる信号を比較します。</p></div>
-    {!nuclearRevisionId?<p>この視野の核領域を採用すると、対象・参照・測定チャンネルを選べます。</p>:<>
+    {!nuclearRevisionId?<p>この視野の核領域を採用すると、対象・参照・測定チャンネルを選べます。</p>
+    :sources.length<2?<p>核の中の 2 つの領域（核小体と核質など）を測定すると、その間で信号の分配を比べられます。この視野で測定した核の中の領域は {sources.length} つです。</p>:<>
       <p className={styles.source}>親核：{nuclearLabel??"採用した核領域"}</p>
       <fieldset className={styles.choices} disabled={current?.loading||exporting}>
         <legend>測定する入力</legend>

@@ -14,7 +14,7 @@ const PUBLISHED = fs.existsSync(path.resolve("public/showcase/seed.zip"));
 const live = 240_000;
 
 /** The published scenes (snapshot/scenes.json); a single-scene demo reads as one scene without an id. */
-interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; fields: unknown[]}
+interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; fields: unknown[]; gateChannels?: string[]}
 const SCENES: Scene[] = (() => {
   try {return (JSON.parse(fs.readFileSync(path.resolve("public/showcase/snapshot/scenes.json"), "utf8")) as {scenes: Scene[]}).scenes;}
   catch {return [];}
@@ -513,6 +513,8 @@ test("operations the recording does not hold are explained at once, without the 
   await expect(recorded).toContainText("0.5");
   await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
+  // A scene without a stain worth classifying by offers no classification.
+  if (OPENING?.gateChannels && !OPENING.gateChannels.length) await expect(inspector.locator("summary", {hasText: "チャンネルによる核の分類"})).toHaveCount(0);
   // A hand correction of an outline side by side is explained at once, as in one field: each pane has the same tools.
   const pair = page.getByRole("button", {name: "2 画面", exact: true});
   if (await pair.getAttribute("aria-pressed") === "true") {
@@ -823,6 +825,10 @@ test("the nucleus table, the partition table and positivity by a channel open fr
   await inspector.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"}).click();
   const gate = inspector.getByRole("region", {name: "チャンネルによる核の分類"});
   expect(await gate.getByLabel("判定方法").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["batch_otsu"]);
+  // Only the stains whose positive and negative nuclei mean something, and the positive nuclei kept.
+  const offered = await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
+  if (NUCLEOLAR?.gateChannels) expect(offered).toEqual(NUCLEOLAR.gateChannels);
+  expect(await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["positive"]);
   const channel = (await gate.getByLabel("判定するチャンネル").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean)))[0];
   await gate.getByLabel("判定するチャンネル").selectOption(channel);
   await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
